@@ -295,6 +295,19 @@ namespace RafiqPOS.Models
         [JsonProperty("therapeuticAlternatives")]
         public List<DrugAlternativeItem> TherapeuticAlternatives { get; set; }
 
+        // TypeScript Contract Aliases (Frontend Compatibility)
+        [JsonProperty("tier1IdenticalGenerics")]
+        public List<DrugAlternativeItem> Tier1IdenticalGenerics { get { return ExactGenerics; } set { ExactGenerics = value; } }
+
+        [JsonProperty("tier2DifferentForms")]
+        public List<DrugAlternativeItem> Tier2DifferentForms { get { return DifferentForms; } set { DifferentForms = value; } }
+
+        [JsonProperty("tier3DifferentStrengths")]
+        public List<DrugAlternativeItem> Tier3DifferentStrengths { get { return DifferentStrengths; } set { DifferentStrengths = value; } }
+
+        [JsonProperty("tier4TherapeuticAlternatives")]
+        public List<DrugAlternativeItem> Tier4TherapeuticAlternatives { get { return TherapeuticAlternatives; } set { TherapeuticAlternatives = value; } }
+
         public DrugAlternativesResult()
         {
             ExactGenerics = new List<DrugAlternativeItem>();

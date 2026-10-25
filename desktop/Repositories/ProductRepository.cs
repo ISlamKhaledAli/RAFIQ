@@ -712,6 +712,20 @@ namespace RafiqPOS.Repositories
                         {
                             product.Id = Guid.NewGuid().ToString();
                         }
+
+                        long oldStockMilli = 0;
+                        bool productExisted = false;
+                        using (var chkCmd = new SQLiteCommand("SELECT stock_quantity_milli FROM products WHERE id = @pid;", conn, trans))
+                        {
+                            chkCmd.Parameters.AddWithValue("@pid", product.Id);
+                            var scalar = chkCmd.ExecuteScalar();
+                            if (scalar != null && scalar != DBNull.Value)
+                            {
+                                productExisted = true;
+                                oldStockMilli = Convert.ToInt64(scalar);
+                            }
+                        }
+
                         string normName = Common.ArabicTextNormalizer.Normalize(product.Name ?? "");
                         string sql = @"
                             INSERT INTO products (
@@ -733,6 +747,7 @@ namespace RafiqPOS.Repositories
                                 category_id = excluded.category_id,
                                 price_piasters = excluded.price_piasters,
                                 cost_piasters = excluded.cost_piasters,
+                                stock_quantity_milli = excluded.stock_quantity_milli,
                                 min_stock_quantity_milli = excluded.min_stock_quantity_milli,
                                 unit = excluded.unit,
                                 tax_rate_percent = excluded.tax_rate_percent,
@@ -779,6 +794,82 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@isColdChain", product.IsColdChain ? 1 : 0);
                             cmd.Parameters.AddWithValue("@preferredSupplierId", string.IsNullOrWhiteSpace(product.PreferredSupplierId) ? (object)DBNull.Value : product.PreferredSupplierId);
                             cmd.ExecuteNonQuery();
+                        }
+
+                        // Synchronize product_batches if stock changed on existing product
+                        if (productExisted && oldStockMilli != product.StockQuantityMilli)
+                        {
+                            long deltaMilli = product.StockQuantityMilli - oldStockMilli;
+                            string nowStr = DateTime.UtcNow.ToString("o");
+                            if (deltaMilli > 0)
+                            {
+                                using (var upBatch = new SQLiteCommand(@"
+                                    UPDATE product_batches
+                                    SET quantity_milli = quantity_milli + @delta,
+                                        status = 'ACTIVE',
+                                        updated_at = @now
+                                    WHERE id = (
+                                        SELECT id FROM product_batches
+                                        WHERE product_id = @pid
+                                        ORDER BY CASE WHEN status = 'ACTIVE' THEN 0 ELSE 1 END ASC,
+                                                 CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END ASC,
+                                                 expiry_date DESC,
+                                                 created_at DESC
+                                        LIMIT 1
+                                    );
+                                ", conn, trans))
+                                {
+                                    upBatch.Parameters.AddWithValue("@delta", deltaMilli);
+                                    upBatch.Parameters.AddWithValue("@now", nowStr);
+                                    upBatch.Parameters.AddWithValue("@pid", product.Id);
+                                    upBatch.ExecuteNonQuery();
+                                }
+                            }
+                            else if (deltaMilli < 0)
+                            {
+                                long toDeduct = -deltaMilli;
+                                var batchList = new List<KeyValuePair<string, long>>();
+                                using (var selBatches = new SQLiteCommand(@"
+                                    SELECT id, quantity_milli FROM product_batches
+                                    WHERE product_id = @pid AND quantity_milli > 0
+                                    ORDER BY CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END ASC,
+                                             expiry_date ASC,
+                                             created_at ASC;
+                                ", conn, trans))
+                                {
+                                    selBatches.Parameters.AddWithValue("@pid", product.Id);
+                                    using (var r = selBatches.ExecuteReader())
+                                    {
+                                        while (r.Read())
+                                        {
+                                            batchList.Add(new KeyValuePair<string, long>(r["id"].ToString(), Convert.ToInt64(r["quantity_milli"])));
+                                        }
+                                    }
+                                }
+
+                                foreach (var b in batchList)
+                                {
+                                    if (toDeduct <= 0) break;
+                                    long take = Math.Min(toDeduct, b.Value);
+                                    long rem = b.Value - take;
+                                    string status = rem > 0 ? "ACTIVE" : "DEPLETED";
+                                    using (var upB = new SQLiteCommand(@"
+                                        UPDATE product_batches
+                                        SET quantity_milli = @qty,
+                                            status = @status,
+                                            updated_at = @now
+                                        WHERE id = @bid;
+                                    ", conn, trans))
+                                    {
+                                        upB.Parameters.AddWithValue("@qty", rem);
+                                        upB.Parameters.AddWithValue("@status", status);
+                                        upB.Parameters.AddWithValue("@now", nowStr);
+                                        upB.Parameters.AddWithValue("@bid", b.Key);
+                                        upB.ExecuteNonQuery();
+                                    }
+                                    toDeduct -= take;
+                                }
+                            }
                         }
 
                         // Synchronize product_barcodes table
@@ -1187,6 +1278,92 @@ namespace RafiqPOS.Repositories
                     }
                 }
             }
+        }
+
+        public int BulkSoftDelete(List<string> ids)
+        {
+            if (ids == null || ids.Count == 0) return 0;
+            string now = DateTime.UtcNow.ToString("o");
+            int affected = 0;
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("UPDATE products SET is_active = 0, updated_at = @updatedAt WHERE id = @id;", conn, trans))
+                        using (var delVarRelCmd = new SQLiteCommand("DELETE FROM product_variants WHERE variant_product_id = @id;", conn, trans))
+                        using (var cCmd = new SQLiteCommand("UPDATE products SET is_active = 0, updated_at = @updatedAt WHERE parent_id = @id;", conn, trans))
+                        {
+                            cmd.Parameters.Add("@id", System.Data.DbType.String);
+                            cmd.Parameters.Add("@updatedAt", System.Data.DbType.String).Value = now;
+
+                            delVarRelCmd.Parameters.Add("@id", System.Data.DbType.String);
+
+                            cCmd.Parameters.Add("@id", System.Data.DbType.String);
+                            cCmd.Parameters.Add("@updatedAt", System.Data.DbType.String).Value = now;
+
+                            foreach (var id in ids)
+                            {
+                                if (string.IsNullOrWhiteSpace(id)) continue;
+                                cmd.Parameters["@id"].Value = id;
+                                affected += cmd.ExecuteNonQuery();
+
+                                delVarRelCmd.Parameters["@id"].Value = id;
+                                delVarRelCmd.ExecuteNonQuery();
+
+                                cCmd.Parameters["@id"].Value = id;
+                                cCmd.ExecuteNonQuery();
+                            }
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
+            return affected;
+        }
+
+        public int ClearAllProducts()
+        {
+            string now = DateTime.UtcNow.ToString("o");
+            int affected = 0;
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("UPDATE products SET is_active = 0, updated_at = @updatedAt WHERE is_active = 1;", conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@updatedAt", now);
+                            affected = cmd.ExecuteNonQuery();
+                        }
+
+                        using (var delVarRelCmd = new SQLiteCommand("DELETE FROM product_variants;", conn, trans))
+                        {
+                            delVarRelCmd.ExecuteNonQuery();
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
+            return affected;
         }
 
         private static Product MapReaderToProduct(SQLiteDataReader reader)

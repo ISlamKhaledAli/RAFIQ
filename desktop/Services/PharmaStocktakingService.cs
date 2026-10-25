@@ -79,7 +79,7 @@ namespace RafiqPOS.Services
 
                 // 2. Build products query with dynamic filters
                 List<string> whereParts = new List<string>();
-                whereParts.Add("p.is_archived = 0");
+                whereParts.Add("p.is_active = 1");
 
                 if (!string.IsNullOrEmpty(locationId))
                 {

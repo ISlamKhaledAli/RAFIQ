@@ -134,6 +134,13 @@ export const SettingsView = ({
         if (!active) return;
         if (settings) {
           if (settings.store_name) setStoreName(settings.store_name);
+          if (settings.store_type) {
+            try {
+              localStorage.setItem('rafiq_store_type', settings.store_type);
+            } catch {
+              // ignore
+            }
+          }
           if (settings.cashier_name) setCashierName(settings.cashier_name);
           if (settings.store_phone) setPhone(settings.store_phone);
           if (settings.store_address) setAddress(settings.store_address);

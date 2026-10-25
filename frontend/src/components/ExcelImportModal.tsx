@@ -106,7 +106,17 @@ export const ExcelImportModal = ({
         return;
       }
 
-      const validated = validateImportRows(rawRows, existingProducts, categories);
+      let activeProducts = existingProducts;
+      try {
+        const allRes = await invoke<Product[]>('products:getAll', { limit: 10000 });
+        if (Array.isArray(allRes)) {
+          activeProducts = allRes;
+        }
+      } catch {
+        // fallback to existingProducts prop
+      }
+
+      const validated = validateImportRows(rawRows, activeProducts, categories);
       setParsedRows(validated);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'تعذر قراءة ملف الإكسل. يرجى التأكد من سلامة الملف.';

@@ -12,9 +12,11 @@ import {
   CATEGORY_ICON_MAP, 
   detectSmartCategoryIconKey, 
   setCustomCategoryIcon,
-  getCustomCategoryIconKey
+  getCustomCategoryIconKey,
+  type CategoryIconDef
 } from '../utils/categoryIcons';
 import { normalizeArabicText } from '../utils/money';
+import { getCurrentStoreType } from '../utils/storeTerminology';
 
 interface CategoryIconPickerModalProps {
   categoryName: string;
@@ -23,18 +25,25 @@ interface CategoryIconPickerModalProps {
   onIconSelected?: (iconKey: string | null) => void;
 }
 
+interface FilterTab {
+  id: string;
+  label: string;
+  matcher: (item: CategoryIconDef) => boolean;
+}
+
 export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = ({
   categoryName,
   categoryId,
   onClose,
   onIconSelected
 }) => {
+  const storeType = useMemo(() => getCurrentStoreType(), []);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState<'all' | 'food' | 'grocery' | 'general'>('all');
+  const [selectedTabId, setSelectedTabId] = useState<string>('recommended');
 
   const smartSuggestedKey = useMemo(() => {
-    return detectSmartCategoryIconKey(categoryName);
-  }, [categoryName]);
+    return detectSmartCategoryIconKey(categoryName, storeType);
+  }, [categoryName, storeType]);
 
   const currentCustomKey = useMemo(() => {
     return getCustomCategoryIconKey(categoryName, categoryId);
@@ -43,17 +52,224 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
   const activeKey = currentCustomKey || smartSuggestedKey;
   const isAutoMode = !currentCustomKey;
 
+  // Custom filter tabs per store profile to reduce distraction and clutter
+  const filterTabs = useMemo<FilterTab[]>(() => {
+    if (storeType === 'pharmacy') {
+      return [
+        {
+          id: 'recommended',
+          label: 'الموصى به للصيدلية',
+          matcher: (item) => Boolean(item.storeTypes?.includes('pharmacy') || item.group === 'pharmacy')
+        },
+        {
+          id: 'meds',
+          label: 'أدوية وعلاج',
+          matcher: (item) => ['Pill', 'Syringe', 'Bandage', 'FlaskConical', 'Stethoscope'].includes(item.key)
+        },
+        {
+          id: 'systemic',
+          label: 'قلب وسكر وباطنة',
+          matcher: (item) => ['HeartPulse', 'Droplet', 'Wind', 'ShieldPlus'].includes(item.key)
+        },
+        {
+          id: 'care',
+          label: 'أطفال وتجميل وحواس',
+          matcher: (item) => ['Baby', 'Sparkles', 'Smile', 'Eye', 'Ear', 'Zap', 'Thermometer', 'ShieldCheck'].includes(item.key)
+        },
+        {
+          id: 'all',
+          label: 'كل الأيقونات',
+          matcher: () => true
+        }
+      ];
+    }
+
+    if (storeType === 'clothing_apparel') {
+      return [
+        {
+          id: 'recommended',
+          label: 'الموصى به للملابس',
+          matcher: (item) => Boolean(item.storeTypes?.includes('clothing_apparel') || item.group === 'clothing')
+        },
+        {
+          id: 'wear',
+          label: 'أزياء وملابس',
+          matcher: (item) => ['Shirt', 'Crown', 'Baby', 'Scissors'].includes(item.key)
+        },
+        {
+          id: 'shoes_bags',
+          label: 'أحذية وشنط',
+          matcher: (item) => ['Footprints', 'Luggage', 'ShoppingBag'].includes(item.key)
+        },
+        {
+          id: 'accessories',
+          label: 'إكسسوارات وساعات',
+          matcher: (item) => ['Watch', 'Glasses', 'Gem', 'Tag'].includes(item.key)
+        },
+        {
+          id: 'all',
+          label: 'كل الأيقونات',
+          matcher: () => true
+        }
+      ];
+    }
+
+    if (storeType === 'phones_electronics') {
+      return [
+        {
+          id: 'recommended',
+          label: 'الموصى به للإلكترونيات',
+          matcher: (item) => Boolean(item.storeTypes?.includes('phones_electronics') || item.group === 'electronics')
+        },
+        {
+          id: 'devices',
+          label: 'هواتف وأجهزة',
+          matcher: (item) => ['Smartphone', 'Laptop', 'Tv', 'Camera'].includes(item.key)
+        },
+        {
+          id: 'audio_game',
+          label: 'صوتيات وجيمينج',
+          matcher: (item) => ['Headphones', 'Speaker', 'Gamepad2', 'Watch'].includes(item.key)
+        },
+        {
+          id: 'cables_parts',
+          label: 'شواحن وكابلات وقطع',
+          matcher: (item) => ['Battery', 'Plug', 'Cable', 'Cpu', 'HardDrive', 'Lightbulb'].includes(item.key)
+        },
+        {
+          id: 'all',
+          label: 'كل الأيقونات',
+          matcher: () => true
+        }
+      ];
+    }
+
+    if (storeType === 'spices_roastery') {
+      return [
+        {
+          id: 'recommended',
+          label: 'الموصى به للعطارة والبن',
+          matcher: (item) => Boolean(item.storeTypes?.includes('spices_roastery') || item.group === 'roastery')
+        },
+        {
+          id: 'coffee',
+          label: 'بن ومشروبات',
+          matcher: (item) => ['Coffee', 'Soup', 'CupSoda'].includes(item.key)
+        },
+        {
+          id: 'spices',
+          label: 'توابل وأعشاب',
+          matcher: (item) => ['Flame', 'Leaf', 'Flower2', 'Wheat'].includes(item.key)
+        },
+        {
+          id: 'nuts',
+          label: 'تسالي ومكسرات',
+          matcher: (item) => ['Bean', 'Popcorn', 'Apple', 'Scale'].includes(item.key)
+        },
+        {
+          id: 'all',
+          label: 'كل الأيقونات',
+          matcher: () => true
+        }
+      ];
+    }
+
+    if (storeType === 'produce_butchery') {
+      return [
+        {
+          id: 'recommended',
+          label: 'الموصى به للجزارة والطازج',
+          matcher: (item) => Boolean(item.storeTypes?.includes('produce_butchery') || item.group === 'butchery')
+        },
+        {
+          id: 'meats',
+          label: 'لحوم ودواجن وأسماك',
+          matcher: (item) => ['Beef', 'Drumstick', 'Fish', 'UtensilsCrossed'].includes(item.key)
+        },
+        {
+          id: 'fresh',
+          label: 'خضار وفاكهة وبيض',
+          matcher: (item) => ['Apple', 'Carrot', 'Egg', 'Snowflake', 'Scale'].includes(item.key)
+        },
+        {
+          id: 'all',
+          label: 'كل الأيقونات',
+          matcher: () => true
+        }
+      ];
+    }
+
+    if (storeType === 'dairy_bakery') {
+      return [
+        {
+          id: 'recommended',
+          label: 'الموصى به للألبان والمخبوزات',
+          matcher: (item) => Boolean(item.storeTypes?.includes('dairy_bakery') || item.group === 'bakery')
+        },
+        {
+          id: 'dairy',
+          label: 'ألبان وأجبان',
+          matcher: (item) => ['Milk', 'Egg', 'Snowflake', 'IceCream'].includes(item.key)
+        },
+        {
+          id: 'bakery',
+          label: 'مخبوزات وحلويات',
+          matcher: (item) => ['Croissant', 'Cake', 'Cookie', 'Candy', 'Wheat', 'Coffee'].includes(item.key)
+        },
+        {
+          id: 'all',
+          label: 'كل الأيقونات',
+          matcher: () => true
+        }
+      ];
+    }
+
+    // Default: Supermarket / General Grocery
+    return [
+      {
+        id: 'recommended',
+        label: 'الموصى به للمتجر',
+        matcher: (item) => Boolean(item.storeTypes?.includes('supermarket') || item.group === 'food' || item.group === 'grocery')
+      },
+      {
+        id: 'food',
+        label: 'أغذية ومشروبات',
+        matcher: (item) => item.group === 'food' || item.group === 'bakery'
+      },
+      {
+        id: 'fresh',
+        label: 'طازج ومجمدات',
+        matcher: (item) => item.group === 'grocery' || item.group === 'butchery'
+      },
+      {
+        id: 'general',
+        label: 'منظفات وعامة',
+        matcher: (item) => item.group === 'general'
+      },
+      {
+        id: 'all',
+        label: 'كل الأيقونات',
+        matcher: () => true
+      }
+    ];
+  }, [storeType]);
+
+  const activeTab = useMemo(() => {
+    return filterTabs.find((t) => t.id === selectedTabId) || filterTabs[0];
+  }, [filterTabs, selectedTabId]);
+
   const filteredIcons = useMemo(() => {
     const query = normalizeArabicText(searchQuery.trim());
     return CATEGORY_ICON_CATALOG.filter((item) => {
-      if (selectedGroup !== 'all' && item.group !== selectedGroup) {
-        return false;
+      // If user is searching, search everywhere across catalog
+      if (query) {
+        const itemName = normalizeArabicText(item.name);
+        return itemName.includes(query) || item.key.toLowerCase().includes(query.toLowerCase());
       }
-      if (!query) return true;
-      const itemName = normalizeArabicText(item.name);
-      return itemName.includes(query) || item.key.toLowerCase().includes(query.toLowerCase());
+      // Otherwise filter by selected tab matcher
+      return activeTab.matcher(item);
     });
-  }, [searchQuery, selectedGroup]);
+  }, [searchQuery, activeTab]);
 
   const handleSelectIcon = (key: string | null) => {
     setCustomCategoryIcon(categoryId || categoryName, key);
@@ -110,17 +326,18 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
                 {SmartIconComponent && <SmartIconComponent className="w-5 h-5" />}
               </div>
               <div>
-                <div className="flex items-center gap-1.5 font-bold text-ink text-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-brand" />
-                  <span>الاقتراح الذكي للنظام</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-ink">الأيقونة الذكية المقترحة:</span>
+                  <span className="font-mono text-brand font-bold">{smartSuggestedKey}</span>
                   {isAutoMode && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand text-white">
-                      مفعّل حالياً
+                    <span className="text-[10px] bg-brand text-white font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>نشطة حالياً</span>
                     </span>
                   )}
                 </div>
                 <p className="text-[11px] text-ink-muted mt-0.5">
-                  تم تحديدها تلقائياً بالذكاء الاصطناعي بناءً على اسم القسم.
+                  تم تحديدها تلقائياً بناءً على نشاط المحل واسم القسم بدقة لمنع التشتيت.
                 </p>
               </div>
             </div>
@@ -138,13 +355,13 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
             )}
           </div>
 
-          {/* Search Bar & Filter Tabs */}
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-1">
+          {/* Search Bar & Store Tailored Filter Tabs */}
+          <div className="flex flex-col gap-2">
+            <div className="relative w-full">
               <Search className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" />
               <input
                 type="text"
-                placeholder="ابحث في الأيقونات (مثال: حليب، خضار، دخان، عصير)..."
+                placeholder="ابحث في جميع الأيقونات بالاسم أو الكود..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-surface border border-line rounded-lg h-9 pr-9 pl-3 text-xs text-ink focus:outline-none focus:border-brand"
@@ -152,52 +369,25 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
               />
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-lg border border-line shrink-0">
-              <button
-                type="button"
-                onClick={() => setSelectedGroup('all')}
-                className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
-                  selectedGroup === 'all'
-                    ? 'bg-surface text-brand shadow-xs border border-line'
-                    : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                الكل
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedGroup('food')}
-                className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
-                  selectedGroup === 'food'
-                    ? 'bg-surface text-brand shadow-xs border border-line'
-                    : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                أغذية ومشروبات
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedGroup('grocery')}
-                className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
-                  selectedGroup === 'grocery'
-                    ? 'bg-surface text-brand shadow-xs border border-line'
-                    : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                بقالة وطازج
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedGroup('general')}
-                className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
-                  selectedGroup === 'general'
-                    ? 'bg-surface text-brand shadow-xs border border-line'
-                    : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                تجزئة وعامة
-              </button>
+            {/* Filter Tabs (Tailored to active store type) */}
+            <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-lg border border-line overflow-x-auto shrink-0">
+              {filterTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTabId(tab.id);
+                    setSearchQuery('');
+                  }}
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer ${
+                    selectedTabId === tab.id && !searchQuery
+                      ? 'bg-surface text-brand shadow-xs border border-line'
+                      : 'text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -255,7 +445,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
 
         {/* Footer */}
         <div className="h-11 bg-surface-2 hairline-t px-4 flex items-center justify-between text-[11px] text-ink-muted">
-          <span>يتم تطبيق الأيقونة فوراً في الكاشير وشاشات المنتجات.</span>
+          <span>يتم تطبيق الأيقونة فوراً في شريط الكاشير وكافة شاشات المتجر.</span>
           <button
             type="button"
             onClick={onClose}

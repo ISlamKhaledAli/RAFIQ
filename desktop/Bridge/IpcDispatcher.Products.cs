@@ -203,6 +203,31 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, new { success = true, deletedId = prodIdToDelete });
                     return true;
 
+                case "products:bulkDelete":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "قائمة الأصناف المراد حذفها فارغة");
+                        return true;
+                    }
+                    JObject bulkDelObj = request.Payload as JObject;
+                    List<string> idsToDelete = null;
+                    if (bulkDelObj != null && bulkDelObj["ids"] != null)
+                    {
+                        idsToDelete = bulkDelObj["ids"].ToObject<List<string>>();
+                    }
+                    else
+                    {
+                        idsToDelete = JsonConvert.DeserializeObject<List<string>>(request.Payload.ToString());
+                    }
+                    int deletedCount = DatabaseService.Products.BulkDeleteProducts(idsToDelete);
+                    response = BridgeResponse.Ok(request.Id, new { success = true, deletedCount = deletedCount });
+                    return true;
+
+                case "products:clearAll":
+                    int clearedCount = DatabaseService.Products.ClearAllProducts();
+                    response = BridgeResponse.Ok(request.Id, new { success = true, clearedCount = clearedCount });
+                    return true;
+
                 case "products:bulkUpdateMinStock":
                     if (request.Payload == null)
                     {
@@ -618,6 +643,7 @@ namespace RafiqPOS.Bridge
                 #region Feature #183 / Story 126: Multi-Pack Loose Selling & Packaging Wizard
 
                 case "products:rebaseUnit":
+                case "products:rebaseBaseUnit":
                     JObject rebaseObj = request.Payload as JObject;
                     if (rebaseObj == null)
                     {
@@ -670,10 +696,13 @@ namespace RafiqPOS.Bridge
                     string defPur = pkgObj["defaultPurchaseUnitId"] != null ? pkgObj["defaultPurchaseUnitId"].ToString() : null;
                     string dispUnit = pkgObj["displayUnitId"] != null ? pkgObj["displayUnitId"].ToString() : null;
                     bool isLoose = pkgObj["isLooseSellable"] != null && pkgObj["isLooseSellable"].Value<bool>();
+                    int? multiplyFactor = (pkgObj["multiplyStockByFactor"] != null && pkgObj["multiplyStockByFactor"].Type != Newtonsoft.Json.Linq.JTokenType.Null)
+                        ? pkgObj["multiplyStockByFactor"].Value<int>()
+                        : (int?)null;
 
                     try
                     {
-                        var updatedProduct = DatabaseService.Products.SavePackagingLevels(pkgPid, pkgUnits, defSale, defPur, dispUnit, isLoose);
+                        var updatedProduct = DatabaseService.Products.SavePackagingLevels(pkgPid, pkgUnits, defSale, defPur, dispUnit, isLoose, multiplyFactor);
                         response = BridgeResponse.Ok(request.Id, updatedProduct);
                     }
                     catch (Exception ex)

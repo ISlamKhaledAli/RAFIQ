@@ -10,10 +10,14 @@ import {
   Layers,
   Calendar,
   AlertTriangle,
+  Building2,
+  HeartPulse,
 } from 'lucide-react';
 import type { ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
+import type { InsuranceClaimLine } from '../../types/insurance';
 import { useFeatures } from '../../context/useFeatures';
+import { getStoreTerminology } from '../../utils/storeTerminology';
 
 interface PosCatalogPanelProps {
   smartItems: SmartCatalogItem[];
@@ -28,6 +32,10 @@ interface PosCatalogPanelProps {
   onOpenQuickFastItemModal: () => void;
   onOpenQuickItemsManager: () => void;
   onOpenVariantMatrixModal?: () => void;
+  onOpenInsuranceModal?: () => void;
+  onOpenChronicDispense?: () => void;
+  activeInsuranceClaim?: InsuranceClaimLine | null;
+  isCartEmpty?: boolean;
   totalCatalogProductsCount?: number;
   categories?: Category[];
 }
@@ -45,6 +53,10 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   onOpenQuickFastItemModal,
   onOpenQuickItemsManager: _onOpenQuickItemsManager,
   onOpenVariantMatrixModal,
+  onOpenInsuranceModal,
+  onOpenChronicDispense,
+  activeInsuranceClaim,
+  isCartEmpty = false,
   totalCatalogProductsCount = 0,
   categories: _categories = [],
 }) => {
@@ -57,6 +69,8 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
     setPrevFilter({ tab: activeCatalogTab, query: catalogSearchQuery });
     setVisibleCount(40);
   }
+
+  const terminology = React.useMemo(() => getStoreTerminology(), []);
 
   const itemsToRender = React.useMemo(() => {
     return displayedCatalogItems.slice(0, visibleCount);
@@ -88,6 +102,35 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {onOpenInsuranceModal && isEnabled('feature_insurance') && (
+            <button
+              type="button"
+              onClick={onOpenInsuranceModal}
+              disabled={isCartEmpty}
+              className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap border disabled:opacity-50 disabled:cursor-not-allowed ${
+                activeInsuranceClaim
+                  ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/30 hover:bg-paid-soft/80'
+                  : 'bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft text-brand dark:text-brand-bright border-line dark:border-line-dark hover:border-brand/30'
+              }`}
+              title={isCartEmpty ? "يرجى إضافة أدوية للسلة أولاً لتطبيق التأمين" : activeInsuranceClaim ? "تعديل روشتة التأمين المطبقة" : "تطبيق روشتة تأمين طبي للشركات والتعاقدات"}
+            >
+              <Building2 className="w-3.5 h-3.5 shrink-0" />
+              <span>{activeInsuranceClaim ? 'تأمين (مُفعّل)' : 'تأمين'}</span>
+            </button>
+          )}
+
+          {onOpenChronicDispense && isEnabled('feature_patient_profiles') && (
+            <button
+              type="button"
+              onClick={onOpenChronicDispense}
+              className="flex items-center gap-1 text-[11px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 hover:bg-paid/20 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+              title="صرف أدوية الأمراض المزمنة للمرضى المسجلين بنقرة واحدة"
+            >
+              <HeartPulse className="w-3.5 h-3.5 shrink-0 text-paid dark:text-paid-bright" />
+              <span>علاج شهري</span>
+            </button>
+          )}
+
           {isEnabled('feature_matrix_variants') && onOpenVariantMatrixModal && (
             <button
               type="button"
@@ -213,7 +256,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                     <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50 px-1.5 py-0.2 rounded flex items-center gap-1 font-mono">
                       {item.variantColor && <span>{item.variantColor}</span>}
                       {item.variantColor && item.variantSize && <span className="opacity-40">|</span>}
-                      {item.variantSize && <span>مقاس: {item.variantSize}</span>}
+                      {item.variantSize && <span>{terminology.badgePrefix}: {item.variantSize}</span>}
                     </span>
                   )}
 
@@ -323,7 +366,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 {item.hasVariants ? (
                   <span className="text-[10px] font-bold text-purple-700 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-2xs group-hover:bg-purple-600 group-hover:text-white transition-all">
                     <Layers className="w-3 h-3 text-purple-600 group-hover:text-white transition-colors" />
-                    <span>اختر المقاس واللون ↵</span>
+                    <span>{terminology.pickVariantPrompt}</span>
                   </span>
                 ) : (
                   <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted opacity-0 group-hover:opacity-100 transition-opacity font-medium">

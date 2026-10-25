@@ -74,6 +74,15 @@ namespace RafiqPOS.Repositories
                     throw new InvalidOperationException("لا يمكن إعادة تأسيس صنف يحتوي على مقاسات أو ألوان في الإصدار الحالي.");
                 }
 
+                string oldUnitName = !string.IsNullOrWhiteSpace(product.Unit) ? product.Unit.Trim() : "علبة";
+                string cleanNewBase = newBaseUnitName.Trim();
+
+                // Strict Identity Guard: Block rebasing if current unit is already the new base unit
+                if (string.Equals(oldUnitName, cleanNewBase, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(string.Format("الوحدة الأساسية الحالية للصنف مسجلة بالفعل باسم '{0}'. لا يمكن إعادة تأسيس المخزن لنفس الوحدة تجنباً لتكرار مضاعفة الأرصدة.", oldUnitName));
+                }
+
                 // Check pending held sales for this product in current open shifts
                 using (var heldCmd = new SQLiteCommand(@"
                     SELECT COUNT(*) FROM held_sales 
@@ -98,9 +107,6 @@ namespace RafiqPOS.Repositories
                         long oldMinStockMilli = product.MinStockQuantityMilli;
                         long newMinStockMilli = oldMinStockMilli * rebaseFactor;
 
-                        string oldUnitName = !string.IsNullOrWhiteSpace(product.Unit) ? product.Unit.Trim() : "علبة";
-                        string cleanNewBase = newBaseUnitName.Trim();
-
                         // Multiply batches
                         using (var bCmd = new SQLiteCommand("UPDATE product_batches SET quantity_milli = quantity_milli * @f, updated_at = @now WHERE product_id = @pid;", conn, trans))
                         {
@@ -110,15 +116,7 @@ namespace RafiqPOS.Repositories
                             bCmd.ExecuteNonQuery();
                         }
 
-                        // Multiply conversion factor of existing non-base units
-                        using (var puCmd = new SQLiteCommand("UPDATE product_units SET conversion_factor = conversion_factor * @f, is_base_unit = 0, updated_at = @now WHERE product_id = @pid;", conn, trans))
-                        {
-                            puCmd.Parameters.AddWithValue("@f", rebaseFactor);
-                            puCmd.Parameters.AddWithValue("@now", now);
-                            puCmd.Parameters.AddWithValue("@pid", productId);
-                            puCmd.ExecuteNonQuery();
-                        }
-
+                        // Clean up any stale/conflicting units before establishing new hierarchy
                         // Ensure old base unit exists as a unit with conversion_factor = rebaseFactor
                         bool oldUnitExists = false;
                         using (var chkOld = new SQLiteCommand("SELECT id FROM product_units WHERE product_id = @pid AND unit_name = @uname LIMIT 1;", conn, trans))
@@ -304,7 +302,7 @@ namespace RafiqPOS.Repositories
         /// <summary>
         /// حفظ مستويات التعبئة وتحديث الصنف والوحدات ذرياً (Task 183-2 / Feature #183)
         /// </summary>
-        public Product SavePackagingLevels(string productId, List<ProductUnit> units, string defaultSaleUnitId, string defaultPurchaseUnitId, string displayUnitId, bool isLooseSellable)
+        public Product SavePackagingLevels(string productId, List<ProductUnit> units, string defaultSaleUnitId, string defaultPurchaseUnitId, string displayUnitId, bool isLooseSellable, int? multiplyStockByFactor = null)
         {
             if (string.IsNullOrWhiteSpace(productId))
             {
@@ -441,6 +439,77 @@ namespace RafiqPOS.Repositories
                             upProd.Parameters.AddWithValue("@now", now);
                             upProd.Parameters.AddWithValue("@pid", productId);
                             upProd.ExecuteNonQuery();
+                        }
+
+                        // If user requested rebasing/multiplying/dividing existing stock to match new pack hierarchy
+                        if (multiplyStockByFactor.HasValue && multiplyStockByFactor.Value != 0 && multiplyStockByFactor.Value != 1 && prod.StockQuantityMilli > 0)
+                        {
+                            long oldStock = prod.StockQuantityMilli;
+                            long newStock;
+                            long deltaStock;
+                            string smNote;
+
+                            if (multiplyStockByFactor.Value > 1)
+                            {
+                                int factor = multiplyStockByFactor.Value;
+                                newStock = oldStock * factor;
+                                deltaStock = newStock - oldStock;
+                                string topName = units.Count > 0 && units[0] != null ? units[0].UnitName : "عبوة";
+                                string baseName = baseUnit.UnitName;
+                                smNote = string.Format("تحويل وتعديل رصيد المخزن عند اعتماد التعبئة: {0} {1} × {2} = {3} {4}", oldStock / 1000, topName, factor, newStock / 1000, baseName);
+
+                                using (var upBatches = new SQLiteCommand("UPDATE product_batches SET quantity_milli = quantity_milli * @f, updated_at = @now WHERE product_id = @pid;", conn, trans))
+                                {
+                                    upBatches.Parameters.AddWithValue("@f", factor);
+                                    upBatches.Parameters.AddWithValue("@now", now);
+                                    upBatches.Parameters.AddWithValue("@pid", productId);
+                                    upBatches.ExecuteNonQuery();
+                                }
+                            }
+                            else
+                            {
+                                int divisor = Math.Abs(multiplyStockByFactor.Value);
+                                newStock = divisor > 0 ? (oldStock / divisor) : oldStock;
+                                deltaStock = newStock - oldStock;
+                                string fromName = !string.IsNullOrEmpty(prod.Unit) ? prod.Unit : "وحدة";
+                                string toName = baseUnit.UnitName;
+                                smNote = string.Format("تحويل وتعديل رصيد المخزن عند إرجاع أو دمج التعبئة: {0} {1} ÷ {2} = {3} {4}", oldStock / 1000, fromName, divisor, newStock / 1000, toName);
+
+                                using (var upBatches = new SQLiteCommand("UPDATE product_batches SET quantity_milli = quantity_milli / @d, updated_at = @now WHERE product_id = @pid;", conn, trans))
+                                {
+                                    upBatches.Parameters.AddWithValue("@d", divisor);
+                                    upBatches.Parameters.AddWithValue("@now", now);
+                                    upBatches.Parameters.AddWithValue("@pid", productId);
+                                    upBatches.ExecuteNonQuery();
+                                }
+                            }
+
+                            using (var upStock = new SQLiteCommand("UPDATE products SET stock_quantity_milli = @ns, updated_at = @now WHERE id = @pid;", conn, trans))
+                            {
+                                upStock.Parameters.AddWithValue("@ns", newStock);
+                                upStock.Parameters.AddWithValue("@now", now);
+                                upStock.Parameters.AddWithValue("@pid", productId);
+                                upStock.ExecuteNonQuery();
+                            }
+
+                            using (var smCmd = new SQLiteCommand(@"
+                                INSERT INTO stock_movements (
+                                    id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                    unit_cost_piasters, note, batch_number, created_at
+                                ) VALUES (
+                                    @smId, @pid, 'UNIT_REBASE', @qty, 'PACKAGING_SAVE', 'UNIT_REBASE',
+                                    @cost, @note, NULL, @now
+                                );
+                            ", conn, trans))
+                            {
+                                smCmd.Parameters.AddWithValue("@smId", Guid.NewGuid().ToString());
+                                smCmd.Parameters.AddWithValue("@pid", productId);
+                                smCmd.Parameters.AddWithValue("@qty", deltaStock);
+                                smCmd.Parameters.AddWithValue("@cost", baseUnit.CostPricePiasters);
+                                smCmd.Parameters.AddWithValue("@note", smNote);
+                                smCmd.Parameters.AddWithValue("@now", now);
+                                smCmd.ExecuteNonQuery();
+                            }
                         }
 
                         trans.Commit();

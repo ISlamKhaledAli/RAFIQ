@@ -71,6 +71,7 @@ namespace RafiqPOS.Bridge
                 request.Action == "productUnits:delete" ||
                 request.Action == "productUnits:setBase" ||
                 request.Action == "products:rebaseUnit" ||
+                request.Action == "products:rebaseBaseUnit" ||
                 request.Action == "packaging:saveLevels" ||
                 request.Action == "excel:importCustomers" ||
                 request.Action == "templates:apply" ||
@@ -81,6 +82,8 @@ namespace RafiqPOS.Bridge
                 request.Action == "sales:cancel" ||
                 request.Action == "products:save" ||
                 request.Action == "products:delete" ||
+                request.Action == "products:bulkDelete" ||
+                request.Action == "products:clearAll" ||
                 request.Action == "products:bulkUpdateMinStock" ||
                 request.Action == "products:applyBulkPriceAdjustment" ||
                 request.Action == "products:revertBulkPriceAdjustment" ||
@@ -163,6 +166,7 @@ namespace RafiqPOS.Bridge
                 if (TryDispatchPharma(request, out response)) return response;
                 if (TryDispatchInsurance(request, out response)) return response;
                 if (TryDispatchPatients(request, out response)) return response;
+                if (TryDispatchShifts(request, out response)) return response;
 
                 Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);
                 return BridgeResponse.Fail(request.Id, "ACTION_NOT_FOUND", "الإجراء غير مسجل في النواة: " + request.Action);
@@ -198,6 +202,7 @@ namespace RafiqPOS.Bridge
         private const string REQUIRE_SESSION = "__session_required__";
         // Store, printer and barcode-scanner screens all persist through the generic settings actions
         private const string REQUIRE_ANY_SETTINGS = "__any_settings__";
+        private const string REQUIRE_INSURANCE_VIEW = "__insurance_view__";
 
         private static readonly HashSet<string> PUBLIC_ACTIONS = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -285,6 +290,8 @@ namespace RafiqPOS.Bridge
             { "products:getMissingBarcodeCount", "products.view" },
             { "products:save", "products.edit" },
             { "products:delete", "products.archive" },
+            { "products:bulkDelete", "products.archive" },
+            { "products:clearAll", "products.archive" },
             { "products:bulkUpdateMinStock", "products.edit" },
             { "products:importBatch", "products.import" },
             { "products:previewBulkPriceAdjustment", "products.edit_price" },
@@ -295,6 +302,7 @@ namespace RafiqPOS.Bridge
             { "products:assignInternalBarcode", "products.edit" },
             { "products:bulkGenerateInternalBarcodes", "products.edit" },
             { "products:rebaseUnit", "products.unit_rebase" },
+            { "products:rebaseBaseUnit", "products.unit_rebase" },
             { "packaging:saveLevels", "products.packaging.edit" },
             { "productUnits:getByProduct", "products.view" },
             { "productUnits:calculateProfit", "products.edit_cost" },
@@ -354,8 +362,11 @@ namespace RafiqPOS.Bridge
 
             // Pharmacy & Alternatives (Feature #187 / Story 130)
             { "pharma:getDrugInfo", "products.view" },
+            { "pharma:getInfo", "products.view" },
             { "pharma:saveDrugInfo", "pharma.drug_info.edit" },
+            { "pharma:saveInfo", "pharma.drug_info.edit" },
             { "pharma:getAlternatives", "pharma.alternatives.view" },
+            { "pharma:findAlternatives", "pharma.alternatives.view" },
             { "pharma:searchByIngredient", "products.view" },
             { "pharma:getDosageForms", "products.view" },
             { "pharma:saveDosageForm", "pharma.drug_info.edit" },
@@ -366,8 +377,11 @@ namespace RafiqPOS.Bridge
             { "pharma:getActiveIngredients", "products.view" },
             { "pharma:saveActiveIngredient", "pharma.drug_info.edit" },
             { "pharma.getDrugInfo", "products.view" },
+            { "pharma.getInfo", "products.view" },
             { "pharma.saveDrugInfo", "pharma.drug_info.edit" },
+            { "pharma.saveInfo", "pharma.drug_info.edit" },
             { "pharma.getAlternatives", "pharma.alternatives.view" },
+            { "pharma.findAlternatives", "pharma.alternatives.view" },
             { "pharma.searchByIngredient", "products.view" },
 
             // Expiry Returns & External Drug Reference (Story 134 / Feature #191)
@@ -627,7 +641,101 @@ namespace RafiqPOS.Bridge
             { "patients:getDueAlerts", "patients.view" },
             { "patients:recordDispense", "patients.edit" },
             { "patients:checkAllergies", "patients.view" },
-            { "patients:runTests", REQUIRE_ADMIN }
+            { "patients:runTests", REQUIRE_ADMIN },
+
+            // Health Insurance & Corporate Claims (Feature #193 / Story 136)
+            { "insurance:getCompanies", REQUIRE_INSURANCE_VIEW },
+            { "insurance.getCompanies", REQUIRE_INSURANCE_VIEW },
+            { "insurance:saveCompany", "insurance.manage_contracts" },
+            { "insurance.saveCompany", "insurance.manage_contracts" },
+            { "insurance:deleteCompany", "insurance.manage_contracts" },
+            { "insurance.deleteCompany", "insurance.manage_contracts" },
+            { "insurance:getContracts", REQUIRE_INSURANCE_VIEW },
+            { "insurance.getContracts", REQUIRE_INSURANCE_VIEW },
+            { "insurance:getContract", REQUIRE_INSURANCE_VIEW },
+            { "insurance.getContract", REQUIRE_INSURANCE_VIEW },
+            { "insurance:saveContract", "insurance.manage_contracts" },
+            { "insurance.saveContract", "insurance.manage_contracts" },
+            { "insurance:deleteContract", "insurance.manage_contracts" },
+            { "insurance.deleteContract", "insurance.manage_contracts" },
+            { "insurance:getMembers", REQUIRE_INSURANCE_VIEW },
+            { "insurance.getMembers", REQUIRE_INSURANCE_VIEW },
+            { "insurance:getMemberByNo", REQUIRE_INSURANCE_VIEW },
+            { "insurance.getMemberByNo", REQUIRE_INSURANCE_VIEW },
+            { "insurance:saveMember", "insurance.manage_contracts" },
+            { "insurance.saveMember", "insurance.manage_contracts" },
+            { "insurance:calculateSplit", "insurance.sell" },
+            { "insurance.calculateSplit", "insurance.sell" },
+            { "insurance:getPendingClaims", "insurance.claims.manage" },
+            { "insurance.getPendingClaims", "insurance.claims.manage" },
+            { "insurance:getBatches", "insurance.claims.manage" },
+            { "insurance.getBatches", "insurance.claims.manage" },
+            { "insurance:getBatch", "insurance.claims.manage" },
+            { "insurance.getBatch", "insurance.claims.manage" },
+            { "insurance:createBatch", "insurance.claims.manage" },
+            { "insurance.createBatch", "insurance.claims.manage" },
+            { "insurance:settleBatch", "insurance.claims.settle" },
+            { "insurance.settleBatch", "insurance.claims.settle" },
+            { "insurance:exportBatchExcel", "insurance.claims.manage" },
+            { "insurance.exportBatchExcel", "insurance.claims.manage" },
+
+            // Controlled Drugs & Register (Story 131)
+            { "pharma:getControlledDispenses", "pharma.controlled.register_view" },
+            { "pharma.getControlledDispenses", "pharma.controlled.register_view" },
+            { "pharma:saveControlledDispense", "pharma.controlled.dispense" },
+            { "pharma.saveControlledDispense", "pharma.controlled.dispense" },
+            { "pharma:getControlledInspectionRegister", "pharma.controlled.register_view" },
+            { "pharma.getControlledInspectionRegister", "pharma.controlled.register_view" },
+            { "pharma:getMandatoryFieldsSettings", "settings.store" },
+            { "pharma.getMandatoryFieldsSettings", "settings.store" },
+            { "pharma:saveMandatoryFieldsSettings", REQUIRE_ADMIN },
+            { "pharma.saveMandatoryFieldsSettings", REQUIRE_ADMIN },
+            { "pharma:verifyControlledPharmacistPin", REQUIRE_SESSION },
+            { "pharma.verifyControlledPharmacistPin", REQUIRE_SESSION },
+
+            // Prescriptions Archiving (Story 132)
+            { "prescriptions:getAll", "prescriptions.manage" },
+            { "prescriptions.getAll", "prescriptions.manage" },
+            { "prescriptions:getById", "prescriptions.manage" },
+            { "prescriptions.getById", "prescriptions.manage" },
+            { "prescriptions:save", "prescriptions.manage" },
+            { "prescriptions.save", "prescriptions.manage" },
+            { "prescriptions:uploadImage", "prescriptions.manage" },
+            { "prescriptions.uploadImage", "prescriptions.manage" },
+            { "prescriptions:getImage", "prescriptions.manage" },
+            { "prescriptions.getImage", "prescriptions.manage" },
+
+            // Pharmacy Stocktaking & Golden Suite (Story 135)
+            { "pharma:getStocktakingSheet", "pharma.stocktaking.manage" },
+            { "pharma.getStocktakingSheet", "pharma.stocktaking.manage" },
+            { "pharma:applyStocktaking", "pharma.stocktaking.manage" },
+            { "pharma.applyStocktaking", "pharma.stocktaking.manage" },
+            { "pharma:runGoldenSuite", REQUIRE_ADMIN },
+            { "pharma.runGoldenSuite", REQUIRE_ADMIN },
+
+            // Pharmacy Printing & Reports
+            { "printer:printDosageLabel", "pharma.dosage_labels.print" },
+            { "pharma:printDosageLabel", "pharma.dosage_labels.print" },
+            { "reports:getPharmaExpiryHeatmap", "reports.pharma.view" },
+            { "reports.getPharmaExpiryHeatmap", "reports.pharma.view" },
+            { "reports:getPharmaStagnant", "reports.pharma.view" },
+            { "reports.getPharmaStagnant", "reports.pharma.view" },
+            { "reports:getPharmaProfitability", "reports.pharma.view" },
+            { "reports.getPharmaProfitability", "reports.pharma.view" },
+
+            // Batch & Sales extras
+            { "batch:getAllocations", "stock.view" },
+            { "sales:getByIdempotencyKey", REQUIRE_SESSION },
+
+            // Patient aliases
+            { "patients.getProfile", "patients.view" },
+            { "patients.saveProfile", "patients.edit" },
+            { "patients.getChronicMeds", "patients.view" },
+            { "patients.saveChronicMed", "patients.edit" },
+            { "patients.deleteChronicMed", "patients.edit" },
+            { "patients.getDueAlerts", "patients.view" },
+            { "patients.recordDispense", "patients.edit" },
+            { "patients.checkAllergies", "patients.view" }
         };
 
         private static bool IsLicenseBlockedAction(string action)
@@ -666,12 +774,17 @@ namespace RafiqPOS.Bridge
 
             // Catalog modifications
             if (action == "products:save" || action == "products:delete" ||
+                action == "products:bulkDelete" || action == "products:clearAll" ||
                 action == "products:bulkUpdateMinStock" || action == "products:applyBulkPriceAdjustment" ||
                 action == "products:revertBulkPriceAdjustment" ||
                 action == "products:importBatch" || action == "categories:save" || action == "categories:archive" ||
                 action == "categories:reorder" || action == "productUnits:save" || action == "productUnits:delete" ||
                 action == "productUnits:setBase" ||
-                action == "locations:save" || action == "locations:delete" || action == "locations:assignProduct")
+                action == "locations:save" || action == "locations:delete" || action == "locations:assignProduct" ||
+                action == "insurance:saveCompany" || action == "insurance:deleteCompany" ||
+                action == "insurance:saveContract" || action == "insurance:deleteContract" ||
+                action == "insurance:saveMember" || action == "insurance:createBatch" ||
+                action == "insurance:settleBatch")
                 return true;
 
             return false;
@@ -730,6 +843,12 @@ namespace RafiqPOS.Bridge
                 allowed = DatabaseService.Security.HasPermission(sessionUser.Id, "settings.store")
                     || DatabaseService.Security.HasPermission(sessionUser.Id, "settings.printer")
                     || DatabaseService.Security.HasPermission(sessionUser.Id, "settings.barcode");
+            }
+            else if (requiredPermission == REQUIRE_INSURANCE_VIEW)
+            {
+                allowed = DatabaseService.Security.HasPermission(sessionUser.Id, "insurance.manage_contracts")
+                    || DatabaseService.Security.HasPermission(sessionUser.Id, "insurance.sell")
+                    || DatabaseService.Security.HasPermission(sessionUser.Id, "insurance.claims.manage");
             }
             else
             {

@@ -117,6 +117,19 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
+                        // 4. Preload inactive/archived products so if an imported row matches a deleted item, it gets restored & reactivated!
+                        var inactiveProductIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        using (var inactCmd = new SQLiteCommand("SELECT id FROM products WHERE is_active = 0;", conn, trans))
+                        {
+                            using (var inactReader = inactCmd.ExecuteReader())
+                            {
+                                while (inactReader.Read())
+                                {
+                                    inactiveProductIds.Add(inactReader["id"].ToString());
+                                }
+                            }
+                        }
+
                         string now = DateTime.UtcNow.ToString("o");
 
                         string insertProdSql = @"
@@ -333,6 +346,106 @@ namespace RafiqPOS.Repositories
 
                                 if (existingProductId != null)
                                 {
+                                    bool isArchived = inactiveProductIds.Contains(existingProductId);
+
+                                    if (isArchived)
+                                    {
+                                        // Product was previously deleted (is_active = 0).
+                                        // Reactivate and restore it with imported data!
+                                        long oldStock = 0;
+                                        getOldCmd.Parameters["@pid"].Value = existingProductId;
+                                        var oldVal = getOldCmd.ExecuteScalar();
+                                        if (oldVal != null && oldVal != DBNull.Value)
+                                        {
+                                            oldStock = Convert.ToInt64(oldVal);
+                                        }
+
+                                        // Update existing product and set is_active = 1
+                                        updProdCmd.Parameters["@pid"].Value = existingProductId;
+                                        updProdCmd.Parameters["@name"].Value = item.Name.Trim();
+                                        updProdCmd.Parameters["@normName"].Value = itemNormName;
+                                        updProdCmd.Parameters["@categoryId"].Value = (object)categoryId ?? DBNull.Value;
+                                        updProdCmd.Parameters["@price"].Value = item.PricePiasters;
+                                        updProdCmd.Parameters["@cost"].Value = item.CostPiasters;
+                                        updProdCmd.Parameters["@stock"].Value = item.StockQuantityMilli;
+                                        updProdCmd.Parameters["@minStock"].Value = item.MinStockQuantityMilli;
+                                        updProdCmd.Parameters["@unit"].Value = item.Unit ?? "piece";
+                                        updProdCmd.Parameters["@tax"].Value = item.TaxRatePercent;
+                                        updProdCmd.Parameters["@internalCode"].Value = (object)item.InternalCode ?? "";
+                                        updProdCmd.Parameters["@taxCategoryCode"].Value = (object)item.TaxCategoryCode ?? "";
+                                        updProdCmd.Parameters["@color"].Value = !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value;
+                                        updProdCmd.Parameters["@size"].Value = !string.IsNullOrEmpty(cleanSize) ? (object)cleanSize : DBNull.Value;
+                                        updProdCmd.Parameters["@now"].Value = now;
+                                        updProdCmd.ExecuteNonQuery();
+
+                                        if (item.StockQuantityMilli != 0)
+                                        {
+                                            insSmCmd.Parameters["@smId"].Value = Guid.NewGuid().ToString();
+                                            insSmCmd.Parameters["@smPid"].Value = existingProductId;
+                                            insSmCmd.Parameters["@smType"].Value = "INITIAL";
+                                            insSmCmd.Parameters["@smQty"].Value = item.StockQuantityMilli;
+                                            insSmCmd.Parameters["@smRefType"].Value = "RESTORE_IMPORT";
+                                            insSmCmd.Parameters["@smCost"].Value = item.CostPiasters;
+                                            insSmCmd.Parameters["@smNote"].Value = "استعادة وتنشيط الصنف من ملف الإكسل";
+                                            insSmCmd.Parameters["@now"].Value = now;
+                                            insSmCmd.ExecuteNonQuery();
+                                        }
+
+                                        // Synchronize base unit in product_units
+                                        try
+                                        {
+                                            updUnitCmd.Parameters["@pid"].Value = existingProductId;
+                                            updUnitCmd.Parameters["@price"].Value = item.PricePiasters;
+                                            updUnitCmd.Parameters["@cost"].Value = item.CostPiasters;
+                                            updUnitCmd.Parameters["@now"].Value = now;
+                                            int rows = updUnitCmd.ExecuteNonQuery();
+                                            if (rows == 0)
+                                            {
+                                                string uName = !string.IsNullOrWhiteSpace(item.Unit) ? item.Unit.Trim() : "قطعة";
+                                                bool isDiv = uName.Equals("kg", StringComparison.OrdinalIgnoreCase) ||
+                                                             uName.Equals("كيلو", StringComparison.OrdinalIgnoreCase) ||
+                                                             uName.Equals("كجم", StringComparison.OrdinalIgnoreCase);
+
+                                                insUnitCmd.Parameters["@id"].Value = "punit_" + existingProductId;
+                                                insUnitCmd.Parameters["@productId"].Value = existingProductId;
+                                                insUnitCmd.Parameters["@unitName"].Value = uName;
+                                                insUnitCmd.Parameters["@sellPrice"].Value = item.PricePiasters;
+                                                insUnitCmd.Parameters["@costPrice"].Value = item.CostPiasters;
+                                                insUnitCmd.Parameters["@barcode"].Value = string.IsNullOrWhiteSpace(primaryBarcode) ? (object)DBNull.Value : primaryBarcode;
+                                                insUnitCmd.Parameters["@isDivisible"].Value = isDiv ? 1 : 0;
+                                                insUnitCmd.Parameters["@now"].Value = now;
+                                                insUnitCmd.ExecuteNonQuery();
+                                            }
+                                        }
+                                        catch { }
+
+                                        // Insert additional barcodes if provided
+                                        if (item.Barcodes != null && item.Barcodes.Count > 0)
+                                        {
+                                            foreach (var b in item.Barcodes)
+                                            {
+                                                if (!string.IsNullOrWhiteSpace(b))
+                                                {
+                                                    string trimmedB = b.Trim();
+                                                    if (!string.Equals(trimmedB, primaryBarcode, StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        insBcCmd.Parameters["@pbid"].Value = "pbc_" + Guid.NewGuid().ToString("N");
+                                                        insBcCmd.Parameters["@pid"].Value = existingProductId;
+                                                        insBcCmd.Parameters["@bc"].Value = trimmedB;
+                                                        insBcCmd.Parameters["@now"].Value = now;
+                                                        insBcCmd.ExecuteNonQuery();
+                                                        existingBarcodeMap[trimmedB] = existingProductId;
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        inactiveProductIds.Remove(existingProductId);
+                                        result.ImportedCount++;
+                                        continue;
+                                    }
+
+                                    // Active product duplicate handling:
                                     if (strat == "error")
                                     {
                                         string identifier = primaryBarcode != null

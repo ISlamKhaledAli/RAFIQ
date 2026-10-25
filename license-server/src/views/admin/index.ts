@@ -10,7 +10,10 @@ export function serveAdminHtml(): Response {
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#00372d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="author" content="ISlam Khaled Ali">
   <meta name="copyright" content="Copyright © 2026 ISlam Khaled Ali. All rights reserved.">
   <title>لوحة إدارة تراخيص رفيق POS — تطوير: ISlam Khaled Ali</title>

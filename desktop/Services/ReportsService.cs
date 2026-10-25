@@ -3571,7 +3571,7 @@ namespace RafiqPOS.Services
                     string totalCostSql = @"
                         SELECT COALESCE(SUM((stock_quantity_milli * cost_piasters) / 1000), 0) AS total_inv_cost
                         FROM products
-                        WHERE is_archived = 0;";
+                        WHERE is_active = 1;";
                     using (var cmd = new SQLiteCommand(totalCostSql, conn))
                     {
                         object obj = cmd.ExecuteScalar();
@@ -3607,7 +3607,7 @@ namespace RafiqPOS.Services
                     WHERE pb.status = 'ACTIVE' 
                       AND pb.quantity_milli > 0 
                       AND pb.expiry_date IS NOT NULL 
-                      AND p.is_archived = 0
+                      AND p.is_active = 1
                     ORDER BY pb.expiry_date ASC;";
 
                 DateTime today = DateTime.UtcNow.Date;
@@ -3809,7 +3809,7 @@ namespace RafiqPOS.Services
                     LEFT JOIN pharma_dosage_forms df ON ppi.dosage_form_id = df.id
                     LEFT JOIN pharma_manufacturers pm ON ppi.manufacturer_id = pm.id
                     LEFT JOIN storage_locations sl ON p.location_id = sl.id
-                    WHERE p.is_archived = 0 
+                    WHERE p.is_active = 1 
                       AND p.stock_quantity_milli > 0
                       AND (
                           last_sale_at IS NULL 

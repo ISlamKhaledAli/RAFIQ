@@ -16,12 +16,14 @@ import {
   ChevronDown,
   Box,
   Snowflake,
+  X,
 } from 'lucide-react';
 import type { Product } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
 import { formatCompoundStock, hasOpenPackage } from '../../utils/packaging';
 import { RafiqTableLoading } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
+import { getStoreTerminology } from '../../utils/storeTerminology';
 
 export interface ProductsTableProps {
   products: Product[];
@@ -68,6 +70,8 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   onViewVariants,
   onNavigateToBatches,
 }) => {
+  const terminology = React.useMemo(() => getStoreTerminology(), []);
+
   const filteredProducts = products.filter(
     (p) => selectedCategoryFilter === 'all' || (p.categoryId || 'cat_general') === selectedCategoryFilter
   );
@@ -311,10 +315,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         {prod.hasVariants && (
                           <span
                             className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright text-[10px] font-bold rounded-full border border-brand/20 flex items-center gap-1"
-                            title="منتج متعدد المقاسات والألوان"
+                            title={terminology.variantsTitle}
                           >
                             <Layers className="w-2.5 h-2.5" />
-                            <span>مقاسات وألوان</span>
+                            <span>{terminology.variantsTitle}</span>
                           </span>
                         )}
                         {prod.variantColor && prod.variantSize && (
@@ -469,57 +473,74 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         </table>
       </div>
 
-      {/* Floating Bulk Action Bar */}
+      {/* Floating Bulk Action Bar - Executive Pill Capsule */}
       {selectedProductIds.length > 0 && (
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-brand-dark dark:bg-surface-dark-2 text-white rounded-2xl px-5 py-2.5 shadow-2xl flex items-center gap-4 z-30 border border-paid/40 dark:border-line-dark text-xs font-bold animate-fade-in">
-          <span className="flex items-center gap-1.5 text-white">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>محدد {selectedProductIds.length} صنف</span>
-          </span>
-          {onBulkPrintLabels && (
+        <div className="absolute bottom-11 left-1/2 -translate-x-1/2 bg-ink/95 dark:bg-surface-dark-2/95 backdrop-blur-md text-white rounded-full p-1.5 px-3.5 shadow-2xl flex items-center gap-2 z-30 border border-white/10 dark:border-line-dark text-xs font-bold animate-in fade-in select-none">
+          <div className="flex items-center gap-2 pl-2 border-l border-white/15 dark:border-line-dark">
+            <span className="flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono text-[11px] font-black border border-emerald-500/30">
+              {selectedProductIds.length}
+            </span>
+            <span className="text-[11px] text-white/90 whitespace-nowrap">صنف محدد</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {onBulkPrintLabels && (
+              <button
+                type="button"
+                onClick={onBulkPrintLabels}
+                className="px-3 h-8 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-full text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-white/5 whitespace-nowrap"
+                title="طباعة استيكرات الباركود للأصناف المحددة"
+              >
+                <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                <span>طباعة استيكرات</span>
+              </button>
+            )}
+
+            {onOpenBulkPriceAdjustment && (
+              <button
+                type="button"
+                onClick={onOpenBulkPriceAdjustment}
+                className="px-3 h-8 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-full text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-white/5 whitespace-nowrap"
+                title="تعديل الأسعار والتكلفة بالجملة"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                <span>تعديل الأسعار</span>
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={onBulkPrintLabels}
-              className="px-3.5 py-1.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer border border-brand-soft/20"
+              onClick={onOpenBulkMinStockModal}
+              className="px-3 h-8 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-full text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-white/5 whitespace-nowrap"
+              title="تعديل حد النواقص والطلب"
             >
-              <Tag className="w-3.5 h-3.5" />
-              <span>طباعة استيكرات ({selectedProductIds.length})</span>
+              <Boxes className="w-3.5 h-3.5 text-emerald-400" />
+              <span>حد النواقص</span>
             </button>
-          )}
-          {onOpenBulkPriceAdjustment && (
+
+            {onBulkDelete && (
+              <button
+                type="button"
+                onClick={onBulkDelete}
+                className="px-3 h-8 bg-danger/20 hover:bg-danger active:scale-95 text-red-200 hover:text-white rounded-full text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-danger/30 whitespace-nowrap"
+                title="حذف الأصناف المحددة"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-300" />
+                <span>حذف</span>
+              </button>
+            )}
+          </div>
+
+          <div className="pr-1 border-r border-white/15 dark:border-line-dark">
             <button
               type="button"
-              onClick={onOpenBulkPriceAdjustment}
-              className="px-3.5 py-1.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer border border-brand-soft/20"
+              onClick={onClearSelection}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/15 active:scale-90 text-white/60 hover:text-white transition-all cursor-pointer"
+              title="إلغاء التحديد"
             >
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              <span>تعديل الأسعار والتكلفة بالجملة ({selectedProductIds.length})</span>
+              <X className="w-4 h-4" />
             </button>
-          )}
-          <button
-            type="button"
-            onClick={onOpenBulkMinStockModal}
-            className="px-3.5 py-1.5 bg-paid hover:bg-paid-hover text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
-          >
-            <span>تعديل حد النواقص للأصناف المحددة</span>
-          </button>
-          {onBulkDelete && (
-            <button
-              type="button"
-              onClick={onBulkDelete}
-              className="px-3.5 py-1.5 bg-danger hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>مسح الأصناف المحددة ({selectedProductIds.length})</span>
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onClearSelection}
-            className="text-emerald-200 hover:text-white text-xs underline cursor-pointer"
-          >
-            فك التحديد
-          </button>
+          </div>
         </div>
       )}
 
@@ -690,7 +711,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Layers className="w-3.5 h-3.5" />
                   </div>
-                  <span className="flex-1 min-w-0 truncate">المقاسات والألوان (الأصناف المتفرعة)</span>
+                  <span className="flex-1 min-w-0 truncate">{terminology.variantsTitle}</span>
                 </button>
               )}
 

@@ -121,7 +121,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_loose_selling',
-    nameAr: 'البيع بالتجزئة وفك العبوات (G1)',
+    nameAr: 'البيع بالتجزئة وفك العبوات',
     descriptionAr: 'بيع الأصناف بالوحدات المفكوكة (بالشريط والقرص للأدوية، بالسيجارة، بالبيضة) مع معالج التعبئة الذكي.',
     category: 'المنتجات والمخزون',
     defaultValue: false,
@@ -131,7 +131,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_batch_pricing',
-    nameAr: 'ازدواج تسعير التشغيلات على الرف (G2)',
+    nameAr: 'ازدواج تسعير التشغيلات على الرف',
     descriptionAr: 'بيع نفس الصنف بأسعار مختلفة حسب التشغيلة وتقسيم بنود الفاتورة آلياً عند اختلاف الأسعار.',
     category: 'المبيعات والتشغيلات',
     defaultValue: false,
@@ -141,7 +141,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_shelf_locations',
-    nameAr: 'مواقع التخزين والرفوف والأدراج (G3)',
+    nameAr: 'مواقع التخزين والرفوف والأدراج',
     descriptionAr: 'تحديد ومتابعة أماكن تخزين الأصناف في الأدراج والرفوف والثلاجة وتوليد جرد مخصص للمكان.',
     category: 'المستودعات وإدارة الرفوف',
     defaultValue: false,
@@ -151,7 +151,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_shortage_book',
-    nameAr: 'دفتر النواقص وطلب الموزع (G4)',
+    nameAr: 'دفتر النواقص وطلب الموزع',
     descriptionAr: 'تسجيل نواقص الكاشير والأصناف المطلوبة وتحويلها لمسودة فاتورة شراء مقسمة حسب المورد المفضل.',
     category: 'المشتريات والموردين',
     defaultValue: false,
@@ -161,7 +161,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_pharmacy',
-    nameAr: 'موديول الصيدلية المتكامل (P1)',
+    nameAr: 'موديول الصيدلية المتكامل',
     descriptionAr: 'الملف الدوائي الكامل، الأشكال والجرعات الصيدلية، والبحث العلمي في شاشة الكاشير.',
     category: 'الصيدلية والأدوية',
     defaultValue: false,
@@ -171,7 +171,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_pharma_alternatives',
-    nameAr: 'المواد الفعالة والبدائل والمثائل (P2)',
+    nameAr: 'المواد الفعالة والبدائل والمثائل',
     descriptionAr: 'اقتراح المثائل والبدائل العلاجية المتطابقة للأدوية الناقصة مع ترتيب الأقرب في السعر والمخزون.',
     category: 'الصيدلية والأدوية',
     defaultValue: false,
@@ -181,7 +181,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_controlled_drugs',
-    nameAr: 'أدوية الجدول والرقابة الدوائية (P4)',
+    nameAr: 'أدوية الجدول والرقابة الدوائية',
     descriptionAr: 'إدارة وحوكمة صرف أدوية الجدول والمهدئات مع تقارير التفتيش الصيدلي وسجل الوارد والمنصرف.',
     category: 'الصيدلية والأدوية',
     defaultValue: false,
@@ -191,7 +191,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_prescriptions',
-    nameAr: 'إدارة وصرف الروشتات الطبية (P5)',
+    nameAr: 'إدارة وصرف الروشتات الطبية',
     descriptionAr: 'تسجيل بيانات وأرشفة صور الروشتات الطبية ودعم الصرف التلقائي المتكرر.',
     category: 'الصيدلية والأدوية',
     defaultValue: false,
@@ -201,7 +201,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_patient_profiles',
-    nameAr: 'ملف المريض والأمراض المزمنة (P6)',
+    nameAr: 'ملف المريض والأمراض المزمنة',
     descriptionAr: 'متابعة التاريخ العلاجي للمرضى وحساسية المواد الفعالة ومواعيد استحقاق أدوية الأمراض المزمنة.',
     category: 'الصيدلية والأدوية',
     defaultValue: false,
@@ -211,7 +211,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_insurance',
-    nameAr: 'التأمين الطبي والتعاقدات (P7)',
+    nameAr: 'التأمين الطبي والتعاقدات',
     descriptionAr: 'إدارة شركات التأمين والنسب والتحملات والمطالبات الشهرية وتتبع التحصيل.',
     category: 'الصيدلية والأدوية',
     defaultValue: false,
@@ -221,7 +221,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_expiry_returns',
-    nameAr: 'مرتجع الصلاحية للموزعين والإعدام (P9)',
+    nameAr: 'مرتجع الصلاحية للموزعين والإعدام',
     descriptionAr: 'حساب نوافذ مرتجعات الأدوية للموردين قبل الانتهاء ونسب الاسترداد ومحاضر إعدام البضاعة المنتهية.',
     category: 'المخزون والتشغيلات',
     defaultValue: false,
@@ -231,7 +231,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_drug_reference',
-    nameAr: 'دليل الأدوية المرجعي (P11)',
+    nameAr: 'دليل الأدوية المرجعي',
     descriptionAr: 'قاعدة بيانات مرجعية منفصلة لاستيراد وتحديث أسعار وبيانات الأدوية من الإكسل لسرعة إضافة الأصناف.',
     category: 'الصيدلية والأدوية',
     defaultValue: false,
