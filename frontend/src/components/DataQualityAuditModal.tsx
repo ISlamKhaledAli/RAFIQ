@@ -26,6 +26,7 @@ import type { DataQualityReport, DataQualityIssueItem, DataQualityIssueType, Bul
 import { formatArabicCurrency } from '../utils/money';
 import { rafiqAlert } from '../utils/dialogService';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { useDataSubscription } from '../utils/eventBus';
 
 interface DataQualityAuditModalProps {
   isOpen: boolean;
@@ -161,6 +162,12 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
     }
   }, [isOpen, loadData]);
 
+  useDataSubscription(['products', 'sales', 'customers', 'all'], () => {
+    if (isOpen) {
+      void loadData();
+    }
+  });
+
   const filteredIssues = useMemo(() => {
     if (!report || !report.issues) return [];
     let list = report.issues;
@@ -239,16 +246,6 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               <span>{isRepairing ? 'جاري التسوية...' : 'تسوية ومعالجة آلية'}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => void loadData()}
-              disabled={loading}
-              className="px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              title="إعادة فحص البيانات وتحديث التقرير"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>تحديث الفحص</span>
-            </button>
 
             <button
               type="button"

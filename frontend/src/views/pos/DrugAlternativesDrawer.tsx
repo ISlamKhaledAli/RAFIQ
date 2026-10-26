@@ -224,17 +224,6 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {productId && (
-              <button
-                type="button"
-                onClick={() => void loadAlternatives(productId)}
-                className="h-8 px-2.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-high flex items-center gap-1.5 text-xs text-ink-muted dark:text-ink-dark hover:text-ink dark:hover:text-white transition-colors shadow-2xs cursor-pointer"
-                title="إعادة الفحص"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-brand dark:text-brand-bright' : ''}`} />
-                <span className="hidden sm:inline text-[11px] font-bold">تحديث</span>
-              </button>
-            )}
             <button
               type="button"
               onClick={onClose}

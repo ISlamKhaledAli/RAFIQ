@@ -17,11 +17,12 @@ describe('Store Type Features & First Startup Wizard Verification', () => {
     assert.ok(fs.existsSync(storeTemplatesTsPath), 'storeTemplates.ts must exist');
     const content = fs.readFileSync(storeTemplatesTsPath, 'utf8');
 
-    // Clothing store: matrix variants ON, epay services OFF, digital wallets ON, scale OFF
+    // Clothing store: matrix variants ON, epay services OFF, agency wallets OFF, pos payments ON, scale OFF
     assert.ok(content.includes('clothing_apparel'), 'Must have clothing_apparel');
     assert.match(content, /id:\s*'clothing_apparel'[\s\S]*?feature_matrix_variants:\s*true/);
     assert.match(content, /id:\s*'clothing_apparel'[\s\S]*?feature_epay_services:\s*false/);
-    assert.match(content, /id:\s*'clothing_apparel'[\s\S]*?feature_digital_wallets:\s*true/);
+    assert.match(content, /id:\s*'clothing_apparel'[\s\S]*?feature_digital_wallets:\s*false/);
+    assert.match(content, /id:\s*'clothing_apparel'[\s\S]*?feature_pos_digital_payments:\s*true/);
     assert.match(content, /id:\s*'clothing_apparel'[\s\S]*?feature_scale_weight:\s*false/);
 
     // Supermarket: scale ON, expiry ON, multi_units ON, epay ON, digital wallets ON, variants OFF
@@ -31,17 +32,20 @@ describe('Store Type Features & First Startup Wizard Verification', () => {
     assert.match(content, /id:\s*'supermarket'[\s\S]*?feature_multi_units:\s*true/);
     assert.match(content, /id:\s*'supermarket'[\s\S]*?feature_epay_services:\s*true/);
     assert.match(content, /id:\s*'supermarket'[\s\S]*?feature_digital_wallets:\s*true/);
+    assert.match(content, /id:\s*'supermarket'[\s\S]*?feature_pos_digital_payments:\s*true/);
     assert.match(content, /id:\s*'supermarket'[\s\S]*?feature_matrix_variants:\s*false/);
 
     // Phones/Electronics: epay ON, wallets ON, scale OFF
     assert.match(content, /id:\s*'phones_electronics'[\s\S]*?feature_epay_services:\s*true/);
     assert.match(content, /id:\s*'phones_electronics'[\s\S]*?feature_digital_wallets:\s*true/);
+    assert.match(content, /id:\s*'phones_electronics'[\s\S]*?feature_pos_digital_payments:\s*true/);
     assert.match(content, /id:\s*'phones_electronics'[\s\S]*?feature_scale_weight:\s*false/);
 
-    // Produce/Butchery: scale ON, epay OFF, wallets ON
+    // Produce/Butchery: scale ON, epay OFF, agency wallets OFF, pos payments ON
     assert.match(content, /id:\s*'produce_butchery'[\s\S]*?feature_scale_weight:\s*true/);
     assert.match(content, /id:\s*'produce_butchery'[\s\S]*?feature_epay_services:\s*false/);
-    assert.match(content, /id:\s*'produce_butchery'[\s\S]*?feature_digital_wallets:\s*true/);
+    assert.match(content, /id:\s*'produce_butchery'[\s\S]*?feature_digital_wallets:\s*false/);
+    assert.match(content, /id:\s*'produce_butchery'[\s\S]*?feature_pos_digital_payments:\s*true/);
 
     // Pharmacy: expiry ON, multi_units ON, scale OFF
     assert.ok(content.includes('pharmacy'), 'Must have pharmacy');
@@ -60,15 +64,17 @@ describe('Store Type Features & First Startup Wizard Verification', () => {
     assert.ok(fs.existsSync(storeTemplateServiceCsPath), 'StoreTemplateService.cs must exist');
     const content = fs.readFileSync(storeTemplateServiceCsPath, 'utf8');
 
-    // allKnownFlags includes epay and wallets
+    // allKnownFlags includes epay, wallets, and pos digital payments
     assert.ok(content.includes('"feature_epay_services"'), 'Must register feature_epay_services in allKnownFlags');
     assert.ok(content.includes('"feature_digital_wallets"'), 'Must register feature_digital_wallets in allKnownFlags');
+    assert.ok(content.includes('"feature_pos_digital_payments"'), 'Must register feature_pos_digital_payments in allKnownFlags');
 
     // Clothing preset in C#
     assert.ok(content.includes('t7.Id = "clothing_apparel"'), 'Must define clothing_apparel preset');
     assert.ok(content.includes('t7.FeatureFlags["feature_matrix_variants"] = true'), 'Clothing must enable variants');
     assert.ok(content.includes('t7.FeatureFlags["feature_epay_services"] = false'), 'Clothing must disable epay machine');
-    assert.ok(content.includes('t7.FeatureFlags["feature_digital_wallets"] = true'), 'Clothing must enable digital wallets');
+    assert.ok(content.includes('t7.FeatureFlags["feature_digital_wallets"] = false'), 'Clothing must disable agency digital wallets');
+    assert.ok(content.includes('t7.FeatureFlags["feature_pos_digital_payments"] = true'), 'Clothing must enable pos digital payments');
     assert.ok(content.includes('t7.FeatureFlags["feature_scale_weight"] = false'), 'Clothing must disable scale');
 
     // Supermarket preset in C#

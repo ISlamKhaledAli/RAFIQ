@@ -8,14 +8,15 @@ import {
   Building2, 
   Pill, 
   Printer, 
-  RefreshCw, 
   ChevronDown, 
   ChevronLeft, 
   DollarSign, 
   BarChart2, 
-  Layers 
+  Layers,
+  Loader2
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from './CustomSelect';
 import { formatArabicCurrency } from '../utils/money';
 
@@ -218,6 +219,13 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
     else if (activeTab === 'profitability') fetchProfitability();
   }, [isOpen, activeTab, fetchHeatmap, fetchStagnant, fetchProfitability]);
 
+  useDataSubscription(['products', 'sales', 'all'], () => {
+    if (!isOpen) return;
+    if (activeTab === 'expiry') void fetchHeatmap();
+    else if (activeTab === 'stagnant') void fetchStagnant();
+    else if (activeTab === 'profitability') void fetchProfitability();
+  });
+
   if (!isOpen) return null;
 
   const toggleMonth = (key: string) => {
@@ -247,6 +255,12 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-brand-soft text-brand font-bold">
                   رقابة مالية وطبية
                 </span>
+                {loading && (
+                  <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark flex items-center gap-1 font-normal animate-pulse">
+                    <Loader2 className="w-3 h-3 animate-spin text-brand" />
+                    جاري التحميل...
+                  </span>
+                )}
               </div>
               <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-0.5">
                 خريطة الصلاحيات برأس المال، تحليل الأدوية الراكدة، وهوامش ربحية الشركات والمواد الفعالة
@@ -314,22 +328,6 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
             >
               <TrendingUp className="w-4 h-4" />
               <span>أرباح الشركات والمواد الفعالة</span>
-            </button>
-          </div>
-
-          <div>
-            <button
-              type="button"
-              onClick={() => {
-                if (activeTab === 'expiry') fetchHeatmap();
-                else if (activeTab === 'stagnant') fetchStagnant();
-                else if (activeTab === 'profitability') fetchProfitability();
-              }}
-              disabled={loading}
-              className="p-1.5 rounded-lg text-ink-muted hover:text-brand hover:bg-surface-2 transition-colors"
-              title="تحديث البيانات"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>

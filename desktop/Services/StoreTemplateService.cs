@@ -113,6 +113,7 @@ namespace RafiqPOS.Services
                     if (list[i].FeatureFlags == null || 
                         !list[i].FeatureFlags.ContainsKey("feature_epay_services") ||
                         !list[i].FeatureFlags.ContainsKey("feature_digital_wallets") ||
+                        !list[i].FeatureFlags.ContainsKey("feature_pos_digital_payments") ||
                         !list[i].FeatureFlags.ContainsKey("feature_pharmacy"))
                     {
                         needsRefresh = true;
@@ -568,6 +569,7 @@ namespace RafiqPOS.Services
             t1.FeatureFlags["feature_matrix_variants"] = false;
             t1.FeatureFlags["feature_epay_services"] = true;
             t1.FeatureFlags["feature_digital_wallets"] = true;
+            t1.FeatureFlags["feature_pos_digital_payments"] = true;
             t1.Categories = new List<string>();
             t1.QuickItems = new List<TemplateQuickItem>();
             t1.DefaultSettings["receipt_header"] = "أهلاً بكم في سوبرماركت رفيق";
@@ -589,6 +591,7 @@ namespace RafiqPOS.Services
             t2.FeatureFlags["feature_matrix_variants"] = false;
             t2.FeatureFlags["feature_epay_services"] = true;
             t2.FeatureFlags["feature_digital_wallets"] = true;
+            t2.FeatureFlags["feature_pos_digital_payments"] = true;
             t2.Categories = new List<string>();
             t2.QuickItems = new List<TemplateQuickItem>();
             t2.DefaultSettings["receipt_header"] = "متجر رفيق للهواتف والإلكترونيات";
@@ -609,7 +612,8 @@ namespace RafiqPOS.Services
             t3.FeatureFlags["feature_multi_units"] = false;
             t3.FeatureFlags["feature_matrix_variants"] = false;
             t3.FeatureFlags["feature_epay_services"] = false;
-            t3.FeatureFlags["feature_digital_wallets"] = true;
+            t3.FeatureFlags["feature_digital_wallets"] = false;
+            t3.FeatureFlags["feature_pos_digital_payments"] = true;
             t3.Categories = new List<string>();
             t3.QuickItems = new List<TemplateQuickItem>();
             t3.DefaultSettings["receipt_header"] = "ألبان ومخبوزات رفيق";
@@ -630,7 +634,8 @@ namespace RafiqPOS.Services
             t4.FeatureFlags["feature_multi_units"] = false;
             t4.FeatureFlags["feature_matrix_variants"] = false;
             t4.FeatureFlags["feature_epay_services"] = false;
-            t4.FeatureFlags["feature_digital_wallets"] = true;
+            t4.FeatureFlags["feature_digital_wallets"] = false;
+            t4.FeatureFlags["feature_pos_digital_payments"] = true;
             t4.Categories = new List<string>();
             t4.QuickItems = new List<TemplateQuickItem>();
             t4.DefaultSettings["receipt_header"] = "أسواق رفيق للخضار والفاكهة الطازجة";
@@ -652,6 +657,7 @@ namespace RafiqPOS.Services
             t5.FeatureFlags["feature_matrix_variants"] = false;
             t5.FeatureFlags["feature_epay_services"] = true;
             t5.FeatureFlags["feature_digital_wallets"] = true;
+            t5.FeatureFlags["feature_pos_digital_payments"] = true;
             t5.Categories = new List<string>();
             t5.QuickItems = new List<TemplateQuickItem>();
             t5.DefaultSettings["receipt_header"] = "مكتبة رفيق للقرطاسية والهدايا";
@@ -672,7 +678,8 @@ namespace RafiqPOS.Services
             tToys.FeatureFlags["feature_multi_units"] = false;
             tToys.FeatureFlags["feature_matrix_variants"] = false;
             tToys.FeatureFlags["feature_epay_services"] = false;
-            tToys.FeatureFlags["feature_digital_wallets"] = true;
+            tToys.FeatureFlags["feature_digital_wallets"] = false;
+            tToys.FeatureFlags["feature_pos_digital_payments"] = true;
             tToys.Categories = new List<string>();
             tToys.QuickItems = new List<TemplateQuickItem>();
             tToys.DefaultSettings["receipt_header"] = "متجر عالم الألعاب للأطفال";
@@ -693,7 +700,8 @@ namespace RafiqPOS.Services
             t6.FeatureFlags["feature_multi_units"] = false;
             t6.FeatureFlags["feature_matrix_variants"] = false;
             t6.FeatureFlags["feature_epay_services"] = false;
-            t6.FeatureFlags["feature_digital_wallets"] = true;
+            t6.FeatureFlags["feature_digital_wallets"] = false;
+            t6.FeatureFlags["feature_pos_digital_payments"] = true;
             t6.Categories = new List<string>();
             t6.QuickItems = new List<TemplateQuickItem>();
             t6.DefaultSettings["receipt_header"] = "محامص وعطارة رفيق الأصيلة";
@@ -714,7 +722,8 @@ namespace RafiqPOS.Services
             t7.FeatureFlags["feature_multi_units"] = false;
             t7.FeatureFlags["feature_matrix_variants"] = true;
             t7.FeatureFlags["feature_epay_services"] = false;
-            t7.FeatureFlags["feature_digital_wallets"] = true;
+            t7.FeatureFlags["feature_digital_wallets"] = false;
+            t7.FeatureFlags["feature_pos_digital_payments"] = true;
             t7.Categories = new List<string>();
             t7.QuickItems = new List<TemplateQuickItem>();
             t7.DefaultSettings["receipt_header"] = "متاجر رفيق للأزياء والموضة";
@@ -736,6 +745,7 @@ namespace RafiqPOS.Services
             t8.FeatureFlags["feature_matrix_variants"] = false;
             t8.FeatureFlags["feature_epay_services"] = true;
             t8.FeatureFlags["feature_digital_wallets"] = true;
+            t8.FeatureFlags["feature_pos_digital_payments"] = true;
             t8.Categories = new List<string>();
             t8.QuickItems = new List<TemplateQuickItem>();
             t8.DefaultSettings["receipt_header"] = "أهلاً بكم في متجرنا";
@@ -756,7 +766,8 @@ namespace RafiqPOS.Services
             tPharm.FeatureFlags["feature_multi_units"] = true;
             tPharm.FeatureFlags["feature_matrix_variants"] = false;
             tPharm.FeatureFlags["feature_epay_services"] = false;
-            tPharm.FeatureFlags["feature_digital_wallets"] = true;
+            tPharm.FeatureFlags["feature_digital_wallets"] = false;
+            tPharm.FeatureFlags["feature_pos_digital_payments"] = true;
             // Complete Pharmacy Module Suite (Story 136 / Feature #193)
             tPharm.FeatureFlags["feature_loose_selling"] = true;
             tPharm.FeatureFlags["feature_batch_pricing"] = true;
@@ -790,11 +801,10 @@ namespace RafiqPOS.Services
             tCafe.FeatureFlags["feature_multi_units"] = false;
             tCafe.FeatureFlags["feature_matrix_variants"] = false;
             tCafe.FeatureFlags["feature_epay_services"] = false;
-            tCafe.FeatureFlags["feature_digital_wallets"] = true;
+            tCafe.FeatureFlags["feature_digital_wallets"] = false;
+            tCafe.FeatureFlags["feature_pos_digital_payments"] = true;
             tCafe.Categories = new List<string>();
             tCafe.QuickItems = new List<TemplateQuickItem>();
-            tCafe.DefaultSettings["receipt_header"] = "كافيه ومطعم رفيق";
-            tCafe.DefaultSettings["receipt_footer"] = "أهلاً وسهلاً بكم.. نتمنى لكم وجبة شهية ووقتاً ممتعاً!";
             list.Add(tCafe);
 
             return list;

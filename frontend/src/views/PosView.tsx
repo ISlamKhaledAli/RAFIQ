@@ -92,6 +92,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit'>('cash');
   const [digitalAccounts, setDigitalAccounts] = useState<DigitalAccount[]>([]);
+  const [storeInstapayAddress, setStoreInstapayAddress] = useState('');
+  const [storeWalletNumber, setStoreWalletNumber] = useState('');
   const [isDigitalPaymentModalOpen, setIsDigitalPaymentModalOpen] = useState(false);
   const [digitalPaymentMethod, setDigitalPaymentMethod] = useState<'instapay' | 'vodafone_cash'>('instapay');
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
@@ -884,6 +886,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         if (appSettings.require_open_shift_to_sell !== undefined) {
           setRequireOpenShiftToSell(appSettings.require_open_shift_to_sell === '1' || appSettings.require_open_shift_to_sell.toLowerCase() === 'true');
         }
+        if (appSettings.store_instapay_address) setStoreInstapayAddress(appSettings.store_instapay_address);
+        if (appSettings.store_wallet_number) setStoreWalletNumber(appSettings.store_wallet_number);
       }
     } catch {
       // non-blocking
@@ -2090,9 +2094,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             onOpenExpenseModal={() => setIsExpenseModalOpen(true)}
             activeInsuranceClaim={activeInsuranceClaim}
             onRemoveInsuranceClaim={() => setActiveInsuranceClaim(null)}
-            hasInstapayAccount={digitalAccounts.some((a) => a.accountType === 'instapay' && a.isActive)}
-            hasWalletAccount={digitalAccounts.some((a) => a.accountType === 'wallet' && a.isActive)}
-            onNavigateToWallets={onNavigateToWallets}
+            hasInstapayAccount={digitalAccounts.some((a) => a.accountType === 'instapay' && a.isActive) || Boolean(storeInstapayAddress) || !isEnabled('feature_digital_wallets')}
+            hasWalletAccount={digitalAccounts.some((a) => a.accountType === 'wallet' && a.isActive) || Boolean(storeWalletNumber) || !isEnabled('feature_digital_wallets')}
+            onNavigateToWallets={isEnabled('feature_digital_wallets') ? onNavigateToWallets : undefined}
           />
         </section>
 

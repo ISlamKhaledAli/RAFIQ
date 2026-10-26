@@ -10,13 +10,14 @@ import {
   Unlock,
   History,
   X,
-  RefreshCw,
   Coins,
   User,
-  Info
+  Info,
+  Loader2
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useAuth } from '../context/useAuth';
+import { useDataSubscription } from '../utils/eventBus';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { MoneyInput } from './MoneyInput';
 import { CustomSelect } from './CustomSelect';
@@ -146,6 +147,12 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
       void fetchShiftData();
     }
   }, [isOpen, fetchShiftData]);
+
+  useDataSubscription(['shifts', 'sales', 'drawer', 'all'], () => {
+    if (isOpen) {
+      void fetchShiftData();
+    }
+  });
 
   const handleOpenShift = async () => {
     if (!canOpenShift) {
@@ -359,6 +366,12 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     الوردية مغلقة
                   </span>
                 )}
+                {loading && (
+                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 font-normal animate-pulse">
+                    <Loader2 className="w-3 h-3 animate-spin text-brand" />
+                    جاري التحديث...
+                  </span>
+                )}
               </div>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
                 {activeShift
@@ -370,16 +383,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => void fetchShiftData()}
-              disabled={loading}
-              className="p-2 rounded-xl text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark transition-all"
-              title="تحديث البيانات"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button
               onClick={() => void requestClose()}
-              className="p-2 rounded-xl text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark transition-all"
+              className="p-2 rounded-xl text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>

@@ -285,7 +285,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'settings.store', label: 'بيانات المحل والفاتورة', description: 'تعديل اسم المحل والهاتف وترويسة الإيصال' },
       { key: 'settings.printer', label: 'إعدادات الطابعات', description: 'ضبط طابعة الإيصالات وهوامش الطباعة' },
       { key: 'settings.barcode', label: 'إعدادات الباركود والميزان', description: 'ضبط الباركود وقارئ الميزان الإلكتروني' },
-      { key: 'settings.features', label: 'خصائص النظام المتقدمة', description: 'تفعيل الميزات الإضافية كالأقساط والمخازن المتعددة' },
+      { key: 'settings.features', label: 'ميزات ونشاط المحل', description: 'تفعيل وتعطيل ميزات ونشاط المحل والخدمات المتقدمة وتخصيص الواجهات' },
       { key: 'settings.backup', label: 'النسخ الاحتياطي', description: 'تصدير نسخة احتياطية من قاعدة البيانات' },
       { key: 'settings.restore', label: 'استعادة النسخ الاحتياطي', description: 'استرجاع بيانات سابقة للنظام' },
       { key: 'settings.license', label: 'معلومات الترخيص', description: 'الاطلاع على حالة التفعيل والنسخة' },

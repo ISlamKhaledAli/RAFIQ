@@ -16,6 +16,7 @@ import {
   X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useDataSubscription } from '../utils/eventBus';
 import { DatabaseRecoveryModal } from './DatabaseRecoveryModal';
 import { MigrationWizardModal } from './MigrationWizardModal';
 import { rafiqAlert } from '../utils/dialogService';
@@ -141,6 +142,11 @@ export const BackupManager = () => {
       active = false;
     };
   }, []);
+
+  useDataSubscription(['settings', 'all'], () => {
+    void fetchBackupStatus();
+    void fetchDrives();
+  });
 
   const handleCreateBackup = async () => {
     setLoading(true);
@@ -322,18 +328,6 @@ export const BackupManager = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                void fetchBackupStatus();
-                void fetchDrives();
-              }}
-              className="p-2 rounded bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
-              title="تحديث الحالة والأقراص المتصلة"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-
             <button
               type="button"
               onClick={() => setIsMigrationModalOpen(true)}

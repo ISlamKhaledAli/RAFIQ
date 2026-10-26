@@ -202,10 +202,10 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_digital_wallets",
-                NameAr = "المحافظ الإلكترونية وإنستاباي",
-                DescriptionAr = "إدارة حسابات المحافظ الإلكترونية وإنستاباي والتحويلات وأرصدة السحب والإيداع.",
+                NameAr = "خدمات وكالة وسحب وإيداع المحافظ",
+                DescriptionAr = "تقديم خدمات السحب والإيداع وتحويل الأموال للجمهور كنشاط تجاري بعمولة وإدارة أرصدة خطوط الكاش المستقلة عن مبيعات المحل.",
                 Category = "الخدمات والمدفوعات",
-                DefaultValue = true,
+                DefaultValue = false,
                 OwnedCommands = new List<string>
                 {
                     "wallets:processTransaction",
@@ -222,6 +222,15 @@ namespace RafiqPOS.Common
                     "wallets.manage",
                     "wallets.transact"
                 }
+            });
+
+            Register(new FeatureDefinition
+            {
+                Key = "feature_pos_digital_payments",
+                NameAr = "قبول الدفع بإنستاباي والمحافظ في الكاشير",
+                DescriptionAr = "إتاحة سداد فواتير المبيعات للعملاء عبر تحويلات إنستاباي ومحافظ الهواتف الذكية (فودافون كاش، أورانج، وي، اتصالات) كطرق دفع معتمدة في شاشة البيع.",
+                Category = "المبيعات ونقاط البيع",
+                DefaultValue = true
             });
 
             // =========================================================================

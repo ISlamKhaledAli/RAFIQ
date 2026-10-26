@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
-import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, ShieldCheck, Info, Wand2, ShieldAlert } from 'lucide-react';
+import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, ShieldCheck, Info, Wand2, ShieldAlert, Smartphone } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useTheme } from '../../context/useTheme';
 import { optimizeImageForThermal } from '../../utils/thermalImageOptimizer';
@@ -38,6 +38,10 @@ interface StoreProfileTabProps {
   setStoreLogoUrl?: (val: string) => void;
   developerSignature?: string;
   setDeveloperSignature?: (val: string) => void;
+  storeInstapayAddress?: string;
+  setStoreInstapayAddress?: (val: string) => void;
+  storeWalletNumber?: string;
+  setStoreWalletNumber?: (val: string) => void;
   isRoot?: boolean;
   saveLoading: boolean;
   handleSave: (e: FormEvent) => void;
@@ -73,6 +77,10 @@ export const StoreProfileTab = ({
   setStoreLogoUrl,
   developerSignature = 'نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965',
   setDeveloperSignature,
+  storeInstapayAddress,
+  setStoreInstapayAddress,
+  storeWalletNumber,
+  setStoreWalletNumber,
   isRoot = false,
   saveLoading,
   handleSave,
@@ -241,6 +249,54 @@ export const StoreProfileTab = ({
                 dir="ltr"
                 className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors text-right tabular-nums font-mono"
               />
+            </div>
+          </div>
+
+          {/* Section: Direct Store Electronic Payments (InstaPay & Wallets) */}
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-xl border border-line dark:border-line-dark flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span className="font-bold text-ink dark:text-ink-dark text-xs">
+                  المدفوعات الإلكترونية المباشرة للمحل (إنستاباي ومحافظ كاش)
+                </span>
+              </div>
+              <span className="text-[10px] text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 px-2 py-0.5 rounded font-bold">
+                دفع سريع في الكاشير
+              </span>
+            </div>
+            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
+              تظهر هذه البيانات للكاشير في شاشة الدفع عند رغبة الزبون بالتحويل المباشر، وتتيح البيع السريع بإنستاباي والمحافظ دون الحاجة لتشغيل قسم خدمات وكالة سحب وإيداع المحافظ.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-ink dark:text-ink-dark">
+                  عنوان إنستاباي للمحل (IPA أو رقم الهاتف)
+                </label>
+                <input
+                  type="text"
+                  value={storeInstapayAddress || ''}
+                  onChange={(e) => setStoreInstapayAddress && setStoreInstapayAddress(e.target.value)}
+                  placeholder="مثلاً: username@instapay أو 010xxxxxxxx"
+                  dir="ltr"
+                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors text-right font-mono"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-ink dark:text-ink-dark">
+                  رقم محفظة كاش للمحل (فودافون كاش / أورانج / اتصالات / وي)
+                </label>
+                <input
+                  type="text"
+                  value={storeWalletNumber || ''}
+                  onChange={(e) => setStoreWalletNumber && setStoreWalletNumber(e.target.value)}
+                  placeholder="مثلاً: 01012345678"
+                  dir="ltr"
+                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors text-right font-mono tabular-nums"
+                />
+              </div>
             </div>
           </div>
 

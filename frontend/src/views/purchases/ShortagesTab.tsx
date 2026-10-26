@@ -1015,16 +1015,8 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => void loadLostSalesReport(reportScope, reportSource, reportDays)}
-                  className="w-8 h-8 rounded-lg border border-line dark:border-line-dark flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface dark:hover:bg-surface-dark"
-                  title="تحديث التقرير"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isReportLoading ? 'animate-spin text-brand' : ''}`} />
-                </button>
-                <button
-                  type="button"
                   onClick={() => setIsLostSalesReportOpen(false)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink cursor-pointer hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark"
                   title="إغلاق"
                 >
                   <X className="w-4 h-4" />

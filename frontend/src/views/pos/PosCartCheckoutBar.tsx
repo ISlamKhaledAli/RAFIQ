@@ -78,7 +78,7 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   onNavigateToWallets,
 }) => {
   const { isEnabled } = useFeatures();
-  const showWallets = isEnabled('feature_digital_wallets');
+  const showWallets = isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets');
   const selectedCust = selectedCustomerId ? customers.find((c) => c.id === selectedCustomerId) : null;
 
   return (
@@ -263,17 +263,17 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                   <button 
                     type="button"
                     onClick={() => {
-                      if (!hasInstapayAccount && onNavigateToWallets) {
+                      if (!hasInstapayAccount && onNavigateToWallets && cart.length === 0) {
                         onNavigateToWallets('accounts');
                       } else {
                         handleOpenCheckout('instapay');
                       }
                     }}
-                    disabled={loading || (hasInstapayAccount && cart.length === 0)}
+                    disabled={loading || cart.length === 0}
                     className="relative flex-1 min-w-0 h-full bg-[#582C83] hover:bg-[#49226e] active:bg-[#3b195a] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/70 dark:disabled:text-ink-dark-muted/60 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
-                    title={hasInstapayAccount ? "سداد عبر تطبيق انستاباي" : "لم يتم ربط حساب انستاباي بعد - اضغط للربط الآن"}
+                    title={hasInstapayAccount ? "سداد عبر تطبيق انستاباي" : "سداد فوري عبر تطبيق انستاباي"}
                   >
-                    {!hasInstapayAccount && (
+                    {!hasInstapayAccount && onNavigateToWallets && cart.length === 0 && (
                       <span className="absolute top-1 left-1.5 px-1 py-0.5 bg-black/15 dark:bg-white/20 text-current text-[8px] font-black rounded-md border border-current/20 flex items-center gap-0.5 shadow-2xs leading-none">
                         <Link2 className="w-2 h-2 text-current" />
                         <span>ربط</span>
@@ -288,17 +288,17 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                   <button 
                     type="button"
                     onClick={() => {
-                      if (!hasWalletAccount && onNavigateToWallets) {
+                      if (!hasWalletAccount && onNavigateToWallets && cart.length === 0) {
                         onNavigateToWallets('accounts');
                       } else {
                         handleOpenCheckout('vodafone_cash');
                       }
                     }}
-                    disabled={loading || (hasWalletAccount && cart.length === 0)}
+                    disabled={loading || cart.length === 0}
                     className="relative flex-1 min-w-0 h-full bg-[#D92D20] hover:bg-[#B42318] active:bg-[#912018] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/70 dark:disabled:text-ink-dark-muted/60 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
-                    title={hasWalletAccount ? "سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)" : "لم يتم ربط محفظة كاش بعد - اضغط للربط الآن"}
+                    title={hasWalletAccount ? "سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)" : "سداد فوري عبر المحفظة الإلكترونية"}
                   >
-                    {!hasWalletAccount && (
+                    {!hasWalletAccount && onNavigateToWallets && cart.length === 0 && (
                       <span className="absolute top-1 left-1.5 px-1 py-0.5 bg-black/15 dark:bg-white/20 text-current text-[8px] font-black rounded-md border border-current/20 flex items-center gap-0.5 shadow-2xs leading-none">
                         <Link2 className="w-2 h-2 text-current" />
                         <span>ربط</span>

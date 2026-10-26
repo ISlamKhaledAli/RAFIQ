@@ -38,6 +38,7 @@ import {
   Layers,
   KeyRound,
   RefreshCw,
+  SlidersHorizontal,
   Database,
   BarChart3,
   Sun,
@@ -872,8 +873,15 @@ export default function App() {
   const settingsTreeItems = useMemo<SettingsTreeItem[]>(() => {
     const items: SettingsTreeItem[] = [
       { id: 'profile' as SettingsSubTab, label: 'بيانات المحل والفاتورة', icon: Store },
-      { id: 'printer' as SettingsSubTab, label: 'إعدادات الطابعة والورق', icon: Printer },
     ];
+    if (isRoot || hasPermission('settings.features')) {
+      items.push(
+        { id: 'features' as SettingsSubTab, label: 'ميزات ونشاط المحل', icon: SlidersHorizontal },
+      );
+    }
+    items.push(
+      { id: 'printer' as SettingsSubTab, label: 'إعدادات الطابعة والورق', icon: Printer },
+    );
     if (isRoot) {
       items.push(
         { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود والاسكانر', icon: Barcode },
@@ -885,7 +893,7 @@ export default function App() {
     );
     if (isRoot || hasPermission('settings.features')) {
       items.push(
-        { id: 'system' as SettingsSubTab, label: 'مفاتيح الميزات وفحص السيستم', icon: Activity },
+        { id: 'system' as SettingsSubTab, label: 'فحص سرعة النظام والتشخيص', icon: Activity },
       );
     }
     if (isRoot) {

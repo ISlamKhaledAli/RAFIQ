@@ -8,9 +8,9 @@ import {
   ShieldCheck, 
   ArrowRight,
   Receipt,
-  AlertCircle,
-  ArrowUpRight,
   Plus,
+  Copy,
+  Check,
 } from 'lucide-react';
 import type { Customer, SalePayment, DigitalAccount } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
@@ -65,13 +65,28 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
 }) => {
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(selectedCustomerId || null);
   const [digitalAccounts, setDigitalAccounts] = useState<DigitalAccount[]>([]);
+  const [storePaymentDetails, setStorePaymentDetails] = useState<{ instapayAddress: string; walletNumber: string }>({
+    instapayAddress: '',
+    walletNumber: '',
+  });
+  const [copied, setCopied] = useState(false);
   const prevIsOpenRef = useRef(false);
 
-  // Load digital accounts
+  // Load digital accounts & store direct payment settings
   useEffect(() => {
     if (isOpen) {
       invoke<DigitalAccount[]>('wallets:getAccounts')
         .then((accs) => setDigitalAccounts(accs || []))
+        .catch(() => {});
+      invoke<Record<string, string>>('settings:getAll')
+        .then((s) => {
+          if (s) {
+            setStorePaymentDetails({
+              instapayAddress: s.store_instapay_address || s.instapay_address || '',
+              walletNumber: s.store_wallet_number || s.wallet_number || '',
+            });
+          }
+        })
         .catch(() => {});
     }
   }, [isOpen]);
@@ -345,7 +360,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
               <span className="font-mono">{formatArabicCurrency(netTotalPiasters)}</span>
             </div>
 
-            {/* Linked Account Balance Info vs Unlinked Warning Banner */}
+            {/* Linked Account Balance Info vs Direct Store Handle vs Notice */}
             {matchedAccount ? (
               <div className="w-full mt-2 p-3 rounded-xl bg-white/95 dark:bg-surface-dark-3 border border-emerald-200 dark:border-emerald-800/40 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
                 <span className="font-sans font-bold text-ink dark:text-ink-dark flex items-center gap-2">
@@ -361,33 +376,54 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                   الرصيد: {formatArabicCurrency(matchedAccount.balancePiasters)} (سيزداد +{formatArabicCurrency(netTotalPiasters)})
                 </span>
               </div>
-            ) : (
-              <div className="w-full mt-2 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/50 shadow-2xs flex flex-col gap-2.5 text-right">
-                <div className="flex items-start gap-2.5">
-                  <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-200 m-0">
-                      لم يتم ربط أي {isInstapay ? 'حساب إنستاباي بنكي' : 'محفظة كاش إلكترونية'} نشطة بالنظام!
-                    </h4>
-                    <p className="text-[11px] sm:text-xs text-amber-800/90 dark:text-amber-300/80 m-0 mt-1 leading-relaxed">
-                      لكي تزداد أموالك ومبيعاتك تلقائياً في حساباتك بدون مشاكل مالية، يجب ربط حساب استلام أولاً من قسم «المحافظ والحسابات».
-                    </p>
-                  </div>
+            ) : (isInstapay ? storePaymentDetails.instapayAddress : storePaymentDetails.walletNumber) ? (
+              <div className="w-full mt-2 p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/40 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle2 className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                  <span className="font-sans font-bold text-ink dark:text-ink-dark">
+                    {isInstapay ? 'عنوان إنستاباي للمحل:' : 'رقم محفظة المحل:'}
+                  </span>
+                  <span className="font-mono font-bold text-sm text-purple-900 dark:text-purple-200 bg-white dark:bg-surface-dark-3 px-2.5 py-0.5 rounded-lg border border-purple-200 dark:border-purple-800/40 select-all">
+                    {isInstapay ? storePaymentDetails.instapayAddress : storePaymentDetails.walletNumber}
+                  </span>
                 </div>
-
+                <button
+                  type="button"
+                  onClick={() => {
+                    const txt = isInstapay ? storePaymentDetails.instapayAddress : storePaymentDetails.walletNumber;
+                    if (txt) {
+                      void navigator.clipboard.writeText(txt);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }
+                  }}
+                  className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 self-end sm:self-auto transition-all active:scale-95"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-white" />}
+                  <span>{copied ? 'تم النسخ!' : 'نسخ للزبون'}</span>
+                </button>
+              </div>
+            ) : (
+              <div className="w-full mt-2 p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark shadow-2xs flex flex-col gap-1.5 text-right">
+                <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark">
+                  <Smartphone className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
+                  <span>تحويل مباشر على {isInstapay ? 'إنستاباي' : 'المحفظة'}:</span>
+                </div>
+                <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
+                  اطلب من الزبون إتمام التحويل إلى {isInstapay ? 'حساب إنستاباي' : 'محفظة كاش'} التابع للمحل، ثم اضغط «تأكيد واستلام الفاتورة» لتسجيلها وإصدار الإيصال الحراري.
+                </p>
                 {onNavigateToWallets && (
-                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-amber-200/80 dark:border-amber-800/40">
+                  <div className="pt-1.5 border-t border-line/60 dark:border-line-dark flex justify-end">
                     <button
                       type="button"
                       onClick={() => {
                         onClose();
                         onNavigateToWallets('accounts');
                       }}
-                      className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>ربط {isInstapay ? 'حساب إنستاباي' : 'محفظة كاش'} الآن</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
+                      <Plus className="w-3 h-3" />
+                      <span>ربط حساب رسمي بمكتب المحافظ لمتابعة الأرصدة</span>
                     </button>
                   </div>
                 )}
@@ -416,21 +452,18 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={loading || !matchedAccount}
+            disabled={loading}
             className={`h-10 px-6 rounded-xl text-xs sm:text-sm font-black text-white transition-all shadow-md active:scale-98 cursor-pointer flex items-center gap-2 ${
               isInstapay 
                 ? 'bg-[#582C83] hover:bg-[#462269] active:bg-[#371954]' 
                 : 'bg-[#e60000] hover:bg-[#cc0000] active:bg-[#b30000]'
             } disabled:opacity-40 disabled:pointer-events-none`}
-            title={!matchedAccount ? "لا يمكن الحفظ قبل ربط حساب استلام نشط" : undefined}
           >
             <CheckCircle2 className="w-4 h-4 shrink-0 text-white/90" />
             <span>
-              {!matchedAccount 
-                ? 'يلزم ربط حساب أولاً للحفظ' 
-                : loading 
-                  ? 'جاري حفظ الفاتورة...' 
-                  : 'تأكيد استلام التحويل وحفظ الفاتورة'}
+              {loading 
+                ? 'جاري حفظ الفاتورة...' 
+                : `تأكيد استلام التحويل (${formatArabicCurrency(netTotalPiasters)})`}
             </span>
           </button>
         </div>

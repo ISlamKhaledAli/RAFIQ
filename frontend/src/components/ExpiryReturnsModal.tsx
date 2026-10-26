@@ -11,12 +11,12 @@ import {
   Users, 
   Clock, 
   Search,
-  RefreshCw,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { formatArabicCurrency } from '../utils/money';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { CustomSelect } from './CustomSelect';
+import { useDataSubscription } from '../utils/eventBus';
 import type { 
   ExpiryReturnableBatch, 
   ExpiredWriteOff, 
@@ -149,6 +149,13 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
       if (activeTab === 'history') void loadWriteOffHistory();
     }
   }, [isOpen, activeTab, loadReturnableBatches, loadExpiredBatches, loadWriteOffHistory]);
+
+  useDataSubscription(['products', 'purchases', 'all'], () => {
+    if (!isOpen) return;
+    if (activeTab === 'returns') void loadReturnableBatches();
+    else if (activeTab === 'writeoff') void loadExpiredBatches();
+    else if (activeTab === 'history') void loadWriteOffHistory();
+  });
 
   // Tab 1 Calculations
   const selectedReturnItems = useMemo(() => {
@@ -421,7 +428,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
               {/* Supplier Filter & Summary bar */}
               <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <div className="w-48">
+                  <div className="w-56">
                     <label className="text-[11px] font-bold text-ink-muted block mb-1">تصفية حسب المورد:</label>
                     <CustomSelect
                       value={selectedSupplierId}
@@ -429,15 +436,6 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                       options={supplierOptions}
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void loadReturnableBatches()}
-                    disabled={isLoadingReturns}
-                    className="mt-5 h-9 px-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold hover:bg-surface-2 transition-colors cursor-pointer flex items-center gap-1.5"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingReturns ? 'animate-spin' : ''}`} />
-                    <span>تحديث</span>
-                  </button>
                 </div>
 
                 {/* Return Summary Badges */}
@@ -906,15 +904,6 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                   />
                   <Search className="w-4 h-4 text-ink-muted absolute left-3 top-3" />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void loadWriteOffHistory()}
-                  disabled={isLoadingHistory}
-                  className="h-10 px-4 rounded-xl bg-surface dark:bg-surface-dark border border-line text-ink dark:text-ink-dark font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingHistory ? 'animate-spin' : ''}`} />
-                  <span>تحديث السجل</span>
-                </button>
               </div>
 
               {/* Table of History */}

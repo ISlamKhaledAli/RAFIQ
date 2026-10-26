@@ -9,6 +9,7 @@ import {
   Barcode, 
   KeyRound, 
   FlaskConical,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useFeatures } from '../context/useFeatures';
@@ -25,12 +26,13 @@ import { SearchBenchmarkModal } from '../components/SearchBenchmarkModal';
 import { PinSettingsModal } from '../components/PinSettingsModal';
 
 import { StoreProfileTab } from './settings/StoreProfileTab';
+import { StoreFeaturesTab } from './settings/StoreFeaturesTab';
 import { PrinterSettingsTab } from './settings/PrinterSettingsTab';
 import { ScannerSettingsTab } from './settings/ScannerSettingsTab';
 import { SystemDiagnosticsTab } from './settings/SystemDiagnosticsTab';
 import { DemoDataTab } from './settings/DemoDataTab';
 
-export type SettingsSubTab = 'profile' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
+export type SettingsSubTab = 'profile' | 'features' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
 
 export interface SettingsViewProps {
   sysInfo?: SystemInfo | null;
@@ -47,8 +49,8 @@ export const SettingsView = ({
   const { isRoot, hasPermission } = useAuth();
   const canManageFeatures = isRoot || hasPermission('settings.features');
   const allowedSubTabs = isRoot 
-    ? ['profile', 'printer', 'scanner', 'security', 'backup', 'system', 'demo'] 
-    : (canManageFeatures ? ['profile', 'printer', 'backup', 'system'] : ['profile', 'printer', 'backup']);
+    ? ['profile', 'features', 'printer', 'scanner', 'security', 'backup', 'system', 'demo'] 
+    : (canManageFeatures ? ['profile', 'features', 'printer', 'backup', 'system'] : ['profile', 'printer', 'backup']);
   const subTab = allowedSubTabs.includes(activeSubTab) ? activeSubTab : 'profile';
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -70,6 +72,8 @@ export const SettingsView = ({
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [requireOpenShiftToSell, setRequireOpenShiftToSell] = useState(true);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
+  const [storeInstapayAddress, setStoreInstapayAddress] = useState('');
+  const [storeWalletNumber, setStoreWalletNumber] = useState('');
   const [logoVariant, setLogoVariant] = useState<'classic' | 'modern'>(() => {
     try {
       const saved = localStorage.getItem('rafiq_logo_variant');
@@ -174,6 +178,8 @@ export const SettingsView = ({
             const lim = Number(settings.default_customer_credit_limit_egp);
             if (!isNaN(lim) && lim >= 0) setDefaultCustomerCreditLimitEgp(lim);
           }
+          if (settings.store_instapay_address) setStoreInstapayAddress(settings.store_instapay_address);
+          if (settings.store_wallet_number) setStoreWalletNumber(settings.store_wallet_number);
           if (settings.default_printer_name) setSelectedPrinter(settings.default_printer_name);
           if (settings.receipt_paper_width) setPaperWidth(settings.receipt_paper_width as '80mm' | '57mm' | 'a4');
           if (settings.printer_auto_print !== undefined) setAutoPrintOnSale(settings.printer_auto_print === '1');
@@ -254,6 +260,8 @@ export const SettingsView = ({
         allow_negative_stock: allowNegativeStock ? '1' : '0',
         require_open_shift_to_sell: requireOpenShiftToSell ? '1' : '0',
         default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
+        store_instapay_address: storeInstapayAddress.trim(),
+        store_wallet_number: storeWalletNumber.trim(),
         instapay_fee_percent: '0',
         vodafone_cash_fee_percent: '0',
         logo_variant: logoVariant,
@@ -435,6 +443,11 @@ export const SettingsView = ({
       subtitle: 'اسم المحل، التليفون، العنوان، الرقم الضريبي، وشكل وصل الكاشير الحراري',
       icon: Store,
     },
+    features: {
+      title: 'ميزات ونشاط المحل وتخصيص الواجهات',
+      subtitle: 'تفعيل أو تعطيل الأقسام والخدمات والميزات المتقدمة حسب طبيعة ونشاط متجرك الفعلي',
+      icon: SlidersHorizontal,
+    },
     backup: {
       title: 'النسخ الاحتياطي وحماية البيانات',
       subtitle: 'حفظ نسخة من بيانات المحل على فلاشة أو قرص خارجي، واسترجاعها بأمان بدون إنترنت',
@@ -565,9 +578,22 @@ export const SettingsView = ({
           setStoreLogoUrl={setStoreLogoUrl}
           developerSignature={developerSignature}
           setDeveloperSignature={setDeveloperSignature}
+          storeInstapayAddress={storeInstapayAddress}
+          setStoreInstapayAddress={setStoreInstapayAddress}
+          storeWalletNumber={storeWalletNumber}
+          setStoreWalletNumber={setStoreWalletNumber}
           isRoot={isRoot}
           saveLoading={saveLoading}
           handleSave={handleSave}
+          onOpenWizard={isRoot ? () => setIsWizardOpen(true) : undefined}
+        />
+      )}
+
+      {subTab === 'features' && (
+        <StoreFeaturesTab
+          flags={flags}
+          toggleFlag={toggleFlag}
+          canManageFeatures={canManageFeatures}
           onOpenWizard={isRoot ? () => setIsWizardOpen(true) : undefined}
         />
       )}

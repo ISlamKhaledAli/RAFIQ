@@ -14,6 +14,7 @@ import {
   Minus 
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from './CustomSelect';
 import { formatArabicCurrency } from '../utils/money';
 
@@ -173,6 +174,12 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
       fetchSheet();
     }
   }, [isOpen, fetchSheet]);
+
+  useDataSubscription(['products', 'all'], () => {
+    if (isOpen) {
+      void fetchSheet();
+    }
+  });
 
   // Update compound input and calculate actual quantity in milli
   const handleCompoundUnitChange = (
@@ -369,7 +376,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
         </div>
 
         {/* Filters Bar */}
-        <div className="p-4 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
+        <div className="p-4 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
           {/* Location Filter */}
           <div>
             <label className="block text-[11px] font-bold text-ink-muted mb-1">
@@ -421,19 +428,6 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                 className="w-full pr-8 pl-3 py-1.5 text-xs rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark focus:border-brand focus:outline-hidden"
               />
             </div>
-          </div>
-
-          {/* Refresh Action */}
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={fetchSheet}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark hover:bg-surface-3 transition-colors border border-line"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>تحديث الكشف</span>
-            </button>
           </div>
         </div>
 
