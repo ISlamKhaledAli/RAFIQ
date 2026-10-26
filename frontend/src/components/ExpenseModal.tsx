@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Receipt, 
   X, 
@@ -15,6 +15,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
 import { MoneyInput } from './MoneyInput';
+import { PaginationBar } from './PaginationBar';
 import { formatArabicCurrency } from '../utils/money';
 import type { Expense, ExpenseCategory } from '../types/models';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -67,6 +68,13 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   // Today's expenses log
   const [todayExpenses, setTodayExpenses] = useState<Expense[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
+
+  const paginatedExpenses = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return todayExpenses.slice(start, start + pageSize);
+  }, [todayExpenses, currentPage, pageSize]);
 
   const isDirty = amountPiasters > 0 || notes.trim() !== '' || cancellingExpenseId !== null;
 
@@ -437,8 +445,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                 لم يتم تسجيل أي مصروفات اليوم حتى الآن.
               </div>
             ) : (
-              <div className="max-h-52 overflow-y-auto space-y-2 pr-0.5 custom-scrollbar">
-                {todayExpenses.map((exp) => {
+              <>
+                <div className="max-h-52 overflow-y-auto space-y-2 pr-0.5 custom-scrollbar">
+                {paginatedExpenses.map((exp) => {
                   const isDrawer = exp.source === 'drawer' || !exp.source;
                   const isItemCancelling = cancellingExpenseId === exp.id;
 
@@ -571,7 +580,24 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                   );
                 })}
               </div>
-            )}
+
+              {todayExpenses.length > 5 && (
+                <PaginationBar
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  totalCount={todayExpenses.length}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={(newSize) => {
+                    setPageSize(newSize);
+                    setCurrentPage(1);
+                  }}
+                  pageSizeOptions={[5, 10, 20]}
+                  itemLabel="إيصال مصروف"
+                  className="mt-2 py-1.5 px-3 text-xs"
+                />
+              )}
+            </>
+          )}
           </div>
         </div>
 

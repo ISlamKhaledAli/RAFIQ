@@ -841,8 +841,16 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
       };
 
       const rawName = getCellString('name');
-      // تخطي الصفوف الفارغة أو صفوف الإجماليات والمعادلات الملخصة
-      if (!rawName || rawName.includes('الإجمالي') || rawName.includes('المجموع') || rawName.startsWith('إجمالي')) {
+      // تخطي الصفوف الفارغة أو صفوف الإجماليات وتذييلات الإحصاء والمعادلات الملخصة
+      if (
+        !rawName ||
+        rawName.includes('الإجمالي') ||
+        rawName.includes('المجموع') ||
+        rawName.startsWith('إجمالي') ||
+        rawName.includes('عدد الأصناف') ||
+        rawName.includes('عدد المنتجات') ||
+        rawName.startsWith('عدد')
+      ) {
         continue;
       }
 

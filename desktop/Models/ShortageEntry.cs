@@ -103,6 +103,9 @@ namespace RafiqPOS.Models
         [JsonProperty("unitPricePiasters")]
         public long UnitPricePiasters { get; set; }
 
+        [JsonProperty("costPiasters")]
+        public long CostPiasters { get; set; }
+
         [JsonProperty("createdBy")]
         public string CreatedBy { get; set; }
 
@@ -165,6 +168,21 @@ namespace RafiqPOS.Models
 
         [JsonProperty("preferredSupplierName")]
         public string PreferredSupplierName { get; set; }
+
+        [JsonProperty("barcode")]
+        public string Barcode { get; set; }
+
+        [JsonProperty("unit")]
+        public string Unit { get; set; }
+
+        [JsonProperty("source")]
+        public string Source { get; set; }
+
+        [JsonProperty("status")]
+        public string Status { get; set; }
+
+        [JsonProperty("currentStockMilli")]
+        public int CurrentStockMilli { get; set; }
     }
 
     /// <summary>
@@ -184,6 +202,12 @@ namespace RafiqPOS.Models
 
         [JsonProperty("uniqueProductsCount")]
         public int UniqueProductsCount { get; set; }
+
+        [JsonProperty("totalCustomerRequestsCount")]
+        public int TotalCustomerRequestsCount { get; set; }
+
+        [JsonProperty("totalAutoReorderCount")]
+        public int TotalAutoReorderCount { get; set; }
 
         [JsonProperty("totalLostRevenuePiasters")]
         public long TotalLostRevenuePiasters { get; set; }

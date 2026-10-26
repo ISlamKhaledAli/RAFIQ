@@ -45,6 +45,24 @@ namespace RafiqPOS.Models
         [JsonProperty("publicPricePiasters")]
         public long? PublicPricePiasters { get; set; }
 
+        [JsonProperty("route")]
+        public string Route { get; set; }
+
+        [JsonProperty("pregnancyCategory")]
+        public string PregnancyCategory { get; set; }
+
+        [JsonProperty("isAntibiotic")]
+        public bool IsAntibiotic { get; set; }
+
+        [JsonProperty("rxStatus")]
+        public string RxStatus { get; set; }
+
+        [JsonProperty("flavorForm")]
+        public string FlavorForm { get; set; }
+
+        [JsonProperty("piecesPerPack")]
+        public int? PiecesPerPack { get; set; }
+
         [JsonProperty("source")]
         public string Source { get; set; }
 
@@ -92,6 +110,24 @@ namespace RafiqPOS.Models
 
         [JsonProperty("isRefrigerated")]
         public bool IsRefrigerated { get; set; }
+
+        [JsonProperty("route")]
+        public string Route { get; set; }
+
+        [JsonProperty("pregnancyCategory")]
+        public string PregnancyCategory { get; set; }
+
+        [JsonProperty("isAntibiotic")]
+        public bool IsAntibiotic { get; set; }
+
+        [JsonProperty("rxStatus")]
+        public string RxStatus { get; set; }
+
+        [JsonProperty("flavorForm")]
+        public string FlavorForm { get; set; }
+
+        [JsonProperty("piecesPerPack")]
+        public int? PiecesPerPack { get; set; }
 
         [JsonProperty("packDesc")]
         public string PackDesc { get; set; }

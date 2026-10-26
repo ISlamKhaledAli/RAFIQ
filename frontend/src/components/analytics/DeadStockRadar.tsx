@@ -4,11 +4,12 @@ import {
   PackageX, 
   DollarSign, 
   AlertTriangle, 
-  RefreshCw, 
+  RefreshCw,
   ChevronLeft,
   Pencil
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { useDataSubscription } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
 import type { DeadStockReport, DeadStockItem } from '../../types/models';
 
@@ -37,6 +38,10 @@ export const DeadStockRadar: FC<DeadStockRadarProps> = ({ onNavigateToProduct })
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useDataSubscription(['products', 'sales', 'all'], () => {
+    void loadData();
+  });
 
   const handleApplyCustomDays = () => {
     const parsed = parseInt(customInputVal, 10);
@@ -106,16 +111,6 @@ export const DeadStockRadar: FC<DeadStockRadarProps> = ({ onNavigateToProduct })
             />
             <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">يوم</span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => void loadData()}
-            disabled={isLoading}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-slate-200 dark:hover:bg-surface-dark text-ink-muted dark:text-ink-dark-muted transition-colors cursor-pointer"
-            title="تحديث البيانات"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-paid dark:text-paid-bright' : ''}`} />
-          </button>
         </div>
       </div>
 

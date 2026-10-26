@@ -232,6 +232,7 @@ export interface DrugReferenceItem {
   scientificName?: string | null;
   form?: string | null;
   strength?: string | null;
+  flavorForm?: string | null;
   manufacturer?: string | null;
   packDesc?: string | null;
   publicPricePiasters?: number | null;
@@ -240,6 +241,11 @@ export interface DrugReferenceItem {
   category?: string | null;
   storageLocation?: string | null;
   isRefrigerated?: boolean;
+  route?: string | null;
+  pregnancyCategory?: string | null;
+  isAntibiotic?: boolean;
+  rxStatus?: string | null;
+  piecesPerPack?: number | null;
   importedAt: string;
   createdAt?: string;
   updatedAt?: string | null;
@@ -252,6 +258,7 @@ export interface DrugReferenceImportRow {
   scientificName?: string | null;
   form?: string | null;
   strength?: string | null;
+  flavorForm?: string | null;
   manufacturer?: string | null;
   packDesc?: string | null;
   publicPricePiasters?: number | null;
@@ -259,6 +266,11 @@ export interface DrugReferenceImportRow {
   category?: string | null;
   storageLocation?: string | null;
   isRefrigerated?: boolean;
+  route?: string | null;
+  pregnancyCategory?: string | null;
+  isAntibiotic?: boolean;
+  rxStatus?: string | null;
+  piecesPerPack?: number | null;
   status: 'NEW' | 'UPDATE' | 'ERROR';
   reason?: string | null;
 }

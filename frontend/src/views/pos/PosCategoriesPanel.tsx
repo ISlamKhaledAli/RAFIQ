@@ -77,39 +77,43 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
       } h-full bg-surface-2 dark:bg-surface-dark-2 border-r border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 shadow-2xs`}
     >
       {/* Header */}
-      <div className={`w-full flex items-center justify-between pb-2 mb-2 border-b border-line dark:border-line-dark shrink-0 ${
-        isCollapsed ? 'flex-col gap-2' : ''
-      }`}>
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-white shadow-2xs shrink-0">
-            <LayoutGrid className="w-4 h-4" />
-          </div>
-          {!isCollapsed && (
+      {isCollapsed ? (
+        <div className="w-full flex flex-col items-center pb-2 mb-2 border-b border-line dark:border-line-dark shrink-0">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright border border-line dark:border-line-dark shadow-xs group"
+            title="توسيع قائمة الأقسام"
+          >
+            <PanelLeftOpen className="w-4 h-4 text-brand dark:text-brand-bright transition-transform group-hover:scale-110" />
+          </button>
+        </div>
+      ) : (
+        <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-line dark:border-line-dark shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-white shadow-2xs shrink-0">
+              <LayoutGrid className="w-4 h-4" />
+            </div>
             <div className="min-w-0">
               <h2 className="text-xs font-bold text-ink dark:text-ink-dark truncate">أقسام المتجر</h2>
               <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted truncate">
                 {categories.length} أقسام رئيسية
               </div>
             </div>
-          )}
-        </div>
+          </div>
 
-        <div className="flex items-center gap-1 shrink-0">
-
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className="p-1 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-all cursor-pointer shadow-2xs"
-            title={isCollapsed ? 'توسيع قائمة الأقسام' : 'تصغير قائمة الأقسام'}
-          >
-            {isCollapsed ? (
-              <PanelLeftOpen className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-            ) : (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              className="p-1 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-all cursor-pointer shadow-2xs"
+              title="تصغير قائمة الأقسام"
+            >
               <PanelLeftClose className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright" />
-            )}
-          </button>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Quick Search within Categories (Only when expanded) */}
       {!isCollapsed && (

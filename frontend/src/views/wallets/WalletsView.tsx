@@ -300,7 +300,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [transactions, setTransactions] = useState<DigitalTransaction[]>([]);
   const [_fundings, setFundings] = useState<DigitalAccountFunding[]>([]);
   const [analytics, setAnalytics] = useState<DigitalAnalyticsSummary | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [_loading, setLoading] = useState<boolean>(false);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
   // Form State: 2 Direct Inputs (Amount & Profit)
@@ -451,6 +451,10 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       void loadData();
     }
   }, [isActive, loadData]);
+
+  useDataSubscription(['wallets', 'all'], () => {
+    void loadData();
+  });
 
   // Direct calculation of balances from accounts array for 100% synchronization
   const calculatedWalletsBalancePiasters = useMemo(() => {
@@ -859,8 +863,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         </div>
 
         {/* Context-Aware Action Buttons - Only Relevant Actions per Tab */}
-        <div className="flex items-center gap-2">
-          {currentTab === 'accounts' && canManageAccounts && (
+        {currentTab === 'accounts' && canManageAccounts && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => handleOpenAccountModal()}
@@ -869,18 +873,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               <PlusCircle className="w-4 h-4" />
               <span>إضافة محفظة / حساب بنكي</span>
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={loadData}
-            disabled={loading}
-            className="w-9 h-9 rounded-xl bg-surface-2 dark:bg-surface-dark-2 text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-white border border-line dark:border-line-dark flex items-center justify-center cursor-pointer transition-all active:scale-98"
-            title="تحديث البيانات"
-          >
-            <RotateCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+          </div>
+        )}
       </header>
 
       {/* Notifications Alert Banner */}

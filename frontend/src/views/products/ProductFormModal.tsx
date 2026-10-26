@@ -302,13 +302,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   // Unified Cold Chain handler (syncs both isColdChain and pharmaInfo.isRefrigerated)
   const isColdChainActive = Boolean(isColdChain || pharmaInfo?.isRefrigerated);
-  const handleColdChainChange = (checked: boolean) => {
+  const handleColdChainChange = useCallback((checked: boolean) => {
     setIsColdChain?.(checked);
     setPharmaInfo?.((prev) => ({
       ...prev,
       isRefrigerated: checked,
     }));
-  };
+  }, [setIsColdChain, setPharmaInfo]);
 
   // Synchronize on modal open or editingId change
   useEffect(() => {
@@ -461,22 +461,57 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setPricePiasters(found.publicPricePiasters);
     }
 
-    // Match Category if provided in drug reference
-    if (found.category && categories && categories.length > 0) {
-      const normCat = found.category.trim().toLowerCase();
-      const catMatch = categories.find(c => c.name.toLowerCase().includes(normCat) || normCat.includes(c.name.toLowerCase()));
-      if (catMatch) {
-        setCategoryId(catMatch.id);
+    // Set Strength / Size (التركيز / الحجم)
+    if (found.strength && setVariantSize) {
+      setVariantSize(found.strength.trim());
+    }
+
+    // Set Flavor / Dosage Form (النكهة / الشكل الدوائي)
+    const flavorOrForm = (found.flavorForm || found.form || '').trim();
+    if (flavorOrForm && setVariantColor) {
+      setVariantColor(flavorOrForm);
+    }
+
+    // Match Category if provided in drug reference or fallback to pharmacy category
+    if (categories && categories.length > 0) {
+      if (found.category) {
+        const normCat = found.category.trim().toLowerCase();
+        const catMatch = categories.find(c => c.name.toLowerCase().includes(normCat) || normCat.includes(c.name.toLowerCase()));
+        if (catMatch) {
+          setCategoryId(catMatch.id);
+        }
+      } else {
+        const pharmaCat = categories.find(c => c.name.includes('أدوية') || c.name.includes('صيدلية') || c.name.includes('مسكنات'));
+        if (pharmaCat && (!categoryId || categoryId === 'cat_general')) {
+          setCategoryId(pharmaCat.id);
+        }
       }
     }
 
-    // Match Shelf / Storage Location if provided in drug reference
-    if (found.storageLocation && storageLocations && storageLocations.length > 0) {
-      const normLoc = found.storageLocation.trim().toLowerCase();
-      const locMatch = storageLocations.find(l => l.name.toLowerCase().includes(normLoc) || normLoc.includes(l.name.toLowerCase()));
-      if (locMatch) {
-        setLocationId?.(locMatch.id);
+    // Match Shelf / Storage Location if provided in drug reference or fridge
+    if (storageLocations && storageLocations.length > 0) {
+      if (found.storageLocation) {
+        const normLoc = found.storageLocation.trim().toLowerCase();
+        const locMatch = storageLocations.find(l => l.name.toLowerCase().includes(normLoc) || normLoc.includes(l.name.toLowerCase()));
+        if (locMatch) {
+          setLocationId?.(locMatch.id);
+        }
+      } else if (found.isRefrigerated) {
+        const fridgeLoc = storageLocations.find(l => l.type === 'fridge');
+        if (fridgeLoc) {
+          setLocationId?.(fridgeLoc.id);
+        }
       }
+    }
+
+    // Sync Cold Chain / Refrigerator Checkbox
+    if (found.isRefrigerated !== undefined) {
+      handleColdChainChange(Boolean(found.isRefrigerated));
+    }
+
+    // Sync Pack Capacity (سعة العبوة وعدد الأشرطة)
+    if (found.piecesPerPack && found.piecesPerPack > 1) {
+      setPackSizeInput(String(found.piecesPerPack));
     }
 
     // Update PharmaInfo with clinical fields
@@ -494,7 +529,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       let matchedFormName = current.dosageFormName;
       if (found.form && dosageForms.length > 0) {
         const normForm = found.form.trim().toLowerCase();
-        const dMatch = dosageForms.find(d => d.nameAr.toLowerCase().includes(normForm) || normForm.includes(d.nameAr.toLowerCase()));
+        const dMatch = dosageForms.find(d => 
+          d.nameAr.toLowerCase().includes(normForm) || 
+          normForm.includes(d.nameAr.toLowerCase()) ||
+          (d.nameEn && normForm.includes(d.nameEn.toLowerCase()))
+        );
         if (dMatch) {
           matchedFormId = dMatch.id;
           matchedFormName = dMatch.nameAr;
@@ -506,7 +545,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       let matchedMfgName = current.manufacturerName;
       if (found.manufacturer && manufacturers.length > 0) {
         const normMfg = found.manufacturer.trim().toLowerCase();
-        const mMatch = manufacturers.find(m => m.nameAr.toLowerCase().includes(normMfg) || normMfg.includes(m.nameAr.toLowerCase()));
+        const mMatch = manufacturers.find(m => 
+          m.nameAr.toLowerCase().includes(normMfg) || 
+          normMfg.includes(m.nameAr.toLowerCase()) ||
+          (m.nameEn && normMfg.includes(m.nameEn.toLowerCase()))
+        );
         if (mMatch) {
           matchedMfgId = mMatch.id;
           matchedMfgName = mMatch.nameAr;
@@ -521,11 +564,91 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         const tMatch = therapeuticClasses.find(t => 
           t.nameAr.toLowerCase().includes(normTherapeutic) || 
           normTherapeutic.includes(t.nameAr.toLowerCase()) ||
+          (t.nameEn && normTherapeutic.includes(t.nameEn.toLowerCase())) ||
           (t.code && normTherapeutic.includes(t.code.toLowerCase()))
         );
         if (tMatch) {
           matchedTherapeuticId = tMatch.id;
           matchedTherapeuticName = tMatch.nameAr;
+        }
+      }
+
+      // Infer or match route of administration
+      let resolvedRoute = current.routeOfAdministration || 'oral';
+      if (found.route) {
+        const lowerRoute = found.route.trim().toLowerCase();
+        if (lowerRoute.includes('oral') || lowerRoute.includes('فم')) resolvedRoute = 'oral';
+        else if (lowerRoute.includes('topical') || lowerRoute.includes('موضع') || lowerRoute.includes('كريم') || lowerRoute.includes('مرهم') || lowerRoute.includes('جل')) resolvedRoute = 'topical';
+        else if (lowerRoute.includes('parenteral') || lowerRoute.includes('inject') || lowerRoute.includes('حقن') || lowerRoute.includes('عضل') || lowerRoute.includes('وريد')) resolvedRoute = 'parenteral';
+        else if (lowerRoute.includes('drop') || lowerRoute.includes('قطر') || lowerRoute.includes('عين') || lowerRoute.includes('أذن')) resolvedRoute = 'ophthalmic';
+        else if (lowerRoute.includes('inhal') || lowerRoute.includes('استنشاق') || lowerRoute.includes('بخاخ')) resolvedRoute = 'inhalation';
+        else if (lowerRoute.includes('rectal') || lowerRoute.includes('لبوس') || lowerRoute.includes('شرج') || lowerRoute.includes('تحاميل')) resolvedRoute = 'rectal';
+        else resolvedRoute = found.route;
+      } else if (found.form) {
+        const lowerForm = found.form.trim().toLowerCase();
+        if (lowerForm.includes('حقن') || lowerForm.includes('أمبول') || lowerForm.includes('فيال') || lowerForm.includes('inject')) resolvedRoute = 'parenteral';
+        else if (lowerForm.includes('كريم') || lowerForm.includes('مرهم') || lowerForm.includes('جل') || lowerForm.includes('لوشن')) resolvedRoute = 'topical';
+        else if (lowerForm.includes('قطرة') || lowerForm.includes('نقط')) resolvedRoute = 'ophthalmic';
+        else if (lowerForm.includes('استنشاق') || lowerForm.includes('بخاخ')) resolvedRoute = 'inhalation';
+        else if (lowerForm.includes('لبوس') || lowerForm.includes('تحاميل')) resolvedRoute = 'rectal';
+        else resolvedRoute = 'oral';
+      }
+
+      // Infer or match pregnancy category
+      let resolvedPregnancy = current.pregnancyCategory || '';
+      if (found.pregnancyCategory !== undefined && found.pregnancyCategory !== null) {
+        const upperPreg = found.pregnancyCategory.trim().toUpperCase();
+        if (['A', 'B', 'C', 'D', 'X'].includes(upperPreg)) {
+          resolvedPregnancy = upperPreg;
+        } else if (upperPreg === '' || upperPreg === 'NONE' || upperPreg.includes('غير محدد')) {
+          resolvedPregnancy = '';
+        }
+      }
+
+      // Infer or match antibiotic flag
+      let resolvedAntibiotic = Boolean(current.isAntibiotic);
+      if (found.isAntibiotic !== undefined && found.isAntibiotic !== null) {
+        resolvedAntibiotic = Boolean(found.isAntibiotic);
+      } else if (found.therapeuticClass) {
+        const tc = found.therapeuticClass.toLowerCase();
+        if (tc.includes('مضاد حيوي') || tc.includes('مضادات حيوية') || tc.includes('antibiotic')) {
+          resolvedAntibiotic = true;
+        }
+      }
+
+      // Infer or match prescription / Rx status
+      let resolvedRx = current.rxStatus || 'otc';
+      if (found.rxStatus) {
+        const lowerRx = found.rxStatus.trim().toLowerCase();
+        if (lowerRx.includes('control') || lowerRx.includes('جدول')) resolvedRx = 'controlled';
+        else if (lowerRx.includes('rx') || lowerRx.includes('روشتة')) resolvedRx = 'rx';
+        else resolvedRx = 'otc';
+      } else if (resolvedAntibiotic) {
+        resolvedRx = 'rx';
+      }
+
+      // Auto-populate active ingredients list if scientific name is provided (تثبيت كمادة فعالة رئيسية)
+      const existingIngs = current.ingredients || [];
+      let updatedIngredients = [...existingIngs];
+      if (found.scientificName && found.scientificName.trim()) {
+        const sci = found.scientificName.trim();
+        const alreadyHasIt = existingIngs.some(ing => ing.ingredientName && ing.ingredientName.trim().toLowerCase() === sci.toLowerCase());
+        if (!alreadyHasIt) {
+          let strengthMilli = 0;
+          if (found.strength) {
+            const numMatch = found.strength.match(/(\d+)/);
+            if (numMatch) {
+              strengthMilli = parseInt(numMatch[1], 10) * 1000;
+            }
+          }
+          const primaryIng = {
+            ingredientId: `ing_${Date.now()}`,
+            ingredientName: sci,
+            strengthMilli: strengthMilli > 0 ? strengthMilli : 500000,
+            strengthUnit: 'mg',
+            isPrimary: existingIngs.length === 0 || !existingIngs.some(i => i.isPrimary),
+          };
+          updatedIngredients.push(primaryIng);
         }
       }
 
@@ -540,10 +663,38 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         manufacturerName: matchedMfgName || (found.manufacturer || null),
         therapeuticClassId: matchedTherapeuticId,
         therapeuticClassName: matchedTherapeuticName || (found.therapeuticClass || null),
+        routeOfAdministration: resolvedRoute,
+        pregnancyCategory: resolvedPregnancy,
+        isAntibiotic: resolvedAntibiotic,
+        rxStatus: resolvedRx,
+        isPrescriptionOnly: resolvedRx === 'rx' || resolvedRx === 'controlled',
         isRefrigerated: isCold,
+        ingredients: updatedIngredients,
       };
     });
-  }, [categories, storageLocations, dosageForms, manufacturers, therapeuticClasses, setName, setPricePiasters, setCategoryId, setLocationId, setPharmaInfo]);
+
+    // Automatically expand advanced details and ingredients so user can see populated fields
+    setShowAdvancedDetails(true);
+    if (found.scientificName) {
+      setShowIngredientsDetail(true);
+    }
+  }, [
+    categories, 
+    storageLocations, 
+    dosageForms, 
+    manufacturers, 
+    therapeuticClasses, 
+    setName, 
+    setPricePiasters, 
+    setCategoryId, 
+    setLocationId, 
+    setPharmaInfo, 
+    setVariantSize, 
+    setVariantColor, 
+    handleColdChainChange, 
+    setPackSizeInput,
+    categoryId
+  ]);
 
   // Auto-lookup drug reference by barcode when barcode changes
   useEffect(() => {

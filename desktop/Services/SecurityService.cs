@@ -389,8 +389,7 @@ namespace RafiqPOS.Services
                 string lastKnownFp = _settingsRepo != null ? _settingsRepo.Get("license_machine_fingerprint", "") : "";
                 if (RootOtpHelper.VerifyOtp(deviceFp, pin) || 
                     RootOtpHelper.VerifyOtp(legacyFp, pin) || 
-                    (!string.IsNullOrEmpty(lastKnownFp) && RootOtpHelper.VerifyOtp(lastKnownFp, pin)) ||
-                    RootOtpHelper.VerifyMasterOtp(pin))
+                    (!string.IsNullOrEmpty(lastKnownFp) && RootOtpHelper.VerifyOtp(lastKnownFp, pin)))
                 {
                     matches = true;
                     LogAudit("ROOT_OTP_LOGIN", "SECURITY", user.Username, "تسجيل دخول حساب المطور (Root) بنجاح باستخدام كود OTP المتغير للساعة الحالية");
@@ -654,6 +653,24 @@ namespace RafiqPOS.Services
                 pinHashStr = Convert.ToBase64String(pHash);
             }
 
+            string targetRole = string.IsNullOrEmpty(role) ? "cashier" : role.Trim().ToLowerInvariant();
+            if (targetRole == "root")
+            {
+                throw new UnauthorizedAccessException("غير مصرح بإنشاء حسابات برتبة Root نهائياً.");
+            }
+            if (targetRole == "admin")
+            {
+                bool parentIsAdminOrRoot = parent != null && (parent.Role == "admin" || parent.Role == "root");
+                if (!parentIsAdminOrRoot)
+                {
+                    throw new UnauthorizedAccessException("غير مصرح بإنشاء حساب برتبة مدير نظام إلا من قبل مدير نظام آخر.");
+                }
+            }
+            else
+            {
+                targetRole = "cashier";
+            }
+
             string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : null;
 
             var user = new User
@@ -665,7 +682,7 @@ namespace RafiqPOS.Services
                 PasswordSalt = passSaltStr,
                 PinCodeHash = pinHashStr ?? "",
                 PinSalt = pinSaltStr ?? "",
-                Role = string.IsNullOrEmpty(role) ? "cashier" : role,
+                Role = targetRole,
                 IsActive = true,
                 FailedAttempts = 0,
                 PermissionsJson = permsJson,
@@ -712,9 +729,23 @@ namespace RafiqPOS.Services
 
             bool wasActive = user.IsActive;
             user.DisplayName = displayName.Trim();
+            string targetRole = string.IsNullOrEmpty(role) ? "cashier" : role.Trim().ToLowerInvariant();
+            if (targetRole == "root")
+            {
+                throw new UnauthorizedAccessException("غير مصرح بترقية أي حساب إلى رتبة Root.");
+            }
+
             if (user.Role != "root")
             {
-                user.Role = string.IsNullOrEmpty(role) ? "cashier" : role;
+                if (targetRole == "admin")
+                {
+                    bool callerIsAdmin = _currentUserSession != null && (_currentUserSession.Role == "admin" || _currentUserSession.Role == "root");
+                    if (!callerIsAdmin)
+                    {
+                        throw new UnauthorizedAccessException("غير مصرح بترقية موظف إلى رتبة مدير نظام بدون صلاحيات مدير النظام.");
+                    }
+                }
+                user.Role = (targetRole == "admin") ? "admin" : "cashier";
             }
             user.IsActive = isActive;
 

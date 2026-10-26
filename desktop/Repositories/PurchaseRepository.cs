@@ -618,7 +618,46 @@ namespace RafiqPOS.Repositories
                             CreatedAt = now
                         });
 
+                        // 7. Auto-fulfill any pending/ordered shortages for all purchased items
+                        try
+                        {
+                            string fulfillSql = @"
+                                UPDATE shortage_entries
+                                SET status = 'received',
+                                    purchase_id = @purId,
+                                    updated_at = @now,
+                                    notes = CASE 
+                                        WHEN notes IS NULL OR notes = '' THEN @fNote
+                                        ELSE notes || ' | ' || @fNote
+                                    END
+                                WHERE (product_id = @pid OR (product_id IS NULL AND free_text = @pName))
+                                  AND status IN ('open', 'pending', 'ordered');
+                            ";
+                            for (int i = 0; i < purchase.Items.Count; i++)
+                            {
+                                var pItem = purchase.Items[i];
+                                if (!string.IsNullOrEmpty(pItem.ProductId))
+                                {
+                                    using (var cmdFulfill = new SQLiteCommand(fulfillSql, conn, trans))
+                                    {
+                                        cmdFulfill.Parameters.AddWithValue("@purId", purchase.Id);
+                                        cmdFulfill.Parameters.AddWithValue("@now", now);
+                                        cmdFulfill.Parameters.AddWithValue("@fNote", "تم التوريد والاستلام تلقائياً عبر فاتورة شراء رقم #" + purchase.InvoiceNumber);
+                                        cmdFulfill.Parameters.AddWithValue("@pid", pItem.ProductId);
+                                        cmdFulfill.Parameters.AddWithValue("@pName", (object)pItem.ProductName ?? DBNull.Value);
+                                        cmdFulfill.ExecuteNonQuery();
+                                    }
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // Non-blocking auto-fulfillment
+                        }
+
                         trans.Commit();
+
+
                     }
                     catch
                     {

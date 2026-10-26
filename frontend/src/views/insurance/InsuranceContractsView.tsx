@@ -7,14 +7,15 @@ import {
   Plus,
   Search,
   Download,
-  RefreshCw,
   ShieldAlert,
   X,
   Phone
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useAuth } from '../../context/useAuth';
+import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
+import { PaginationBar } from '../../components/PaginationBar';
 import type {
   InsuranceCompany,
   InsuranceContract,
@@ -46,7 +47,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   }, [activeSubTab]);
 
   const activeTab = activeSubTab || internalTab;
-  const [loading, setLoading] = useState<boolean>(false);
+  const [_loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -60,6 +61,12 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   // Selection & Filters
   const [selectedContractId, setSelectedContractId] = useState<string>('');
   const [memberSearchQuery, setMemberSearchQuery] = useState<string>('');
+
+  // Pagination states
+  const [membersPage, setMembersPage] = useState<number>(1);
+  const [membersPageSize, setMembersPageSize] = useState<number>(25);
+  const [batchesPage, setBatchesPage] = useState<number>(1);
+  const [batchesPageSize, setBatchesPageSize] = useState<number>(25);
 
   // Modals
   const [showCompanyModal, setShowCompanyModal] = useState<boolean>(false);
@@ -136,6 +143,10 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
     loadData();
   }, [loadData]);
 
+  useDataSubscription(['insurance', 'all'], () => {
+    void loadData();
+  });
+
   const canManageContracts = hasPermission ? hasPermission('insurance.manage_contracts') : false;
   const canManageClaims = hasPermission ? hasPermission('insurance.claims.manage') : false;
   const canSettleClaims = hasPermission ? hasPermission('insurance.claims.settle') : false;
@@ -148,6 +159,20 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   const totalPendingCount = useMemo(() => {
     return companies.reduce((sum, c) => sum + (c.pendingClaimsCount || 0), 0);
   }, [companies]);
+
+  useEffect(() => {
+    setMembersPage(1);
+  }, [selectedContractId, memberSearchQuery]);
+
+  const paginatedMembers = useMemo(() => {
+    const start = (membersPage - 1) * membersPageSize;
+    return members.slice(start, start + membersPageSize);
+  }, [members, membersPage, membersPageSize]);
+
+  const paginatedBatches = useMemo(() => {
+    const start = (batchesPage - 1) * batchesPageSize;
+    return batches.slice(start, start + batchesPageSize);
+  }, [batches, batchesPage, batchesPageSize]);
 
   // Company save
   const handleSaveCompany = async () => {
@@ -302,17 +327,6 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
           <p className="text-sm text-ink-muted mt-1">
             إدارة العقود ونسب التحمل ومطالبات الشركات والفوترة الشهرية وتسوية الرفوضات الطبية
           </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => loadData()}
-            disabled={loading}
-            className="px-3 py-2 bg-surface-2 hover:bg-line text-ink rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 border border-line"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-brand' : ''}`} />
-            تحديث البيانات
-          </button>
         </div>
       </div>
 
@@ -566,7 +580,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  members.map((mem) => (
+                  paginatedMembers.map((mem) => (
                     <tr key={mem.id} className="hover:bg-canvas/50">
                       <td className="py-3 px-4 font-mono font-bold text-brand">{mem.memberNo}</td>
                       <td className="py-3 px-4 font-medium text-ink">{mem.memberName}</td>
@@ -587,6 +601,20 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 )}
               </tbody>
             </table>
+
+            <PaginationBar
+              currentPage={membersPage}
+              pageSize={membersPageSize}
+              totalCount={members.length}
+              onPageChange={setMembersPage}
+              onPageSizeChange={(newSize) => {
+                setMembersPageSize(newSize);
+                setMembersPage(1);
+              }}
+              pageSizeOptions={[25, 50, 100]}
+              itemLabel="مشترك"
+              className="rounded-none border-x-0 border-b-0 border-t"
+            />
           </div>
         </div>
       )}
@@ -634,7 +662,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  batches.map((batch) => (
+                  paginatedBatches.map((batch) => (
                     <tr key={batch.id} className="hover:bg-canvas/50">
                       <td className="py-3 px-4 font-mono font-bold text-ink">{batch.batchNumber}</td>
                       <td className="py-3 px-4 font-medium text-ink">{batch.companyName}</td>
@@ -700,6 +728,20 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 )}
               </tbody>
             </table>
+
+            <PaginationBar
+              currentPage={batchesPage}
+              pageSize={batchesPageSize}
+              totalCount={batches.length}
+              onPageChange={setBatchesPage}
+              onPageSizeChange={(newSize) => {
+                setBatchesPageSize(newSize);
+                setBatchesPage(1);
+              }}
+              pageSizeOptions={[25, 50, 100]}
+              itemLabel="دفعة مطالبة"
+              className="rounded-none border-x-0 border-b-0 border-t"
+            />
           </div>
         </div>
       )}

@@ -91,9 +91,14 @@ namespace RafiqPOS.Bridge
                         string sId = uObj != null && uObj["id"] != null ? uObj["id"].ToString() : null;
                         string sStatus = uObj != null && uObj["status"] != null ? uObj["status"].ToString() : "open";
                         string sPurchId = uObj != null && uObj["purchaseId"] != null ? uObj["purchaseId"].ToString() : null;
+                        bool increaseStock = true;
+                        if (uObj != null && uObj["increaseStock"] != null)
+                        {
+                            increaseStock = Convert.ToBoolean(uObj["increaseStock"]);
+                        }
 
                         string userId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
-                        DatabaseService.Shortages.UpdateStatus(sId, sStatus, sPurchId, userId);
+                        DatabaseService.Shortages.UpdateStatus(sId, sStatus, sPurchId, userId, increaseStock);
                         response = BridgeResponse.Ok(request.Id, true);
                     }
                     catch (Exception ex)
@@ -177,32 +182,38 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "shortages:getLostSalesReport":
-                    try
                     {
-                        string fromDate = null;
-                        string toDate = null;
-                        var rObj = request.Payload as JObject;
-                        if (rObj != null)
+                        try
                         {
-                            if (rObj["fromDate"] != null) fromDate = rObj["fromDate"].ToString();
-                            if (rObj["toDate"] != null) toDate = rObj["toDate"].ToString();
-                            if (rObj["days"] != null)
+                            string fromDate = null;
+                            string toDate = null;
+                            string reportSource = null;
+                            string reportStatus = null;
+                            var rObj = request.Payload as JObject;
+                            if (rObj != null)
                             {
-                                int daysVal = 30;
-                                if (int.TryParse(rObj["days"].ToString(), out daysVal))
+                                if (rObj["fromDate"] != null) fromDate = rObj["fromDate"].ToString();
+                                if (rObj["toDate"] != null) toDate = rObj["toDate"].ToString();
+                                if (rObj["source"] != null) reportSource = rObj["source"].ToString();
+                                if (rObj["status"] != null) reportStatus = rObj["status"].ToString();
+                                if (rObj["days"] != null)
                                 {
-                                    fromDate = DateTime.UtcNow.AddDays(-daysVal).ToString("yyyy-MM-dd HH:mm:ss");
+                                    int daysVal = 30;
+                                    if (int.TryParse(rObj["days"].ToString(), out daysVal) && daysVal > 0)
+                                    {
+                                        fromDate = DateTime.UtcNow.AddDays(-daysVal).ToString("yyyy-MM-dd HH:mm:ss");
+                                    }
                                 }
                             }
+                            var report = DatabaseService.Shortages.GetLostSalesReport(fromDate, toDate, reportSource, reportStatus);
+                            response = BridgeResponse.Ok(request.Id, report);
                         }
-                        var report = DatabaseService.Shortages.GetLostSalesReport(fromDate, toDate);
-                        response = BridgeResponse.Ok(request.Id, report);
+                        catch (Exception ex)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "REPORT_FAILED", ex.Message);
+                        }
+                        return true;
                     }
-                    catch (Exception ex)
-                    {
-                        response = BridgeResponse.Fail(request.Id, "REPORT_FAILED", ex.Message);
-                    }
-                    return true;
             }
 
             return false;

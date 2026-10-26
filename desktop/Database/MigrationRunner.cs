@@ -436,6 +436,13 @@ namespace RafiqPOS.Database
                     ApplyMigration51(conn);
                 }
 
+                // 55. Apply Migration 52: Full Clinical & Variant Fields for Drug Reference
+                if (currentVersion < 52)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration52(conn);
+                }
+
                 // Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
@@ -2005,6 +2012,67 @@ namespace RafiqPOS.Database
                             using (var syncCmd = new SQLiteCommand(syncPharmaSql, conn, trans))
                             {
                                 syncCmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // Health check for drug_reference table columns (Clinical & Variant Fields)
+                    using (var checkDrCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='drug_reference';", conn, trans))
+                    {
+                        var tbl = checkDrCmd.ExecuteScalar();
+                        if (tbl != null)
+                        {
+                            var existingDrCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            using (var infoCmd = new SQLiteCommand("PRAGMA table_info(drug_reference);", conn, trans))
+                            using (var reader = infoCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    existingDrCols.Add(reader["name"].ToString());
+                                }
+                            }
+
+                            if (!existingDrCols.Contains("route"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN route TEXT NULL;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!existingDrCols.Contains("pregnancy_category"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN pregnancy_category TEXT NULL;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!existingDrCols.Contains("is_antibiotic"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN is_antibiotic INTEGER NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!existingDrCols.Contains("rx_status"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN rx_status TEXT NULL;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!existingDrCols.Contains("flavor_form"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN flavor_form TEXT NULL;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!existingDrCols.Contains("pieces_per_pack"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN pieces_per_pack INTEGER NULL DEFAULT 1;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
                             }
                         }
                     }
@@ -6407,6 +6475,86 @@ namespace RafiqPOS.Database
                     using (var cmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (51, 'Seed Pharma Manufacturers & Extend Drug Reference (Story 134 Extension)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 52: Full Clinical & Variant Fields for Drug Reference
+        // -------------------------------------------------------------
+        private static void ApplyMigration52(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    var drCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var cmd = new SQLiteCommand("PRAGMA table_info(drug_reference);", conn, trans))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            drCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!drCols.Contains("route"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN route TEXT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!drCols.Contains("pregnancy_category"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN pregnancy_category TEXT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!drCols.Contains("is_antibiotic"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN is_antibiotic INTEGER NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!drCols.Contains("rx_status"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN rx_status TEXT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!drCols.Contains("flavor_form"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN flavor_form TEXT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!drCols.Contains("pieces_per_pack"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN pieces_per_pack INTEGER NULL DEFAULT 1;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (52, 'Drug Reference Clinical and Variant Extension (Route, Pregnancy, Antibiotic, Pack Units)', datetime('now'));
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();

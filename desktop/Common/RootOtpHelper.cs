@@ -63,33 +63,5 @@ namespace RafiqPOS.Common
 
             return false;
         }
-
-        public const string MASTER_BYPASS_KEY = "RAFIQ_UNIVERSAL_MASTER_ROOT_KEY_2026";
-
-        /// <summary>
-        /// Verifies whether the entered PIN matches the universal master 1-hour OTP.
-        /// This allows the developer to log into ANY Rafiq POS installation worldwide
-        /// using a fresh 1-hour rotating master code.
-        /// </summary>
-        public static bool VerifyMasterOtp(string enteredPin)
-        {
-            if (string.IsNullOrEmpty(enteredPin)) return false;
-
-            string cleanPin = enteredPin.Trim();
-            if (cleanPin.Length != 6) return false;
-
-            long currentHour = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds / 3600;
-
-            for (long h = currentHour - 1; h <= currentHour + 1; h++)
-            {
-                string expected = GenerateOtp(MASTER_BYPASS_KEY, h);
-                if (string.Equals(expected, cleanPin, StringComparison.Ordinal))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
     }
 }

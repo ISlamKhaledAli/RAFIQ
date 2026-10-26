@@ -18,6 +18,7 @@ import type { Customer, CustomerLedgerEntry, CustomerBalanceVerification } from 
 import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { CustomerReceiptVoucherModal } from './CustomerReceiptVoucherModal';
+import { PaginationBar } from '../../components/PaginationBar';
 import { formatArabicCurrency } from '../../utils/money';
 
 export interface CustomerStatementModalProps {
@@ -84,6 +85,17 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   onOpenPrintStatement,
 }) => {
   const [viewingReceiptEntry, setViewingReceiptEntry] = React.useState<CustomerLedgerEntry | null>(null);
+  const [currentPage, setCurrentPage] = React.useState<number>(1);
+  const [pageSize, setPageSize] = React.useState<number>(25);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCustomer?.id, statementStartDate, statementEndDate]);
+
+  const paginatedStatementEntries = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredStatementEntries.slice(startIndex, startIndex + pageSize);
+  }, [filteredStatementEntries, currentPage, pageSize]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -369,7 +381,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line dark:divide-line-dark">
-                    {filteredStatementEntries.map((entry) => {
+                    {paginatedStatementEntries.map((entry) => {
                       const isPayment = entry.type === 'payment';
                       const isDeposit = entry.type === 'deposit';
                       const isSale = entry.type === 'sale';
@@ -474,6 +486,20 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                     })}
                   </tbody>
                 </table>
+
+                <PaginationBar
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  totalCount={filteredStatementEntries.length}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={(newSize) => {
+                    setPageSize(newSize);
+                    setCurrentPage(1);
+                  }}
+                  pageSizeOptions={[25, 50, 100]}
+                  itemLabel="حركة كشف حساب"
+                  className="rounded-none border-x-0 border-b-0 border-t"
+                />
               </div>
             )}
           </div>

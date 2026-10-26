@@ -7,6 +7,7 @@ export interface ShortageEntry {
   requestedQuantityMilli: number;
   currentStockMilli: number;
   minStockMilli: number;
+  costPiasters?: number;
   customerName?: string | null;
   customerPhone?: string | null;
   urgency: 'normal' | 'urgent' | 'critical';
@@ -45,13 +46,22 @@ export interface LostSalesReportItem {
   productId: string;
   productName: string;
   barcode?: string | null;
+  unit?: string | null;
+  source?: string | null;
+  status?: string | null;
   requestCount: number;
   totalRequestedQuantityMilli: number;
+  unitPricePiasters: number;
   estimatedLostRevenuePiasters: number;
+  currentStockMilli?: number;
+  preferredSupplierName?: string | null;
 }
 
 export interface LostSalesReportSummary {
   totalUnmetRequestsCount: number;
   totalEstimatedLostRevenuePiasters: number;
+  totalCustomerRequestsCount?: number;
+  totalAutoReorderCount?: number;
+  uniqueProductsCount?: number;
   topRequestedProducts: LostSalesReportItem[];
 }

@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { AlertTriangle, AlertCircle, X } from 'lucide-react';
+import { useEffect, type ReactNode } from 'react';
+import { AlertTriangle, AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 
 export interface ConfirmModalProps {
   isOpen: boolean;
@@ -9,6 +9,8 @@ export interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   isDanger?: boolean;
+  icon?: ReactNode;
+  variant?: 'danger' | 'brand' | 'paid' | 'info';
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -21,6 +23,8 @@ export const ConfirmModal = ({
   confirmText = 'تأكيد العملية',
   cancelText = 'تراجع',
   isDanger = true,
+  icon,
+  variant,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) => {
@@ -39,6 +43,41 @@ export const ConfirmModal = ({
 
   if (!isOpen) return null;
 
+  const effectiveVariant: 'danger' | 'brand' | 'paid' | 'info' =
+    variant ?? (isDanger ? 'danger' : 'brand');
+
+  const headerBgClass =
+    effectiveVariant === 'danger'
+      ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30'
+      : effectiveVariant === 'paid'
+      ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid/30'
+      : effectiveVariant === 'info'
+      ? 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark'
+      : 'bg-brand-soft dark:bg-surface-dark-2 border-brand/20 dark:border-line-dark';
+
+  const iconContainerClass =
+    effectiveVariant === 'danger'
+      ? 'bg-danger dark:bg-danger text-white'
+      : effectiveVariant === 'paid'
+      ? 'bg-paid dark:bg-paid text-white'
+      : 'bg-brand text-white';
+
+  const defaultIcon =
+    effectiveVariant === 'danger' ? (
+      <AlertTriangle className="w-4 h-4" />
+    ) : effectiveVariant === 'paid' ? (
+      <CheckCircle2 className="w-4 h-4" />
+    ) : (
+      <Info className="w-4 h-4" />
+    );
+
+  const confirmBtnClass =
+    effectiveVariant === 'danger'
+      ? 'bg-danger hover:bg-danger-hover active:bg-danger'
+      : effectiveVariant === 'paid'
+      ? 'bg-paid hover:bg-paid-hover active:bg-paid'
+      : 'bg-brand hover:bg-brand-hover active:bg-brand';
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-[2px] animate-in fade-in duration-150 select-none"
@@ -54,14 +93,10 @@ export const ConfirmModal = ({
         aria-modal="true"
       >
         {/* Header Strip */}
-        <div className={`px-5 py-4 border-b flex items-center justify-between ${
-          isDanger ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30' : 'bg-brand-soft dark:bg-surface-dark-2 border-brand/20 dark:border-line-dark'
-        }`}>
+        <div className={`px-5 py-4 border-b flex items-center justify-between ${headerBgClass}`}>
           <div className="flex items-center gap-2.5">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-              isDanger ? 'bg-danger dark:bg-danger text-white' : 'bg-brand text-white'
-            }`}>
-              {isDanger ? <AlertTriangle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconContainerClass}`}>
+              {icon || defaultIcon}
             </div>
             <h3 className="text-[14px] font-bold text-ink dark:text-ink-dark m-0">{title}</h3>
           </div>
@@ -81,7 +116,7 @@ export const ConfirmModal = ({
 
           {consequence && (
             <div className={`p-3 rounded text-[11.5px] border leading-relaxed flex items-start gap-2 ${
-              isDanger 
+              effectiveVariant === 'danger'
                 ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright' 
                 : 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
             }`}>
@@ -105,11 +140,7 @@ export const ConfirmModal = ({
             type="button"
             autoFocus
             onClick={onConfirm}
-            className={`h-[38px] px-5 rounded text-white text-[12.5px] font-bold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer ${
-              isDanger 
-                ? 'bg-danger hover:bg-red-700 active:bg-red-800' 
-                : 'bg-brand hover:bg-brand-hover active:bg-brand'
-            }`}
+            className={`h-[38px] px-5 rounded text-white text-[12.5px] font-bold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer ${confirmBtnClass}`}
           >
             {confirmText}
           </button>

@@ -3,9 +3,10 @@ import {
   ShoppingCart,
   ArrowRight,
   RotateCcw,
+  Printer,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import { useDataSubscription } from '../utils/eventBus';
+import { useDataSubscription, emitDataChanged } from '../utils/eventBus';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { extractProducts, type Supplier, type Purchase, type PurchaseItem, type Product, type SupplierTransaction } from '../types/models';
 import { PurchasesInvoicesTab } from './purchases/PurchasesInvoicesTab';
@@ -93,7 +94,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     title: string;
     message: string;
     confirmText?: string;
+    cancelText?: string;
     isDanger?: boolean;
+    icon?: React.ReactNode;
+    variant?: 'danger' | 'brand' | 'paid' | 'info';
     onConfirm: () => void;
   }>({
     isOpen: false,
@@ -399,6 +403,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         setPaymentSource('cash_drawer');
         loadPurchases();
         loadSuppliers();
+        emitDataChanged(['purchases', 'products', 'shortages']);
         setActiveTab('invoices');
 
         // Prompt to print labels directly for received items
@@ -406,8 +411,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           setConfirmDialog({
             isOpen: true,
             title: 'طباعة ملصقات الباركود للبضاعة المستلمة',
-            message: `تم حفظ الفاتورة بنجاح. هل ترغب في فتح مصمم وطباعة ملصقات الباركود للأصناف الواردة بعدد الكميات المشتراة؟`,
-            confirmText: 'نعم، طباعة الملصقات',
+            message: 'تم حفظ الفاتورة بنجاح وتوريد البضاعة للمخزن. هل ترغب في فتح مصمم وطباعة ملصقات الباركود للأصناف الواردة بعدد الكميات المشتراة؟',
+            confirmText: 'فتح مصمم الملصقات',
+            cancelText: 'تخطي ومتابعة',
+            isDanger: false,
+            variant: 'brand',
+            icon: <Printer className="w-4 h-4" />,
             onConfirm: () => {
               setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
               void handlePrintInvoiceLabels(result);
@@ -811,22 +820,42 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
 
         {activeTab === 'shortages' && (
           <ShortagesTab
-            onLoadProposalToNewPurchase={(proposal) => {
+            onLoadProposalToNewPurchase={async (proposal) => {
               if (proposal.supplierId) {
                 setSelectedSupplierId(proposal.supplierId);
               }
-              const newLines: NewPurchaseLineItem[] = proposal.items.map((pi) => ({
-                productId: pi.productId,
-                productName: pi.productName,
-                barcode: pi.barcode || '',
-                currentStockMilli: 0,
-                currentCostPiasters: pi.costPiasters,
-                currentPricePiasters: pi.costPiasters,
-                quantityUnits: Math.max(1, Math.round(pi.suggestedQuantityMilli / 1000)),
-                unitCostPiasters: pi.costPiasters,
-                newSellingPricePiasters: pi.costPiasters,
-                unit: pi.unit,
-              }));
+              const newLines: NewPurchaseLineItem[] = await Promise.all(
+                proposal.items.map(async (pi) => {
+                  let prod = catalogProducts.find((p) => p.id === pi.productId || (p.barcode && p.barcode === pi.barcode));
+                  if (!prod && pi.productId) {
+                    try {
+                      const fetched = await invoke<Product>('products:getById', { id: pi.productId });
+                      if (fetched) prod = fetched;
+                    } catch {
+                      // ignore
+                    }
+                  }
+
+                  const cost = prod && prod.costPiasters > 0 ? prod.costPiasters : (pi.costPiasters > 0 ? pi.costPiasters : 0);
+                  const price = prod && prod.pricePiasters > 0 ? prod.pricePiasters : cost;
+                  const stock = prod ? prod.stockQuantityMilli : 0;
+                  const unit = prod?.unit || pi.unit || 'قطعة';
+                  const barcode = prod?.barcode || pi.barcode || '';
+
+                  return {
+                    productId: pi.productId || prod?.id || '',
+                    productName: pi.productName || prod?.name || 'صنف',
+                    barcode,
+                    currentStockMilli: stock,
+                    currentCostPiasters: cost,
+                    currentPricePiasters: price,
+                    quantityUnits: Math.max(1, Math.round(pi.suggestedQuantityMilli / 1000)),
+                    unitCostPiasters: cost,
+                    newSellingPricePiasters: price,
+                    unit,
+                  };
+                })
+              );
               setLineItems(newLines);
               setActiveTab('new_invoice');
             }}
@@ -884,7 +913,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         title={confirmDialog.title}
         message={confirmDialog.message}
         confirmText={confirmDialog.confirmText}
+        cancelText={confirmDialog.cancelText}
         isDanger={confirmDialog.isDanger}
+        icon={confirmDialog.icon}
+        variant={confirmDialog.variant}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
       />

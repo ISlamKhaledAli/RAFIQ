@@ -247,6 +247,12 @@ namespace RafiqPOS.Repositories
                 throw new InvalidOperationException("حجم صورة الروشتة يتجاوز الحد الأقصى المسموح به (2 ميجابايت).");
             }
 
+            // Image Header / Magic Bytes Validation (CWE-434 defense)
+            if (!IsValidImageHeader(imageBytes))
+            {
+                throw new InvalidOperationException("الملف المرفق ليس صورة صالحة مدعومة (يجب أن يكون الملف بصيغة JPG أو PNG أو WEBP حقيقية).");
+            }
+
             string baseDir = !string.IsNullOrEmpty(_baseDataFolder) ? _baseDataFolder : AppDomain.CurrentDomain.BaseDirectory;
             string subPath = Path.Combine("prescriptions", DateTime.UtcNow.ToString("yyyy"), DateTime.UtcNow.ToString("MM"));
             string fullDir = Path.Combine(baseDir, subPath);
@@ -256,9 +262,34 @@ namespace RafiqPOS.Repositories
                 Directory.CreateDirectory(fullDir);
             }
 
-            string ext = !string.IsNullOrEmpty(extension) ? extension.TrimStart('.') : "jpg";
-            string fileName = string.Format("rx_{0}_{1}.{2}", prescriptionId, DateTime.UtcNow.ToString("yyyyMMddHHmmss"), ext);
-            string fullPath = Path.Combine(fullDir, fileName);
+            // Extension Whitelist (strictly allow only safe image formats)
+            string ext = "jpg";
+            if (!string.IsNullOrEmpty(extension))
+            {
+                string cleanExt = extension.Trim().TrimStart('.').ToLowerInvariant();
+                if (cleanExt == "jpeg" || cleanExt == "jpg" || cleanExt == "png" || cleanExt == "webp")
+                {
+                    ext = cleanExt;
+                }
+            }
+
+            // Sanitize prescriptionId against path manipulation
+            string safeRxId = System.Text.RegularExpressions.Regex.Replace(prescriptionId ?? "", @"[^a-zA-Z0-9_\-]", "");
+            if (string.IsNullOrEmpty(safeRxId)) safeRxId = Guid.NewGuid().ToString("N");
+
+            string fileName = string.Format("rx_{0}_{1}.{2}", safeRxId, DateTime.UtcNow.ToString("yyyyMMddHHmmss"), ext);
+            
+            string canonicalFullDir = Path.GetFullPath(fullDir);
+            if (!canonicalFullDir.EndsWith(Path.DirectorySeparatorChar.ToString()))
+            {
+                canonicalFullDir += Path.DirectorySeparatorChar;
+            }
+
+            string fullPath = Path.GetFullPath(Path.Combine(fullDir, fileName));
+            if (!fullPath.StartsWith(canonicalFullDir, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new System.Security.SecurityException("مسار غير آمن لحفظ صورة الروشتة.");
+            }
 
             File.WriteAllBytes(fullPath, imageBytes);
 
@@ -300,5 +331,27 @@ namespace RafiqPOS.Repositories
                 UpdatedAt = r["updated_at"] != DBNull.Value ? r["updated_at"].ToString() : null
             };
         }
+
+        private static bool IsValidImageHeader(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length < 4) return false;
+
+            // JPEG: FF D8 FF
+            if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) return true;
+
+            // PNG: 89 50 4E 47
+            if (bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) return true;
+
+            // WEBP: RIFF....WEBP
+            if (bytes.Length >= 12 &&
+                bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
+                bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50)
+            {
+                return true;
+            }
+
+            return false;
+        }
     }
 }
+

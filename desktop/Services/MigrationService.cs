@@ -617,14 +617,25 @@ namespace RafiqPOS.Services
 
                     dbEntry.ExtractToFile(extractedDbPath, true);
 
-                    // Feature F-193: Extract prescriptions directory if present
+                    // Feature F-193: Extract prescriptions directory if present (with strict Zip Slip defense)
+                    string canonicalExtractDir = Path.GetFullPath(tempExtractDir);
+                    if (!canonicalExtractDir.EndsWith(Path.DirectorySeparatorChar.ToString()))
+                    {
+                        canonicalExtractDir += Path.DirectorySeparatorChar;
+                    }
+
                     foreach (var entry in archive.Entries)
                     {
                         if (entry.FullName.StartsWith("prescriptions/", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(entry.Name))
                         {
-                            string destFile = Path.Combine(tempExtractDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+                            string destFile = Path.GetFullPath(Path.Combine(tempExtractDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
+                            if (!destFile.StartsWith(canonicalExtractDir, StringComparison.OrdinalIgnoreCase))
+                            {
+                                throw new System.Security.SecurityException("حزمة الترحيل تحتوي على مسارات غير آمنة تحاول النفاذ خارج مجلد الاستخراج (Zip Slip). تم إلغاء العملية فوراً.");
+                            }
+
                             string destParent = Path.GetDirectoryName(destFile);
-                            if (!Directory.Exists(destParent))
+                            if (!string.IsNullOrEmpty(destParent) && !Directory.Exists(destParent))
                             {
                                 Directory.CreateDirectory(destParent);
                             }

@@ -1195,6 +1195,25 @@ namespace RafiqPOS
                 // Attach IPC message receiver
                 _webView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
 
+                // Strict Navigation Boundary: Block navigation to any external URL outside app.rafiq.local
+                _webView.CoreWebView2.NavigationStarting += delegate(object sNavStart, CoreWebView2NavigationStartingEventArgs navStartArgs)
+                {
+                    string targetUri = navStartArgs.Uri ?? "";
+                    if (!targetUri.StartsWith("https://app.rafiq.local/", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(targetUri, "about:blank", StringComparison.OrdinalIgnoreCase))
+                    {
+                        navStartArgs.Cancel = true;
+                        Logger.Warn("تم حظر محاولة تصفح خارج نطاق النظام المعتمد: " + targetUri);
+                    }
+                };
+
+                // Strict Window Policy: Block any untrusted popups or new browser windows
+                _webView.CoreWebView2.NewWindowRequested += delegate(object sNewWin, CoreWebView2NewWindowRequestedEventArgs newWinArgs)
+                {
+                    newWinArgs.Handled = true;
+                    Logger.Warn("تم حظر محاولة فتح نافذة متصفح منبثقة: " + newWinArgs.Uri);
+                };
+
                 // DevTools give full access to the IPC bridge; allow them only in Debug builds (Audit F-02)
 #if DEBUG
                 _webView.CoreWebView2.Settings.AreDevToolsEnabled = true;

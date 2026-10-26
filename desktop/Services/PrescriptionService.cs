@@ -60,7 +60,21 @@ namespace RafiqPOS.Services
             if (string.IsNullOrEmpty(relativePath)) return null;
 
             string baseDir = !string.IsNullOrEmpty(_baseDataFolder) ? _baseDataFolder : AppDomain.CurrentDomain.BaseDirectory;
-            string fullPath = Path.Combine(baseDir, relativePath.Replace("/", "\\"));
+            string allowedDir = Path.GetFullPath(Path.Combine(baseDir, "prescriptions"));
+            if (!allowedDir.EndsWith(Path.DirectorySeparatorChar.ToString()))
+            {
+                allowedDir += Path.DirectorySeparatorChar;
+            }
+
+            string cleanRelative = relativePath.Trim().TrimStart('/', '\\').Replace("/", "\\");
+            string fullPath = Path.GetFullPath(Path.Combine(baseDir, cleanRelative));
+
+            // Strict Path Traversal Defense: Ensure requested file is located strictly inside prescriptions directory
+            if (!fullPath.StartsWith(allowedDir, StringComparison.OrdinalIgnoreCase))
+            {
+                RafiqPOS.Common.Logger.Warn("Security: Attempted path traversal in prescription image retrieval blocked: " + relativePath);
+                return null;
+            }
 
             if (File.Exists(fullPath))
             {

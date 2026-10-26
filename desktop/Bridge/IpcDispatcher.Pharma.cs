@@ -653,7 +653,17 @@ namespace RafiqPOS.Bridge
                                                 Strength = row.Strength,
                                                 Manufacturer = row.Manufacturer,
                                                 PackDesc = row.PackDesc,
-                                                PublicPricePiasters = row.PublicPricePiasters
+                                                PublicPricePiasters = row.PublicPricePiasters,
+                                                TherapeuticClass = row.TherapeuticClass,
+                                                Category = row.Category,
+                                                StorageLocation = row.StorageLocation,
+                                                IsRefrigerated = row.IsRefrigerated,
+                                                Route = row.Route,
+                                                PregnancyCategory = row.PregnancyCategory,
+                                                IsAntibiotic = row.IsAntibiotic,
+                                                RxStatus = row.RxStatus,
+                                                FlavorForm = row.FlavorForm,
+                                                PiecesPerPack = row.PiecesPerPack
                                             });
                                         }
                                     }

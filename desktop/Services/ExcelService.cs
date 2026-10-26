@@ -868,7 +868,7 @@ namespace RafiqPOS.Services
                 ws.ShowGridLines = true;
 
                 // 1. Title Banner
-                ws.Range("A1:M1").Merge();
+                ws.Range("A1:S1").Merge();
                 var titleCell = ws.Cell("A1");
                 titleCell.Value = "رفيق POS - نموذج استيراد دليل الأدوية والمستحضرات المرجعي الصيدلي الشامل";
                 titleCell.Style.Font.Bold = true;
@@ -880,9 +880,9 @@ namespace RafiqPOS.Services
                 ws.Row(1).Height = 40;
 
                 // 2. Subtitle / Guidance Banner
-                ws.Range("A2:M2").Merge();
+                ws.Range("A2:S2").Merge();
                 var subCell = ws.Cell("A2");
-                subCell.Value = "إرشادات: الباركود والاسم التجاري وسعر الجمهور إلزامية (*) | الشركات والمجموعات العلاجية مسجلة مسبقاً بالنظام | عمود الثلاجة (نعم / لا)";
+                subCell.Value = "إرشادات: الباركود والاسم التجاري وسعر الجمهور إلزامية (*) | يدعم طريقة الاستخدام، فئة الحمل، مضاد حيوي، وسلسلة التبريد | عمود الثلاجة والمضاد الحيوي (نعم / لا)";
                 subCell.Style.Font.Bold = true;
                 subCell.Style.Font.FontSize = 9.5;
                 subCell.Style.Font.FontColor = XLColor.FromArgb(0, 77, 64);
@@ -891,20 +891,26 @@ namespace RafiqPOS.Services
                 subCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
                 ws.Row(2).Height = 26;
 
-                // 3. Table Headers (All 13 fields matching Pharmacy UI)
+                // 3. Table Headers (All 19 fields matching Pharmacy UI)
                 string[] headers = new string[]
                 {
                     "باركود الدواء *",
                     "الاسم التجاري *",
                     "الاسم العلمي (المادة الفعالة)",
                     "الشكل الدوائي (Dosage Form)",
-                    "التركيز (Strength)",
+                    "التركيز / الحجم",
+                    "النكهة / الشكل المتفرع",
                     "الشركة المصنعة (Manufacturer)",
                     "المجموعة العلاجية (Therapeutic)",
                     "قسم وتصنيف الصنف بالمحل",
                     "الرف ومكان التخزين",
                     "سلسلة التبريد / ثلاجة (نعم/لا)",
+                    "طريقة الاستخدام (Route)",
+                    "فئة الحمل والرضاعة",
+                    "مضاد حيوي (نعم/لا)",
+                    "نوع الوصفة والصرف (Rx Status)",
                     "وصف العبوة",
+                    "عدد الوحدات / الأشرطة بالعلبة",
                     "سعر الجمهور الرسمي (ج.م) *",
                     "مصدر التسعيرة / ملاحظات"
                 };
@@ -927,11 +933,11 @@ namespace RafiqPOS.Services
                 // 4. Sample Rows (Matching realistic Egyptian pharmacy products)
                 object[][] sampleData = new object[][]
                 {
-                    new object[] { "6221001001011", "بانادول إكسترا أقراص", "Paracetamol + Caffeine", "أقراص", "500mg/65mg", "GlaxoSmithKline (GSK)", "مسكنات وخافضات حرارة (Analgesics & Antipyretics)", "أدوية ومسكنات شائعة وفيتامينات", "رف A1 - مسكنات", "لا", "علبة 2 شريط - 24 قرص", 48.00, "تسعيرة جبرية رسمية" },
-                    new object[] { "6221001001028", "بانادول أدفانس أقراص", "Paracetamol", "أقراص", "500mg", "GlaxoSmithKline (GSK)", "مسكنات وخافضات حرارة (Analgesics & Antipyretics)", "أدوية ومسكنات شائعة وفيتامينات", "رف A1 - مسكنات", "لا", "علبة 2 شريط - 24 قرص", 36.00, "تسعيرة رسمية 2026" },
-                    new object[] { "6222002002022", "كونجستال أقراص", "Paracetamol + Pseudoephedrine + Chlorpheniramine", "أقراص", "650mg/60mg/4mg", "SIGMA Pharmaceuticals", "أدوية نزلات البرد والإنفلونزا (Cold & Flu)", "أدوية ومسكنات شائعة وفيتامينات", "رف B2 - برد وكحة", "لا", "علبة 2 شريط - 20 قرص", 39.00, "نشرة أسعار الموزع 2026" },
-                    new object[] { "6223003003033", "أوجمنتين 1 جم أقراص", "Amoxicillin + Clavulanic Acid", "أقراص مغلفة", "1000mg", "Medical Union Pharmaceuticals (MUP)", "مضادات حيوية (Antibiotics)", "أدوية ومسكنات شائعة وفيتامينات", "رف C3 - مضادات حيوية", "لا", "علبة 2 شريط - 14 قرص", 131.00, "تسعيرة وزارة الصحة" },
-                    new object[] { "6224004004044", "أنسولين ميكستارد 100 وحدة قلم", "Human Insulin 30/70", "حقن / قلم أنسولين", "100 IU/ml", "Novo Nordisk", "أدوية السكري والغدد (Antidiabetic Agents)", "أدوية ومسكنات شائعة وفيتامينات", "ثلاجة الأنسولين رف 1", "نعم", "فيال 10 مل", 165.00, "سلسلة تبريد مبردة" }
+                    new object[] { "6221001001011", "بانادول إكسترا أقراص", "Paracetamol + Caffeine", "أقراص", "500mg/65mg", "أقراص", "GlaxoSmithKline (GSK)", "مسكنات وخافضات حرارة ومضادات التهاب", "أدوية ومسكنات شائعة وفيتامينات", "رف A1 - مسكنات", "لا", "فموي (Oral)", "فئة B (آمن إلى حد كبير)", "لا", "صرف مباشر (OTC)", "علبة 2 شريط - 24 قرص", 2, 48.00, "تسعيرة جبرية رسمية" },
+                    new object[] { "6221001001028", "بانادول أدفانس أقراص", "Paracetamol", "أقراص", "500mg", "أقراص مغلفة", "GlaxoSmithKline (GSK)", "مسكنات وخافضات حرارة ومضادات التهاب", "أدوية ومسكنات شائعة وفيتامينات", "رف A1 - مسكنات", "لا", "فموي (Oral)", "فئة B (آمن إلى حد كبير)", "لا", "صرف مباشر (OTC)", "علبة 2 شريط - 24 قرص", 2, 36.00, "تسعيرة رسمية 2026" },
+                    new object[] { "6222002002022", "كونجستال أقراص", "Paracetamol + Pseudoephedrine + Chlorpheniramine", "أقراص", "650mg/60mg/4mg", "أقراص", "SIGMA Pharmaceuticals", "أدوية الجهاز التنفسي وموسعات الشعب والسعال", "أدوية ومسكنات شائعة وفيتامينات", "رف B2 - برد وكحة", "لا", "فموي (Oral)", "فئة C (بحذر وإشراف طبي)", "لا", "صرف مباشر (OTC)", "علبة 2 شريط - 20 قرص", 2, 39.00, "نشرة أسعار الموزع 2026" },
+                    new object[] { "6223003003033", "أوجمنتين 1 جم أقراص", "Amoxicillin + Clavulanic Acid", "أقراص مغلفة", "1000mg", "أقراص مغلفة", "Medical Union Pharmaceuticals (MUP)", "مضادات حيوية ومضادات بكتيرية", "أدوية ومسكنات شائعة وفيتامينات", "رف C3 - مضادات حيوية", "لا", "فموي (Oral)", "فئة B (آمن إلى حد كبير)", "نعم", "روشتة طبية (Rx)", "علبة 2 شريط - 14 قرص", 2, 131.00, "تسعيرة وزارة الصحة" },
+                    new object[] { "6224004004044", "أنسولين ميكستارد 100 وحدة قلم", "Human Insulin 30/70", "حقن", "100 IU/ml", "فيال / قلم", "Novo Nordisk", "أدوية السكري ومنظمات السكر", "أدوية ومسكنات شائعة وفيتامينات", "ثلاجة الأنسولين رف 1", "نعم", "حقن عضل / وريد (Parenteral)", "فئة B (آمن إلى حد كبير)", "لا", "روشتة طبية (Rx)", "فيال 10 مل", 1, 165.00, "سلسلة تبريد مبردة" }
                 };
 
                 for (int r = 0; r < sampleData.Length; r++)
@@ -956,7 +962,7 @@ namespace RafiqPOS.Services
                             cell.Style.NumberFormat.Format = "@";
                             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                         }
-                        else if (c == 9) // Refrigerated (نعم/لا)
+                        else if (c == 10 || c == 13) // Refrigerated or Antibiotic (نعم/لا)
                         {
                             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                             if (sampleData[r][c].ToString() == "نعم")
@@ -965,9 +971,15 @@ namespace RafiqPOS.Services
                                 cell.Style.Font.FontColor = XLColor.FromArgb(0, 109, 65);
                             }
                         }
-                        else if (c == 11) // Price
+                        else if (c == 16) // Pieces Per Pack
                         {
-                            cell.Value = (double)sampleData[r][c];
+                            cell.Value = Convert.ToInt32(sampleData[r][c]);
+                            cell.Style.NumberFormat.Format = "#,##0";
+                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        }
+                        else if (c == 17) // Price
+                        {
+                            cell.Value = Convert.ToDouble(sampleData[r][c]);
                             cell.Style.NumberFormat.Format = "#,##0.00";
                             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                         }
@@ -986,15 +998,21 @@ namespace RafiqPOS.Services
                 ws.Column(2).Width = 28; // Trade Name
                 ws.Column(3).Width = 30; // Scientific Name
                 ws.Column(4).Width = 16; // Form
-                ws.Column(5).Width = 14; // Strength
-                ws.Column(6).Width = 26; // Manufacturer
-                ws.Column(7).Width = 28; // Therapeutic Class
-                ws.Column(8).Width = 22; // Category
-                ws.Column(9).Width = 20; // Shelf Location
-                ws.Column(10).Width = 16; // Refrigerated
-                ws.Column(11).Width = 22; // Pack Desc
-                ws.Column(12).Width = 18; // Public Price
-                ws.Column(13).Width = 24; // Notes
+                ws.Column(5).Width = 16; // Strength
+                ws.Column(6).Width = 16; // Flavor/Form
+                ws.Column(7).Width = 26; // Manufacturer
+                ws.Column(8).Width = 28; // Therapeutic Class
+                ws.Column(9).Width = 22; // Category
+                ws.Column(10).Width = 20; // Shelf Location
+                ws.Column(11).Width = 16; // Refrigerated
+                ws.Column(12).Width = 18; // Route
+                ws.Column(13).Width = 18; // Pregnancy
+                ws.Column(14).Width = 16; // Antibiotic
+                ws.Column(15).Width = 18; // Rx Status
+                ws.Column(16).Width = 22; // Pack Desc
+                ws.Column(17).Width = 16; // Pieces Per Pack
+                ws.Column(18).Width = 18; // Public Price
+                ws.Column(19).Width = 24; // Notes
 
                 using (var ms = new MemoryStream())
                 {
@@ -1054,16 +1072,22 @@ namespace RafiqPOS.Services
                 int colSci = 3;
                 int colForm = 4;
                 int colStrength = 5;
-                int colMfg = 6;
+                int colFlavorForm = 0;
+                int colMfg = 7;
                 int colTherapeutic = 0;
                 int colCategory = 0;
                 int colStorageLoc = 0;
                 int colRefrigerated = 0;
+                int colRoute = 0;
+                int colPregnancy = 0;
+                int colAntibiotic = 0;
+                int colRxStatus = 0;
                 int colPack = 0;
+                int colPiecesPerPack = 0;
                 int colPrice = 0;
                 int colNotes = 0;
 
-                int lastCol = ws.LastColumnUsed() != null ? ws.LastColumnUsed().ColumnNumber() : 13;
+                int lastCol = ws.LastColumnUsed() != null ? ws.LastColumnUsed().ColumnNumber() : 19;
                 for (int c = 1; c <= lastCol; c++)
                 {
                     string h = ws.Cell(headerRow, c).GetString().Trim();
@@ -1071,24 +1095,47 @@ namespace RafiqPOS.Services
                     if (h.Contains("باركود") || string.Equals(h, "barcode", StringComparison.OrdinalIgnoreCase)) colBarcode = c;
                     else if (h.Contains("الاسم التجاري") || (h.Contains("الاسم") && !h.Contains("العلمي"))) colTrade = c;
                     else if (h.Contains("العلمي") || h.Contains("الفعالة") || string.Equals(h, "generic", StringComparison.OrdinalIgnoreCase)) colSci = c;
-                    else if (h.Contains("الشكل") || string.Equals(h, "dosage", StringComparison.OrdinalIgnoreCase)) colForm = c;
+                    else if (h.Contains("الشكل الدوائي") || (h.Contains("الشكل") && !h.Contains("المتفرع")) || string.Equals(h, "dosage", StringComparison.OrdinalIgnoreCase) || string.Equals(h, "form", StringComparison.OrdinalIgnoreCase)) colForm = c;
                     else if (h.Contains("التركيز") || string.Equals(h, "strength", StringComparison.OrdinalIgnoreCase)) colStrength = c;
-                    else if (h.Contains("المصنعة") || h.Contains("الشركة") || string.Equals(h, "manufacturer", StringComparison.OrdinalIgnoreCase)) colMfg = c;
+                    else if (h.Contains("النكهة") || h.Contains("المتفرع") || string.Equals(h, "flavor", StringComparison.OrdinalIgnoreCase) || string.Equals(h, "flavour", StringComparison.OrdinalIgnoreCase)) colFlavorForm = c;
+                    else if (h.Contains("المصنعة") || h.Contains("الشركة") || string.Equals(h, "manufacturer", StringComparison.OrdinalIgnoreCase) || string.Equals(h, "company", StringComparison.OrdinalIgnoreCase)) colMfg = c;
                     else if (h.Contains("المجموعة") || h.Contains("العلاجية") || string.Equals(h, "therapeutic", StringComparison.OrdinalIgnoreCase)) colTherapeutic = c;
-                    else if (h.Contains("قسم") || h.Contains("تصنيف") || string.Equals(h, "category", StringComparison.OrdinalIgnoreCase)) colCategory = c;
-                    else if (h.Contains("الرف") || h.Contains("تخزين") || string.Equals(h, "shelf", StringComparison.OrdinalIgnoreCase)) colStorageLoc = c;
-                    else if (h.Contains("تبريد") || h.Contains("ثلاجة") || string.Equals(h, "refrigerated", StringComparison.OrdinalIgnoreCase)) colRefrigerated = c;
+                    else if (h.Contains("قسم") || (h.Contains("تصنيف") && !h.Contains("الدليل")) || string.Equals(h, "category", StringComparison.OrdinalIgnoreCase)) colCategory = c;
+                    else if (h.Contains("الرف") || h.Contains("تخزين") || string.Equals(h, "shelf", StringComparison.OrdinalIgnoreCase) || string.Equals(h, "location", StringComparison.OrdinalIgnoreCase)) colStorageLoc = c;
+                    else if (h.Contains("تبريد") || h.Contains("ثلاجة") || string.Equals(h, "refrigerated", StringComparison.OrdinalIgnoreCase) || string.Equals(h, "fridge", StringComparison.OrdinalIgnoreCase)) colRefrigerated = c;
+                    else if (h.Contains("طريقة الاستخدام") || (h.Contains("طريقة") && !h.Contains("البيع")) || string.Equals(h, "route", StringComparison.OrdinalIgnoreCase)) colRoute = c;
+                    else if (h.Contains("الحمل") || h.Contains("الرضاعة") || string.Equals(h, "pregnancy", StringComparison.OrdinalIgnoreCase)) colPregnancy = c;
+                    else if (h.Contains("مضاد حيوي") || string.Equals(h, "antibiotic", StringComparison.OrdinalIgnoreCase)) colAntibiotic = c;
+                    else if (h.Contains("نوع الوصفة") || h.Contains("الصرف") || string.Equals(h, "rx", StringComparison.OrdinalIgnoreCase)) colRxStatus = c;
+                    else if (h.Contains("عدد الوحدات") || h.Contains("الأشرطة") || string.Equals(h, "units", StringComparison.OrdinalIgnoreCase) || string.Equals(h, "pieces", StringComparison.OrdinalIgnoreCase)) colPiecesPerPack = c;
                     else if (h.Contains("العبوة") || string.Equals(h, "pack", StringComparison.OrdinalIgnoreCase)) colPack = c;
                     else if (h.Contains("سعر") || string.Equals(h, "price", StringComparison.OrdinalIgnoreCase)) colPrice = c;
-                    else if (h.Contains("ملاحظات") || h.Contains("مصدر")) colNotes = c;
+                    else if (h.Contains("ملاحظات") || h.Contains("مصدر") || string.Equals(h, "notes", StringComparison.OrdinalIgnoreCase)) colNotes = c;
                 }
 
                 // Defaults if headers weren't named exactly:
-                // If 13 columns present and colPrice is 0, assign defaults:
                 if (colPrice == 0)
                 {
-                    if (lastCol >= 12)
+                    if (lastCol >= 18)
                     {
+                        colFlavorForm = 6;
+                        colMfg = 7;
+                        colTherapeutic = 8;
+                        colCategory = 9;
+                        colStorageLoc = 10;
+                        colRefrigerated = 11;
+                        colRoute = 12;
+                        colPregnancy = 13;
+                        colAntibiotic = 14;
+                        colRxStatus = 15;
+                        colPack = 16;
+                        colPiecesPerPack = 17;
+                        colPrice = 18;
+                        colNotes = 19;
+                    }
+                    else if (lastCol >= 12)
+                    {
+                        colMfg = 6;
                         colTherapeutic = 7;
                         colCategory = 8;
                         colStorageLoc = 9;
@@ -1100,6 +1147,7 @@ namespace RafiqPOS.Services
                     else
                     {
                         // Legacy 9-column template
+                        colMfg = 6;
                         colPack = 7;
                         colPrice = 8;
                         colNotes = 9;
@@ -1116,12 +1164,18 @@ namespace RafiqPOS.Services
                     string scientificName = colSci > 0 ? ws.Cell(r, colSci).GetString().Trim() : "";
                     string form = colForm > 0 ? ws.Cell(r, colForm).GetString().Trim() : "";
                     string strength = colStrength > 0 ? ws.Cell(r, colStrength).GetString().Trim() : "";
+                    string flavorForm = colFlavorForm > 0 ? ws.Cell(r, colFlavorForm).GetString().Trim() : "";
                     string manufacturer = colMfg > 0 ? ws.Cell(r, colMfg).GetString().Trim() : "";
                     string therapeuticClass = colTherapeutic > 0 ? ws.Cell(r, colTherapeutic).GetString().Trim() : "";
                     string category = colCategory > 0 ? ws.Cell(r, colCategory).GetString().Trim() : "";
                     string storageLocation = colStorageLoc > 0 ? ws.Cell(r, colStorageLoc).GetString().Trim() : "";
                     string refrigRaw = colRefrigerated > 0 ? ws.Cell(r, colRefrigerated).GetString().Trim() : "";
+                    string routeRaw = colRoute > 0 ? ws.Cell(r, colRoute).GetString().Trim() : "";
+                    string pregnancyRaw = colPregnancy > 0 ? ws.Cell(r, colPregnancy).GetString().Trim() : "";
+                    string antibioticRaw = colAntibiotic > 0 ? ws.Cell(r, colAntibiotic).GetString().Trim() : "";
+                    string rxStatusRaw = colRxStatus > 0 ? ws.Cell(r, colRxStatus).GetString().Trim() : "";
                     string packDesc = colPack > 0 ? ws.Cell(r, colPack).GetString().Trim() : "";
+                    string piecesRaw = colPiecesPerPack > 0 ? ws.Cell(r, colPiecesPerPack).GetString().Trim() : "";
                     string priceRaw = colPrice > 0 ? ws.Cell(r, colPrice).GetString().Trim() : "";
                     string notes = colNotes > 0 ? ws.Cell(r, colNotes).GetString().Trim() : "";
 
@@ -1132,6 +1186,60 @@ namespace RafiqPOS.Services
                         if (cleanRefrig == "نعم" || cleanRefrig == "yes" || cleanRefrig == "1" || cleanRefrig == "true" || cleanRefrig.Contains("ثلاجة"))
                         {
                             isRefrigerated = true;
+                        }
+                    }
+
+                    bool isAntibiotic = false;
+                    if (!string.IsNullOrWhiteSpace(antibioticRaw))
+                    {
+                        string cleanAnti = antibioticRaw.Trim().ToLowerInvariant();
+                        if (cleanAnti == "نعم" || cleanAnti == "yes" || cleanAnti == "1" || cleanAnti == "true" || cleanAnti.Contains("مضاد"))
+                        {
+                            isAntibiotic = true;
+                        }
+                    }
+
+                    string route = null;
+                    if (!string.IsNullOrWhiteSpace(routeRaw))
+                    {
+                        string lowerRoute = routeRaw.Trim().ToLowerInvariant();
+                        if (lowerRoute.Contains("oral") || lowerRoute.Contains("فم")) route = "oral";
+                        else if (lowerRoute.Contains("topical") || lowerRoute.Contains("موضع") || lowerRoute.Contains("كريم") || lowerRoute.Contains("مرهم") || lowerRoute.Contains("جل")) route = "topical";
+                        else if (lowerRoute.Contains("parenteral") || lowerRoute.Contains("inject") || lowerRoute.Contains("حقن") || lowerRoute.Contains("عضل") || lowerRoute.Contains("وريد")) route = "parenteral";
+                        else if (lowerRoute.Contains("drop") || lowerRoute.Contains("قطر") || lowerRoute.Contains("عين") || lowerRoute.Contains("أذن")) route = "ophthalmic";
+                        else if (lowerRoute.Contains("inhal") || lowerRoute.Contains("استنشاق") || lowerRoute.Contains("بخاخ")) route = "inhalation";
+                        else if (lowerRoute.Contains("rectal") || lowerRoute.Contains("لبوس") || lowerRoute.Contains("شرج") || lowerRoute.Contains("تحاميل")) route = "rectal";
+                        else route = routeRaw.Trim();
+                    }
+
+                    string pregnancyCategory = null;
+                    if (!string.IsNullOrWhiteSpace(pregnancyRaw))
+                    {
+                        string upperPreg = pregnancyRaw.Trim().ToUpperInvariant();
+                        if (upperPreg.Contains("A") || upperPreg.Contains("أ")) pregnancyCategory = "A";
+                        else if (upperPreg.Contains("B") || upperPreg.Contains("ب")) pregnancyCategory = "B";
+                        else if (upperPreg.Contains("C") || upperPreg.Contains("ج")) pregnancyCategory = "C";
+                        else if (upperPreg.Contains("D") || upperPreg.Contains("د")) pregnancyCategory = "D";
+                        else if (upperPreg.Contains("X")) pregnancyCategory = "X";
+                        else pregnancyCategory = "";
+                    }
+
+                    string rxStatus = null;
+                    if (!string.IsNullOrWhiteSpace(rxStatusRaw))
+                    {
+                        string lowerRx = rxStatusRaw.Trim().ToLowerInvariant();
+                        if (lowerRx.Contains("control") || lowerRx.Contains("جدول") || lowerRx.Contains("مخدر") || lowerRx.Contains("مهدئ")) rxStatus = "controlled";
+                        else if (lowerRx.Contains("rx") || lowerRx.Contains("روشتة") || lowerRx.Contains("وصفة")) rxStatus = "rx";
+                        else rxStatus = "otc";
+                    }
+
+                    int? piecesPerPack = null;
+                    if (!string.IsNullOrWhiteSpace(piecesRaw))
+                    {
+                        int pNum;
+                        if (int.TryParse(piecesRaw.Replace("قرص", "").Replace("شريط", "").Trim(), out pNum) && pNum > 0)
+                        {
+                            piecesPerPack = pNum;
                         }
                     }
 
@@ -1155,11 +1263,17 @@ namespace RafiqPOS.Services
                         ScientificName = string.IsNullOrWhiteSpace(scientificName) ? null : scientificName,
                         Form = string.IsNullOrWhiteSpace(form) ? null : form,
                         Strength = string.IsNullOrWhiteSpace(strength) ? null : strength,
+                        FlavorForm = string.IsNullOrWhiteSpace(flavorForm) ? null : flavorForm,
                         Manufacturer = string.IsNullOrWhiteSpace(manufacturer) ? null : manufacturer,
                         TherapeuticClass = string.IsNullOrWhiteSpace(therapeuticClass) ? null : therapeuticClass,
                         Category = string.IsNullOrWhiteSpace(category) ? null : category,
                         StorageLocation = string.IsNullOrWhiteSpace(storageLocation) ? null : storageLocation,
                         IsRefrigerated = isRefrigerated,
+                        Route = route,
+                        PregnancyCategory = pregnancyCategory,
+                        IsAntibiotic = isAntibiotic,
+                        RxStatus = rxStatus,
+                        PiecesPerPack = piecesPerPack,
                         PackDesc = string.IsNullOrWhiteSpace(packDesc) ? null : packDesc,
                         Reason = notes
                     };

@@ -47,8 +47,8 @@ export const SettingsView = ({
   const { isRoot, hasPermission } = useAuth();
   const canManageFeatures = isRoot || hasPermission('settings.features');
   const allowedSubTabs = isRoot 
-    ? ['profile', 'backup', 'printer', 'system', 'scanner', 'security', 'demo'] 
-    : (canManageFeatures ? ['profile', 'backup', 'printer', 'system'] : ['profile', 'backup', 'printer']);
+    ? ['profile', 'printer', 'scanner', 'security', 'backup', 'system', 'demo'] 
+    : (canManageFeatures ? ['profile', 'printer', 'backup', 'system'] : ['profile', 'printer', 'backup']);
   const subTab = allowedSubTabs.includes(activeSubTab) ? activeSubTab : 'profile';
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);

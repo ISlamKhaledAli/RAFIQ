@@ -16,20 +16,28 @@ import {
   XCircle,
   Truck,
   TrendingDown,
-  BarChart3,
   X,
   Package,
   RotateCcw,
+  Receipt,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  ShoppingCart,
+  Layers,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { useDataSubscription } from '../../utils/eventBus';
 import type {
   ShortageEntry,
   ShortagePurchaseProposal,
   LostSalesReportSummary,
+  LostSalesReportItem,
 } from '../../types/shortage';
 import { formatArabicCurrency } from '../../utils/money';
 import { CustomSelect, type SelectOption } from '../../components/CustomSelect';
 import { QuickShortageModal } from '../../components/QuickShortageModal';
+import { PaginationBar } from '../../components/PaginationBar';
 
 interface ShortagesTabProps {
   onLoadProposalToNewPurchase?: (proposal: ShortagePurchaseProposal) => void;
@@ -37,12 +45,14 @@ interface ShortagesTabProps {
 
 export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewPurchase }) => {
   const [shortages, setShortages] = useState<ShortageEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
   const [urgencyFilter, setUrgencyFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Modals & Sub-views
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -50,6 +60,12 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
   const [proposals, setProposals] = useState<ShortagePurchaseProposal[]>([]);
   const [isLostSalesReportOpen, setIsLostSalesReportOpen] = useState(false);
   const [lostSalesReport, setLostSalesReport] = useState<LostSalesReportSummary | null>(null);
+  const [reportScope, setReportScope] = useState<'unmet' | 'all'>('unmet');
+  const [reportSource, setReportSource] = useState<string>('all');
+  const [reportDays, setReportDays] = useState<number>(30);
+  const [reportSortBy, setReportSortBy] = useState<'revenue' | 'requests' | 'qty' | 'name'>('revenue');
+  const [reportSortOrder, setReportSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [isReportLoading, setIsReportLoading] = useState(false);
   const [isGeneratingAuto, setIsGeneratingAuto] = useState(false);
 
   interface PendingAction {
@@ -95,6 +111,10 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     void loadShortages();
   }, [loadShortages]);
 
+  useDataSubscription(['shortages', 'purchases', 'products', 'all'], () => {
+    void loadShortages();
+  });
+
   const filteredShortages = useMemo(() => {
     return shortages.filter((item) => {
       const itemUrgency = item.urgency || (item as unknown as { priority?: string }).priority || 'normal';
@@ -107,6 +127,15 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
       return true;
     });
   }, [shortages, urgencyFilter, sourceFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, urgencyFilter, sourceFilter]);
+
+  const paginatedShortages = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredShortages.slice(startIndex, startIndex + pageSize);
+  }, [filteredShortages, currentPage, pageSize]);
 
   const handleSelectAll = () => {
     if (selectedIds.length === filteredShortages.length) {
@@ -122,16 +151,25 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     );
   };
 
-  const handleStatusChange = async (id: string, newStatus: string, productName?: string) => {
+  const handleStatusChange = async (
+    id: string,
+    newStatus: string,
+    productName?: string,
+    increaseStock: boolean = true,
+    qtyMilli?: number,
+    unit?: string
+  ) => {
     try {
-      await invoke('shortages:updateStatus', { id, status: newStatus });
+      await invoke('shortages:updateStatus', { id, status: newStatus, increaseStock });
       const name = productName || 'الصنف';
       if (newStatus === 'ordered') {
         showToast(`تم نقل "${name}" إلى قائمة (تم الطلب من المورد). يمكنك استعراضه من تبويب "تم الطلب".`, 'success');
       } else if (newStatus === 'cancelled') {
         showToast(`تم نقل "${name}" إلى قائمة (الملغيات).`, 'success');
       } else if (newStatus === 'received') {
-        showToast(`تم استلام "${name}" وتحديث المخزن بنجاح.`, 'success');
+        const addedQty = typeof qtyMilli === 'number' && qtyMilli > 0 ? qtyMilli / 1000 : 1;
+        const u = unit || 'قطعة';
+        showToast(`تم استلام "${name}" وتزويد رصيد المخزن بمقدار (+${addedQty} ${u}) بنجاح.`, 'success');
       } else if (newStatus === 'pending') {
         showToast(`تمت إعادة تفعيل "${name}" ونقله إلى قائمة (بانتظار الطلب).`, 'success');
       } else {
@@ -141,6 +179,42 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     } catch {
       showToast('تعذر تحديث الحالة', 'error');
     }
+  };
+
+  const handleConvertToPurchaseSingle = async (item: ShortageEntry) => {
+    if (!onLoadProposalToNewPurchase) {
+      showToast('خاصية التحويل لفاتورة شراء غير متاحة حالياً', 'error');
+      return;
+    }
+
+    try {
+      if (item.status === 'pending') {
+        await invoke('shortages:updateStatus', { id: item.id, status: 'ordered', increaseStock: false });
+      }
+    } catch {
+      // ignore
+    }
+
+    const proposal: ShortagePurchaseProposal = {
+      supplierId: item.preferredSupplierId || '',
+      supplierName: item.preferredSupplierName || 'مورد عام',
+      supplierPhone: null,
+      items: [
+        {
+          shortageId: item.id,
+          productId: item.productId || '',
+          productName: item.productName,
+          barcode: item.barcode || null,
+          unit: item.unit || 'قطعة',
+          suggestedQuantityMilli: item.requestedQuantityMilli || 1000,
+          costPiasters: item.costPiasters || 0,
+          totalEstimatedCostPiasters: Math.round(((item.requestedQuantityMilli || 1000) / 1000) * (item.costPiasters || 0)),
+        },
+      ],
+    };
+
+    onLoadProposalToNewPurchase(proposal);
+    showToast(`تم تجهيز الصنف ونقله إلى فاتورة شراء جديدة`, 'success');
   };
 
   const handleDelete = async (id: string, productName?: string) => {
@@ -211,37 +285,138 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     }
   };
 
-  const handleOpenLostSalesReport = async () => {
-    try {
-      const report = await invoke<any>('shortages:getLostSalesReport', { days: 30 });
-      if (report) {
-        const rawItems = (report.topRequestedProducts || report.items || []) as any[];
-        setLostSalesReport({
-          totalUnmetRequestsCount: report.totalUnmetRequestsCount ?? report.totalRequests ?? 0,
-          totalEstimatedLostRevenuePiasters: report.totalEstimatedLostRevenuePiasters ?? report.totalLostRevenuePiasters ?? 0,
-          topRequestedProducts: rawItems.map((p: any) => ({
-            productId: p.productId || '',
-            productName: p.productName || p.itemName || 'صنف غير محدد',
-            barcode: p.barcode || null,
-            requestCount: p.requestCount || 0,
-            totalRequestedQuantityMilli: p.totalRequestedQuantityMilli ?? p.totalRequestedQtyMilli ?? 0,
-            estimatedLostRevenuePiasters: p.estimatedLostRevenuePiasters || 0,
-          })),
+  const loadLostSalesReport = useCallback(
+    async (scope: string = reportScope, src: string = reportSource, days: number = reportDays) => {
+      setIsReportLoading(true);
+      try {
+        const report = await invoke<any>('shortages:getLostSalesReport', {
+          days: days > 0 ? days : undefined,
+          status: scope,
+          source: src === 'all' ? undefined : src,
         });
+        if (report) {
+          const rawItems = (report.topRequestedProducts || report.items || []) as any[];
+          setLostSalesReport({
+            totalUnmetRequestsCount: report.totalUnmetRequestsCount ?? report.totalRequests ?? 0,
+            totalCustomerRequestsCount: report.totalCustomerRequestsCount ?? 0,
+            totalAutoReorderCount: report.totalAutoReorderCount ?? 0,
+            uniqueProductsCount: report.uniqueProductsCount ?? rawItems.length,
+            totalEstimatedLostRevenuePiasters:
+              report.totalEstimatedLostRevenuePiasters ?? report.totalLostRevenuePiasters ?? 0,
+            topRequestedProducts: rawItems.map((p: any) => ({
+              productId: p.productId || '',
+              productName: p.productName || p.itemName || 'صنف غير محدد',
+              barcode: p.barcode || null,
+              unit: p.unit || 'قطعة',
+              source: p.source || 'pos',
+              status: p.status || 'pending',
+              requestCount: p.requestCount || 0,
+              totalRequestedQuantityMilli: p.totalRequestedQuantityMilli ?? p.totalRequestedQtyMilli ?? 0,
+              unitPricePiasters: p.unitPricePiasters || 0,
+              estimatedLostRevenuePiasters: p.estimatedLostRevenuePiasters || 0,
+              currentStockMilli: p.currentStockMilli ?? 0,
+              preferredSupplierName: p.preferredSupplierName || null,
+            })),
+          });
+        }
+      } catch {
+        showToast('تعذر جلب تقرير المبيعات المفقودة', 'error');
+      } finally {
+        setIsReportLoading(false);
       }
-      setIsLostSalesReportOpen(true);
-    } catch {
-      showToast('تعذر جلب تقريب المبيعات المفقودة', 'error');
+    },
+    [reportScope, reportSource, reportDays, showToast]
+  );
+
+  const handleOpenLostSalesReport = () => {
+    setIsLostSalesReportOpen(true);
+    void loadLostSalesReport(reportScope, reportSource, reportDays);
+  };
+
+  const handleScopeChange = (newScope: 'unmet' | 'all') => {
+    setReportScope(newScope);
+    void loadLostSalesReport(newScope, reportSource, reportDays);
+  };
+
+  const handleReportSourceChange = (newSrc: string) => {
+    setReportSource(newSrc);
+    void loadLostSalesReport(reportScope, newSrc, reportDays);
+  };
+
+  const handleReportDaysChange = (newDays: number) => {
+    setReportDays(newDays);
+    void loadLostSalesReport(reportScope, reportSource, newDays);
+  };
+
+  const sortedReportItems = useMemo(() => {
+    if (!lostSalesReport?.topRequestedProducts) return [];
+    const list = [...lostSalesReport.topRequestedProducts];
+    list.sort((a, b) => {
+      let comp = 0;
+      if (reportSortBy === 'revenue') {
+        comp = a.estimatedLostRevenuePiasters - b.estimatedLostRevenuePiasters;
+      } else if (reportSortBy === 'requests') {
+        comp = a.requestCount - b.requestCount;
+      } else if (reportSortBy === 'qty') {
+        comp = a.totalRequestedQuantityMilli - b.totalRequestedQuantityMilli;
+      } else if (reportSortBy === 'name') {
+        comp = a.productName.localeCompare(b.productName, 'ar');
+      }
+      return reportSortOrder === 'desc' ? -comp : comp;
+    });
+    return list;
+  }, [lostSalesReport, reportSortBy, reportSortOrder]);
+
+  const toggleReportSort = (col: 'revenue' | 'requests' | 'qty' | 'name') => {
+    if (reportSortBy === col) {
+      setReportSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setReportSortBy(col);
+      setReportSortOrder('desc');
     }
   };
 
-  const statusOptions: SelectOption[] = [
-    { value: 'all', label: 'كافة الحالات' },
-    { value: 'pending', label: 'معلق (بانتظار الطلب)' },
-    { value: 'ordered', label: 'تم الطلب من المورد' },
-    { value: 'received', label: 'تم الاستلام بالمخزن' },
-    { value: 'cancelled', label: 'ملغي / غير متوفر' },
+  const handleOrderFromReport = (p: LostSalesReportItem) => {
+    if (!onLoadProposalToNewPurchase) {
+      showToast('خاصية التحويل لفاتورة شراء غير متاحة حالياً', 'error');
+      return;
+    }
+    const proposal: ShortagePurchaseProposal = {
+      supplierId: '',
+      supplierName: p.preferredSupplierName || 'مورد عام',
+      supplierPhone: null,
+      items: [
+        {
+          shortageId: p.productId ? `rep_${p.productId}` : 'rep_item',
+          productId: p.productId || '',
+          productName: p.productName,
+          barcode: p.barcode || null,
+          unit: p.unit || 'قطعة',
+          suggestedQuantityMilli: p.totalRequestedQuantityMilli || 1000,
+          costPiasters: 0,
+          totalEstimatedCostPiasters: 0,
+        },
+      ],
+    };
+    setIsLostSalesReportOpen(false);
+    onLoadProposalToNewPurchase(proposal);
+    showToast(`تم تجهيز "${p.productName}" ونقله لفاتورة الشراء بنجاح`, 'success');
+  };
+
+  const reportSourceOptions: SelectOption[] = [
+    { value: 'all', label: 'كافة المصادر' },
+    { value: 'customer', label: 'طلبات العملاء (الكاشير)' },
+    { value: 'auto_reorder', label: 'تنبيهات نفاد المخزون' },
   ];
+
+  const reportDaysOptions: SelectOption[] = [
+    { value: '30', label: 'آخر 30 يوماً' },
+    { value: '60', label: 'آخر 60 يوماً' },
+    { value: '90', label: 'آخر 90 يوماً' },
+    { value: '0', label: 'كافة الفترات (الكل)' },
+  ];
+
+
 
   const urgencyOptions: SelectOption[] = [
     { value: 'all', label: 'كافة درجات الأهمية' },
@@ -287,14 +462,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
             <Search className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
 
-          <div className="w-44">
-            <CustomSelect
-              options={statusOptions}
-              value={statusFilter}
-              onChange={(val) => setStatusFilter(val)}
-              size="sm"
-            />
-          </div>
+
 
           <div className="w-40">
             <CustomSelect
@@ -313,15 +481,6 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               size="sm"
             />
           </div>
-
-          <button
-            type="button"
-            onClick={() => void loadShortages()}
-            className="w-8 h-8 rounded-lg border border-line dark:border-line-dark flex items-center justify-center text-ink-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 transition-colors"
-            title="تحديث البيانات"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-brand' : ''}`} />
-          </button>
         </div>
 
         {/* Action Buttons */}
@@ -477,7 +636,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                   </td>
                 </tr>
               ) : (
-                filteredShortages.map((item) => {
+                paginatedShortages.map((item) => {
                   const isSelected = selectedIds.includes(item.id);
                   return (
                     <tr
@@ -622,6 +781,16 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                           {item.status === 'pending' && (
                             <button
                               type="button"
+                              onClick={() => void handleConvertToPurchaseSingle(item)}
+                              className="p-1.5 rounded-lg border border-brand/30 hover:bg-brand-soft text-brand transition-all cursor-pointer shadow-2xs"
+                              title="تحويل مباشر إلى فاتورة شراء جديدة"
+                            >
+                              <Receipt className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {item.status === 'pending' && (
+                            <button
+                              type="button"
                               onClick={() => setPendingAction({ type: 'order', item })}
                               className="p-1.5 rounded-lg border border-brand/20 hover:bg-brand-soft text-brand transition-all cursor-pointer shadow-2xs"
                               title="طلب من المورد (نقل الصنف إلى قائمة تم الطلب)"
@@ -634,7 +803,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                               type="button"
                               onClick={() => setPendingAction({ type: 'receive', item })}
                               className="p-1.5 rounded-lg border border-paid/20 hover:bg-paid-soft text-paid transition-all cursor-pointer shadow-2xs"
-                              title="استلام بالمخزن (تأكيد استلام الشحنة)"
+                              title="استلام بالمخزن (تأكيد استلام الشحنة وتوريدها)"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
@@ -676,6 +845,20 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
             </tbody>
           </table>
         </div>
+
+        <PaginationBar
+          currentPage={currentPage}
+          pageSize={pageSize}
+          totalCount={filteredShortages.length}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[25, 50, 100]}
+          itemLabel="بند نواقص"
+          className="rounded-none border-x-0 border-b-0 border-t"
+        />
       </div>
 
       {/* Quick Add Shortage Modal */}
@@ -808,83 +991,320 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
 
       {/* Lost Sales Report Modal */}
       {isLostSalesReportOpen && (
-        <div className="fixed inset-0 bg-ink/50 dark:bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 bg-ink/50 dark:bg-black/70 z-50 flex items-center justify-center p-3 select-none backdrop-blur-xs">
+          <div className="w-full max-w-4xl bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
             <div className="h-14 px-5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-danger" />
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-danger-soft text-danger flex items-center justify-center shrink-0">
+                  <TrendingDown className="w-5 h-5" />
+                </div>
                 <div>
-                  <h3 className="text-sm font-bold text-ink dark:text-ink-dark">
-                    تقرير المبيعات المفقودة والفرص الضائعة
+                  <h3 className="text-sm font-bold text-ink dark:text-ink-dark flex items-center gap-2">
+                    <span>تقرير المبيعات المفقودة والفرص الضائعة</span>
+                    {isReportLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand" />}
                   </h3>
                   <p className="text-[11px] text-ink-muted">
-                    تحليل لآخر 30 يوماً من طلبات العملاء غير الملباة
+                    {reportScope === 'unmet'
+                      ? 'تحليل لفرص المبيعات المعطلة بسبب الأصناف غير المتوفرة حالياً بالرصيد'
+                      : 'تحليل تراكمي شامل لكافة طلبات ونواقص المبيعات (شاملة الأصناف المستلمة لاحقاً)'}
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsLostSalesReportOpen(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void loadLostSalesReport(reportScope, reportSource, reportDays)}
+                  className="w-8 h-8 rounded-lg border border-line dark:border-line-dark flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface dark:hover:bg-surface-dark"
+                  title="تحديث التقرير"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isReportLoading ? 'animate-spin text-brand' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLostSalesReportOpen(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink"
+                  title="إغلاق"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
+            {/* Modal Filter Bar */}
+            <div className="px-5 py-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-2.5 text-xs">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleScopeChange('unmet')}
+                  className={`h-7 px-3 rounded-lg font-bold transition-all text-xs flex items-center gap-1.5 cursor-pointer ${
+                    reportScope === 'unmet'
+                      ? 'bg-brand text-white shadow-xs'
+                      : 'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark hover:bg-line/40'
+                  }`}
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>النواقص غير المتوفرة حالياً</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    reportScope === 'unmet' ? 'bg-white/20 text-white' : 'bg-line text-ink'
+                  }`}>
+                    {reportScope === 'unmet' ? (lostSalesReport?.uniqueProductsCount || 0) : ''}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleScopeChange('all')}
+                  className={`h-7 px-3 rounded-lg font-bold transition-all text-xs flex items-center gap-1.5 cursor-pointer ${
+                    reportScope === 'all'
+                      ? 'bg-brand-dark text-white shadow-xs'
+                      : 'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark hover:bg-line/40'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>كافة النواقص والطلبات</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="w-44">
+                  <CustomSelect
+                    options={reportSourceOptions}
+                    value={reportSource}
+                    onChange={(val) => handleReportSourceChange(val)}
+                    size="sm"
+                  />
+                </div>
+                <div className="w-36">
+                  <CustomSelect
+                    options={reportDaysOptions}
+                    value={reportDays.toString()}
+                    onChange={(val) => handleReportDaysChange(parseInt(val, 10) || 0)}
+                    size="sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
             <div className="p-5 flex-1 overflow-y-auto flex flex-col gap-4 text-xs">
               {/* Summary KPIs */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 rounded-xl bg-danger-soft border border-danger/20 flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-danger">إجمالي الإيرادات المفقودة المقدرة</span>
-                  <span className="text-xl font-bold font-mono text-danger">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* KPI 1: Lost Revenue */}
+                <div className="p-4 rounded-xl bg-danger-soft border border-danger/25 flex flex-col gap-1 shadow-2xs">
+                  <div className="flex items-center justify-between text-danger">
+                    <span className="text-[11px] font-bold">إجمالي الإيرادات المفقودة المقدرة</span>
+                    <TrendingDown className="w-4 h-4" />
+                  </div>
+                  <span className="text-2xl font-bold font-mono text-danger tracking-tight">
                     {formatArabicCurrency(lostSalesReport?.totalEstimatedLostRevenuePiasters || 0)}
                   </span>
-                  <span className="text-[10px] text-danger/80">قيمة مبيعات كان يمكن تحقيقها لو توافرت الأصناف</span>
+                  <span className="text-[10px] text-danger/80">
+                    قيمة مبيعات كان يمكن تحقيقها لو توافرت الأصناف على الرف
+                  </span>
                 </div>
 
-                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-ink-muted">عدد الطلبات المفقودة</span>
-                  <span className="text-xl font-bold font-mono text-ink dark:text-ink-dark">
-                    {lostSalesReport?.totalUnmetRequestsCount || 0} طلب
+                {/* KPI 2: Total Requests & Products Breakdown */}
+                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1 shadow-2xs">
+                  <div className="flex items-center justify-between text-ink-muted">
+                    <span className="text-[11px] font-bold">حجم الطلب والأصناف</span>
+                    <ClipboardList className="w-4 h-4" />
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-bold font-mono text-ink dark:text-ink-dark">
+                      {lostSalesReport?.totalUnmetRequestsCount || 0}
+                    </span>
+                    <span className="text-xs text-ink-muted font-bold">
+                      طلب ({lostSalesReport?.uniqueProductsCount || 0} صنف)
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-ink-muted flex items-center gap-1">
+                    <span className="font-bold text-ink dark:text-ink-dark">
+                      {lostSalesReport?.totalCustomerRequestsCount || 0}
+                    </span>
+                    <span>طلب عميل مباشر</span>
+                    <span>•</span>
+                    <span className="font-bold text-ink dark:text-ink-dark">
+                      {lostSalesReport?.totalAutoReorderCount || 0}
+                    </span>
+                    <span>تنبيه نفاد مخزون</span>
                   </span>
-                  <span className="text-[10px] text-ink-muted">عملاء سألوا عن أصناف ولم تكن متوفرة</span>
+                </div>
+
+                {/* KPI 3: Top Offender Product */}
+                <div className="p-4 rounded-xl bg-brand-soft/40 dark:bg-brand-soft/10 border border-brand/20 flex flex-col gap-1 shadow-2xs">
+                  <div className="flex items-center justify-between text-brand">
+                    <span className="text-[11px] font-bold">أعلى صنف مسبب للخسارة</span>
+                    <Flame className="w-4 h-4" />
+                  </div>
+                  <div className="truncate font-bold text-ink dark:text-ink-dark text-xs" title={sortedReportItems[0]?.productName || 'لا يوجد'}>
+                    {sortedReportItems[0]?.productName || 'لا يوجد'}
+                  </div>
+                  <div className="text-[11px] font-bold font-mono text-brand flex items-center gap-1.5">
+                    <span>
+                      {sortedReportItems[0] ? formatArabicCurrency(sortedReportItems[0].estimatedLostRevenuePiasters) : '0.00 ج.م'}
+                    </span>
+                    {sortedReportItems[0] && (
+                      <span className="text-[10px] text-ink-muted font-normal">
+                        ({sortedReportItems[0].totalRequestedQuantityMilli / 1000} {sortedReportItems[0].unit})
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Top Missing Products */}
+              {/* Top Missing Products Section */}
               <div>
-                <h4 className="text-xs font-bold text-ink dark:text-ink-dark mb-2">
-                  أكثر الأصناف المطلوبة غير المتوفرة (Top Missing):
-                </h4>
-                {(!lostSalesReport?.topRequestedProducts || lostSalesReport.topRequestedProducts.length === 0) ? (
-                  <div className="py-6 text-center text-ink-muted">
-                    لا توجد طلبات غير ملباة مسجلة في هذه الفترة.
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                    <span>أكثر الأصناف المطلوبة غير المتوفرة (Top Missing Opportunities):</span>
+                    <span className="text-[11px] text-ink-muted font-mono font-normal">
+                      ({sortedReportItems.length} صنف)
+                    </span>
+                  </h4>
+                  <span className="text-[10px] text-ink-muted">
+                    انقر على رأس أي عمود لتغيير الترتيب
+                  </span>
+                </div>
+
+                {sortedReportItems.length === 0 ? (
+                  <div className="py-12 text-center text-ink-muted border border-line dark:border-line-dark rounded-xl bg-surface-2 dark:bg-surface-dark-2">
+                    <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-paid opacity-60" />
+                    <div className="font-bold">لا توجد مبيعات ضائعة مسجلة وفقاً للشروط الحالية</div>
+                    <p className="text-[11px] mt-1">كافة المنتجات المطلوبة متوفرة بالرصيد الحالي للمخزن</p>
                   </div>
                 ) : (
-                  <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden">
+                  <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
                     <table className="w-full text-right text-xs">
-                      <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted font-bold">
+                      <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted font-bold select-none">
                         <tr>
-                          <th className="px-3 py-2">الصنف</th>
-                          <th className="px-3 py-2 text-center">مرات الطلب</th>
-                          <th className="px-3 py-2 text-center">إجمالي الكمية المطلوبة</th>
-                          <th className="px-3 py-2 text-left">قيمة المبيعات الضائعة</th>
+                          <th
+                            className="px-3 py-2 cursor-pointer hover:text-ink transition-colors"
+                            onClick={() => toggleReportSort('name')}
+                          >
+                            <div className="flex items-center gap-1">
+                              <span>الصنف والباركود</span>
+                              {reportSortBy === 'name' ? (
+                                reportSortOrder === 'desc' ? <ArrowDown className="w-3 h-3 text-brand" /> : <ArrowUp className="w-3 h-3 text-brand" />
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-30" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="px-3 py-2 text-center">المصدر</th>
+                          <th
+                            className="px-3 py-2 text-center cursor-pointer hover:text-ink transition-colors"
+                            onClick={() => toggleReportSort('requests')}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              <span>مرات الطلب</span>
+                              {reportSortBy === 'requests' ? (
+                                reportSortOrder === 'desc' ? <ArrowDown className="w-3 h-3 text-brand" /> : <ArrowUp className="w-3 h-3 text-brand" />
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-30" />
+                              )}
+                            </div>
+                          </th>
+                          <th
+                            className="px-3 py-2 text-center cursor-pointer hover:text-ink transition-colors"
+                            onClick={() => toggleReportSort('qty')}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              <span>الكمية المطلوبة</span>
+                              {reportSortBy === 'qty' ? (
+                                reportSortOrder === 'desc' ? <ArrowDown className="w-3 h-3 text-brand" /> : <ArrowUp className="w-3 h-3 text-brand" />
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-30" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="px-3 py-2 text-center">سعر الوحدة</th>
+                          <th
+                            className="px-3 py-2 text-left cursor-pointer hover:text-ink transition-colors"
+                            onClick={() => toggleReportSort('revenue')}
+                          >
+                            <div className="flex items-center justify-end gap-1">
+                              <span>قيمة المبيعات الضائعة</span>
+                              {reportSortBy === 'revenue' ? (
+                                reportSortOrder === 'desc' ? <ArrowDown className="w-3 h-3 text-danger" /> : <ArrowUp className="w-3 h-3 text-danger" />
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-30" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="px-3 py-2 text-center">إجراء سريع</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-line/40 dark:divide-line-dark/40">
-                        {lostSalesReport.topRequestedProducts.map((p) => (
-                          <tr key={p.productId || p.productName}>
+                        {sortedReportItems.map((p, idx) => (
+                          <tr
+                            key={p.productId || p.productName}
+                            className="hover:bg-brand-soft/20 dark:hover:bg-brand-soft/5 transition-colors"
+                          >
                             <td className="px-3 py-2 font-bold text-ink dark:text-ink-dark">
-                              {p.productName}
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 text-[10px] font-mono text-ink-muted text-center shrink-0">
+                                  #{idx + 1}
+                                </span>
+                                <div>
+                                  <div className="font-bold">{p.productName}</div>
+                                  {p.barcode && (
+                                    <div className="text-[10px] text-ink-muted font-mono">{p.barcode}</div>
+                                  )}
+                                </div>
+                              </div>
                             </td>
-                            <td className="px-3 py-2 text-center font-mono font-bold text-danger">
-                              {p.requestCount} مرة
+
+                            <td className="px-3 py-2 text-center">
+                              {p.source === 'customer_request' || p.source === 'pos' || p.source === 'manual_pos' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-soft text-brand text-[10px] font-bold">
+                                  <User className="w-2.5 h-2.5" />
+                                  طلب عميل
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-warn-soft text-warn text-[10px] font-bold">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  تنبيه مخزون
+                                </span>
+                              )}
                             </td>
-                            <td className="px-3 py-2 text-center font-mono">
-                              {p.totalRequestedQuantityMilli / 1000}
+
+                            <td className="px-3 py-2 text-center font-mono font-bold text-ink dark:text-ink-dark">
+                              <span className={p.requestCount > 1 ? 'text-danger font-bold' : ''}>
+                                {p.requestCount} مرة
+                              </span>
                             </td>
+
+                            <td className="px-3 py-2 text-center font-mono font-bold">
+                              <span>{p.totalRequestedQuantityMilli / 1000}</span>
+                              <span className="text-[10px] text-ink-muted font-normal mr-1">{p.unit || 'قطعة'}</span>
+                            </td>
+
+                            <td className="px-3 py-2 text-center font-mono text-ink-muted">
+                              {p.unitPricePiasters > 0 ? (
+                                <span>{formatArabicCurrency(p.unitPricePiasters)}</span>
+                              ) : (
+                                <span className="text-[10px] text-ink-muted">-</span>
+                              )}
+                            </td>
+
                             <td className="px-3 py-2 text-left font-mono font-bold text-danger">
                               {formatArabicCurrency(p.estimatedLostRevenuePiasters)}
+                            </td>
+
+                            <td className="px-3 py-2 text-center">
+                              {onLoadProposalToNewPurchase && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOrderFromReport(p)}
+                                  className="h-6 px-2 rounded-md bg-brand-soft hover:bg-brand text-brand hover:text-white transition-colors text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                                  title="إنشاء طلبية شراء فورية لهذا الصنف"
+                                >
+                                  <ShoppingCart className="w-3 h-3" />
+                                  <span>طلب الآن</span>
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -895,11 +1315,15 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               </div>
             </div>
 
-            <div className="h-12 px-5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end shrink-0">
+            {/* Modal Footer */}
+            <div className="h-12 px-5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between shrink-0">
+              <div className="text-[11px] text-ink-muted">
+                إجمالي الأصناف المعروضة: <span className="font-bold font-mono text-ink dark:text-ink-dark">{sortedReportItems.length}</span> صنف
+              </div>
               <button
                 type="button"
                 onClick={() => setIsLostSalesReportOpen(false)}
-                className="h-8 px-4 rounded-lg border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface"
+                className="h-8 px-5 rounded-lg border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface transition-colors cursor-pointer"
               >
                 إغلاق
               </button>
@@ -996,11 +1420,57 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                   </div>
                 )}
                 {pendingAction.type === 'receive' && (
-                  <div>
-                    هل تم توريد الصنف ودخوله إلى المخزن بالفعل؟
-                    <div className="text-ink-muted text-[11px] mt-1.5 p-2 bg-paid-soft/40 dark:bg-paid-dark-soft/40 rounded-lg border border-paid/20">
-                      سيتم تحديث حالة الصنف إلى <strong>"تم الاستلام"</strong> وأرشفته في سجل التوريدات المكتملة.
-                    </div>
+                  <div className="flex flex-col gap-2.5">
+                    <p className="text-ink dark:text-ink-dark leading-relaxed font-semibold">
+                      وصلت البضاعة وتريد توريدها؟ اختر طريقة الاستلام المناسبة:
+                    </p>
+
+                    {/* Option 1: Convert to Purchase Invoice */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const item = pendingAction.item;
+                        setPendingAction(null);
+                        void handleConvertToPurchaseSingle(item);
+                      }}
+                      className="w-full text-right p-3 rounded-xl border border-brand/40 bg-brand-soft/40 hover:bg-brand-soft transition-all flex items-start gap-2.5 cursor-pointer group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-brand text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
+                        <Receipt className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-brand-dark dark:text-brand-bright text-xs flex items-center justify-between">
+                          <span>تحويل إلى فاتورة شراء جديدة (المسار المحاسبي)</span>
+                          <span className="text-[10px] bg-brand text-white px-2 py-0.5 rounded-full font-bold">موصى به</span>
+                        </div>
+                        <p className="text-[11px] text-ink-muted mt-1 leading-normal">
+                          ينقل الصنف لشاشة الشراء لتسجيل المورد، سعر التكلفة، والدفع (كاش/آجل)، ويزيد المخزون رسمياً عند حفظ الفاتورة.
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Option 2: Direct Warehouse Stock Receipt */}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const item = pendingAction.item;
+                        setPendingAction(null);
+                        await handleStatusChange(item.id, 'received', item.productName, true, item.requestedQuantityMilli, item.unit || 'قطعة');
+                      }}
+                      className="w-full text-right p-3 rounded-xl border border-paid/40 bg-paid-soft/40 hover:bg-paid-soft transition-all flex items-start gap-2.5 cursor-pointer group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-paid text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs group-hover:scale-105 transition-transform">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-paid-dark dark:text-paid-bright text-xs">
+                          استلام فوري وزيادة رصيد المخزن مباشرة (+{typeof pendingAction.item.requestedQuantityMilli === 'number' && !isNaN(pendingAction.item.requestedQuantityMilli) ? pendingAction.item.requestedQuantityMilli / 1000 : 1} {pendingAction.item.unit || 'قطعة'})
+                        </div>
+                        <p className="text-[11px] text-ink-muted mt-1 leading-normal">
+                          يزيد رصيد المخزن فوراً ويسجل حركة مخزنية رسمية ويحدث حالة القيد إلى تم الاستلام دون فتح فاتورة شراء.
+                        </p>
+                      </div>
+                    </button>
                   </div>
                 )}
                 {pendingAction.type === 'cancel' && (
@@ -1036,41 +1506,39 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               >
                 إلغاء
               </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const action = pendingAction;
-                  setPendingAction(null);
-                  if (action.type === 'order') {
-                    await handleStatusChange(action.item.id, 'ordered', action.item.productName);
-                  } else if (action.type === 'receive') {
-                    await handleStatusChange(action.item.id, 'received', action.item.productName);
-                  } else if (action.type === 'cancel') {
-                    await handleStatusChange(action.item.id, 'cancelled', action.item.productName);
-                  } else if (action.type === 'restore') {
-                    await handleStatusChange(action.item.id, 'pending', action.item.productName);
-                  } else if (action.type === 'delete') {
-                    await handleDelete(action.item.id, action.item.productName);
-                  }
-                }}
-                className={`h-8 px-4 rounded-lg text-white text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer ${
-                  pendingAction.type === 'order'
-                    ? 'bg-brand hover:bg-brand-hover'
-                    : pendingAction.type === 'receive'
-                    ? 'bg-paid hover:bg-paid-hover'
-                    : pendingAction.type === 'cancel'
-                    ? 'bg-warn hover:bg-warn-hover'
-                    : pendingAction.type === 'restore'
-                    ? 'bg-brand hover:bg-brand-hover'
-                    : 'bg-danger hover:bg-danger-hover'
-                }`}
-              >
-                {pendingAction.type === 'order' && 'تأكيد ونقل لـ "تم الطلب"'}
-                {pendingAction.type === 'receive' && 'تأكيد الاستلام بالمخزن'}
-                {pendingAction.type === 'cancel' && 'تأكيد الإلغاء'}
-                {pendingAction.type === 'restore' && 'إعادة التفعيل'}
-                {pendingAction.type === 'delete' && 'حذف نهائي'}
-              </button>
+
+              {pendingAction.type !== 'receive' && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const action = pendingAction;
+                    setPendingAction(null);
+                    if (action.type === 'order') {
+                      await handleStatusChange(action.item.id, 'ordered', action.item.productName);
+                    } else if (action.type === 'cancel') {
+                      await handleStatusChange(action.item.id, 'cancelled', action.item.productName);
+                    } else if (action.type === 'restore') {
+                      await handleStatusChange(action.item.id, 'pending', action.item.productName);
+                    } else if (action.type === 'delete') {
+                      await handleDelete(action.item.id, action.item.productName);
+                    }
+                  }}
+                  className={`h-8 px-4 rounded-lg text-white text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer ${
+                    pendingAction.type === 'order'
+                      ? 'bg-brand hover:bg-brand-hover'
+                      : pendingAction.type === 'cancel'
+                      ? 'bg-warn hover:bg-warn-hover'
+                      : pendingAction.type === 'restore'
+                      ? 'bg-brand hover:bg-brand-hover'
+                      : 'bg-danger hover:bg-danger-hover'
+                  }`}
+                >
+                  {pendingAction.type === 'order' && 'تأكيد ونقل لـ "تم الطلب"'}
+                  {pendingAction.type === 'cancel' && 'تأكيد الإلغاء'}
+                  {pendingAction.type === 'restore' && 'إعادة التفعيل'}
+                  {pendingAction.type === 'delete' && 'حذف نهائي'}
+                </button>
+              )}
             </div>
           </div>
         </div>

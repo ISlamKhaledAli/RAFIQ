@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { FC } from 'react';
 import { 
-  Users, 
-  RefreshCw
+  Users
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { useDataSubscription } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
 import type { CashierPerformanceMetric } from '../../types/models';
 
@@ -42,6 +42,10 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
     void loadData();
   }, [loadData]);
 
+  useDataSubscription(['sales', 'shifts', 'all'], () => {
+    void loadData();
+  });
+
   if (isLoading) {
     return (
       <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs flex flex-col items-center justify-center min-h-[160px] animate-pulse">
@@ -78,15 +82,6 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
             </p>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => void loadData()}
-          className="w-7 h-7 flex items-center justify-center rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-slate-200 dark:hover:bg-surface-dark text-ink-muted dark:text-ink-dark-muted transition-colors cursor-pointer"
-          title="تحديث"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-        </button>
       </div>
 
       {/* Grid of Cashier Cards */}

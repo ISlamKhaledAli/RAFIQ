@@ -7,12 +7,15 @@ export type RafiqDataTopic =
   | 'customers' 
   | 'suppliers' 
   | 'purchases' 
+  | 'shortages'
   | 'settings' 
   | 'held_sales' 
   | 'dashboard' 
   | 'epay' 
   | 'wallets' 
   | 'drawer'
+  | 'shifts'
+  | 'insurance'
   | 'all';
 
 interface RafiqDataEventDetail {

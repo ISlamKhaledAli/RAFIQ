@@ -116,11 +116,13 @@ namespace RafiqPOS.Repositories
                         id, barcode, trade_name, scientific_name, form, strength,
                         manufacturer, pack_desc, public_price_piasters, source,
                         therapeutic_class, category, storage_location, is_refrigerated,
+                        route, pregnancy_category, is_antibiotic, rx_status, flavor_form, pieces_per_pack,
                         imported_at, created_at, updated_at
                     ) VALUES (
                         @id, @barcode, @tradeName, @scientificName, @form, @strength,
                         @manufacturer, @packDesc, @publicPricePiasters, @source,
                         @therapeuticClass, @category, @storageLocation, @isRefrigerated,
+                        @route, @pregnancyCategory, @isAntibiotic, @rxStatus, @flavorForm, @piecesPerPack,
                         @importedAt, @createdAt, @updatedAt
                     )
                     ON CONFLICT(barcode) DO UPDATE SET
@@ -136,6 +138,12 @@ namespace RafiqPOS.Repositories
                         category = excluded.category,
                         storage_location = excluded.storage_location,
                         is_refrigerated = excluded.is_refrigerated,
+                        route = excluded.route,
+                        pregnancy_category = excluded.pregnancy_category,
+                        is_antibiotic = excluded.is_antibiotic,
+                        rx_status = excluded.rx_status,
+                        flavor_form = excluded.flavor_form,
+                        pieces_per_pack = excluded.pieces_per_pack,
                         updated_at = excluded.updated_at;
                 ";
 
@@ -155,6 +163,12 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@category", (object)item.Category ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@storageLocation", (object)item.StorageLocation ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@isRefrigerated", item.IsRefrigerated ? 1 : 0);
+                    cmd.Parameters.AddWithValue("@route", (object)item.Route ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@pregnancyCategory", (object)item.PregnancyCategory ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@isAntibiotic", item.IsAntibiotic ? 1 : 0);
+                    cmd.Parameters.AddWithValue("@rxStatus", (object)item.RxStatus ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@flavorForm", (object)item.FlavorForm ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@piecesPerPack", (object)item.PiecesPerPack ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@importedAt", item.ImportedAt);
                     cmd.Parameters.AddWithValue("@createdAt", item.CreatedAt);
                     cmd.Parameters.AddWithValue("@updatedAt", item.UpdatedAt);
@@ -182,11 +196,13 @@ namespace RafiqPOS.Repositories
                                 id, barcode, trade_name, scientific_name, form, strength,
                                 manufacturer, pack_desc, public_price_piasters, source,
                                 therapeutic_class, category, storage_location, is_refrigerated,
+                                route, pregnancy_category, is_antibiotic, rx_status, flavor_form, pieces_per_pack,
                                 imported_at, created_at, updated_at
                             ) VALUES (
                                 @id, @barcode, @tradeName, @scientificName, @form, @strength,
                                 @manufacturer, @packDesc, @publicPricePiasters, @source,
                                 @therapeuticClass, @category, @storageLocation, @isRefrigerated,
+                                @route, @pregnancyCategory, @isAntibiotic, @rxStatus, @flavorForm, @piecesPerPack,
                                 @importedAt, @createdAt, @updatedAt
                             )
                             ON CONFLICT(barcode) DO UPDATE SET
@@ -202,6 +218,12 @@ namespace RafiqPOS.Repositories
                                 category = excluded.category,
                                 storage_location = excluded.storage_location,
                                 is_refrigerated = excluded.is_refrigerated,
+                                route = excluded.route,
+                                pregnancy_category = excluded.pregnancy_category,
+                                is_antibiotic = excluded.is_antibiotic,
+                                rx_status = excluded.rx_status,
+                                flavor_form = excluded.flavor_form,
+                                pieces_per_pack = excluded.pieces_per_pack,
                                 updated_at = excluded.updated_at;
                         ";
 
@@ -221,6 +243,12 @@ namespace RafiqPOS.Repositories
                             var pCategory = cmd.Parameters.Add("@category", System.Data.DbType.String);
                             var pStorageLoc = cmd.Parameters.Add("@storageLocation", System.Data.DbType.String);
                             var pRefrig = cmd.Parameters.Add("@isRefrigerated", System.Data.DbType.Int32);
+                            var pRoute = cmd.Parameters.Add("@route", System.Data.DbType.String);
+                            var pPreg = cmd.Parameters.Add("@pregnancyCategory", System.Data.DbType.String);
+                            var pAnti = cmd.Parameters.Add("@isAntibiotic", System.Data.DbType.Int32);
+                            var pRx = cmd.Parameters.Add("@rxStatus", System.Data.DbType.String);
+                            var pFlv = cmd.Parameters.Add("@flavorForm", System.Data.DbType.String);
+                            var pPcs = cmd.Parameters.Add("@piecesPerPack", System.Data.DbType.Int32);
                             var pImp = cmd.Parameters.Add("@importedAt", System.Data.DbType.String);
                             var pCreat = cmd.Parameters.Add("@createdAt", System.Data.DbType.String);
                             var pUpd = cmd.Parameters.Add("@updatedAt", System.Data.DbType.String);
@@ -245,6 +273,12 @@ namespace RafiqPOS.Repositories
                                 pCategory.Value = (object)itm.Category ?? DBNull.Value;
                                 pStorageLoc.Value = (object)itm.StorageLocation ?? DBNull.Value;
                                 pRefrig.Value = itm.IsRefrigerated ? 1 : 0;
+                                pRoute.Value = (object)itm.Route ?? DBNull.Value;
+                                pPreg.Value = (object)itm.PregnancyCategory ?? DBNull.Value;
+                                pAnti.Value = itm.IsAntibiotic ? 1 : 0;
+                                pRx.Value = (object)itm.RxStatus ?? DBNull.Value;
+                                pFlv.Value = (object)itm.FlavorForm ?? DBNull.Value;
+                                pPcs.Value = (object)itm.PiecesPerPack ?? DBNull.Value;
                                 pImp.Value = string.IsNullOrWhiteSpace(itm.ImportedAt) ? now : itm.ImportedAt;
                                 pCreat.Value = string.IsNullOrWhiteSpace(itm.CreatedAt) ? now : itm.CreatedAt;
                                 pUpd.Value = now;
@@ -822,6 +856,12 @@ namespace RafiqPOS.Repositories
                 Category = HasColumn(reader, "category") && reader["category"] != DBNull.Value ? reader["category"].ToString() : null,
                 StorageLocation = HasColumn(reader, "storage_location") && reader["storage_location"] != DBNull.Value ? reader["storage_location"].ToString() : null,
                 IsRefrigerated = HasColumn(reader, "is_refrigerated") && reader["is_refrigerated"] != DBNull.Value && Convert.ToInt32(reader["is_refrigerated"]) == 1,
+                Route = HasColumn(reader, "route") && reader["route"] != DBNull.Value ? reader["route"].ToString() : null,
+                PregnancyCategory = HasColumn(reader, "pregnancy_category") && reader["pregnancy_category"] != DBNull.Value ? reader["pregnancy_category"].ToString() : null,
+                IsAntibiotic = HasColumn(reader, "is_antibiotic") && reader["is_antibiotic"] != DBNull.Value && Convert.ToInt32(reader["is_antibiotic"]) == 1,
+                RxStatus = HasColumn(reader, "rx_status") && reader["rx_status"] != DBNull.Value ? reader["rx_status"].ToString() : null,
+                FlavorForm = HasColumn(reader, "flavor_form") && reader["flavor_form"] != DBNull.Value ? reader["flavor_form"].ToString() : null,
+                PiecesPerPack = HasColumn(reader, "pieces_per_pack") && reader["pieces_per_pack"] != DBNull.Value ? (int?)Convert.ToInt32(reader["pieces_per_pack"]) : null,
                 ImportedAt = reader["imported_at"].ToString(),
                 CreatedAt = reader["created_at"].ToString(),
                 UpdatedAt = reader["updated_at"] != DBNull.Value ? reader["updated_at"].ToString() : null

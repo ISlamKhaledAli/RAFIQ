@@ -35,9 +35,9 @@ namespace RafiqPOS.Services
             return _shortageRepo.Save(entry, userId);
         }
 
-        public void UpdateStatus(string id, string status, string purchaseId, string userId)
+        public void UpdateStatus(string id, string status, string purchaseId, string userId, bool increaseStock = true)
         {
-            _shortageRepo.UpdateStatus(id, status, purchaseId, userId);
+            _shortageRepo.UpdateStatus(id, status, purchaseId, userId, increaseStock);
         }
 
         public void Delete(string id, string userId)
@@ -50,9 +50,9 @@ namespace RafiqPOS.Services
             return _shortageRepo.ConvertToPurchaseProposal(shortageIds, preferredSupplierId, userId);
         }
 
-        public LostSalesReportSummary GetLostSalesReport(string fromDate = null, string toDate = null)
+        public LostSalesReportSummary GetLostSalesReport(string fromDate = null, string toDate = null, string source = null, string status = null)
         {
-            return _shortageRepo.GetLostSalesReport(fromDate, toDate);
+            return _shortageRepo.GetLostSalesReport(fromDate, toDate, source, status);
         }
 
         /// <summary>
@@ -88,6 +88,8 @@ namespace RafiqPOS.Services
                         GROUP BY si.product_id
                     ) sales_summary ON p.id = sales_summary.product_id
                     WHERE p.is_active = 1
+                      AND (p.name NOT LIKE '%عدد الأصناف%' AND p.name NOT LIKE '%إجمالي%' AND p.name NOT LIKE '%المجموع%')
+                      AND (p.price_piasters > 0 OR p.cost_piasters > 0)
                       AND (
                           (p.min_stock_quantity_milli > 0 AND p.stock_quantity_milli <= p.min_stock_quantity_milli)
                           OR (p.stock_quantity_milli <= 0)

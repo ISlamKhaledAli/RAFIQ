@@ -162,6 +162,30 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
     }
   };
 
+  const [isLoadingBuiltin, setIsLoadingBuiltin] = useState(false);
+
+  const handleImportBuiltinCatalog = async () => {
+    setIsLoadingBuiltin(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      const response = await fetch('/دليل_الأدوية_المصرية_الشامل.xlsx');
+      if (!response.ok) {
+        throw new Error('تعذر العثور على ملف الدليل الشامل المدمج');
+      }
+      const blob = await response.blob();
+      const file = new File([blob], 'دليل_الأدوية_المصرية_الشامل.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      await handleProcessFile(file);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل تحميل الدليل المصري الشامل';
+      setErrorMessage(msg);
+    } finally {
+      setIsLoadingBuiltin(false);
+    }
+  };
+
   const handleConfirmImport = async () => {
     if (!fileBase64 && (!previewData || !previewData.rows.length)) return;
     setIsImporting(true);
@@ -177,6 +201,16 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
         manufacturer: r.manufacturer,
         packDesc: r.packDesc,
         publicPricePiasters: r.publicPricePiasters,
+        therapeuticClass: r.therapeuticClass,
+        category: r.category,
+        storageLocation: r.storageLocation,
+        isRefrigerated: r.isRefrigerated,
+        route: r.route,
+        pregnancyCategory: r.pregnancyCategory,
+        isAntibiotic: r.isAntibiotic,
+        rxStatus: r.rxStatus,
+        flavorForm: r.flavorForm,
+        piecesPerPack: r.piecesPerPack,
       }));
 
       const res = await invoke<{
@@ -345,31 +379,41 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                     </div>
                     <div>
                       <h4 className="font-bold text-xs text-ink dark:text-ink-dark">
-                        نموذج إكسل دليل الأدوية المعتمد (.xlsx)
+                        قاعدة بيانات الدليل المرجعي للأدوية المصرية (26,562 دواء)
                       </h4>
                       <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
-                        حمل النموذج القياسي بالترتيب المعتمد للأعمدة: الباركود، الاسم التجاري، المادة الفعالة، الشكل الدوائي، التركيز، الشركة المصنعة، السعر الرسمي.
+                        يتضمن النموذج الشامل: الباركود، الاسم التجاري، المادة الفعالة، الشكل والتركيز، الشركة، السعر الرسمي، طريقة الاستخدام، أمان الحمل، وتصنيف المضادات الحيوية.
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => void handleImportBuiltinCatalog()}
+                      disabled={isLoadingBuiltin || isPreviewing}
+                      className="shrink-0 h-9 px-3.5 rounded-xl bg-paid hover:bg-paid-dark text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                      title="استيراد ومعاينة الدليل الشامل (26,562 دواء مصري) بضغطة زر واحدة مباشرة"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isLoadingBuiltin ? 'animate-spin' : ''}`} />
+                      <span>{isLoadingBuiltin ? 'جاري قراءة الدليل...' : 'استيراد الدليل المصري المدمج فوراً'}</span>
+                    </button>
                     <a
                       href="/دليل_الأدوية_المصرية_الشامل.xlsx"
                       download="دليل_الأدوية_المصرية_الشامل.xlsx"
                       className="shrink-0 h-9 px-3.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer no-underline"
-                      title="تحميل الدليل الشامل المحتوي على 237 دواء مصري معتمد بالباركود والأسعار الرسمية"
+                      title="تحميل ملف إكسل الدليل الشامل المحتوي على 26,562 دواء مصري معتمد"
                     >
                       <Download className="w-4 h-4" />
-                      <span>تحميل دليل الأدوية الشامل (237 دواء)</span>
+                      <span>تحميل إكسل الدليل الشامل</span>
                     </a>
                     <button
                       type="button"
                       onClick={() => void handleDownloadTemplate()}
                       disabled={isDownloadingTemplate}
-                      className="shrink-0 h-9 px-3.5 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                      className="shrink-0 h-9 px-3 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
                     >
-                      <FileText className="w-4 h-4 text-emerald-600" />
-                      <span>{isDownloadingTemplate ? 'جاري التوليد...' : 'تحميل نموذج إكسل فارغ'}</span>
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                      <span>{isDownloadingTemplate ? 'جاري التوليد...' : 'قالب إكسل فارغ'}</span>
                     </button>
                   </div>
                 </div>
@@ -523,11 +567,13 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                             <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted sticky top-0 border-b border-line dark:border-line-dark text-[11px]">
                               <tr>
                                 <th className="p-2 w-12 text-center">#</th>
-                                <th className="p-2 w-32">الباركود</th>
-                                <th className="p-2">الاسم التجاري</th>
+                                <th className="p-2 w-28">الباركود</th>
+                                <th className="p-2">الاسم التجاري والمواصفات</th>
                                 <th className="p-2">المادة الفعالة</th>
+                                <th className="p-2 w-24">الاستخدام</th>
+                                <th className="p-2 w-16 text-center">الحمل</th>
                                 <th className="p-2 w-20">السعر</th>
-                                <th className="p-2 w-28 text-center">الحالة</th>
+                                <th className="p-2 w-24 text-center">الحالة</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-line dark:divide-line-dark">
@@ -536,10 +582,39 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                                   <td className="p-2 text-center font-mono text-ink-muted">{row.rowNumber}</td>
                                   <td className="p-2 font-mono font-bold text-ink dark:text-ink-dark">{row.barcode}</td>
                                   <td className="p-2 font-bold text-ink dark:text-ink-dark">
-                                    {row.tradeName}
-                                    {row.form && <span className="text-[10px] text-ink-muted mr-1">({row.form})</span>}
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span>{row.tradeName}</span>
+                                      {row.isAntibiotic && (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold">
+                                          مضاد حيوي
+                                        </span>
+                                      )}
+                                      {row.isRefrigerated && (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 font-bold">
+                                          ثلاجة
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[10px] text-ink-muted font-normal mt-0.5">
+                                      {[row.form, row.strength, row.flavorForm].filter(Boolean).join(' • ')}
+                                    </div>
                                   </td>
-                                  <td className="p-2 text-ink-muted">{row.scientificName || '-'}</td>
+                                  <td className="p-2 text-ink-muted">
+                                    <div>{row.scientificName || '-'}</div>
+                                    {row.therapeuticClass && (
+                                      <div className="text-[10px] text-brand dark:text-brand-bright">{row.therapeuticClass}</div>
+                                    )}
+                                  </td>
+                                  <td className="p-2 text-ink-muted text-[11px]">{row.route || '-'}</td>
+                                  <td className="p-2 text-center font-bold font-mono">
+                                    {row.pregnancyCategory ? (
+                                      <span className="px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark text-[11px]">
+                                        {row.pregnancyCategory}
+                                      </span>
+                                    ) : (
+                                      '-'
+                                    )}
+                                  </td>
                                   <td className="p-2 font-mono font-bold text-paid">
                                     {row.publicPricePiasters ? (row.publicPricePiasters / 100).toFixed(2) : '-'}
                                   </td>
@@ -564,7 +639,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                               ))}
                               {filteredPreviewRows.length === 0 && (
                                 <tr>
-                                  <td colSpan={6} className="p-6 text-center text-ink-muted">
+                                  <td colSpan={8} className="p-6 text-center text-ink-muted">
                                     لا توجد صفوف تطابق الفلتر الحالي
                                   </td>
                                 </tr>
@@ -621,10 +696,11 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                   <table className="w-full text-right text-xs">
                     <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted sticky top-0 border-b border-line dark:border-line-dark text-[11px]">
                       <tr>
-                        <th className="p-2.5 w-36">الباركود</th>
-                        <th className="p-2.5">الاسم التجاري والشكل</th>
-                        <th className="p-2.5">المادة الفعالة</th>
+                        <th className="p-2.5 w-32">الباركود</th>
+                        <th className="p-2.5">الاسم التجاري والمواصفات</th>
+                        <th className="p-2.5">المادة الفعالة والتصنيف</th>
                         <th className="p-2.5">الشركة المصنعة</th>
+                        <th className="p-2.5 w-24">الاستخدام / الحمل</th>
                         <th className="p-2.5 w-24 text-left">السعر الرسمي</th>
                       </tr>
                     </thead>
@@ -633,15 +709,38 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                         <tr key={item.id} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40">
                           <td className="p-2.5 font-mono font-bold text-ink dark:text-ink-dark">{item.barcode}</td>
                           <td className="p-2.5">
-                            <span className="font-bold text-ink dark:text-ink-dark block">{item.tradeName}</span>
-                            {(item.form || item.strength) && (
-                              <span className="text-[10px] text-ink-muted">
-                                {[item.form, item.strength].filter(Boolean).join(' - ')}
-                              </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-ink dark:text-ink-dark">{item.tradeName}</span>
+                              {item.isAntibiotic && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold">
+                                  مضاد حيوي
+                                </span>
+                              )}
+                              {item.isRefrigerated && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 font-bold">
+                                  ثلاجة
+                                </span>
+                              )}
+                            </div>
+                            {(item.form || item.strength || item.flavorForm) && (
+                              <div className="text-[10px] text-ink-muted mt-0.5">
+                                {[item.form, item.strength, item.flavorForm].filter(Boolean).join(' • ')}
+                              </div>
                             )}
                           </td>
-                          <td className="p-2.5 text-ink-muted">{item.scientificName || '-'}</td>
+                          <td className="p-2.5 text-ink-muted">
+                            <div>{item.scientificName || '-'}</div>
+                            {item.therapeuticClass && (
+                              <div className="text-[10px] text-brand dark:text-brand-bright">{item.therapeuticClass}</div>
+                            )}
+                          </td>
                           <td className="p-2.5 text-ink-muted">{item.manufacturer || '-'}</td>
+                          <td className="p-2.5 text-ink-muted text-[11px]">
+                            <div>{item.route || '-'}</div>
+                            {item.pregnancyCategory && (
+                              <div className="text-[10px] font-bold text-ink dark:text-ink-dark">حمل: {item.pregnancyCategory}</div>
+                            )}
+                          </td>
                           <td className="p-2.5 font-mono font-bold text-paid text-left">
                             {item.publicPricePiasters ? formatArabicCurrency(item.publicPricePiasters) : '-'}
                           </td>
@@ -649,7 +748,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                       ))}
                       {searchResults.length === 0 && !isSearching && (
                         <tr>
-                          <td colSpan={5} className="p-8 text-center text-ink-muted">
+                          <td colSpan={6} className="p-8 text-center text-ink-muted">
                             <Pill className="w-8 h-8 mx-auto mb-2 opacity-30" />
                             <p className="text-xs">لا توجد أدوية مطابقة للبحث أو أن الدليل فارغ حالياً.</p>
                           </td>
