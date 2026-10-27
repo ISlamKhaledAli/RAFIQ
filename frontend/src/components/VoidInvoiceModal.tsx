@@ -169,7 +169,7 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
 
           {/* Supervisor PIN Input */}
           <div>
-            <label className="block text-[13px] font-bold text-ink mb-1.5 flex items-center justify-between">
+            <label className="text-[13px] font-bold text-ink mb-1.5 flex items-center justify-between">
               <span>الرقم السري للمدير</span>
               <span className="text-[11px] text-ink-muted font-normal">(إن وُجد)</span>
             </label>

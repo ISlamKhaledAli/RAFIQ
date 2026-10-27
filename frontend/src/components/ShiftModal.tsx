@@ -800,7 +800,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5 flex items-center justify-between">
+                    <label className="text-xs font-bold text-ink dark:text-ink-dark mb-1.5 flex items-center justify-between">
                       <span>مبلغ السحب</span>
                       <span className="text-xs font-normal text-ink-muted dark:text-ink-dark-muted">
                         المتوفر بالدرج: {formatArabicCurrency(expectedCash)}
