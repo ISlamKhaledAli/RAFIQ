@@ -280,6 +280,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   const packName = detectedPackage ? detectedPackage.unitName : defaultPackName;
 
+  // Base unit name (e.g. قرص in pharmacy, قطعة in grocery, كيلو in butchery/produce)
+  const baseUnitName = useMemo(() => {
+    const base = productUnits.find(u => u && u.isBaseUnit);
+    if (base && base.unitName && base.unitName.trim()) return base.unitName.trim();
+    if (editingProduct?.unit && editingProduct.unit !== 'piece') return editingProduct.unit;
+    if (unit === 'kg') return 'كيلو';
+    return terminology.baseUnitDefaultName || (isPharmacy ? 'قرص' : 'قطعة');
+  }, [productUnits, editingProduct, unit, terminology, isPharmacy]);
+
   // Dynamic Carton/Box Calculator state
   const [packSizeInput, setPackSizeInput] = useState<string>('');
   const [cartonsInput, setCartonsInput] = useState<string>('');
@@ -1671,7 +1680,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
-                          سعة الـ {packName} (فيها كام قطعة):
+                          سعة الـ {packName} (فيها كام {baseUnitName}):
                         </label>
                         <input
                           type="text"
@@ -1889,11 +1898,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     }}
                     basePricePiasters={pricePiasters}
                     baseCostPiasters={costPiasters}
-                    baseUnitName={
-                      (editingProduct?.unit && editingProduct.unit !== 'piece')
-                        ? editingProduct.unit
-                        : (unit === 'kg' ? 'كيلو' : terminology.baseUnitDefaultName)
-                    }
+                    baseUnitName={baseUnitName}
                     isWeightItem={unit === 'kg' || isProduceOrButchery || isSpices}
                     primaryBarcode={barcode}
                     storeType={effectiveStoreType}
@@ -1945,11 +1950,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     {/* 2. Pack Capacity (سعة الكرتونة / العلبة بالقطع) */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-bold text-ink dark:text-ink-dark truncate" title={`سعة الـ (${packName}) بالـ (${terminology.baseUnitDefaultName || 'قطعة'})`}>
+                        <label className="text-[11px] font-bold text-ink dark:text-ink-dark truncate" title={`سعة الـ (${packName}) بالـ (${baseUnitName})`}>
                           سعة الـ ({packName}):
                         </label>
-                        <span className="text-[9.5px] text-ink-muted">
-                          {isPharmacy ? 'شريط/قرص' : 'قطعة'}
+                        <span className="text-[9.5px] text-ink-muted font-bold">
+                          {baseUnitName}
                         </span>
                       </div>
                       <input
@@ -1965,8 +1970,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                     {/* 3. Loose units */}
                     <div>
-                      <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1 truncate" title={isPharmacy ? 'أشرطة أو أقراص فرط:' : 'قطع فرط فردانية:'}>
-                        {isPharmacy ? 'أشرطة أو أقراص فرط:' : isProduceOrButchery || isSpices ? 'وحدات فرط صغيرة:' : 'قطع فرط فردانية:'}
+                      <label 
+                        className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1 truncate" 
+                        title={`${baseUnitName === 'قرص' ? 'أقراص' : baseUnitName === 'شريط' ? 'أشرطة' : baseUnitName === 'قطعة' ? 'قطع' : baseUnitName} فرط:`}
+                      >
+                        {baseUnitName === 'قرص' ? 'أقراص فرط:' : baseUnitName === 'شريط' ? 'أشرطة فرط:' : baseUnitName === 'قطعة' ? 'قطع فرط فردانية:' : isProduceOrButchery || isSpices ? 'وحدات فرط صغيرة:' : `${baseUnitName} فرط:`}
                       </label>
                       <input
                         type="text"
@@ -1987,7 +1995,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     {/* 5. Calculated Total Stock Result Field */}
                     <div className="col-span-2 sm:col-span-1">
                       <label className="block text-[11px] font-extrabold text-brand dark:text-brand-bright mb-1 truncate">
-                        إجمالي الرصيد (بـ {terminology.baseUnitDefaultName || 'قطعة'}):
+                        إجمالي الرصيد (بـ {baseUnitName}):
                       </label>
                       <div className="relative">
                         <input
@@ -2047,20 +2055,20 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         {cartonsNum > 0 ? (
                           <>
                             الناتج: {cartonsNum} {packName}
-                            {packSizeNum > 1 ? ` × ${packSizeNum} ${terminology.baseUnitDefaultName || 'قطعة'}` : ''}
+                            {packSizeNum > 1 ? ` × ${packSizeNum} ${baseUnitName}` : ''}
                             {looseNum > 0 ? ` + ${looseNum} فرط` : ''}
                             {' = '}
-                            {totalStockNum} {terminology.baseUnitDefaultName || 'قطعة'} رصيد فعلي
+                            {totalStockNum} {baseUnitName} رصيد فعلي
                           </>
                         ) : totalStockNum > 0 ? (
-                          <>الرصيد الفعلي بالمحل: {totalStockNum} {terminology.baseUnitDefaultName || 'قطعة'}</>
+                          <>الرصيد الفعلي بالمحل: {totalStockNum} {baseUnitName}</>
                         ) : (
-                          <>الرصيد الحالي: 0 {terminology.baseUnitDefaultName || 'قطعة'}</>
+                          <>الرصيد الحالي: 0 {baseUnitName}</>
                         )}
                       </span>
                     </div>
                     <span className="font-mono text-[11px] bg-white dark:bg-surface-dark text-brand dark:text-brand-bright px-2 py-0.5 rounded border border-brand/20">
-                      {totalStockNum} {terminology.baseUnitDefaultName || 'قطعة'}
+                      {totalStockNum} {baseUnitName}
                     </span>
                   </div>
                 </>

@@ -68,15 +68,16 @@ const BarcodeSvgPreview: React.FC<{
   barcode: string; 
   showText: boolean; 
   height?: number; 
+  fontSize?: number;
   widthFactor?: number 
-}> = ({ barcode, showText, height = 36, widthFactor }) => {
+}> = ({ barcode, showText, height = 36, fontSize = 10, widthFactor }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   const effectiveWidthFactor = useMemo(() => {
     if (widthFactor !== undefined) return widthFactor;
-    if (barcode.length > 16) return 1.0;
-    if (barcode.length > 12) return 1.2;
-    return 1.4;
+    if (barcode.length > 16) return 0.95;
+    if (barcode.length > 12) return 1.15;
+    return 1.35;
   }, [barcode, widthFactor]);
 
   useEffect(() => {
@@ -88,17 +89,17 @@ const BarcodeSvgPreview: React.FC<{
         width: effectiveWidthFactor,
         height,
         displayValue: showText,
-        fontSize: 10,
+        fontSize,
         font: 'Courier New',
         fontOptions: 'bold',
-        textMargin: 2,
-        margin: 1,
+        textMargin: 1,
+        margin: 0,
         background: 'transparent',
       });
     } catch {
       // Ignored for non-renderable characters
     }
-  }, [barcode, showText, height, effectiveWidthFactor]);
+  }, [barcode, showText, height, fontSize, effectiveWidthFactor]);
 
   if (!barcode) {
     return <div className="text-xs text-ink-muted italic py-2">لا يوجد باركود</div>;
@@ -320,6 +321,9 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
     }
     return PAPER_SIZES.find((p) => p.value === config.paperSize) || PAPER_SIZES[0];
   }, [config.paperSize, config.customWidthMm, config.customHeightMm]);
+
+  const isSmallLabel = selectedPaper.heightMm <= 26;
+  const isMediumLabel = selectedPaper.heightMm > 26 && selectedPaper.heightMm <= 35;
 
   // Execute Direct Label Printing via IPC
   const handlePrintLabels = async () => {
@@ -657,70 +661,101 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               </div>
 
               {/* Physical Label Visual Frame */}
-              <div className="flex-1 bg-surface-2/60 rounded-xl p-4 flex items-center justify-center border border-dashed border-line">
+              <div className="flex-1 bg-surface-2/60 rounded-xl p-4 flex flex-col items-center justify-center border border-dashed border-line min-h-[220px]">
                 {currentPreviewItem ? (
                   <div
                     style={{
                       aspectRatio: `${selectedPaper.widthMm} / ${selectedPaper.heightMm}`,
-                      maxWidth: '280px',
+                      maxWidth: selectedPaper.widthMm >= selectedPaper.heightMm ? '290px' : '220px',
+                      maxHeight: '320px',
                       width: '100%',
                     }}
-                    className="bg-white rounded-md border-2 border-line/80 shadow-md p-3 flex flex-col justify-between items-center text-center relative overflow-hidden transition-all duration-200 select-none"
+                    className={`bg-white rounded-lg border border-line-hover shadow-sm flex flex-col justify-between items-center text-center relative overflow-hidden transition-all duration-200 select-none ${
+                      isSmallLabel ? 'px-2.5 py-1.5' : (isMediumLabel ? 'px-3 py-2' : 'p-3.5')
+                    }`}
                   >
-                    {/* Store Header */}
+                    {/* 1. Store Header */}
                     {config.showStoreName && config.storeName && (
-                      <div className="text-[10px] font-bold text-ink truncate w-full border-b border-line/40 pb-0.5 leading-tight">
-                        {config.storeName}
+                      <div className="w-full shrink-0 border-b border-line/60 pb-0.5">
+                        <span className="block text-[9.5px] font-bold text-ink-muted truncate leading-tight tracking-tight">
+                          {config.storeName}
+                        </span>
                       </div>
                     )}
 
-                    {/* Product Name & Variant */}
-                    <div className="my-auto w-full py-1">
-                      <div className="text-xs font-bold text-ink leading-snug line-clamp-2">
+                    {/* 2. Product Name */}
+                    <div className="w-full shrink-0 my-0.5 px-0.5">
+                      <div
+                        className={`font-bold text-ink leading-tight line-clamp-2 ${
+                          isSmallLabel ? 'text-[10.5px]' : (isMediumLabel ? 'text-[11.5px]' : 'text-xs')
+                        }`}
+                        title={currentPreviewItem.productName}
+                      >
                         {currentPreviewItem.productName}
                       </div>
-                      {currentPreviewItem.variantInfo && (
-                        <div className="text-[9px] font-bold text-brand bg-brand-soft/60 px-1 py-0.5 rounded mt-0.5 inline-block">
-                          {currentPreviewItem.variantInfo}
-                        </div>
-                      )}
                     </div>
 
-                    {/* Big Price Tag */}
-                    {config.showPrice && (
-                      <div className="text-sm font-extrabold text-ink font-mono my-0.5 leading-tight">
-                        {formatArabicCurrency(currentPreviewItem.pricePiasters)}
+                    {/* 3. Variant Badge & Price (Combined Smart Row) */}
+                    {(currentPreviewItem.variantInfo || config.showPrice) && (
+                      <div
+                        className={`w-full flex items-center shrink-0 px-0.5 my-0.5 gap-1.5 ${
+                          currentPreviewItem.variantInfo && config.showPrice
+                            ? 'justify-between'
+                            : 'justify-center'
+                        }`}
+                      >
+                        {currentPreviewItem.variantInfo && (
+                          <span className="text-[8.5px] font-bold text-brand bg-brand-soft border border-brand/20 px-1.5 py-0.5 rounded truncate max-w-[55%] leading-none">
+                            {currentPreviewItem.variantInfo}
+                          </span>
+                        )}
+
+                        {config.showPrice && (
+                          <span
+                            className={`font-black text-ink font-mono tracking-tight shrink-0 leading-none ${
+                              isSmallLabel ? 'text-xs' : 'text-sm'
+                            }`}
+                          >
+                            {formatArabicCurrency(currentPreviewItem.pricePiasters)}
+                          </span>
+                        )}
                       </div>
                     )}
 
-                    {/* Barcode Visual Element */}
-                    <div className="w-full my-auto">
+                    {/* 4. Barcode Visual Element */}
+                    <div className="w-full flex-1 flex items-center justify-center min-h-0 overflow-hidden my-0.5">
                       <BarcodeSvgPreview
                         barcode={currentPreviewItem.barcode}
                         showText={config.showBarcodeText}
-                        height={selectedPaper.heightMm <= 25 ? 26 : 34}
+                        height={isSmallLabel ? 20 : (isMediumLabel ? 26 : 34)}
+                        fontSize={isSmallLabel ? 9 : 10}
                       />
                     </div>
 
-                    {/* Expiry Date */}
+                    {/* 5. Expiry Date */}
                     {config.showExpiryDate && (
-                      <div className="text-[8px] text-ink-muted mt-0.5 font-mono">
+                      <div className="w-full shrink-0 text-[7.5px] font-mono text-ink-muted leading-none mt-0.5">
                         صلاحية: {currentPreviewItem.expiryDate || DEFAULT_EXPIRY_FALLBACK}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="text-center text-xs text-ink-muted">
-                    اختر صنفاً لمعاينة شكل الملصق النهائي
+                  <div className="text-center text-xs text-ink-muted flex flex-col items-center gap-2">
+                    <Tag className="w-6 h-6 text-ink-muted/40" />
+                    <span>اختر صنفاً لمعاينة شكل الملصق النهائي</span>
                   </div>
                 )}
               </div>
 
               {/* Dimensions specs label */}
-              <div className="mt-3 text-center text-[11px] text-ink-muted flex items-center justify-center gap-2">
-                <span>أبعاد المعاينة: {selectedPaper.widthMm} × {selectedPaper.heightMm} مم</span>
-                <span>•</span>
-                <span className="font-semibold text-brand">{selectedPaper.label.split('(')[0]}</span>
+              <div className="mt-3 text-center text-[11px] text-ink-muted flex items-center justify-center gap-2 flex-wrap">
+                <span>المقاس: <strong className="font-mono text-ink font-bold">{selectedPaper.widthMm} × {selectedPaper.heightMm} مم</strong></span>
+                <span className="text-line-hover">•</span>
+                <span className="font-semibold text-brand">
+                  {selectedPaper.label.includes('(')
+                    ? selectedPaper.label.split('(')[1].replace(')', '')
+                    : selectedPaper.label}
+                </span>
               </div>
             </div>
           </div>

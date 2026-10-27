@@ -194,6 +194,12 @@ export default function App() {
       });
     }
   }, [effectiveActiveTab, dashboardSubTab]);
+
+  useEffect(() => {
+    if (!isEnabled('feature_digital_wallets') && walletsSubTab === 'transact') {
+      setWalletsSubTab('accounts');
+    }
+  }, [isEnabled, walletsSubTab]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('rafiq_pos_sidebar_collapsed');
@@ -765,8 +771,12 @@ export default function App() {
             }
           } else if (e.key === '6') {
             e.preventDefault();
-            if ((hasPermission('wallets.access') || hasPermission('wallets')) && isEnabled('feature_digital_wallets')) {
+            if ((hasPermission('wallets.access') || hasPermission('wallets')) && 
+                (isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets'))) {
               setActiveTab('wallets');
+              if (!isEnabled('feature_digital_wallets') && walletsSubTab === 'transact') {
+                setWalletsSubTab('accounts');
+              }
               setIsWalletsMenuExpanded(true);
             }
           } else if (e.key === '7') {
@@ -816,7 +826,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeTab, currentUser?.role, handleUniversalRefresh, hasPermission, isAdmin, isEnabled, isRoot]);
+  }, [activeTab, currentUser?.role, handleUniversalRefresh, hasPermission, isAdmin, isEnabled, isRoot, walletsSubTab]);
 
   const handleExitApp = async () => {
     const confirmed = await rafiqConfirm({
@@ -920,7 +930,8 @@ export default function App() {
 
   const canAccessPos = isRoot || hasPermission('pos.access') || hasPermission('pos');
   const canAccessEpay = (isRoot || hasPermission('epay.access') || hasPermission('epay')) && isEnabled('feature_epay_services');
-  const canAccessWallets = (isRoot || hasPermission('wallets.access') || hasPermission('wallets')) && isEnabled('feature_digital_wallets');
+  const canAccessWallets = (isRoot || hasPermission('wallets.access') || hasPermission('wallets')) && 
+    (isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets'));
   const canAccessInsurance = (isRoot || isAdmin || hasPermission('insurance.manage_contracts') || hasPermission('insurance.claims.manage')) && isEnabled('feature_insurance');
   const canAccessDashboard = isRoot || hasPermission('reports.sales') || hasPermission('reports');
   const canAccessCustomers = isRoot || hasPermission('customers.view') || hasPermission('customers');
@@ -963,20 +974,26 @@ export default function App() {
 
   const walletsTreeItems = useMemo(() => {
     const items = [];
-    if (canAccessWalletsTransact) {
+    const hasAgencyService = isEnabled('feature_digital_wallets') || isRoot;
+
+    // 1. Kiosk withdrawal/deposit only for stores providing agency services (or Root)
+    if (canAccessWalletsTransact && hasAgencyService) {
       items.push({ id: 'transact' as WalletsSubTab, label: 'تنفيذ عملية (سحب / إيداع)', icon: Smartphone });
     }
-    if (canAccessWalletsHistory) {
-      items.push({ id: 'history' as WalletsSubTab, label: 'سجل العمليات والإيصالات', icon: Receipt });
-    }
+    // 2. Accounts & Balances (Always available for store digital accounts tracking)
     if (canAccessWalletsAccounts) {
       items.push({ id: 'accounts' as WalletsSubTab, label: 'أرصدة المحافظ والحسابات', icon: Layers });
     }
-    if (canAccessWalletsAnalytics) {
+    // 3. Transactions & receipts history
+    if (canAccessWalletsHistory) {
+      items.push({ id: 'history' as WalletsSubTab, label: 'سجل العمليات والإيصالات', icon: Receipt });
+    }
+    // 4. Agency commission profit analytics only for agency service (or Root)
+    if (canAccessWalletsAnalytics && hasAgencyService) {
       items.push({ id: 'analytics' as WalletsSubTab, label: 'أرباح وتحليلات المحافظ', icon: TrendingUp });
     }
     return items;
-  }, [canAccessWalletsTransact, canAccessWalletsHistory, canAccessWalletsAccounts, canAccessWalletsAnalytics]);
+  }, [canAccessWalletsTransact, canAccessWalletsHistory, canAccessWalletsAccounts, canAccessWalletsAnalytics, isEnabled, isRoot]);
 
   const epayTreeItems = useMemo(() => {
     const items = [
@@ -1387,7 +1404,12 @@ export default function App() {
                         }
                       } else if (isWalletsItem) {
                         if (effectiveActiveTab !== 'wallets') {
-                          handleNavClick('wallets', () => setIsWalletsMenuExpanded(true));
+                          handleNavClick('wallets', () => {
+                            setIsWalletsMenuExpanded(true);
+                            if (!isEnabled('feature_digital_wallets') && walletsSubTab === 'transact') {
+                              setWalletsSubTab('accounts');
+                            }
+                          });
                         } else {
                           setIsWalletsMenuExpanded(!isWalletsMenuExpanded);
                         }
