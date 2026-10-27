@@ -804,7 +804,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
 
                 {/* Category Selection */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-ink-muted mb-1 flex items-center gap-1">
+                  <label className="text-[11px] font-semibold text-ink-muted mb-1 flex items-center gap-1">
                     <Tag className="w-3 h-3" />
                     <span>التبويب (القسم) *</span>
                   </label>

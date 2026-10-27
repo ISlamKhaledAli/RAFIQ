@@ -305,7 +305,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
           {/* Supplier & Invoice Reference Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-line">
             <div>
-              <label className="text-[11px] font-bold text-ink-muted block mb-1 flex items-center gap-1">
+              <label className="text-[11px] font-bold text-ink-muted mb-1 flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5" />
                 <span>اسم المورد / الشركة</span>
               </label>
@@ -318,7 +318,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-ink-muted block mb-1 flex items-center gap-1">
+              <label className="text-[11px] font-bold text-ink-muted mb-1 flex items-center gap-1">
                 <Receipt className="w-3.5 h-3.5" />
                 <span>رقم الفاتورة / إذن الاستلام</span>
               </label>
