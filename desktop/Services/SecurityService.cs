@@ -1730,6 +1730,7 @@ namespace RafiqPOS.Services
             "patients.view", "patients.edit",
             "pharma.expiry_returns.manage", "pharma.drug_reference.import",
             "pharma.stocktaking.manage", "pharma.dosage_labels.print", "reports.pharma.view",
+            "pharma.ddi.manage", "pharma.ddi.override",
             // Legacy aliases
             "pos", "customers", "products", "inventory", "reports", "settings", "users", "epay", "wallets",
             "discounts", "price_edit", "stock_adjust", "db_recovery", "refunds", "cancel_sale"
@@ -2024,6 +2025,8 @@ namespace RafiqPOS.Services
             p["pharma.stocktaking.manage"] = isAdmin;
             p["pharma.dosage_labels.print"] = true;
             p["reports.pharma.view"] = isAdmin;
+            p["pharma.ddi.manage"] = isAdmin;
+            p["pharma.ddi.override"] = isAdmin;
 
             SyncPermissionAliases(p);
 

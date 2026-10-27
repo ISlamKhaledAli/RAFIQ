@@ -209,12 +209,9 @@ namespace RafiqPOS.Services
             long stockDeltaMilli = 0;
             if (existing != null)
             {
-                if (existing.StockQuantityMilli != product.StockQuantityMilli)
-                {
-                    stockDeltaMilli = product.StockQuantityMilli - existing.StockQuantityMilli;
-                    Logger.Info(string.Format("تحديث رصيد المخزون للصنف '{0}' من بطاقة الصنف: من {1:0.###} إلى {2:0.###} (الفرق: {3:0.###})",
-                        product.Name, existing.StockQuantityMilli / 1000.0, product.StockQuantityMilli / 1000.0, stockDeltaMilli / 1000.0));
-                }
+                // Invariant (Scenario S4): Editing product metadata must never overwrite live in-flight stock deduction or addition.
+                // Live inventory is managed exclusively via Sales, Purchases, Returns, and AdjustStock.
+                product.StockQuantityMilli = existing.StockQuantityMilli;
             }
             else if (product.StockQuantityMilli != 0)
             {

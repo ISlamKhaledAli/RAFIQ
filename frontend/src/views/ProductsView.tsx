@@ -54,6 +54,7 @@ import { ExpiryReturnsModal } from '../components/ExpiryReturnsModal';
 import { PharmacyStocktakingModal } from '../components/PharmacyStocktakingModal';
 import { SpecializedPharmacyReportsModal } from '../components/SpecializedPharmacyReportsModal';
 import { DosageLabelModal } from '../components/DosageLabelModal';
+import { DrugInteractionManagerModal } from '../components/DrugInteractionManagerModal';
 import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
 import { ProductFormModal } from './products/ProductFormModal';
@@ -192,6 +193,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [showPharmaStocktakingModal, setShowPharmaStocktakingModal] = useState(false);
   const [showPharmaReportsModal, setShowPharmaReportsModal] = useState(false);
   const [showDosageLabelModal, setShowDosageLabelModal] = useState(false);
+  const [showDdiManagerModal, setShowDdiManagerModal] = useState(false);
 
   // Bulk Price Adjustment Modal State (Story 106 - Feature #116)
   const [showBulkPriceModal, setShowBulkPriceModal] = useState(false);
@@ -1333,6 +1335,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                               <span>طباعة ملصق جرعة حراري (استيكر صيدلي)</span>
                             </button>
                           )}
+
+                          {(isEnabled('feature_drug_interactions') || isEnabled('feature_pharmacy')) && hasPermission('pharma.ddi.manage') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsToolsDropdownOpen(false);
+                                setShowDdiManagerModal(true);
+                              }}
+                              className="w-full px-3 py-2 text-right text-xs font-bold text-brand dark:text-brand-bright hover:bg-brand-soft/30 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <ShieldAlert className="w-4 h-4 text-brand dark:text-brand-bright" />
+                              <span>دليل وقواعد التداخلات والتعارضات الدوائية (DDI)</span>
+                            </button>
+                          )}
                         </>
                       )}
 
@@ -2018,6 +2034,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       <DosageLabelModal
         isOpen={showDosageLabelModal}
         onClose={() => setShowDosageLabelModal(false)}
+      />
+
+      {/* Drug Interaction Manager Modal (Feature #194 / Story 137) */}
+      <DrugInteractionManagerModal
+        isOpen={showDdiManagerModal}
+        onClose={() => setShowDdiManagerModal(false)}
+        onSuccess={(msg) => setImportSuccessAlert(msg)}
       />
     </div>
   );

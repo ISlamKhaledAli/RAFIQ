@@ -283,4 +283,47 @@ export interface DrugReferenceImportPreviewResult {
   rows: DrugReferenceImportRow[];
 }
 
+// =============================================================================
+// Drug-Drug Interactions (Story 137 / Feature #194 / F-01)
+// =============================================================================
+
+export type DdiSeverity = 'severe' | 'moderate' | 'minor';
+
+export interface DrugInteraction {
+  id: string;
+  activeIngredientA: string;
+  activeIngredientB: string;
+  severity: DdiSeverity;
+  mechanismAr: string;
+  clinicalRiskAr: string;
+  recommendationAr: string;
+  alternativeAr?: string;
+  source?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface InteractionConflictItem {
+  interactionId: string;
+  productAId: string;
+  productAName: string;
+  activeIngredientA: string;
+  productBId: string;
+  productBName: string;
+  activeIngredientB: string;
+  severity: DdiSeverity;
+  mechanismAr: string;
+  clinicalRiskAr: string;
+  recommendationAr: string;
+  alternativeAr?: string;
+}
+
+export interface CartInteractionCheckResult {
+  hasInteractions: boolean;
+  maxSeverity: 'severe' | 'moderate' | 'minor' | 'none';
+  requiresOverride: boolean;
+  conflicts: InteractionConflictItem[];
+  checkedPairsCount: number;
+}
+
 

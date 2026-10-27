@@ -781,6 +781,7 @@ namespace RafiqPOS.Services
             tPharm.FeatureFlags["feature_insurance"] = true;
             tPharm.FeatureFlags["feature_expiry_returns"] = true;
             tPharm.FeatureFlags["feature_drug_reference"] = true;
+            tPharm.FeatureFlags["feature_drug_interactions"] = true;
             tPharm.Categories = new List<string>();
             tPharm.QuickItems = new List<TemplateQuickItem>();
             tPharm.DefaultSettings["receipt_header"] = "صيدلية رفيق للرعاية الدوائية";

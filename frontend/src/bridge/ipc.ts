@@ -276,9 +276,11 @@ function getDefaultTimeout(action: string): number {
     action.startsWith('system:createBackup') ||
     action.startsWith('system:vacuum') ||
     action.startsWith('inventory:recalculate') ||
-    action.startsWith('backup:')
+    action.startsWith('backup:') ||
+    action.startsWith('pharma:') ||
+    action.startsWith('pharma.')
   ) {
-    return 120000; // 2 minutes for heavy file/batch operations
+    return 180000; // 3 minutes for heavy file/batch operations
   }
   if (action === 'sales:create') {
     return 30000; // 30 seconds for sales:create (Audit F-45)

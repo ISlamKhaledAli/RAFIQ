@@ -249,6 +249,16 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
     ownedCommands: ['pharma:importDrugReference', 'pharma:clearDrugReference'],
     ownedPermissions: ['pharma.drug_reference.import'],
   },
+  {
+    key: 'feature_drug_interactions',
+    nameAr: 'محرك التفاعلات والتعارضات الدوائية',
+    descriptionAr: 'فحص سريري لحظي لتعارض الأدوية داخل سلة البيع وتحذير الصيدلي قبل إصدار الفاتورة.',
+    category: 'الصيدلية والأدوية',
+    defaultValue: false,
+    requires: ['feature_pharmacy'],
+    ownedCommands: ['ddi:save', 'ddi:delete', 'ddi:importFromExcel'],
+    ownedPermissions: ['pharma.ddi.manage', 'pharma.ddi.override'],
+  },
 ];
 
 export const DEFAULT_FLAGS: Record<string, boolean> = {
@@ -274,6 +284,7 @@ export const DEFAULT_FLAGS: Record<string, boolean> = {
   feature_insurance: false,
   feature_expiry_returns: false,
   feature_drug_reference: false,
+  feature_drug_interactions: true,
 };
 
 export const FeaturesContext = createContext<FeaturesState>({

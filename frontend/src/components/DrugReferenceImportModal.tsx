@@ -20,11 +20,20 @@ import { downloadBase64File } from '../utils/excelImport';
 import { formatArabicCurrency } from '../utils/money';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { ConfirmModal } from './ConfirmModal';
+import { PaginationBar } from './PaginationBar';
 import type { 
   DrugReferenceItem, 
   DrugReferenceImportPreviewResult, 
   DrugReferenceImportRow 
 } from '../types/pharma';
+
+interface SearchDrugReferencePayload {
+  items: DrugReferenceItem[];
+  totalCount: number;
+  grandTotal?: number;
+  limit: number;
+  offset: number;
+}
 
 interface DrugReferenceImportModalProps {
   isOpen: boolean;
@@ -59,19 +68,32 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
   // Browse tab states
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<DrugReferenceItem[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [grandTotal, setGrandTotal] = useState<number>(0);
   const [isSearching, setIsSearching] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadReferenceData = useCallback(async (query = '') => {
+  const loadReferenceData = useCallback(async (query = '', page = 1, size = 50) => {
     setIsSearching(true);
     try {
-      const results = await invoke<DrugReferenceItem[]>('pharma:searchDrugReference', { query: query.trim(), limit: 50 });
-      setSearchResults(Array.isArray(results) ? results : []);
-      // also query empty search to get total if possible
-      if (!query.trim()) {
-        setTotalCount(Array.isArray(results) ? results.length : 0);
+      const offset = (page - 1) * size;
+      const res = await invoke<SearchDrugReferencePayload | DrugReferenceItem[]>('pharma:searchDrugReference', {
+        query: query.trim(),
+        limit: size,
+        offset,
+      });
+
+      if (res && typeof res === 'object' && 'items' in res) {
+        setSearchResults(Array.isArray(res.items) ? res.items : []);
+        setTotalCount(typeof res.totalCount === 'number' ? res.totalCount : 0);
+        setGrandTotal(typeof res.grandTotal === 'number' ? res.grandTotal : (res.totalCount || 0));
+      } else if (Array.isArray(res)) {
+        setSearchResults(res);
+        setTotalCount(res.length);
+        setGrandTotal(res.length);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'تعذر تحميل بيانات الدليل';
@@ -83,9 +105,14 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
 
   useEffect(() => {
     if (isOpen && activeTab === 'browse') {
-      void loadReferenceData(searchQuery);
+      void loadReferenceData(searchQuery, currentPage, pageSize);
     }
-  }, [isOpen, activeTab, searchQuery, loadReferenceData]);
+  }, [isOpen, activeTab, searchQuery, currentPage, pageSize, loadReferenceData]);
+
+  const handleTriggerSearch = () => {
+    setCurrentPage(1);
+    void loadReferenceData(searchQuery, 1, pageSize);
+  };
 
   const handleDownloadTemplate = async () => {
     setIsDownloadingTemplate(true);
@@ -133,10 +160,14 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
     try {
       const base64 = await readFileAsBase64(file);
       setFileBase64(base64);
-      const preview = await invoke<DrugReferenceImportPreviewResult>('pharma:previewDrugReferenceImport', { 
-        fileBase64: base64,
-        base64 
-      });
+      const preview = await invoke<DrugReferenceImportPreviewResult>(
+        'pharma:previewDrugReferenceImport', 
+        { 
+          fileBase64: base64,
+          base64 
+        },
+        180000
+      );
       setPreviewData(preview);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل فحص ومعاينة ملف الإكسل';
@@ -219,12 +250,16 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
         updatedCount?: number;
         failedCount?: number;
         importedCount?: number;
-      }>('pharma:confirmDrugReferenceImport', { 
-        items,
-        base64: fileBase64,
-        fileBase64,
-        source: selectedFile?.name || 'Excel Import'
-      });
+      }>(
+        'pharma:confirmDrugReferenceImport', 
+        { 
+          items,
+          base64: fileBase64,
+          fileBase64,
+          source: selectedFile?.name || 'Excel Import'
+        },
+        180000
+      );
 
       const count = res.createdCount ?? res.importedCount ?? items.length;
       const msg = `تم استيراد الدليل المرجعي بنجاح: تم اعتماد (${count}) دواء في قاعدة بيانات الدليل الاسترشادي.`;
@@ -232,6 +267,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
       setSelectedFile(null);
       setFileBase64('');
       setPreviewData(null);
+      void loadReferenceData(searchQuery, 1, pageSize);
       if (onSuccess) onSuccess(msg);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء حفظ الدليل في قاعدة البيانات';
@@ -249,6 +285,8 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
       setSuccessMessage(`تم مسح دليل الأدوية بالكامل بنجاح (${count} صنف تم تفريغها)`);
       setSearchResults([]);
       setTotalCount(0);
+      setGrandTotal(0);
+      setCurrentPage(1);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'تعذر مسح دليل الأدوية';
       setErrorMessage(msg);
@@ -663,7 +701,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') void loadReferenceData(searchQuery);
+                        if (e.key === 'Enter') handleTriggerSearch();
                       }}
                       className="w-full h-10 pl-9 pr-3.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                     />
@@ -672,7 +710,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
 
                   <button
                     type="button"
-                    onClick={() => void loadReferenceData(searchQuery)}
+                    onClick={handleTriggerSearch}
                     disabled={isSearching}
                     className="h-10 px-4 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
@@ -757,6 +795,23 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination */}
+                {totalCount > 0 && (
+                  <PaginationBar
+                    currentPage={currentPage}
+                    pageSize={pageSize}
+                    totalCount={totalCount}
+                    onPageChange={(page) => setCurrentPage(page)}
+                    onPageSizeChange={(size) => {
+                      setPageSize(size);
+                      setCurrentPage(1);
+                    }}
+                    pageSizeOptions={[25, 50, 100, 250]}
+                    itemLabel="دواء مسجل"
+                    className="mt-3"
+                  />
+                )}
               </div>
             )}
           </div>
@@ -764,7 +819,14 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
           {/* 3. Footer */}
           <div className="px-6 py-3.5 border-t border-line dark:border-line-dark bg-surface-2/40 dark:bg-surface-dark-2/40 flex items-center justify-between shrink-0">
             <div className="text-[11px] text-ink-muted">
-              {totalCount > 0 && `إجمالي الأدوية المسجلة بالدليل: ${totalCount} صنف`}
+              {grandTotal > 0 && (
+                <span>
+                  إجمالي الأدوية المسجلة بالدليل المرجعي: <strong className="text-brand dark:text-brand-bright font-mono font-bold">{grandTotal.toLocaleString('en-US')}</strong> دواء
+                  {searchQuery.trim() && totalCount !== grandTotal && (
+                    <span className="mr-2 text-ink-muted font-normal">({totalCount.toLocaleString('en-US')} نتيجة مطابقة للبحث)</span>
+                  )}
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-2">

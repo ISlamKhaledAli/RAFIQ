@@ -717,6 +717,7 @@ namespace RafiqPOS.Bridge
                 case "pharma.searchDrugReference":
                     string sQ = null;
                     int sLim = 50;
+                    int sOff = 0;
                     if (request.Payload != null)
                     {
                         var sObj = request.Payload as JObject;
@@ -724,10 +725,25 @@ namespace RafiqPOS.Bridge
                         {
                             if (sObj["query"] != null) sQ = sObj["query"].ToString();
                             if (sObj["limit"] != null) sLim = sObj["limit"].Value<int>();
+                            if (sObj["offset"] != null) sOff = sObj["offset"].Value<int>();
+                            else if (sObj["page"] != null)
+                            {
+                                int pageNum = sObj["page"].Value<int>();
+                                if (pageNum > 1) sOff = (pageNum - 1) * sLim;
+                            }
                         }
                     }
-                    var searchRes = DatabaseService.DrugReference.Search(sQ, sLim);
-                    response = BridgeResponse.Ok(request.Id, searchRes);
+                    var searchRes = DatabaseService.DrugReference.Search(sQ, sLim, sOff);
+                    int totalMatching = DatabaseService.DrugReference.GetSearchCount(sQ);
+                    int grandTotal = DatabaseService.DrugReference.GetTotalCount();
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        items = searchRes,
+                        totalCount = totalMatching,
+                        grandTotal = grandTotal,
+                        limit = sLim,
+                        offset = sOff
+                    });
                     return true;
 
                 case "pharma:clearDrugReference":
@@ -803,6 +819,257 @@ namespace RafiqPOS.Bridge
                     {
                         response = BridgeResponse.Fail(request.Id, "GOLDEN_SUITE_EXCEPTION", ex.Message);
                     }
+                    return true;
+
+                // =====================================================================
+                // Drug-Drug Interactions (Story 137 / Feature #194 / F-01)
+                // =====================================================================
+                case "ddi:checkCart":
+                case "ddi.checkCart":
+                    var pids = new List<string>();
+                    if (request.Payload != null)
+                    {
+                        var jObj = request.Payload as JObject;
+                        if (jObj != null && jObj["productIds"] != null)
+                        {
+                            var arr = jObj["productIds"] as JArray;
+                            if (arr != null)
+                            {
+                                for (int i = 0; i < arr.Count; i++) pids.Add(arr[i].ToString());
+                            }
+                        }
+                        else
+                        {
+                            var jArr = request.Payload as JArray;
+                            if (jArr != null)
+                            {
+                                for (int i = 0; i < jArr.Count; i++) pids.Add(jArr[i].ToString());
+                            }
+                        }
+                    }
+                    var checkRes = DatabaseService.DrugInteractions.CheckCartInteractions(pids);
+                    response = BridgeResponse.Ok(request.Id, checkRes);
+                    return true;
+
+                case "ddi:getAll":
+                case "ddi.getAll":
+                    string ddiSearch = null;
+                    string ddiSev = null;
+                    int ddiPage = 1;
+                    int ddiLimit = 50;
+                    if (request.Payload != null)
+                    {
+                        var gObj = request.Payload as JObject;
+                        if (gObj != null)
+                        {
+                            if (gObj["search"] != null) ddiSearch = gObj["search"].ToString();
+                            if (gObj["severity"] != null) ddiSev = gObj["severity"].ToString();
+                            if (gObj["page"] != null) ddiPage = gObj["page"].Value<int>();
+                            if (gObj["limit"] != null) ddiLimit = gObj["limit"].Value<int>();
+                        }
+                    }
+                    int totalDdiCount;
+                    var ddiList = DatabaseService.DrugInteractions.GetAll(ddiSearch, ddiSev, ddiPage, ddiLimit, out totalDdiCount);
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        items = ddiList,
+                        totalCount = totalDdiCount,
+                        page = ddiPage,
+                        limit = ddiLimit
+                    });
+                    return true;
+
+                case "ddi:getById":
+                case "ddi.getById":
+                    string ddiId = null;
+                    if (request.Payload != null)
+                    {
+                        var idObj = request.Payload as JObject;
+                        if (idObj != null && idObj["id"] != null) ddiId = idObj["id"].ToString();
+                        else ddiId = request.Payload.ToString();
+                    }
+                    var singleDdi = DatabaseService.DrugInteractions.GetById(ddiId);
+                    if (singleDdi == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "NOT_FOUND", "التفاعل الدوائي غير موجود.");
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Ok(request.Id, singleDdi);
+                    }
+                    return true;
+
+                case "ddi:save":
+                case "ddi.save":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات التفاعل الدوائي مطلوبة.");
+                        return true;
+                    }
+                    try
+                    {
+                        var itemToSave = JsonConvert.DeserializeObject<DrugInteraction>(request.Payload.ToString());
+                        string actorUser = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                        var savedDdi = DatabaseService.DrugInteractions.Save(itemToSave, actorUser);
+                        response = BridgeResponse.Ok(request.Id, savedDdi);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "SAVE_FAILED", ex.Message);
+                    }
+                    return true;
+
+                case "ddi:delete":
+                case "ddi.delete":
+                    string delDdiId = null;
+                    if (request.Payload != null)
+                    {
+                        var delObj = request.Payload as JObject;
+                        if (delObj != null && delObj["id"] != null) delDdiId = delObj["id"].ToString();
+                        else delDdiId = request.Payload.ToString();
+                    }
+                    if (string.IsNullOrEmpty(delDdiId))
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف التفاعل الدوائي مطلوب.");
+                        return true;
+                    }
+                    string delUser = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    bool delSuccess = DatabaseService.DrugInteractions.Delete(delDdiId, delUser);
+                    response = BridgeResponse.Ok(request.Id, new { success = delSuccess });
+                    return true;
+
+                case "ddi:importFromExcel":
+                case "ddi.importFromExcel":
+                    string impFilePath = null;
+                    if (request.Payload != null)
+                    {
+                        var impObj = request.Payload as JObject;
+                        if (impObj != null && impObj["filePath"] != null) impFilePath = impObj["filePath"].ToString();
+                        else impFilePath = request.Payload.ToString();
+                    }
+                    if (string.IsNullOrEmpty(impFilePath))
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "مسار ملف الإكسل مطلوب.");
+                        return true;
+                    }
+                    try
+                    {
+                        string impActor = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                        int imported = DatabaseService.DrugInteractions.ImportFromExcel(impFilePath, impActor);
+                        response = BridgeResponse.Ok(request.Id, new { success = true, importedCount = imported });
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "IMPORT_FAILED", ex.Message);
+                    }
+                    return true;
+
+                case "ddi:exportToExcel":
+                case "ddi.exportToExcel":
+                    string expSearch = null;
+                    string expSev = null;
+                    string expPath = null;
+                    if (request.Payload != null)
+                    {
+                        var expObj = request.Payload as JObject;
+                        if (expObj != null)
+                        {
+                            if (expObj["search"] != null) expSearch = expObj["search"].ToString();
+                            if (expObj["severity"] != null) expSev = expObj["severity"].ToString();
+                            if (expObj["targetPath"] != null) expPath = expObj["targetPath"].ToString();
+                        }
+                    }
+                    try
+                    {
+                        string outPath = DatabaseService.DrugInteractions.ExportToExcel(expSearch, expSev, expPath);
+                        response = BridgeResponse.Ok(request.Id, new { success = true, filePath = outPath });
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "EXPORT_FAILED", ex.Message);
+                    }
+                    return true;
+
+                case "ddi:generateTemplate":
+                case "ddi.generateTemplate":
+                    string tmplPath = null;
+                    if (request.Payload != null)
+                    {
+                        var tmplObj = request.Payload as JObject;
+                        if (tmplObj != null && tmplObj["targetPath"] != null) tmplPath = tmplObj["targetPath"].ToString();
+                    }
+                    try
+                    {
+                        string generatedTmpl = DatabaseService.DrugInteractions.GenerateBlankTemplate(tmplPath);
+                        response = BridgeResponse.Ok(request.Id, new { success = true, filePath = generatedTmpl });
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "TEMPLATE_FAILED", ex.Message);
+                    }
+                    return true;
+
+                case "ddi:override":
+                case "ddi.override":
+                    string ovPin = "";
+                    string ovReason = "";
+                    var ovPids = new List<string>();
+                    if (request.Payload != null)
+                    {
+                        var ovObj = request.Payload as JObject;
+                        if (ovObj != null)
+                        {
+                            if (ovObj["pin"] != null) ovPin = ovObj["pin"].ToString();
+                            if (ovObj["reason"] != null) ovReason = ovObj["reason"].ToString();
+                            if (ovObj["conflictProductIds"] != null)
+                            {
+                                var arr = ovObj["conflictProductIds"] as JArray;
+                                if (arr != null)
+                                {
+                                    for (int i = 0; i < arr.Count; i++) ovPids.Add(arr[i].ToString());
+                                }
+                            }
+                        }
+                    }
+
+                    bool userHasOverridePerm = DatabaseService.Security.HasPermission(null, "pharma.ddi.override");
+                    string supName = "";
+
+                    if (userHasOverridePerm)
+                    {
+                        supName = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.DisplayName : "الصيدلي المشرف";
+                    }
+                    else
+                    {
+                        if (string.IsNullOrEmpty(ovPin))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "PIN_REQUIRED", "رمز PIN للمشرف مطلوب لتجاوز مانع الصرف الحرج.");
+                            return true;
+                        }
+
+                        var verifySup = DatabaseService.Security.VerifySupervisorPin(ovPin, "pharma.ddi.override");
+                        if (!verifySup.Success)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "OVERRIDE_AUTH_FAILED", verifySup.Message);
+                            return true;
+                        }
+                        supName = verifySup.SupervisorName;
+                    }
+
+                    string actId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "cashier";
+                    if (DatabaseService.AuditRepo != null)
+                    {
+                        DatabaseService.AuditRepo.Log(new AuditLog
+                        {
+                            UserId = actId,
+                            Action = "DDI_SUPERVISOR_OVERRIDE",
+                            EntityType = "sales_cart",
+                            EntityId = "cart",
+                            DetailsJson = string.Format("تجاوز تحذير تعارض دوائي حرج بواسطة: {0}. السبب: {1}. الأصناف: {2}", supName, ovReason, string.Join(",", ovPids.ToArray()))
+                        });
+                    }
+
+                    response = BridgeResponse.Ok(request.Id, new { success = true, supervisorName = supName });
                     return true;
             }
 

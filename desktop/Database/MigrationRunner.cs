@@ -7,7 +7,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 53;
+        public const int LATEST_SUPPORTED_VERSION = 55;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -448,6 +448,20 @@ namespace RafiqPOS.Database
                 {
                     BackupDatabaseBeforeMigration(dbPath);
                     ApplyMigration53(conn);
+                }
+
+                // 57. Apply Migration 54: Clinical Drug-Drug Interactions Engine (DDI) & Clinical Seed (Story 137 / Feature #194 / F-01)
+                if (currentVersion < 54)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration54(conn);
+                }
+
+                // 58. Apply Migration 55: Comprehensive Clinical DDI Expansion (108+ Rules across all 26k Egyptian Drug Reference Classes)
+                if (currentVersion < 55)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration55(conn);
                 }
 
                 // Self-Healing Schema Guard: Automatically repair missing columns or indexes
@@ -2082,6 +2096,17 @@ namespace RafiqPOS.Database
                                 }
                             }
                         }
+                    }
+
+                    // Auto-enable feature_drug_interactions if pharmacy module is active (Story 137 / Feature #194)
+                    using (var ddiSettingCmd = new SQLiteCommand(@"
+                        INSERT INTO app_settings (key, value, updated_at)
+                        SELECT 'feature_drug_interactions', '1', datetime('now')
+                        WHERE EXISTS (SELECT 1 FROM app_settings WHERE key = 'feature_pharmacy' AND value = '1')
+                        ON CONFLICT(key) DO NOTHING;
+                    ", conn, trans))
+                    {
+                        ddiSettingCmd.ExecuteNonQuery();
                     }
 
                     trans.Commit();
@@ -6638,6 +6663,1564 @@ namespace RafiqPOS.Database
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration54(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    string now = DateTime.UtcNow.ToString("o");
+
+                    // 1. Create drug_interactions table
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS drug_interactions (
+                            id                  TEXT PRIMARY KEY,
+                            active_ingredient_a TEXT NOT NULL,
+                            active_ingredient_b TEXT NOT NULL,
+                            severity            TEXT NOT NULL DEFAULT 'moderate',
+                            mechanism_ar        TEXT NOT NULL,
+                            clinical_risk_ar    TEXT NOT NULL,
+                            recommendation_ar   TEXT NOT NULL,
+                            alternative_ar      TEXT DEFAULT '',
+                            source              TEXT DEFAULT 'clinical_core',
+                            created_at          TEXT NOT NULL,
+                            updated_at          TEXT NOT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_ddi_ing_a ON drug_interactions(active_ingredient_a);
+                        CREATE INDEX IF NOT EXISTS idx_ddi_ing_b ON drug_interactions(active_ingredient_b);
+                        CREATE INDEX IF NOT EXISTS idx_ddi_severity ON drug_interactions(severity);
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_ddi_pairs_unique ON drug_interactions(active_ingredient_a, active_ingredient_b);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Ensure standard active ingredients exist in active_ingredients table
+                    string seedIngSql = @"
+                        INSERT OR IGNORE INTO active_ingredients (id, name_en, name_ar, normalized_name, is_active) VALUES
+                        ('ing_warfarin', 'Warfarin', 'وارفارين', 'warfarin', 1),
+                        ('ing_diclofenac', 'Diclofenac', 'ديكلوفيناك', 'diclofenac', 1),
+                        ('ing_aspirin', 'Aspirin', 'أسبرين', 'aspirin', 1),
+                        ('ing_ciprofloxacin', 'Ciprofloxacin', 'سيبروفلوكساسين', 'ciprofloxacin', 1),
+                        ('ing_sildenafil', 'Sildenafil', 'سيلدينافيل', 'sildenafil', 1),
+                        ('ing_nitroglycerin', 'Nitroglycerin', 'نيتروجلسرين', 'nitroglycerin', 1),
+                        ('ing_isosorbide_dinitrate', 'Isosorbide Dinitrate', 'إيزوسوربيد ثنائي النترات', 'isosorbide dinitrate', 1),
+                        ('ing_tramadol', 'Tramadol', 'ترامادول', 'tramadol', 1),
+                        ('ing_fluoxetine', 'Fluoxetine', 'فلوكسيتين', 'fluoxetine', 1),
+                        ('ing_paroxetine', 'Paroxetine', 'باروكسيتين', 'paroxetine', 1),
+                        ('ing_clopidogrel', 'Clopidogrel', 'كلوبيدوجريل', 'clopidogrel', 1),
+                        ('ing_omeprazole', 'Omeprazole', 'أوميبرازول', 'omeprazole', 1),
+                        ('ing_esomeprazole', 'Esomeprazole', 'إيزوميبرازول', 'esomeprazole', 1),
+                        ('ing_methotrexate', 'Methotrexate', 'ميثوتريكسات', 'methotrexate', 1),
+                        ('ing_ibuprofen', 'Ibuprofen', 'إيبوبروفين', 'ibuprofen', 1),
+                        ('ing_digoxin', 'Digoxin', 'ديجوكسين', 'digoxin', 1),
+                        ('ing_amiodarone', 'Amiodarone', 'أميودارون', 'amiodarone', 1),
+                        ('ing_simvastatin', 'Simvastatin', 'سيمفاستاتين', 'simvastatin', 1),
+                        ('ing_atorvastatin', 'Atorvastatin', 'أتورفاستاتين', 'atorvastatin', 1),
+                        ('ing_clarithromycin', 'Clarithromycin', 'كلاريثروميسين', 'clarithromycin', 1),
+                        ('ing_theophylline', 'Theophylline', 'ثيوفيلين', 'theophylline', 1),
+                        ('ing_calcium_carbonate', 'Calcium Carbonate', 'كربونات الكالسيوم', 'calcium carbonate', 1),
+                        ('ing_ferrous_sulfate', 'Ferrous Sulfate', 'كبريتات الحديدوز', 'ferrous sulfate', 1),
+                        ('ing_levofloxacin', 'Levofloxacin', 'ليفوفلوكساسين', 'levofloxacin', 1),
+                        ('ing_antacids', 'Antacids', 'مضادات الحموضة', 'antacids', 1),
+                        ('ing_doxycycline', 'Doxycycline', 'دوكسيسيكلين', 'doxycycline', 1),
+                        ('ing_iron', 'Iron', 'حديد', 'iron', 1),
+                        ('ing_captopril', 'Captopril', 'كابتوبريل', 'captopril', 1),
+                        ('ing_spironolactone', 'Spironolactone', 'سبيرونولاكتون', 'spironolactone', 1),
+                        ('ing_enalapril', 'Enalapril', 'إنالابريل', 'enalapril', 1),
+                        ('ing_potassium_chloride', 'Potassium Chloride', 'كلوريد البوتاسيوم', 'potassium chloride', 1),
+                        ('ing_metformin', 'Metformin', 'ميتفورمين', 'metformin', 1),
+                        ('ing_contrast_media', 'Contrast Media', 'صبغات الأشعة الميودنة', 'contrast media', 1),
+                        ('ing_fluconazole', 'Fluconazole', 'فلوكونازول', 'fluconazole', 1),
+                        ('ing_metronidazole', 'Metronidazole', 'ميترونيدازول', 'metronidazole', 1),
+                        ('ing_alcohol', 'Alcohol / Ethanol', 'كحول / إيثانول', 'alcohol', 1),
+                        ('ing_paracetamol', 'Paracetamol', 'باراسيتامول', 'paracetamol', 1),
+                        ('ing_amoxicillin', 'Amoxicillin', 'أموكسيسيلين', 'amoxicillin', 1);
+                    ";
+                    using (var cmd = new SQLiteCommand(seedIngSql, conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Seed 25 Built-in Critical Interactions
+                    var seedPairs = new[]
+                    {
+                        new {
+                            Id = "ddi_seed_01",
+                            A = "diclofenac", B = "warfarin",
+                            Sev = "severe",
+                            Mech = "يثبط الديكلوفيناك تراكم الصفائح الدموية ويسبب تقرحات معدية معوية، مع زيادة تحرر الوارفارين الحر في بلازما الدم.",
+                            Risk = "نزيف معدي معوي حاد وارتفاع مفرط في سيولة الدم يهدد الحياة.",
+                            Rec = "يمنع الجمع نهائياً. يجب إيقاف مضاد الالتهاب غير الستيرويدي واستبداله بمسكن آمن مثل الباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_seed_02",
+                            A = "aspirin", B = "warfarin",
+                            Sev = "severe",
+                            Mech = "تأثير مضاعف مضاد للتخثر والصفائح، بالإضافة لأثر الأسبرين المباشر على الغشاء المخاطي للمعدة.",
+                            Risk = "خطر نزيف هائل ومميت في الجهاز الهضمي أو نزيف دماغي.",
+                            Rec = "يمنع الجمع إلا ببروتوكول قلبي صارم وإشراف استشاري دقيق مع مراقبة INR أسبوعياً.",
+                            Alt = "باراسيتامول لتسكين الألم، أو مراجعة طبيب القلب"
+                        },
+                        new {
+                            Id = "ddi_seed_03",
+                            A = "ciprofloxacin", B = "warfarin",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيمات CYP1A2 و CYP3A4 في الكبد المسؤولة عن أيض الوارفارين مع القضاء على بكتيريا الأمعاء المصنعة لفيتامين K.",
+                            Risk = "ارتفاع حاد وغير متوقع في نسبة INR وحدوث نزيف تلقائي حرج.",
+                            Rec = "استبدال السيبروفلوكساسين بمضاد حيوي بديل لا يتفاعل، أو خفض جرعة الوارفارين بنسبة 30-50% ومراقبة INR.",
+                            Alt = "أموكسيسيلين/كلافولانيك أو أزيثروميسين بحسب المزرعة"
+                        },
+                        new {
+                            Id = "ddi_seed_04",
+                            A = "nitroglycerin", B = "sildenafil",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيم PDE5 بالتزامن مع مانح أكسيد النيتريك يؤدي لتراكم cGMP وتوسع وعائي هائل لا يمكن عكسه.",
+                            Risk = "هبوط حاد وقاتل في ضغط الدم، صدمة وعائية وسكتة قلبية مفاجئة.",
+                            Rec = "مانع استخدام قطعي ومطلق (Absolute Contraindication). يمنع استخدام النترات خلال 24 ساعة من السيلدينافيل.",
+                            Alt = "استشارة طبيب القلب لبدائل علاج الذبحة الصدرية أو ضعف الانتصاب غير الدوائية"
+                        },
+                        new {
+                            Id = "ddi_seed_05",
+                            A = "isosorbide dinitrate", B = "sildenafil",
+                            Sev = "severe",
+                            Mech = "تراكم cGMP الشديد نتيجة التوسع الوعائي المشترك للنترات ومثبطات PDE5.",
+                            Risk = "هبوط ضغط حاد ومميت ونقص تروية قلبية حاد.",
+                            Rec = "مانع استخدام مطلق. لا تصرف أدوية النترات مع السيلدينافيل نهائياً.",
+                            Alt = "بدائل علاجية قلبية معتمدة من طبيب القلب"
+                        },
+                        new {
+                            Id = "ddi_seed_06",
+                            A = "fluoxetine", B = "tramadol",
+                            Sev = "severe",
+                            Mech = "تراكم السيروتونين في الجهاز العصبي المركزي وتثبيط تحول الترامادول لمستقلبه النشط عبر CYP2D6.",
+                            Risk = "متلازمة السيروتونين القاتلة (Serotonin Syndrome)، تشنجات عصبية حادة، وغيبوبة.",
+                            Rec = "تجنب الجمع قطعياً. استبدال المسكن الأفيوني أو اختيار مضاد اكتئاب آخر بإشراف الطبيب.",
+                            Alt = "باراسيتامول مع كودايين خفيف أو مهدئات غير سيروتونينية"
+                        },
+                        new {
+                            Id = "ddi_seed_07",
+                            A = "paroxetine", B = "tramadol",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لـ CYP2D6 وزيادة تركيز السيروتونين في المشابك العصبية.",
+                            Risk = "تشنجات صرعية مهددة للحياة ومتلازمة السيروتونين وفرط الحرارة الخبيث.",
+                            Rec = "يمنع الجمع. يجب تعديل الخطة العلاجية للمسكن أو مضاد الاكتئاب.",
+                            Alt = "مسكنات بديلة خالية من النشاط السيروتونيني"
+                        },
+                        new {
+                            Id = "ddi_seed_08",
+                            A = "clopidogrel", B = "omeprazole",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيم CYP2C19 الكبدي المسؤول عن تحويل الكلوبيدوجريل إلى صورته الحيوية الفعالة.",
+                            Risk = "فشل علاج مضاد الصفائح وتكرار حدوث جلطات قلبية وسكتات دماغية حادة.",
+                            Rec = "استبدال الأوميبرازول بـ Pantoprazole لعدم تأثيره على إنزيم CYP2C19.",
+                            Alt = "بانتوبرازول (Pantoprazole) أو فاموتيدين (Famotidine)"
+                        },
+                        new {
+                            Id = "ddi_seed_09",
+                            A = "clopidogrel", B = "esomeprazole",
+                            Sev = "severe",
+                            Mech = "تثبيط تنافسي لإنزيم CYP2C19 مما يمنع تنشيط البلافيكس في الكبد.",
+                            Risk = "ارتفاع خطر الانسداد الخثاري للدعامة القلبية والجلطة المتكررة.",
+                            Rec = "استبدال الإيزوميبرازول فوراً بمضاد حموضة آمن لا يتعارض مع البلافيكس.",
+                            Alt = "بانتوبرازول (Pantoprazole)"
+                        },
+                        new {
+                            Id = "ddi_seed_10",
+                            A = "ibuprofen", B = "methotrexate",
+                            Sev = "severe",
+                            Mech = "تثبيط إفراز الميثوتريكسات في الأنابيب الكلوية وتقليل التصفية الكلوية.",
+                            Risk = "تسمم حاد بالميثوتريكسات، فشل نخاع العظام الشديد، تقرحات، وفشل كلوي حاد.",
+                            Rec = "يمنع صرف مضادات الالتهاب غير الستيرويدية مع جرعات الميثوتريكسات. استبدال بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_seed_11",
+                            A = "diclofenac", B = "methotrexate",
+                            Sev = "severe",
+                            Mech = "خفض تدفق الدم الكلوي وتثبيط الإخراج الأنبوبي للميثوتريكسات.",
+                            Risk = "تسمم دموي خطير ونقص كريات الدم البيضاء والصفائح وفشل نخاع العظم.",
+                            Rec = "يمنع استخدام الديكلوفيناك لمريض يتناول الميثوتريكسات.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_seed_12",
+                            A = "amiodarone", B = "digoxin",
+                            Sev = "severe",
+                            Mech = "تثبيط بروتين P-glycoprotein وخفض إفراز الديجوكسين الكلوي بنسبة تتجاوز 50%.",
+                            Risk = "تسمم الديجوكسين القلبي المميت، بطء ضربات القلب الحاد، ورجفان بطيني.",
+                            Rec = "خفض جرعة الديجوكسين بمقدار النصف فوراً عند بدء الأميودارون ومراقبة المستوى المصلي وتخطيط القلب.",
+                            Alt = "تعديل الجرعة تحت إشراف طبيب القلب"
+                        },
+                        new {
+                            Id = "ddi_seed_13",
+                            A = "clarithromycin", B = "simvastatin",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لإنزيم CYP3A4 الكبدي مما يؤدي لتضاعف مستويات السيمفاستاتين في الدم.",
+                            Risk = "انحلال العضلات المخططة (Rhabdomyolysis)، فشل كلوي حاد، ووفاة.",
+                            Rec = "إيقاف السيمفاستاتين مؤقتاً طوال فترة العلاج بالكلاريثروميسين، أو استخدام مضاد حيوي آخر.",
+                            Alt = "أزيثرومايسين (Azithromycin) أو روزوفاستاتين (Rosuvastatin)"
+                        },
+                        new {
+                            Id = "ddi_seed_14",
+                            A = "atorvastatin", B = "clarithromycin",
+                            Sev = "severe",
+                            Mech = "تثبيط أيض الأتورفاستاتين الكبدي عبر CYP3A4 ورفع مستوياته بشكل حاد.",
+                            Risk = "اعتلال عضلي شديد (Myopathy)، آلام عضلية حادة وانحلال العضلات.",
+                            Rec = "عدم تجاوز جرعة 20mg من الأتورفاستاتين أو إيقافه مؤقتاً أو استبدال المضاد الحيوي.",
+                            Alt = "أزيثرومايسين (Azithromycin)"
+                        },
+                        new {
+                            Id = "ddi_seed_15",
+                            A = "ciprofloxacin", B = "theophylline",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لإنزيم CYP1A2 المسؤول عن استقلاب الثيوفيلين مما يرفع تركيزه بنسبة 100% إلى 300%.",
+                            Risk = "تسمم الثيوفيلين الحاد، غثيان وقيء مستمر، اضطراب نظم قلبي بطيني وتشنجات صرعية.",
+                            Rec = "تجنب الجمع قدر الإمكان. في حالة الضرورة خفض جرعة الثيوفيلين للنصف ومراقبة تركيزه بالدم.",
+                            Alt = "مضاد حيوي بديل مثل أموكسيسيلين/كلافولانات أو ليفوفلوكساسين مع المراقبة"
+                        },
+                        new {
+                            Id = "ddi_seed_16",
+                            A = "calcium carbonate", B = "ciprofloxacin",
+                            Sev = "moderate",
+                            Mech = "تكوين معقدات كيميائية مخلبية غير قابلة للذوبان (Chelation) في الجهاز الهضمي.",
+                            Risk = "انخفاض امتصاص السيبروفلوكساسين بنسبة تصل إلى 60% وفشل علاج العدوى البكتيرية.",
+                            Rec = "فصل الجرعات زمنياً: تناول السيبروفلوكساسين قبل الكالسيوم بساعتين على الأقل أو بعده بـ 4 ساعات.",
+                            Alt = "الفصل الزمني الصارم بين الجرعتين"
+                        },
+                        new {
+                            Id = "ddi_seed_17",
+                            A = "ciprofloxacin", B = "ferrous sulfate",
+                            Sev = "moderate",
+                            Mech = "ارتباط مخلبي بين أيونات الحديد وجزيئات الفلوروكينولون يمنع امتصاصها معوياً.",
+                            Risk = "فشل امتصاص المضاد الحيوي وفشل القضاء على الميكروب.",
+                            Rec = "فصل الجرعات: تناول المضاد الحيوي قبل الحديد بساعتين أو بعده بـ 4 ساعات.",
+                            Alt = "الفصل الزمني بين الدواءين"
+                        },
+                        new {
+                            Id = "ddi_seed_18",
+                            A = "antacids", B = "levofloxacin",
+                            Sev = "moderate",
+                            Mech = "ارتباط كاتيونات الألومنيوم والمغنيسيوم في مضادات الحموضة مع الكينولون مخلبياً.",
+                            Risk = "هبوط حاد في التوافر الحيوي لليفوفلوكساسين وانعدام الفعالية السريرية.",
+                            Rec = "تناول ليفوفلوكساسين قبل مضاد الحموضة بساعتين على الأقل.",
+                            Alt = "الفصل الزمني بمقدار ساعتين"
+                        },
+                        new {
+                            Id = "ddi_seed_19",
+                            A = "doxycycline", B = "iron",
+                            Sev = "moderate",
+                            Mech = "ارتباط مخلبي بين التتراسيكلين وأملاح الحديد يقلل امتصاص كلا العقارين.",
+                            Risk = "فشل علاج العدوى الجرثومية وضعف الاستفادة من علاج فقر الدم.",
+                            Rec = "فصل تناول الدوكسيسيكلين عن الحديد بفارق 3 ساعات على الأقل.",
+                            Alt = "الفصل الزمني 3 ساعات"
+                        },
+                        new {
+                            Id = "ddi_seed_20",
+                            A = "captopril", B = "spironolactone",
+                            Sev = "moderate",
+                            Mech = "تثبيط متزامن لنظام الرينين-أنجيوتنسين وإفراز الألدوستيرون مما يمنع التخلص من البوتاسيوم.",
+                            Risk = "فرط بوتاسيوم الدم (Hyperkalemia) المهدد لوظائف القلب واضطراب النبض.",
+                            Rec = "مراقبة مستويات البوتاسيوم ووظائف الكلى بشكل دوري وإرشاد المريض لتجنب مكملات البوتاسيوم.",
+                            Alt = "متابعة البوتاسيوم بانتظام مع طبيب القلب"
+                        },
+                        new {
+                            Id = "ddi_seed_21",
+                            A = "enalapril", B = "potassium chloride",
+                            Sev = "moderate",
+                            Mech = "تقليل طرح البوتاسيوم في البول بواسطة مثبط ACE مع إضافة مصدر خارجي للبوتاسيوم.",
+                            Risk = "ارتفاع حرج للبوتاسيوم في الدم وخطر توقف عضلة القلب المفاجئ.",
+                            Rec = "تجنب إعطاء أملاح البوتاسيوم مع مثبطات ACE إلا في حالات النقص الموثق مع التحليل الدوري.",
+                            Alt = "مراجعة ضرورة مكمل البوتاسيوم"
+                        },
+                        new {
+                            Id = "ddi_seed_22",
+                            A = "contrast media", B = "metformin",
+                            Sev = "severe",
+                            Mech = "صبغات الأشعة الميودنة قد تسبب اعتلال كلوي حاد مما يؤدي لتراكم الميتفورمين بالجسم.",
+                            Risk = "حماض لاكتيكي حاد ومميت (Lactic Acidosis) وفشل كلوي.",
+                            Rec = "إيقاف الميتفورمين وقت الفحص الإشعاعي ولمدة 48 ساعة بعده، وعدم استئنافه إلا بعد التأكد من وظائف الكلى.",
+                            Alt = "إيقاف مؤقت 48 ساعة قبل/بعد الصبغة"
+                        },
+                        new {
+                            Id = "ddi_seed_23",
+                            A = "amiodarone", B = "levofloxacin",
+                            Sev = "severe",
+                            Mech = "تأثير مضاعف في تثبيط قنوات البوتاسيوم القلبية واستطالة إعادة الاستقطاب البطيني.",
+                            Risk = "استطالة خطيرة في فترة QT وحدوث تسارع بطيني خطير (Torsades de Pointes) والموت المفاجئ.",
+                            Rec = "يمنع الجمع قطعياً. يجب اختيار مضاد حيوي بديل لا يسبب استطالة QT.",
+                            Alt = "أموكسيسيلين/كلافولانات أو سيفالوسبورين مناسب"
+                        },
+                        new {
+                            Id = "ddi_seed_24",
+                            A = "fluconazole", B = "warfarin",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لإنزيم CYP2C9 الكبدي المسؤول رئيسياً عن أيض S-warfarin الأكثر فاعلية.",
+                            Risk = "ارتفاع دراماتيكي في زمن التخثر ومستويات INR وحدوث نزيف حاد وعفوي.",
+                            Rec = "تخفيض جرعة الوارفارين بنسبة 50% ومتابعة INR عن قرب، أو اختيار مضاد فطريات موضعي/بديل.",
+                            Alt = "مضاد فطريات موضعي أو متابعة دقيقة لـ INR"
+                        },
+                        new {
+                            Id = "ddi_seed_25",
+                            A = "alcohol", B = "metronidazole",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيم ألدهيد ديهيدروجينيز (Aldehyde Dehydrogenase) وتراكم الأسيتالدهيد.",
+                            Risk = "تفاعل شبيه بالديسولفيرام (Disulfiram-like reaction): قيء شديد، خفقان، احمرار الوجه، وهبوط ضغط حاد.",
+                            Rec = "تنبيه المريض بالامتناع التام عن المشروبات الكحولية أو المستحضرات الحاوية على الإيثانول أثناء العلاج ولمدة 48 ساعة بعده.",
+                            Alt = "تجنب الكحوليات نهائياً طوال فترة العلاج"
+                        }
+                    };
+
+                    string insertDdiSql = @"
+                        INSERT OR REPLACE INTO drug_interactions (
+                            id, active_ingredient_a, active_ingredient_b, severity,
+                            mechanism_ar, clinical_risk_ar, recommendation_ar, alternative_ar,
+                            source, created_at, updated_at
+                        ) VALUES (
+                            @id, @a, @b, @sev, @mech, @risk, @rec, @alt, 'clinical_core', @now, @now
+                        );";
+
+                    for (int i = 0; i < seedPairs.Length; i++)
+                    {
+                        var pair = seedPairs[i];
+                        string ingA = pair.A;
+                        string ingB = pair.B;
+                        if (string.CompareOrdinal(ingA, ingB) > 0)
+                        {
+                            string temp = ingA;
+                            ingA = ingB;
+                            ingB = temp;
+                        }
+
+                        using (var insertCmd = new SQLiteCommand(insertDdiSql, conn, trans))
+                        {
+                            insertCmd.Parameters.AddWithValue("@id", pair.Id);
+                            insertCmd.Parameters.AddWithValue("@a", ingA);
+                            insertCmd.Parameters.AddWithValue("@b", ingB);
+                            insertCmd.Parameters.AddWithValue("@sev", pair.Sev);
+                            insertCmd.Parameters.AddWithValue("@mech", pair.Mech);
+                            insertCmd.Parameters.AddWithValue("@risk", pair.Risk);
+                            insertCmd.Parameters.AddWithValue("@rec", pair.Rec);
+                            insertCmd.Parameters.AddWithValue("@alt", pair.Alt);
+                            insertCmd.Parameters.AddWithValue("@now", now);
+                            insertCmd.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 4. Record migration 54
+                    using (var migCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (54, 'Clinical Drug-Drug Interactions Engine (DDI) & Clinical Seed (Story 137 / Feature #194 / F-01)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        migCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+
+private static void ApplyMigration55(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    string now = DateTime.UtcNow.ToString("o");
+
+                    var expPairs = new[]
+                    {
+                        new {
+                            Id = "ddi_exp_001",
+                            A = "warfarin", B = "diclofenac",
+                            Sev = "severe",
+                            Mech = "تثبيط تراكم الصفائح الدموية وحدوث تقرحات هضمية مع إزاحة الوارفارين عن بروتينات البلازما.",
+                            Risk = "نزيف معدي معوي حاد ومميت، وارتفاع مفرط في سيولة الدم غير مسيطر عليه.",
+                            Rec = "يمنع الجمع قطعياً. استبدال المسكن بالباراسيتامول كخيار آمن.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_002",
+                            A = "warfarin", B = "ibuprofen",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيم COX-1 في الصفائح والبطانة المخاطية للمعدة مما يعطل التجلط مع الوارفارين.",
+                            Risk = "نزيف هضمي حاد، قيء دموي وتدهور حرج في زمن التخثر.",
+                            Rec = "يمنع الجمع قطعياً. اختيار مسكن بديل لا يؤثر على التخثر.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_003",
+                            A = "warfarin", B = "ketoprofen",
+                            Sev = "severe",
+                            Mech = "تأثير مضاعف في تثبيط التخثر وإحداث تقرحات ونزيف بالأغشية المخاطية للجهاز الهضمي.",
+                            Risk = "نزيف داخلي حاد وارتفاع خطير لنسبة INR.",
+                            Rec = "يمنع الجمع. استخدام باراسيتامول لتسكين الألم.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_004",
+                            A = "warfarin", B = "meloxicam",
+                            Sev = "severe",
+                            Mech = "تثبيط وظيفة الصفائح الدموية وإحداث تآكل معوي مع زيادة السيولة.",
+                            Risk = "نزيف الجهاز الهضمي والنزيف الخفي المستمر.",
+                            Rec = "يمنع الصرف المشترك. استبدال المسكن بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_005",
+                            A = "warfarin", B = "celecoxib",
+                            Sev = "severe",
+                            Mech = "تثبيط أيض الوارفارين الكبدي عبر إنزيم CYP2C9 وزيادة تركيزه الحر الفعّال.",
+                            Risk = "ارتفاع غير متوقع في نسبة INR ونزيف حاد.",
+                            Rec = "تجنب الجمع أو مراقبة لصيقة لـ INR مع تقليل جرعة الوارفارين.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_006",
+                            A = "warfarin", B = "piroxicam",
+                            Sev = "severe",
+                            Mech = "عمر نصفي طويل للبيروكسيكام مع تثبيط قوي لتجمع الصفائح وتقرح المعدة.",
+                            Risk = "نزيف هائل مهدد للحياة في الجهاز الهضمي العلوي.",
+                            Rec = "يمنع الجمع نهائياً.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_007",
+                            A = "warfarin", B = "ketorolac",
+                            Sev = "severe",
+                            Mech = "تثبيط عنيف لوظيفة الصفائح الدموية مع خطر نزيف جراحي أو معوي كارثي.",
+                            Risk = "نزيف حاد مهدد للحياة وصدمة نزفية. مضاد استطباب مطلق.",
+                            Rec = "يمنع الجمع نهائياً وبشكل قطعي (Absolute Contraindication).",
+                            Alt = "باراسيتامول وريدي أو مسكن أفيوني خفيف"
+                        },
+                        new {
+                            Id = "ddi_exp_008",
+                            A = "warfarin", B = "aspirin",
+                            Sev = "severe",
+                            Mech = "تثبيط متزامن لعوامل التخثر التابعة لفيتامين K مع تثبيط دائم للثرومبوكسان في الصفائح.",
+                            Risk = "نزيف دماغي أو معوي مميت.",
+                            Rec = "لا يجمع إلا ببروتوكول قلبي استثنائي موثق من استشاري القلب مع ضبط دقيق للـ INR.",
+                            Alt = "باراسيتامول لتسكين الألم، أو مراجعة طبيب القلب"
+                        },
+                        new {
+                            Id = "ddi_exp_009",
+                            A = "warfarin", B = "clopidogrel",
+                            Sev = "severe",
+                            Mech = "حصار مزدوج لمسار التخثر الإنزيمي والمسار المعتمد على ADP في الصفائح.",
+                            Risk = "تضاعف خطر النزيف الرئيسي بمقدار 3 إلى 5 أضعاف.",
+                            Rec = "مراقبة مكثفة لمظاهر النزيف واستخدام أقل مدة علاجية ممكنة.",
+                            Alt = "بروتوكول رقابي مشدد"
+                        },
+                        new {
+                            Id = "ddi_exp_010",
+                            A = "warfarin", B = "ciprofloxacin",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لإنزيمات CYP1A2 و CYP3A4 الكبدية ومحو بكتيريا الأمعاء المنتجة لفيتامين K.",
+                            Risk = "قفزة حادة ومفاجئة في INR وحدوث نزيف تلقائي حرج.",
+                            Rec = "استبدال المضاد الحيوي أو خفض جرعة الوارفارين بنسبة 30% إلى 50% ومتابعة INR كل 48 ساعة.",
+                            Alt = "أموكسيسيلين/كلافولانات أو سيفالوسبورين"
+                        },
+                        new {
+                            Id = "ddi_exp_011",
+                            A = "warfarin", B = "levofloxacin",
+                            Sev = "severe",
+                            Mech = "تثبيط أيض الوارفارين وتناقص تصنيع عوامل التخثر المعوية.",
+                            Risk = "ارتفاع خطير في زمن التخثر ونزيف بولي أو هضمي.",
+                            Rec = "تجنب الجمع واختيار مضاد حيوي بديل لا يتداخل مع الوارفارين.",
+                            Alt = "مضاد حيوي من عائلة أخرى مناسب للمزرعة"
+                        },
+                        new {
+                            Id = "ddi_exp_012",
+                            A = "warfarin", B = "clarithromycin",
+                            Sev = "severe",
+                            Mech = "تثبيط شديد لإنزيم CYP3A4 الكبدي المسؤول عن تكسير الوارفارين.",
+                            Risk = "تراكم حاد للوارفارين ونزيف داخلي حرج.",
+                            Rec = "تجنب الكلارثروميسين؛ استبدال بأزيثروميسين مع قياس INR أو مضاد بديل.",
+                            Alt = "أزيثروميسين مع مراقبة دورية أو أموكسيسيلين"
+                        },
+                        new {
+                            Id = "ddi_exp_013",
+                            A = "warfarin", B = "erythromycin",
+                            Sev = "severe",
+                            Mech = "تثبيط استقلاب الوارفارين الكبدي عبر CYP3A4.",
+                            Risk = "ارتفاع حاد في نسبة INR والنزيف الدموي.",
+                            Rec = "استبدال الإريثروميسين بمضاد حيوي آمن.",
+                            Alt = "أزيثروميسين أو مضاد بيتا-لاكتام"
+                        },
+                        new {
+                            Id = "ddi_exp_014",
+                            A = "warfarin", B = "metronidazole",
+                            Sev = "severe",
+                            Mech = "تثبيط انتقائي فائق الفعالية لإنزيم CYP2C9 المسؤول عن أيض S-warfarin الأكثر فاعلية.",
+                            Risk = "تضاعف مستويات الوارفارين وحدوث نزيف حاد ومفاجئ.",
+                            Rec = "تخفيض جرعة الوارفارين بمقدار النصف فوراً عند بدء المترونيدازول وقياس INR كل 3 أيام.",
+                            Alt = "تخفيض جرعة الوارفارين 50% مع المتابعة اللصيقة"
+                        },
+                        new {
+                            Id = "ddi_exp_015",
+                            A = "warfarin", B = "fluconazole",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي وممتد لإنزيم CYP2C9 الكبدي.",
+                            Risk = "ارتفاع كارثي في INR (قد يتجاوز 10) ونزيف حاد بالأغشية المخاطية والبول.",
+                            Rec = "تجنب الفلوكونازول الفموي أو تقليل جرعة الوارفارين بنسبة 50% مع فحص INR متكرر.",
+                            Alt = "مضاد فطريات موضعي كالميكونازول الموضعي أو نيستاتين"
+                        },
+                        new {
+                            Id = "ddi_exp_016",
+                            A = "warfarin", B = "ketoconazole",
+                            Sev = "severe",
+                            Mech = "تثبيط كبدي متعدد للإنزيمات المسؤولة عن أيض الوارفارين.",
+                            Risk = "نزيف داخلي وتسمم بالوارفارين.",
+                            Rec = "استخدام مضاد فطريات آمن كبديل.",
+                            Alt = "مضاد فطريات موضعي"
+                        },
+                        new {
+                            Id = "ddi_exp_017",
+                            A = "warfarin", B = "itraconazole",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لـ CYP3A4 و P-gp مما يعطل التخلص من الوارفارين.",
+                            Risk = "ارتفاع حرج في سيولة الدم وخطر نزيف حاد.",
+                            Rec = "تجنب الجمع واختيار علاج بديل للفطريات.",
+                            Alt = "مضاد فطريات بديل مع إشراف طبي"
+                        },
+                        new {
+                            Id = "ddi_exp_018",
+                            A = "warfarin", B = "amiodarone",
+                            Sev = "severe",
+                            Mech = "تثبيط شديد ومطول لإنزيمات CYP2C9 و CYP3A4 يستمر لأسابيع بعد إيقاف الأميودارون.",
+                            Risk = "نزيف حاد ونزيف في الجهاز البولي أو المخ.",
+                            Rec = "تخفيض جرعة الوارفارين بنسبة 35% إلى 50% فوراً ومراقبة INR أسبوعياً.",
+                            Alt = "تخفيض جرعة الوارفارين 50% بانتظام"
+                        },
+                        new {
+                            Id = "ddi_exp_019",
+                            A = "warfarin", B = "tramadol",
+                            Sev = "severe",
+                            Mech = "تثبيط تنافسي للأيض وزيادة تأثير الوارفارين المضاد للتخثر.",
+                            Risk = "ارتفاع مفاجئ في INR ونزيف دموي حاد.",
+                            Rec = "تجنب الجمع أو استخدام الباراسيتامول أولاً، ومراقبة الـ INR بدقة.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_020",
+                            A = "warfarin", B = "carbamazepine",
+                            Sev = "severe",
+                            Mech = "تحفيز قوي لإنزيمات السيتوكروم الكبدية مما يسرع التخلص من الوارفارين.",
+                            Risk = "هبوط حاد في مفعول الوارفارين وخطر تكوين جلطات رئوية وسكتات دماغية مميتة.",
+                            Rec = "تعديل جرعة الوارفارين بالزيادة الكبيرة أو استبدال مضاد الصرع بدواء لا يحفز الإنزيمات.",
+                            Alt = "ليفيتيراسيتام (Levetiracetam - Keppra)"
+                        },
+                        new {
+                            Id = "ddi_exp_021",
+                            A = "warfarin", B = "rifampicin",
+                            Sev = "severe",
+                            Mech = "أقوى محفز كبدي معروف لـ CYP450 يضاعف تصفية الوارفارين 3 أضعاف.",
+                            Risk = "فشل تام في التمييع وحدوث جلطات مهددة للحياة.",
+                            Rec = "متابعة مكثفة ورفع جرعة الوارفارين لـ 2-3 أضعاف ثم خفضها فور انتهاء الريفامبيسين.",
+                            Alt = "إشراف علاجي مكثف مع استشاري الأوعية"
+                        },
+                        new {
+                            Id = "ddi_exp_022",
+                            A = "warfarin", B = "omeprazole",
+                            Sev = "moderate",
+                            Mech = "تثبيط خفيف لـ CYP2C19 مما قد يرفع تركيز الوارفارين في بعض المرضى.",
+                            Risk = "ارتفاع معتدل في نسبة INR.",
+                            Rec = "استبدال الأوميبرازول بـ Pantoprazole لعدم تأثيره على الأيض.",
+                            Alt = "بانتوبرازول (Pantoprazole)"
+                        },
+                        new {
+                            Id = "ddi_exp_023",
+                            A = "apixaban", B = "ketoconazole",
+                            Sev = "severe",
+                            Mech = "تثبيط مزدوج قوي لـ CYP3A4 و P-glycoprotein مما يضاعف تركيز الأبيكسابان بالدم.",
+                            Risk = "نزيف داخلي مهدد للحياة ونزيف هضمي حاد.",
+                            Rec = "يمنع الجمع قطعياً (Contraindicated). اختيار مضاد فطريات موضعي.",
+                            Alt = "مضاد فطريات موضعي"
+                        },
+                        new {
+                            Id = "ddi_exp_024",
+                            A = "apixaban", B = "clarithromycin",
+                            Sev = "severe",
+                            Mech = "تثبيط كبدي ومعوي لمسار تخلص الأبيكسابان.",
+                            Risk = "تضاعف مستويات مانع التخثر وحدوث نزيف شديد.",
+                            Rec = "تجنب الجمع واستبدال المضاد الحيوي ببديل آمن لا يثبط CYP3A4/P-gp.",
+                            Alt = "أزيثروميسين أو أموكسيسيلين"
+                        },
+                        new {
+                            Id = "ddi_exp_025",
+                            A = "apixaban", B = "diclofenac",
+                            Sev = "severe",
+                            Mech = "تثبيط الصفائح وتقرح الغشاء المخاطي المعوي مع منع التجلط بالأبيكسابان.",
+                            Risk = "نزيف هضمي حاد وقرحة نازفة.",
+                            Rec = "يمنع صرف مضادات الالتهاب مع مضادات التخثر الحديثة. استبدال بباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_026",
+                            A = "apixaban", B = "ibuprofen",
+                            Sev = "severe",
+                            Mech = "تأثير تراكمي مسبب للنزيف في الجهاز الهضمي والصفائح الدموية.",
+                            Risk = "نزيف معوي حاد وهبوط في الهيموجلوبين.",
+                            Rec = "يمنع الجمع. استخدام باراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_027",
+                            A = "rivaroxaban", B = "itraconazole",
+                            Sev = "severe",
+                            Mech = "تثبيط مسار الإخراج الكبدي والكلوي للريفاروكسابان (CYP3A4 و P-gp).",
+                            Risk = "ارتفاع دراماتيكي في تركيز ريفاروكسابان ونزيف لا يمكن السيطرة عليه.",
+                            Rec = "يمنع الجمع نهائياً.",
+                            Alt = "مضاد فطريات بديل"
+                        },
+                        new {
+                            Id = "ddi_exp_028",
+                            A = "rivaroxaban", B = "clarithromycin",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي للإنزيمات والبروتين الناقل لزاريلتو.",
+                            Risk = "نزيف حاد وغير متحكم فيه.",
+                            Rec = "اختيار مضاد حيوي بديل غير مثبط لـ CYP3A4.",
+                            Alt = "أزيثروميسين أو سيفالوسبورين"
+                        },
+                        new {
+                            Id = "ddi_exp_029",
+                            A = "rivaroxaban", B = "diclofenac",
+                            Sev = "severe",
+                            Mech = "تآكل معوي ناتج عن المسكن مع غياب التجلط الدوائي.",
+                            Risk = "نزيف معدي معوي شديد مهدد للحياة.",
+                            Rec = "يمنع الجمع قطعياً. استبدال بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_030",
+                            A = "rivaroxaban", B = "aspirin",
+                            Sev = "severe",
+                            Mech = "حصار مزدوج لعوامل التخثر وتجمع الصفائح الدموية.",
+                            Risk = "تضاعف معدل النزيف السريري الكبير.",
+                            Rec = "لا يجمع إلا بأمر كتابي من استشاري أمراض القلب مع مضاد حموضة حامي للمعدة.",
+                            Alt = "مراجعة طبيب القلب المشرف"
+                        },
+                        new {
+                            Id = "ddi_exp_031",
+                            A = "dabigatran", B = "verapamil",
+                            Sev = "severe",
+                            Mech = "تثبيط P-glycoprotein المعوي مما يرفع امتصاص دابيجاتران بنسبة تفوق 100%.",
+                            Risk = "نزيف حاد وهبوط في الدورة الدموية.",
+                            Rec = "تخفيض جرعة دابيجاتران إلى 75-110 مجم أو أخذ دابيجاتران قبل الفيراباميل بساعتين على الأقل.",
+                            Alt = "أملوديبين (Amlodipine) كبديل لضغط الدم"
+                        },
+                        new {
+                            Id = "ddi_exp_032",
+                            A = "clopidogrel", B = "omeprazole",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيم CYP2C19 الكبدي المسؤول عن تحويل كلوبيدوجريل لشكله الفعّال.",
+                            Risk = "فشل علاج بلافيكس، انسداد دعامات القلب وتكرار الجلطات القلبية المميتة.",
+                            Rec = "استبدال الأوميبرازول فوراً بـ Pantoprazole أو Famotidine لعدم تأثيرهما على CYP2C19.",
+                            Alt = "بانتوبرازول (Pantoprazole) أو فاموتيدين (Famotidine)"
+                        },
+                        new {
+                            Id = "ddi_exp_033",
+                            A = "clopidogrel", B = "esomeprazole",
+                            Sev = "severe",
+                            Mech = "تثبيط تنافسي قوي لإنزيم CYP2C19 الكبدي.",
+                            Risk = "نقص ملحوظ في الحماية ضد التجلط وانسداد دعامة القلب.",
+                            Rec = "استبدال نيكسيوم بـ Pantoprazole.",
+                            Alt = "بانتوبرازول (Pantoprazole)"
+                        },
+                        new {
+                            Id = "ddi_exp_034",
+                            A = "clopidogrel", B = "diclofenac",
+                            Sev = "severe",
+                            Mech = "تقرحات معدية مع تثبيط وظيفة الصفائح الدموية.",
+                            Risk = "نزيف معوي حاد وفقر دم حاد.",
+                            Rec = "تجنب المسكنات غير الستيرويدية واستبدالها بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_035",
+                            A = "clopidogrel", B = "ibuprofen",
+                            Sev = "severe",
+                            Mech = "تثبيط حماية المعدة مع تعطيل التجلط الصفائحي.",
+                            Risk = "نزيف هضمي علوي.",
+                            Rec = "استبدال بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_036",
+                            A = "clopidogrel", B = "fluoxetine",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لـ CYP2C19 بواسطة الفلوكسيتين مما يمنع تنشيط الكلوبيدوجريل.",
+                            Risk = "فقدان الحماية القلبية وخطر جلطات شريانية.",
+                            Rec = "استبدال الفلوكسيتين بمضاد اكتئاب آخر لا يثبط CYP2C19 مثل السيرترالين.",
+                            Alt = "سيرترالين (Sertraline)"
+                        },
+                        new {
+                            Id = "ddi_exp_037",
+                            A = "nitroglycerin", B = "sildenafil",
+                            Sev = "severe",
+                            Mech = "تثبيط PDE5 مع إطلاق أكسيد النيتريك من النترات يؤدي لتراكم فائق لـ cGMP وتوسع وعائي هائل.",
+                            Risk = "هبوط حاد وقاتل في ضغط الدم، صدمة وعائية وتوقف عضلة القلب. مضاد استطباب مطلق.",
+                            Rec = "يمنع الجمع نهائياً وبشكل قاطع. يجب مرور 24 ساعة على الأقل بين الدوائين.",
+                            Alt = "ممنوع قطعياً ولا يجوز الصرف المشترك"
+                        },
+                        new {
+                            Id = "ddi_exp_038",
+                            A = "nitroglycerin", B = "tadalafil",
+                            Sev = "severe",
+                            Mech = "توسع وعائي شرياني شامل ومفرط يستمر لفترة طويلة بسبب طول عمر السياليس.",
+                            Risk = "هبوط ضغط شرياني حاد ومميت واحتشاء عضلة القلب.",
+                            Rec = "يمنع الجمع نهائياً. يجب مرور 48 ساعة كاملة بعد تادالافيل قبل أخذ أي نترات.",
+                            Alt = "ممنوع نهائياً خلال 48 ساعة"
+                        },
+                        new {
+                            Id = "ddi_exp_039",
+                            A = "nitroglycerin", B = "vardenafil",
+                            Sev = "severe",
+                            Mech = "انهيار الدورة الدموية الشريانية بفعل التراكم المفرط لـ cGMP.",
+                            Risk = "هبوط ضغط حاد وغيبوبة وتوقف القلب.",
+                            Rec = "يمنع الجمع نهائياً.",
+                            Alt = "ممنوع نهائياً"
+                        },
+                        new {
+                            Id = "ddi_exp_040",
+                            A = "isosorbide dinitrate", B = "sildenafil",
+                            Sev = "severe",
+                            Mech = "تأثير متآزر عنيف في توسيع الأوعية الدموية وهبوط المقاومة الطرفية.",
+                            Risk = "هبوط ضغط دم مميت وفشل نفاذ الدورة الدموية للشرايين التاجية.",
+                            Rec = "مضاد استطباب مطلق يهدد حياة المريض.",
+                            Alt = "ممنوع نهائياً"
+                        },
+                        new {
+                            Id = "ddi_exp_041",
+                            A = "isosorbide mononitrate", B = "sildenafil",
+                            Sev = "severe",
+                            Mech = "تراكم أكسيد النيتريك مع تثبيط تكسير cGMP يسبب توسعاً وعائياً كارثياً.",
+                            Risk = "صدمة وعائية حادة ووفاة مفاجئة.",
+                            Rec = "ممنوع الصرف المشترك منعاً باتاً.",
+                            Alt = "ممنوع نهائياً"
+                        },
+                        new {
+                            Id = "ddi_exp_042",
+                            A = "isosorbide mononitrate", B = "tadalafil",
+                            Sev = "severe",
+                            Mech = "هبوط شديد ومطول في ضغط الدم الشرياني قد يمتد لأكثر من 48 ساعة.",
+                            Risk = "فشل تروية القلب والدماغ والوفاة المفاجئة.",
+                            Rec = "يمنع الجمع قطعياً.",
+                            Alt = "ممنوع نهائياً"
+                        },
+                        new {
+                            Id = "ddi_exp_043",
+                            A = "digoxin", B = "amiodarone",
+                            Sev = "severe",
+                            Mech = "إزاحة الديجوكسين عن أنسجة الجسم وتثبيط التصفية الكلوية وغير الكلوية عبر P-gp.",
+                            Risk = "تسمم ديجوكسين قاتل: بطء نبض حاد، إحصار قلبي، واضطراب نظم بطيني مميت.",
+                            Rec = "تخفيض جرعة الديجوكسين بنسبة 50% فور بدء الأميودارون ومراقبة مستوى الديجوكسين بالدم.",
+                            Alt = "خفض جرعة الديجوكسين للنصف مع تحليل النسبة بالدم"
+                        },
+                        new {
+                            Id = "ddi_exp_044",
+                            A = "digoxin", B = "clarithromycin",
+                            Sev = "severe",
+                            Mech = "القضاء على بكتيريا الأمعاء (E. lentum) المعطلة للديجوكسين وتثبيط P-gp الكلوي.",
+                            Risk = "ارتفاع حاد في تركيز الديجوكسين وتسمم قلبي خطير وغثيان واضطراب رؤية الألوان.",
+                            Rec = "استبدال المضاد الحيوي بأزيثروميسين، أو خفض جرعة الديجوكسين للنصف ومراقبة تخطيط القلب.",
+                            Alt = "أزيثروميسين (Azithromycin)"
+                        },
+                        new {
+                            Id = "ddi_exp_045",
+                            A = "digoxin", B = "verapamil",
+                            Sev = "severe",
+                            Mech = "تثبيط إخراج الديجوكسين الكلوي مع تأثير مهدئ مضاعف على العقدة الأذينية البطينية AV.",
+                            Risk = "حصار قلبي تام AV block وتسمم بالديجوكسين.",
+                            Rec = "خفض جرعة الديجوكسين بنسبة 30% إلى 50% مع مراقبة النبض وتخطيط القلب.",
+                            Alt = "أملوديبين (Amlodipine) كبديل لضغط الدم"
+                        },
+                        new {
+                            Id = "ddi_exp_046",
+                            A = "digoxin", B = "spironolactone",
+                            Sev = "severe",
+                            Mech = "تثبيط الإفراز الكلوي الأنبوبي للديجوكسين والتداخل مع التحليل المخبري له.",
+                            Risk = "تسمم بالديجوكسين وارتفاع البوتاسيوم في الدم.",
+                            Rec = "مراقبة لصيقة لمستوى الديجوكسين ووظائف الكلى والبوتاسيوم.",
+                            Alt = "متابعة دورية للدم"
+                        },
+                        new {
+                            Id = "ddi_exp_047",
+                            A = "digoxin", B = "furosemide",
+                            Sev = "moderate",
+                            Mech = "إدرار البول يسبب نقص بوتاسيوم ومغنيسيوم الدم، مما يعزز ارتباط الديجوكسين بالقلب.",
+                            Risk = "تسمم ديجوكسين حتى مع وجود مستويات طبيعية منه بالدم، واضطراب نبض خطير.",
+                            Rec = "مراقبة أملاح الدم وإعطاء مكملات البوتاسيوم بانتظام عند الحاجة.",
+                            Alt = "تعويض البوتاسيوم بانتظام"
+                        },
+                        new {
+                            Id = "ddi_exp_048",
+                            A = "captopril", B = "spironolactone",
+                            Sev = "moderate",
+                            Mech = "تثبيط الرينين-أنجيوتنسين مع حصر مستقبلات الألدوستيرون يمنع طرح البوتاسيوم بالبول.",
+                            Risk = "فرط بوتاسيوم الدم (Hyperkalemia) المهدد لوظائف القلب واضطراب النبض.",
+                            Rec = "مراقبة مستويات البوتاسيوم ووظائف الكلى دورياً وتجنب مكملات البوتاسيوم.",
+                            Alt = "متابعة دورية مع طبيب القلب"
+                        },
+                        new {
+                            Id = "ddi_exp_049",
+                            A = "enalapril", B = "spironolactone",
+                            Sev = "moderate",
+                            Mech = "احتباس متزامن لأيونات البوتاسيوم.",
+                            Risk = "ارتفاع البوتاسيوم واضطراب كهربية القلب.",
+                            Rec = "فحص دوري للبوتاسيوم ووظائف الكلى.",
+                            Alt = "متابعة تحليل البوتاسيوم"
+                        },
+                        new {
+                            Id = "ddi_exp_050",
+                            A = "ramipril", B = "spironolactone",
+                            Sev = "moderate",
+                            Mech = "منع طرح البوتاسيوم في القنوات الكلوية.",
+                            Risk = "فرط بوتاسيوم الدم وتوقف عضلة القلب.",
+                            Rec = "فحص دوري للبوتاسيوم.",
+                            Alt = "متابعة البوتاسيوم بانتظام"
+                        },
+                        new {
+                            Id = "ddi_exp_051",
+                            A = "valsartan", B = "spironolactone",
+                            Sev = "moderate",
+                            Mech = "تثبيط الألدوستيرون بواسطة حاصر مستقبلات الأنجيوتنسين والمدر الموفر للبوتاسيوم.",
+                            Risk = "فرط بوتاسيوم حاد.",
+                            Rec = "تحليل أسبوعي للبوتاسيوم في بداية العلاج.",
+                            Alt = "متابعة دورية"
+                        },
+                        new {
+                            Id = "ddi_exp_052",
+                            A = "losartan", B = "spironolactone",
+                            Sev = "moderate",
+                            Mech = "احتباس البوتاسيوم بفعل حصر مستقبلات AT1 ومستقبلات الألدوستيرون.",
+                            Risk = "فرط بوتاسيوم الدم واضطراب النبض.",
+                            Rec = "مراقبة البوتاسيوم ووظائف الكلى.",
+                            Alt = "متابعة دورية"
+                        },
+                        new {
+                            Id = "ddi_exp_053",
+                            A = "captopril", B = "potassium chloride",
+                            Sev = "severe",
+                            Mech = "تراكم خارجي للبوتاسيوم مع انعدام إفرازه الكلوي بفعل مثبط ACE.",
+                            Risk = "ارتفاع حرج ومميت للبوتاسيوم بالدم وتوقف القلب المفاجئ (Cardiac Arrest).",
+                            Rec = "يمنع إعطاء أملاح البوتاسيوم مع مثبطات ACE إلا في نقص موثق وبجرعات محكومة.",
+                            Alt = "إيقاف مكمل البوتاسيوم"
+                        },
+                        new {
+                            Id = "ddi_exp_054",
+                            A = "ramipril", B = "potassium chloride",
+                            Sev = "severe",
+                            Mech = "تراكم سريع للبوتاسيوم في الدورة الدموية.",
+                            Risk = "توقف عضلة القلب المفاجئ وفرط بوتاسيوم حاد.",
+                            Rec = "تجنب الجمع قطعياً.",
+                            Alt = "تجنب مكمل البوتاسيوم"
+                        },
+                        new {
+                            Id = "ddi_exp_055",
+                            A = "valsartan", B = "potassium chloride",
+                            Sev = "severe",
+                            Mech = "عجز الكلى عن طرح البوتاسيوم الزائد مع حاصرات ARBs.",
+                            Risk = "سمية قلبية مهددة للحياة بسبب البوتاسيوم.",
+                            Rec = "يمنع إعطاء مكملات البوتاسيوم لمرضى الفالسارتان دون متابعة دقيقة.",
+                            Alt = "إلغاء مكمل البوتاسيوم"
+                        },
+                        new {
+                            Id = "ddi_exp_056",
+                            A = "captopril", B = "diclofenac",
+                            Sev = "moderate",
+                            Mech = "تثبيط البروستاجلاندين الكلوي بالمسكن يضيق الشريان الوارد الكلوي بينما ACE يوسع الصادر.",
+                            Risk = "فشل كلوي حاد (Triple Whammy)، احتباس السوائل وارتفاع ضغط الدم المقاوم.",
+                            Rec = "تجنب المسكنات غير الستيرويدية واستبدالها بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_057",
+                            A = "ramipril", B = "diclofenac",
+                            Sev = "moderate",
+                            Mech = "تدهور حاد في معدل الترشيح الكبيبي وارتفاع ضغط الدم.",
+                            Risk = "قصور كلوي حاد.",
+                            Rec = "استبدال بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_058",
+                            A = "valsartan", B = "ibuprofen",
+                            Sev = "moderate",
+                            Mech = "إلغاء المفعول الخافض لضغط الدم وتثبيط التروية الكلوية.",
+                            Risk = "ارتفاع ضغط الدم وفشل كلوي حاد.",
+                            Rec = "استبدال بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_059",
+                            A = "captopril", B = "valsartan",
+                            Sev = "severe",
+                            Mech = "حصار مزدوج لنظام رينين-أنجيوتنسين (ACEI + ARB).",
+                            Risk = "هبوط حاد في الضغط، فرط بوتاسيوم الدم، وتدهور سريع في وظائف الكلى دون فائدة مضافة.",
+                            Rec = "يمنع الجمع طبقاً للإرشادات العالمية الحديثة (ESC/AHA). الاكتفاء بأحدهما فقط.",
+                            Alt = "الاكتفاء بدواء واحد فقط من المجموعتين"
+                        },
+                        new {
+                            Id = "ddi_exp_060",
+                            A = "bisoprolol", B = "verapamil",
+                            Sev = "severe",
+                            Mech = "تثبيط مضاعف للعقدة الجيبية والعقدة الأذينية البطينية وانقباض عضلة القلب.",
+                            Risk = "تباطؤ قلبي شديد (Bradycardia)، إحصار أذيني بطيني كامل، وفشل قلبي حاد.",
+                            Rec = "يمنع الجمع إلا في حالات نادرة جداً بالمستشفى وتحت المراقبة القلبية المستمرة.",
+                            Alt = "أملوديبين (Amlodipine) كبديل آمن لحاصرات الكالسيوم"
+                        },
+                        new {
+                            Id = "ddi_exp_061",
+                            A = "atenolol", B = "verapamil",
+                            Sev = "severe",
+                            Mech = "تثبيط شديد لكهربية القلب والتوصيل العصبي العضلي.",
+                            Risk = "توقف القلب المفاجئ والإحصار التام.",
+                            Rec = "يمنع الجمع قطعياً.",
+                            Alt = "أملوديبين (Amlodipine)"
+                        },
+                        new {
+                            Id = "ddi_exp_062",
+                            A = "bisoprolol", B = "diltiazem",
+                            Sev = "severe",
+                            Mech = "تأثير سلبي متزامن على نبض القلب وقوة الانقباض.",
+                            Risk = "هبوط حاد في النبض والضغط وفشل قلبي.",
+                            Rec = "استبدال الديلتيازيم بحاصر كالسيوم ديهيدروبيريديني مثل أملوديبين.",
+                            Alt = "أملوديبين (Amlodipine)"
+                        },
+                        new {
+                            Id = "ddi_exp_063",
+                            A = "amiodarone", B = "levofloxacin",
+                            Sev = "severe",
+                            Mech = "تأثير تآزري في تثبيط قنوات البوتاسيوم القلبية واستطالة إعادة الاستقطاب البطيني.",
+                            Risk = "استطالة خطيرة في فترة QT وتسارع بطيني مميت (Torsades de Pointes) وموت مفاجئ.",
+                            Rec = "يمنع الجمع قطعياً. اختيار مضاد حيوي لا يسبب استطالة QT.",
+                            Alt = "أموكسيسيلين/كلافولانات أو سيفالوسبورين مناسب"
+                        },
+                        new {
+                            Id = "ddi_exp_064",
+                            A = "amiodarone", B = "ciprofloxacin",
+                            Sev = "severe",
+                            Mech = "استطالة شديدة لفترة QT وتثبيط كهربية البطين.",
+                            Risk = "تسارع بطيني خطير وتوقف القلب المفاجئ.",
+                            Rec = "يمنع الجمع. استخدام بديل مضاد حيوي آمن.",
+                            Alt = "سيفالوسبورين أو بكتام بديل"
+                        },
+                        new {
+                            Id = "ddi_exp_065",
+                            A = "atorvastatin", B = "clarithromycin",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لإنزيم CYP3A4 الكبدي مما يرفع تركيز الأتورفاستاتين عدة أضعاف.",
+                            Risk = "انحلال العضلات المخططة (Rhabdomyolysis)، بيلة الميوجلوبين، وفشل كلوي حاد.",
+                            Rec = "إيقاف مؤقت للستاتين طوال فترة العلاج بالمضاد الحيوي واستئنافه بعد يومين من انتهائه.",
+                            Alt = "إيقاف مؤقت للستاتين أو استبدال المضاد بأزيثروميسين"
+                        },
+                        new {
+                            Id = "ddi_exp_066",
+                            A = "simvastatin", B = "clarithromycin",
+                            Sev = "severe",
+                            Mech = "ارتفاع تركيز السيمفاستاتين لأكثر من 10 أضعاف بسبب تثبيط CYP3A4.",
+                            Risk = "تلف عضلي حاد ومميت وفشل كلوي.",
+                            Rec = "مضاد استطباب مطلق. يجب إيقاف السيمفاستاتين تماماً أثناء كورس الكلارثروميسين.",
+                            Alt = "إيقاف مؤقت للستاتين"
+                        },
+                        new {
+                            Id = "ddi_exp_067",
+                            A = "atorvastatin", B = "itraconazole",
+                            Sev = "severe",
+                            Mech = "تراكم الستاتين في الدم والأنسجة العضلية.",
+                            Risk = "انحلال العضلات المخططة وفشل كلوي حاد.",
+                            Rec = "إيقاف الستاتين مؤقتاً أثناء العلاج بمضاد الفطريات.",
+                            Alt = "إيقاف مؤقت للستاتين"
+                        },
+                        new {
+                            Id = "ddi_exp_068",
+                            A = "simvastatin", B = "gemfibrozil",
+                            Sev = "severe",
+                            Mech = "تثبيط اقتران السيمفاستاتين بالجلوكورونيد مما يرفع تركيزه بدرجة خطيرة.",
+                            Risk = "انحلال عضلات شديد وتسمم كبدي وكلوي.",
+                            Rec = "يمنع الجمع قطعياً. استبدال الجيمفيبروزيل بـ Fenofibrate مع مراقبة ألم العضلات.",
+                            Alt = "فينوفايبرات (Fenofibrate)"
+                        },
+                        new {
+                            Id = "ddi_exp_069",
+                            A = "ciprofloxacin", B = "calcium carbonate",
+                            Sev = "moderate",
+                            Mech = "تكوين معقد مخلبي غير قابل للذوبان بين ذرة الكالسيوم وحلقة الكينولون.",
+                            Risk = "فشل امتصاص السيبروفلوكساسين بنسبة تتجاوز 75% وفشل علاج العدوى البكتيرية.",
+                            Rec = "فصل الجرعات: تناول السيبروفلوكساسين بساعتين قبل الكالسيوم أو 4-6 ساعات بعده.",
+                            Alt = "فصل زمني ساعتين قبل أو 4 ساعات بعد"
+                        },
+                        new {
+                            Id = "ddi_exp_070",
+                            A = "ciprofloxacin", B = "ferrous sulfate",
+                            Sev = "moderate",
+                            Mech = "رسوب مخلبي مع أيونات الحديد يمنع امتصاص المضاد الحيوي في الأمعاء.",
+                            Risk = "انعدام فاعلية المضاد الحيوي وفشل علاج الالتهاب.",
+                            Rec = "فصل تناول الحديد عن السيبروفلوكساسين بـ 4 ساعات على الأقل.",
+                            Alt = "فصل زمني 4 ساعات"
+                        },
+                        new {
+                            Id = "ddi_exp_071",
+                            A = "ciprofloxacin", B = "aluminum hydroxide",
+                            Sev = "moderate",
+                            Mech = "ارتباط أيونات الألومنيوم والمغنيسيوم في مضادات الحموضة بجزيء الكينولون.",
+                            Risk = "هبوط حاد في التوافر الحيوي للمضاد الحيوي.",
+                            Rec = "تناول المضاد الحيوي ساعتين قبل مضاد الحموضة أو 4 ساعات بعده.",
+                            Alt = "فصل زمني ساعتين قبل أو 4 ساعات بعد"
+                        },
+                        new {
+                            Id = "ddi_exp_072",
+                            A = "levofloxacin", B = "calcium carbonate",
+                            Sev = "moderate",
+                            Mech = "تكوين مخلبي مع الكالسيوم يمنع الامتصاص.",
+                            Risk = "فشل علاج الالتهاب الرئوي أو المسالك البولية.",
+                            Rec = "فصل الجرعات بما لا يقل عن ساعتين إلى 3 ساعات.",
+                            Alt = "فصل زمني ساعتين إلى 3 ساعات"
+                        },
+                        new {
+                            Id = "ddi_exp_073",
+                            A = "levofloxacin", B = "ferrous sulfate",
+                            Sev = "moderate",
+                            Mech = "تعطيل امتصاص الليفوفلوكساسين بفعل الحديد.",
+                            Risk = "عدم وصول المضاد للتركيز العلاجي في الدم.",
+                            Rec = "فصل الجرعات 4 ساعات.",
+                            Alt = "فصل زمني 4 ساعات"
+                        },
+                        new {
+                            Id = "ddi_exp_074",
+                            A = "doxycycline", B = "iron",
+                            Sev = "moderate",
+                            Mech = "ارتباط أيونات الحديد مع الدوكسيسيكلين وتكوين معقد خامل غير ممتص.",
+                            Risk = "فشل علاج العدوى الميكروبية ونقص امتصاص الحديد أيضاً.",
+                            Rec = "فصل تناول الدوكسيسيكلين عن مكملات الحديد بـ 3 ساعات على الأقل.",
+                            Alt = "فصل زمني 3 ساعات"
+                        },
+                        new {
+                            Id = "ddi_exp_075",
+                            A = "doxycycline", B = "calcium carbonate",
+                            Sev = "moderate",
+                            Mech = "خلب أيونات الكالسيوم مع حلقة التتراسيكلين وتراجع الامتصاص.",
+                            Risk = "انخفاض فاعلية المضاد الحيوي بنسبة 50%.",
+                            Rec = "فصل الجرعات بساعتين على الأقل.",
+                            Alt = "فصل زمني ساعتين"
+                        },
+                        new {
+                            Id = "ddi_exp_076",
+                            A = "doxycycline", B = "isotretinoin",
+                            Sev = "severe",
+                            Mech = "تأثير تراكمي يرفع الضغط داخل السائل الدماغي الشوكي.",
+                            Risk = "ارتفاع ضغط الدم داخل الجمجمة الحميد (Pseudotumor Cerebri)، صداع عنيف، وخطر العمى الدائم.",
+                            Rec = "يمنع الجمع قطعياً. مضاد استطباب مطلق.",
+                            Alt = "ممنوع الجمع قطعياً"
+                        },
+                        new {
+                            Id = "ddi_exp_077",
+                            A = "ciprofloxacin", B = "theophylline",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لإنزيم CYP1A2 المسؤول عن تكسير الثيوفيللين في الكبد.",
+                            Risk = "تسمم حاد بالثيوفيللين، غثيان شديد، خفقان، تشنجات صرعية مستمرة، وتوقف القلب.",
+                            Rec = "تجنب الجمع أو خفض جرعة الثيوفيللين بمقدار 50% مع فحص تركيزه بالدم.",
+                            Alt = "مضاد حيوي بديل لا يثبط CYP1A2"
+                        },
+                        new {
+                            Id = "ddi_exp_078",
+                            A = "ciprofloxacin", B = "prednisolone",
+                            Sev = "moderate",
+                            Mech = "تأثير متآزر على النسيج الضام وألياف الكولاجين.",
+                            Risk = "تضاعف خطر التهاب وتمزق الأوتار وخاصة وتر العرقوب (Achilles Tendon Rupture).",
+                            Rec = "تنبيه المريض للتوقف الفوري ومراجعة الطبيب عند حدوث أي ألم في الكعب أو الأوتار.",
+                            Alt = "مضاد حيوي بديل لكبار السن والرياضيين"
+                        },
+                        new {
+                            Id = "ddi_exp_079",
+                            A = "clarithromycin", B = "colchicine",
+                            Sev = "severe",
+                            Mech = "تثبيط مزدوج لـ CYP3A4 و P-gp مما يعطل التخلص من الكولشيسين كبدياً وكلوياً.",
+                            Risk = "تسمم كولشيسين حاد ومميت، فشل أعضاء متعدد، وتثبيط نخاع العظم.",
+                            Rec = "يمنع الجمع قطعياً خاصة في مرضى القصور الكلوي أو الكبدي.",
+                            Alt = "مضاد حيوي بديل كالأموكسيسيلين"
+                        },
+                        new {
+                            Id = "ddi_exp_080",
+                            A = "linezolid", B = "fluoxetine",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيم MAO غير الانتقائي بواسطة اللينزوليد مع منع استرجاع السيروتونين.",
+                            Risk = "متلازمة السيروتونين القاتلة (Serotonin Syndrome): ارتفاع حرارة خبيث، تشنجات، ووفاة.",
+                            Rec = "يمنع الجمع نهائياً. يجب إيقاف مثبط السيروتونين بفترة كافية قبل اللينزوليد.",
+                            Alt = "مضاد بكتيري بديل لا يثبط MAO (مثل فانكومايسين)"
+                        },
+                        new {
+                            Id = "ddi_exp_081",
+                            A = "linezolid", B = "tramadol",
+                            Sev = "severe",
+                            Mech = "تراكم هائل للسيروتونين في المشابك العصبية.",
+                            Risk = "تشنجات صرعية حادة وتسمم سيروتونيني مهدد للحياة.",
+                            Rec = "يمنع استخدام الترامادول لمريض يتناول اللينزوليد.",
+                            Alt = "باراسيتامول لتسكين الألم"
+                        },
+                        new {
+                            Id = "ddi_exp_082",
+                            A = "metronidazole", B = "alcohol",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيم ألدهيد ديهيدروجينيز الكبدي وتراكم الأسيتالدهيد السام.",
+                            Risk = "تفاعل شبيه بالديسولفيرام (Disulfiram-like reaction): قيء عنيف، خفقان، هبوط ضغط، وصدمة.",
+                            Rec = "الامتناع التام عن أي مستحضرات حاوية على الكحول أثناء العلاج ولمدة 48 ساعة بعده.",
+                            Alt = "تجنب الكحول تماماً"
+                        },
+                        new {
+                            Id = "ddi_exp_083",
+                            A = "tramadol", B = "fluoxetine",
+                            Sev = "severe",
+                            Mech = "تراكم السيروتونين وتثبيط تحويل الترامادول لمسكّنه الفعال عبر CYP2D6.",
+                            Risk = "متلازمة السيروتونين وتشنجات عصبية حادة.",
+                            Rec = "تجنب الجمع واستبدال المسكن بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_084",
+                            A = "tramadol", B = "paroxetine",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لـ CYP2D6 وزيادة حادة في النواقل السيروتونينية.",
+                            Risk = "نوبات صرع ومتلازمة السيروتونين وفرط الحرارة.",
+                            Rec = "يمنع الجمع.",
+                            Alt = "مسكنات بديلة غير سيروتونينية"
+                        },
+                        new {
+                            Id = "ddi_exp_085",
+                            A = "tramadol", B = "sertraline",
+                            Sev = "severe",
+                            Mech = "تحفيز مفرط لمستقبلات 5-HT في الجهاز العصبي المركزي.",
+                            Risk = "متلازمة السيروتونين ورجفان وتشنجات.",
+                            Rec = "تجنب الجمع واستخدام بديل آمن.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_086",
+                            A = "tramadol", B = "escitalopram",
+                            Sev = "severe",
+                            Mech = "تراكم السيروتونين المشبكي وتراجع عتبة التشنجات.",
+                            Risk = "تشنجات عصبية وسمية سيروتونينية.",
+                            Rec = "تجنب الجمع.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_087",
+                            A = "tramadol", B = "duloxetine",
+                            Sev = "severe",
+                            Mech = "تأثير مزدوج على السيروتونين والنورأدرينالين.",
+                            Risk = "متلازمة سيروتونين حادة وارتفاع ضغط الدم الشرياني.",
+                            Rec = "تجنب الجمع.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_088",
+                            A = "tramadol", B = "alprazolam",
+                            Sev = "severe",
+                            Mech = "تأثير مهدئ متآزر يثبط مراكز التنفس في جذع المخ (تحذير الصندوق الأسود FDA).",
+                            Risk = "تثبيط تنفسي حاد، غيبوبة، وخطر الوفاة بالاختناق أثناء النوم.",
+                            Rec = "تجنب الجمع بين الأفيونات والمهدئات إلا بجرعات دنيا تحت رقابة مشددة.",
+                            Alt = "تجنب الجمع بين البنزوديازيبين والمسكنات الأفيونية"
+                        },
+                        new {
+                            Id = "ddi_exp_089",
+                            A = "tramadol", B = "clonazepam",
+                            Sev = "severe",
+                            Mech = "تثبيط مركزي تآزري للجهاز العصبي والتنفسي.",
+                            Risk = "توقف التنفس والغيبوبة والوفاة.",
+                            Rec = "يمنع الجمع إلا بإشراف طبي استثنائي.",
+                            Alt = "تجنب الجمع"
+                        },
+                        new {
+                            Id = "ddi_exp_090",
+                            A = "morphine", B = "alprazolam",
+                            Sev = "severe",
+                            Mech = "تثبيط حاد لمركز التنفس في المخ بفعل الأفيون والمهدئ معاً.",
+                            Risk = "فشل تنفسي مميت وغيبوبة عميقة.",
+                            Rec = "تحذير مشدد من FDA لتجنب الجمع إلا في العناية المركزة.",
+                            Alt = "تجنب الجمع"
+                        },
+                        new {
+                            Id = "ddi_exp_091",
+                            A = "lithium", B = "ibuprofen",
+                            Sev = "severe",
+                            Mech = "تثبيط البروستاجلاندين الكلوي يقلل تصفية الليثيوم بنسبة تصل إلى 40%.",
+                            Risk = "تسمم حاد بالليثيوم: ترنح، رعاش شديد، تخبط عقلي، فشل كلوي وغيبوبة.",
+                            Rec = "يمنع استخدام مضادات الالتهاب غير الستيرويدية مع الليثيوم. استخدام الباراسيتامول حصراً.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_092",
+                            A = "lithium", B = "diclofenac",
+                            Sev = "severe",
+                            Mech = "انخفاض الإخراج الكلوي للليثيوم وتراكمه السام بالدم.",
+                            Risk = "تسمم دموي بالليثيوم مهدد للحياة.",
+                            Rec = "يمنع الجمع. استخدام الباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_093",
+                            A = "lithium", B = "captopril",
+                            Sev = "severe",
+                            Mech = "مثبطات ACE تقلل تصفية الليثيوم الكلوي وترفع مستواه بالدم.",
+                            Risk = "تسمم ليثيوم حاد وتلف عصبي.",
+                            Rec = "مراقبة أسبوعية لتركيز الليثيوم ووظائف الكلى وتخفيض جرعة الليثيوم.",
+                            Alt = "حاصرات قنوات الكالسيوم لضغط الدم"
+                        },
+                        new {
+                            Id = "ddi_exp_094",
+                            A = "lithium", B = "hydrochlorothiazide",
+                            Sev = "severe",
+                            Mech = "مدرات الثيازيد تسبب نقص الصوديوم مما يدفع الكلى لإعادة امتصاص الليثيوم بشراهة.",
+                            Risk = "ارتفاع سريع وحرج في مستوى الليثيوم وتسمم عصبي.",
+                            Rec = "تجنب مدرات الثيازيد لمرضى الليثيوم.",
+                            Alt = "مدر بديل تحت إشراف متخصص"
+                        },
+                        new {
+                            Id = "ddi_exp_095",
+                            A = "carbamazepine", B = "clarithromycin",
+                            Sev = "severe",
+                            Mech = "تثبيط قوي لإنزيم CYP3A4 يمنع تكسير الكاربامازيبين ويرفع تركيزه للضعف.",
+                            Risk = "تسمم كاربامازيبين: ازدواج الرؤية، دوار حاد، ترنح، هبوط تنفسي وغيبوبة.",
+                            Rec = "تجنب الكلارثروميسين واستبداله بأزيثروميسين.",
+                            Alt = "أزيثروميسين (Azithromycin)"
+                        },
+                        new {
+                            Id = "ddi_exp_096",
+                            A = "valproic acid", B = "meropenem",
+                            Sev = "severe",
+                            Mech = "تثبيط حلمهة جلوكورونيد الفالبروات وتسريع تصفيته خارج الجسم.",
+                            Risk = "هبوط سريع ومفاجئ في مستويات الفالبروات بنسبة 80% وحدوث حالة صرعية مستمرة (Status Epilepticus).",
+                            Rec = "يمنع الجمع قطعياً. اختيار مضاد حيوي من عائلة أخرى لعلاج العدوى.",
+                            Alt = "مضاد بكتيري غير الكاربابينيم"
+                        },
+                        new {
+                            Id = "ddi_exp_097",
+                            A = "contrast media", B = "metformin",
+                            Sev = "severe",
+                            Mech = "صبغات الأشعة الميودنة قد تسبب اعتلالاً كلوياً حاداً مما يؤدي لتراكم الميتفورمين بالجسم.",
+                            Risk = "حماض لاكتيكي حاد ومميت (Lactic Acidosis) وفشل كلوي.",
+                            Rec = "إيقاف الميتفورمين وقت الفحص الإشعاعي ولمدة 48 ساعة بعده، وعدم استئنافه إلا بعد التأكد من وظائف الكلى.",
+                            Alt = "إيقاف مؤقت 48 ساعة قبل وبعد الأشعة بالصبغة"
+                        },
+                        new {
+                            Id = "ddi_exp_098",
+                            A = "glimepiride", B = "fluconazole",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيم CYP2C9 الكبدي المسؤول عن أيض الجليميبيريد.",
+                            Risk = "هبوط حاد وطويل الأمد في سكر الدم (Severe Hypoglycemia) قد يؤدي لغيبوبة سكر وتلف دماغي.",
+                            Rec = "مراقبة مكثفة لمستوى السكر وخفض جرعة السلفونيل يوريا أثناء العلاج بمضاد الفطريات.",
+                            Alt = "تخفيض جرعة السكر ومراقبة الجلوكوز"
+                        },
+                        new {
+                            Id = "ddi_exp_099",
+                            A = "gliclazide", B = "fluconazole",
+                            Sev = "severe",
+                            Mech = "تثبيط تكسير الجليكلازيد وتراكمه بالدورة الدموية.",
+                            Risk = "غيبوبة هبوط سكر الدم الحادة.",
+                            Rec = "مراقبة سكر الدم بدقة وتعديل الجرعة.",
+                            Alt = "مراقبة مكثفة لسكر الدم"
+                        },
+                        new {
+                            Id = "ddi_exp_100",
+                            A = "methotrexate", B = "diclofenac",
+                            Sev = "severe",
+                            Mech = "خفض تدفق الدم الكلوي وتثبيط الإخراج الأنبوبي للميثوتريكسات.",
+                            Risk = "تسمم دموي خطير ونقص كريات الدم البيضاء والصفائح وفشل نخاع العظم.",
+                            Rec = "يمنع استخدام الديكلوفيناك لمريض يتناول الميثوتريكسات.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_101",
+                            A = "methotrexate", B = "ibuprofen",
+                            Sev = "severe",
+                            Mech = "تثبيط التصفية الكلوية للميثوتريكسات وتراكمه السام بالأنسجة.",
+                            Risk = "تسمم حاد وفشل كلوي وتقرحات شديدة ونقص حاد في المناعة.",
+                            Rec = "يمنع الجمع. استخدام الباراسيتامول لتسكين الألم.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_102",
+                            A = "methotrexate", B = "amoxicillin",
+                            Sev = "severe",
+                            Mech = "تنافس على مسار الإفراز الأنبوبي الكلوي العضوي.",
+                            Risk = "ارتفاع تركيز الميثوتريكسات وسمية نخاع العظم.",
+                            Rec = "مراقبة دقيقة لكريات الدم أو اختيار مضاد حيوي بديل.",
+                            Alt = "مضاد حيوي بديل مناسب"
+                        },
+                        new {
+                            Id = "ddi_exp_103",
+                            A = "methotrexate", B = "trimethoprim",
+                            Sev = "severe",
+                            Mech = "تثبيط تآزري مضاعف لإنزيم ديهيدروفولات ريدكتيز (DHFR).",
+                            Risk = "فشل نخاع العظم الحاد ونقص خطير في جميع خلايا الدم (Pancytopenia).",
+                            Rec = "يمنع الجمع قطعياً بين الميثوتريكسات ومستحضرات السبتريم/باكتريم.",
+                            Alt = "مضاد بكتيري بديل غير مانع للفولات"
+                        },
+                        new {
+                            Id = "ddi_exp_104",
+                            A = "methotrexate", B = "omeprazole",
+                            Sev = "severe",
+                            Mech = "تثبيط ناقل BCRP وتأخير الإخراج الكلوي للميثوتريكسات بجرعاته العالية.",
+                            Risk = "تسمم جهازي خطير بالميثوتريكسات وفشل كلوي.",
+                            Rec = "استبدال الأوميبرازول بـ فاموتيدين أو رانيتيدين.",
+                            Alt = "فاموتيدين (Famotidine)"
+                        },
+                        new {
+                            Id = "ddi_exp_105",
+                            A = "allopurinol", B = "azathioprine",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيم زانثين أوكسيديز المسؤول رئيسياً عن تكسير 6-ميركابتوبيورين النشط.",
+                            Risk = "فشل نخاع العظم القاتل، انعدام كريات الدم البيضاء، والوفاة بالعدوى أو النزيف.",
+                            Rec = "يمنع الجمع، وإذا كان ضرورياً يجب تخفيض جرعة أزاثيوبرين فوراً إلى ربع الجرعة (25%).",
+                            Alt = "تخفيض جرعة أزاثيوبرين لـ 25% مع تحليل دم أسبوعي"
+                        },
+                        new {
+                            Id = "ddi_exp_106",
+                            A = "allopurinol", B = "amoxicillin",
+                            Sev = "moderate",
+                            Mech = "تفاعل مناعي جلدي تحسسي غير محدد الآلية.",
+                            Risk = "ارتفاع نسبة حدوث الطفح الجلدي التحسسي الشديد لتصل إلى 20% من المرضى.",
+                            Rec = "تنبيه المريض للتوقف ومراجعة الطبيب عند ظهور أي طفح جلدي، أو اختيار مضاد بديل.",
+                            Alt = "سيفالوسبورين بديل"
+                        },
+                        new {
+                            Id = "ddi_exp_107",
+                            A = "levothyroxine", B = "calcium carbonate",
+                            Sev = "moderate",
+                            Mech = "ارتباط أيونات الكالسيوم بهرمون الثيروكسين في المعدة وتكوين معقد غير ممتص.",
+                            Risk = "هبوط امتصاص الإلتروكسين بنسبة تصل إلى 30% وانتكاس أعراض خمول الغدة الدرقية.",
+                            Rec = "فصل الجرعات: تناول الإلتروكسين على الريق صباحاً وتناول مكمل الكالسيوم بعد 4 ساعات.",
+                            Alt = "فصل زمني 4 ساعات على الأقل"
+                        },
+                        new {
+                            Id = "ddi_exp_108",
+                            A = "levothyroxine", B = "ferrous sulfate",
+                            Sev = "moderate",
+                            Mech = "ترسيب جزيء الثيروكسين بواسطة أيونات الحديد ومنع امتصاصه المعوي.",
+                            Risk = "فشل السيطرة على هرمون الغدة الدرقية وارتفاع TSH.",
+                            Rec = "فصل تناول الحديد عن الإلتروكسين بـ 4 ساعات على الأقل.",
+                            Alt = "فصل زمني 4 ساعات"
+                        },
+                        new {
+                            Id = "ddi_exp_109",
+                            A = "aspirin", B = "ibuprofen",
+                            Sev = "severe",
+                            Mech = "تثبيط تنافسي على موقع ارتباط إنزيم COX-1 مما يمنع الأسبرين من تثبيط الصفائح بشكل دائم، مع مضاعفة تأثير التآكل المعوي.",
+                            Risk = "فقدان الحماية القلبية للأسبرين وارتفاع خطر الجلطات القلبية والسكتات الدماغية، مع نزيف وقرح هضمية حادة.",
+                            Rec = "يجب تناول الأسبرين قبل الإيبوبروفين بـ 30 دقيقة على الأقل، أو بعده بـ 8 ساعات، والأفضل استبدال المسكن بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_110",
+                            A = "aspirin", B = "diclofenac",
+                            Sev = "severe",
+                            Mech = "تثبيط مضاعف لإنزيمات الأكسدة الحلقية وتثبيط تخليق البروستاجلاندين الحامي لبطانة المعدة مع إضعاف التخثر.",
+                            Risk = "تقرحات هضمية نازفة، نزيف معدي معوي حاد، وإضعاف الفاعلية الوقائية للأسبرين لمرضى القلب.",
+                            Rec = "تجنب الجمع قدر الإمكان واستبدال الديكلوفيناك بالباراسيتامول، أو إضافة حامي معدة (PPI) ومباعدة الجرعات.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_111",
+                            A = "aspirin", B = "ketoprofen",
+                            Sev = "severe",
+                            Mech = "تآزر سلبي قوي في تدمير الحاجز المخاطي للمعدة وتثبيط تخثر الدم.",
+                            Risk = "نزيف معدي معوي مفاجئ وثقب جدار المعدة.",
+                            Rec = "يمنع الجمع. استخدام باراسيتامول كمسكن آمن.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_112",
+                            A = "aspirin", B = "ketorolac",
+                            Sev = "severe",
+                            Mech = "تثبيط هائل وغير رجعي لتجمع الصفائح مع سمية هضمية فائقة للكيتورولاك.",
+                            Risk = "نزيف هضمي كارثي مهدد للحياة (Contraindicated).",
+                            Rec = "يمنع الجمع قطعياً وحظر صرف كيتورولاك لمريض يتناول الأسبرين.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_113",
+                            A = "aspirin", B = "clopidogrel",
+                            Sev = "moderate",
+                            Mech = "تثبيط مزدوج للصفائح الدموية (Dual Antiplatelet Therapy - DAPT).",
+                            Risk = "ارتفاع ملحوظ في احتمالية النزيف الهضمي والكدمات الجلدية، يستلزم بروتوكولاً طبياً محدداً.",
+                            Rec = "لا يصرف الجمع إلا بقرار وتذكرة طبيب قلب متخصص مع مراقبة علامات النزيف وحماية المعدة.",
+                            Alt = "مراجعة طبيب القلب المشرف"
+                        },
+                        new {
+                            Id = "ddi_exp_114",
+                            A = "fluoxetine", B = "diclofenac",
+                            Sev = "moderate",
+                            Mech = "مضادات الاكتئاب SSRI تقلل مخزون السيروتونين داخل الصفائح والمسكنات تمنع البروستانويدات.",
+                            Risk = "ارتفاع خطر النزيف المعوي العلوي بنسبة 3 إلى 6 أضعاف.",
+                            Rec = "الحذر عند الجمع، وتفضيل الباراسيتامول للألم، أو إضافة حامي معدة (PPI).",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_115",
+                            A = "escitalopram", B = "ibuprofen",
+                            Sev = "moderate",
+                            Mech = "تثبيط تراكم الصفائح الناجم عن استنزاف السيروتونين بالتزامن مع تثبيط COX-1.",
+                            Risk = "نزيف هضمي وقرح معوية صامتة وكدمات غير مبررة.",
+                            Rec = "تجنب مسكنات NSAIDs والاستعاضة عنها بالباراسيتامول.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_116",
+                            A = "sertraline", B = "diclofenac",
+                            Sev = "moderate",
+                            Mech = "تداخل دوائي صفائحي معوي يرفع نسبة النزيف الداخلي.",
+                            Risk = "نزيف الأغشية المخاطية والجهاز الهضمي.",
+                            Rec = "استخدام مسكنات آمنة مثل الباراسيتامول ومراقبة أي براز أسود أو قيء.",
+                            Alt = "باراسيتامول (Paracetamol)"
+                        },
+                        new {
+                            Id = "ddi_exp_117",
+                            A = "colchicine", B = "atorvastatin",
+                            Sev = "severe",
+                            Mech = "تأثير عضلي سام مضاعف مع تداخل في مسار النقل الخلوي P-gp.",
+                            Risk = "اعتلال عضلي حاد، انحلال الربيدات (Rhabdomyolysis) وفشل كلوي حاد.",
+                            Rec = "مراقبة مستويات إنزيم CPK فوراً عند ظهور أي ألم عضلي غير مبرر أو بول داكن.",
+                            Alt = "تعديل جرعة الكولشيسين أو إيقاف الاستاتين مؤقتاً"
+                        },
+                        new {
+                            Id = "ddi_exp_118",
+                            A = "colchicine", B = "simvastatin",
+                            Sev = "severe",
+                            Mech = "تثبيط أيض السيمفاستاتين وتراكم سمي يؤدي لاعتلال النسيج العضلي التخطيطي.",
+                            Risk = "انحلال العضلات المخططة وتلف وظائف الكلى الحاد.",
+                            Rec = "تجنب الجمع أو استخدام أقل جرعة ممكنة مع المتابعة السريرية الدقيقة.",
+                            Alt = "روزوفاستاتين بجرعة منخفضة مع مراقبة لصيقة"
+                        },
+                        new {
+                            Id = "ddi_exp_119",
+                            A = "spironolactone", B = "potassium chloride",
+                            Sev = "severe",
+                            Mech = "سبيرونولاكتون يمنع إفراز البوتاسيوم في الأنابيب الكلوية مما يؤدي لتراكم مباشر للبوتاسيوم التكميلي.",
+                            Risk = "فرط بوتاسيوم الدم الحاد (Hyperkalemia > 6.0 mEq/L) وتوقف القلب الفجائي.",
+                            Rec = "يمنع صرف مكملات البوتاسيوم مع مدرات البول الحافظة للبوتاسيوم نهائياً.",
+                            Alt = "إيقاف مكمل البوتاسيوم ومتابعة شوارد الدم"
+                        },
+                        new {
+                            Id = "ddi_exp_120",
+                            A = "digoxin", B = "diltiazem",
+                            Sev = "severe",
+                            Mech = "تثبيط الإفراز الكلوي للديلتيازيم وتأثير مثبط متبادل للعقدة الأذينية البطينية (AV node).",
+                            Risk = "تسمم الديجوكسين، إحصار قلبي تام وبطء شديد في النبض.",
+                            Rec = "تخفيض جرعة الديجوكسين إلى النصف ومراقبة تخطيط القلب ومستوى الدواء في الدم.",
+                            Alt = "مراقبة دقيقة أو بدائل خافضة للضغط"
+                        },
+                        new {
+                            Id = "ddi_exp_121",
+                            A = "levothyroxine", B = "aluminum hydroxide",
+                            Sev = "moderate",
+                            Mech = "الألومنيوم في مضادات الحموضة يمتص هرمون الثيروكسين ويرتبط به كيميائياً في الأمعاء.",
+                            Risk = "فشل امتصاص الثيروكسين وعودة أعراض خمول الغدة الدرقية الشديدة.",
+                            Rec = "الفصل بين الدواءين بفاصل زمني لا يقل عن 4 ساعات.",
+                            Alt = "فصل الجرعات بـ 4 ساعات على الأقل"
+                        },
+                        new {
+                            Id = "ddi_exp_122",
+                            A = "doxycycline", B = "aluminum hydroxide",
+                            Sev = "moderate",
+                            Mech = "أيونات الألومنيوم تشكل معقدات استخلاب غير ذائبة مع الدوكسيسيكلين.",
+                            Risk = "انخفاض حاد في الامتصاص الحيوي وفشل القضاء على العدوى الميكروبية.",
+                            Rec = "تناول مضاد الحموضة بعد الدوكسيسيكلين بـ ساعتين إلى 3 ساعات على الأقل.",
+                            Alt = "مباعدة الجرعات ساعتين إلى 3 ساعات"
+                        },
+                        new {
+                            Id = "ddi_exp_123",
+                            A = "atorvastatin", B = "fluconazole",
+                            Sev = "severe",
+                            Mech = "تثبيط إنزيم CYP3A4 يمنع تكسير الأتورفاستاتين ويرفع مستواه بالبلازما 3 أضعاف.",
+                            Risk = "آلام عضلية شديدة وانحلال العضلات (Rhabdomyolysis).",
+                            Rec = "تخفيض جرعة الأتورفاستاتين أو إيقافه مؤقتاً طوال كورس مضاد الفطريات.",
+                            Alt = "روزوفاستاتين أو التوقف المؤقت للاستاتين"
+                        },
+                        new {
+                            Id = "ddi_exp_124",
+                            A = "simvastatin", B = "fluconazole",
+                            Sev = "severe",
+                            Mech = "تثبيط استقلاب السيمفاستاتين الكبدي الحساس جداً لمثبطات CYP3A4.",
+                            Risk = "اعتلال عضلي تنكسي حاد، بيلة عضلية وفشل كلوي.",
+                            Rec = "يمنع الجمع. إيقاف السيمفاستاتين مؤقتاً أثناء علاج الفطريات.",
+                            Alt = "إيقاف السيمفاستاتين حتى انتهاء العلاج الفطري"
+                        },
+                        new {
+                            Id = "ddi_exp_125",
+                            A = "methotrexate", B = "aspirin",
+                            Sev = "severe",
+                            Mech = "تنافس الأسبرين على قنوات الإخراج الأنبوبي الكلوي للميثوتريكسات وإزاحته عن الألبومين.",
+                            Risk = "تسمم دموي حاد بالميثوتريكسات، فشل نخاع العظم، نقص حاد في الصفائح والمناعة.",
+                            Rec = "يمنع الجمع نهائياً في الجرعات العالية، ويحظر صرف الأسبرين المسكن لمريض الميثوتريكسات.",
+                            Alt = "باراسيتامول لتسكين الألم"
+                        }
+                    };
+
+                    string insertDdiSql = @"
+                        INSERT OR REPLACE INTO drug_interactions (
+                            id, active_ingredient_a, active_ingredient_b, severity,
+                            mechanism_ar, clinical_risk_ar, recommendation_ar, alternative_ar,
+                            source, created_at, updated_at
+                        ) VALUES (
+                            @id, @a, @b, @sev, @mech, @risk, @rec, @alt, 'clinical_core', @now, @now
+                        );";
+
+                    for (int i = 0; i < expPairs.Length; i++)
+                    {
+                        var pair = expPairs[i];
+                        string ingA = pair.A;
+                        string ingB = pair.B;
+                        if (string.CompareOrdinal(ingA, ingB) > 0)
+                        {
+                            string temp = ingA;
+                            ingA = ingB;
+                            ingB = temp;
+                        }
+
+                        using (var insertCmd = new SQLiteCommand(insertDdiSql, conn, trans))
+                        {
+                            insertCmd.Parameters.AddWithValue("@id", pair.Id);
+                            insertCmd.Parameters.AddWithValue("@a", ingA);
+                            insertCmd.Parameters.AddWithValue("@b", ingB);
+                            insertCmd.Parameters.AddWithValue("@sev", pair.Sev);
+                            insertCmd.Parameters.AddWithValue("@mech", pair.Mech);
+                            insertCmd.Parameters.AddWithValue("@risk", pair.Risk);
+                            insertCmd.Parameters.AddWithValue("@rec", pair.Rec);
+                            insertCmd.Parameters.AddWithValue("@alt", pair.Alt);
+                            insertCmd.Parameters.AddWithValue("@now", now);
+                            insertCmd.ExecuteNonQuery();
+                        }
+                    }
+
+                    // Record Migration 55 in schema_migrations
+                    using (var migCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (55, 'Comprehensive Clinical DDI Expansion (108+ Rules across all 26k Egyptian Drug Reference Classes)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        migCmd.ExecuteNonQuery();
                     }
 
                     trans.Commit();

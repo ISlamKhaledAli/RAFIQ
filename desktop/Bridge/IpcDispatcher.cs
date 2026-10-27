@@ -737,7 +737,27 @@ namespace RafiqPOS.Bridge
             { "patients.deleteChronicMed", "patients.edit" },
             { "patients.getDueAlerts", "patients.view" },
             { "patients.recordDispense", "patients.edit" },
-            { "patients.checkAllergies", "patients.view" }
+            { "patients.checkAllergies", "patients.view" },
+
+            // Drug-Drug Interactions (Story 137 / Feature #194 / F-01)
+            { "ddi:checkCart", REQUIRE_SESSION },
+            { "ddi.checkCart", REQUIRE_SESSION },
+            { "ddi:getAll", REQUIRE_SESSION },
+            { "ddi.getAll", REQUIRE_SESSION },
+            { "ddi:getById", REQUIRE_SESSION },
+            { "ddi.getById", REQUIRE_SESSION },
+            { "ddi:save", "pharma.ddi.manage" },
+            { "ddi.save", "pharma.ddi.manage" },
+            { "ddi:delete", "pharma.ddi.manage" },
+            { "ddi.delete", "pharma.ddi.manage" },
+            { "ddi:importFromExcel", "pharma.ddi.manage" },
+            { "ddi.importFromExcel", "pharma.ddi.manage" },
+            { "ddi:exportToExcel", "pharma.ddi.manage" },
+            { "ddi.exportToExcel", "pharma.ddi.manage" },
+            { "ddi:generateTemplate", "pharma.ddi.manage" },
+            { "ddi.generateTemplate", "pharma.ddi.manage" },
+            { "ddi:override", REQUIRE_SESSION },
+            { "ddi.override", REQUIRE_SESSION }
         };
 
         private static bool IsLicenseBlockedAction(string action)

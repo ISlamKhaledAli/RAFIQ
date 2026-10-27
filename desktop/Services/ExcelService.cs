@@ -1156,28 +1156,45 @@ namespace RafiqPOS.Services
 
                 int lastRow = ws.LastRowUsed() != null ? ws.LastRowUsed().RowNumber() : 0;
                 var seenBarcodesInFile = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var existingDbBarcodes = drugRefRepo != null 
+                    ? drugRefRepo.GetAllBarcodes() 
+                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 for (int r = headerRow + 1; r <= lastRow; r++)
                 {
-                    string barcode = colBarcode > 0 ? ws.Cell(r, colBarcode).GetString().Trim() : "";
-                    string tradeName = colTrade > 0 ? ws.Cell(r, colTrade).GetString().Trim() : "";
-                    string scientificName = colSci > 0 ? ws.Cell(r, colSci).GetString().Trim() : "";
-                    string form = colForm > 0 ? ws.Cell(r, colForm).GetString().Trim() : "";
-                    string strength = colStrength > 0 ? ws.Cell(r, colStrength).GetString().Trim() : "";
-                    string flavorForm = colFlavorForm > 0 ? ws.Cell(r, colFlavorForm).GetString().Trim() : "";
-                    string manufacturer = colMfg > 0 ? ws.Cell(r, colMfg).GetString().Trim() : "";
-                    string therapeuticClass = colTherapeutic > 0 ? ws.Cell(r, colTherapeutic).GetString().Trim() : "";
-                    string category = colCategory > 0 ? ws.Cell(r, colCategory).GetString().Trim() : "";
-                    string storageLocation = colStorageLoc > 0 ? ws.Cell(r, colStorageLoc).GetString().Trim() : "";
-                    string refrigRaw = colRefrigerated > 0 ? ws.Cell(r, colRefrigerated).GetString().Trim() : "";
-                    string routeRaw = colRoute > 0 ? ws.Cell(r, colRoute).GetString().Trim() : "";
-                    string pregnancyRaw = colPregnancy > 0 ? ws.Cell(r, colPregnancy).GetString().Trim() : "";
-                    string antibioticRaw = colAntibiotic > 0 ? ws.Cell(r, colAntibiotic).GetString().Trim() : "";
-                    string rxStatusRaw = colRxStatus > 0 ? ws.Cell(r, colRxStatus).GetString().Trim() : "";
-                    string packDesc = colPack > 0 ? ws.Cell(r, colPack).GetString().Trim() : "";
-                    string piecesRaw = colPiecesPerPack > 0 ? ws.Cell(r, colPiecesPerPack).GetString().Trim() : "";
-                    string priceRaw = colPrice > 0 ? ws.Cell(r, colPrice).GetString().Trim() : "";
-                    string notes = colNotes > 0 ? ws.Cell(r, colNotes).GetString().Trim() : "";
+                    var rowObj = ws.Row(r);
+                    string barcode = colBarcode > 0 ? rowObj.Cell(colBarcode).GetString().Trim() : "";
+                    string tradeName = colTrade > 0 ? rowObj.Cell(colTrade).GetString().Trim() : "";
+                    string priceRaw = colPrice > 0 ? rowObj.Cell(colPrice).GetString().Trim() : "";
+
+                    // Skip completely empty rows early
+                    if (string.IsNullOrWhiteSpace(barcode) && string.IsNullOrWhiteSpace(tradeName) && string.IsNullOrWhiteSpace(priceRaw))
+                    {
+                        continue;
+                    }
+
+                    // Skip accidental header rows or guidance rows
+                    if (barcode.Contains("باركود") || tradeName.Contains("الاسم التجاري") || tradeName.Contains("اسم الصنف") || string.Equals(barcode, "Barcode", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    string scientificName = colSci > 0 ? rowObj.Cell(colSci).GetString().Trim() : "";
+                    string form = colForm > 0 ? rowObj.Cell(colForm).GetString().Trim() : "";
+                    string strength = colStrength > 0 ? rowObj.Cell(colStrength).GetString().Trim() : "";
+                    string flavorForm = colFlavorForm > 0 ? rowObj.Cell(colFlavorForm).GetString().Trim() : "";
+                    string manufacturer = colMfg > 0 ? rowObj.Cell(colMfg).GetString().Trim() : "";
+                    string therapeuticClass = colTherapeutic > 0 ? rowObj.Cell(colTherapeutic).GetString().Trim() : "";
+                    string category = colCategory > 0 ? rowObj.Cell(colCategory).GetString().Trim() : "";
+                    string storageLocation = colStorageLoc > 0 ? rowObj.Cell(colStorageLoc).GetString().Trim() : "";
+                    string refrigRaw = colRefrigerated > 0 ? rowObj.Cell(colRefrigerated).GetString().Trim() : "";
+                    string routeRaw = colRoute > 0 ? rowObj.Cell(colRoute).GetString().Trim() : "";
+                    string pregnancyRaw = colPregnancy > 0 ? rowObj.Cell(colPregnancy).GetString().Trim() : "";
+                    string antibioticRaw = colAntibiotic > 0 ? rowObj.Cell(colAntibiotic).GetString().Trim() : "";
+                    string rxStatusRaw = colRxStatus > 0 ? rowObj.Cell(colRxStatus).GetString().Trim() : "";
+                    string packDesc = colPack > 0 ? rowObj.Cell(colPack).GetString().Trim() : "";
+                    string piecesRaw = colPiecesPerPack > 0 ? rowObj.Cell(colPiecesPerPack).GetString().Trim() : "";
+                    string notes = colNotes > 0 ? rowObj.Cell(colNotes).GetString().Trim() : "";
 
                     bool isRefrigerated = false;
                     if (!string.IsNullOrWhiteSpace(refrigRaw))
@@ -1241,18 +1258,6 @@ namespace RafiqPOS.Services
                         {
                             piecesPerPack = pNum;
                         }
-                    }
-
-                    // Skip completely empty rows
-                    if (string.IsNullOrWhiteSpace(barcode) && string.IsNullOrWhiteSpace(tradeName) && string.IsNullOrWhiteSpace(priceRaw))
-                    {
-                        continue;
-                    }
-
-                    // Skip accidental header rows or guidance rows
-                    if (barcode.Contains("باركود") || tradeName.Contains("الاسم التجاري") || tradeName.Contains("اسم الصنف") || string.Equals(barcode, "Barcode", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
                     }
 
                     var row = new DrugReferenceImportRow
@@ -1341,15 +1346,7 @@ namespace RafiqPOS.Services
                     row.PublicPricePiasters = pricePiasters;
 
                     // Validation 5: Check database existence
-                    bool existsInDb = false;
-                    if (drugRefRepo != null)
-                    {
-                        var existing = drugRefRepo.GetByBarcode(barcode);
-                        if (existing != null)
-                        {
-                            existsInDb = true;
-                        }
-                    }
+                    bool existsInDb = existingDbBarcodes != null && existingDbBarcodes.Contains(barcode);
 
                     if (existsInDb)
                     {
