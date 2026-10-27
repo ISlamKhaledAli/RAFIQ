@@ -622,8 +622,35 @@ namespace RafiqPOS.Repositories
                             CreatedAt = now
                         });
 
+                        // Auto-sync drug_reference to product_pharma_info for any imported pharmacy items (Feature #187 / Story 130 / DDI & Alternatives)
+                        try
+                        {
+                            using (var syncPharmaCmd = new SQLiteCommand(@"
+                                INSERT OR REPLACE INTO product_pharma_info (
+                                    product_id, scientific_name, normalized_scientific_name, dosage_form_id,
+                                    strength, rx_status, is_fridge, created_at, updated_at
+                                )
+                                SELECT 
+                                    p.id, dr.scientific_name, LOWER(dr.scientific_name), NULL,
+                                    dr.strength, dr.rx_status, dr.is_refrigerated, @now, @now
+                                FROM products p
+                                JOIN drug_reference dr ON p.barcode = dr.barcode
+                                WHERE p.is_active = 1
+                                  AND (
+                                    NOT EXISTS (SELECT 1 FROM product_pharma_info pi WHERE pi.product_id = p.id)
+                                    OR EXISTS (SELECT 1 FROM product_pharma_info pi WHERE pi.product_id = p.id AND (pi.scientific_name IS NULL OR pi.scientific_name = ''))
+                                  );
+                            ", conn, trans))
+                            {
+                                syncPharmaCmd.Parameters.AddWithValue("@now", now);
+                                syncPharmaCmd.ExecuteNonQuery();
+                            }
+                        }
+                        catch { }
+
                         trans.Commit();
                         return result;
+
                     }
                     catch
                     {

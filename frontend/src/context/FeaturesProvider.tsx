@@ -14,6 +14,9 @@ export const FeaturesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object') {
+          if (parsed.feature_pharmacy && parsed.feature_drug_interactions === undefined) {
+            parsed.feature_drug_interactions = true;
+          }
           return { ...DEFAULT_FLAGS, ...parsed };
         }
       }

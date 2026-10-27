@@ -13,6 +13,7 @@ import {
   Building2,
   HeartPulse,
   ClipboardList,
+  ShieldAlert,
 } from 'lucide-react';
 import type { ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
@@ -36,6 +37,7 @@ interface PosCatalogPanelProps {
   onOpenInsuranceModal?: () => void;
   onOpenChronicDispense?: () => void;
   onOpenQuickShortage?: () => void;
+  onOpenDdiManager?: () => void;
   activeInsuranceClaim?: InsuranceClaimLine | null;
   isCartEmpty?: boolean;
   totalCatalogProductsCount?: number;
@@ -58,6 +60,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   onOpenInsuranceModal,
   onOpenChronicDispense,
   onOpenQuickShortage,
+  onOpenDdiManager,
   activeInsuranceClaim,
   isCartEmpty = false,
   totalCatalogProductsCount = 0,
@@ -154,6 +157,18 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             >
               <ClipboardList className="w-3.5 h-3.5 shrink-0 text-warn dark:text-warn-bright" />
               <span>تسجيل نواقص</span>
+            </button>
+          )}
+
+          {onOpenDdiManager && (isEnabled('feature_drug_interactions') || isEnabled('feature_pharmacy')) && (
+            <button
+              type="button"
+              onClick={onOpenDdiManager}
+              className="flex items-center gap-1 text-[11px] font-bold text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand/40 hover:bg-brand-soft/80 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+              title="إدارة وتعديل قاعدة بيانات التعارضات والتداخلات الدوائية"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-brand dark:text-brand-bright" />
+              <span>تداخلات دوائية</span>
             </button>
           )}
 

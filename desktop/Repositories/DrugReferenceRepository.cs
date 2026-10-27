@@ -40,7 +40,32 @@ namespace RafiqPOS.Repositories
             return null;
         }
 
-        public List<DrugReference> Search(string query, int limit = 50)
+        /// <summary>
+        /// جلب جميع أكواد الباركود المسجلة في جدول الدليل المرجعي دفعة واحدة بصيغة HashSet للتحقق السريع O(1) أثناء الاستيراد الجماعي
+        /// </summary>
+        public HashSet<string> GetAllBarcodes()
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT barcode FROM drug_reference WHERE barcode IS NOT NULL AND barcode != '';";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        if (!reader.IsDBNull(0))
+                        {
+                            set.Add(reader.GetString(0).Trim());
+                        }
+                    }
+                }
+            }
+            return set;
+        }
+
+        public List<DrugReference> Search(string query, int limit = 50, int offset = 0)
         {
             var list = new List<DrugReference>();
             using (var conn = new SQLiteConnection(_connectionString))
@@ -49,7 +74,7 @@ namespace RafiqPOS.Repositories
                 string sql;
                 if (string.IsNullOrWhiteSpace(query))
                 {
-                    sql = "SELECT * FROM drug_reference ORDER BY trade_name ASC LIMIT @limit;";
+                    sql = "SELECT * FROM drug_reference ORDER BY trade_name ASC LIMIT @limit OFFSET @offset;";
                 }
                 else
                 {
@@ -60,7 +85,7 @@ namespace RafiqPOS.Repositories
                            OR scientific_name LIKE @q 
                            OR manufacturer LIKE @q
                         ORDER BY trade_name ASC 
-                        LIMIT @limit;
+                        LIMIT @limit OFFSET @offset;
                     ";
                 }
 
@@ -71,6 +96,7 @@ namespace RafiqPOS.Repositories
                         cmd.Parameters.AddWithValue("@q", "%" + query.Trim() + "%");
                     }
                     cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 50);
+                    cmd.Parameters.AddWithValue("@offset", offset >= 0 ? offset : 0);
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -81,6 +107,38 @@ namespace RafiqPOS.Repositories
                 }
             }
             return list;
+        }
+
+        public int GetSearchCount(string query)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                if (string.IsNullOrWhiteSpace(query))
+                {
+                    using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM drug_reference;", conn))
+                    {
+                        object o = cmd.ExecuteScalar();
+                        return o != null && o != DBNull.Value ? Convert.ToInt32(o) : 0;
+                    }
+                }
+                else
+                {
+                    string sql = @"
+                        SELECT COUNT(*) FROM drug_reference 
+                        WHERE barcode LIKE @q 
+                           OR trade_name LIKE @q 
+                           OR scientific_name LIKE @q 
+                           OR manufacturer LIKE @q;
+                    ";
+                    using (var cmd = new SQLiteCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@q", "%" + query.Trim() + "%");
+                        object o = cmd.ExecuteScalar();
+                        return o != null && o != DBNull.Value ? Convert.ToInt32(o) : 0;
+                    }
+                }
+            }
         }
 
         public int GetTotalCount()

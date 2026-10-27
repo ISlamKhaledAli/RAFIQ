@@ -483,6 +483,27 @@ namespace RafiqPOS.Common
                     "pharma.drug_reference.import"
                 }
             });
+
+            Register(new FeatureDefinition
+            {
+                Key = "feature_drug_interactions",
+                NameAr = "محرك التفاعلات والتعارضات الدوائية",
+                DescriptionAr = "فحص سريري لحظي لتعارض الأدوية داخل سلة البيع وتحذير الصيدلي قبل إصدار الفاتورة.",
+                Category = "الصيدلية والأدوية",
+                DefaultValue = true,
+                Requires = new List<string> { "feature_pharmacy" },
+                OwnedCommands = new List<string>
+                {
+                    "ddi:save",
+                    "ddi:delete",
+                    "ddi:importFromExcel"
+                },
+                OwnedPermissions = new List<string>
+                {
+                    "pharma.ddi.manage",
+                    "pharma.ddi.override"
+                }
+            });
         }
 
         private static void Register(FeatureDefinition def)

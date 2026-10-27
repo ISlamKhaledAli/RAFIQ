@@ -30,9 +30,14 @@ namespace RafiqPOS.Services
             return _repo.GetByBarcode(barcode);
         }
 
-        public List<DrugReference> Search(string query, int limit = 50)
+        public List<DrugReference> Search(string query, int limit = 50, int offset = 0)
         {
-            return _repo.Search(query, limit);
+            return _repo.Search(query, limit, offset);
+        }
+
+        public int GetSearchCount(string query)
+        {
+            return _repo.GetSearchCount(query);
         }
 
         public int GetTotalCount()

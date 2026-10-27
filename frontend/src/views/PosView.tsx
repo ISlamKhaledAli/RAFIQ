@@ -53,7 +53,7 @@ import { usePosShortcuts } from './pos/usePosShortcuts';
 import { QuickShortageModal } from '../components/QuickShortageModal';
 import { DrugAlternativesDrawer } from './pos/DrugAlternativesDrawer';
 import { ControlledDrugDispenseModal } from './pos/ControlledDrugDispenseModal';
-import type { ControlledDrugDispense, DrugReferenceItem } from '../types/pharma';
+import type { ControlledDrugDispense, DrugReferenceItem, CartInteractionCheckResult } from '../types/pharma';
 import { InsurancePrescriptionModal } from './pos/InsurancePrescriptionModal';
 import type { InsuranceClaimLine } from '../types/insurance';
 import { ShieldAlert } from 'lucide-react';
@@ -61,6 +61,8 @@ import { PosChronicDispenseModal } from './pos/PosChronicDispenseModal';
 import { ClinicalAllergyAlertModal } from './pos/ClinicalAllergyAlertModal';
 import type { AllergyCheckResult } from '../types/patient';
 import { DosageLabelModal } from '../components/DosageLabelModal';
+import { DrugInteractionAlertModal } from './pos/DrugInteractionAlertModal';
+import { DrugInteractionManagerModal } from '../components/DrugInteractionManagerModal';
 
 export interface PosViewProps {
   isActive?: boolean;
@@ -74,6 +76,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const showFastItems = isEnabled('feature_fast_buttons');
   const showCredit = isEnabled('feature_credit_debts');
   const showTaxes = isEnabled('feature_taxes');
+  const isDdiActive = isEnabled('feature_drug_interactions') || isEnabled('feature_pharmacy');
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeQuery, setBarcodeQuery] = useState('');
@@ -172,6 +175,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     instructions?: string;
     storage?: string;
   } | null>(null);
+  const [ddiResult, setDdiResult] = useState<CartInteractionCheckResult | null>(null);
+  const [isDdiModalOpen, setIsDdiModalOpen] = useState(false);
+  const [isDdiOverridden, setIsDdiOverridden] = useState(false);
+  const [isDdiManagerOpen, setIsDdiManagerOpen] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
@@ -267,6 +274,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setActiveInsuranceClaim(null);
     setAllergyCheckResult(null);
     setIsAllergyModalOpen(false);
+    setDdiResult(null);
+    setIsDdiOverridden(false);
+    setIsDdiModalOpen(false);
+    setIsDdiManagerOpen(false);
     try {
       localStorage.removeItem('rafiq_pos_cart_draft');
     } catch {
@@ -951,6 +962,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setControlledDispenseModalItem({ item: unDocumentedItem, index: idx });
       return;
     }
+    // Story 137 / Feature #194: Hard lock checkout when severe DDI is un-overridden
+    if (isDdiActive && ddiResult && ddiResult.hasInteractions && ddiResult.maxSeverity === 'severe' && !isDdiOverridden) {
+      showStatus('تنبيه سريري حرج: إتمام البيع محظور تلقائياً لوجود تعارض دوائي شديد الخطورة (Severe DDI)! يرجى إزالة الدواء أو إدخال رمز اعتماد المشرف.', 'error');
+      setIsDdiModalOpen(true);
+      return;
+    }
     if (requireOpenShiftToSell && !currentShift) {
       showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
       setIsShiftModalOpen(true);
@@ -967,7 +984,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setPaymentMethod('cash');
     }
     setIsPaymentModalOpen(true);
-  }, [cart, currentShift, requireOpenShiftToSell, showStatus]);
+  }, [cart, currentShift, requireOpenShiftToSell, showStatus, isDdiActive, ddiResult, isDdiOverridden]);
 
   const handleConfirmPayment = useCallback(async (paymentData: {
     paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash' | 'insurance';
@@ -1057,6 +1074,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setActiveInsuranceClaim(null);
       setAllergyCheckResult(null);
       setIsAllergyModalOpen(false);
+      setDdiResult(null);
+      setIsDdiOverridden(false);
+      setIsDdiModalOpen(false);
       resetCartSession();
       void loadSmartCatalog();
       void loadHeldSalesCount();
@@ -1788,11 +1808,86 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     showStatus('تمت إزالة جميع الأصناف المتعارضة مع الحساسية من السلة', 'success');
   }, [allergyCheckResult, showStatus]);
 
+  // Story 137 / Feature #194: Real-time Drug-Drug Interactions (DDI) cart checking
+  useEffect(() => {
+    if (!isDdiActive || cart.length < 2) {
+      setDdiResult(null);
+      setIsDdiOverridden(false);
+      return;
+    }
+
+    const productIds = Array.from(new Set(cart.map((i) => i.productId).filter(Boolean)));
+    if (productIds.length < 2) {
+      setDdiResult(null);
+      setIsDdiOverridden(false);
+      return;
+    }
+
+    let isCurrent = true;
+    const timer = setTimeout(() => {
+      invoke<CartInteractionCheckResult>('ddi:checkCart', { productIds })
+        .then((result) => {
+          if (!isCurrent) return;
+          setDdiResult(result);
+          if (result && result.hasInteractions) {
+            if (result.maxSeverity === 'severe') {
+              setIsDdiOverridden(false);
+              setIsDdiModalOpen(true);
+            }
+          } else {
+            setIsDdiOverridden(false);
+          }
+        })
+        .catch((err) => {
+          console.error('DDI cart check error:', err);
+        });
+    }, 200);
+
+    return () => {
+      isCurrent = false;
+      clearTimeout(timer);
+    };
+  }, [isDdiActive, cart]);
+
+  const handleRemoveDdiConflictProduct = useCallback((productId: string) => {
+    setCart((prev) => prev.filter((item) => item.productId !== productId));
+    showStatus('تمت إزالة الصنف المتعارض من السلة بنجاح', 'success');
+  }, [showStatus]);
+
+  const handleSupervisorDdiOverride = useCallback(
+    async (pin: string, reason: string, conflictProductIds: string[]) => {
+      try {
+        const res = await invoke<{ success: boolean; message?: string }>('ddi:override', {
+          pin,
+          reason,
+          conflictProductIds,
+        });
+        if (res && res.success) {
+          setIsDdiOverridden(true);
+          showStatus('تم اعتماد وتوثيق التخطي الإشرافي للتعارض الدوائي بنجاح.', 'success');
+          return true;
+        }
+        return false;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'فشل اعتماد التخطي الإشرافي للتعارض الدوائي.';
+        showStatus(msg, 'error');
+        return false;
+      }
+    },
+    [showStatus]
+  );
+
   // Fast cash checkout (F12)
   const handleFastCashCheckout = useCallback(async () => {
     if (isCheckingOutRef.current || loading) return;
     if (cart.length === 0) {
       showStatus('سلة البيع فارغة! أضف أصنافاً أولاً للبيع (F2)', 'warning');
+      return;
+    }
+    // Story 137 / Feature #194: Hard lock fast cash checkout (F12) when severe DDI is un-overridden
+    if (isDdiActive && ddiResult && ddiResult.hasInteractions && ddiResult.maxSeverity === 'severe' && !isDdiOverridden) {
+      showStatus('تنبيه سريري حرج: إتمام البيع محظور تلقائياً لوجود تعارض دوائي شديد الخطورة (Severe DDI)! يرجى إزالة الدواء أو إدخال رمز اعتماد المشرف.', 'error');
+      setIsDdiModalOpen(true);
       return;
     }
     if (!currentShift) {
@@ -1813,7 +1908,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       changeDuePiasters: 0,
       customerId: selectedCustomerId || undefined
     });
-  }, [loading, cart.length, paymentMethod, selectedCustomerId, netTotalPiasters, activeInsuranceClaim, handleConfirmPayment, showStatus, currentShift]);
+  }, [loading, cart, paymentMethod, selectedCustomerId, netTotalPiasters, activeInsuranceClaim, handleConfirmPayment, showStatus, currentShift, isDdiActive, ddiResult, isDdiOverridden]);
 
   // Fast direct digital checkouts (InstaPay & Vodafone Cash)
   const handleInstapayCheckout = useCallback(async () => {
@@ -1840,6 +1935,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       showStatus('يرجى تحديد صنف أو إضافة صنف للسلة أولاً لعرض بدائله (F8)', 'warning');
     }
   }, [cart, showStatus]);
+
+  const handleOpenDdiAlternatives = useCallback((productId: string) => {
+    const item = cart.find((i) => i.productId === productId);
+    handleOpenAlternatives(productId, item?.productName);
+  }, [cart, handleOpenAlternatives]);
 
   const handleSubstituteCartItem = useCallback((originalProductId: string, replacementProduct: Product) => {
     setCart((prev) => {
@@ -1889,7 +1989,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     variantPickerParentProduct !== null ||
     unitPickerProduct !== null ||
     batchPickerState !== null ||
-    supervisorPrompt.isOpen
+    supervisorPrompt.isOpen ||
+    isDdiModalOpen ||
+    isDdiManagerOpen
   );
 
   // Hook 2: Cashier Keyboard Shortcuts & Hardware Scanner Listener (F1 to F12)
@@ -1998,6 +2100,55 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             </div>
           )}
 
+          {/* Story 137 / Feature #194: Clinical Drug-Drug Interactions (DDI) Warning Banner */}
+          {isDdiActive && ddiResult && ddiResult.hasInteractions && ddiResult.conflicts.length > 0 && (
+            <div
+              onClick={() => setIsDdiModalOpen(true)}
+              className={`mx-2 mb-1 p-2 rounded-xl flex items-center justify-between gap-2 text-xs cursor-pointer transition-colors shadow-2xs ${
+                ddiResult.maxSeverity === 'severe'
+                  ? 'bg-danger-soft dark:bg-danger-dark-soft border border-danger/40 animate-pulse hover:bg-danger-soft/80'
+                  : ddiResult.maxSeverity === 'moderate'
+                    ? 'bg-warn-soft dark:bg-warn-dark-soft border border-warn/40 hover:bg-warn-soft/80'
+                    : 'bg-brand-soft dark:bg-brand-dark-soft border border-brand/40 hover:bg-brand-soft/80'
+              }`}
+              role="alert"
+              title="انقر لعرض تفاصيل التعارضات الدوائية والتدخل السريري"
+            >
+              <div className={`flex items-center gap-2 font-bold ${
+                ddiResult.maxSeverity === 'severe'
+                  ? 'text-danger dark:text-danger-bright'
+                  : ddiResult.maxSeverity === 'moderate'
+                    ? 'text-warn dark:text-warn-bright'
+                    : 'text-brand dark:text-brand-bright'
+              }`}>
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>
+                  {ddiResult.maxSeverity === 'severe'
+                    ? `تحذير سريري حرج: تم اكتشاف ${ddiResult.conflicts.length} تعارض دوائي شديد الخطورة بالسلة! ${isDdiOverridden ? '(تم التخطي باعتماد إشرافي)' : '(إتمام البيع محظور تلقائياً)'}`
+                    : ddiResult.maxSeverity === 'moderate'
+                      ? `تنبيه سريري: تم اكتشاف ${ddiResult.conflicts.length} تعارض دوائي متوسط الشدة بين الأصناف بالسلة.`
+                      : `إرشاد صيدلي: يوجد ${ddiResult.conflicts.length} تداخل دوائي طفيف مسجل بين الأصناف.`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isDdiOverridden && ddiResult.maxSeverity === 'severe' && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-paid-soft text-paid border border-paid/30">
+                    معتمد إدارياً
+                  </span>
+                )}
+                <span className={`text-[11px] font-bold underline ${
+                  ddiResult.maxSeverity === 'severe'
+                    ? 'text-danger dark:text-danger-bright'
+                    : ddiResult.maxSeverity === 'moderate'
+                      ? 'text-warn dark:text-warn-bright'
+                      : 'text-brand dark:text-brand-bright'
+                }`}>
+                  فحص التعارضات
+                </span>
+              </div>
+            </div>
+          )}
+
           <PosCartTable
             cart={cart}
             lastInvoiceNumber={lastInvoiceNumber}
@@ -2097,6 +2248,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             hasInstapayAccount={digitalAccounts.some((a) => a.accountType === 'instapay' && a.isActive) || Boolean(storeInstapayAddress) || !isEnabled('feature_digital_wallets')}
             hasWalletAccount={digitalAccounts.some((a) => a.accountType === 'wallet' && a.isActive) || Boolean(storeWalletNumber) || !isEnabled('feature_digital_wallets')}
             onNavigateToWallets={isEnabled('feature_digital_wallets') ? onNavigateToWallets : undefined}
+            ddiResult={isDdiActive ? ddiResult : null}
+            onOpenDdiAlert={() => setIsDdiModalOpen(true)}
+            isDdiOverridden={isDdiOverridden}
           />
         </section>
 
@@ -2126,6 +2280,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
               setShortageInitialProductId('');
               setIsQuickShortageOpen(true);
             }}
+            onOpenDdiManager={
+              isDdiActive && (isAdmin || (hasPermission ? hasPermission('pharma.ddi.manage') : false))
+                ? () => setIsDdiManagerOpen(true)
+                : undefined
+            }
             activeInsuranceClaim={activeInsuranceClaim}
             isCartEmpty={cart.length === 0}
             totalCatalogProductsCount={catalogProducts.length}
@@ -2637,6 +2796,29 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           initialDoctorName={dosageLabelTarget.doctorName}
           initialInstructions={dosageLabelTarget.instructions}
           initialStorage={dosageLabelTarget.storage}
+        />
+      )}
+
+      {/* 28. DRUG-DRUG INTERACTIONS (DDI) ALERT MODAL (Story 137 / Feature #194) */}
+      {isDdiModalOpen && ddiResult && (
+        <DrugInteractionAlertModal
+          isOpen={isDdiModalOpen}
+          onClose={() => setIsDdiModalOpen(false)}
+          result={ddiResult}
+          onRemoveProduct={handleRemoveDdiConflictProduct}
+          onOpenAlternatives={handleOpenDdiAlternatives}
+          onAcknowledgeWarning={() => setIsDdiModalOpen(false)}
+          onSupervisorOverride={handleSupervisorDdiOverride}
+          canOverrideDirectly={isAdmin}
+        />
+      )}
+
+      {/* 29. DRUG-DRUG INTERACTIONS (DDI) CLINICAL MANAGER MODAL (Story 137 / Feature #194) */}
+      {isDdiManagerOpen && (
+        <DrugInteractionManagerModal
+          isOpen={isDdiManagerOpen}
+          onClose={() => setIsDdiManagerOpen(false)}
+          onSuccess={(msg) => showStatus(msg, 'success')}
         />
       )}
     </div>

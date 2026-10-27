@@ -134,6 +134,8 @@ namespace RafiqPOS.Services
         public static DrugReferenceRepository DrugReferenceRepo { get; set; }
         public static DrugReferenceService DrugReference { get; set; }
         public static PharmaStocktakingService PharmaStocktaking { get; private set; }
+        public static DrugInteractionRepository DrugInteractionRepo { get; private set; }
+        public static DrugInteractionService DrugInteractions { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -259,6 +261,8 @@ namespace RafiqPOS.Services
             DrugReferenceRepo = new DrugReferenceRepository(_connectionString, AuditRepo);
             DrugReference = new DrugReferenceService(DrugReferenceRepo, Excel, PurchaseRepo, ProductBatchRepo);
             PharmaStocktaking = new PharmaStocktakingService(_connectionString, ProductBatchRepo, ProductRepo, AuditRepo);
+            DrugInteractionRepo = new DrugInteractionRepository(_connectionString, AuditRepo);
+            DrugInteractions = new DrugInteractionService(DrugInteractionRepo, PharmaRepo, ProductRepo, _connectionString);
 
             // Cleanup old held sales (> 7 days) on startup (Task 25-4)
             try

@@ -269,6 +269,9 @@
     <Compile Include="Services\DrugReferenceService.cs" />
     <Compile Include="Services\PharmaStocktakingService.cs" />
     <Compile Include="Services\PharmacyGoldenSuiteTestRunner.cs" />
+    <Compile Include="Models\DrugInteraction.cs" />
+    <Compile Include="Repositories\DrugInteractionRepository.cs" />
+    <Compile Include="Services\DrugInteractionService.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

@@ -10,11 +10,13 @@ import {
   Wallet,
   Link2,
   ShieldCheck,
+  ShieldAlert,
   X,
 } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import type { CartItem } from './types';
 import type { InsuranceClaimLine } from '../../types/insurance';
+import type { CartInteractionCheckResult } from '../../types/pharma';
 import { formatArabicCurrency } from '../../utils/money';
 import { useFeatures } from '../../context/useFeatures';
 
@@ -46,6 +48,9 @@ interface PosCartCheckoutBarProps {
   hasInstapayAccount?: boolean;
   hasWalletAccount?: boolean;
   onNavigateToWallets?: (subTab?: 'accounts' | 'transact') => void;
+  ddiResult?: CartInteractionCheckResult | null;
+  onOpenDdiAlert?: () => void;
+  isDdiOverridden?: boolean;
 }
 
 export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
@@ -76,6 +81,9 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   hasInstapayAccount = true,
   hasWalletAccount = true,
   onNavigateToWallets,
+  ddiResult,
+  onOpenDdiAlert,
+  isDdiOverridden = false,
 }) => {
   const { isEnabled } = useFeatures();
   const showWallets = isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets');
@@ -87,7 +95,7 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
       {/* 1. Upper Info & Support Actions Strip - Single neat non-wrapping row */}
       <div className="flex items-center justify-between gap-1 flex-nowrap pb-1 border-b border-line/60 dark:border-line-dark/60 overflow-x-auto no-scrollbar">
         
-        {/* Cart Meta (Invoice #, Count, Discount) */}
+        {/* Cart Meta (Invoice #, Count, Discount, DDI status) */}
         <div className="flex items-center gap-1 text-xs shrink-0">
           <div className="flex items-center gap-1 font-bold">
             <span className="text-ink dark:text-ink-dark text-[11px]">فاتورة:</span>
@@ -104,6 +112,41 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
             <span className="text-[10px] sm:text-[11px] text-danger dark:text-danger-bright font-bold bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded-md border border-danger-border dark:border-danger-bright/30 whitespace-nowrap">
               خصم: -{formatArabicCurrency(discountPiasters)}
             </span>
+          )}
+
+          {/* DDI Clinical Status Pill */}
+          {(isEnabled('feature_drug_interactions') || isEnabled('feature_pharmacy')) && cart.length >= 2 && ddiResult && (
+            ddiResult.hasInteractions ? (
+              <button
+                type="button"
+                onClick={onOpenDdiAlert}
+                className={`h-6 px-2 rounded-md border text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95 whitespace-nowrap shadow-2xs ${
+                  ddiResult.maxSeverity === 'severe'
+                    ? 'bg-danger-soft text-danger border-danger/40 animate-pulse hover:bg-danger-soft/80'
+                    : ddiResult.maxSeverity === 'moderate'
+                      ? 'bg-warn-soft text-warn border-warn/40 hover:bg-warn-soft/80'
+                      : 'bg-brand-soft text-brand border-brand/40 hover:bg-brand-soft/80'
+                }`}
+                title="انقر لعرض تفاصيل التعارضات الدوائية والتدخل السريري"
+              >
+                <ShieldAlert className="w-3 h-3 shrink-0" />
+                <span>
+                  {ddiResult.maxSeverity === 'severe'
+                    ? `تعارض حرج (${ddiResult.conflicts.length})${isDdiOverridden ? ' [معتمد]' : ''}`
+                    : ddiResult.maxSeverity === 'moderate'
+                      ? `تعارض متوسط (${ddiResult.conflicts.length})`
+                      : `تداخل طفيف (${ddiResult.conflicts.length})`}
+                </span>
+              </button>
+            ) : (
+              <div
+                className="h-6 px-2 rounded-md border border-paid/30 bg-paid-soft text-paid text-[10px] font-bold flex items-center gap-1 select-none whitespace-nowrap shadow-2xs"
+                title="تم فحص السلة سريرياً: لا توجد تعارضات دوائية مسجلة بين الأصناف"
+              >
+                <ShieldCheck className="w-3 h-3 shrink-0" />
+                <span>آمن دوائياً</span>
+              </div>
+            )
           )}
         </div>
 

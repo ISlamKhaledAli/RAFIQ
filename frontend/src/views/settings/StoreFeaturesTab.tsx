@@ -23,7 +23,8 @@ import {
   BookOpen,
   Split,
   FileCheck2,
-  Tag
+  Tag,
+  Activity
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useFeatures } from '../../context/useFeatures';
@@ -79,6 +80,7 @@ const FEATURE_CATEGORY_MAP: Record<string, FeatureCategory> = {
   feature_insurance: 'pharmacy',
   feature_drug_reference: 'pharmacy',
   feature_expiry_returns: 'pharmacy',
+  feature_drug_interactions: 'pharmacy',
 
   feature_credit_debts: 'finance',
   feature_shortage_book: 'finance',
@@ -109,6 +111,7 @@ const FEATURE_ICON_MAP: Record<string, React.ComponentType<{ className?: string 
   feature_insurance: Building2,
   feature_drug_reference: BookOpen,
   feature_expiry_returns: Calendar,
+  feature_drug_interactions: Activity,
 
   feature_credit_debts: Users,
   feature_shortage_book: FileText,

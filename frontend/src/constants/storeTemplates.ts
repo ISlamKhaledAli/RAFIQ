@@ -274,6 +274,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
       feature_insurance: true,
       feature_expiry_returns: true,
       feature_drug_reference: true,
+      feature_drug_interactions: true,
     },
     categories: [],
     quickItems: [],
