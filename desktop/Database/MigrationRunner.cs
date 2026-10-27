@@ -7,7 +7,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 51;
+        public const int LATEST_SUPPORTED_VERSION = 53;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -441,6 +441,13 @@ namespace RafiqPOS.Database
                 {
                     BackupDatabaseBeforeMigration(dbPath);
                     ApplyMigration52(conn);
+                }
+
+                // 56. Apply Migration 53: Retail Feature Matrix Realism Alignment (Decouple POS Payments from Agency Wallets)
+                if (currentVersion < 53)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration53(conn);
                 }
 
                 // Self-Healing Schema Guard: Automatically repair missing columns or indexes
@@ -6555,6 +6562,79 @@ namespace RafiqPOS.Database
                     using (var cmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (52, 'Drug Reference Clinical and Variant Extension (Route, Pregnancy, Antibiotic, Pack Units)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration53(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    string now = DateTime.UtcNow.ToString("o");
+
+                    // 1. Identify current store_type
+                    string storeType = "";
+                    using (var cmd = new SQLiteCommand("SELECT value FROM app_settings WHERE key = 'store_type';", conn, trans))
+                    {
+                        object res = cmd.ExecuteScalar();
+                        if (res != null && res != DBNull.Value)
+                        {
+                            storeType = res.ToString().Trim().ToLowerInvariant();
+                        }
+                    }
+
+                    // 2. Retail stores that do NOT act as cash-in/cash-out agencies
+                    var nonKioskStores = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        "pharmacy",
+                        "clothing_apparel",
+                        "produce_butchery",
+                        "dairy_bakery",
+                        "toys_kids",
+                        "spices_roastery",
+                        "cafe_restaurant"
+                    };
+
+                    if (nonKioskStores.Contains(storeType))
+                    {
+                        using (var cmd = new SQLiteCommand(@"
+                            UPDATE app_settings 
+                            SET value = '0', updated_at = @now 
+                            WHERE key = 'feature_digital_wallets';
+                        ", conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@now", now);
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 3. Always ensure feature_pos_digital_payments is present and active
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT INTO app_settings (key, value, updated_at)
+                        VALUES ('feature_pos_digital_payments', '1', @now)
+                        ON CONFLICT(key) DO UPDATE SET value = '1', updated_at = @now;
+                    ", conn, trans))
+                    {
+                        cmd.Parameters.AddWithValue("@now", now);
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (53, 'Retail Feature Matrix Realism Alignment (Decouple POS Payments from Agency Wallets)', datetime('now'));
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();

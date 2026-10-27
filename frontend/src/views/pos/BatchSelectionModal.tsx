@@ -127,9 +127,10 @@ export const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({
                 >
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-bold text-xs text-ink dark:text-ink-dark">
-                        تشغيلة #{b.batchNumber}
-                      </span>
+                      <div className="flex items-center gap-1 font-bold text-xs text-ink dark:text-ink-dark">
+                        <span>تشغيلة</span>
+                        <bdi className="font-mono text-brand dark:text-brand-bright font-bold" dir="ltr">#{b.batchNumber}</bdi>
+                      </div>
                       {isSelected && (
                         <span className="px-1.5 py-0.2 bg-brand text-white text-[10px] font-bold rounded-md flex items-center gap-0.5">
                           <Check className="w-2.5 h-2.5" /> المحددة حالياً

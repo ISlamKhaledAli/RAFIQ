@@ -296,19 +296,41 @@ namespace RafiqPOS.Repositories
                     batch.BatchNumber = "B-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
                 }
 
-                // Check if existing batch with same product_id and batch_number exists
+                // Check if existing batch with same ID or same (product_id, batch_number) exists
                 string existingId = null;
                 long existingQty = 0;
-                using (var chk = new SQLiteCommand("SELECT id, quantity_milli FROM product_batches WHERE product_id = @pid AND batch_number = @bnum;", activeConn, activeTrans))
+                bool isExplicitIdLookup = false;
+
+                if (!string.IsNullOrEmpty(batch.Id))
                 {
-                    chk.Parameters.AddWithValue("@pid", batch.ProductId);
-                    chk.Parameters.AddWithValue("@bnum", batch.BatchNumber.Trim());
-                    using (var reader = chk.ExecuteReader())
+                    using (var chkId = new SQLiteCommand("SELECT id, quantity_milli FROM product_batches WHERE id = @id;", activeConn, activeTrans))
                     {
-                        if (reader.Read())
+                        chkId.Parameters.AddWithValue("@id", batch.Id);
+                        using (var reader = chkId.ExecuteReader())
                         {
-                            existingId = reader["id"].ToString();
-                            existingQty = Convert.ToInt64(reader["quantity_milli"]);
+                            if (reader.Read())
+                            {
+                                existingId = reader["id"].ToString();
+                                existingQty = Convert.ToInt64(reader["quantity_milli"]);
+                                isExplicitIdLookup = true;
+                            }
+                        }
+                    }
+                }
+
+                if (string.IsNullOrEmpty(existingId))
+                {
+                    using (var chk = new SQLiteCommand("SELECT id, quantity_milli FROM product_batches WHERE product_id = @pid AND batch_number = @bnum;", activeConn, activeTrans))
+                    {
+                        chk.Parameters.AddWithValue("@pid", batch.ProductId);
+                        chk.Parameters.AddWithValue("@bnum", batch.BatchNumber.Trim());
+                        using (var reader = chk.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                existingId = reader["id"].ToString();
+                                existingQty = Convert.ToInt64(reader["quantity_milli"]);
+                            }
                         }
                     }
                 }
@@ -316,7 +338,15 @@ namespace RafiqPOS.Repositories
                 if (!string.IsNullOrEmpty(existingId))
                 {
                     batch.Id = existingId;
-                    batch.QuantityMilli += existingQty; // Add incoming quantity to existing batch
+                    if (isExplicitIdLookup && batch.QuantityMilli <= 0)
+                    {
+                        // Metadata-only update (e.g. updating expiry date of existing batch)
+                        batch.QuantityMilli = existingQty;
+                    }
+                    else
+                    {
+                        batch.QuantityMilli += existingQty; // Add incoming quantity to existing batch
+                    }
                     batch.UpdatedAt = now;
 
                     string updateSql = @"

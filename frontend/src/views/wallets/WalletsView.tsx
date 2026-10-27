@@ -28,6 +28,7 @@ import { useDataSubscription, emitDataChanged } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
 import { rafiqConfirm } from '../../utils/dialogService';
 import { useAuth } from '../../context/useAuth';
+import { useFeatures } from '../../context/useFeatures';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
 import { PaginationBar } from '../../components/PaginationBar';
@@ -288,12 +289,25 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
   const activeTabRaw = activeSubTab || internalTab;
 
+  const { isEnabled } = useFeatures();
+  const hasAgencyKiosk = isEnabled('feature_digital_wallets') || isRoot;
+
   const currentTab: WalletsSubTab = useMemo(() => {
-    if (activeTabRaw === 'accounts' && !canManageAccounts && !canFund) return 'transact';
-    if (activeTabRaw === 'history' && !canViewHistory) return 'transact';
-    if (activeTabRaw === 'analytics' && !canViewAnalytics) return 'transact';
+    // If store does not offer agency deposit/withdraw services, only show accounts & history
+    if (!hasAgencyKiosk && (activeTabRaw === 'transact' || activeTabRaw === 'analytics')) {
+      return 'accounts';
+    }
+    if (activeTabRaw === 'accounts' && !canManageAccounts && !canFund) {
+      return hasAgencyKiosk ? 'transact' : 'history';
+    }
+    if (activeTabRaw === 'history' && !canViewHistory) {
+      return hasAgencyKiosk ? 'transact' : 'accounts';
+    }
+    if (activeTabRaw === 'analytics' && !canViewAnalytics) {
+      return hasAgencyKiosk ? 'transact' : 'accounts';
+    }
     return activeTabRaw;
-  }, [activeTabRaw, canManageAccounts, canFund, canViewHistory, canViewAnalytics]);
+  }, [activeTabRaw, canManageAccounts, canFund, canViewHistory, canViewAnalytics, hasAgencyKiosk]);
 
   // Data State
   const [accounts, setAccounts] = useState<DigitalAccount[]>([]);

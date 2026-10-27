@@ -20,16 +20,20 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  Package,
+  Pill,
+  Tag,
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { MoneyInput } from '../../components/MoneyInput';
 import { useFeatures } from '../../context/useFeatures';
-import type { Supplier, Product } from '../../types/models';
+import type { Supplier, Product, ProductUnit } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
 import { normalizeArabicNumerals, formatArabicCurrency } from '../../utils/money';
 import { invoke } from '../../bridge/ipc';
 import { getStoreTerminology } from '../../utils/storeTerminology';
+import { formatCompoundStock } from '../../utils/packaging';
 
 interface NewPurchaseTabProps {
   suppliers: Supplier[];
@@ -118,23 +122,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       const currentVal = prev[productId];
       return {
         ...prev,
-        [productId]: currentVal !== undefined ? !currentVal : false,
+        [productId]: currentVal !== undefined ? !currentVal : true,
       };
     });
   };
 
-  const isItemExpanded = (productId: string, item: NewPurchaseLineItem) => {
-    if (expandedItemIds[productId] !== undefined) {
-      return expandedItemIds[productId];
-    }
-    const hasCartonData =
-      (item.cartonsInput && parseInt(item.cartonsInput, 10) > 0) ||
-      (item.packSizeInput && parseInt(item.packSizeInput, 10) > 0) ||
-      (item.looseInput && parseInt(item.looseInput, 10) > 0);
-    const hasBatchData =
-      (item.batchNumber && item.batchNumber.trim() !== '') ||
-      (item.expiryDate && item.expiryDate.trim() !== '');
-    return Boolean(hasCartonData || hasBatchData || lineItems.length === 1);
+  const isItemExpanded = (productId: string, _item?: NewPurchaseLineItem) => {
+    return Boolean(expandedItemIds[productId]);
   };
 
   const displayedCatalogProducts = useMemo(() => {
@@ -179,6 +173,141 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     }
   };
 
+  // Unit & Packaging Helpers
+  const getItemUnitsMeta = useCallback(
+    (item: NewPurchaseLineItem) => {
+      const isPharma = isEnabled('feature_pharmacy');
+      const isMultiUnits = isEnabled('feature_multi_units');
+
+      const packSize = parseInt(item.packSizeInput || '', 10) || item.packSize || 1;
+
+      // Extract units if configured on product
+      const baseUnitObj = item.productUnits?.find((u) => u.isBaseUnit || u.conversionFactor === 1);
+      const pkgUnitObj = item.productUnits?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
+
+      const effectivePackSize = pkgUnitObj?.conversionFactor || packSize;
+      const hasPackaging = effectivePackSize > 1 || Boolean(pkgUnitObj) || isPharma || isMultiUnits;
+
+      const packageUnitName =
+        item.packageUnitName ||
+        pkgUnitObj?.unitName ||
+        (isPharma ? 'علبة' : terminology.packagingTopUnitDefault || 'كرتونة');
+
+      const baseUnitName =
+        baseUnitObj?.unitName ||
+        (isPharma
+          ? item.unit && item.unit !== 'piece'
+            ? item.unit
+            : 'قرص'
+          : item.unit || terminology.baseUnitDefaultName || 'قطعة');
+
+      const unitMode: 'package' | 'base' =
+        item.purchaseUnitMode || (hasPackaging && effectivePackSize > 1 ? 'package' : 'base');
+
+      const unitsForDisplay: ProductUnit[] =
+        item.productUnits && item.productUnits.length > 0
+          ? item.productUnits
+          : effectivePackSize > 1
+          ? [
+              {
+                id: 'base',
+                productId: item.productId,
+                unitName: baseUnitName,
+                conversionFactor: 1,
+                isBaseUnit: true,
+                isDivisible: false,
+                sortOrder: 0,
+                sellPricePiasters: item.currentPricePiasters,
+                costPricePiasters: item.currentCostPiasters,
+              },
+              {
+                id: 'pkg',
+                productId: item.productId,
+                unitName: packageUnitName,
+                conversionFactor: effectivePackSize,
+                isBaseUnit: false,
+                isDivisible: false,
+                sortOrder: 1,
+                sellPricePiasters: item.currentPricePiasters * effectivePackSize,
+                costPricePiasters: item.currentCostPiasters * effectivePackSize,
+              },
+            ]
+          : [];
+
+      return {
+        packSize: effectivePackSize,
+        packageUnitName,
+        baseUnitName,
+        hasPackaging,
+        unitMode,
+        unitsForDisplay,
+      };
+    },
+    [isEnabled, terminology]
+  );
+
+  const handleTogglePurchaseUnitMode = (idx: number, newMode: 'package' | 'base') => {
+    const updated = [...lineItems];
+    const item = { ...updated[idx] };
+    const meta = getItemUnitsMeta(item);
+
+    if (item.purchaseUnitMode === newMode) return;
+
+    item.purchaseUnitMode = newMode;
+    const packSize = Math.max(1, meta.packSize);
+
+    if (newMode === 'package') {
+      const currentUnits = item.quantityUnits || 0;
+      const pCount = Math.max(1, Math.round(currentUnits / packSize));
+      item.cartonsInput = String(pCount);
+      item.packageQuantityInput = String(pCount);
+      item.looseInput = '0';
+      item.quantityUnits = pCount * packSize;
+      item.quantityInput = String(item.quantityUnits);
+      if (!item.packageCostPiasters || item.packageCostPiasters === 0) {
+        item.packageCostPiasters = Math.round(item.unitCostPiasters * packSize);
+      }
+    } else {
+      item.quantityInput = String(item.quantityUnits || 0);
+    }
+
+    updated[idx] = item;
+    setLineItems(updated);
+  };
+
+  const handleQuantityStep = (idx: number, stepDelta: number) => {
+    const updated = [...lineItems];
+    const item = { ...updated[idx] };
+    const meta = getItemUnitsMeta(item);
+    const isWeight = item.unit === 'kg' || item.unit === 'gram';
+
+    if (meta.unitMode === 'package' && meta.packSize > 1) {
+      const currentPkg =
+        parseInt(item.packageQuantityInput || item.cartonsInput || '', 10) ||
+        (item.quantityUnits > 0 ? Math.floor(item.quantityUnits / meta.packSize) : 1);
+      const nextPkg = Math.max(1, currentPkg + stepDelta);
+      item.cartonsInput = String(nextPkg);
+      item.packageQuantityInput = String(nextPkg);
+      item.looseInput = '0';
+      item.quantityUnits = nextPkg * meta.packSize;
+      item.quantityInput = String(item.quantityUnits);
+    } else {
+      const curr = parseFloat(item.quantityInput || String(item.quantityUnits)) || 0;
+      const nextVal = isWeight
+        ? Math.max(0, parseFloat((curr + stepDelta).toFixed(3)))
+        : Math.max(1, curr + stepDelta);
+      item.quantityUnits = nextVal;
+      item.quantityInput = String(nextVal);
+      if (meta.packSize > 1) {
+        item.cartonsInput = String(Math.floor(nextVal / meta.packSize));
+        item.looseInput = String(nextVal % meta.packSize);
+      }
+    }
+
+    updated[idx] = item;
+    setLineItems(updated);
+  };
+
   const handleCartonsChange = (idx: number, val: string) => {
     const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
     const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
@@ -186,12 +315,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     const item = { ...updated[idx] };
 
     item.cartonsInput = clean;
+    item.packageQuantityInput = clean;
 
     const c = parseInt(clean, 10);
     const cVal = isNaN(c) ? 0 : c;
 
     const p = parseInt(normalizeArabicNumerals(item.packSizeInput || ''), 10);
-    const pVal = isNaN(p) ? 0 : p;
+    const pVal = isNaN(p) || p <= 0 ? (item.packSize || 1) : p;
 
     const l = parseInt(normalizeArabicNumerals(item.looseInput || ''), 10);
     const lVal = isNaN(l) ? 0 : l;
@@ -217,9 +347,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     item.packSizeInput = clean;
 
     const p = parseInt(clean, 10);
-    const pVal = isNaN(p) ? 0 : p;
+    const pVal = isNaN(p) || p <= 0 ? 1 : p;
 
-    const c = parseInt(normalizeArabicNumerals(item.cartonsInput || ''), 10);
+    const c = parseInt(normalizeArabicNumerals(item.cartonsInput || item.packageQuantityInput || ''), 10);
     const cVal = isNaN(c) ? 0 : c;
 
     const l = parseInt(normalizeArabicNumerals(item.looseInput || ''), 10);
@@ -231,6 +361,10 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       item.quantityInput = '';
     } else {
       item.quantityInput = String(total);
+    }
+
+    if (item.packageCostPiasters && item.packageCostPiasters > 0) {
+      item.unitCostPiasters = Math.round(item.packageCostPiasters / pVal);
     }
 
     updated[idx] = item;
@@ -248,11 +382,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     const l = parseInt(clean, 10);
     const lVal = isNaN(l) ? 0 : l;
 
-    const c = parseInt(normalizeArabicNumerals(item.cartonsInput || ''), 10);
+    const c = parseInt(normalizeArabicNumerals(item.cartonsInput || item.packageQuantityInput || ''), 10);
     const cVal = isNaN(c) ? 0 : c;
 
     const p = parseInt(normalizeArabicNumerals(item.packSizeInput || ''), 10);
-    const pVal = isNaN(p) ? 0 : p;
+    const pVal = isNaN(p) || p <= 0 ? (item.packSize || 1) : p;
 
     const total = (cVal * pVal) + lVal;
     item.quantityUnits = Math.max(0, total);
@@ -267,10 +401,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   };
 
   const handleDirectStockChange = (idx: number, val: string) => {
-    const isWeightItem = lineItems[idx]?.unit === 'kg' || lineItems[idx]?.unit === 'gram';
+    const updated = [...lineItems];
+    const item = { ...updated[idx] };
+    const meta = getItemUnitsMeta(item);
+    const isWeightItem = item.unit === 'kg' || item.unit === 'gram';
+
     let clean = normalizeArabicNumerals(val);
     if (isWeightItem) {
-      // Allow digits and a single decimal point/comma
       clean = clean.replace(/,/g, '.').replace(/[^\d.]/g, '');
       const parts = clean.split('.');
       if (parts.length > 2) {
@@ -284,48 +421,42 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
     }
 
-    const updated = [...lineItems];
-    const item = { ...updated[idx] };
-
-    item.quantityInput = clean;
-    if (clean === '' || clean === '.') {
-      item.quantityUnits = 0;
-      item.cartonsInput = '';
-      item.looseInput = '';
+    if (meta.unitMode === 'package' && meta.packSize > 1) {
+      item.packageQuantityInput = clean;
+      item.cartonsInput = clean;
+      item.looseInput = '0';
+      if (clean === '') {
+        item.quantityUnits = 0;
+        item.quantityInput = '';
+      } else {
+        const pkgCount = parseInt(clean, 10) || 0;
+        item.quantityUnits = Math.max(0, pkgCount * meta.packSize);
+        item.quantityInput = String(item.quantityUnits);
+      }
     } else {
-      const totalVal = isWeightItem
-        ? (parseFloat(clean) || 0)
-        : (parseInt(clean, 10) || 0);
-      item.quantityUnits = Math.max(0, totalVal);
+      item.quantityInput = clean;
+      if (clean === '' || clean === '.') {
+        item.quantityUnits = 0;
+        item.cartonsInput = '';
+        item.looseInput = '';
+      } else {
+        const totalVal = isWeightItem
+          ? (parseFloat(clean) || 0)
+          : (parseInt(clean, 10) || 0);
+        item.quantityUnits = Math.max(0, totalVal);
 
-      if (!isWeightItem) {
-        const p = parseInt(normalizeArabicNumerals(item.packSizeInput || ''), 10) || 0;
-        if (p > 0 && totalVal > 0) {
-          const c = Math.floor(totalVal / p);
-          const rem = Math.round(totalVal % p);
+        if (!isWeightItem && meta.packSize > 1) {
+          const c = Math.floor(totalVal / meta.packSize);
+          const rem = Math.round(totalVal % meta.packSize);
           item.cartonsInput = c > 0 ? String(c) : '0';
+          item.packageQuantityInput = c > 0 ? String(c) : '0';
           item.looseInput = rem > 0 ? String(rem) : '0';
-        } else if (p > 0 && totalVal === 0) {
-          item.cartonsInput = '0';
-          item.looseInput = '0';
-        } else {
-          item.cartonsInput = '0';
-          item.looseInput = clean;
         }
       }
     }
 
     updated[idx] = item;
     setLineItems(updated);
-  };
-
-  const getUnitLabel = (unit?: string) => {
-    if (!unit || unit === 'piece') return 'قطعة';
-    if (unit === 'kg') return 'كجم';
-    if (unit === 'gram') return 'جرام';
-    if (unit === 'meter') return 'متر';
-    if (unit === 'liter') return 'لتر';
-    return unit;
   };
 
   const calculateProjectedCost = (item: NewPurchaseLineItem, method: 'LATEST' | 'WEIGHTED_AVERAGE') => {
@@ -351,16 +482,6 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     const projectedCost = calculateProjectedCost(item, 'WEIGHTED_AVERAGE');
     const suggested = Math.round(projectedCost * markupRatio);
     return suggested > projectedCost ? suggested : null;
-  };
-
-  // 2. Calculate suggested selling price based on latest unit cost (if priced according to newest shipment alone)
-  const getLatestSuggestedSellingPrice = (item: NewPurchaseLineItem): number | null => {
-    if (item.currentCostPiasters <= 0 || item.currentPricePiasters <= item.currentCostPiasters) {
-      return null;
-    }
-    const markupRatio = item.currentPricePiasters / item.currentCostPiasters;
-    const suggested = Math.round(item.unitCostPiasters * markupRatio);
-    return suggested > item.unitCostPiasters ? suggested : null;
   };
 
   const handleApplySuggestedPrice = (idx: number, suggestedPiasters: number) => {
@@ -599,11 +720,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
         {/* Line Items Table */}
         <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden flex flex-col shadow-2xs">
           {/* Table Header */}
-          <div className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 sm:px-6 grid grid-cols-12 gap-2 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted shrink-0">
-            <div className="col-span-12 sm:col-span-3 text-right">اسم الصنف / الباركود والرصيد</div>
-            <div className="col-span-4 sm:col-span-2 text-center">العدد اللي دخل</div>
+          <div className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 sm:px-6 grid grid-cols-12 gap-2 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted shrink-0">
+            <div className="col-span-12 sm:col-span-3 text-right">اسم الصنف والوحدات والرصيد</div>
+            <div className="col-span-4 sm:col-span-2 text-center">الكمية وطريقة الشراء</div>
             <div className="col-span-4 sm:col-span-2 text-center">سعر الشراء (التكلفة)</div>
-            <div className="col-span-4 sm:col-span-2 text-center">سعر البيع للزبون</div>
+            <div className="col-span-4 sm:col-span-2 text-center">سعر البيع والربح</div>
             <div className="hidden sm:block sm:col-span-2 text-center">الإجمالي</div>
             <div className="col-span-12 sm:col-span-1 text-center">إجراءات</div>
           </div>
@@ -617,10 +738,10 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               </div>
             ) : (
               lineItems.map((item, idx) => {
+                const meta = getItemUnitsMeta(item);
                 const lineTotal = Math.round(item.quantityUnits * item.unitCostPiasters);
                 const currentStockUnits = Math.max(0, item.currentStockMilli / 1000);
                 const incomingUnits = item.quantityUnits || 0;
-                const totalStockUnits = currentStockUnits + incomingUnits;
 
                 // 1. Cost Comparison (السعر كان كام وبقى كام)
                 const costDiffPiasters = item.unitCostPiasters - item.currentCostPiasters;
@@ -641,9 +762,10 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 // 3. Projected Cost
                 const projectedCostPiasters = calculateProjectedCost(item, costingMethod);
 
-                // 4. Suggested Selling Prices (Weighted Average & Latest)
+                // 4. Suggested Selling Prices (Weighted Average)
                 const weightedSuggestedPricePiasters = getWeightedSuggestedSellingPrice(item);
-                const latestSuggestedPricePiasters = getLatestSuggestedSellingPrice(item);
+
+                const currentPackageCost = item.packageCostPiasters || (item.unitCostPiasters * meta.packSize);
 
                 return (
                   <div
@@ -676,32 +798,58 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             السابق: <b className="text-ink dark:text-ink-dark font-sans">{formatMoney(item.currentCostPiasters)}</b>
                           </span>
                         </div>
-                        {/* Compact Stock Info */}
+                        {/* Dynamic Compound Stock Display */}
                         <div className="flex items-center gap-1.5 text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted mt-1 flex-wrap">
                           <span className="bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
-                            المخزن: <b className="text-ink dark:text-ink-dark font-sans">{item.unit === 'kg' ? currentStockUnits.toFixed(3).replace(/\.?0+$/, '') : currentStockUnits.toFixed(0)}</b> {getUnitLabel(item.unit)}
+                            المخزن: <b className="text-ink dark:text-ink-dark font-sans">{formatCompoundStock(item.currentStockMilli, meta.unitsForDisplay, meta.baseUnitName)}</b>
                           </span>
                           {incomingUnits > 0 && (
-                            <span className="bg-paid-soft dark:bg-paid-dark-soft text-paid-dark dark:text-paid-bright px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40 font-bold">
-                              ← بعد الشراء: {item.unit === 'kg' ? totalStockUnits.toFixed(3).replace(/\.?0+$/, '') : totalStockUnits.toFixed(0)}
+                            <span className="bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40 font-bold">
+                              ← بعد الشراء: {formatCompoundStock(item.currentStockMilli + (item.quantityUnits * 1000), meta.unitsForDisplay, meta.baseUnitName)}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* 2. Quantity Control (col-span-2) */}
+                      {/* 2. Quantity & Unit Mode Control (col-span-2) */}
                       <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
+                        {/* Unit Mode Selector (بالعلبة vs بالبرشامة) */}
+                        {meta.hasPackaging && meta.packSize > 1 && (
+                          <div className="inline-flex items-center p-0.5 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-[10px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePurchaseUnitMode(idx, 'package')}
+                              className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                                meta.unitMode === 'package'
+                                  ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
+                                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                              }`}
+                              title={`الشراء بال${meta.packageUnitName}`}
+                            >
+                              <Package className="w-3 h-3 shrink-0" />
+                              <span>بال{meta.packageUnitName}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePurchaseUnitMode(idx, 'base')}
+                              className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                                meta.unitMode === 'base'
+                                  ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
+                                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                              }`}
+                              title={`الشراء بال${meta.baseUnitName}`}
+                            >
+                              {isEnabled('feature_pharmacy') ? <Pill className="w-3 h-3 shrink-0" /> : <Tag className="w-3 h-3 shrink-0" />}
+                              <span>بال{meta.baseUnitName}</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Stepper + Input */}
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => {
-                              const isWeight = item.unit === 'kg' || item.unit === 'gram';
-                              const curr = parseFloat(item.quantityInput || String(item.quantityUnits)) || 0;
-                              if (curr > 0) {
-                                const nextVal = isWeight ? Math.max(0, parseFloat((curr - 1).toFixed(3))) : Math.max(0, curr - 1);
-                                handleDirectStockChange(idx, String(nextVal));
-                              }
-                            }}
+                            onClick={() => handleQuantityStep(idx, -1)}
                             className="w-7 h-7 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-xs font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
                             title="إنقاص الكمية"
                           >
@@ -710,38 +858,29 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={item.quantityInput !== undefined ? item.quantityInput : (item.quantityUnits > 0 ? String(item.quantityUnits) : '')}
+                            value={
+                              meta.unitMode === 'package' && meta.packSize > 1
+                                ? (item.packageQuantityInput ?? (item.quantityUnits > 0 ? String(Math.floor(item.quantityUnits / meta.packSize)) : ''))
+                                : (item.quantityInput !== undefined ? item.quantityInput : (item.quantityUnits > 0 ? String(item.quantityUnits) : ''))
+                            }
                             onChange={(e) => handleDirectStockChange(idx, e.target.value)}
                             onFocus={(e) => e.target.select()}
                             onKeyDown={(e) => {
-                              const isWeight = item.unit === 'kg' || item.unit === 'gram';
-                              const step = 1;
                               if (e.key === 'ArrowUp') {
                                 e.preventDefault();
-                                const curr = parseFloat(item.quantityInput || String(item.quantityUnits)) || 0;
-                                const nextVal = isWeight ? parseFloat((curr + step).toFixed(3)) : curr + step;
-                                handleDirectStockChange(idx, String(nextVal));
+                                handleQuantityStep(idx, 1);
                               } else if (e.key === 'ArrowDown') {
                                 e.preventDefault();
-                                const curr = parseFloat(item.quantityInput || String(item.quantityUnits)) || 0;
-                                if (curr > 0) {
-                                  const nextVal = isWeight ? Math.max(0, parseFloat((curr - step).toFixed(3))) : Math.max(0, curr - step);
-                                  handleDirectStockChange(idx, String(nextVal));
-                                }
+                                handleQuantityStep(idx, -1);
                               }
                             }}
                             placeholder="0"
                             className="w-16 h-7 text-center font-mono font-bold bg-brand-soft dark:bg-brand-soft/20 border border-brand/30 dark:border-brand-bright/30 rounded-lg text-xs text-brand dark:text-brand-bright focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                            title="الكمية المشتراة"
+                            title={meta.unitMode === 'package' ? `عدد ال${meta.packageUnitName}` : `عدد ال${meta.baseUnitName}`}
                           />
                           <button
                             type="button"
-                            onClick={() => {
-                              const isWeight = item.unit === 'kg' || item.unit === 'gram';
-                              const curr = parseFloat(item.quantityInput || String(item.quantityUnits)) || 0;
-                              const nextVal = isWeight ? parseFloat((curr + 1).toFixed(3)) : curr + 1;
-                              handleDirectStockChange(idx, String(nextVal));
-                            }}
+                            onClick={() => handleQuantityStep(idx, 1)}
                             className="w-7 h-7 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-xs font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
                             title="زيادة الكمية"
                           >
@@ -749,29 +888,31 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           </button>
                         </div>
 
-                        {/* Cartons Summary / Shortcut */}
-                        {((item.cartonsInput && parseInt(item.cartonsInput, 10) > 0) || (item.looseInput && parseInt(item.looseInput, 10) > 0)) ? (
-                          <span className="text-[10.5px] font-mono text-brand dark:text-brand-bright font-bold bg-brand-soft dark:bg-brand-soft/20 px-1.5 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30">
-                            {parseInt(item.cartonsInput || '0', 10) > 0 ? `${item.cartonsInput} كرتونة ` : ''}
-                            {parseInt(item.looseInput || '0', 10) > 0 ? `+ ${item.looseInput} فرط` : ''}
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => toggleItemExpand(item.productId)}
-                            className="text-[10px] text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright font-medium flex items-center gap-0.5 cursor-pointer transition-colors"
-                          >
-                            <Layers className="w-2.5 h-2.5" />
-                            <span>حاسبة الكراتين</span>
-                          </button>
+                        {/* Under stepper: Conversion Indicator */}
+                        {meta.packSize > 1 && (
+                          <div className="flex flex-col items-center gap-0.5 text-[10px] font-mono text-ink-muted dark:text-ink-dark-muted">
+                            {meta.unitMode === 'package' ? (
+                              <span className="text-brand dark:text-brand-bright font-bold">
+                                = {item.quantityUnits} {meta.baseUnitName}
+                              </span>
+                            ) : (
+                              <span>
+                                سعة ال{meta.packageUnitName}: {meta.packSize} {meta.baseUnitName}
+                              </span>
+                            )}
+                          </div>
                         )}
 
-                        {/* Pharmacy Pricing Shortcut / Indicator (Story 136 / P10) */}
-                        {isEnabled('feature_pharmacy') && (
+                        {/* Pharmacy or Carton shortcut button */}
+                        {isEnabled('feature_pharmacy') ? (
                           ((item.distributorDiscountPercent !== undefined && item.distributorDiscountPercent > 0) || (item.bonusQuantityUnits !== undefined && item.bonusQuantityUnits > 0)) ? (
-                            <span className="text-[10px] font-mono text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40">
+                            <button
+                              type="button"
+                              onClick={() => toggleItemExpand(item.productId)}
+                              className="text-[10px] font-mono text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40 cursor-pointer"
+                            >
                               خصم موزع: {item.distributorDiscountPercent || 0}% {item.bonusQuantityUnits ? `+ ${item.bonusQuantityUnits} بونص` : ''}
-                            </span>
+                            </button>
                           ) : (
                             <button
                               type="button"
@@ -782,6 +923,26 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               <span>خصم موزع وبونص</span>
                             </button>
                           )
+                        ) : (
+                          ((item.cartonsInput && parseInt(item.cartonsInput, 10) > 0) || (item.looseInput && parseInt(item.looseInput, 10) > 0)) ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleItemExpand(item.productId)}
+                              className="text-[10px] font-mono text-brand dark:text-brand-bright font-bold bg-brand-soft dark:bg-brand-soft/20 px-1.5 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30 cursor-pointer"
+                            >
+                              {parseInt(item.cartonsInput || '0', 10) > 0 ? `${item.cartonsInput} كرتونة ` : ''}
+                              {parseInt(item.looseInput || '0', 10) > 0 ? `+ ${item.looseInput} فرط` : ''}
+                            </button>
+                          ) : meta.hasPackaging && meta.packSize > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleItemExpand(item.productId)}
+                              className="text-[10px] text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright font-medium flex items-center gap-0.5 cursor-pointer transition-colors"
+                            >
+                              <Layers className="w-2.5 h-2.5" />
+                              <span>حاسبة التجزئة</span>
+                            </button>
+                          ) : null
                         )}
                       </div>
 
@@ -789,15 +950,36 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
                         <div className="w-24 sm:w-28">
                           <MoneyInput
-                            valuePiasters={item.unitCostPiasters}
+                            valuePiasters={
+                              meta.unitMode === 'package' && meta.packSize > 1
+                                ? currentPackageCost
+                                : item.unitCostPiasters
+                            }
                             onChangePiasters={(p) => {
                               const updated = [...lineItems];
-                              updated[idx].unitCostPiasters = p;
+                              if (meta.unitMode === 'package' && meta.packSize > 1) {
+                                updated[idx].packageCostPiasters = p;
+                                updated[idx].unitCostPiasters = Math.round(p / meta.packSize);
+                              } else {
+                                updated[idx].unitCostPiasters = p;
+                                if (meta.packSize > 1) {
+                                  updated[idx].packageCostPiasters = Math.round(p * meta.packSize);
+                                }
+                              }
                               setLineItems(updated);
                             }}
                             className="!h-8 !px-2 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
                           />
                         </div>
+
+                        {/* Sublabel for unit cost */}
+                        {meta.packSize > 1 && (
+                          <span className="text-[10px] font-mono text-ink-muted dark:text-ink-dark-muted">
+                            {meta.unitMode === 'package'
+                              ? `(${meta.baseUnitName}: ${formatArabicCurrency(item.unitCostPiasters, true)})`
+                              : `(${meta.packageUnitName}: ${formatArabicCurrency(currentPackageCost, true)})`}
+                          </span>
+                        )}
 
                         {/* Price Change Indicator */}
                         {hasPrevCost ? (
@@ -807,7 +989,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               title="ارتفاع في سعر الشراء"
                             >
                               <TrendingUp className="w-3 h-3 shrink-0" />
-                              <span>ارتفع +{formatArabicCurrency(costDiffPiasters, true)} (+{costDiffPercent}%)</span>
+                              <span>+{formatArabicCurrency(costDiffPiasters, true)} (+{costDiffPercent}%)</span>
                             </div>
                           ) : costDiffPiasters < 0 ? (
                             <div
@@ -832,15 +1014,32 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
                         <div className="w-24 sm:w-28">
                           <MoneyInput
-                            valuePiasters={item.newSellingPricePiasters}
+                            valuePiasters={
+                              meta.unitMode === 'package' && meta.packSize > 1
+                                ? (item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters * meta.packSize : item.currentPricePiasters * meta.packSize)
+                                : item.newSellingPricePiasters
+                            }
                             onChangePiasters={(p) => {
                               const updated = [...lineItems];
-                              updated[idx].newSellingPricePiasters = p;
+                              if (meta.unitMode === 'package' && meta.packSize > 1) {
+                                updated[idx].newSellingPricePiasters = Math.round(p / meta.packSize);
+                              } else {
+                                updated[idx].newSellingPricePiasters = p;
+                              }
                               setLineItems(updated);
                             }}
                             className="!h-8 !px-2 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
                           />
                         </div>
+
+                        {/* Sublabel for unit selling price */}
+                        {meta.packSize > 1 && (
+                          <span className="text-[10px] font-mono text-ink-muted dark:text-ink-dark-muted">
+                            {meta.unitMode === 'package'
+                              ? `(بيع ال${meta.baseUnitName}: ${formatArabicCurrency(effectiveSellingPricePiasters, true)})`
+                              : `(بيع ال${meta.packageUnitName}: ${formatArabicCurrency(effectiveSellingPricePiasters * meta.packSize, true)})`}
+                          </span>
+                        )}
 
                         {/* Profit margin badge */}
                         {profitPiasters < 0 ? (
@@ -872,7 +1071,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               title="تعديل سعر البيع لاعتماد متوسط التكلفة"
                             >
                               <Sparkles className="w-2.5 h-2.5 text-brand dark:text-brand-bright shrink-0" />
-                              <span>مقترح: {formatArabicCurrency(weightedSuggestedPricePiasters, true)}</span>
+                              <span>مقترح: {formatArabicCurrency(meta.unitMode === 'package' && meta.packSize > 1 ? weightedSuggestedPricePiasters * meta.packSize : weightedSuggestedPricePiasters, true)}</span>
                             </button>
                           )}
                       </div>
@@ -883,7 +1082,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           {formatMoney(lineTotal)}
                         </div>
                         <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted block mt-0.5">
-                          {item.quantityUnits} × {formatArabicCurrency(item.unitCostPiasters, true)}
+                          {meta.unitMode === 'package' && meta.packSize > 1 ? (
+                            `${Math.round(item.quantityUnits / meta.packSize)} ${meta.packageUnitName} × ${formatArabicCurrency(currentPackageCost, true)}`
+                          ) : (
+                            `${item.quantityUnits} ${meta.baseUnitName} × ${formatArabicCurrency(item.unitCostPiasters, true)}`
+                          )}
                         </span>
                       </div>
 
@@ -893,13 +1096,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           type="button"
                           onClick={() => toggleItemExpand(item.productId)}
                           className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                            isItemExpanded(item.productId, item)
+                            isItemExpanded(item.productId)
                               ? 'text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-soft/20'
                               : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
                           }`}
-                          title="عرض / إخفاء تفاصيل وحاسبة الكراتين"
+                          title="عرض / إخفاء تفاصيل وحاسبة الصنف"
                         >
-                          {isItemExpanded(item.productId, item) ? (
+                          {isItemExpanded(item.productId) ? (
                             <ChevronUp className="w-4 h-4" />
                           ) : (
                             <ChevronDown className="w-4 h-4" />
@@ -918,119 +1121,101 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       </div>
                     </div>
 
-                    {/* Integrated Sub-Tools: Cartons Breakdown & Smart Pricing Insights */}
-                    {isItemExpanded(item.productId, item) && (
-                      <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark rounded-xl p-3 flex flex-col gap-3 transition-all">
-                        {/* 1. Cartons Formula Strip */}
-                        <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center justify-between gap-3 flex-wrap">
-                          <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark shrink-0">
-                            <Layers className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
-                            <span>حاسبة الكراتين والشكاير:</span>
-                          </div>
-                          <div className="flex items-center gap-2 flex-wrap text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">عدد الكراتين:</span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={item.cartonsInput ?? ''}
-                                onChange={(e) => handleCartonsChange(idx, e.target.value)}
-                                onFocus={(e) => e.target.select()}
-                                placeholder="0"
-                                className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-brand dark:text-brand-bright focus:border-brand dark:focus:border-brand-bright focus:outline-none"
-                              />
+                    {/* Integrated Sub-Tools: Store-Tailored Breakdown & Smart Pricing Insights */}
+                    {isItemExpanded(item.productId) && (
+                      <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark rounded-xl p-3 flex flex-col gap-2.5 transition-all text-xs">
+                        {/* ZONE 1: Store-Tailored Packaging & Supplier Pricing */}
+                        {isEnabled('feature_pharmacy') ? (
+                          /* Pharmacy Specific: Box packaging & Distributor discount & Bonus */
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col gap-2">
+                            <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark border-b border-line/60 dark:border-line-dark/60 pb-1.5">
+                              <Pill className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                              <span>تعبئة وتسعير الصيدلية (سعر الجمهور وخصم الموزع والبونص)</span>
                             </div>
-                            <span className="text-ink-muted dark:text-ink-dark-muted font-bold">×</span>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">سعة الكرتونة:</span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={item.packSizeInput ?? ''}
-                                onChange={(e) => handlePackSizeChange(idx, e.target.value)}
-                                onFocus={(e) => e.target.select()}
-                                placeholder="0"
-                                className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
-                              />
-                              <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">قطعة</span>
-                            </div>
-                            <span className="text-ink-muted dark:text-ink-dark-muted font-bold">+</span>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">فرط:</span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={item.looseInput ?? ''}
-                                onChange={(e) => handleLoosePiecesChange(idx, e.target.value)}
-                                onFocus={(e) => e.target.select()}
-                                placeholder="0"
-                                className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
-                              />
-                              <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">قطعة</span>
-                            </div>
-                            <span className="text-ink-muted dark:text-ink-dark-muted font-bold">=</span>
-                            <div className="px-2.5 py-1 bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright font-mono font-extrabold rounded-md text-xs">
-                              {incomingUnits} قطعة إجمالي
-                            </div>
-                          </div>
-                        </div>
 
-                        {/* 1.5 Pharmacy Distributor Pricing Strip (Story 136 / P10) */}
-                        {isEnabled('feature_pharmacy') && (
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center justify-between gap-3 flex-wrap">
-                            <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark shrink-0">
-                              <Sparkles className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
-                              <span>تسعير الصيدلية (سعر الجمهور وخصم الموزع والبونص):</span>
-                            </div>
-                            <div className="flex items-center gap-3 flex-wrap text-xs">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">سعر الجمهور:</span>
-                                <div className="w-24">
-                                  <MoneyInput
-                                    valuePiasters={item.publicPricePiasters ?? (item.newSellingPricePiasters || item.currentPricePiasters || 0)}
-                                    onChangePiasters={(p) => {
-                                      const updated = [...lineItems];
-                                      updated[idx].publicPricePiasters = p;
-                                      updated[idx].newSellingPricePiasters = p;
-                                      const disc = updated[idx].distributorDiscountPercent || 0;
-                                      if (disc > 0 && p > 0) {
-                                        updated[idx].unitCostPiasters = Math.round(p * (1 - disc / 100));
-                                      }
-                                      setLineItems(updated);
-                                    }}
-                                    className="!h-7 !px-2 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-md text-ink dark:text-ink-dark"
-                                  />
-                                </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
+                              {/* 1. Pack Size */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">
+                                  سعة ال{meta.packageUnitName} ({meta.baseUnitName}):
+                                </span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={item.packSizeInput ?? (meta.packSize > 1 ? String(meta.packSize) : '')}
+                                  onChange={(e) => handlePackSizeChange(idx, e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  placeholder="20"
+                                  className="w-full h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                />
                               </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">خصم الموزع %:</span>
+
+                              {/* 2. Public Price */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">
+                                  سعر الجمهور الرسمي (للعلبة):
+                                </span>
+                                <MoneyInput
+                                  valuePiasters={
+                                    item.publicPricePiasters ??
+                                    ((item.newSellingPricePiasters || item.currentPricePiasters) * meta.packSize)
+                                  }
+                                  onChangePiasters={(p) => {
+                                    const updated = [...lineItems];
+                                    updated[idx].publicPricePiasters = p;
+                                    const packSz = Math.max(1, meta.packSize);
+                                    updated[idx].newSellingPricePiasters = Math.round(p / packSz);
+                                    const disc = updated[idx].distributorDiscountPercent || 0;
+                                    if (disc > 0 && p > 0) {
+                                      const boxCost = Math.round(p * (1 - disc / 100));
+                                      updated[idx].packageCostPiasters = boxCost;
+                                      updated[idx].unitCostPiasters = Math.round(boxCost / packSz);
+                                    }
+                                    setLineItems(updated);
+                                  }}
+                                  className="!h-7 !px-2 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-md text-ink dark:text-ink-dark"
+                                />
+                              </div>
+
+                              {/* 3. Distributor Discount % */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">
+                                  خصم الموزع %:
+                                </span>
                                 <input
                                   type="text"
                                   inputMode="decimal"
-                                  value={item.distributorDiscountInput ?? (item.distributorDiscountPercent !== undefined ? String(item.distributorDiscountPercent) : '')}
+                                  value={item.distributorDiscountInput ?? (item.distributorDiscountPercent !== undefined && item.distributorDiscountPercent > 0 ? String(item.distributorDiscountPercent) : '')}
                                   onChange={(e) => {
                                     const raw = normalizeArabicNumerals(e.target.value);
                                     const val = parseFloat(raw);
                                     const updated = [...lineItems];
                                     updated[idx].distributorDiscountInput = raw;
-                                    updated[idx].distributorDiscountPercent = isNaN(val) ? 0 : Math.min(100, Math.max(0, val));
-                                    const pub = updated[idx].publicPricePiasters || updated[idx].newSellingPricePiasters || updated[idx].currentPricePiasters || 0;
-                                    if (pub > 0 && !isNaN(val)) {
-                                      updated[idx].unitCostPiasters = Math.round(pub * (1 - Math.min(100, Math.max(0, val)) / 100));
+                                    const discountPct = isNaN(val) ? 0 : Math.min(100, Math.max(0, val));
+                                    updated[idx].distributorDiscountPercent = discountPct;
+                                    const pub = updated[idx].publicPricePiasters || ((updated[idx].newSellingPricePiasters || updated[idx].currentPricePiasters) * meta.packSize);
+                                    if (pub > 0 && discountPct > 0) {
+                                      const boxCost = Math.round(pub * (1 - discountPct / 100));
+                                      updated[idx].packageCostPiasters = boxCost;
+                                      updated[idx].unitCostPiasters = Math.round(boxCost / Math.max(1, meta.packSize));
                                     }
                                     setLineItems(updated);
                                   }}
                                   onFocus={(e) => e.target.select()}
                                   placeholder="0%"
-                                  className="w-16 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-brand dark:text-brand-bright focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                  className="w-full h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-brand dark:text-brand-bright focus:border-brand dark:focus:border-brand-bright focus:outline-none"
                                 />
                               </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">بونص مجاني:</span>
+
+                              {/* 4. Bonus Quantity */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">
+                                  بونص مجاني ({meta.packageUnitName}):
+                                </span>
                                 <input
                                   type="text"
                                   inputMode="numeric"
-                                  value={item.bonusQuantityInput ?? (item.bonusQuantityUnits !== undefined ? String(item.bonusQuantityUnits) : '')}
+                                  value={item.bonusQuantityInput ?? (item.bonusQuantityUnits !== undefined && item.bonusQuantityUnits > 0 ? String(item.bonusQuantityUnits) : '')}
                                   onChange={(e) => {
                                     const raw = normalizeArabicNumerals(e.target.value);
                                     const val = parseFloat(raw);
@@ -1041,23 +1226,108 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   }}
                                   onFocus={(e) => e.target.select()}
                                   placeholder="0"
-                                  className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-paid dark:text-paid-bright focus:border-paid dark:focus:border-paid focus:outline-none"
+                                  className="w-full h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-paid dark:text-paid-bright focus:border-paid dark:focus:border-paid focus:outline-none"
                                 />
-                                <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">علبة مجاناً</span>
                               </div>
-                              {(item.bonusQuantityUnits || 0) > 0 && (item.quantityUnits || 0) > 0 && (
-                                <div className="px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-emerald-800/40 text-paid dark:text-paid-bright font-mono font-bold rounded text-[11px]">
-                                  صافي التكلفة بعد البونص: {formatArabicCurrency(Math.round(((item.quantityUnits * item.unitCostPiasters) / (item.quantityUnits + (item.bonusQuantityUnits || 0)))), true)}
-                                </div>
-                              )}
+                            </div>
+
+                            {/* Pricing summary ribbon if discount or bonus is active */}
+                            {((item.distributorDiscountPercent || 0) > 0 || (item.bonusQuantityUnits || 0) > 0) && (
+                              <div className="flex items-center gap-3 text-[11px] font-mono flex-wrap bg-surface-2 dark:bg-surface-dark-2 p-1.5 rounded border border-line/60 dark:border-line-dark/60 mt-1">
+                                <span className="text-brand dark:text-brand-bright font-bold">
+                                  سعر العلبة بعد الخصم: {formatArabicCurrency(currentPackageCost, true)}
+                                </span>
+                                <span className="text-line dark:text-line-dark">•</span>
+                                <span className="text-ink dark:text-ink-dark">
+                                  تكلفة ال{meta.baseUnitName}: {formatArabicCurrency(item.unitCostPiasters, true)}
+                                </span>
+                                {(item.bonusQuantityUnits || 0) > 0 && (item.quantityUnits || 0) > 0 && (
+                                  <>
+                                    <span className="text-line dark:text-line-dark">•</span>
+                                    <span className="text-paid dark:text-paid-bright font-bold">
+                                      صافي التكلفة بالبونص: {formatArabicCurrency(Math.round(((item.quantityUnits * item.unitCostPiasters) / (item.quantityUnits + ((item.bonusQuantityUnits || 0) * meta.packSize)))), true)} / {meta.baseUnitName}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : isEnabled('feature_multi_units') ? (
+                          /* Supermarket / Multi-unit Grocery specific: Cartons Calculator */
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark shrink-0">
+                              <Layers className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                              <span>حاسبة ال{meta.packageUnitName} والتجزئة:</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap text-xs">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">عدد ال{meta.packageUnitName}:</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={item.cartonsInput ?? ''}
+                                  onChange={(e) => handleCartonsChange(idx, e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  placeholder="0"
+                                  className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-brand dark:text-brand-bright focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                />
+                              </div>
+                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold">×</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">سعة ال{meta.packageUnitName}:</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={item.packSizeInput ?? ''}
+                                  onChange={(e) => handlePackSizeChange(idx, e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  placeholder="0"
+                                  className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                />
+                                <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">{meta.baseUnitName}</span>
+                              </div>
+                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold">+</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">فرط:</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={item.looseInput ?? ''}
+                                  onChange={(e) => handleLoosePiecesChange(idx, e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  placeholder="0"
+                                  className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                />
+                                <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">{meta.baseUnitName}</span>
+                              </div>
+                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold">=</span>
+                              <div className="px-2.5 py-1 bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright font-mono font-extrabold rounded-md text-xs">
+                                {incomingUnits} {meta.baseUnitName} إجمالي
+                              </div>
                             </div>
                           </div>
-                        )}
+                        ) : isEnabled('feature_matrix_variants') && (item.variantColor || item.variantSize) ? (
+                          /* Apparel / Matrix Variants specific */
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center gap-3">
+                            <Layers className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                            <span className="text-xs font-bold text-ink dark:text-ink-dark">مواصفات الموديل:</span>
+                            {item.variantColor && (
+                              <span className="bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded text-xs border border-line dark:border-line-dark">
+                                اللون: <b>{item.variantColor}</b>
+                              </span>
+                            )}
+                            {item.variantSize && (
+                              <span className="bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded text-xs border border-line dark:border-line-dark">
+                                المقاس: <b>{item.variantSize}</b>
+                              </span>
+                            )}
+                          </div>
+                        ) : null}
 
-                        {/* 2. Smart Cost & Selling Price Analysis Cards */}
+                        {/* ZONE 2: Streamlined Financial Intelligence Ribbon */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
-                          {/* Card 1: Projected Cost */}
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1.5 shadow-2xs">
+                          {/* Metric 1: Projected Cost */}
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1 shadow-2xs">
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs">
                                 {costingMethod === 'LATEST' ? (
@@ -1071,15 +1341,15 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 {formatArabicCurrency(projectedCostPiasters, true)}
                               </span>
                             </div>
-                            <p className="text-ink-muted dark:text-ink-dark-muted text-[11px] leading-relaxed m-0">
+                            <p className="text-ink-muted dark:text-ink-dark-muted text-[10.5px] leading-relaxed m-0 truncate">
                               {costingMethod === 'LATEST'
-                                ? 'اعتماد سعر الشراء الأخير كتكلفة للمخزن.'
-                                : `متوسط مرجح بين ${currentStockUnits.toFixed(0)} قديمة و ${incomingUnits.toFixed(0)} جديدة (الإجمالي: ${totalStockUnits.toFixed(0)} قطعة).`}
+                                ? 'اعتماد سعر الشراء الأخير كتكلفة للمخزن'
+                                : `متوسط مرجح بين ${currentStockUnits.toFixed(0)} سابقة و ${incomingUnits.toFixed(0)} جديدة`}
                             </p>
                           </div>
 
-                          {/* Card 2: Weighted Selling Price */}
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1.5 shadow-2xs">
+                          {/* Metric 2: Suggested Selling Price */}
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1 shadow-2xs">
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs">
                                 <Sparkles className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
@@ -1093,40 +1363,26 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 <span className="text-ink-muted dark:text-ink-dark-muted text-xs font-mono">—</span>
                               )}
                             </div>
-                            <p className="text-ink-muted dark:text-ink-dark-muted text-[11px] leading-relaxed m-0">
-                              {weightedSuggestedPricePiasters
-                                ? `يحافظ على نفس نسبة مكسبك السابقة (${marginPercent}%).`
-                                : 'لا توجد بيانات سابقة لاحتساب المتوسط.'}
-                            </p>
-                            <div className="flex flex-col gap-1 mt-1">
-                              {weightedSuggestedPricePiasters && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleApplySuggestedPrice(idx, weightedSuggestedPricePiasters)}
-                                  className="w-full py-1 px-2.5 bg-paid dark:bg-emerald-600 text-white hover:bg-paid/90 rounded-md text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                                >
-                                  <Sparkles className="w-3 h-3 shrink-0" />
-                                  <span>تطبيق متوسط البيع ({formatArabicCurrency(weightedSuggestedPricePiasters, true)})</span>
-                                </button>
-                              )}
-                              {latestSuggestedPricePiasters && latestSuggestedPricePiasters !== weightedSuggestedPricePiasters && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleApplySuggestedPrice(idx, latestSuggestedPricePiasters)}
-                                  className="w-full py-0.5 px-2 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright hover:bg-brand/20 dark:hover:bg-brand-bright/20 rounded-md text-[10.5px] font-bold border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                                >
-                                  <span>بسعر اليوم فقط: {formatArabicCurrency(latestSuggestedPricePiasters, true)}</span>
-                                </button>
-                              )}
-                            </div>
+                            {weightedSuggestedPricePiasters ? (
+                              <button
+                                type="button"
+                                onClick={() => handleApplySuggestedPrice(idx, weightedSuggestedPricePiasters)}
+                                className="w-full py-0.5 px-2 bg-paid dark:bg-emerald-600 text-white hover:bg-paid/90 rounded text-[10.5px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                                <span>تطبيق المقترح ({formatArabicCurrency(weightedSuggestedPricePiasters, true)})</span>
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">لا توجد مبيعات سابقة للاقتراح</span>
+                            )}
                           </div>
 
-                          {/* Card 3: Batch Profit */}
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1.5 shadow-2xs">
+                          {/* Metric 3: Total Batch Profit */}
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1 shadow-2xs">
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs">
                                 <Banknote className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
-                                <span>إجمالي مكسب الشحنة:</span>
+                                <span>مكسب الشحنة المتوقع:</span>
                               </span>
                               <span
                                 className={`font-mono font-extrabold px-2 py-0.5 rounded text-xs ${
@@ -1141,15 +1397,15 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 {formatArabicCurrency(totalBatchProfitPiasters, true)}
                               </span>
                             </div>
-                            <p className="text-ink-muted dark:text-ink-dark-muted text-[11px] leading-relaxed m-0">
+                            <p className="text-ink-muted dark:text-ink-dark-muted text-[10.5px] leading-relaxed m-0 truncate">
                               {incomingUnits > 0
-                                ? `مكسب ${incomingUnits.toFixed(0)} قطعة (ربح القطعة: ${formatArabicCurrency(profitPiasters, true)} | هامش الربح: ${marginPercent}%).`
-                                : 'حدد الكمية لحساب إجمالي المكسب.'}
+                                ? `ربح ال${meta.baseUnitName}: ${formatArabicCurrency(profitPiasters, true)} (هامش: ${marginPercent}%)`
+                                : 'حدد الكمية لحساب المكسب'}
                             </p>
                           </div>
                         </div>
 
-                        {/* 3. Batch & Expiry Dates */}
+                        {/* ZONE 3: Batch Number & Expiry Dates */}
                         {isEnabled('feature_expiry_dates') && (
                           <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center gap-4 flex-wrap text-xs">
                             <div className="flex items-center gap-1.5">

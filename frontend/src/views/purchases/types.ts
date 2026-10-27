@@ -1,3 +1,5 @@
+import type { ProductUnit } from '../../types/models';
+
 export type PurchasesSubView = 'invoices' | 'new_invoice' | 'suppliers' | 'shortages';
 
 export interface NewPurchaseLineItem {
@@ -18,11 +20,16 @@ export interface NewPurchaseLineItem {
   variantColor?: string;
   variantSize?: string;
   variantSku?: string;
-  // Carton and Loose Pieces Breakdown
-  unit?: string;
-  cartonsInput?: string;
-  packSizeInput?: string;
-  looseInput?: string;
+  // Packaging, Units & Store Terminology
+  unit?: string;                       // Base unit name (e.g. 'برشامة', 'قرص', 'قطعة')
+  packageUnitName?: string;            // Package unit name (e.g. 'علبة', 'كرتونة', 'دستة')
+  purchaseUnitMode?: 'package' | 'base'; // 'package' (بالعلبة / بالكرتونة) vs 'base' (بالبرشامة / فرط)
+  packageQuantityInput?: string;       // Quantity typed when in package mode (e.g. '5' علب)
+  productUnits?: ProductUnit[];        // Attached product packaging units
+  packageCostPiasters?: number;        // Cost per package (e.g. cost per علبة / كرتونة)
+  cartonsInput?: string;               // Package count input
+  packSizeInput?: string;              // Units per package input
+  looseInput?: string;                 // Loose units input
   cartonsCount?: number;
   packSize?: number;
   looseUnits?: number;

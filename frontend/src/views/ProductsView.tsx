@@ -32,7 +32,7 @@ import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { openHelpCenter } from '../utils/helpService';
 import { rafiqAlert } from '../utils/dialogService';
-import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult, BulkPriceRevertResult, StorageLocation } from '../types/models';
+import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult, BulkPriceRevertResult, StorageLocation, ProductBatch } from '../types/models';
 import type { ProductPharmaInfo } from '../types/pharma';
 import { normalizeArabicNumerals } from '../utils/money';
 import { exportProductsToExcel } from '../utils/excelImport';
@@ -118,6 +118,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [variantColor, setVariantColor] = useState('');
   const [initialExpiryDate, setInitialExpiryDate] = useState('');
   const [initialBatchNumber, setInitialBatchNumber] = useState('');
+  const [existingBatchId, setExistingBatchId] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
   const [similarWarning, setSimilarWarning] = useState<string | null>(null);
   const [additionalBarcodes, setAdditionalBarcodes] = useState<string[]>([]);
@@ -585,6 +586,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setVariantColor('');
     setInitialExpiryDate('');
     setInitialBatchNumber('');
+    setExistingBatchId(null);
     setEditingProduct(null);
     setIsLooseSellable(false);
     setDefaultSaleUnitId(null);
@@ -628,6 +630,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setVariantColor(prod.variantColor || '');
     setInitialExpiryDate(prod.nearestExpiryDate || '');
     setInitialBatchNumber('');
+    setExistingBatchId(null);
+
+    if (isEnabled('feature_expiry_dates')) {
+      void invoke<ProductBatch[]>('batch:listByProduct', { productId: prod.id, activeOnly: true })
+        .then((bList) => {
+          if (bList && bList.length > 0) {
+            const first = bList[0];
+            setExistingBatchId(first.id);
+            setInitialBatchNumber(first.batchNumber);
+            if (first.expiryDate) {
+              setInitialExpiryDate(first.expiryDate);
+            }
+          }
+        })
+        .catch(() => null);
+    }
+
     const u = prod.unit === 'kg' ? 'kg' : 'piece';
     setUnit(u);
 
@@ -937,14 +956,37 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
       const saved = await invoke<Product>('products:save', productPayload);
       if (saved && isEnabled('feature_expiry_dates') && initialExpiryDate.trim() && stockQuantityMilli > 0) {
-        await invoke('batch:save', {
-          productId: saved.id,
-          batchNumber: initialBatchNumber.trim() || `B-${Date.now().toString().slice(-6)}`,
-          expiryDate: initialExpiryDate.trim(),
-          quantityMilli: stockQuantityMilli,
-          costPricePiasters: costPiasters,
-          status: 'ACTIVE'
-        }).catch(() => null);
+        if (!editingId) {
+          // صنف جديد: إنشاء أول تشغيلة لرصيد أول المدة
+          await invoke('batch:save', {
+            productId: saved.id,
+            batchNumber: initialBatchNumber.trim() || `B-${Date.now().toString().slice(-6)}`,
+            expiryDate: initialExpiryDate.trim(),
+            quantityMilli: stockQuantityMilli,
+            costPricePiasters: costPiasters,
+            status: 'ACTIVE'
+          }).catch(() => null);
+        } else if (existingBatchId) {
+          // صنف قائم مسجل له تشغيلة: تحديث تاريخ الصلاحية للتشغيلة القائمة دون مضاعفة الرصيد أو توليد تشغيلات وهمية
+          await invoke('batch:save', {
+            id: existingBatchId,
+            productId: saved.id,
+            batchNumber: initialBatchNumber.trim() || undefined,
+            expiryDate: initialExpiryDate.trim(),
+            costPricePiasters: costPiasters,
+            status: 'ACTIVE'
+          }).catch(() => null);
+        } else {
+          // صنف قديم لم تكن له أي تشغيلة مسجلة من قبل: تسجيل تشغيلته الأولى برصيده الحالي
+          await invoke('batch:save', {
+            productId: saved.id,
+            batchNumber: initialBatchNumber.trim() || `B-${Date.now().toString().slice(-6)}`,
+            expiryDate: initialExpiryDate.trim(),
+            quantityMilli: stockQuantityMilli,
+            costPricePiasters: costPiasters,
+            status: 'ACTIVE'
+          }).catch(() => null);
+        }
       }
       if (saved && isEnabled('feature_pharmacy')) {
         await invoke('pharma:saveInfo', {

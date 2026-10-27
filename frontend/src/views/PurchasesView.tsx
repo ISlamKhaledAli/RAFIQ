@@ -233,24 +233,55 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       return;
     }
 
+    const isPharma = isEnabled('feature_pharmacy');
+    const isMultiUnits = isEnabled('feature_multi_units');
+    const detectedPkg = prod.units?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
+    const baseUnitObj = prod.units?.find((u) => u.isBaseUnit);
+    const effectiveBaseUnitName = (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
+      ? baseUnitObj.unitName.trim()
+      : (prod.unit || (isPharma ? 'قرص' : 'قطعة'));
+    const effectivePackageUnitName = (detectedPkg && detectedPkg.unitName && detectedPkg.unitName.trim())
+      ? detectedPkg.unitName.trim()
+      : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined);
+    const packFactor = detectedPkg ? detectedPkg.conversionFactor : 0;
+    const initialMode: 'package' | 'base' = (isPharma || packFactor > 1) ? 'package' : 'base';
+
     const existingIdx = lineItems.findIndex((item) => item.productId === prod.id);
     if (existingIdx >= 0) {
       const updated = [...lineItems];
-      const nextQty = (updated[existingIdx].quantityUnits || 0) + 1;
-      updated[existingIdx].quantityUnits = nextQty;
-      updated[existingIdx].quantityInput = String(nextQty);
-      const p = parseInt(normalizeArabicNumerals(updated[existingIdx].packSizeInput || ''), 10) || 0;
-      if (p > 0) {
-        const c = Math.floor(nextQty / p);
-        const rem = Math.round(nextQty % p);
-        updated[existingIdx].cartonsInput = c > 0 ? String(c) : '0';
-        updated[existingIdx].looseInput = rem > 0 ? String(rem) : '0';
+      const item = { ...updated[existingIdx] };
+      const currentPackFactor = parseInt(normalizeArabicNumerals(item.packSizeInput || ''), 10) || item.packSize || packFactor || 0;
+      
+      if (item.purchaseUnitMode === 'package' && currentPackFactor > 1) {
+        const currentCartons = parseInt(normalizeArabicNumerals(item.cartonsInput || '0'), 10) || 0;
+        const nextCartons = currentCartons + 1;
+        item.cartonsInput = String(nextCartons);
+        const rem = parseInt(normalizeArabicNumerals(item.looseInput || '0'), 10) || 0;
+        const total = (nextCartons * currentPackFactor) + rem;
+        item.quantityUnits = total;
+        item.quantityInput = String(nextCartons);
       } else {
-        updated[existingIdx].cartonsInput = '0';
-        updated[existingIdx].looseInput = String(nextQty);
+        const nextQty = (item.quantityUnits || 0) + 1;
+        item.quantityUnits = nextQty;
+        item.quantityInput = String(nextQty);
+        if (currentPackFactor > 0) {
+          const c = Math.floor(nextQty / currentPackFactor);
+          const rem = Math.round(nextQty % currentPackFactor);
+          item.cartonsInput = c > 0 ? String(c) : '0';
+          item.looseInput = rem > 0 ? String(rem) : '0';
+        } else {
+          item.cartonsInput = '0';
+          item.looseInput = String(nextQty);
+        }
       }
+      updated[existingIdx] = item;
       setLineItems(updated);
     } else {
+      const initialUnits = (initialMode === 'package' && packFactor > 1) ? packFactor : 1;
+      const initialCartonsInput = initialMode === 'package' ? '1' : '0';
+      const initialLooseInput = initialMode === 'package' ? '0' : '1';
+      const initialQtyInput = '1';
+
       setLineItems([
         ...lineItems,
         {
@@ -260,8 +291,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           currentStockMilli: prod.stockQuantityMilli,
           currentCostPiasters: prod.costPiasters,
           currentPricePiasters: prod.pricePiasters,
-          quantityUnits: 1,
-          quantityInput: '1',
+          quantityUnits: initialUnits,
+          quantityInput: initialQtyInput,
           unitCostPiasters: prod.costPiasters > 0 ? prod.costPiasters : prod.pricePiasters,
           newSellingPricePiasters: prod.pricePiasters,
           batchNumber: '',
@@ -270,10 +301,17 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           variantColor: prod.variantColor || undefined,
           variantSize: prod.variantSize || undefined,
           variantSku: prod.variantSku || undefined,
-          unit: prod.unit || 'piece',
-          cartonsInput: '',
-          packSizeInput: '',
-          looseInput: '1',
+          unit: effectiveBaseUnitName,
+          packageUnitName: effectivePackageUnitName,
+          purchaseUnitMode: initialMode,
+          productUnits: prod.units,
+          cartonsInput: initialCartonsInput,
+          packSizeInput: packFactor > 1 ? String(packFactor) : '',
+          packSize: packFactor > 1 ? packFactor : undefined,
+          looseInput: initialLooseInput,
+          publicPricePiasters: (detectedPkg && detectedPkg.sellPricePiasters > 0)
+            ? detectedPkg.sellPricePiasters
+            : (packFactor > 1 ? prod.pricePiasters * packFactor : prod.pricePiasters),
         },
       ]);
     }
@@ -839,20 +877,45 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                   const cost = prod && prod.costPiasters > 0 ? prod.costPiasters : (pi.costPiasters > 0 ? pi.costPiasters : 0);
                   const price = prod && prod.pricePiasters > 0 ? prod.pricePiasters : cost;
                   const stock = prod ? prod.stockQuantityMilli : 0;
-                  const unit = prod?.unit || pi.unit || 'قطعة';
-                  const barcode = prod?.barcode || pi.barcode || '';
+                  const rawBarcode = (pi.barcode || prod?.barcode || '').trim();
+                  const rawUnit = (prod?.unit || 'piece').trim();
+                  const isPharma = isEnabled('feature_pharmacy');
+                  const isMultiUnits = isEnabled('feature_multi_units');
+                  const detectedPkg = prod?.units?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
+                  const baseUnitObj = prod?.units?.find((u) => u.isBaseUnit);
+                  const effectiveBase = (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
+                    ? baseUnitObj.unitName.trim()
+                    : (rawUnit || (isPharma ? 'قرص' : 'قطعة'));
+                  const effectivePackage = (detectedPkg && detectedPkg.unitName && detectedPkg.unitName.trim())
+                    ? detectedPkg.unitName.trim()
+                    : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined);
+                  const packFactor = detectedPkg ? detectedPkg.conversionFactor : 0;
+                  const initialMode: 'package' | 'base' = (isPharma || packFactor > 1) ? 'package' : 'base';
+                  const baseQty = Math.max(1, Math.round(pi.suggestedQuantityMilli / 1000));
+                  const cartonsCount = packFactor > 1 ? Math.floor(baseQty / packFactor) || 1 : 1;
 
                   return {
                     productId: pi.productId || prod?.id || '',
                     productName: pi.productName || prod?.name || 'صنف',
-                    barcode,
+                    barcode: rawBarcode,
                     currentStockMilli: stock,
                     currentCostPiasters: cost,
                     currentPricePiasters: price,
-                    quantityUnits: Math.max(1, Math.round(pi.suggestedQuantityMilli / 1000)),
+                    quantityUnits: baseQty,
+                    quantityInput: initialMode === 'package' && packFactor > 1 ? String(cartonsCount) : String(baseQty),
                     unitCostPiasters: cost,
                     newSellingPricePiasters: price,
-                    unit,
+                    unit: effectiveBase,
+                    packageUnitName: effectivePackage,
+                    purchaseUnitMode: initialMode,
+                    productUnits: prod?.units,
+                    cartonsInput: initialMode === 'package' && packFactor > 1 ? String(cartonsCount) : '0',
+                    packSizeInput: packFactor > 1 ? String(packFactor) : '',
+                    packSize: packFactor > 1 ? packFactor : undefined,
+                    looseInput: initialMode === 'package' && packFactor > 1 ? String(baseQty % packFactor) : String(baseQty),
+                    publicPricePiasters: (detectedPkg && detectedPkg.sellPricePiasters > 0)
+                      ? detectedPkg.sellPricePiasters
+                      : (packFactor > 1 ? price * packFactor : price),
                   };
                 })
               );
