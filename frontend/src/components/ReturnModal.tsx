@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { Sale, Return, Product } from '../types/models';
 import { extractProducts } from '../types/models';
-import { formatArabicCurrency } from '../utils/money';
+import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { useAuth } from '../context/useAuth';
@@ -626,11 +626,14 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                                   -
                                 </button>
                                 <input
-                                  type="number"
-                                  min={0}
-                                  max={maxReturnable}
+                                  type="text"
+                                  inputMode="decimal"
                                   value={item.returnQuantityPieces}
-                                  onChange={(e) => updateItemQty(idx, parseFloat(e.target.value) || 0)}
+                                  onChange={(e) => {
+                                    const raw = parseFloat(normalizeArabicNumerals(e.target.value)) || 0;
+                                    const val = Math.min(maxReturnable, Math.max(0, raw));
+                                    updateItemQty(idx, val);
+                                  }}
                                   className="w-12 h-6 text-center font-mono font-bold text-xs bg-white dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded focus:border-amber-500 dark:focus:border-warn text-slate-900 dark:text-ink-dark focus:outline-none"
                                 />
                                 <button

@@ -597,6 +597,43 @@ namespace RafiqPOS.Services
             }
             Assert(deleteBlocked, "منع الحذف النهائي للمورد في حالة وجود قيود وفواتير سابقة وحماية سجلات المحاسبة", result);
 
+            // 3.6.B: Archiving Supplier with Active Balance Blocked
+            bool archiveWithBalanceBlocked = false;
+            try
+            {
+                supplierRepo.Archive(supplier.Id);
+            }
+            catch (InvalidOperationException)
+            {
+                archiveWithBalanceBlocked = true;
+            }
+            Assert(archiveWithBalanceBlocked, "منع أرشفة المورد في حالة وجود رصيد معلق أو دفعات مقدمة", result);
+
+            // Settle supplier balance to 0 (Receive goods of 15,000 piasters to absorb advance credit)
+            purchaseRepo.CreatePurchase(new Purchase
+            {
+                SupplierId = supplier.Id,
+                SupplierInvoiceNumber = "INV-SETTLE-ADVANCE",
+                TotalCostPiasters = 15000,
+                NetCostPiasters = 15000,
+                PaidAmountPiasters = 0,
+                RemainingAmountPiasters = 15000,
+                PaymentStatus = "unpaid",
+                Items = new List<PurchaseItem>
+                {
+                    new PurchaseItem
+                    {
+                        ProductId = purProdId,
+                        ProductName = "صنف لتسوية رصيد المورد",
+                        QuantityMilli = 1000,
+                        UnitCostPiasters = 15000,
+                        TotalCostPiasters = 15000
+                    }
+                }
+            });
+            var supSettled = supplierRepo.GetById(supplier.Id);
+            Assert(supSettled.BalancePiasters == 0, "تسوية رصيد المورد بالكامل إلى صفر قبل الأرشفة", result);
+
             // 3.7: Deactivating / Archiving Supplier
             supplierRepo.Archive(supplier.Id);
             var archivedSup = supplierRepo.GetById(supplier.Id);

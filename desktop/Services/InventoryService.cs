@@ -395,7 +395,7 @@ namespace RafiqPOS.Services
             };
 
             var purchaseRepo = new PurchaseRepository(_connectionString, auditRepo: _auditRepo);
-            string costingMethod = updateProductCost ? "WEIGHTED_AVERAGE" : "KEEP";
+            string costingMethod = updateProductCost ? "LATEST" : "KEEP";
             var createdPurchase = purchaseRepo.CreatePurchase(purchase, costingMethod, userId);
 
             return new StockMovement

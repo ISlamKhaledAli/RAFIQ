@@ -747,7 +747,6 @@ namespace RafiqPOS.Repositories
                                 category_id = excluded.category_id,
                                 price_piasters = excluded.price_piasters,
                                 cost_piasters = excluded.cost_piasters,
-                                stock_quantity_milli = excluded.stock_quantity_milli,
                                 min_stock_quantity_milli = excluded.min_stock_quantity_milli,
                                 unit = excluded.unit,
                                 tax_rate_percent = excluded.tax_rate_percent,
@@ -1347,11 +1346,6 @@ namespace RafiqPOS.Repositories
                         {
                             cmd.Parameters.AddWithValue("@updatedAt", now);
                             affected = cmd.ExecuteNonQuery();
-                        }
-
-                        using (var delVarRelCmd = new SQLiteCommand("DELETE FROM product_variants;", conn, trans))
-                        {
-                            delVarRelCmd.ExecuteNonQuery();
                         }
 
                         trans.Commit();

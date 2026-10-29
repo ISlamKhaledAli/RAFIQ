@@ -176,11 +176,11 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
                     نافذة القبول (أيام قبل الانتهاء)
                   </label>
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     placeholder="30"
                     value={form.expiryReturnWindowDays || ''}
-                    onChange={(e) => setForm({ ...form, expiryReturnWindowDays: e.target.value })}
+                    onChange={(e) => setForm({ ...form, expiryReturnWindowDays: normalizeArabicNumerals(e.target.value).replace(/[^\d]/g, '') })}
                     className="w-full h-9 px-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                   />
                 </div>
@@ -190,12 +190,11 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
                   </label>
                   <div className="relative">
                     <input
-                      type="number"
-                      min="0"
-                      max="100"
+                      type="text"
+                      inputMode="numeric"
                       placeholder="100"
                       value={form.expiryReturnCreditPercent || ''}
-                      onChange={(e) => setForm({ ...form, expiryReturnCreditPercent: e.target.value })}
+                      onChange={(e) => setForm({ ...form, expiryReturnCreditPercent: normalizeArabicNumerals(e.target.value).replace(/[^\d]/g, '') })}
                       className="w-full h-9 pl-7 pr-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                     />
                     <Percent className="w-3.5 h-3.5 text-ink-muted absolute left-2 top-2.5 pointer-events-none" />

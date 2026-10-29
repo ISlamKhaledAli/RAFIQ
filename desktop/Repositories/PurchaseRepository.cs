@@ -966,7 +966,7 @@ namespace RafiqPOS.Repositories
                                         FROM purchases p
                                         JOIN purchase_items pi ON p.id = pi.purchase_id
                                         WHERE p.supplier_id = @supId AND pi.product_id = @pid
-                                        ORDER BY p.purchase_date DESC, p.created_at DESC LIMIT 1;", conn, trans))
+                                        ORDER BY p.invoice_date DESC, p.created_at DESC LIMIT 1;", conn, trans))
                                     {
                                         lastPurCmd.Parameters.AddWithValue("@supId", returnDoc.SupplierId);
                                         lastPurCmd.Parameters.AddWithValue("@pid", item.ProductId);
@@ -1019,12 +1019,12 @@ namespace RafiqPOS.Repositories
                             string insertMasterSql = @"
                                 INSERT INTO purchase_returns (
                                     id, return_number, purchase_id, supplier_id,
-                                    return_date, total_cost_piasters, refund_amount_piasters,
-                                    refund_status, refund_source, notes, created_by_user_id, created_at
+                                    return_date, total_cost_piasters, refund_method,
+                                    notes, created_by_user_id, created_at
                                 ) VALUES (
                                     @id, @retNum, @purId, @supId,
-                                    @retDate, @totalCost, 0,
-                                    'CREDIT', 'supplier_balance', @notes, @userId, @createdAt
+                                    @retDate, @totalCost, @refundMethod,
+                                    @notes, @userId, @createdAt
                                 );
                             ";
                             using (var cmd = new SQLiteCommand(insertMasterSql, conn, trans))
@@ -1035,6 +1035,7 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@supId", returnDoc.SupplierId);
                                 cmd.Parameters.AddWithValue("@retDate", returnDoc.ReturnDate);
                                 cmd.Parameters.AddWithValue("@totalCost", returnDoc.TotalCostPiasters);
+                                cmd.Parameters.AddWithValue("@refundMethod", string.IsNullOrWhiteSpace(returnDoc.RefundMethod) ? "BALANCE_DEDUCTION" : returnDoc.RefundMethod);
                                 cmd.Parameters.AddWithValue("@notes", (object)returnDoc.Notes ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@userId", (object)userId ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@createdAt", now);
@@ -1052,11 +1053,11 @@ namespace RafiqPOS.Repositories
                                 // Insert purchase_return_items
                                 string insertItemSql = @"
                                     INSERT INTO purchase_return_items (
-                                        id, return_id, product_id, product_name, barcode,
+                                        id, return_id, product_id, product_name,
                                         quantity_milli, unit_cost_piasters, total_cost_piasters,
                                         batch_number, reason, created_at
                                     ) VALUES (
-                                        @id, @retId, @prodId, @prodName, @barcode,
+                                        @id, @retId, @prodId, @prodName,
                                         @qty, @unitCost, @totalCost,
                                         @bnum, @reason, @createdAt
                                     );
@@ -1067,7 +1068,6 @@ namespace RafiqPOS.Repositories
                                     cmd.Parameters.AddWithValue("@retId", returnDoc.Id);
                                     cmd.Parameters.AddWithValue("@prodId", item.ProductId);
                                     cmd.Parameters.AddWithValue("@prodName", item.ProductName);
-                                    cmd.Parameters.AddWithValue("@barcode", (object)item.Barcode ?? DBNull.Value);
                                     cmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
                                     cmd.Parameters.AddWithValue("@unitCost", item.UnitCostPiasters);
                                     cmd.Parameters.AddWithValue("@totalCost", item.TotalCostPiasters);

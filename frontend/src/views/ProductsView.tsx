@@ -27,6 +27,8 @@ import {
   BarChart3,
   Printer,
   Trash2,
+  Sliders,
+  FlaskConical,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
@@ -55,6 +57,8 @@ import { PharmacyStocktakingModal } from '../components/PharmacyStocktakingModal
 import { SpecializedPharmacyReportsModal } from '../components/SpecializedPharmacyReportsModal';
 import { DosageLabelModal } from '../components/DosageLabelModal';
 import { DrugInteractionManagerModal } from '../components/DrugInteractionManagerModal';
+import { ModifierManagerModal } from '../components/ModifierManagerModal';
+import { RecipeManagerModal } from '../components/RecipeManagerModal';
 import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
 import { ProductFormModal } from './products/ProductFormModal';
@@ -89,6 +93,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
+  const [showModifierManagerModal, setShowModifierManagerModal] = useState(false);
+  const [showRecipeManagerModal, setShowRecipeManagerModal] = useState(false);
   const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
   const [stockStatusFilter, setStockStatusFilter] = useState<'all' | 'lowStock' | 'outOfStock'>(initialFilter);
 
@@ -1244,6 +1250,42 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         </>
                       )}
 
+                      {/* Section 4b: Cafe & Restaurant Modifiers & Manufacturing Recipes */}
+                      {(isEnabled('feature_item_modifiers') || isEnabled('feature_manufacturing_recipes')) && (
+                        <>
+                          <div className="h-px bg-line dark:bg-line-dark my-1" />
+                          <div className="px-3 py-1 text-[10px] font-bold text-brand tracking-wider">
+                            أدوات الكافيهات والمطاعم والتصنيع
+                          </div>
+                          {isEnabled('feature_item_modifiers') && hasPermission('modifiers.manage') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsToolsDropdownOpen(false);
+                                setShowModifierManagerModal(true);
+                              }}
+                              className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <Sliders className="w-4 h-4 text-brand dark:text-brand-bright" />
+                              <span>مجموعات الإضافات وتخصيص الأصناف (Modifiers)</span>
+                            </button>
+                          )}
+                          {isEnabled('feature_manufacturing_recipes') && (hasPermission('recipes.manage') || hasPermission('recipes.produce')) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsToolsDropdownOpen(false);
+                                setShowRecipeManagerModal(true);
+                              }}
+                              className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <FlaskConical className="w-4 h-4 text-brand dark:text-brand-bright" />
+                              <span>الرسبي والتصنيع وخصم الخامات (BOM / Recipes)</span>
+                            </button>
+                          )}
+                        </>
+                      )}
+
                       {/* Section 5: Pharmacy Specific Tools (Strictly for Pharmacies) */}
                       {isPharmacy && (
                         <>
@@ -2041,6 +2083,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         isOpen={showDdiManagerModal}
         onClose={() => setShowDdiManagerModal(false)}
         onSuccess={(msg) => setImportSuccessAlert(msg)}
+      />
+
+      {/* Item Modifiers Manager Modal (Feature #197 / Story 140) */}
+      <ModifierManagerModal
+        isOpen={showModifierManagerModal}
+        onClose={() => setShowModifierManagerModal(false)}
+        products={products}
+      />
+
+      {/* Manufacturing Recipes & BOM Manager Modal (Feature #200 / Story 143) */}
+      <RecipeManagerModal
+        isOpen={showRecipeManagerModal}
+        onClose={() => setShowRecipeManagerModal(false)}
+        products={products}
+        canProduceBatch={hasPermission('recipes.produce')}
+        onProductsChanged={() => {
+          void loadProducts(searchQuery, currentPage, pageSize, stockStatusFilter, selectedCategoryFilter);
+        }}
       />
     </div>
   );

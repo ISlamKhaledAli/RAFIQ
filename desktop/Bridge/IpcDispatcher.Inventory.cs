@@ -122,17 +122,16 @@ namespace RafiqPOS.Bridge
 
                 case "inventory:recalculate":
                     string recalPid = null;
-                    string recalUser = "admin";
+                    string recalUserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
                     if (request.Payload != null)
                     {
                         JObject recObj = request.Payload as JObject;
                         if (recObj != null)
                         {
                             if (recObj["productId"] != null) recalPid = recObj["productId"].ToString();
-                            if (recObj["userId"] != null) recalUser = recObj["userId"].ToString();
                         }
                     }
-                    int updatedCount = DatabaseService.Inventory.RecalculateStock(recalPid, recalUser);
+                    int updatedCount = DatabaseService.Inventory.RecalculateStock(recalPid, recalUserId);
                     response = BridgeResponse.Ok(request.Id, new
                     {
                         success = true,

@@ -13,7 +13,7 @@ import {
   Search,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import { formatArabicCurrency } from '../utils/money';
+import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { CustomSelect } from './CustomSelect';
 import { useDataSubscription } from '../utils/eventBus';
@@ -547,13 +547,13 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                           <td className="p-3 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <input
-                                type="number"
-                                min="1"
-                                max={maxQty}
+                                type="text"
+                                inputMode="numeric"
                                 value={returnQty}
                                 disabled={!isSelected}
                                 onChange={(e) => {
-                                  const val = Math.min(maxQty, Math.max(1, parseFloat(e.target.value) || 1));
+                                  const raw = parseFloat(normalizeArabicNumerals(e.target.value)) || 0;
+                                  const val = Math.min(maxQty, Math.max(1, raw));
                                   setSelectedBatchesMap(prev => ({
                                     ...prev,
                                     [b.batchId]: { selected: true, returnQty: val },
@@ -801,13 +801,13 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                               <td className="p-3 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <input
-                                    type="number"
-                                    min="1"
-                                    max={maxQty}
+                                    type="text"
+                                    inputMode="numeric"
                                     value={writeOffQty}
                                     disabled={!isSelected}
                                     onChange={(e) => {
-                                      const val = Math.min(maxQty, Math.max(1, parseFloat(e.target.value) || 1));
+                                      const raw = parseFloat(normalizeArabicNumerals(e.target.value)) || 0;
+                                      const val = Math.min(maxQty, Math.max(1, raw));
                                       setSelectedWriteOffMap(prev => ({
                                         ...prev,
                                         [b.batchId]: { selected: true, writeOffQty: val },

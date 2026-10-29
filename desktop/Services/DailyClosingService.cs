@@ -309,7 +309,7 @@ namespace RafiqPOS.Services
                 // 7. Gross profit & zero cost warning count
                 string profitSql = @"
                     SELECT 
-                        COALESCE(SUM(si.total_piasters - (si.quantity_milli * si.unit_cost_piasters / 1000)), 0) AS total_profit,
+                        COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - (si.quantity_milli * si.unit_cost_piasters / 1000)), 0) AS total_profit,
                         COUNT(CASE WHEN si.unit_cost_piasters <= 0 THEN 1 END) AS zero_cost_count
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
@@ -358,7 +358,7 @@ namespace RafiqPOS.Services
                             if (retProfRes != null && retProfRes != DBNull.Value)
                             {
                                 long returnedProfit = Convert.ToInt64(retProfRes);
-                                preview.GrossProfitPiasters = Math.Max(0, preview.GrossProfitPiasters - returnedProfit);
+                                preview.GrossProfitPiasters = preview.GrossProfitPiasters - returnedProfit;
                             }
                         }
                     }
@@ -555,15 +555,27 @@ namespace RafiqPOS.Services
                         }
 
                         string suppSql = hasSuppSourceCol
-                            ? @"SELECT COALESCE(SUM(ABS(amount_piasters)), 0)
+                            ? @"SELECT COALESCE(SUM(
+                                    CASE 
+                                        WHEN transaction_type = 'PAYMENT' THEN ABS(amount_piasters)
+                                        WHEN transaction_type = 'PAYMENT_CANCEL' THEN -ABS(amount_piasters)
+                                        ELSE 0 
+                                    END
+                                ), 0)
                                 FROM supplier_transactions
                                 WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
-                                  AND transaction_type = 'PAYMENT'
+                                  AND (transaction_type = 'PAYMENT' OR transaction_type = 'PAYMENT_CANCEL')
                                   AND (payment_source = 'cash_drawer' OR payment_source IS NULL OR payment_source = '');"
-                            : @"SELECT COALESCE(SUM(ABS(amount_piasters)), 0)
+                            : @"SELECT COALESCE(SUM(
+                                    CASE 
+                                        WHEN transaction_type = 'PAYMENT' THEN ABS(amount_piasters)
+                                        WHEN transaction_type = 'PAYMENT_CANCEL' THEN -ABS(amount_piasters)
+                                        ELSE 0 
+                                    END
+                                ), 0)
                                 FROM supplier_transactions
                                 WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
-                                  AND transaction_type = 'PAYMENT';";
+                                  AND (transaction_type = 'PAYMENT' OR transaction_type = 'PAYMENT_CANCEL');";
 
                         using (var suppCmd = new SQLiteCommand(suppSql, conn))
                         {
