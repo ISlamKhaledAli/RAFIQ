@@ -20,6 +20,9 @@ namespace RafiqPOS.Models
         [JsonProperty("productCount")]
         public int ProductCount { get; set; }
 
+        [JsonProperty("kotStation")]
+        public string KotStation { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

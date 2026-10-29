@@ -121,6 +121,14 @@ namespace RafiqPOS.Services
                     if (ownerUser.ParentId == "usr_root_developer" || ownerUser.ParentId == ownerUser.Id) { ownerUser.ParentId = null; oChanged = true; }
                     if (!string.IsNullOrEmpty(ownerUser.PermissionsJson)) { ownerUser.PermissionsJson = null; oChanged = true; }
                     if (!ownerUser.IsActive) { ownerUser.IsActive = true; oChanged = true; }
+                    if (string.IsNullOrEmpty(ownerUser.PinSalt) && !string.IsNullOrEmpty(ownerUser.PinCodeHash))
+                    {
+                        byte[] oSaltBytes = GenerateSalt();
+                        byte[] oHashBytes = HashWithSalt(ownerUser.PinCodeHash, oSaltBytes);
+                        ownerUser.PinSalt = Convert.ToBase64String(oSaltBytes);
+                        ownerUser.PinCodeHash = Convert.ToBase64String(oHashBytes);
+                        oChanged = true;
+                    }
                     if (oChanged) _userRepo.Update(ownerUser);
                 }
 
@@ -1189,7 +1197,7 @@ namespace RafiqPOS.Services
             for (int i = 0; i < admins.Count; i++)
             {
                 var admin = admins[i];
-                if (string.IsNullOrEmpty(admin.PinCodeHash) || string.IsNullOrEmpty(admin.PinSalt))
+                if (string.IsNullOrEmpty(admin.PinCodeHash))
                     continue;
 
                 // Check per-user lockout
@@ -1197,16 +1205,23 @@ namespace RafiqPOS.Services
                     continue;
 
                 bool matches = false;
-                try
+                if (!string.IsNullOrEmpty(admin.PinSalt))
                 {
-                    byte[] salt = Convert.FromBase64String(admin.PinSalt);
-                    byte[] expectedHash = Convert.FromBase64String(admin.PinCodeHash);
-                    byte[] actualHash = HashWithSalt(pin, salt);
-                    matches = SlowEquals(expectedHash, actualHash);
+                    try
+                    {
+                        byte[] salt = Convert.FromBase64String(admin.PinSalt);
+                        byte[] expectedHash = Convert.FromBase64String(admin.PinCodeHash);
+                        byte[] actualHash = HashWithSalt(pin, salt);
+                        matches = SlowEquals(expectedHash, actualHash);
+                    }
+                    catch
+                    {
+                        matches = false;
+                    }
                 }
-                catch
+                else
                 {
-                    matches = false;
+                    matches = (admin.PinCodeHash == pin);
                 }
 
                 if (matches)
@@ -1709,7 +1724,7 @@ namespace RafiqPOS.Services
             "invoices.view", "invoices.cancel", "returns.create", "returns.without_invoice",
             "products.view", "products.create", "products.edit", "products.edit_price", "products.edit_cost",
             "products.packaging.edit", "products.unit_rebase",
-            "products.archive", "products.import", "products.export", "categories.manage",
+            "products.archive", "products.clear_all", "products.import", "products.export", "categories.manage",
             "stock.view", "stock.adjust", "stock.movement_log", "inventory.locations.manage",
             "purchases.view", "purchases.create", "suppliers.manage",
             "customers.view", "customers.create", "customers.edit", "customers.ledger",
@@ -1731,6 +1746,11 @@ namespace RafiqPOS.Services
             "pharma.expiry_returns.manage", "pharma.drug_reference.import",
             "pharma.stocktaking.manage", "pharma.dosage_labels.print", "reports.pharma.view",
             "pharma.ddi.manage", "pharma.ddi.override",
+            "tables.view", "tables.manage_orders", "tables.transfer_merge", "tables.split_bill", "tables.configure_floor",
+            "kot.print", "kot.configure",
+            "modifiers.manage",
+            "delivery.orders.manage", "delivery.riders.settle", "delivery.zones_riders.configure",
+            "recipes.manage", "recipes.produce",
             // Legacy aliases
             "pos", "customers", "products", "inventory", "reports", "settings", "users", "epay", "wallets",
             "discounts", "price_edit", "stock_adjust", "db_recovery", "refunds", "cancel_sale"
@@ -1904,6 +1924,7 @@ namespace RafiqPOS.Services
             p["products.packaging.edit"] = isAdmin;
             p["products.unit_rebase"] = isAdmin;
             p["products.archive"] = isAdmin;
+            p["products.clear_all"] = isAdmin;
             p["products.import"] = isAdmin;
             p["products.export"] = isAdmin;
             p["categories.manage"] = isAdmin;
@@ -1989,7 +2010,7 @@ namespace RafiqPOS.Services
             p["shifts.open"] = true;
             p["shifts.close"] = true;
             p["shifts.cash_in"] = true;
-            p["shifts.cash_out"] = true;
+            p["shifts.cash_out"] = isAdmin;
 
             // Shortages (Story 129 / Feature #186)
             p["shortage.view"] = true;
@@ -2027,6 +2048,21 @@ namespace RafiqPOS.Services
             p["reports.pharma.view"] = isAdmin;
             p["pharma.ddi.manage"] = isAdmin;
             p["pharma.ddi.override"] = isAdmin;
+
+            // Cafe, Restaurant & Manufacturing (Milestone 14: Stories 139–143 / Features #196–#200)
+            p["tables.view"] = true;
+            p["tables.manage_orders"] = true;
+            p["tables.transfer_merge"] = true;
+            p["tables.split_bill"] = true;
+            p["tables.configure_floor"] = isAdmin;
+            p["kot.print"] = true;
+            p["kot.configure"] = isAdmin;
+            p["modifiers.manage"] = isAdmin;
+            p["delivery.orders.manage"] = true;
+            p["delivery.riders.settle"] = isAdmin;
+            p["delivery.zones_riders.configure"] = isAdmin;
+            p["recipes.manage"] = isAdmin;
+            p["recipes.produce"] = true;
 
             SyncPermissionAliases(p);
 

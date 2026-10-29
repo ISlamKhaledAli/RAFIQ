@@ -109,7 +109,15 @@ namespace RafiqPOS.Services
                 for (int i = 0; i < list.Count; i++)
                 {
                     if (list[i].Id == "pharmacy") hasPharmacy = true;
-                    if (list[i].Id == "cafe_restaurant") hasCafe = true;
+                    if (list[i].Id == "cafe_restaurant")
+                    {
+                        hasCafe = true;
+                        if (list[i].FeatureFlags == null || !list[i].FeatureFlags.ContainsKey("feature_cafe_restaurant"))
+                        {
+                            needsRefresh = true;
+                            break;
+                        }
+                    }
                     if (list[i].FeatureFlags == null || 
                         !list[i].FeatureFlags.ContainsKey("feature_epay_services") ||
                         !list[i].FeatureFlags.ContainsKey("feature_digital_wallets") ||
@@ -614,6 +622,7 @@ namespace RafiqPOS.Services
             t3.FeatureFlags["feature_epay_services"] = false;
             t3.FeatureFlags["feature_digital_wallets"] = false;
             t3.FeatureFlags["feature_pos_digital_payments"] = true;
+            t3.FeatureFlags["feature_manufacturing_recipes"] = true;
             t3.Categories = new List<string>();
             t3.QuickItems = new List<TemplateQuickItem>();
             t3.DefaultSettings["receipt_header"] = "ألبان ومخبوزات رفيق";
@@ -702,6 +711,7 @@ namespace RafiqPOS.Services
             t6.FeatureFlags["feature_epay_services"] = false;
             t6.FeatureFlags["feature_digital_wallets"] = false;
             t6.FeatureFlags["feature_pos_digital_payments"] = true;
+            t6.FeatureFlags["feature_manufacturing_recipes"] = true;
             t6.Categories = new List<string>();
             t6.QuickItems = new List<TemplateQuickItem>();
             t6.DefaultSettings["receipt_header"] = "محامص وعطارة رفيق الأصيلة";
@@ -792,20 +802,29 @@ namespace RafiqPOS.Services
             var tCafe = new StoreTemplate();
             tCafe.Id = "cafe_restaurant";
             tCafe.Name = "مطاعم وكافيهات ووجبات سريعة";
-            tCafe.Description = "مناسب للمطاعم، الكافيهات ومحلات العصائر والوجبات السريعة مع شاشة الأزرار السريعة بدون ميزان";
+            tCafe.Description = "مناسب للمطاعم، الكافيهات ومحلات العصائر والوجبات السريعة مع إدارة الصالة والطاولات، شاشة المطبخ والبار KOT، إضافات الأصناف، الدليفري والطيارين، والرسبي (خصم الخامات)";
             tCafe.Icon = "coffee";
             tCafe.FeatureFlags["feature_scale_weight"] = false;
             tCafe.FeatureFlags["feature_credit_debts"] = true;
             tCafe.FeatureFlags["feature_fast_buttons"] = true;
             tCafe.FeatureFlags["feature_taxes"] = false;
-            tCafe.FeatureFlags["feature_expiry_dates"] = false;
+            tCafe.FeatureFlags["feature_expiry_dates"] = true;
             tCafe.FeatureFlags["feature_multi_units"] = false;
             tCafe.FeatureFlags["feature_matrix_variants"] = false;
             tCafe.FeatureFlags["feature_epay_services"] = false;
             tCafe.FeatureFlags["feature_digital_wallets"] = false;
             tCafe.FeatureFlags["feature_pos_digital_payments"] = true;
+            // التفعيل التلقائي الكامل لمنظومة الكافيهات والمطاعم (Milestone 14: Stories 139–143)
+            tCafe.FeatureFlags["feature_cafe_restaurant"] = true;
+            tCafe.FeatureFlags["feature_table_management"] = true;
+            tCafe.FeatureFlags["feature_kitchen_printer"] = true;
+            tCafe.FeatureFlags["feature_item_modifiers"] = true;
+            tCafe.FeatureFlags["feature_delivery_management"] = true;
+            tCafe.FeatureFlags["feature_manufacturing_recipes"] = true;
             tCafe.Categories = new List<string>();
             tCafe.QuickItems = new List<TemplateQuickItem>();
+            tCafe.DefaultSettings["receipt_header"] = "أهلاً بكم في كافيه ومطعم رفيق";
+            tCafe.DefaultSettings["receipt_footer"] = "شكراً لزيارتكم! نسعد بخدمتكم دائماً ونتمنى لكم وجبة شهية.";
             list.Add(tCafe);
 
             return list;

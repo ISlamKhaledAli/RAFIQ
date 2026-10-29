@@ -533,6 +533,23 @@ namespace RafiqPOS.Services
                 Product demandProduct = resolvedProducts[demand.Key];
                 if (demandProduct.StockQuantityMilli < demand.Value)
                 {
+                    bool hasOnSaleRecipe = false;
+                    if (DatabaseService.RecipeRepo != null)
+                    {
+                        try
+                        {
+                            var rcp = DatabaseService.RecipeRepo.GetByProductId(demandProduct.Id);
+                            if (rcp != null && rcp.IsActive && string.Equals(rcp.DepletionMode, "on_sale", StringComparison.OrdinalIgnoreCase))
+                            {
+                                hasOnSaleRecipe = true;
+                            }
+                        }
+                        catch { }
+                    }
+                    if (hasOnSaleRecipe)
+                    {
+                        continue;
+                    }
                     if (!allowNegative)
                     {
                         double currentQty = demandProduct.StockQuantityMilli / 1000.0;
@@ -649,7 +666,14 @@ namespace RafiqPOS.Services
                 distributedInvoiceDiscount = Money.DistributeInvoiceDiscount(remainingNetPiasters, invoiceDiscount);
             }
 
-            // Finalize item line totals and calculate tax
+            // Finalize item line totals and calculate tax (Audit F-004: Support inclusive and exclusive pricing)
+            bool pricesIncludeTax = true;
+            if (DatabaseService.Settings != null)
+            {
+                string incSetting = DatabaseService.Settings.Get("prices_include_tax", "1");
+                pricesIncludeTax = (incSetting == "1" || string.Equals(incSetting, "true", StringComparison.OrdinalIgnoreCase));
+            }
+
             for (int i = 0; i < sale.Items.Count; i++)
             {
                 var it = sale.Items[i];
@@ -658,7 +682,7 @@ namespace RafiqPOS.Services
 
                 if (it.TaxRatePercent.HasValue && it.TaxRatePercent.Value > 0)
                 {
-                    it.TaxPiasters = Money.CalculateTaxPiasters(it.TotalPiasters, it.TaxRatePercent.Value, true);
+                    it.TaxPiasters = Money.CalculateTaxPiasters(it.TotalPiasters, it.TaxRatePercent.Value, pricesIncludeTax);
                     totalTax = totalTax.Add(Money.FromPiasters(it.TaxPiasters));
                 }
                 else
@@ -671,17 +695,26 @@ namespace RafiqPOS.Services
             sale.TaxPiasters = totalTax.Piasters;
             long totalDiscountPiasters = existingItemDiscountsSum + sale.DiscountPiasters;
             totalDiscount = Money.FromPiasters(totalDiscountPiasters);
-            Money grandTotal = subtotal.Subtract(totalDiscount).Add(totalTax);
-            sale.TotalPiasters = Math.Max(0, grandTotal.Piasters);
+
+            if (sale.ServiceChargePiasters < 0) sale.ServiceChargePiasters = 0;
+            if (sale.DeliveryFeePiasters < 0) sale.DeliveryFeePiasters = 0;
+            if (string.IsNullOrWhiteSpace(sale.OrderType)) sale.OrderType = "takeaway";
+
+            // F-004: When prices include tax, tax is already part of the item price and must not be added again
+            Money grandTotal = pricesIncludeTax
+                ? subtotal.Subtract(totalDiscount)
+                : subtotal.Subtract(totalDiscount).Add(totalTax);
+            sale.TotalPiasters = Math.Max(0, grandTotal.Piasters + sale.ServiceChargePiasters + sale.DeliveryFeePiasters);
 
             // Server-side Cashier Discount Limit Enforcement (Scenario 3 / Audit Security Rule 8 & F-10)
             // Prevent client-side bypass: verify that any discount exceeding cashier limits has supervisor authorization
-            if (SecurityService.CurrentUser != null && DatabaseService.Security != null)
+            if (SecurityService.CurrentUser != null)
             {
                 bool isPrivilegedUser = SecurityService.CurrentUser.Role == "root" ||
                                         SecurityService.CurrentUser.Role == "admin" ||
-                                        DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.discount_unlimited") ||
-                                        DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.discount_override");
+                                        (DatabaseService.Security != null &&
+                                         (DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.discount_unlimited") ||
+                                          DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.discount_override")));
 
                 if (!isPrivilegedUser && subtotal.Piasters > 0 && totalDiscountPiasters > 0)
                 {
@@ -694,7 +727,8 @@ namespace RafiqPOS.Services
                     }
 
                     long discountPct = (totalDiscountPiasters * 100L) / subtotal.Piasters;
-                    bool exceedsPercent = discountPct > maxPct;
+                    // F-005: Use exact multiplication check to prevent integer truncation bypass (e.g. 10.99% passing 10% limit)
+                    bool exceedsPercent = (totalDiscountPiasters * 100L) > ((long)maxPct * subtotal.Piasters);
                     bool exceedsAmount = totalDiscountPiasters > maxAmountPiasters;
 
                     if (exceedsPercent || exceedsAmount)
@@ -992,6 +1026,42 @@ namespace RafiqPOS.Services
             if (price == product.PricePiasters) return true;
             if (price == product.PricePiasters * factor) return true;
             if (matchedUnit != null && matchedUnit.SellPricePiasters > 0 && price == matchedUnit.SellPricePiasters) return true;
+
+            // Story 140 / Feature #197: Item Modifiers price authority validation
+            // If item has modifiers, subtract verified modifier extra prices and check against base catalogue price
+            if (item.Modifiers != null && item.Modifiers.Count > 0)
+            {
+                long modifiersExtra = 0;
+                for (int m = 0; m < item.Modifiers.Count; m++)
+                {
+                    var mod = item.Modifiers[m];
+                    if (mod == null) continue;
+                    if (!string.IsNullOrEmpty(mod.OptionId) && DatabaseService.ModifierRepo != null)
+                    {
+                        var opt = DatabaseService.ModifierRepo.GetOptionById(mod.OptionId);
+                        if (opt != null && opt.ExtraPricePiasters >= 0)
+                        {
+                            modifiersExtra += opt.ExtraPricePiasters;
+                            mod.ExtraPricePiasters = opt.ExtraPricePiasters;
+                            continue;
+                        }
+                    }
+                    if (mod.ExtraPricePiasters > 0)
+                    {
+                        modifiersExtra += mod.ExtraPricePiasters;
+                    }
+                }
+
+                long basePriceWithoutModifiers = price - modifiersExtra;
+                if (basePriceWithoutModifiers == product.PricePiasters || basePriceWithoutModifiers == product.PricePiasters * factor)
+                {
+                    return true;
+                }
+                if (matchedUnit != null && matchedUnit.SellPricePiasters > 0 && basePriceWithoutModifiers == matchedUnit.SellPricePiasters)
+                {
+                    return true;
+                }
+            }
 
             List<QuickItem> quickItems = null;
             if (_quickRepo != null)

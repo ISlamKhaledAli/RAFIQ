@@ -68,6 +68,17 @@ namespace RafiqPOS.Models
 
         [JsonProperty("isColdChain")]
         public bool IsColdChain { get; set; }
+
+        [JsonProperty("notes")]
+        public string Notes { get; set; }
+
+        [JsonProperty("modifiers")]
+        public List<SaleItemModifier> Modifiers { get; set; }
+
+        public SaleItem()
+        {
+            Modifiers = new List<SaleItemModifier>();
+        }
     }
 
     public class Sale
@@ -163,12 +174,41 @@ namespace RafiqPOS.Models
         [JsonProperty("insuranceClaim")]
         public InsuranceClaimLine InsuranceClaim { get; set; }
 
+        [JsonProperty("orderType")]
+        public string OrderType { get; set; }
+
+        [JsonProperty("orderCallNumber")]
+        public int OrderCallNumber { get; set; }
+
+        [JsonProperty("tableId")]
+        public string TableId { get; set; }
+
+        [JsonProperty("tableName")]
+        public string TableName { get; set; }
+
+        [JsonProperty("guestsCount")]
+        public int GuestsCount { get; set; }
+
+        [JsonProperty("waiterName")]
+        public string WaiterName { get; set; }
+
+        [JsonProperty("serviceChargePiasters")]
+        public long ServiceChargePiasters { get; set; }
+
+        [JsonProperty("deliveryFeePiasters")]
+        public long DeliveryFeePiasters { get; set; }
+
+        [JsonProperty("deliveryInfo")]
+        public DeliveryOrderCreateInfo DeliveryInfo { get; set; }
+
         public Sale()
         {
             Items = new List<SaleItem>();
             Payments = new List<SalePayment>();
             NegativeStockWarnings = new List<string>();
             ControlledDispenses = new List<ControlledDrugDispense>();
+            OrderType = "takeaway";
+            GuestsCount = 1;
         }
     }
 
