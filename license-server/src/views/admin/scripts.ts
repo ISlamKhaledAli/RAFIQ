@@ -1330,58 +1330,163 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
       showToast('تم نسخ رمز Root المؤقت: ' + currentRootOtp);
     }
 
-    // Dropdown Row Actions
-    function toggleRowMenu(menuId, event) {
-      if (event) event.stopPropagation();
-      const currentMenu = document.getElementById(menuId);
-      const isVisible = currentMenu && currentMenu.classList.contains('show');
+    // ==========================================
+    // DROPDOWN ROW ACTIONS & POSITIONING ENGINE (Luxury Senior Frontend)
+    // ==========================================
+    let currentActiveRowMenu = null;
+    let currentActiveRowBtn = null;
 
+    function toggleRowMenu(menuId, event) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      const currentMenu = document.getElementById(menuId);
+      if (!currentMenu) return;
+
+      const isAlreadyOpen = currentMenu.classList.contains('show');
+
+      // Close any previously opened menus
       closeAllRowMenus();
 
-      if (!isVisible && currentMenu) {
-        currentMenu.classList.add('show');
-        const row = currentMenu.closest('tr');
-        if (row) row.classList.add('has-open-menu');
-        const container = currentMenu.closest('.dropdown-actions');
-        if (container) container.classList.add('open');
-        if (event && event.currentTarget) {
-          event.currentTarget.classList.add('active');
-          const rect = event.currentTarget.getBoundingClientRect();
-          if (window.innerHeight - rect.bottom < 260 && rect.top > 260) {
-            currentMenu.style.top = 'auto';
-            currentMenu.style.bottom = 'calc(100% + 4px)';
-          } else {
-            currentMenu.style.top = 'calc(100% + 4px)';
-            currentMenu.style.bottom = 'auto';
-          }
-        }
-        // Viewport collision protection for mobile screens
-        const mRect = currentMenu.getBoundingClientRect();
-        if (mRect.left < 10) {
-          currentMenu.style.left = '10px';
-          currentMenu.style.right = 'auto';
-        } else if (mRect.right > window.innerWidth - 10) {
-          currentMenu.style.right = '10px';
-          currentMenu.style.left = 'auto';
-        }
+      if (isAlreadyOpen) {
+        return;
       }
+
+      const btn = (event && event.currentTarget) ? event.currentTarget : null;
+      if (!btn) return;
+
+      currentActiveRowMenu = currentMenu;
+      currentActiveRowBtn = btn;
+
+      btn.classList.add('active');
+      const row = currentMenu.closest('tr');
+      if (row) row.classList.add('has-open-menu');
+      const container = currentMenu.closest('.dropdown-actions');
+      if (container) container.classList.add('open');
+
+      currentMenu.classList.add('show');
+      positionActiveMenu();
+    }
+
+    function positionActiveMenu() {
+      if (!currentActiveRowMenu || !currentActiveRowBtn) return;
+      const menu = currentActiveRowMenu;
+      const btn = currentActiveRowBtn;
+
+      const rect = btn.getBoundingClientRect();
+
+      // If button scrolled out of viewport completely, close the menu cleanly
+      if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+        closeAllRowMenus();
+        return;
+      }
+
+      menu.style.position = 'fixed';
+      menu.style.zIndex = '9999999';
+
+      // Reset maxHeight temporarily to measure natural unconstrained scrollHeight
+      menu.style.maxHeight = 'none';
+
+      const naturalHeight = menu.scrollHeight || menu.offsetHeight || 380;
+      const naturalWidth = menu.offsetWidth || 235;
+
+      const MARGIN = 12; // Viewport safety margin
+      const GAP = 6;     // Gap between trigger button and dropdown
+
+      const spaceBelow = window.innerHeight - rect.bottom - GAP - MARGIN;
+      const spaceAbove = rect.top - GAP - MARGIN;
+
+      // Smart flip calculation:
+      // 1. If it fits downwards completely, open downwards.
+      // 2. Otherwise, if it fits upwards completely, open UPWARDS!
+      // 3. If neither fits fully, open in whichever direction has MORE space.
+      let openUp = false;
+      if (spaceBelow >= naturalHeight) {
+        openUp = false;
+      } else if (spaceAbove >= naturalHeight) {
+        openUp = true;
+      } else {
+        openUp = spaceAbove > spaceBelow;
+      }
+
+      const availableHeight = openUp ? spaceAbove : spaceBelow;
+      const finalMaxHeight = Math.max(160, availableHeight);
+
+      if (openUp) {
+        menu.classList.remove('placement-bottom');
+        menu.classList.add('placement-top');
+        menu.style.top = 'auto';
+        menu.style.bottom = (window.innerHeight - rect.top + GAP) + 'px';
+        menu.style.maxHeight = finalMaxHeight + 'px';
+      } else {
+        menu.classList.remove('placement-top');
+        menu.classList.add('placement-bottom');
+        menu.style.top = (rect.bottom + GAP) + 'px';
+        menu.style.bottom = 'auto';
+        menu.style.maxHeight = finalMaxHeight + 'px';
+      }
+
+      // Horizontal RTL alignment: align right edge of menu with right edge of button
+      let right = window.innerWidth - rect.right;
+      if (right < MARGIN) right = MARGIN;
+      if (right + naturalWidth > window.innerWidth - MARGIN) {
+        right = Math.max(MARGIN, window.innerWidth - naturalWidth - MARGIN);
+      }
+
+      menu.style.right = right + 'px';
+      menu.style.left = 'auto';
+      menu.style.maxWidth = 'min(280px, calc(100vw - 24px))';
+      menu.style.overflowY = 'auto';
     }
 
     function closeAllRowMenus() {
       document.querySelectorAll('.actions-dropdown-menu.show').forEach(m => {
-        m.classList.remove('show');
+        m.classList.remove('show', 'placement-top', 'placement-bottom');
+        m.style.position = '';
         m.style.top = '';
         m.style.bottom = '';
         m.style.left = '';
         m.style.right = '';
+        m.style.maxHeight = '';
+        m.style.maxWidth = '';
+        m.style.overflowY = '';
       });
       document.querySelectorAll('.btn-actions-menu.active').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.dropdown-actions.open').forEach(d => d.classList.remove('open'));
       document.querySelectorAll('tr.has-open-menu').forEach(r => r.classList.remove('has-open-menu'));
+      currentActiveRowMenu = null;
+      currentActiveRowBtn = null;
     }
 
-    document.addEventListener('click', () => {
+    // Close on click outside (but not when clicking inside active menu or trigger button)
+    document.addEventListener('click', (e) => {
+      if (!currentActiveRowMenu) return;
+      if (currentActiveRowMenu.contains(e.target) || (currentActiveRowBtn && currentActiveRowBtn.contains(e.target))) {
+        return;
+      }
       closeAllRowMenus();
+    });
+
+    // Smart Scroll Handling:
+    // If the scroll happens INSIDE the dropdown menu, ALLOW it and DO NOT close or reposition!
+    // If scrolling the page/table, reposition smoothly so it stays pinned to the button!
+    window.addEventListener('scroll', (e) => {
+      if (!currentActiveRowMenu) return;
+
+      // Crucial: If user scrolls inside the dropdown menu itself, let it scroll smoothly!
+      if (e.target && (e.target === currentActiveRowMenu || currentActiveRowMenu.contains(e.target))) {
+        return;
+      }
+
+      positionActiveMenu();
+    }, true);
+
+    // Reposition on window resize
+    window.addEventListener('resize', () => {
+      if (currentActiveRowMenu) {
+        positionActiveMenu();
+      }
     });
 
     // Direct Recovery Generator for specific license from dropdown

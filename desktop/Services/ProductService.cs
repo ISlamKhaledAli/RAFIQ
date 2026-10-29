@@ -214,7 +214,17 @@ namespace RafiqPOS.Services
                 {
                     // Invariant (Scenario S4): Editing product metadata must never overwrite live in-flight stock deduction or addition.
                     // Live inventory is managed exclusively via Sales, Purchases, Returns, and AdjustStock.
-                    product.StockQuantityMilli = existing.StockQuantityMilli;
+                    bool stockUnchangedFromSnapshot = product.OriginalStockQuantityMilli.HasValue
+                        && product.StockQuantityMilli == product.OriginalStockQuantityMilli.Value;
+
+                    if (existing.HasVariants || stockUnchangedFromSnapshot)
+                    {
+                        product.StockQuantityMilli = existing.StockQuantityMilli;
+                    }
+                    else if (product.StockQuantityMilli != existing.StockQuantityMilli)
+                    {
+                        stockDeltaMilli = product.StockQuantityMilli - existing.StockQuantityMilli;
+                    }
                 }
                 else if (product.StockQuantityMilli != 0)
                 {
@@ -230,6 +240,7 @@ namespace RafiqPOS.Services
                 product.IsActive = true;
 
                 _repo.Upsert(product);
+                product.OriginalStockQuantityMilli = product.StockQuantityMilli;
             }
 
             // Audit logging for sensitive changes (Feature #7)

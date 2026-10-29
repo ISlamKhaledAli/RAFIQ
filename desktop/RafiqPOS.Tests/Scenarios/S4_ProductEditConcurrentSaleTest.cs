@@ -56,5 +56,25 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.AreEqual(5500, finalProd.PricePiasters, "يجب تحديث السعر الجديد");
             Assert.AreEqual(80000, finalProd.StockQuantityMilli, "المخزون يجب أن يظل 80000 ملي (80 قطعة) ولا يتم استبداله بالرصيد القديم");
         }
+
+        [Test]
+        public void Scenario_S4B_Product_Card_Explicit_Stock_Edit_Updates_Stock_And_Records_Ledger_Movement()
+        {
+            var prod = CreateTestProduct("لبن المراعي كامل الدسم 1 لتر", 4500, 3850, 0);
+            var loadedProd = ProductService.GetById(prod.Id);
+            Assert.AreEqual(0, loadedProd.StockQuantityMilli);
+            Assert.AreEqual(0, loadedProd.OriginalStockQuantityMilli);
+
+            loadedProd.StockQuantityMilli = 25000;
+            ProductService.SaveProduct(loadedProd, false, false);
+
+            var updatedProd = ProductService.GetById(prod.Id);
+            Assert.AreEqual(25000, updatedProd.StockQuantityMilli, "يجب تحديث رصيد الصنف إلى 25000 ملي (25 قطعة) عند تعديل الكمية صراحةً من بطاقة الصنف");
+
+            var movements = StockMovementRepo.GetMovements(prod.Id);
+            Assert.IsTrue(movements.Count > 0, "يجب تسجيل حركة مخزنية في دفتر الحركات عند تعديل الرصيد من بطاقة الصنف");
+            Assert.AreEqual(25000, movements[0].QuantityMilli, "كمية الحركة المسجلة يجب أن تطابق الفارق (+25000 ملي)");
+            Assert.AreEqual("PRODUCT_CARD_EDIT", movements[0].ReferenceType, "نوع المرجع يجب أن يكون PRODUCT_CARD_EDIT");
+        }
     }
 }

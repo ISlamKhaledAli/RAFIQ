@@ -32,6 +32,9 @@ namespace RafiqPOS.Models
         [JsonProperty("stockQuantityMilli")]
         public long StockQuantityMilli { get; set; }
 
+        [JsonProperty("originalStockQuantityMilli", NullValueHandling = NullValueHandling.Ignore)]
+        public long? OriginalStockQuantityMilli { get; set; }
+
         [JsonProperty("minStockQuantityMilli")]
         public long MinStockQuantityMilli { get; set; }
 
