@@ -6,12 +6,15 @@ import {
   CheckCircle, 
   Save,
   Server,
-  Tag
+  Tag,
+  UtensilsCrossed
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { CertifiedHardwareModal } from '../../components/CertifiedHardwareModal';
 import { invoke } from '../../bridge/ipc';
+import { useFeatures } from '../../context/useFeatures';
+import type { KotRoutingConfig, CategoryKotRoute } from '../../types/cafe';
 
 interface PrinterSettingsTabProps {
   printersList: { name: string; isDefault: boolean; isOnline: boolean }[];
@@ -56,11 +59,20 @@ export const PrinterSettingsTab = ({
   onSavePrinterSettings,
   saveLoading,
 }: PrinterSettingsTabProps) => {
+  const { isEnabled } = useFeatures();
+  const showKotPrinter = isEnabled('feature_kitchen_printer');
+
   const [isHardwareModalOpen, setIsHardwareModalOpen] = useState(false);
   const [labelPrinter, setLabelPrinter] = useState('');
   const [labelPaperSize, setLabelPaperSize] = useState('38x25');
   const [labelTestPrinting, setLabelTestPrinting] = useState(false);
   const [labelTestMessage, setLabelTestMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
+  // KOT Routing State
+  const [kotKitchenPrinter, setKotKitchenPrinter] = useState('');
+  const [kotBarPrinter, setKotBarPrinter] = useState('');
+  const [kotAutoPrintOnSale, setKotAutoPrintOnSale] = useState(true);
+  const [kotCategoryRoutes, setKotCategoryRoutes] = useState<CategoryKotRoute[]>([]);
 
   useEffect(() => {
     void (async () => {
@@ -73,8 +85,21 @@ export const PrinterSettingsTab = ({
       } catch {
         // ignore
       }
+      if (showKotPrinter) {
+        try {
+          const kotCfg = await invoke<KotRoutingConfig>('printer:getKOTRouting', {});
+          if (kotCfg) {
+            setKotKitchenPrinter(kotCfg.kitchenPrinterName || '');
+            setKotBarPrinter(kotCfg.barPrinterName || '');
+            setKotAutoPrintOnSale(kotCfg.autoPrintOnSale !== false);
+            setKotCategoryRoutes(kotCfg.categoryRoutes || []);
+          }
+        } catch {
+          // ignore
+        }
+      }
     })();
-  }, []);
+  }, [showKotPrinter]);
 
   const handleSaveAll = async () => {
     try {
@@ -86,6 +111,20 @@ export const PrinterSettingsTab = ({
       });
     } catch {
       // non-blocking
+    }
+    if (showKotPrinter) {
+      try {
+        await invoke('printer:saveKOTRouting', {
+          kitchenPrinterName: kotKitchenPrinter,
+          barPrinterName: kotBarPrinter,
+          paperWidth: paperWidth === '57mm' ? '57mm' : '80mm',
+          autoPrintOnSale: kotAutoPrintOnSale,
+          singlePrinterCutBetweenStations: true,
+          categoryRoutes: kotCategoryRoutes,
+        });
+      } catch {
+        // non-blocking
+      }
     }
     await onSavePrinterSettings();
   };
@@ -363,6 +402,93 @@ export const PrinterSettingsTab = ({
           <span>{saveLoading ? 'جاري الحفظ...' : 'حفظ وتفعيل كافة إعدادات الطابعات والاستيكرات'}</span>
         </button>
       </div>
+
+      {/* Feature #198: Kitchen & Bar KOT Printer Routing */}
+      {showKotPrinter && (
+        <div className="border-t border-line dark:border-line-dark pt-5 mt-1 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold">
+                <UtensilsCrossed className="w-4 h-4 text-brand dark:text-brand-bright" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-ink dark:text-ink-dark m-0">توجيه طابعات المطبخ والبار (Kitchen & Bar KOT)</h4>
+                <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0">
+                  طباعة بون التحضير للمطبخ والبار بدون أسعار وبخط واضح مع توجيه كل قسم للطابعة المناسبة
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-ink">طباعة KOT تلقائياً مع الفاتورة:</span>
+              <ToggleSwitch checked={kotAutoPrintOnSale} onChange={(next) => setKotAutoPrintOnSale(next)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-1.5">طابعة المطبخ الساخن (Kitchen Printer)</label>
+              <CustomSelect
+                value={kotKitchenPrinter}
+                onChange={(val) => setKotKitchenPrinter(val)}
+                options={[
+                  { value: '', label: 'استخدام طابعة الكاشير الافتراضية' },
+                  ...printersList.map((p) => ({
+                    value: p.name,
+                    label: `${p.name} ${p.isDefault ? '(الافتراضية)' : ''}`,
+                  })),
+                ]}
+                size="md"
+              />
+            </div>
+
+            <div>
+              <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-1.5">طابعة البار والمشروبات (Bar Printer)</label>
+              <CustomSelect
+                value={kotBarPrinter}
+                onChange={(val) => setKotBarPrinter(val)}
+                options={[
+                  { value: '', label: 'نفس طابعة المطبخ / الكاشير' },
+                  ...printersList.map((p) => ({
+                    value: p.name,
+                    label: `${p.name} ${p.isDefault ? '(الافتراضية)' : ''}`,
+                  })),
+                ]}
+                size="md"
+              />
+            </div>
+          </div>
+
+          {kotCategoryRoutes.length > 0 && (
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark space-y-2">
+              <div className="text-xs font-bold text-ink">توجيه الأقسام (Categories Routing):</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                {kotCategoryRoutes.map((cat, idx) => (
+                  <div key={cat.categoryId} className="p-2 rounded bg-surface border border-line flex items-center justify-between gap-2">
+                    <span className="font-bold text-xs text-ink truncate">{cat.categoryName}</span>
+                    <div className="w-32 shrink-0">
+                      <CustomSelect
+                        value={cat.kotStation || 'kitchen'}
+                        onChange={(st) => {
+                          setKotCategoryRoutes((prev) =>
+                            prev.map((item, i) => (i === idx ? { ...item, kotStation: st } : item))
+                          );
+                        }}
+                        options={[
+                          { value: 'kitchen', label: 'المطبخ' },
+                          { value: 'bar', label: 'البار' },
+                          { value: 'none', label: 'بدون KOT' },
+                        ]}
+                        size="sm"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <CertifiedHardwareModal
         isOpen={isHardwareModalOpen}

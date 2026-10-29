@@ -63,6 +63,17 @@ import type { AllergyCheckResult } from '../types/patient';
 import { DosageLabelModal } from '../components/DosageLabelModal';
 import { DrugInteractionAlertModal } from './pos/DrugInteractionAlertModal';
 import { DrugInteractionManagerModal } from '../components/DrugInteractionManagerModal';
+import { PosOrderModeBar } from './pos/PosOrderModeBar';
+import { FloorTablesModal } from './pos/FloorTablesModal';
+import { ItemModifiersModal } from './pos/ItemModifiersModal';
+import { DeliveryCommandModal } from './pos/DeliveryCommandModal';
+import type {
+  OrderMode,
+  RestaurantTable,
+  ModifierGroup,
+  SaleItemModifier,
+  DeliveryOrderCreateInfo,
+} from '../types/cafe';
 
 export interface PosViewProps {
   isActive?: boolean;
@@ -77,6 +88,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const showCredit = isEnabled('feature_credit_debts');
   const showTaxes = isEnabled('feature_taxes');
   const isDdiActive = isEnabled('feature_drug_interactions') || isEnabled('feature_pharmacy');
+  const showCafeMode = isEnabled('feature_cafe_restaurant');
+  const showTableManagement = showCafeMode && isEnabled('feature_table_management');
+  const showKitchenPrinter = showCafeMode && isEnabled('feature_kitchen_printer');
+  const showItemModifiers = showCafeMode && isEnabled('feature_item_modifiers');
+  const showDeliveryManagement = showCafeMode && isEnabled('feature_delivery_management');
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeQuery, setBarcodeQuery] = useState('');
@@ -179,6 +195,29 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [isDdiModalOpen, setIsDdiModalOpen] = useState(false);
   const [isDdiOverridden, setIsDdiOverridden] = useState(false);
   const [isDdiManagerOpen, setIsDdiManagerOpen] = useState(false);
+
+  // Cafe & Restaurant Hospitality POS Suite State (Milestone 14 / Stories 139-143)
+  const [orderType, setOrderType] = useState<OrderMode>('takeaway');
+  const [activeTable, setActiveTable] = useState<RestaurantTable | null>(null);
+  const [occupiedTablesCount, setOccupiedTablesCount] = useState<number>(0);
+  const [isFloorModalOpen, setIsFloorModalOpen] = useState(false);
+  const [tableSaving, setTableSaving] = useState(false);
+  const [kotPrinting, setKotPrinting] = useState(false);
+  const [serviceChargePercent, setServiceChargePercent] = useState<number>(0);
+  const [deliveryInfo, setDeliveryInfo] = useState<DeliveryOrderCreateInfo | null>(null);
+  const [activeDeliveryOrdersCount, setActiveDeliveryOrdersCount] = useState<number>(0);
+  const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+  const [deliveryModalTab, setDeliveryModalTab] = useState<'order_setup' | 'active_orders' | 'rider_settlement' | 'zones_riders'>('order_setup');
+  const [modifierModalState, setModifierModalState] = useState<{
+    isOpen: boolean;
+    cartIndex: number;
+    productName: string;
+    basePricePiasters: number;
+    groups: ModifierGroup[];
+    initialModifiers?: SaleItemModifier[];
+    initialNotes?: string;
+  } | null>(null);
+
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
@@ -472,8 +511,28 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       return [newItem, ...prev];
     });
 
+    if (showItemModifiers && prod.id) {
+      void invoke<ModifierGroup[]>('modifiers:getForProduct', { productId: prod.id })
+        .then((groups) => {
+          if (Array.isArray(groups) && groups.length > 0) {
+            setModifierModalState({
+              isOpen: true,
+              cartIndex: 0,
+              productName: prod.name,
+              basePricePiasters: unitPrice,
+              groups,
+              initialModifiers: [],
+              initialNotes: '',
+            });
+          }
+        })
+        .catch(() => {
+          // non-blocking
+        });
+    }
+
     return true;
-  }, [cart, allowNegativeStock, showStatus, isEnabled]);
+  }, [cart, allowNegativeStock, showStatus, isEnabled, showItemModifiers]);
 
   useEffect(() => {
     addProductToCartRef.current = addProductToCart;
@@ -609,9 +668,211 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const totalDiscountPiasters = totalItemDiscountsPiasters + discountPiasters;
   const subtotalPiasters = grossSubtotalPiasters;
   const standardNetTotalPiasters = Math.max(0, grossSubtotalPiasters - totalDiscountPiasters);
-  const netTotalPiasters = activeInsuranceClaim ? activeInsuranceClaim.patientPiasters : standardNetTotalPiasters;
+  const serviceChargePiasters = (showCafeMode && orderType === 'dine_in' && serviceChargePercent > 0)
+    ? Math.round((standardNetTotalPiasters * serviceChargePercent) / 100)
+    : 0;
+  const deliveryFeePiasters = (showCafeMode && orderType === 'delivery' && deliveryInfo)
+    ? (deliveryInfo.deliveryFeePiasters || 0)
+    : 0;
+  const netTotalPiasters = activeInsuranceClaim
+    ? activeInsuranceClaim.patientPiasters
+    : (standardNetTotalPiasters + serviceChargePiasters + deliveryFeePiasters);
   const totalItemCount = cart.reduce((count, item) => count + (item.quantityMilli / 1000), 0);
   const totalTaxPiasters = cart.reduce((sum, item) => sum + item.taxPiasters, 0);
+
+  // Cafe & Restaurant Hospitality POS Suite Helpers (Stories 139-143)
+  const loadCafeStats = useCallback(async () => {
+    if (!showCafeMode) return;
+    try {
+      if (showTableManagement) {
+        const tables = await invoke<RestaurantTable[]>('tables:getAll').catch(() => []);
+        if (Array.isArray(tables)) {
+          setOccupiedTablesCount(tables.filter((t) => t.status === 'occupied' || t.status === 'bill_printed').length);
+        }
+      }
+      if (showDeliveryManagement) {
+        const delivOrders = await invoke<unknown[]>('delivery:getOrders', { status: 'all' }).catch(() => []);
+        if (Array.isArray(delivOrders)) {
+          const activeCount = delivOrders.filter((o) => {
+            const st = (o as { deliveryStatus?: string }).deliveryStatus;
+            return st && st !== 'settled' && st !== 'cancelled';
+          }).length;
+          setActiveDeliveryOrdersCount(activeCount);
+        }
+      }
+    } catch {
+      // non-blocking
+    }
+  }, [showCafeMode, showTableManagement, showDeliveryManagement]);
+
+  useEffect(() => {
+    void loadCafeStats();
+  }, [loadCafeStats]);
+
+  useDataSubscription(['held_sales', 'sales', 'all'], () => {
+    void loadCafeStats();
+  });
+
+  const handleOpenItemModifiersForCartIndex = useCallback(async (index: number) => {
+    const it = cart[index];
+    if (!it) return;
+    try {
+      const groups = await invoke<ModifierGroup[]>('modifiers:getForProduct', { productId: it.productId }).catch(() => []);
+      const existingModsSum = (it.modifiers || []).reduce((s, m) => s + (m.extraPricePiasters || 0), 0);
+      const basePrice = Math.max(0, it.unitPricePiasters - existingModsSum);
+      setModifierModalState({
+        isOpen: true,
+        cartIndex: index,
+        productName: it.productName,
+        basePricePiasters: basePrice,
+        groups: Array.isArray(groups) ? groups : [],
+        initialModifiers: it.modifiers || [],
+        initialNotes: it.notes || '',
+      });
+    } catch {
+      // non-blocking
+    }
+  }, [cart]);
+
+  const handleConfirmItemModifiers = useCallback((modifiers: SaleItemModifier[], notes: string) => {
+    if (!modifierModalState) return;
+    const { cartIndex, basePricePiasters } = modifierModalState;
+    setCart((prev) => {
+      const updated = [...prev];
+      const item = updated[cartIndex];
+      if (!item) return prev;
+      const modsSum = modifiers.reduce((s, m) => s + (m.extraPricePiasters || 0), 0);
+      const newUnitPrice = basePricePiasters + modsSum;
+      const newTotal = calculateLineTotal(newUnitPrice, item.quantityMilli, item.discountPiasters || 0);
+      const newTax = calculateTaxPiasters(newTotal, item.taxRatePercent || 0, true);
+      updated[cartIndex] = {
+        ...item,
+        unitPricePiasters: newUnitPrice,
+        totalPiasters: newTotal,
+        taxPiasters: newTax,
+        modifiers,
+        notes: notes || undefined,
+      };
+      return updated;
+    });
+    setModifierModalState(null);
+    barcodeInputRef.current?.focus();
+  }, [modifierModalState]);
+
+  const handleSelectTableFromModal = useCallback((table: RestaurantTable, parsedCart: CartItem[]) => {
+    setOrderType('dine_in');
+    setActiveTable(table);
+    setCart(Array.isArray(parsedCart) ? parsedCart : []);
+    setDiscountPiasters(0);
+    resetCartSession();
+    void loadCafeStats();
+    showStatus(`تم تحديد طاولة: ${table.name} (${table.guestsCount || 1} ضيوف)`, 'success');
+  }, [resetCartSession, loadCafeStats, showStatus]);
+
+  const handleLoadSplitCartForCheckout = useCallback((sourceTable: RestaurantTable, splitItems: CartItem[]) => {
+    setOrderType('dine_in');
+    setActiveTable(null);
+    setCart(Array.isArray(splitItems) ? splitItems : []);
+    setDiscountPiasters(0);
+    resetCartSession();
+    void loadCafeStats();
+    showStatus(`تم تحميل الأصناف المفصولة من طاولة (${sourceTable.name}) للمحاسبة المباشرة`, 'success');
+  }, [resetCartSession, loadCafeStats, showStatus]);
+
+  const handleSaveTableOrder = useCallback(async () => {
+    if (!activeTable) {
+      setIsFloorModalOpen(true);
+      return;
+    }
+    if (cart.length === 0) {
+      showStatus('سلة الطلب فارغة! أضف أصنافاً أولاً لحفظ طلب الطاولة.', 'warning');
+      return;
+    }
+    setTableSaving(true);
+    try {
+      const updatedSale = await invoke<HeldSale>('tables:updateOrder', {
+        tableId: activeTable.id,
+        cartJson: JSON.stringify(cart),
+        subtotalPiasters,
+        discountPiasters,
+        serviceChargePiasters,
+        totalPiasters: netTotalPiasters,
+        itemsCount: cart.length,
+        guestsCount: activeTable.guestsCount || 1,
+        waiterName: activeTable.waiterName || null,
+      });
+      if (updatedSale && updatedSale.id) {
+        setActiveTable((prev) => (prev ? { ...prev, activeHeldSaleId: updatedSale.id, currentTotalPiasters: netTotalPiasters } : null));
+      }
+      void loadCafeStats();
+      showStatus(`تم حفظ وتحديث طلب طاولة (${activeTable.name}) بنجاح!`, 'success');
+    } catch (err) {
+      showStatus(err instanceof Error ? err.message : 'تعذر حفظ طلب الطاولة', 'error');
+    } finally {
+      setTableSaving(false);
+    }
+  }, [activeTable, cart, subtotalPiasters, discountPiasters, serviceChargePiasters, netTotalPiasters, loadCafeStats, showStatus]);
+
+  const handlePrintTablePreBill = useCallback(async () => {
+    if (!activeTable) return;
+    try {
+      await handleSaveTableOrder();
+      await invoke('tables:printPreBill', { tableId: activeTable.id });
+      showStatus(`تمت طباعة الشيك المبدئي لطاولة (${activeTable.name})`, 'success');
+    } catch (err) {
+      showStatus(err instanceof Error ? err.message : 'تعذر طباعة الشيك المبدئي', 'error');
+    }
+  }, [activeTable, handleSaveTableOrder, showStatus]);
+
+  const handlePrintKitchenKOT = useCallback(async () => {
+    if (cart.length === 0) {
+      showStatus('لا توجد أصناف في السلة لإرسالها للمطبخ', 'warning');
+      return;
+    }
+    setKotPrinting(true);
+    try {
+      let currentHeldId = activeTable?.activeHeldSaleId || null;
+      if (orderType === 'dine_in' && activeTable && !currentHeldId) {
+        const saved = await invoke<HeldSale>('tables:updateOrder', {
+          tableId: activeTable.id,
+          cartJson: JSON.stringify(cart),
+          subtotalPiasters,
+          discountPiasters,
+          serviceChargePiasters,
+          totalPiasters: netTotalPiasters,
+          itemsCount: cart.length,
+          guestsCount: activeTable.guestsCount || 1,
+          waiterName: activeTable.waiterName || null,
+        });
+        currentHeldId = saved?.id || null;
+        if (currentHeldId) {
+          setActiveTable((prev) => (prev ? { ...prev, activeHeldSaleId: currentHeldId } : null));
+        }
+      }
+
+      const res = await invoke<{ printedCount: number; message: string }>('printer:printKOT', {
+        heldSaleId: currentHeldId,
+        orderType,
+        tableName: activeTable?.name || '',
+        waiterName: activeTable?.waiterName || '',
+        callNumber: nextExpectedInvoiceNumber ? (nextExpectedInvoiceNumber % 100 || 100) : 1,
+        items: cart,
+      });
+
+      // Mark items in local cart as kotPrintedQtyMilli = quantityMilli so subsequent KOT only sends delta
+      setCart((prev) =>
+        prev.map((it) => ({
+          ...it,
+          kotPrintedQtyMilli: it.quantityMilli,
+        }))
+      );
+      showStatus(res?.message || 'تم إرسال أوردر المطبخ والبار (KOT) بنجاح!', 'success');
+    } catch (err) {
+      showStatus(err instanceof Error ? err.message : 'تعذر طباعة تذكرة المطبخ KOT', 'error');
+    } finally {
+      setKotPrinting(false);
+    }
+  }, [cart, activeTable, orderType, subtotalPiasters, discountPiasters, serviceChargePiasters, netTotalPiasters, nextExpectedInvoiceNumber, showStatus]);
 
   const loadHeldSalesCount = useCallback(async () => {
     try {
@@ -1028,6 +1289,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         idempotencyKey: cartSessionIdRef.current,
         controlledDispenses: controlledDispenses.length > 0 ? (controlledDispenses as ControlledDrugDispense[]) : undefined,
         insuranceClaim: activeInsuranceClaim || undefined,
+        orderType: showCafeMode ? orderType : 'takeaway',
+        tableId: showCafeMode && orderType === 'dine_in' && activeTable ? activeTable.id : null,
+        tableName: showCafeMode && orderType === 'dine_in' && activeTable ? activeTable.name : null,
+        guestsCount: showCafeMode && orderType === 'dine_in' && activeTable ? (activeTable.guestsCount || 1) : 1,
+        waiterName: showCafeMode && orderType === 'dine_in' && activeTable ? (activeTable.waiterName || null) : null,
+        serviceChargePiasters,
+        deliveryFeePiasters,
+        deliveryInfo: showCafeMode && orderType === 'delivery' ? deliveryInfo : null,
       };
 
       const completedSale = await invoke<Sale>('sales:create', salePayload);
@@ -1077,9 +1346,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setDdiResult(null);
       setIsDdiOverridden(false);
       setIsDdiModalOpen(false);
+      setActiveTable(null);
+      setDeliveryInfo(null);
       resetCartSession();
       void loadSmartCatalog();
       void loadHeldSalesCount();
+      void loadCafeStats();
       try {
         localStorage.removeItem('rafiq_pos_cart_draft');
       } catch {
@@ -1113,10 +1385,17 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     showStatus,
     loadSmartCatalog,
     loadHeldSalesCount,
+    loadCafeStats,
     resetCartSession,
     currentShift,
     requireOpenShiftToSell,
     isEnabled,
+    showCafeMode,
+    orderType,
+    activeTable,
+    serviceChargePiasters,
+    deliveryFeePiasters,
+    deliveryInfo,
   ]);
 
   const setDirectQuantity = useCallback((index: number, newQtyPieces: number) => {
@@ -1991,7 +2270,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     batchPickerState !== null ||
     supervisorPrompt.isOpen ||
     isDdiModalOpen ||
-    isDdiManagerOpen
+    isDdiManagerOpen ||
+    isFloorModalOpen ||
+    isDeliveryModalOpen ||
+    modifierModalState !== null
   );
 
   // Hook 2: Cashier Keyboard Shortcuts & Hardware Scanner Listener (F1 to F12)
@@ -2050,6 +2332,44 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         
         {/* ================= REGION A: BARCODE SEARCH & CART TABLE ================= */}
         <section className={`${showFastItems ? 'flex-1 min-w-[360px]' : 'flex-1'} h-full bg-surface dark:bg-surface-dark hairline-l flex flex-col overflow-hidden`}>
+          {showCafeMode && (
+            <PosOrderModeBar
+              orderType={orderType}
+              onOrderTypeChange={(newMode) => {
+                setOrderType(newMode);
+                if (newMode === 'dine_in' && showTableManagement && !activeTable) {
+                  setIsFloorModalOpen(true);
+                } else if (newMode === 'delivery' && showDeliveryManagement && !deliveryInfo) {
+                  setDeliveryModalTab('order_setup');
+                  setIsDeliveryModalOpen(true);
+                }
+              }}
+              showTableManagement={showTableManagement}
+              showKitchenPrinter={showKitchenPrinter}
+              showDeliveryManagement={showDeliveryManagement}
+              activeTable={activeTable}
+              occupiedTablesCount={occupiedTablesCount}
+              onOpenFloorMap={() => setIsFloorModalOpen(true)}
+              onClearActiveTable={() => {
+                setActiveTable(null);
+                showStatus('تم فك ارتباط الطاولة من الفاتورة الحالية', 'success');
+              }}
+              onSaveTableOrder={handleSaveTableOrder}
+              onPrintPreBill={handlePrintTablePreBill}
+              onPrintKot={handlePrintKitchenKOT}
+              kotPrinting={kotPrinting}
+              tableSaving={tableSaving}
+              deliveryInfo={deliveryInfo}
+              activeDeliveryOrdersCount={activeDeliveryOrdersCount}
+              onOpenDeliveryModal={(tab) => {
+                setDeliveryModalTab(tab || 'order_setup');
+                setIsDeliveryModalOpen(true);
+              }}
+              serviceChargePercent={serviceChargePercent}
+              onServiceChargePercentChange={setServiceChargePercent}
+              cartNotEmpty={cart.length > 0}
+            />
+          )}
           <PosBarcodeBar
             searchContainerRef={searchContainerRef}
             barcodeInputRef={barcodeInputRef}
@@ -2217,6 +2537,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
                   }
                 : undefined
             }
+            onOpenItemModifiers={showItemModifiers ? handleOpenItemModifiersForCartIndex : undefined}
           />
 
           {/* Bottom Grand Total Card & Fast Checkout Action Controls */}
@@ -2819,6 +3140,70 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           isOpen={isDdiManagerOpen}
           onClose={() => setIsDdiManagerOpen(false)}
           onSuccess={(msg) => showStatus(msg, 'success')}
+        />
+      )}
+
+      {/* 30. CAFE & RESTAURANT FLOOR TABLES MODAL (Story 139 / Feature #196) */}
+      {showTableManagement && (
+        <FloorTablesModal
+          isOpen={isFloorModalOpen}
+          onClose={() => {
+            setIsFloorModalOpen(false);
+            void loadCafeStats();
+            barcodeInputRef.current?.focus();
+          }}
+          activeTableId={activeTable?.id || null}
+          canConfigureFloor={Boolean(isAdmin || (hasPermission && hasPermission('tables.configure_floor')))}
+          canTransferMerge={Boolean(isAdmin || (hasPermission && hasPermission('tables.transfer_merge')))}
+          canSplitBill={Boolean(isAdmin || (hasPermission && hasPermission('tables.split_bill')))}
+          onSelectAndLoadTable={handleSelectTableFromModal}
+          onLoadSplitCartForCheckout={handleLoadSplitCartForCheckout}
+          onTablesChanged={() => {
+            void loadCafeStats();
+          }}
+        />
+      )}
+
+      {/* 31. CAFE & RESTAURANT ITEM MODIFIERS MODAL (Story 140 / Feature #197) */}
+      {modifierModalState && (
+        <ItemModifiersModal
+          isOpen={modifierModalState.isOpen}
+          onClose={() => {
+            setModifierModalState(null);
+            barcodeInputRef.current?.focus();
+          }}
+          productName={modifierModalState.productName}
+          basePricePiasters={modifierModalState.basePricePiasters}
+          groups={modifierModalState.groups}
+          initialModifiers={modifierModalState.initialModifiers}
+          initialNotes={modifierModalState.initialNotes}
+          onConfirm={handleConfirmItemModifiers}
+        />
+      )}
+
+      {/* 32. CAFE & RESTAURANT DELIVERY & RIDERS MODAL (Story 142 / Feature #199) */}
+      {showDeliveryManagement && (
+        <DeliveryCommandModal
+          isOpen={isDeliveryModalOpen}
+          onClose={() => {
+            setIsDeliveryModalOpen(false);
+            void loadCafeStats();
+            barcodeInputRef.current?.focus();
+          }}
+          initialTab={deliveryModalTab}
+          currentDeliveryInfo={deliveryInfo}
+          customers={customers}
+          canManageOrders={Boolean(isAdmin || (hasPermission && hasPermission('delivery.manage_orders')))}
+          canSettleRiders={Boolean(isAdmin || (hasPermission && hasPermission('delivery.settle_riders')))}
+          canConfigureZonesRiders={Boolean(isAdmin || (hasPermission && hasPermission('delivery.configure_zones_riders')))}
+          onApplyDeliveryInfo={(info) => {
+            setOrderType('delivery');
+            setDeliveryInfo(info);
+            showStatus(`تم ربط بيانات التوصيل للعميل: ${info.customerName} (${info.zoneName || 'توصيل'})`, 'success');
+          }}
+          onOrdersUpdated={() => {
+            void loadCafeStats();
+          }}
         />
       )}
     </div>

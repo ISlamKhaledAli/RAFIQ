@@ -248,6 +248,8 @@ export interface SaleItem {
   isExpiredBypass?: boolean;
   isColdChain?: boolean;
   locationCode?: string | null;
+  notes?: string | null;
+  modifiers?: import('./cafe').SaleItemModifier[];
 }
 
 export interface Sale {
@@ -275,6 +277,15 @@ export interface Sale {
   shiftId?: string | null;
   hasColdChainItems?: boolean;
   insuranceClaim?: import('./insurance').InsuranceClaimLine | null;
+  orderType?: import('./cafe').OrderMode | string;
+  orderCallNumber?: number;
+  tableId?: string | null;
+  tableName?: string | null;
+  guestsCount?: number;
+  waiterName?: string | null;
+  serviceChargePiasters?: number;
+  deliveryFeePiasters?: number;
+  deliveryInfo?: import('./cafe').DeliveryOrderCreateInfo | null;
 }
 
 export interface SalePayment {

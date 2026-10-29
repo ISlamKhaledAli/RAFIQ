@@ -24,7 +24,12 @@ import {
   Split,
   FileCheck2,
   Tag,
-  Activity
+  Activity,
+  Coffee,
+  Utensils,
+  Printer,
+  Truck,
+  Flame
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useFeatures } from '../../context/useFeatures';
@@ -38,7 +43,7 @@ interface StoreFeaturesTabProps {
   onOpenWizard?: () => void;
 }
 
-type FeatureCategory = 'all' | 'pos' | 'inventory' | 'epay_wallets' | 'pharmacy' | 'finance';
+type FeatureCategory = 'all' | 'pos' | 'cafe_restaurant' | 'inventory' | 'epay_wallets' | 'pharmacy' | 'finance';
 
 interface FeatureCategoryMeta {
   id: FeatureCategory;
@@ -50,6 +55,7 @@ interface FeatureCategoryMeta {
 const CATEGORIES: FeatureCategoryMeta[] = [
   { id: 'all', label: 'كافة الميزات', icon: SlidersHorizontal, description: 'عرض جميع الميزات المتاحة بالنظام' },
   { id: 'pos', label: 'نقاط البيع والكاشير', icon: ShoppingCart, description: 'أزرار اللمس، الميزان، الضرائب، ومدفوعات الكاشير' },
+  { id: 'cafe_restaurant', label: 'الكافيهات والمطاعم', icon: Coffee, description: 'إدارة الطاولات والصالة، المطبخ والبار KOT، الإضافات، الدليفري، والرسبي' },
   { id: 'inventory', label: 'المنتجات والمخزون', icon: Package, description: 'المقاسات والألوان، التواريخ، الوحدات، والأرفف' },
   { id: 'epay_wallets', label: 'المدفوعات والمحافظ', icon: Wallet, description: 'إنستاباي، المحافظ، وخدمات الدفع وماكينات الكشك' },
   { id: 'pharmacy', label: 'الصيدلية والرعاية الطبية', icon: Pill, description: 'الأدوية، الروشتات، التأمين الطبي، والدليل الدوائي' },
@@ -62,6 +68,13 @@ const FEATURE_CATEGORY_MAP: Record<string, FeatureCategory> = {
   feature_fast_buttons: 'pos',
   feature_scale_weight: 'pos',
   feature_taxes: 'pos',
+
+  feature_cafe_restaurant: 'cafe_restaurant',
+  feature_table_management: 'cafe_restaurant',
+  feature_kitchen_printer: 'cafe_restaurant',
+  feature_item_modifiers: 'cafe_restaurant',
+  feature_delivery_management: 'cafe_restaurant',
+  feature_manufacturing_recipes: 'cafe_restaurant',
 
   feature_matrix_variants: 'inventory',
   feature_multi_units: 'inventory',
@@ -116,6 +129,13 @@ const FEATURE_ICON_MAP: Record<string, React.ComponentType<{ className?: string 
   feature_credit_debts: Users,
   feature_shortage_book: FileText,
   feature_batch_pricing: Tag,
+
+  feature_cafe_restaurant: Coffee,
+  feature_table_management: Utensils,
+  feature_kitchen_printer: Printer,
+  feature_item_modifiers: Layers,
+  feature_delivery_management: Truck,
+  feature_manufacturing_recipes: Flame,
 };
 
 export const StoreFeaturesTab = ({

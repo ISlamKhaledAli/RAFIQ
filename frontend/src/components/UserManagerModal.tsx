@@ -35,6 +35,7 @@ import {
   Pill,
   Building2,
   HeartPulse,
+  Coffee,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { UserDto } from '../bridge/ipc';
@@ -149,6 +150,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'products.edit_price', label: 'تعديل سعر البيع', description: 'تعديل سعر البيع القطاعي والجملة' },
       { key: 'products.edit_cost', label: 'الاطلاع وتعديل التكلفة', description: 'رؤية سعر الشراء الحقيقي وتعديله' },
       { key: 'products.archive', label: 'أرشفة / حذف صنف', description: 'تعطيل أو حذف صنف من المنظومة' },
+      { key: 'products.clear_all', label: 'تصفير وأرشفة كافة الأصناف', description: 'صلاحية حساسة لأرشفة كافة أصناف المحل دفعة واحدة' },
       { key: 'products.import', label: 'استيراد من إكسل', description: 'رفع ملفات إكسل لإضافة وتحديث المنتجات' },
       { key: 'products.export', label: 'تصدير المخزون', description: 'تصدير بيانات الأصناف والمخزون لملفات خارجية' },
       { key: 'categories.manage', label: 'إدارة التصنيفات', description: 'إضافة وتعديل أقسام المنتجات' },
@@ -217,6 +219,26 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     items: [
       { key: 'patients.view', label: 'استعراض الملف الطبي وتنبيهات الاستحقاق', description: 'الاطلاع على الملف الطبي للمريض والحساسية وتنبيهات مواعيد صرف العلاج الشهري' },
       { key: 'patients.edit', label: 'تعديل الملف الطبي وتسجيل الأدوية المزمنة', description: 'تعديل بيانات الحساسية والأمراض المزمنة وإضافة وحذف الأدوية الدورية للمريض' },
+    ],
+  },
+  {
+    id: 'cafe_restaurant',
+    name: 'الكافيهات والمطاعم والدليفري والتصنيع',
+    icon: <Coffee className="w-4 h-4 text-brand" />,
+    items: [
+      { key: 'tables.view', label: 'استعراض خريطة الصالة والطاولات', description: 'فتح خريطة الصالة ومتابعة حالة الطاولات والطلبات المفتوحة' },
+      { key: 'tables.manage_orders', label: 'فتح الطاولات وإدارة طلبات الصالة', description: 'فتح طاولة جديدة، إضافة الأصناف، وطباعة شيك المراجعة للضيوف' },
+      { key: 'tables.transfer_merge', label: 'نقل ودمج الطاولات', description: 'نقل طلب طاولة لطاولة أخرى أو دمج حساب طاولتين معاً' },
+      { key: 'tables.split_bill', label: 'تقسيم فاتورة الطاولة بالأصناف', description: 'فصل أصناف محددة من الطاولة لسدادها بشكل مستقل لكل ضيف' },
+      { key: 'tables.configure_floor', label: 'تعديل تصميم الصالة والطاولات', description: 'إضافة وتعديل وحذف الطاولات والأقسام وسعة المقاعد' },
+      { key: 'kot.print', label: 'إرسال وطباعة بون المطبخ والبار (KOT)', description: 'إرسال الطلبات الجديدة أو المعدلة لطابعة المطبخ والبار' },
+      { key: 'kot.configure', label: 'إعداد وتوجيه طابعات المطبخ والبار', description: 'تخصيص طابعات المطبخ والبار وربط الأقسام بها' },
+      { key: 'modifiers.manage', label: 'إدارة مجموعات الإضافات والتخصيصات', description: 'إنشاء وتعديل مجموعات الإضافات (السكر، الحليب، الصوصات) وربطها بالأصناف' },
+      { key: 'delivery.orders.manage', label: 'إدارة طلبات الدليفري وإسناد الطيارين', description: 'تسجيل طلبات التوصيل وإسنادها للطيارين وتحديث حالة التوصيل' },
+      { key: 'delivery.riders.settle', label: 'تصفية عهدة الطيارين وتحصيل النقدية', description: 'استلام النقدية المحصلة من الطيارين وتقفيل حساباتهم في الدرج' },
+      { key: 'delivery.zones_riders.configure', label: 'إدارة مناطق التوصيل وبيانات الطيارين', description: 'إضافة وتعديل مناطق التوصيل ورسومها وتسجيل بيانات الطيارين وعمولاتهم' },
+      { key: 'recipes.manage', label: 'إدارة الرسبي ومكونات التصنيع (BOM)', description: 'تعريف وتعديل مكونات الأصنيع والهدر وطريقة خصم الخامات' },
+      { key: 'recipes.produce', label: 'تسجيل أوامر الإنتاج والتصنيع المجمع', description: 'تنفيذ دورة إنتاج مجمعة لخصم الخامات وإضافة المنتج التام للمخزون' },
     ],
   },
   {
