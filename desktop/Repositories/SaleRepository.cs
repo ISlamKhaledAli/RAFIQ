@@ -106,16 +106,42 @@ namespace RafiqPOS.Repositories
                         int nextInvoiceNumber = (int)_counters.GetNextInvoiceNumber(conn, trans);
                         sale.InvoiceNumber = nextInvoiceNumber;
 
+                        // Story 139: Calculate daily Order Call Number (1..999)
+                        if (sale.OrderCallNumber <= 0)
+                        {
+                            try
+                            {
+                                using (var callUpd = new SQLiteCommand(@"
+                                    INSERT INTO counters (name, current_value) VALUES ('order_call_number', 1)
+                                    ON CONFLICT(name) DO UPDATE SET current_value = (counters.current_value % 999) + 1;
+                                    SELECT current_value FROM counters WHERE name = 'order_call_number' LIMIT 1;
+                                ", conn, trans))
+                                {
+                                    object callObj = callUpd.ExecuteScalar();
+                                    if (callObj != null && callObj != DBNull.Value)
+                                    {
+                                        sale.OrderCallNumber = Convert.ToInt32(callObj);
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                sale.OrderCallNumber = ((sale.InvoiceNumber - 1) % 999) + 1;
+                            }
+                        }
+
                         // 2. Insert Sale Master record
                         string insertSaleSql = @"
                             INSERT INTO sales (
                                 id, invoice_number, cashier_id, customer_id, subtotal_piasters,
                                 discount_piasters, tax_piasters, total_piasters, paid_piasters,
-                                change_piasters, payment_method, status, notes, created_at, service_fee_piasters, shift_id, idempotency_key
+                                change_piasters, payment_method, status, notes, created_at, service_fee_piasters, shift_id, idempotency_key,
+                                order_type, order_call_number, table_id, table_name, guests_count, waiter_name, service_charge_piasters, delivery_fee_piasters
                             ) VALUES (
                                 @id, @invoiceNumber, @cashierId, @customerId, @subtotal,
                                 @discount, @tax, @total, @paid,
-                                @change, @paymentMethod, @status, @notes, @createdAt, @serviceFee, @shiftId, @idempotencyKey
+                                @change, @paymentMethod, @status, @notes, @createdAt, @serviceFee, @shiftId, @idempotencyKey,
+                                @orderType, @orderCallNumber, @tableId, @tableName, @guestsCount, @waiterName, @serviceCharge, @deliveryFee
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertSaleSql, conn, trans))
@@ -137,6 +163,14 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@serviceFee", sale.ServiceFeePiasters);
                             cmd.Parameters.AddWithValue("@shiftId", (object)sale.ShiftId ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@idempotencyKey", (object)sale.IdempotencyKey ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@orderType", string.IsNullOrWhiteSpace(sale.OrderType) ? "takeaway" : sale.OrderType);
+                            cmd.Parameters.AddWithValue("@orderCallNumber", sale.OrderCallNumber);
+                            cmd.Parameters.AddWithValue("@tableId", (object)sale.TableId ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@tableName", (object)sale.TableName ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@guestsCount", sale.GuestsCount);
+                            cmd.Parameters.AddWithValue("@waiterName", (object)sale.WaiterName ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@serviceCharge", sale.ServiceChargePiasters);
+                            cmd.Parameters.AddWithValue("@deliveryFee", sale.DeliveryFeePiasters);
                             cmd.ExecuteNonQuery();
                         }
 
@@ -504,6 +538,40 @@ namespace RafiqPOS.Repositories
                                         cmd.ExecuteNonQuery();
                                     }
                                 }
+                            }
+
+                            // Story 140: Persist Sale Item Modifiers
+                            if (item.Modifiers != null && item.Modifiers.Count > 0)
+                            {
+                                for (int mIdx = 0; mIdx < item.Modifiers.Count; mIdx++)
+                                {
+                                    var mod = item.Modifiers[mIdx];
+                                    if (mod == null || string.IsNullOrWhiteSpace(mod.OptionName)) continue;
+                                    string modRowId = string.IsNullOrWhiteSpace(mod.Id) ? ("sim_" + Guid.NewGuid().ToString("N").Substring(0, 12)) : mod.Id;
+                                    using (var modCmd = new SQLiteCommand(@"
+                                        INSERT INTO sale_item_modifiers (
+                                            id, sale_item_id, sale_id, option_id, group_name, option_name, extra_price_piasters, quantity_milli
+                                        ) VALUES (
+                                            @id, @siId, @saleId, @optId, @grpName, @optName, @extraPrice, @qtyMilli
+                                        );", conn, trans))
+                                    {
+                                        modCmd.Parameters.AddWithValue("@id", modRowId);
+                                        modCmd.Parameters.AddWithValue("@siId", item.Id);
+                                        modCmd.Parameters.AddWithValue("@saleId", sale.Id);
+                                        modCmd.Parameters.AddWithValue("@optId", (object)mod.OptionId ?? DBNull.Value);
+                                        modCmd.Parameters.AddWithValue("@grpName", mod.GroupName ?? "إضافات");
+                                        modCmd.Parameters.AddWithValue("@optName", mod.OptionName);
+                                        modCmd.Parameters.AddWithValue("@extraPrice", mod.ExtraPricePiasters);
+                                        modCmd.Parameters.AddWithValue("@qtyMilli", mod.QuantityMilli > 0 ? mod.QuantityMilli : 1000L);
+                                        modCmd.ExecuteNonQuery();
+                                    }
+                                }
+                            }
+
+                            // Story 143: Auto-deplete Recipe raw materials (on_sale) & Modifier linked ingredients
+                            if (DatabaseService.RecipeRepo != null)
+                            {
+                                DatabaseService.RecipeRepo.DepleteRecipeForSaleItemAtomic(conn, trans, sale, item, sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
                             }
                         }
 
@@ -982,6 +1050,18 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
+                        // 9. Story 139: If sale is linked to a floor table, close the table and remove its held sale atomically
+                        if (!string.IsNullOrWhiteSpace(sale.TableId) && DatabaseService.TableRepo != null)
+                        {
+                            DatabaseService.TableRepo.CloseTableAtomic(conn, trans, sale.TableId);
+                        }
+
+                        // 10. Story 142: If sale is a delivery order, create the delivery_orders record atomically
+                        if (string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase) && DatabaseService.DeliveryRepo != null)
+                        {
+                            DatabaseService.DeliveryRepo.CreateDeliveryOrderAtomic(conn, trans, sale, sale.DeliveryInfo, sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                        }
+
                         // Commit entire atomic transaction
                         trans.Commit();
                         return sale;
@@ -1060,6 +1140,38 @@ namespace RafiqPOS.Repositories
                 else if (string.Equals(col, "idempotency_key", StringComparison.OrdinalIgnoreCase))
                 {
                     sale.IdempotencyKey = reader[i] != DBNull.Value ? reader[i].ToString() : null;
+                }
+                else if (string.Equals(col, "order_type", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.OrderType = reader[i] != DBNull.Value ? reader[i].ToString() : "takeaway";
+                }
+                else if (string.Equals(col, "order_call_number", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.OrderCallNumber = reader[i] != DBNull.Value ? Convert.ToInt32(reader[i]) : 0;
+                }
+                else if (string.Equals(col, "table_id", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.TableId = reader[i] != DBNull.Value ? reader[i].ToString() : null;
+                }
+                else if (string.Equals(col, "table_name", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.TableName = reader[i] != DBNull.Value ? reader[i].ToString() : null;
+                }
+                else if (string.Equals(col, "guests_count", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.GuestsCount = reader[i] != DBNull.Value ? Convert.ToInt32(reader[i]) : 0;
+                }
+                else if (string.Equals(col, "waiter_name", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.WaiterName = reader[i] != DBNull.Value ? reader[i].ToString() : null;
+                }
+                else if (string.Equals(col, "service_charge_piasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.ServiceChargePiasters = reader[i] != DBNull.Value ? Convert.ToInt64(reader[i]) : 0;
+                }
+                else if (string.Equals(col, "delivery_fee_piasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.DeliveryFeePiasters = reader[i] != DBNull.Value ? Convert.ToInt64(reader[i]) : 0;
                 }
             }
 
@@ -1286,6 +1398,46 @@ namespace RafiqPOS.Repositories
                             });
                         }
                     }
+                }
+
+                // Story 140: Load modifiers for sale items
+                if (items.Count > 0)
+                {
+                    try
+                    {
+                        var itemById = new Dictionary<string, SaleItem>();
+                        for (int i = 0; i < items.Count; i++)
+                        {
+                            itemById[items[i].Id] = items[i];
+                        }
+                        using (var modCmd = new SQLiteCommand("SELECT * FROM sale_item_modifiers WHERE sale_id = @sid;", conn))
+                        {
+                            modCmd.Parameters.AddWithValue("@sid", saleId);
+                            using (var modRdr = modCmd.ExecuteReader())
+                            {
+                                while (modRdr.Read())
+                                {
+                                    string siId = modRdr["sale_item_id"].ToString();
+                                    SaleItem parentItem;
+                                    if (itemById.TryGetValue(siId, out parentItem))
+                                    {
+                                        parentItem.Modifiers.Add(new SaleItemModifier
+                                        {
+                                            Id = modRdr["id"].ToString(),
+                                            SaleItemId = siId,
+                                            SaleId = saleId,
+                                            OptionId = modRdr["option_id"] != DBNull.Value ? modRdr["option_id"].ToString() : null,
+                                            GroupName = modRdr["group_name"].ToString(),
+                                            OptionName = modRdr["option_name"].ToString(),
+                                            ExtraPricePiasters = Convert.ToInt64(modRdr["extra_price_piasters"]),
+                                            QuantityMilli = Convert.ToInt64(modRdr["quantity_milli"])
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
                 }
             }
             return items;
@@ -1671,6 +1823,21 @@ namespace RafiqPOS.Repositories
                                 }
                             }
                         }
+
+                        // Story 143: Reverse recipe ingredient consumption on sale cancellation
+                        RecipeRepository.ReverseRecipeConsumptionOnCancelAtomic(conn, trans, sale.Id, sale.InvoiceNumber, nowIso);
+
+                        // Story 142: Mark any associated delivery order as returned on sale cancellation
+                        try
+                        {
+                            using (var dlvCancel = new SQLiteCommand("UPDATE delivery_orders SET status = 'returned', updated_at = @now WHERE sale_id = @sid;", conn, trans))
+                            {
+                                dlvCancel.Parameters.AddWithValue("@now", nowIso);
+                                dlvCancel.Parameters.AddWithValue("@sid", sale.Id);
+                                dlvCancel.ExecuteNonQuery();
+                            }
+                        }
+                        catch { }
 
                         if (!string.IsNullOrWhiteSpace(sale.CustomerId))
                         {

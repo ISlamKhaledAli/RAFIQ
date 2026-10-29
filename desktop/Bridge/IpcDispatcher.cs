@@ -16,7 +16,14 @@ namespace RafiqPOS.Bridge
                 return BridgeResponse.Fail(reqId, "INVALID_REQUEST", "طلب غير صالح أو فارغ");
             }
 
-            // License check runs first so an expired/invalid license or tampered clock strictly blocks commercial mutations (Task 173-2)
+            // Central server-side authorization gate (Audit F-01 / F-03 / AGENTS Rule 8)
+            BridgeResponse authFailure = AuthorizeRequest(request);
+            if (authFailure != null)
+            {
+                return authFailure;
+            }
+
+            // License check: strictly blocks commercial mutations when expired or tampered (Task 173-2)
             if (DatabaseService.License != null && DatabaseService.License.IsLicenseExpired() && IsLicenseBlockedAction(request.Action))
             {
                 return BridgeResponse.Fail(
@@ -24,13 +31,6 @@ namespace RafiqPOS.Bridge
                     "LICENSE_EXPIRED",
                     "انتهت فترة اشتراك البرنامج أو تم إيقافه. يرجى تجديد الترخيص لاستكمال عمليات البيع والأنشطة التجارية."
                 );
-            }
-
-            // Central server-side authorization gate (Audit F-01 / F-03 / AGENTS Rule 8)
-            BridgeResponse authFailure = AuthorizeRequest(request);
-            if (authFailure != null)
-            {
-                return authFailure;
             }
 
             // Central server-side feature gate: block mutations for disabled features (Feature #182 / Task 182-2)
@@ -167,6 +167,7 @@ namespace RafiqPOS.Bridge
                 if (TryDispatchInsurance(request, out response)) return response;
                 if (TryDispatchPatients(request, out response)) return response;
                 if (TryDispatchShifts(request, out response)) return response;
+                if (TryDispatchCafe(request, out response)) return response;
 
                 Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);
                 return BridgeResponse.Fail(request.Id, "ACTION_NOT_FOUND", "الإجراء غير مسجل في النواة: " + request.Action);
@@ -282,6 +283,7 @@ namespace RafiqPOS.Bridge
 
             // Products & Catalog
             { "products:getAll", "products.view" },
+            { "products:list", "products.view" },
             { "products:getById", "products.view" },
             { "products:getLowStock", "products.view" },
             { "products:getLowStockCount", "products.view" },
@@ -291,7 +293,7 @@ namespace RafiqPOS.Bridge
             { "products:save", "products.edit" },
             { "products:delete", "products.archive" },
             { "products:bulkDelete", "products.archive" },
-            { "products:clearAll", "products.archive" },
+            { "products:clearAll", "products.clear_all" },
             { "products:bulkUpdateMinStock", "products.edit" },
             { "products:importBatch", "products.import" },
             { "products:previewBulkPriceAdjustment", "products.edit_price" },
@@ -757,7 +759,94 @@ namespace RafiqPOS.Bridge
             { "ddi:generateTemplate", "pharma.ddi.manage" },
             { "ddi.generateTemplate", "pharma.ddi.manage" },
             { "ddi:override", REQUIRE_SESSION },
-            { "ddi.override", REQUIRE_SESSION }
+            { "ddi.override", REQUIRE_SESSION },
+
+            // Cafe & Restaurant Suite (Milestone 14 / Stories 139-143 / Features #196-#200)
+            // Floor & Table Management (F-04)
+            { "tables:getAll", "tables.view" },
+            { "tables.getAll", "tables.view" },
+            { "tables:save", "tables.configure_floor" },
+            { "tables.save", "tables.configure_floor" },
+            { "tables:delete", "tables.configure_floor" },
+            { "tables.delete", "tables.configure_floor" },
+            { "tables:open", "tables.manage_orders" },
+            { "tables.open", "tables.manage_orders" },
+            { "tables:updateOrder", "tables.manage_orders" },
+            { "tables.updateOrder", "tables.manage_orders" },
+            { "tables:setStatus", "tables.manage_orders" },
+            { "tables.setStatus", "tables.manage_orders" },
+            { "tables:close", "tables.manage_orders" },
+            { "tables.close", "tables.manage_orders" },
+            { "tables:transfer", "tables.transfer_merge" },
+            { "tables.transfer", "tables.transfer_merge" },
+            { "tables:merge", "tables.transfer_merge" },
+            { "tables.merge", "tables.transfer_merge" },
+            { "tables:split", "tables.split_bill" },
+            { "tables.split", "tables.split_bill" },
+            { "tables:printPreBill", "tables.manage_orders" },
+            { "tables.printPreBill", "tables.manage_orders" },
+
+            // Item Modifiers & Customizations (F-06)
+            { "modifiers:getGroups", REQUIRE_SESSION },
+            { "modifiers.getGroups", REQUIRE_SESSION },
+            { "modifiers:getForProduct", REQUIRE_SESSION },
+            { "modifiers.getForProduct", REQUIRE_SESSION },
+            { "modifiers:saveGroup", "modifiers.manage" },
+            { "modifiers.saveGroup", "modifiers.manage" },
+            { "modifiers:deleteGroup", "modifiers.manage" },
+            { "modifiers.deleteGroup", "modifiers.manage" },
+            { "modifiers:saveOption", "modifiers.manage" },
+            { "modifiers.saveOption", "modifiers.manage" },
+            { "modifiers:deleteOption", "modifiers.manage" },
+            { "modifiers.deleteOption", "modifiers.manage" },
+            { "modifiers:linkProduct", "modifiers.manage" },
+            { "modifiers.linkProduct", "modifiers.manage" },
+
+            // Kitchen & Bar Printer KOT (F-05)
+            { "printer:printKOT", "kot.print" },
+            { "printer.printKOT", "kot.print" },
+            { "printer:getKOTRouting", REQUIRE_SESSION },
+            { "printer.getKOTRouting", REQUIRE_SESSION },
+            { "printer:saveKOTRouting", "kot.configure" },
+            { "printer.saveKOTRouting", "kot.configure" },
+
+            // Delivery & Riders Management (F-07)
+            { "delivery:getZones", REQUIRE_SESSION },
+            { "delivery.getZones", REQUIRE_SESSION },
+            { "delivery:saveZone", "delivery.zones_riders.configure" },
+            { "delivery.saveZone", "delivery.zones_riders.configure" },
+            { "delivery:deleteZone", "delivery.zones_riders.configure" },
+            { "delivery.deleteZone", "delivery.zones_riders.configure" },
+            { "delivery:getRiders", REQUIRE_SESSION },
+            { "delivery.getRiders", REQUIRE_SESSION },
+            { "delivery:saveRider", "delivery.zones_riders.configure" },
+            { "delivery.saveRider", "delivery.zones_riders.configure" },
+            { "delivery:deleteRider", "delivery.zones_riders.configure" },
+            { "delivery.deleteRider", "delivery.zones_riders.configure" },
+            { "delivery:getOrders", "delivery.orders.manage" },
+            { "delivery.getOrders", "delivery.orders.manage" },
+            { "delivery:assignOrder", "delivery.orders.manage" },
+            { "delivery.assignOrder", "delivery.orders.manage" },
+            { "delivery:updateStatus", "delivery.orders.manage" },
+            { "delivery.updateStatus", "delivery.orders.manage" },
+            { "delivery:getRiderSummary", "delivery.riders.settle" },
+            { "delivery.getRiderSummary", "delivery.riders.settle" },
+            { "delivery:settleRider", "delivery.riders.settle" },
+            { "delivery.settleRider", "delivery.riders.settle" },
+
+            // Manufacturing Recipes / BOM (F-09)
+            { "recipes:getAll", REQUIRE_SESSION },
+            { "recipes.getAll", REQUIRE_SESSION },
+            { "recipes:getByProduct", REQUIRE_SESSION },
+            { "recipes.getByProduct", REQUIRE_SESSION },
+            { "recipes:save", "recipes.manage" },
+            { "recipes.save", "recipes.manage" },
+            { "recipes:delete", "recipes.manage" },
+            { "recipes.delete", "recipes.manage" },
+            { "recipes:produce", "recipes.produce" },
+            { "recipes.produce", "recipes.produce" },
+            { "recipes:getProductionLog", REQUIRE_SESSION },
+            { "recipes.getProductionLog", REQUIRE_SESSION }
         };
 
         private static bool IsLicenseBlockedAction(string action)
@@ -806,7 +895,15 @@ namespace RafiqPOS.Bridge
                 action == "insurance:saveCompany" || action == "insurance:deleteCompany" ||
                 action == "insurance:saveContract" || action == "insurance:deleteContract" ||
                 action == "insurance:saveMember" || action == "insurance:createBatch" ||
-                action == "insurance:settleBatch")
+                action == "insurance:settleBatch" ||
+                action == "tables:save" || action == "tables:delete" || action == "tables:open" ||
+                action == "tables:updateOrder" || action == "tables:transfer" || action == "tables:merge" ||
+                action == "tables:split" || action == "modifiers:saveGroup" || action == "modifiers:deleteGroup" ||
+                action == "modifiers:saveOption" || action == "modifiers:deleteOption" || action == "modifiers:linkProduct" ||
+                action == "delivery:saveZone" || action == "delivery:deleteZone" || action == "delivery:saveRider" ||
+                action == "delivery:deleteRider" || action == "delivery:assignOrder" || action == "delivery:updateStatus" ||
+                action == "delivery:settleRider" || action == "recipes:save" || action == "recipes:delete" ||
+                action == "recipes:produce")
                 return true;
 
             return false;

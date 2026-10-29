@@ -42,6 +42,7 @@ interface PosCartTableProps {
   onOpenAlternatives?: (index: number) => void;
   onOpenControlledDispense?: (index: number) => void;
   onPrintDosageLabel?: (index: number) => void;
+  onOpenItemModifiers?: (index: number) => void;
 }
 
 export const PosCartTable: React.FC<PosCartTableProps> = ({
@@ -62,6 +63,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
   onOpenAlternatives,
   onOpenControlledDispense,
   onPrintDosageLabel,
+  onOpenItemModifiers,
 }) => {
   return (
     <>
@@ -280,7 +282,45 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                         <span>منتهي</span>
                       </span>
                     )}
+
+                    {/* Hospitality Modifiers Button */}
+                    {onOpenItemModifiers && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenItemModifiers(index);
+                        }}
+                        className="h-5 px-1.5 rounded bg-brand-soft/80 dark:bg-brand-soft/20 hover:bg-brand hover:text-white border border-brand/25 text-brand dark:text-brand-bright text-[9.5px] font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
+                        title="تخصيص الإضافات والملاحظات لهذا الصنف"
+                      >
+                        <Plus className="w-2.5 h-2.5 shrink-0" />
+                        <span>إضافات</span>
+                      </button>
+                    )}
                   </div>
+
+                  {/* Hospitality Modifiers & Notes Chips */}
+                  {((item.modifiers && item.modifiers.length > 0) || item.notes) && (
+                    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                      {item.modifiers?.map((mod, mIdx) => (
+                        <span
+                          key={`${mod.optionId || mIdx}`}
+                          className="px-1.5 py-0.5 rounded bg-paid-soft/80 dark:bg-paid-dark-soft border border-paid/25 text-paid dark:text-paid-bright text-[9.5px] font-bold flex items-center gap-1"
+                        >
+                          <span>+ {mod.optionName}</span>
+                          {mod.extraPricePiasters > 0 && (
+                            <span className="font-mono opacity-80">({formatArabicCurrency(mod.extraPricePiasters, false)})</span>
+                          )}
+                        </span>
+                      ))}
+                      {item.notes && (
+                        <span className="px-1.5 py-0.5 rounded bg-warn-soft/80 dark:bg-warn-dark-soft border border-warn/25 text-warn dark:text-warn-bright text-[9.5px] font-bold">
+                          ملاحظة: {item.notes}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Line 3: Pharmacy Quick Actions Toolbar (Only when alternatives, controlled, or dosage labels exist) */}
                   {(onOpenAlternatives || item.isControlled || onPrintDosageLabel) && (

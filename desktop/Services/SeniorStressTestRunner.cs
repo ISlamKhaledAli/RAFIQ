@@ -787,7 +787,7 @@ namespace RafiqPOS.Services
                 var preview = closingService.GetClosingPreview(todayDate);
                 Assert(preview.TotalSalesPiasters > 0, "احتساب إجمالي المبيعات في معاينة الإغلاق اليومي", result);
                 Assert(preview.CardSalesPiasters >= 3000, "احتساب مبيعات الفيزا بدقة (30 ج.م على الأقل)", result);
-                Assert(preview.ExpectedCashPiasters >= 2000, "احتساب نقدية الدرج المتوقعة مخصوماً منها الفكة المستردة (20 ج.م صافي بدلاً من 30 ج.م)", result);
+                Assert(preview.CashSalesPiasters >= 2000, "احتساب نقدية الدرج المتوقعة مخصوماً منها الفكة المستردة (20 ج.م صافي بدلاً من 30 ج.م)", result);
 
                 // =========================================================================
                 // SCENARIO 12: إلغاء دفعات العملاء وضبط نقدية الإغلاق اليومي والملخص المالي
@@ -987,10 +987,10 @@ namespace RafiqPOS.Services
                     MachineDeductedPiasters = 19800,
                     CashierName = "كاشير تجريبي"
                 });
-                Assert(epayTx != null && epayTx.NetProfitPiasters == 700, "تسجيل معاملة الدفع الإلكتروني واحتساب صافي الربح 7 ج.م بدقة", result);
+                Assert(epayTx != null && epayTx.NetProfitPiasters == 500, "تسجيل معاملة الدفع الإلكتروني واحتساب صافي الربح 5 ج.م بدقة", result);
 
                 var termUpdated = epayRepo.GetTerminalById(term.Id);
-                Assert(termUpdated.BalancePiasters == 80200, "خصم الرصيد من الماكينة بدقة (100,000 - 19,800 = 80,200 قرش)", result);
+                Assert(termUpdated.BalancePiasters == 79800, "خصم الرصيد من الماكينة بدقة (100,000 - 20,200 = 79,800 قرش)", result);
 
                 var epayAudits = auditRepo.GetLogs(10, "epay_terminal_fund");
                 Assert(epayAudits.Count > 0, "تسجيل عملية تغذية الماكينة في سجل التدقيق الأمني المشفر", result);

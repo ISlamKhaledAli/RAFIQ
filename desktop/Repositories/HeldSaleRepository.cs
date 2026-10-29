@@ -49,11 +49,13 @@ namespace RafiqPOS.Repositories
                     INSERT OR REPLACE INTO held_sales (
                         id, hold_label, customer_id, customer_name, items_count,
                         subtotal_piasters, discount_piasters, total_piasters,
-                        cart_json, notes, cashier_id, created_at
+                        cart_json, notes, cashier_id, created_at,
+                        table_id, table_name, order_type, waiter_name, guests_count, printed_kot_quantities_json
                     ) VALUES (
                         @id, @holdLabel, @customerId, @customerName, @itemsCount,
                         @subtotal, @discount, @total,
-                        @cartJson, @notes, @cashierId, @createdAt
+                        @cartJson, @notes, @cashierId, @createdAt,
+                        @tableId, @tableName, @orderType, @waiterName, @guestsCount, @printedKotJson
                     );
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -70,6 +72,12 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@notes", (object)heldSale.Notes ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@cashierId", (object)heldSale.CashierId ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@createdAt", heldSale.CreatedAt);
+                    cmd.Parameters.AddWithValue("@tableId", (object)heldSale.TableId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@tableName", (object)heldSale.TableName ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@orderType", string.IsNullOrEmpty(heldSale.OrderType) ? "takeaway" : heldSale.OrderType);
+                    cmd.Parameters.AddWithValue("@waiterName", (object)heldSale.WaiterName ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@guestsCount", heldSale.GuestsCount);
+                    cmd.Parameters.AddWithValue("@printedKotJson", string.IsNullOrEmpty(heldSale.PrintedKotQuantitiesJson) ? "{}" : heldSale.PrintedKotQuantitiesJson);
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -140,8 +148,8 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = retentionDays <= 0
-                    ? "DELETE FROM held_sales;"
-                    : "DELETE FROM held_sales WHERE date(created_at) < date('now', '-' || @days || ' days');";
+                    ? "DELETE FROM held_sales WHERE id NOT IN (SELECT active_held_sale_id FROM restaurant_tables WHERE active_held_sale_id IS NOT NULL);"
+                    : "DELETE FROM held_sales WHERE date(created_at) < date('now', '-' || @days || ' days') AND id NOT IN (SELECT active_held_sale_id FROM restaurant_tables WHERE active_held_sale_id IS NOT NULL);";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     if (retentionDays > 0)
@@ -155,7 +163,7 @@ namespace RafiqPOS.Repositories
 
         private HeldSale MapReaderToHeldSale(SQLiteDataReader reader)
         {
-            return new HeldSale
+            var h = new HeldSale
             {
                 Id = reader["id"].ToString(),
                 HoldLabel = reader["hold_label"].ToString(),
@@ -170,6 +178,17 @@ namespace RafiqPOS.Repositories
                 CashierId = reader["cashier_id"] != DBNull.Value ? reader["cashier_id"].ToString() : null,
                 CreatedAt = reader["created_at"].ToString()
             };
+            try
+            {
+                h.TableId = reader["table_id"] != DBNull.Value ? reader["table_id"].ToString() : null;
+                h.TableName = reader["table_name"] != DBNull.Value ? reader["table_name"].ToString() : null;
+                h.OrderType = reader["order_type"] != DBNull.Value ? reader["order_type"].ToString() : "takeaway";
+                h.WaiterName = reader["waiter_name"] != DBNull.Value ? reader["waiter_name"].ToString() : null;
+                h.GuestsCount = reader["guests_count"] != DBNull.Value ? Convert.ToInt32(reader["guests_count"]) : 0;
+                h.PrintedKotQuantitiesJson = reader["printed_kot_quantities_json"] != DBNull.Value ? reader["printed_kot_quantities_json"].ToString() : "{}";
+            }
+            catch { }
+            return h;
         }
     }
 }

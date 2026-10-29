@@ -272,6 +272,18 @@
     <Compile Include="Models\DrugInteraction.cs" />
     <Compile Include="Repositories\DrugInteractionRepository.cs" />
     <Compile Include="Services\DrugInteractionService.cs" />
+    <Compile Include="Database\MigrationRunner.Cafe.cs" />
+    <Compile Include="Models\CafeModels.cs" />
+    <Compile Include="Repositories\TableRepository.cs" />
+    <Compile Include="Services\TableManagementService.cs" />
+    <Compile Include="Repositories\ModifierRepository.cs" />
+    <Compile Include="Services\ModifierService.cs" />
+    <Compile Include="Repositories\DeliveryRepository.cs" />
+    <Compile Include="Services\DeliveryService.cs" />
+    <Compile Include="Repositories\RecipeRepository.cs" />
+    <Compile Include="Services\RecipeService.cs" />
+    <Compile Include="Services\PrinterService.Cafe.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Cafe.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

@@ -475,15 +475,27 @@ namespace RafiqPOS.Repositories
                 summary.RecentMovements = GetDrawerTransactions(shift.Id);
             }
 
-            // F-02, F-22, F-24: Unified Senior Cash Calculation via DrawerCashCalculator
+            // F-02, F-22, F-24 & Audit F-006: Unified Senior Cash Calculation via DrawerCashCalculator with Local Time
             DateTime pStart = DateTime.MinValue;
-            DateTime.TryParse(shift.OpenedAt, out pStart);
-            DateTime pEnd = DateTime.UtcNow;
-            if (!string.IsNullOrEmpty(shift.ClosedAt))
+            if (!string.IsNullOrEmpty(shift.OpenedAt))
             {
-                DateTime.TryParse(shift.ClosedAt, out pEnd);
+                DateTime parsedStart;
+                if (DateTime.TryParse(shift.OpenedAt, out parsedStart))
+                {
+                    pStart = parsedStart.ToLocalTime();
+                }
             }
             if (pStart == DateTime.MinValue) pStart = DateTime.Today.AddDays(-1);
+
+            DateTime pEnd = DateTime.Now; // Open shift window ends at current local time, matching created_at localtime
+            if (!string.IsNullOrEmpty(shift.ClosedAt))
+            {
+                DateTime parsedEnd;
+                if (DateTime.TryParse(shift.ClosedAt, out parsedEnd))
+                {
+                    pEnd = parsedEnd.ToLocalTime();
+                }
+            }
 
             var calc = Services.DrawerCashCalculator.Calculate(_connectionString, pStart, pEnd, shift.Id);
             summary.OpeningFloatPiasters = calc.OpeningFloatPiasters;

@@ -5,9 +5,9 @@ using System.Data.SQLite;
 
 namespace RafiqPOS.Database
 {
-    public static class MigrationRunner
+    public static partial class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 55;
+        public const int LATEST_SUPPORTED_VERSION = 59;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -465,7 +465,7 @@ namespace RafiqPOS.Database
                 }
 
                 // Self-Healing Schema Guard: Automatically repair missing columns or indexes
-                EnsureSchemaHealth(conn);
+                ApplyCafeHospitalityMigrations(conn, dbPath, currentVersion); EnsureSchemaHealth(conn);
             }
         }
 

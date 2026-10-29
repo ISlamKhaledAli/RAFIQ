@@ -22,6 +22,7 @@ namespace RafiqPOS.Repositories
                 conn.Open();
                 string sql = @"
                     SELECT c.id, c.name, c.display_order, c.is_active, c.created_at, c.updated_at,
+                           COALESCE(c.kot_station, 'kitchen') AS kot_station,
                            COUNT(p.id) AS product_count
                     FROM categories c
                     LEFT JOIN products p ON c.id = p.category_id AND p.is_active = 1
@@ -43,6 +44,7 @@ namespace RafiqPOS.Repositories
                                 DisplayOrder = Convert.ToInt32(reader["display_order"]),
                                 IsActive = Convert.ToInt32(reader["is_active"]) == 1,
                                 ProductCount = Convert.ToInt32(reader["product_count"]),
+                                KotStation = reader["kot_station"] != DBNull.Value ? reader["kot_station"].ToString() : "kitchen",
                                 CreatedAt = reader["created_at"].ToString(),
                                 UpdatedAt = reader["updated_at"].ToString()
                             });
@@ -121,12 +123,13 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    INSERT INTO categories (id, name, display_order, is_active, created_at, updated_at)
-                    VALUES (@id, @name, @order, @active, @createdAt, @updatedAt)
+                    INSERT INTO categories (id, name, display_order, is_active, kot_station, created_at, updated_at)
+                    VALUES (@id, @name, @order, @active, @kotStation, @createdAt, @updatedAt)
                     ON CONFLICT(id) DO UPDATE SET
                         name = excluded.name,
                         display_order = excluded.display_order,
                         is_active = excluded.is_active,
+                        kot_station = COALESCE(@kotStation, categories.kot_station),
                         updated_at = excluded.updated_at;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -135,6 +138,7 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@name", category.Name.Trim());
                     cmd.Parameters.AddWithValue("@order", category.DisplayOrder);
                     cmd.Parameters.AddWithValue("@active", category.IsActive ? 1 : 0);
+                    cmd.Parameters.AddWithValue("@kotStation", string.IsNullOrEmpty(category.KotStation) ? "kitchen" : category.KotStation);
                     cmd.Parameters.AddWithValue("@createdAt", category.CreatedAt ?? DateTime.UtcNow.ToString("o"));
                     cmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
                     cmd.ExecuteNonQuery();

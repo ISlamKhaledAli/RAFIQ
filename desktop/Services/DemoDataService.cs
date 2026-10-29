@@ -54,7 +54,7 @@ namespace RafiqPOS.Services
             {
                 conn.Open();
 
-                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%' OR name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%';", conn))
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%';", conn))
                 {
                     status.DemoProductsCount = Convert.ToInt32(cmd.ExecuteScalar());
                 }
@@ -278,7 +278,7 @@ namespace RafiqPOS.Services
             var counts = new ClearCounts();
 
             // Count items before deleting
-            using (var pCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%' OR name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%';", conn, trans))
+            using (var pCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%';", conn, trans))
             {
                 counts.Products = Convert.ToInt32(pCmd.ExecuteScalar());
             }
@@ -286,25 +286,25 @@ namespace RafiqPOS.Services
             {
                 counts.Sales = Convert.ToInt32(sCmd.ExecuteScalar());
             }
-            using (var cCmd = new SQLiteCommand("SELECT COUNT(*) FROM customers WHERE id LIKE 'demo_%';", conn, trans))
+            using (var cCmd = new SQLiteCommand("SELECT COUNT(*) FROM customers WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';", conn, trans))
             {
                 counts.Customers = Convert.ToInt32(cCmd.ExecuteScalar());
             }
 
-            // Safe atomic cascaded delete strictly for demo and stress benchmark entities (Task 113-2)
+            // Safe atomic cascaded delete strictly for demo and stress benchmark entities (Task 113-2 / Audit F-017)
             string sqlDelete = @"
-                DELETE FROM stock_movements WHERE id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR reference_id LIKE 'demo_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
-                DELETE FROM product_price_history WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
-                DELETE FROM product_barcodes WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
-                DELETE FROM return_items WHERE return_id IN (SELECT id FROM returns WHERE sale_id LIKE 'demo_%' OR id LIKE 'demo_%');
-                DELETE FROM returns WHERE sale_id LIKE 'demo_%' OR id LIKE 'demo_%';
-                DELETE FROM sale_items WHERE sale_id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
+                DELETE FROM stock_movements WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR reference_id LIKE 'demo_%' OR reference_id LIKE 'stress_%';
+                DELETE FROM product_price_history WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
+                DELETE FROM product_barcodes WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
+                DELETE FROM return_items WHERE return_id IN (SELECT id FROM returns WHERE sale_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR id LIKE 'demo_%' OR id LIKE 'stress_%');
+                DELETE FROM returns WHERE sale_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR id LIKE 'demo_%' OR id LIKE 'stress_%';
+                DELETE FROM sale_items WHERE sale_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
                 DELETE FROM sales WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';
-                DELETE FROM customer_ledger WHERE customer_id LIKE 'demo_%' OR sale_id LIKE 'demo_%';
-                DELETE FROM customers WHERE id LIKE 'demo_%';
-                DELETE FROM quick_items WHERE id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
-                DELETE FROM categories WHERE id LIKE 'demo_%' OR (name LIKE '%تجريبي%' AND NOT EXISTS (SELECT 1 FROM products WHERE products.category_id = categories.id));
-                DELETE FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%' OR name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%';
+                DELETE FROM customer_ledger WHERE customer_id LIKE 'demo_%' OR customer_id LIKE 'stress_%' OR sale_id LIKE 'demo_%' OR sale_id LIKE 'stress_%';
+                DELETE FROM customers WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';
+                DELETE FROM quick_items WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
+                DELETE FROM categories WHERE id LIKE 'demo_%';
+                DELETE FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%';
                 UPDATE counters SET current_value = COALESCE((SELECT MAX(invoice_number) FROM sales), 0) WHERE name = 'invoice_number';
                 UPDATE counters SET current_value = COALESCE((SELECT MAX(return_number) FROM returns), 0) WHERE name = 'return_number';
                 UPDATE counters SET current_value = COALESCE((SELECT MAX(invoice_number) FROM purchases), 0) WHERE name = 'purchase_invoice';

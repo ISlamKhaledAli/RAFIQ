@@ -73,6 +73,8 @@
     <Compile Include="Scenarios\S7_BackupCrossDeviceTest.cs" />
     <Compile Include="Scenarios\S8_SaleTimeoutRetryTest.cs" />
     <Compile Include="Scenarios\S9_PinBruteForceTest.cs" />
+    <Compile Include="Scenarios\S10_AuditFixesVerificationTest.cs" />
+    <Compile Include="Scenarios\S11_CafeRestaurantSuiteTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

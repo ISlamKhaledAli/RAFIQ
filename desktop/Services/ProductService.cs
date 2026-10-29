@@ -197,36 +197,40 @@ namespace RafiqPOS.Services
             }
 
             Product existing = null;
-            if (!string.IsNullOrWhiteSpace(product.Id))
-            {
-                existing = _repo.GetById(product.Id);
-            }
-            else
-            {
-                product.Id = Guid.NewGuid().ToString();
-            }
-
             long stockDeltaMilli = 0;
-            if (existing != null)
-            {
-                // Invariant (Scenario S4): Editing product metadata must never overwrite live in-flight stock deduction or addition.
-                // Live inventory is managed exclusively via Sales, Purchases, Returns, and AdjustStock.
-                product.StockQuantityMilli = existing.StockQuantityMilli;
-            }
-            else if (product.StockQuantityMilli != 0)
-            {
-                stockDeltaMilli = product.StockQuantityMilli;
-            }
 
-            if (string.IsNullOrWhiteSpace(product.CreatedAt))
+            lock (SaleService.FinancialWriteLock)
             {
-                product.CreatedAt = DateTime.UtcNow.ToString("o");
+                if (!string.IsNullOrWhiteSpace(product.Id))
+                {
+                    existing = _repo.GetById(product.Id);
+                }
+                else
+                {
+                    product.Id = Guid.NewGuid().ToString();
+                }
+
+                if (existing != null)
+                {
+                    // Invariant (Scenario S4): Editing product metadata must never overwrite live in-flight stock deduction or addition.
+                    // Live inventory is managed exclusively via Sales, Purchases, Returns, and AdjustStock.
+                    product.StockQuantityMilli = existing.StockQuantityMilli;
+                }
+                else if (product.StockQuantityMilli != 0)
+                {
+                    stockDeltaMilli = product.StockQuantityMilli;
+                }
+
+                if (string.IsNullOrWhiteSpace(product.CreatedAt))
+                {
+                    product.CreatedAt = DateTime.UtcNow.ToString("o");
+                }
+
+                product.UpdatedAt = DateTime.UtcNow.ToString("o");
+                product.IsActive = true;
+
+                _repo.Upsert(product);
             }
-
-            product.UpdatedAt = DateTime.UtcNow.ToString("o");
-            product.IsActive = true;
-
-            _repo.Upsert(product);
 
             // Audit logging for sensitive changes (Feature #7)
             if (_auditRepo != null)

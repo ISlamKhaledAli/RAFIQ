@@ -34,6 +34,10 @@ namespace RafiqPOS.Tests
         protected UserRepository UserRepo;
         protected EpayRepository EpayRepo;
         protected DigitalAccountRepository DigitalAccountRepo;
+        protected TableRepository TableRepo;
+        protected ModifierRepository ModifierRepo;
+        protected DeliveryRepository DeliveryRepo;
+        protected RecipeRepository RecipeRepo;
 
         // Services
         protected ProductService ProductService;
@@ -47,6 +51,10 @@ namespace RafiqPOS.Tests
         protected SecurityService SecurityService;
         protected EncryptionService EncryptionService;
         protected BackupService BackupService;
+        protected TableManagementService TableManagementService;
+        protected ModifierService ModifierService;
+        protected DeliveryService DeliveryService;
+        protected RecipeService RecipeService;
 
         [SetUp]
         public virtual void BaseSetUp()
@@ -91,12 +99,33 @@ namespace RafiqPOS.Tests
 
             UserRepo = new UserRepository(ConnectionString);
             SecurityService = new SecurityService(SettingsRepo, AuditRepo, UserRepo);
+            DatabaseService.Security = SecurityService;
 
             EpayRepo = new EpayRepository(ConnectionString, AuditRepo);
             DigitalAccountRepo = new DigitalAccountRepository(ConnectionString, AuditRepo);
 
             EncryptionService = new EncryptionService();
             BackupService = new BackupService(ConnectionString, TestDbPath, SettingsRepo, AuditRepo, EncryptionService);
+
+            TableRepo = new TableRepository(ConnectionString, AuditRepo);
+            TableManagementService = new TableManagementService(TableRepo);
+            DatabaseService.TableRepo = TableRepo;
+            DatabaseService.Tables = TableManagementService;
+
+            ModifierRepo = new ModifierRepository(ConnectionString);
+            ModifierService = new ModifierService(ModifierRepo);
+            DatabaseService.ModifierRepo = ModifierRepo;
+            DatabaseService.Modifiers = ModifierService;
+
+            DeliveryRepo = new DeliveryRepository(ConnectionString, AuditRepo);
+            DeliveryService = new DeliveryService(DeliveryRepo);
+            DatabaseService.DeliveryRepo = DeliveryRepo;
+            DatabaseService.Delivery = DeliveryService;
+
+            RecipeRepo = new RecipeRepository(ConnectionString, AuditRepo);
+            RecipeService = new RecipeService(RecipeRepo);
+            DatabaseService.RecipeRepo = RecipeRepo;
+            DatabaseService.Recipes = RecipeService;
 
             // Set default business day cutoff if not configured (04:00 AM)
             SettingsRepo.Set("business_day_cutoff_time", "04:00");
@@ -107,6 +136,16 @@ namespace RafiqPOS.Tests
         {
             try
             {
+                DatabaseService.TableRepo = null;
+                DatabaseService.Tables = null;
+                DatabaseService.ModifierRepo = null;
+                DatabaseService.Modifiers = null;
+                DatabaseService.DeliveryRepo = null;
+                DatabaseService.Delivery = null;
+                DatabaseService.RecipeRepo = null;
+                DatabaseService.Recipes = null;
+                DatabaseService.Security = null;
+
                 SQLiteConnection.ClearAllPools();
                 GC.Collect();
                 GC.WaitForPendingFinalizers();

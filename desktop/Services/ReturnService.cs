@@ -120,19 +120,21 @@ namespace RafiqPOS.Services
             {
                 if (DatabaseService.Security != null)
                 {
-                    if (!DatabaseService.Security.HasPermission("returns.without_invoice"))
-                    {
-                        throw new UnauthorizedAccessException("ليس لديك صلاحية تسجيل مرتجع بدون فاتورة (returns.without_invoice).");
-                    }
+                    var pinStatus = DatabaseService.Security.GetStatus();
+                    bool pinGloballyEnabled = (pinStatus != null && pinStatus.IsEnabled);
+                    bool userLacksPermission = SecurityService.CurrentUser != null && !DatabaseService.Security.HasPermission("returns.without_invoice");
 
-                    if (string.IsNullOrEmpty(supervisorPin))
+                    if (pinGloballyEnabled || userLacksPermission)
                     {
-                        throw new UnauthorizedAccessException("المرتجع بدون فاتورة أصلية يتطلب إدخال الرقم السري للمشرف.");
-                    }
-                    var pinCheck = DatabaseService.Security.VerifySupervisorPin(supervisorPin, "RETURN_WITHOUT_INVOICE");
-                    if (!pinCheck.Success)
-                    {
-                        throw new UnauthorizedAccessException("الرقم السري للمشرف غير صحيح: " + (pinCheck.Message ?? ""));
+                        if (string.IsNullOrEmpty(supervisorPin))
+                        {
+                            throw new UnauthorizedAccessException("المرتجع بدون فاتورة أصلية يتطلب إدخال الرقم السري للمشرف.");
+                        }
+                        var pinCheck = DatabaseService.Security.VerifySupervisorPin(supervisorPin, "RETURN_WITHOUT_INVOICE");
+                        if (!pinCheck.Success)
+                        {
+                            throw new UnauthorizedAccessException("الرقم السري للمشرف غير صحيح: " + (pinCheck.Message ?? ""));
+                        }
                     }
                 }
             }

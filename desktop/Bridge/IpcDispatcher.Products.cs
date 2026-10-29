@@ -14,6 +14,7 @@ namespace RafiqPOS.Bridge
             response = null;
             switch (request.Action)
             {
+                case "products:list":
                 case "products:getAll":
                     int limit = 100;
                     JObject getAllObj = request.Payload as JObject;
@@ -224,7 +225,27 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "products:clearAll":
+                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    string actorName = SecurityService.CurrentUser != null ? (SecurityService.CurrentUser.DisplayName ?? SecurityService.CurrentUser.Username) : "المدير";
                     int clearedCount = DatabaseService.Products.ClearAllProducts();
+                    try
+                    {
+                        if (DatabaseService.AuditRepo != null)
+                        {
+                            DatabaseService.AuditRepo.Log(new AuditLog
+                            {
+                                UserId = actorId,
+                                Action = "products_clear_all",
+                                EntityType = "product",
+                                EntityId = "ALL",
+                                DetailsJson = string.Format("{{\"actor\":\"{0}\",\"archivedCount\":{1},\"timestamp\":\"{2}\"}}", actorName, clearedCount, DateTime.UtcNow.ToString("o"))
+                            });
+                        }
+                    }
+                    catch (Exception aEx)
+                    {
+                        RafiqPOS.Common.Logger.Warn("فشل تسجيل عملية مسح المنتجات في سجل التدقيق: " + aEx.Message);
+                    }
                     response = BridgeResponse.Ok(request.Id, new { success = true, clearedCount = clearedCount });
                     return true;
 

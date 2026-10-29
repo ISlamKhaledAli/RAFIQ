@@ -100,13 +100,43 @@ namespace RafiqPOS.Services
                 try { if (File.Exists(testDecFile)) File.Delete(testDecFile); } catch { }
             }
 
-            // Test 2: Audit Log Chaining & Tamper Detection
-            var auditRepo = new AuditLogRepository(connectionString);
+            // Test 2: Audit Log Chaining & Tamper Detection (F-001: Run on isolated temp DB, verify live DB read-only)
+            var liveAuditRepo = new AuditLogRepository(connectionString);
+            var liveCheck = liveAuditRepo.VerifyChainIntegrity();
+            if (!liveCheck.IsValid || liveCheck.IsTampered)
+            {
+                result.Message = "سلسلة سجلات التدقيق الحالية في قاعدة البيانات تالفة أو تم التلاعب بها: " + liveCheck.ErrorMessage;
+                return result;
+            }
+
+            string tempDbFile = Path.Combine(Path.GetTempPath(), "rafiq_test_audit_" + Guid.NewGuid().ToString("N") + ".db");
+            string tempConnStr = string.Format("Data Source={0};Version=3;", tempDbFile);
             string testAuditId = "aud_test_" + Guid.NewGuid().ToString("N");
 
             try
             {
-                auditRepo.Log(new AuditLog
+                using (var conn = new SQLiteConnection(tempConnStr))
+                {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE audit_logs (
+                            id TEXT PRIMARY KEY,
+                            user_id TEXT NOT NULL,
+                            action TEXT NOT NULL,
+                            entity_type TEXT NOT NULL,
+                            entity_id TEXT,
+                            details_json TEXT,
+                            created_at TEXT NOT NULL,
+                            prev_hash TEXT,
+                            record_hash TEXT
+                        );", conn))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+
+                var testAuditRepo = new AuditLogRepository(tempConnStr);
+                testAuditRepo.Log(new AuditLog
                 {
                     Id = testAuditId,
                     UserId = "usr_admin_default",
@@ -116,7 +146,7 @@ namespace RafiqPOS.Services
                     DetailsJson = "{\"test\":true}"
                 });
 
-                var check1 = auditRepo.VerifyChainIntegrity();
+                var check1 = testAuditRepo.VerifyChainIntegrity();
                 if (!check1.IsValid || check1.IsTampered)
                 {
                     result.Message = "فشل التحقق من سلسلة السجلات بعد إضافة سجل جديد: " + check1.ErrorMessage;
@@ -124,8 +154,8 @@ namespace RafiqPOS.Services
                 }
                 result.AuditChainPassed = true;
 
-                // Simulate direct tampering (simulating external database editing via DB Browser)
-                using (var conn = new SQLiteConnection(connectionString))
+                // Simulate direct external tampering
+                using (var conn = new SQLiteConnection(tempConnStr))
                 {
                     conn.Open();
                     using (var cmd = new SQLiteCommand("UPDATE audit_logs SET details_json = '{\"tampered\":true}' WHERE id = @id;", conn))
@@ -135,29 +165,27 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                var checkTamper = auditRepo.VerifyChainIntegrity();
+                var checkTamper = testAuditRepo.VerifyChainIntegrity();
                 if (!checkTamper.IsTampered)
                 {
                     result.Message = "فشل اكتشاف التلاعب المباشر بالسجل بعد تعديله يدوياً!";
                     return result;
                 }
                 result.TamperDetectionPassed = true;
-
-                // Re-fix or clean test record
-                using (var conn = new SQLiteConnection(connectionString))
-                {
-                    conn.Open();
-                    using (var cmd = new SQLiteCommand("DELETE FROM audit_logs WHERE id = @id;", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@id", testAuditId);
-                        cmd.ExecuteNonQuery();
-                    }
-                }
             }
             catch (Exception ex)
             {
                 result.Message = "خطأ في اختبار التدقيق: " + ex.Message;
                 return result;
+            }
+            finally
+            {
+                try
+                {
+                    SQLiteConnection.ClearAllPools();
+                    if (File.Exists(tempDbFile)) File.Delete(tempDbFile);
+                }
+                catch { }
             }
 
             result.EncryptedBackupPassed = true;

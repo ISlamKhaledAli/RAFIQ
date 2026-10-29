@@ -1995,7 +1995,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     {/* 5. Calculated Total Stock Result Field */}
                     <div className="col-span-2 sm:col-span-1">
                       <label className="block text-[11px] font-extrabold text-brand dark:text-brand-bright mb-1 truncate">
-                        إجمالي الرصيد (بـ {baseUnitName}):
+                        {editingId ? `الرصيد الفعلي الحالي (بـ ${baseUnitName}):` : `الرصيد الافتتاحي (بـ ${baseUnitName}):`}
                       </label>
                       <div className="relative">
                         <input
@@ -2004,8 +2004,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           value={stockInput}
                           onChange={(e) => handleDirectStockChange(e.target.value)}
                           onFocus={(e) => e.target.select()}
+                          disabled={Boolean(editingId)}
+                          readOnly={Boolean(editingId)}
                           placeholder="0"
-                          className="w-full bg-brand-soft dark:bg-brand-soft/20 border-2 border-brand dark:border-brand-bright rounded h-[36px] px-2 text-[13px] font-mono text-center font-extrabold text-brand dark:text-brand-bright focus:outline-none"
+                          title={editingId ? "يتم تعديل رصيد المخزون رسمياً عبر شاشة تسوية الجرد أو فواتير الشراء والبيع" : "الرصيد الافتتاحي للصنف الجديد"}
+                          className={`w-full rounded h-[36px] px-2 text-[13px] font-mono text-center font-extrabold focus:outline-none ${
+                            editingId
+                              ? 'bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted cursor-not-allowed'
+                              : 'bg-brand-soft dark:bg-brand-soft/20 border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright'
+                          }`}
                         />
                       </div>
                     </div>
@@ -2078,16 +2085,25 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-ink dark:text-ink-dark font-semibold mb-1 text-[11.5px]">
-                        الرصيد الفعلي المتوفر (كجم) *
+                        {editingId ? 'الرصيد الفعلي الحالي (كجم)' : 'الرصيد الافتتاحي (كجم) *'}
                       </label>
                       <input
                         type="text"
                         value={stockInput}
                         onChange={(e) => setStockInput(normalizeArabicNumerals(e.target.value))}
+                        disabled={Boolean(editingId)}
+                        readOnly={Boolean(editingId)}
+                        title={editingId ? "يتم تعديل رصيد المخزون رسمياً عبر شاشة تسوية الجرد أو فواتير الشراء والبيع" : "الرصيد الافتتاحي للصنف الجديد"}
                         placeholder="مثلاً: 12.5"
-                        className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] px-3 text-[13px] text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono font-bold"
+                        className={`w-full border rounded h-[36px] px-3 text-[13px] focus:outline-none font-mono font-bold ${
+                          editingId
+                            ? 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink-muted cursor-not-allowed'
+                            : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark focus:border-brand'
+                        }`}
                       />
-                      <p className="text-[10px] text-ink-muted mt-1">الوزن الكلي المتوفر حالياً بالمحل للبيع</p>
+                      <p className="text-[10px] text-ink-muted mt-1">
+                        {editingId ? 'الرصيد محمي من الاستبدال؛ يتم تعديله عبر تسوية الجرد' : 'الوزن الكلي المتوفر حالياً بالمحل للبيع'}
+                      </p>
                     </div>
                     <div>
                       <label className="block text-ink dark:text-ink-dark font-semibold mb-1 text-[11.5px]">

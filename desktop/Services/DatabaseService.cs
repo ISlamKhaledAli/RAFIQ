@@ -136,6 +136,14 @@ namespace RafiqPOS.Services
         public static PharmaStocktakingService PharmaStocktaking { get; private set; }
         public static DrugInteractionRepository DrugInteractionRepo { get; private set; }
         public static DrugInteractionService DrugInteractions { get; private set; }
+        public static TableRepository TableRepo { get; set; }
+        public static TableManagementService Tables { get; set; }
+        public static ModifierRepository ModifierRepo { get; set; }
+        public static ModifierService Modifiers { get; set; }
+        public static DeliveryRepository DeliveryRepo { get; set; }
+        public static DeliveryService Delivery { get; set; }
+        public static RecipeRepository RecipeRepo { get; set; }
+        public static RecipeService Recipes { get; set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -263,6 +271,15 @@ namespace RafiqPOS.Services
             PharmaStocktaking = new PharmaStocktakingService(_connectionString, ProductBatchRepo, ProductRepo, AuditRepo);
             DrugInteractionRepo = new DrugInteractionRepository(_connectionString, AuditRepo);
             DrugInteractions = new DrugInteractionService(DrugInteractionRepo, PharmaRepo, ProductRepo, _connectionString);
+
+            TableRepo = new TableRepository(_connectionString, AuditRepo);
+            Tables = new TableManagementService(TableRepo);
+            ModifierRepo = new ModifierRepository(_connectionString);
+            Modifiers = new ModifierService(ModifierRepo);
+            DeliveryRepo = new DeliveryRepository(_connectionString, AuditRepo);
+            Delivery = new DeliveryService(DeliveryRepo);
+            RecipeRepo = new RecipeRepository(_connectionString, AuditRepo);
+            Recipes = new RecipeService(RecipeRepo);
 
             // Cleanup old held sales (> 7 days) on startup (Task 25-4)
             try
@@ -669,12 +686,18 @@ namespace RafiqPOS.Services
                         string[] tablesInDeleteOrder = new string[]
                         {
                             // 1. Sales child allocations, insurance claims, and prescriptions linked to sales
+                            "sale_item_modifiers", "delivery_orders",
                             "sale_item_batch_allocations", "debt_allocations", "sale_prescriptions",
                             "controlled_dispenses", "insurance_claim_lines", "insurance_claim_batches",
                             "insurance_exclusions", "insurance_members", "insurance_contracts", "insurance_companies",
 
                             // 2. Patient profiles, chronic medications, prescriptions
                             "chronic_medications", "customer_patient_info", "prescriptions",
+
+                            // 2.b Cafe & Restaurant tables, modifiers, delivery, recipes
+                            "restaurant_tables", "product_modifier_groups", "modifier_options", "modifier_groups",
+                            "delivery_riders", "delivery_zones",
+                            "production_batches", "recipe_ingredients", "recipes",
 
                             // 3. Purchases & returns
                             "purchase_return_items", "purchase_returns",

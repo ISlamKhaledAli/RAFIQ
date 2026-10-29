@@ -40,5 +40,23 @@ namespace RafiqPOS.Models
 
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
+
+        [JsonProperty("tableId")]
+        public string TableId { get; set; }
+
+        [JsonProperty("tableName")]
+        public string TableName { get; set; }
+
+        [JsonProperty("orderType")]
+        public string OrderType { get; set; }
+
+        [JsonProperty("waiterName")]
+        public string WaiterName { get; set; }
+
+        [JsonProperty("guestsCount")]
+        public int GuestsCount { get; set; }
+
+        [JsonProperty("printedKotQuantitiesJson")]
+        public string PrintedKotQuantitiesJson { get; set; }
     }
 }

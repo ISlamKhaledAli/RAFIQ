@@ -504,6 +504,140 @@ namespace RafiqPOS.Common
                     "pharma.ddi.override"
                 }
             });
+
+            // ─── ميزات الكافيهات والمطاعم والتصنيع (Milestone 14: Stories 139–143) ───
+
+            Register(new FeatureDefinition
+            {
+                Key = "feature_cafe_restaurant",
+                NameAr = "وضع الكافيهات والمطاعم (Hospitality Mode)",
+                Category = "الكافيهات والمطاعم",
+                DescriptionAr = "تفعيل واجهة الكافيهات والمطاعم في الكاشير (اختيار نوع الطلب صالة/تيك أواي/دليفري، رقم النداء اليومي، ورسوم الخدمة)",
+                DefaultValue = false,
+                Requires = new List<string>(),
+                OwnedCommands = new List<string>(),
+                OwnedPermissions = new List<string>()
+            });
+
+            Register(new FeatureDefinition
+            {
+                Key = "feature_table_management",
+                NameAr = "إدارة الصالة والطاولات (Floor & Tables)",
+                Category = "الكافيهات والمطاعم",
+                DescriptionAr = "خريطة الطاولات التفاعلية، فتح الطلبات باسم الويتر وعدد الضيوف، نقل الطاولات، دمجها، وتقسيم الحساب بالأصناف",
+                DefaultValue = false,
+                Requires = new List<string> { "feature_cafe_restaurant" },
+                OwnedCommands = new List<string>
+                {
+                    "tables:save",
+                    "tables:delete",
+                    "tables:open",
+                    "tables:updateOrder",
+                    "tables:transfer",
+                    "tables:merge",
+                    "tables:split",
+                    "tables:setStatus",
+                    "tables:close",
+                    "tables:printPreBill"
+                },
+                OwnedPermissions = new List<string>
+                {
+                    "tables.view",
+                    "tables.manage_orders",
+                    "tables.transfer_merge",
+                    "tables.split_bill",
+                    "tables.configure_floor"
+                }
+            });
+
+            Register(new FeatureDefinition
+            {
+                Key = "feature_kitchen_printer",
+                NameAr = "طابعة المطبخ والبار (Kitchen & Bar KOT)",
+                Category = "الكافيهات والمطاعم",
+                DescriptionAr = "طباعة بون التحضير للمطبخ والبار بدون أسعار وبخط واضح مع تتبع الكميات المضافة فقط (Delta KOT)",
+                DefaultValue = false,
+                Requires = new List<string> { "feature_cafe_restaurant" },
+                OwnedCommands = new List<string>
+                {
+                    "printer:printKOT",
+                    "printer:saveKOTRouting"
+                },
+                OwnedPermissions = new List<string>
+                {
+                    "kot.print",
+                    "kot.configure"
+                }
+            });
+
+            Register(new FeatureDefinition
+            {
+                Key = "feature_item_modifiers",
+                NameAr = "إضافات وتخصيصات الأصناف (Item Modifiers)",
+                Category = "الكافيهات والمطاعم",
+                DescriptionAr = "مجموعات الإضافات والتخصيصات المجانية والمدفوعة لكل صنف (مثل مستوى السكر، نوع الحليب، الإضافات الخاصة)",
+                DefaultValue = false,
+                Requires = new List<string> { "feature_cafe_restaurant" },
+                OwnedCommands = new List<string>
+                {
+                    "modifiers:saveGroup",
+                    "modifiers:deleteGroup",
+                    "modifiers:saveOption",
+                    "modifiers:deleteOption",
+                    "modifiers:linkProduct"
+                },
+                OwnedPermissions = new List<string>
+                {
+                    "modifiers.manage"
+                }
+            });
+
+            Register(new FeatureDefinition
+            {
+                Key = "feature_delivery_management",
+                NameAr = "إدارة الدليفري والطيارين (Delivery & Riders)",
+                Category = "الكافيهات والمطاعم",
+                DescriptionAr = "مناطق التوصيل ورسومها، إسناد الطلبات للطيارين، تتبع حالة التوصيل، وتصفية عهدة الطيارين النقدية",
+                DefaultValue = false,
+                Requires = new List<string> { "feature_cafe_restaurant" },
+                OwnedCommands = new List<string>
+                {
+                    "delivery:saveZone",
+                    "delivery:deleteZone",
+                    "delivery:saveRider",
+                    "delivery:deleteRider",
+                    "delivery:assignOrder",
+                    "delivery:updateStatus",
+                    "delivery:settleRider"
+                },
+                OwnedPermissions = new List<string>
+                {
+                    "delivery.orders.manage",
+                    "delivery.riders.settle",
+                    "delivery.zones_riders.configure"
+                }
+            });
+
+            Register(new FeatureDefinition
+            {
+                Key = "feature_manufacturing_recipes",
+                NameAr = "الرسبي والتصنيع وخصم الخامات (Recipes / BOM)",
+                Category = "الكافيهات والمطاعم",
+                DescriptionAr = "ربط الأصناف بمكوناتها الخام مع الخصم التلقائي بالملي/الجرام عند البيع أو عبر أوامر الإنتاج المجمع",
+                DefaultValue = false,
+                Requires = new List<string>(),
+                OwnedCommands = new List<string>
+                {
+                    "recipes:save",
+                    "recipes:delete",
+                    "recipes:produce"
+                },
+                OwnedPermissions = new List<string>
+                {
+                    "recipes.manage",
+                    "recipes.produce"
+                }
+            });
         }
 
         private static void Register(FeatureDefinition def)
@@ -569,6 +703,15 @@ namespace RafiqPOS.Common
             if (command.EndsWith(":getStatement", StringComparison.OrdinalIgnoreCase)) return true;
             if (command.EndsWith(":getLedger", StringComparison.OrdinalIgnoreCase)) return true;
             if (command.EndsWith(":export", StringComparison.OrdinalIgnoreCase)) return true;
+            if (command.EndsWith(":getGroups", StringComparison.OrdinalIgnoreCase)) return true;
+            if (command.EndsWith(":getForProduct", StringComparison.OrdinalIgnoreCase)) return true;
+            if (command.EndsWith(":getZones", StringComparison.OrdinalIgnoreCase)) return true;
+            if (command.EndsWith(":getRiders", StringComparison.OrdinalIgnoreCase)) return true;
+            if (command.EndsWith(":getOrders", StringComparison.OrdinalIgnoreCase)) return true;
+            if (command.EndsWith(":getRiderSummary", StringComparison.OrdinalIgnoreCase)) return true;
+            if (command.EndsWith(":getByProduct", StringComparison.OrdinalIgnoreCase)) return true;
+            if (command.EndsWith(":getProductionLog", StringComparison.OrdinalIgnoreCase)) return true;
+            if (command.EndsWith(":getKOTRouting", StringComparison.OrdinalIgnoreCase)) return true;
 
             return false;
         }

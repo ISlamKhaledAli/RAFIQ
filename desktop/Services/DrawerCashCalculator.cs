@@ -65,8 +65,10 @@ namespace RafiqPOS.Services
         {
             var result = new DrawerCashResult();
 
-            string startStr = periodStart.ToString("yyyy-MM-dd HH:mm:ss");
-            string endStr = periodEnd.ToString("yyyy-MM-dd HH:mm:ss");
+            DateTime localStart = periodStart.Kind == DateTimeKind.Utc ? periodStart.ToLocalTime() : periodStart;
+            DateTime localEnd = periodEnd.Kind == DateTimeKind.Utc ? periodEnd.ToLocalTime() : periodEnd;
+            string startStr = localStart.ToString("yyyy-MM-dd HH:mm:ss");
+            string endStr = localEnd.ToString("yyyy-MM-dd HH:mm:ss");
 
             // 1. عهدة بداية الوردية (Opening Float)
             if (!string.IsNullOrEmpty(shiftId))
@@ -366,14 +368,26 @@ namespace RafiqPOS.Services
                 {
                     cmd.Transaction = trans;
                     cmd.CommandText = hasSuppSource
-                        ? @"SELECT COALESCE(SUM(ABS(amount_piasters)), 0)
+                        ? @"SELECT COALESCE(SUM(
+                                CASE 
+                                    WHEN transaction_type = 'PAYMENT' THEN ABS(amount_piasters)
+                                    WHEN transaction_type = 'PAYMENT_CANCEL' THEN -ABS(amount_piasters)
+                                    ELSE 0 
+                                END
+                            ), 0)
                             FROM supplier_transactions
-                            WHERE transaction_type = 'PAYMENT'
+                            WHERE (transaction_type = 'PAYMENT' OR transaction_type = 'PAYMENT_CANCEL')
                               AND (payment_source = 'cash_drawer' OR payment_source IS NULL OR payment_source = '')
                               AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end;"
-                        : @"SELECT COALESCE(SUM(ABS(amount_piasters)), 0)
+                        : @"SELECT COALESCE(SUM(
+                                CASE 
+                                    WHEN transaction_type = 'PAYMENT' THEN ABS(amount_piasters)
+                                    WHEN transaction_type = 'PAYMENT_CANCEL' THEN -ABS(amount_piasters)
+                                    ELSE 0 
+                                END
+                            ), 0)
                             FROM supplier_transactions
-                            WHERE transaction_type = 'PAYMENT'
+                            WHERE (transaction_type = 'PAYMENT' OR transaction_type = 'PAYMENT_CANCEL')
                               AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end;";
                     cmd.Parameters.AddWithValue("@start", startStr);
                     cmd.Parameters.AddWithValue("@end", endStr);

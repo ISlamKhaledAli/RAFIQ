@@ -23,11 +23,12 @@ namespace RafiqPOS.Services
                 conn.Open();
                 DateTime todayBDate = BusinessDayHelper.GetCurrentBusinessDate(conn, null);
                 string bDate = todayBDate.ToString("yyyy-MM-dd");
-                string dateClause = string.Format("(date(created_at, 'localtime') = '{0}' OR date(created_at) = '{0}')", bDate);
-                string sDateClause = string.Format("(date(s.created_at, 'localtime') = '{0}' OR date(s.created_at) = '{0}')", bDate);
-                string smDateClause = string.Format("(date(sm.created_at, 'localtime') = '{0}' OR date(sm.created_at) = '{0}')", bDate);
-                string rDateClause = string.Format("(date(r.created_at, 'localtime') = '{0}' OR date(r.created_at) = '{0}')", bDate);
-                string expDateClause = string.Format("(date(created_at, 'localtime') = '{0}' OR business_date = '{0}' OR date(created_at) = '{0}')", bDate);
+                int cutoff = BusinessDayHelper.GetCutoffHour(conn, null);
+                string dateClause = string.Format("date(datetime(created_at, 'localtime', '-{0} hours')) = '{1}'", cutoff, bDate);
+                string sDateClause = string.Format("date(datetime(s.created_at, 'localtime', '-{0} hours')) = '{1}'", cutoff, bDate);
+                string smDateClause = string.Format("date(datetime(sm.created_at, 'localtime', '-{0} hours')) = '{1}'", cutoff, bDate);
+                string rDateClause = string.Format("date(datetime(r.created_at, 'localtime', '-{0} hours')) = '{1}'", cutoff, bDate);
+                string expDateClause = string.Format("(date(datetime(created_at, 'localtime', '-{0} hours')) = '{1}' OR business_date = '{1}')", cutoff, bDate);
 
                 // 1. Sales totals & counts (Excluding demo sales for real reporting - strictly isolating cash, card, credit)
                 string salesSql = @"
@@ -322,7 +323,7 @@ namespace RafiqPOS.Services
                             if (retProfRes != null && retProfRes != DBNull.Value)
                             {
                                 long returnedProfit = Convert.ToInt64(retProfRes);
-                                summary.TodayProfitsPiasters = Math.Max(0, summary.TodayProfitsPiasters - returnedProfit);
+                                summary.TodayProfitsPiasters = summary.TodayProfitsPiasters - returnedProfit;
                                 summary.TodaySalesGrossProfitPiasters = summary.TodayProfitsPiasters;
                             }
                         }
@@ -337,7 +338,7 @@ namespace RafiqPOS.Services
                         COUNT(*) AS adj_count
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
-                    WHERE sm.movement_type = 'ADJUSTMENT'
+                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT')
                       AND " + smDateClause + @";
                 ";
                 using (var cmd = new SQLiteCommand(adjSql, conn))
@@ -370,7 +371,7 @@ namespace RafiqPOS.Services
                         sm.created_at
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
-                    WHERE sm.movement_type = 'ADJUSTMENT'
+                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT')
                       AND " + smDateClause + @"
                     ORDER BY sm.created_at DESC
                     LIMIT 10;
@@ -586,9 +587,10 @@ namespace RafiqPOS.Services
             }
             else
             {
-                // Default today
+                // Default today (Audit F-012: Respect business day cutoff and prevent double counting)
                 string bDateStr = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).ToString("yyyy-MM-dd");
-                dateFilterClause = string.Format("(date(created_at, 'localtime') = '{0}' OR date(created_at) = '{0}')", bDateStr);
+                int periodCutoff = BusinessDayHelper.GetCutoffHour(_connectionString);
+                dateFilterClause = string.Format("date(datetime(created_at, 'localtime', '-{0} hours')) = '{1}'", periodCutoff, bDateStr);
                 report.StartDate = bDateStr;
                 report.EndDate = bDateStr;
             }
@@ -807,7 +809,7 @@ namespace RafiqPOS.Services
                             if (retProfRes != null && retProfRes != DBNull.Value)
                             {
                                 long returnedProfit = Convert.ToInt64(retProfRes);
-                                report.GrossProfitPiasters = Math.Max(0, report.GrossProfitPiasters - returnedProfit);
+                                report.GrossProfitPiasters = report.GrossProfitPiasters - returnedProfit;
                             }
                         }
                     }
@@ -1969,7 +1971,7 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(CASE WHEN sm.quantity_milli < 0 AND (sm.note LIKE '%هدية%' OR sm.note LIKE '%عينة%' OR sm.note LIKE '%ضيافة%') THEN (ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 ELSE 0 END), 0) AS total_gifts
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
-                    WHERE sm.movement_type = 'ADJUSTMENT' AND {0};
+                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT') AND {0};
                 ", dateClause);
 
                 using (var cmd = new SQLiteCommand(sumSql, conn))
@@ -1999,7 +2001,7 @@ namespace RafiqPOS.Services
                         sm.created_at
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
-                    WHERE sm.movement_type = 'ADJUSTMENT' AND sm.quantity_milli < 0 AND {0}
+                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT') AND sm.quantity_milli < 0 AND {0}
                     ORDER BY fin_impact DESC
                     LIMIT 20;
                 ", dateClause);
@@ -2606,7 +2608,7 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(CASE WHEN sm.quantity_milli < 0 THEN (ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 ELSE 0 END), 0) AS total_shrinkage
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
-                    WHERE sm.movement_type = 'ADJUSTMENT' AND {0};
+                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT') AND {0};
                 ", dateClause);
 
                 using (var cmd = new SQLiteCommand(sumSql, conn))
@@ -2644,7 +2646,7 @@ namespace RafiqPOS.Services
                             COALESCE(SUM((ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000), 0) AS cost
                         FROM stock_movements sm
                         LEFT JOIN products p ON sm.product_id = p.id
-                        WHERE sm.movement_type = 'ADJUSTMENT' AND sm.quantity_milli < 0 AND sm.note LIKE @like AND {0};
+                        WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT') AND sm.quantity_milli < 0 AND sm.note LIKE @like AND {0};
                     ", dateClause);
 
                     using (var cmd = new SQLiteCommand(rSql, conn))
@@ -2684,7 +2686,7 @@ namespace RafiqPOS.Services
                         sm.created_at
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
-                    WHERE sm.movement_type = 'ADJUSTMENT' AND sm.quantity_milli < 0 AND {0}
+                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT') AND sm.quantity_milli < 0 AND {0}
                     ORDER BY fin_impact DESC
                     LIMIT 15;
                 ", dateClause);

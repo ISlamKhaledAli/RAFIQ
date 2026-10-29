@@ -31,7 +31,7 @@ namespace RafiqPOS.Services
     /// ونبضة فتح درج النقدية وقص الورق التلقائي وعزل أعطال الطابعة دون تجميد النظام
     /// متوافق مع .NET Framework 4.8 و C# 5 وأنظمة ويندوز 7 SP1 حتى 11
     /// </summary>
-    public class PrinterService
+    public partial class PrinterService
     {
         private readonly SettingsService _settings;
 
@@ -782,6 +782,55 @@ namespace RafiqPOS.Services
                     y += 20;
                 }
 
+                // 2.b شارة نوع الطلب ورقم النداء ومعلومات الصالة (الكافيهات والمطاعم)
+                bool hasHospitalityMeta = (sale.OrderCallNumber > 0) ||
+                    string.Equals(sale.OrderType, "dine_in", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase) ||
+                    !string.IsNullOrWhiteSpace(sale.TableName);
+
+                if (hasHospitalityMeta)
+                {
+                    g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                    y += 3;
+
+                    string orderTypeBadge = "تيك أواي (سفري)";
+                    if (string.Equals(sale.OrderType, "dine_in", StringComparison.OrdinalIgnoreCase))
+                    {
+                        orderTypeBadge = !string.IsNullOrWhiteSpace(sale.TableName)
+                            ? ("صالة - طاولة: " + sale.TableName)
+                            : "طلب صالة (Dine-In)";
+                    }
+                    else if (string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
+                    {
+                        orderTypeBadge = "دليفري - توصيل طلبات";
+                    }
+
+                    if (sale.OrderCallNumber > 0)
+                    {
+                        string callStr = string.Format("نداء #{0:D3} | {1}", sale.OrderCallNumber, orderTypeBadge);
+                        g.DrawString(callStr, fontLarge, Brushes.Black, new RectangleF(5, y, contentWidth - 10, isCompact ? 20 : 24), centerFormat);
+                        y += isCompact ? 21 : 25;
+                    }
+                    else
+                    {
+                        g.DrawString(orderTypeBadge, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 18), centerFormat);
+                        y += 19;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(sale.WaiterName) || sale.GuestsCount > 1)
+                    {
+                        string tableMeta = "";
+                        if (!string.IsNullOrWhiteSpace(sale.WaiterName)) tableMeta += "الكابتن: " + sale.WaiterName;
+                        if (sale.GuestsCount > 0)
+                        {
+                            if (tableMeta.Length > 0) tableMeta += " | ";
+                            tableMeta += "الضيوف: " + sale.GuestsCount.ToString();
+                        }
+                        g.DrawString(tableMeta, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), centerFormat);
+                        y += 16;
+                    }
+                }
+
                 if (!string.IsNullOrWhiteSpace(sale.CustomerName))
                 {
                     string custStr = "العميل: " + sale.CustomerName;
@@ -843,6 +892,29 @@ namespace RafiqPOS.Services
                         g.DrawString(qtyStr + " × " + rateStr, fontSmall, Brushes.Black, new RectangleF(contentWidth * 0.32f, y, contentWidth * 0.63f, 15), rtlFormat);
                         g.DrawString(totalStr, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth * 0.32f, 15), leftFormat);
                         y += 17;
+
+                        // الإضافات والملاحظات الخاصة بالصنف
+                        if (item.Modifiers != null && item.Modifiers.Count > 0)
+                        {
+                            for (int mi = 0; mi < item.Modifiers.Count; mi++)
+                            {
+                                var mod = item.Modifiers[mi];
+                                if (mod == null || string.IsNullOrWhiteSpace(mod.OptionName)) continue;
+                                string modLine = "  + " + mod.OptionName;
+                                if (mod.ExtraPricePiasters > 0)
+                                {
+                                    modLine += string.Format(" (+{0:0.00})", mod.ExtraPricePiasters / 100.0);
+                                }
+                                g.DrawString(modLine, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 15, 14), rtlFormat);
+                                y += 14;
+                            }
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(item.Notes))
+                        {
+                            g.DrawString("  * ملاحظة: " + item.Notes, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 15, 14), rtlFormat);
+                            y += 14;
+                        }
                     }
                 }
 
@@ -850,9 +922,9 @@ namespace RafiqPOS.Services
                 g.DrawLine(penSolid, 5, y + 2, contentWidth - 5, y + 2);
                 y += 5;
 
-                if (sale.DiscountPiasters > 0 || sale.TaxPiasters > 0)
+                if (sale.DiscountPiasters > 0 || sale.TaxPiasters > 0 || sale.ServiceChargePiasters > 0 || sale.DeliveryFeePiasters > 0)
                 {
-                    g.DrawString("المجموع قبل الخصم:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
+                    g.DrawString("المجموع الفرعي:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
                     g.DrawString((sale.SubtotalPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
                     y += 17;
                 }
@@ -861,6 +933,20 @@ namespace RafiqPOS.Services
                 {
                     g.DrawString("قيمة الخصم:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
                     g.DrawString("-" + (sale.DiscountPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
+                    y += 17;
+                }
+
+                if (sale.ServiceChargePiasters > 0)
+                {
+                    g.DrawString("رسوم الخدمة / الصالة:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
+                    g.DrawString((sale.ServiceChargePiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
+                    y += 17;
+                }
+
+                if (sale.DeliveryFeePiasters > 0)
+                {
+                    g.DrawString("رسوم التوصيل (دليفري):", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
+                    g.DrawString((sale.DeliveryFeePiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
                     y += 17;
                 }
 
@@ -941,6 +1027,61 @@ namespace RafiqPOS.Services
                     y += 4;
                     g.DrawString("* تنبيه طبي: يحفظ في الثلاجة (2-8 مئوية) *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, isCompact ? 16 : 18), centerFormat);
                     y += isCompact ? 17 : 19;
+                    g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                    y += 4;
+                }
+
+                // 6.b قسيمة توصيل الطيار (Rider Delivery Slip) في طلبات الدليفري
+                if (string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
+                {
+                    y += 4;
+                    g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                    y += 3;
+                    g.DrawString("=== قسيمة توصيل الطيار (DELIVERY) ===", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 17), centerFormat);
+                    y += 18;
+
+                    string dCust = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.CustomerName))
+                        ? sale.DeliveryInfo.CustomerName
+                        : (!string.IsNullOrWhiteSpace(sale.CustomerName) ? sale.CustomerName : "عميل دليفري");
+                    string dPhone = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.CustomerPhone))
+                        ? sale.DeliveryInfo.CustomerPhone
+                        : (sale.CustomerPhone ?? "");
+                    string dAddr = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.DeliveryAddress))
+                        ? sale.DeliveryInfo.DeliveryAddress
+                        : "";
+                    string dLandmark = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.Landmark))
+                        ? sale.DeliveryInfo.Landmark
+                        : "";
+                    string dNotes = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.Notes))
+                        ? sale.DeliveryInfo.Notes
+                        : (sale.Notes ?? "");
+
+                    g.DrawString("العميل: " + dCust, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rtlFormat);
+                    y += 16;
+                    if (!string.IsNullOrWhiteSpace(dPhone))
+                    {
+                        g.DrawString("الهاتف: " + dPhone, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rtlFormat);
+                        y += 16;
+                    }
+                    if (!string.IsNullOrWhiteSpace(dAddr))
+                    {
+                        var addrSize = g.MeasureString("العنوان: " + dAddr, fontRegular, contentWidth - 10, rtlFormat);
+                        float addrH = Math.Max(16f, addrSize.Height + 2f);
+                        g.DrawString("العنوان: " + dAddr, fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth - 10, addrH), rtlFormat);
+                        y += addrH;
+                    }
+                    if (!string.IsNullOrWhiteSpace(dLandmark))
+                    {
+                        g.DrawString("علامة مميزة: " + dLandmark, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
+                        y += 15;
+                    }
+                    if (!string.IsNullOrWhiteSpace(dNotes))
+                    {
+                        g.DrawString("ملاحظات: " + dNotes, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
+                        y += 15;
+                    }
+                    g.DrawString(string.Format("المطلوب تحصيله من العميل: {0:0.00} ج.م", sale.TotalPiasters / 100.0), fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 17), centerFormat);
+                    y += 18;
                     g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
                     y += 4;
                 }
