@@ -867,14 +867,14 @@ export const adminStyles = `    :root {
       z-index: 1000 !important;
     }
 
-    /* Actions Dropdown Menu */
+    /* Actions Dropdown Menu - Luxury Senior Engineered */
     .dropdown-actions {
       position: relative;
       display: inline-block;
     }
     .dropdown-actions.open {
       position: relative !important;
-      z-index: 1001 !important;
+      z-index: 10000 !important;
     }
     .btn-actions-menu {
       display: inline-flex;
@@ -898,42 +898,63 @@ export const adminStyles = `    :root {
       color: var(--emerald);
       box-shadow: 0 2px 10px rgba(0, 109, 65, 0.14);
     }
-    .dropdown-actions {
-      position: relative;
-      display: inline-block;
-    }
-    .dropdown-actions.open {
-      z-index: 10000;
-    }
     tr.has-open-menu {
       position: relative;
       z-index: 9999;
+      transform: none !important;
+      animation: none !important;
     }
     tr.has-open-menu td {
       position: relative;
       z-index: 9999;
     }
     .actions-dropdown-menu {
-      position: absolute;
-      top: calc(100% + 4px);
-      left: 0;
+      position: fixed;
       min-width: 235px;
       background: #ffffff;
       border: 1.5px solid #cbd5e1;
       border-radius: 10px;
-      box-shadow: 0 16px 36px rgba(0, 55, 45, 0.25), 0 4px 14px rgba(0,0,0,0.12);
-      z-index: 999999;
+      box-shadow: 0 16px 36px rgba(0, 55, 45, 0.22), 0 4px 14px rgba(0,0,0,0.12);
+      z-index: 9999999;
       padding: 6px;
       display: none;
       text-align: right;
-      animation: menuFadeIn 0.12s ease-out;
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 transparent;
+      overscroll-behavior: contain;
     }
-    @keyframes menuFadeIn {
-      from { opacity: 0; transform: translateY(-4px); }
-      to { opacity: 1; transform: translateY(0); }
+    .actions-dropdown-menu::-webkit-scrollbar {
+      width: 5px;
+    }
+    .actions-dropdown-menu::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .actions-dropdown-menu::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .actions-dropdown-menu::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
     }
     .actions-dropdown-menu.show {
       display: block;
+    }
+    .actions-dropdown-menu.show.placement-bottom {
+      transform-origin: top right;
+      animation: menuFadeInDown 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .actions-dropdown-menu.show.placement-top {
+      transform-origin: bottom right;
+      animation: menuFadeInUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes menuFadeInDown {
+      from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes menuFadeInUp {
+      from { opacity: 0; transform: translateY(6px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
     .actions-menu-item {
       display: flex;

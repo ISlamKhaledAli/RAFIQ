@@ -66,7 +66,8 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
         })
         .catch(() => {});
     }
-  }, [product, units, onChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
 
   // Safe normalization of incoming units - strictly preserves user's defined unit names
   const rawList = Array.isArray(units) ? units : [];

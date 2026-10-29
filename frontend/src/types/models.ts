@@ -8,6 +8,7 @@ export interface Product {
   pricePiasters: number;
   costPiasters: number;
   stockQuantityMilli: number;
+  originalStockQuantityMilli?: number;
   minStockQuantityMilli?: number;
   unit: string;
   taxRatePercent: number;
@@ -114,6 +115,7 @@ export interface ProductVariant {
   pricePiasters: number;
   costPiasters: number;
   stockQuantityMilli: number;
+  originalStockQuantityMilli?: number;
   minStockQuantityMilli: number;
   createdAt: string;
   updatedAt: string;
@@ -130,6 +132,7 @@ export interface VariantMatrixCell {
   pricePiasters: number;
   costPiasters: number;
   stockQuantityMilli: number;
+  originalStockQuantityMilli?: number;
   minStockQuantityMilli?: number;
   isEnabled: boolean;
 }

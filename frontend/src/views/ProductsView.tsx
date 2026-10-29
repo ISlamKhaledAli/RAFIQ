@@ -641,7 +641,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setExistingBatchId(null);
 
     if (isEnabled('feature_expiry_dates')) {
-      void invoke<ProductBatch[]>('batch:listByProduct', { productId: prod.id, activeOnly: true })
+      void invoke<ProductBatch[]>('batch:listByProduct', { productId: prod.id, activeOnly: false })
         .then((bList) => {
           if (bList && bList.length > 0) {
             const first = bList[0];
@@ -942,6 +942,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         pricePiasters,
         costPiasters,
         stockQuantityMilli,
+        originalStockQuantityMilli: editingId && editingProduct ? editingProduct.stockQuantityMilli : undefined,
         minStockQuantityMilli,
         unit: effectiveProductUnit as any,
         units: synchronizedUnits,

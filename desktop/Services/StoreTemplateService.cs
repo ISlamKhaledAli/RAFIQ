@@ -122,7 +122,8 @@ namespace RafiqPOS.Services
                         !list[i].FeatureFlags.ContainsKey("feature_epay_services") ||
                         !list[i].FeatureFlags.ContainsKey("feature_digital_wallets") ||
                         !list[i].FeatureFlags.ContainsKey("feature_pos_digital_payments") ||
-                        !list[i].FeatureFlags.ContainsKey("feature_pharmacy"))
+                        !list[i].FeatureFlags.ContainsKey("feature_pharmacy") ||
+                        (list[i].Id == "supermarket" && (!list[i].FeatureFlags.ContainsKey("feature_loose_selling") || !list[i].FeatureFlags["feature_loose_selling"])))
                     {
                         needsRefresh = true;
                         break;
@@ -578,6 +579,8 @@ namespace RafiqPOS.Services
             t1.FeatureFlags["feature_epay_services"] = true;
             t1.FeatureFlags["feature_digital_wallets"] = true;
             t1.FeatureFlags["feature_pos_digital_payments"] = true;
+            t1.FeatureFlags["feature_loose_selling"] = true;
+            t1.FeatureFlags["feature_shortage_book"] = true;
             t1.Categories = new List<string>();
             t1.QuickItems = new List<TemplateQuickItem>();
             t1.DefaultSettings["receipt_header"] = "أهلاً بكم في سوبرماركت رفيق";
@@ -596,7 +599,7 @@ namespace RafiqPOS.Services
             t2.FeatureFlags["feature_taxes"] = false;
             t2.FeatureFlags["feature_expiry_dates"] = false;
             t2.FeatureFlags["feature_multi_units"] = false;
-            t2.FeatureFlags["feature_matrix_variants"] = false;
+            t2.FeatureFlags["feature_matrix_variants"] = true;
             t2.FeatureFlags["feature_epay_services"] = true;
             t2.FeatureFlags["feature_digital_wallets"] = true;
             t2.FeatureFlags["feature_pos_digital_payments"] = true;
@@ -617,7 +620,7 @@ namespace RafiqPOS.Services
             t3.FeatureFlags["feature_fast_buttons"] = true;
             t3.FeatureFlags["feature_taxes"] = false;
             t3.FeatureFlags["feature_expiry_dates"] = true;
-            t3.FeatureFlags["feature_multi_units"] = false;
+            t3.FeatureFlags["feature_multi_units"] = true;
             t3.FeatureFlags["feature_matrix_variants"] = false;
             t3.FeatureFlags["feature_epay_services"] = false;
             t3.FeatureFlags["feature_digital_wallets"] = false;
@@ -662,7 +665,8 @@ namespace RafiqPOS.Services
             t5.FeatureFlags["feature_fast_buttons"] = true;
             t5.FeatureFlags["feature_taxes"] = false;
             t5.FeatureFlags["feature_expiry_dates"] = false;
-            t5.FeatureFlags["feature_multi_units"] = false;
+            t5.FeatureFlags["feature_multi_units"] = true;
+            t5.FeatureFlags["feature_loose_selling"] = true;
             t5.FeatureFlags["feature_matrix_variants"] = false;
             t5.FeatureFlags["feature_epay_services"] = true;
             t5.FeatureFlags["feature_digital_wallets"] = true;
@@ -706,7 +710,7 @@ namespace RafiqPOS.Services
             t6.FeatureFlags["feature_fast_buttons"] = true;
             t6.FeatureFlags["feature_taxes"] = false;
             t6.FeatureFlags["feature_expiry_dates"] = true;
-            t6.FeatureFlags["feature_multi_units"] = false;
+            t6.FeatureFlags["feature_multi_units"] = true;
             t6.FeatureFlags["feature_matrix_variants"] = false;
             t6.FeatureFlags["feature_epay_services"] = false;
             t6.FeatureFlags["feature_digital_wallets"] = false;
@@ -750,8 +754,10 @@ namespace RafiqPOS.Services
             t8.FeatureFlags["feature_credit_debts"] = true;
             t8.FeatureFlags["feature_fast_buttons"] = true;
             t8.FeatureFlags["feature_taxes"] = false;
-            t8.FeatureFlags["feature_expiry_dates"] = false;
-            t8.FeatureFlags["feature_multi_units"] = false;
+            t8.FeatureFlags["feature_expiry_dates"] = true;
+            t8.FeatureFlags["feature_multi_units"] = true;
+            t8.FeatureFlags["feature_loose_selling"] = true;
+            t8.FeatureFlags["feature_shortage_book"] = true;
             t8.FeatureFlags["feature_matrix_variants"] = false;
             t8.FeatureFlags["feature_epay_services"] = true;
             t8.FeatureFlags["feature_digital_wallets"] = true;
