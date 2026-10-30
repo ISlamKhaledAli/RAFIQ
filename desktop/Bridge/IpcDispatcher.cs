@@ -210,6 +210,8 @@ namespace RafiqPOS.Bridge
             // Login & session verification
             "auth:login",
             "auth:logout",
+            "auth:getRootChallenge",
+            "auth:loginRootChallenge",
             "auth:getCurrentUser",
             "auth:checkSession",
             "security:resetWithRecovery",
@@ -553,6 +555,8 @@ namespace RafiqPOS.Bridge
             { "printer:test", "settings.printer" },
             { "printer:testPrint", "settings.printer" },
             { "printer:printLabels", "settings.printer" },
+            { "barcode:printLabel", "settings.printer" },
+            { "barcode:printLabels", "settings.printer" },
             { "printer:testLabel", "settings.printer" },
             { "printer:printReceipt", "pos.reprint" },
             { "printer:kickDrawer", "shifts.cash_in" },
@@ -663,6 +667,7 @@ namespace RafiqPOS.Bridge
             { "insurance:deleteContract", "insurance.manage_contracts" },
             { "insurance.deleteContract", "insurance.manage_contracts" },
             { "insurance:getMembers", REQUIRE_INSURANCE_VIEW },
+            { "insurance:getMembersByContract", REQUIRE_INSURANCE_VIEW },
             { "insurance.getMembers", REQUIRE_INSURANCE_VIEW },
             { "insurance:getMemberByNo", REQUIRE_INSURANCE_VIEW },
             { "insurance.getMemberByNo", REQUIRE_INSURANCE_VIEW },
@@ -691,6 +696,8 @@ namespace RafiqPOS.Bridge
             { "pharma:getControlledInspectionRegister", "pharma.controlled.register_view" },
             { "pharma.getControlledInspectionRegister", "pharma.controlled.register_view" },
             { "pharma:getMandatoryFieldsSettings", "settings.store" },
+            { "pharma:getControlledMandatoryFields", "settings.store" },
+            { "pharma:saveControlledMandatoryFields", REQUIRE_ADMIN },
             { "pharma.getMandatoryFieldsSettings", "settings.store" },
             { "pharma:saveMandatoryFieldsSettings", REQUIRE_ADMIN },
             { "pharma.saveMandatoryFieldsSettings", REQUIRE_ADMIN },
@@ -909,6 +916,34 @@ namespace RafiqPOS.Bridge
             return false;
         }
 
+        private static bool IsBlockedWhenMustChangePin(string action)
+        {
+            if (string.IsNullOrEmpty(action)) return false;
+            switch (action)
+            {
+                case "sales:create":
+                case "sales:hold":
+                case "returns:create":
+                case "expenses:create":
+                case "products:save":
+                case "products:delete":
+                case "products:bulkDelete":
+                case "products:clearAll":
+                case "products:importBatch":
+                case "users:create":
+                case "users:update":
+                case "users:updatePermissions":
+                case "settings:saveStoreProfile":
+                case "settings:savePrinterConfig":
+                case "settings:saveBarcodeConfig":
+                case "system:factoryReset":
+                case "backup:restore":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         private static BridgeResponse AuthorizeRequest(BridgeRequest request)
         {
             // 1. Public actions: pre-login, window controls, and basic status checks
@@ -918,9 +953,26 @@ namespace RafiqPOS.Bridge
             }
 
             // 2. Guided recovery: when database is corrupt nobody can log in, so restoring a backup must remain possible
-            if (DatabaseService.IsCorrupted && (request.Action == "database:restore" || request.Action == "migration:restore" || request.Action == "migration:inspect" || request.Action == "migration:browseFile"))
+            if (DatabaseService.IsCorrupted)
             {
-                return null;
+                if (request.Action == "migration:restore" || request.Action == "migration:inspect" || request.Action == "migration:browseFile")
+                {
+                    return null;
+                }
+                if (request.Action == "database:restore")
+                {
+                    // In corrupt unauthenticated state, restrict strictly to encrypted .rfbk backups
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as Newtonsoft.Json.Linq.JObject;
+                        string fp = pObj != null && pObj["filePath"] != null ? pObj["filePath"].ToString() : "";
+                        if (!string.IsNullOrEmpty(fp) && (fp.EndsWith(".rfbk", StringComparison.OrdinalIgnoreCase) || fp.EndsWith(".rfk", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            return null;
+                        }
+                    }
+                    return BridgeResponse.Fail(request.Id, "FORBIDDEN", "في وضع استعادة تلف قاعدة البيانات، يُسمح فقط باستعادة ملفات النسخ الاحتياطي المشفرة (.rfbk).");
+                }
             }
 
             // 3. Initial onboarding: when setting up the store before login, applying store template and saving initial settings is allowed ONLY when first run is needed
@@ -937,6 +989,11 @@ namespace RafiqPOS.Bridge
             if (sessionUser == null || DatabaseService.Security == null)
             {
                 return BridgeResponse.Fail(request.Id, "AUTH_REQUIRED", "يجب تسجيل الدخول أولاً لتنفيذ هذه العملية.");
+            }
+
+            if (sessionUser.MustChangePin && IsBlockedWhenMustChangePin(request.Action))
+            {
+                return BridgeResponse.Fail(request.Id, "MUST_CHANGE_PIN", "يجب تغيير وتعيين رمز PIN الخاص بحسابك أولاً لحماية المتجر قبل إجراء هذه العملية.");
             }
 
             // 5. Permission lookup (Default-Deny)

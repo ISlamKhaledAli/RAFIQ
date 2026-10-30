@@ -64,6 +64,20 @@ namespace RafiqPOS.Services
         private readonly SettingsRepository _settingsRepo;
         private readonly AuditLogService _auditService;
         private Timer _backgroundSyncTimer;
+        private static LicenseInfo _cachedLicenseInfo = null;
+        private static DateTime _cacheExpiresAt = DateTime.MinValue;
+        private static DateTime _lastRecordedUtcTime = DateTime.MinValue;
+        private static readonly object _licenseLock = new object();
+
+        public static void InvalidateCache()
+        {
+            lock (_licenseLock)
+            {
+                _cachedLicenseInfo = null;
+                _cacheExpiresAt = DateTime.MinValue;
+            }
+        }
+
 
         public LicenseService(SettingsRepository settingsRepo, AuditLogService auditService)
         {
@@ -86,6 +100,13 @@ namespace RafiqPOS.Services
 
         public LicenseInfo GetLicenseInfo()
         {
+            lock (_licenseLock)
+            {
+                if (_cachedLicenseInfo != null && DateTime.UtcNow < _cacheExpiresAt)
+                {
+                    return _cachedLicenseInfo;
+                }
+            }
             EnsureTrialInitialized();
 
             string key = _settingsRepo.Get("license_key", "");
@@ -278,6 +299,12 @@ namespace RafiqPOS.Services
             info.ClockTamperMessage = clockTamperMessage;
             info.ReleaseCode = releaseCode;
 
+            lock (_licenseLock)
+            {
+                _cachedLicenseInfo = info;
+                _cacheExpiresAt = DateTime.UtcNow.AddSeconds(60);
+            }
+
             return info;
         }
 
@@ -375,6 +402,7 @@ namespace RafiqPOS.Services
 
         public LicenseOperationResult ActivateLicense(string licenseKey)
         {
+            InvalidateCache();
             LicenseOperationResult result = new LicenseOperationResult();
 
             if (string.IsNullOrEmpty(licenseKey) || string.IsNullOrEmpty(licenseKey.Trim()))
@@ -386,7 +414,7 @@ namespace RafiqPOS.Services
             }
 
             // Offline support codes carry a case-sensitive signed token: route them before normalizing case
-            if (licenseKey.Trim().StartsWith("RFQ-SUP-", StringComparison.OrdinalIgnoreCase))
+            if (licenseKey.Trim().StartsWith("RFQ-SUP-", StringComparison.OrdinalIgnoreCase) || licenseKey.Trim().StartsWith("RFQ-TIME-", StringComparison.OrdinalIgnoreCase))
             {
                 return ActivateWithSupportCode(licenseKey.Trim(), "");
             }
@@ -652,6 +680,7 @@ namespace RafiqPOS.Services
         // Feature #150 / Task 150-1: Deactivate license on old machine for transfer
         public LicenseOperationResult DeactivateForTransfer(string reason)
         {
+            InvalidateCache();
             LicenseOperationResult result = new LicenseOperationResult();
             LicenseInfo current = GetLicenseInfo();
             if (!current.IsActive && current.Status != "warning")
@@ -743,6 +772,28 @@ namespace RafiqPOS.Services
 
             // The token part is case-sensitive base64url; only the prefix is matched case-insensitively
             string trimmed = supportCode.Trim();
+            if (trimmed.StartsWith("RFQ-TIME-", StringComparison.OrdinalIgnoreCase))
+            {
+                string timeToken = trimmed.Substring("RFQ-TIME-".Length);
+                string tfp = EncryptionService.GenerateDeviceFingerprint();
+                string tError;
+                VerifiedLicenseToken tVerified = LicenseTokenVerifier.Verify(timeToken, tfp, "clock_reset", out tError);
+                if (tVerified == null)
+                {
+                    result.Success = false;
+                    result.Code = "INVALID_CODE";
+                    result.Message = tError ?? "كود فك حظر الساعة غير صالح لهذا الجهاز.";
+                    return result;
+                }
+                string nowIso = DateTime.UtcNow.ToString("o");
+                _settingsRepo.Set("last_known_utc", nowIso);
+                _auditService.Log("CLOCK_RESET_UNLOCKED", "LICENSE", "SYSTEM", "تم فك حظر تراجع الساعة بنجاح بواسطة كود الدعم المعتمد");
+                result.Success = true;
+                result.Code = "CLOCK_RESET";
+                result.Message = "تم فك حظر تراجع الساعة وتحديث التوقيت المعتمد للنظام بنجاح.";
+                return result;
+            }
+
             if (!trimmed.StartsWith("RFQ-SUP-", StringComparison.OrdinalIgnoreCase))
             {
                 result.Success = false;

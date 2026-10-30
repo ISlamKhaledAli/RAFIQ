@@ -347,9 +347,18 @@ namespace RafiqPOS.Services
             }
             catch (Exception ex)
             {
+                bool isLock = ex is IOException || (ex is System.Data.SQLite.SQLiteException && (ex.Message.IndexOf("busy", StringComparison.OrdinalIgnoreCase) >= 0 || ex.Message.IndexOf("locked", StringComparison.OrdinalIgnoreCase) >= 0));
                 status.IsValid = false;
-                status.IsCorrupt = true;
-                status.Message = ex.Message;
+                if (isLock)
+                {
+                    status.IsCorrupt = false;
+                    status.Message = "ملف قاعدة البيانات مقفل مؤقتاً بواسطة برنامج آخر أو قيد الفحص: " + ex.Message;
+                }
+                else
+                {
+                    status.IsCorrupt = true;
+                    status.Message = ex.Message;
+                }
             }
 
             // If corrupt, isolate and quarantine file without deleting it (Task 124-2)
@@ -584,50 +593,53 @@ namespace RafiqPOS.Services
 
         public static TransactionResult ExecuteAtomicSaleTransaction(int itemCount)
         {
+#if !DEBUG
+            return new TransactionResult(false, "هذه الدالة مخصصة لبيئة الاختبار والتطوير فقط ولا تعمل في بيئة الإنتاج.");
+#else
+            // Isolate test transactions to a temporary DB to avoid polluting the active store DB (BUG-03)
+            string tempDbPath = Path.Combine(Path.GetTempPath(), "rafiq_atomic_test_" + Guid.NewGuid().ToString("N") + ".db");
             try
             {
-                // Ensure sample products exist first
-                for (int i = 1; i <= itemCount; i++)
+                string connStr = string.Format("Data Source={0};Version=3;Journal Mode=WAL;", tempDbPath);
+                using (var conn = new System.Data.SQLite.SQLiteConnection(connStr))
                 {
-                    string prodId = string.Format("prod_sample_{0}", i);
-                    if (ProductRepo.GetById(prodId) == null)
+                    conn.Open();
+                    using (var cmd = conn.CreateCommand())
                     {
-                        Products.SaveProduct(new Models.Product
+                        cmd.CommandText = "CREATE TABLE test_items (id TEXT PRIMARY KEY, price INTEGER);";
+                        cmd.ExecuteNonQuery();
+                    }
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        for (int i = 1; i <= itemCount; i++)
                         {
-                            Id = prodId,
-                            Barcode = string.Format("62210000000{0}", i),
-                            Name = string.Format("منتج تجريبي {0}", i),
-                            PricePiasters = i * 1500, // e.g. 15.00 EGP
-                            CostPiasters = i * 1000,
-                            StockQuantityMilli = 50000, // 50 items in stock
-                            Unit = "piece"
-                        });
+                            using (var insCmd = conn.CreateCommand())
+                            {
+                                insCmd.Transaction = trans;
+                                insCmd.CommandText = "INSERT INTO test_items VALUES (@id, @price);";
+                                insCmd.Parameters.AddWithValue("@id", "item_" + i);
+                                insCmd.Parameters.AddWithValue("@price", i * 1500);
+                                insCmd.ExecuteNonQuery();
+                            }
+                        }
+                        trans.Commit();
                     }
                 }
-
-                // Construct Sale
-                var sale = new Models.Sale();
-                for (int i = 1; i <= itemCount; i++)
-                {
-                    sale.Items.Add(new Models.SaleItem
-                    {
-                        ProductId = string.Format("prod_sample_{0}", i),
-                        ProductName = string.Format("منتج تجريبي {0}", i),
-                        QuantityMilli = 1000, // 1 piece
-                        UnitPricePiasters = i * 1500,
-                        DiscountPiasters = 0
-                    });
-                }
-
-                var processed = Sales.ProcessSale(sale);
-                double totalPounds = processed.TotalPiasters / 100.0;
-                string msg = string.Format("تم حفظ فاتورة بيع رقم #{0} تحتوي على {1} أصناف بنجاح بإجمالي {2:N2} جنيه في معاملة ذرية واحدة (ACID).", processed.InvoiceNumber, itemCount, totalPounds);
-                return new TransactionResult(true, msg);
+                return new TransactionResult(true, string.Format("تم اختبار المعاملة الذرية (ACID) بنجاح لـ {0} أصناف في بيئة معزولة.", itemCount));
             }
             catch (Exception ex)
             {
-                return new TransactionResult(false, "فشلت المعاملة وتم التراجع التلقائي (Rollback): " + ex.Message);
+                return new TransactionResult(false, "فشلت المعاملة وتم التراجع التلقائي: " + ex.Message);
             }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempDbPath)) File.Delete(tempDbPath);
+                }
+                catch { }
+            }
+#endif
         }
 
         public static FactoryResetResult FactoryReset(bool wipeBackups = false)

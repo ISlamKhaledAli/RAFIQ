@@ -254,8 +254,12 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "license:runTests":
+#if DEBUG
                     var licTestRes = LicenseTestRunner.RunAllTests();
                     response = BridgeResponse.Ok(request.Id, licTestRes);
+#else
+                    response = BridgeResponse.Fail(request.Id, "NOT_SUPPORTED", "تشغيل الاختبارات الذاتية متاح فقط في وضع التطوير (Debug).");
+#endif
                     return true;
 
                 case "migration:getMetrics":

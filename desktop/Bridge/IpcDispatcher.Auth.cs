@@ -125,6 +125,27 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, new { success = true });
                     return true;
 
+                case "auth:getRootChallenge":
+                    string rootChallenge = DatabaseService.Security.GenerateRootChallenge();
+                    response = BridgeResponse.Ok(request.Id, new { challenge = rootChallenge });
+                    return true;
+
+                case "auth:loginRootChallenge":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "رمز تصريح Root مطلوب");
+                        return true;
+                    }
+                    JObject rootObj = request.Payload as JObject;
+                    string rootToken = rootObj != null && rootObj["token"] != null ? rootObj["token"].ToString() : "";
+                    var rootLoginRes = DatabaseService.Security.LoginWithRootChallenge(rootToken);
+                    if (!rootLoginRes.Success)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "AUTH_FAILED", rootLoginRes.Message, rootLoginRes);
+                        return true;
+                    }
+                    response = BridgeResponse.Ok(request.Id, rootLoginRes);
+                    return true;
                 case "auth:login":
                     if (request.Payload == null)
                     {

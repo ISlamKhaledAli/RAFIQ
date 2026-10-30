@@ -52,12 +52,10 @@ namespace RafiqPOS.Tests.Scenarios
             var oldStaticAttempt = SecurityService.Login("islam", "8963906");
             Assert.IsFalse(oldStaticAttempt.Success, "تسجيل الدخول بالرقم الثابت القديم 8963906 يجب أن يُرفض قطعياً لأنه تم إلغاء الكلمات الثابتة");
 
-            // 4. اختبار قبول رمز Root الديناميكي للمحل ورمز المطور الماستر العام (Master Universal Root OTP)
-            long currentHour = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds / 3600;
-            string universalOtp = RafiqPOS.Common.RootOtpHelper.GenerateOtp(RafiqPOS.Common.RootOtpHelper.UNIVERSAL_MASTER_HWID, currentHour);
-            var universalLogin = SecurityService.Login("islam", universalOtp);
-            Assert.IsTrue(universalLogin.Success, "تسجيل الدخول برمز المطور الماستر العام (Universal Master Root OTP) يجب أن ينجح");
-            Assert.AreEqual("root", universalLogin.User.Role, "المستخدم يجب أن يدخل برتبة root");
+            // 4. SEC-01 Invariant: Backdoor Master Universal OTP is permanently removed.
+            // Any attempt to login with static or legacy seeds must be rejected strictly.
+            var universalLogin = SecurityService.Login("islam", "123456");
+            Assert.IsFalse(universalLogin.Success, "تسجيل الدخول برمز OTP قديم يجب أن يُرفض قطعياً بعد استبداله بنظام التحدي والاستجابة SEC-01");
         }
     }
 }

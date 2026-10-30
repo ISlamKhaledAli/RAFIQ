@@ -5,72 +5,134 @@ using System.Text;
 namespace RafiqPOS.Common
 {
     /// <summary>
-    /// Helper to generate and verify dynamic 1-hour time-based Root OTP codes.
-    /// Exclusively used to authenticate the vendor/developer root account (islam / root)
-    /// without any hardcoded static passwords.
+    /// Cryptographic challenge-response manager for developer root sessions (SEC-01).
+    /// Completely eliminates hardcoded master keys or seeds.
+    /// The client presents a challenge (XXXX-XXXX-CC) and the developer signs it on the license server.
+    /// </summary>
+    public static class RootChallengeManager
+    {
+        private static string _currentChallenge = null;
+        private static DateTime _challengeExpiresAt = DateTime.MinValue;
+        private static readonly object _syncLock = new object();
+
+        /// <summary>
+        /// Generates a fresh random challenge tied to the current device fingerprint.
+        /// Format: XXXX-XXXX-CC where CC is the SHA-256 fingerprint tag.
+        /// Valid for 10 minutes.
+        /// </summary>
+        public static string GenerateChallenge(string deviceFingerprint)
+        {
+            lock (_syncLock)
+            {
+                const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+                byte[] randomBytes = new byte[8];
+                using (var rng = new RNGCryptoServiceProvider())
+                {
+                    rng.GetBytes(randomBytes);
+                }
+
+                char[] part1 = new char[4];
+                char[] part2 = new char[4];
+                for (int i = 0; i < 4; i++)
+                {
+                    part1[i] = chars[randomBytes[i] % chars.Length];
+                    part2[i] = chars[randomBytes[i + 4] % chars.Length];
+                }
+
+                string tag = LicenseTokenVerifier.ComputeFingerprintTag(deviceFingerprint);
+                _currentChallenge = string.Format("{0}-{1}-{2}", new string(part1), new string(part2), tag);
+                _challengeExpiresAt = DateTime.UtcNow.AddMinutes(10);
+                return _currentChallenge;
+            }
+        }
+
+        /// <summary>
+        /// Gets the active challenge if not expired, or generates a new one.
+        /// </summary>
+        public static string GetOrGenerateChallenge(string deviceFingerprint)
+        {
+            lock (_syncLock)
+            {
+                if (!string.IsNullOrEmpty(_currentChallenge) && DateTime.UtcNow < _challengeExpiresAt)
+                {
+                    return _currentChallenge;
+                }
+                return GenerateChallenge(deviceFingerprint);
+            }
+        }
+
+        /// <summary>
+        /// Verifies a signed root session token response issued by the license server.
+        /// </summary>
+        public static bool VerifyRootResponse(string responseToken, string deviceFingerprint, out string error)
+        {
+            error = null;
+            lock (_syncLock)
+            {
+                if (string.IsNullOrEmpty(_currentChallenge) || DateTime.UtcNow > _challengeExpiresAt)
+                {
+                    error = "انتهت صلاحية كود التحدي. يرجى طلب كود جديد.";
+                    return false;
+                }
+
+                if (string.IsNullOrEmpty(responseToken))
+                {
+                    error = "تصريح دخول Root فارغ.";
+                    return false;
+                }
+
+                string cleanToken = responseToken.Trim();
+                if (cleanToken.StartsWith("RFQ-ROOT-", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanToken = cleanToken.Substring("RFQ-ROOT-".Length);
+                }
+
+                string verifyError;
+                VerifiedLicenseToken verified = LicenseTokenVerifier.Verify(cleanToken, deviceFingerprint, "root_session", out verifyError);
+                if (verified == null)
+                {
+                    error = verifyError ?? "تصريح دخول Root غير صالح أو التوقيع غير مطابق.";
+                    return false;
+                }
+
+                if (verified.IsExpired(DateTime.UtcNow))
+                {
+                    error = "انتهت فترة صلاحية تصريح الدخول (صالح لمدة 15 دقيقة فقط).";
+                    return false;
+                }
+
+                // Verify challenge nonce matches
+                string expectedChallenge = _currentChallenge.Replace("-", "").ToUpperInvariant();
+                string actualNonce = (verified.Nonce ?? "").Replace("-", "").ToUpperInvariant();
+                if (!string.Equals(expectedChallenge, actualNonce, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "تصريح الدخول لا يطابق كود التحدي الحالي المعروض على الشاشة.";
+                    return false;
+                }
+
+                // Single use: consume challenge
+                _currentChallenge = null;
+                _challengeExpiresAt = DateTime.MinValue;
+                return true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Legacy shim keeping backward compatibility while disabling any backdoor seeds.
     /// </summary>
     public static class RootOtpHelper
     {
-        public const string MASTER_OTP_SEED = "RafiqPOS_Super_Vendor_Secret_Master_Key_2026_IslamKhaled";
-        public const string UNIVERSAL_MASTER_HWID = "RAFIQ_UNIVERSAL_MASTER_ROOT_KEY_2026";
-
-        /// <summary>
-        /// Generates a 6-digit numeric OTP for a specific device fingerprint (HWID) and hour window.
-        /// </summary>
-        public static string GenerateOtp(string hwid, long hourWindow)
-        {
-            if (string.IsNullOrEmpty(hwid)) return string.Empty;
-
-            string cleanHwid = hwid.Trim().ToUpperInvariant();
-            string message = string.Format("{0}:{1}", cleanHwid, hourWindow);
-            byte[] keyBytes = Encoding.UTF8.GetBytes(MASTER_OTP_SEED);
-            byte[] msgBytes = Encoding.UTF8.GetBytes(message);
-
-            using (var hmac = new HMACSHA256(keyBytes))
-            {
-                byte[] hash = hmac.ComputeHash(msgBytes);
-                int offset = hash[hash.Length - 1] & 0x0F;
-                int binary = ((hash[offset] & 0x7F) << 24)
-                           | ((hash[offset + 1] & 0xFF) << 16)
-                           | ((hash[offset + 2] & 0xFF) << 8)
-                           | (hash[offset + 3] & 0xFF);
-                int pin = binary % 1000000;
-                return pin.ToString("D6");
-            }
-        }
-
-        /// <summary>
-        /// Verifies whether the entered PIN matches the dynamic 1-hour OTP for this device.
-        /// Checks the current hour, previous hour, and next hour to tolerate up to +/- 1 hour of clock skew.
-        /// </summary>
         public static bool VerifyOtp(string hwid, string enteredPin)
         {
-            if (string.IsNullOrEmpty(hwid) || string.IsNullOrEmpty(enteredPin)) return false;
-
-            string cleanPin = enteredPin.Trim();
-            if (cleanPin.Length != 6) return false;
-
-            // Compute current hour window in UTC
-            long currentHour = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds / 3600;
-
-            for (long h = currentHour - 1; h <= currentHour + 1; h++)
-            {
-                string expected = GenerateOtp(hwid, h);
-                if (string.Equals(expected, cleanPin, StringComparison.Ordinal))
-                {
-                    return true;
-                }
-            }
-
+            // SEC-01 FIX: Static OTP verification is completely removed
             return false;
         }
-        /// <summary>
-        /// Verifies whether the entered PIN matches the universal master developer root OTP
-        /// for any device across the world (used by vendor for universal emergency access).
-        /// </summary>
+
         public static bool VerifyMasterUniversalOtp(string enteredPin)
         {
-            return VerifyOtp(UNIVERSAL_MASTER_HWID, enteredPin);
+            // SEC-01 FIX: Universal master key is permanently disabled
+            return false;
         }
     }
 }

@@ -151,6 +151,7 @@ namespace RafiqPOS.Bridge
                         response = BridgeResponse.Ok(request.Id, true);
                         return true;
 
+                    case "insurance:getMembersByContract":
                     case "insurance:getMembers":
                         string mContractId = null;
                         string mSearch = null;

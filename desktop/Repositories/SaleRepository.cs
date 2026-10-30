@@ -284,19 +284,8 @@ namespace RafiqPOS.Repositories
 
                             if (isItemExpired)
                             {
-                                bool authorized = false;
-                                string supervisorName = null;
-                                if (!string.IsNullOrEmpty(sale.SupervisorPin))
-                                {
-                                    var authRes = DatabaseService.Security != null 
-                                        ? DatabaseService.Security.VerifySupervisorPin(sale.SupervisorPin, "SALE_EXPIRED_PRODUCT") 
-                                        : null;
-                                    if (authRes != null && authRes.Success)
-                                    {
-                                        authorized = true;
-                                        supervisorName = authRes.SupervisorName;
-                                    }
-                                }
+                                bool authorized = sale.IsSupervisorAuthorized;
+                                string supervisorName = sale.AuthorizedSupervisorName;
 
                                 if (!authorized)
                                 {
@@ -402,7 +391,7 @@ namespace RafiqPOS.Repositories
                                 }
 
                                 // Deduct from batches using FEFO (Feature #60 / Task 60-4 / F-05)
-                                bool allowExpired = (!string.IsNullOrEmpty(sale.SupervisorPin) && DatabaseService.Security != null && DatabaseService.Security.VerifySupervisorPin(sale.SupervisorPin, "SALE_EXPIRED_PRODUCT").Success);
+                                bool allowExpired = sale.IsSupervisorAuthorized;
                                 var batchDeductions = _batchRepo != null ? _batchRepo.DeductFromBatchesFefo(item.ProductId, baseQtyDeductionMilli, conn, trans, allowExpired, item.BatchId) : null;
                                 
                                 // If batches were deducted, record each batch stock movement; otherwise record single movement
@@ -772,21 +761,10 @@ namespace RafiqPOS.Repositories
                                         }
                                     }
 
-                                    if (!isAuthorized && !string.IsNullOrEmpty(sale.SupervisorPin))
+                                    if (!isAuthorized && sale.IsSupervisorAuthorized)
                                     {
-                                        if (DatabaseService.Security != null)
-                                        {
-                                            var pinRes = DatabaseService.Security.VerifySupervisorPin(sale.SupervisorPin, "CREDIT_LIMIT_OVERRIDE");
-                                            if (pinRes != null && pinRes.Success)
-                                            {
-                                                isAuthorized = true;
-                                                supervisorName = !string.IsNullOrEmpty(pinRes.SupervisorName) ? pinRes.SupervisorName : "مدير النظام";
-                                            }
-                                        }
-                                        else
-                                        {
-                                            throw new InvalidOperationException("نظام الأمان غير متاح. لا يمكن تجاوز الحد الائتماني بدون التحقق من صلاحية المشرف.");
-                                        }
+                                        isAuthorized = true;
+                                        supervisorName = !string.IsNullOrEmpty(sale.AuthorizedSupervisorName) ? sale.AuthorizedSupervisorName : "مدير النظام";
                                     }
 
                                     if (!isAuthorized)

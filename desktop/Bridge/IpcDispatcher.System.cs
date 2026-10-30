@@ -28,7 +28,11 @@ namespace RafiqPOS.Bridge
                     lower.StartsWith("transfer_") ||
                     lower.StartsWith("last_online_verify") ||
                     lower == "last_known_utc" ||
-                    lower == "consumed_offline_codes";
+                    lower == "consumed_offline_codes" ||
+                    lower.Contains("hash") ||
+                    lower.Contains("salt") ||
+                    lower.Contains("secret") ||
+                    lower == "used_recovery_jtis";
 
                 // حماية دعاية وتوقيع مطور النظام: محجوزة حصرياً لحساب الروت (المطور)
                 if (lower == "developer_signature" || lower == "developer_branding" || lower == "system_developer_signature")
@@ -168,7 +172,20 @@ namespace RafiqPOS.Bridge
 
                 case "settings:getAll":
                     var allSettings = DatabaseService.Settings.GetAllSettings();
-                    response = BridgeResponse.Ok(request.Id, allSettings);
+                    var sanitizedSettings = new Dictionary<string, string>();
+                    if (allSettings != null)
+                    {
+                        foreach (var kvp in allSettings)
+                        {
+                            string lk = (kvp.Key ?? "").ToLowerInvariant();
+                            if (lk.Contains("hash") || lk.Contains("salt") || lk.Contains("secret") || lk == "used_recovery_jtis" || lk.StartsWith("security_pin") || lk.StartsWith("security_recovery") || lk.StartsWith("owner_recovery"))
+                            {
+                                continue; // Prevent leaking sensitive password hashes and salts
+                            }
+                            sanitizedSettings[kvp.Key] = kvp.Value;
+                        }
+                    }
+                    response = BridgeResponse.Ok(request.Id, sanitizedSettings);
                     return true;
 
                 case "settings:getStoreProfile":
@@ -266,7 +283,8 @@ namespace RafiqPOS.Bridge
                             wipeBackups = pObj["wipeBackups"].Value<bool>();
                         }
                     }
-                    var resetResult = DatabaseService.FactoryReset(wipeBackups);
+                    // Decision D1 & DATA-01: Backups are mandatory and cannot be wiped on reset
+                    var resetResult = DatabaseService.FactoryReset(false);
                     response = BridgeResponse.Ok(request.Id, resetResult);
                     return true;
 
