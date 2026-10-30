@@ -957,6 +957,38 @@ namespace RafiqPOS.Services
             }
         }
 
+
+        public static string ProtectWithDpapi(string plainText)
+        {
+            if (string.IsNullOrEmpty(plainText)) return string.Empty;
+            try
+            {
+                byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
+                byte[] cipherBytes = ProtectedData.Protect(plainBytes, APP_SALT, DataProtectionScope.LocalMachine);
+                return "DPAPI:" + Convert.ToBase64String(cipherBytes);
+            }
+            catch
+            {
+                return plainText;
+            }
+        }
+
+        public static string UnprotectWithDpapi(string cipherOrPlain)
+        {
+            if (string.IsNullOrEmpty(cipherOrPlain)) return string.Empty;
+            if (!cipherOrPlain.StartsWith("DPAPI:", StringComparison.Ordinal)) return cipherOrPlain;
+            try
+            {
+                byte[] cipherBytes = Convert.FromBase64String(cipherOrPlain.Substring(6));
+                byte[] plainBytes = ProtectedData.Unprotect(cipherBytes, APP_SALT, DataProtectionScope.LocalMachine);
+                return Encoding.UTF8.GetString(plainBytes);
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
         private static bool ConstantTimeEquals(byte[] a, byte[] b)
         {
             if (a == null || b == null || a.Length != b.Length)

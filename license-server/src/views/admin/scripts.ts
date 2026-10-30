@@ -1,7 +1,17 @@
 /**
  * Admin Dashboard Client-side Interactivity, Filtering & API Handlers
  */
-export const adminScripts = `    const DEFAULT_SECRET = '';
+export const adminScripts = `
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+    const DEFAULT_SECRET = '';
     
     // State
     let activeMainTab = 'licenses'; // 'licenses' | 'logs'
@@ -641,6 +651,10 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
                     <svg class="icon icon-sm" viewBox="0 0 24 24" style="stroke:#0f766e;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                     <span>كود استرجاع كلمة السر (Recovery)</span>
                   </button>
+                  <button class="actions-menu-item" onclick="closeAllRowMenus(); openClockResetModal('\${lic.id}')">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" style="stroke:#b45309;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>كود فك حظر تراجع الساعة (Clock Reset)</span>
+                  </button>
                 \` : ''}
                 <div class="actions-menu-divider"></div>
                 <button class="actions-menu-item" onclick="closeAllRowMenus(); openDeviceModal('\${lic.id}')">
@@ -866,7 +880,7 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
         let actionBadge = \`<span class="action-badge action-\${log.action}">\${translateAction(log.action)}</span>\`;
 
         const fpDisplay = log.machine_fingerprint 
-          ? \`<span style="font-family:monospace; font-size:11px; color:#0f766e; font-weight:700;" title="\${log.machine_fingerprint}">\${log.machine_fingerprint.substring(0, 16)}...</span>\`
+          ? \`<span style="font-family:monospace; font-size:11px; color:#0f766e; font-weight:700;" title="\${escapeHtml(log.machine_fingerprint)}">\${escapeHtml(log.machine_fingerprint.substring(0, 16))}...</span>\`
           : '<span style="color:var(--text-muted); font-size:11.5px;">—</span>';
 
         tr.innerHTML = \`
@@ -874,7 +888,7 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
           <td style="font-size:12px; font-family:monospace; color:#334155; font-weight:700;">\${formatLogDate(log.created_at)}</td>
           <td>
             <div class="key-cell">
-              <code style="font-weight:900; color:var(--primary); font-family:monospace; font-size:12px;">\${log.license_key}</code>
+              <code style="font-weight:900; color:var(--primary); font-family:monospace; font-size:12px;">\${escapeHtml(log.license_key)}</code>
               <button class="btn-icon-copy" onclick="copyKey('\${log.license_key}')" title="نسخ المفتاح">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 <span>نسخ</span>
@@ -892,7 +906,7 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
               <span>\${isSuccess ? 'ناجح' : 'فشل'}</span>
             </span>
           </td>
-          <td>\${translateReason(log.failure_reason)}</td>
+          <td>\${escapeHtml(translateReason(log.failure_reason))}</td>
           <td>
             <code style="font-size:12px; color:var(--text); font-family:monospace; font-weight:700;">\${log.ip_address || '-'}</code>
           </td>
@@ -1213,121 +1227,188 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
       window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
     }
 
-    const ROOT_OTP_MASTER_SEED = "RafiqPOS_Super_Vendor_Secret_Master_Key_2026_IslamKhaled";
-    const ROOT_MASTER_BYPASS_KEY = "RAFIQ_UNIVERSAL_MASTER_ROOT_KEY_2026";
-    let currentRootOtp = '';
+    // ==========================================
+    // ROOT CHALLENGE-RESPONSE & RECOVERY ENGINE (SEC-01, SEC-02, BUG-06)
+    // ==========================================
+    let currentRootSessionData = null;
+    let currentClockResetData = null;
 
-    async function openMasterRootOtpModal() {
-      const shopNameEl = document.getElementById('rootOtpShopName');
+    function openRootChallengeModal(id) {
+      const lic = id ? allLicenses.find(l => l.id === id) : null;
+      document.getElementById('rootChallengeLicenseId').value = lic ? lic.id : '';
+      document.getElementById('rootOtpShopName').textContent = lic ? lic.shop_name : 'طلب عام (إدخال يدوي)';
+      const fp = (lic && lic.machine_fingerprint ? lic.machine_fingerprint : '').trim();
       const hwidEl = document.getElementById('rootOtpHwid');
-      const displayEl = document.getElementById('rootOtpDisplay');
-      const expiryTextEl = document.getElementById('rootOtpExpiryText');
+      const manualWrapper = document.getElementById('rootManualFpWrapper');
 
-      shopNameEl.textContent = 'رمز المطور الماستر العام (Master Universal Root)';
-      hwidEl.textContent = 'صالح لفتح أي جهاز ومحل في العالم لمدة ساعة بدون التقيد ببصمة جهاز محددة';
-      displayEl.textContent = 'جاري التوليد...';
-      displayEl.style.fontSize = '24px';
-      displayEl.style.letterSpacing = '2px';
-
-      try {
-        const pin = await generateRootOtp(ROOT_MASTER_BYPASS_KEY);
-        currentRootOtp = pin;
-        displayEl.textContent = pin;
-        displayEl.style.fontSize = '34px';
-        displayEl.style.letterSpacing = '8px';
-
-        const now = new Date();
-        const minsLeft = 60 - now.getUTCMinutes();
-        expiryTextEl.textContent = 'صالح لمدة ' + minsLeft + ' دقيقة (حتى نهاية الساعة الحالية)';
-      } catch (err) {
-        displayEl.textContent = 'خطأ';
-        currentRootOtp = '';
+      if (fp) {
+        hwidEl.textContent = fp.length > 25 ? fp.slice(0, 12) + '...' + fp.slice(-10) : fp;
+        hwidEl.style.color = '#0f766e';
+        manualWrapper.style.display = 'none';
+      } else {
+        hwidEl.textContent = 'الجهاز غير مربوط حتى الآن';
+        hwidEl.style.color = '#b45309';
+        manualWrapper.style.display = 'block';
       }
+
+      document.getElementById('rootChallengeInput').value = '';
+      document.getElementById('rootSessionResultBox').style.display = 'none';
+      document.getElementById('rootWhatsAppBtn').style.display = 'none';
+      currentRootSessionData = null;
 
       openModal('rootOtpModal');
     }
 
-    async function generateRootOtp(hwid, hourWindow) {
-      const cleanHwid = (hwid || '').trim().toUpperCase();
-      if (!cleanHwid) return '';
-      const hour = hourWindow !== undefined ? hourWindow : Math.floor(Date.now() / 3600000);
-      const message = cleanHwid + ':' + hour;
-
-      const enc = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        'raw',
-        enc.encode(ROOT_OTP_MASTER_SEED),
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['sign']
-      );
-
-      const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
-      const bytes = new Uint8Array(sig);
-      const offset = bytes[bytes.length - 1] & 0x0F;
-      const binary =
-        ((bytes[offset] & 0x7F) << 24) |
-        ((bytes[offset + 1] & 0xFF) << 16) |
-        ((bytes[offset + 2] & 0xFF) << 8) |
-        (bytes[offset + 3] & 0xFF);
-
-      const pin = (binary % 1000000).toString().padStart(6, '0');
-      return pin;
+    function openRootOtpModal(id) {
+      openRootChallengeModal(id);
     }
 
-    async function openRootOtpModal(id) {
+    async function submitRootChallenge() {
+      const licenseId = document.getElementById('rootChallengeLicenseId').value;
+      const challengeCode = document.getElementById('rootChallengeInput').value.trim();
+      const manualFp = document.getElementById('rootManualFpInput').value.trim();
+      const btn = document.getElementById('btnIssueRootSession');
+
+      if (!challengeCode) {
+        showToast('يرجى إدخال كود التحدي الظاهر على شاشة العميل', true);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span>جاري التحقق والتوقيع بالمفتاح الخاص...</span>';
+
+      try {
+        const secret = getSecret();
+        const res = await fetch('/api/admin/root-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Secret': secret
+          },
+          body: JSON.stringify({
+            license_id: licenseId,
+            challenge_code: challengeCode,
+            manual_fingerprint: manualFp || undefined
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          showToast(data.message || 'فشل إصدار تصريح Root', true);
+          return;
+        }
+
+        document.getElementById('rootSessionResultToken').value = data.root_token;
+        document.getElementById('rootSessionResultBox').style.display = 'block';
+        showToast('تم إصدار تصريح دخول Root بنجاح!');
+
+        const lic = allLicenses.find(l => l.id === licenseId);
+        const phone = lic && lic.owner_phone ? lic.owner_phone.replace(/\D/g, '') : '';
+        currentRootSessionData = {
+          shop: data.shop_name,
+          phone: phone,
+          token: data.root_token
+        };
+
+        if (phone) {
+          document.getElementById('rootWhatsAppBtn').style.display = 'inline-flex';
+        }
+      } catch (err) {
+        showToast('حدث خطأ أثناء الاتصال بالسيرفر', true);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>توليد تصريح الدخول المشفر (RFQ-ROOT)</span>';
+      }
+    }
+
+    function copyRootSessionToken() {
+      const token = document.getElementById('rootSessionResultToken').value;
+      if (!token) return;
+      navigator.clipboard.writeText(token);
+      showToast('تم نسخ تصريح دخول Root بنجاح!');
+    }
+
+    function sendRootSessionWhatsApp() {
+      if (!currentRootSessionData || !currentRootSessionData.phone) return;
+      let phone = currentRootSessionData.phone;
+      if (phone.startsWith('01')) phone = '2' + phone;
+
+      const msg = 'مرحباً، إليك تصريح الدخول الفني المؤقت لحساب المطور رفيق (صالح لمدة 15 دقيقة فقط):\\n\\n' +
+                  currentRootSessionData.token + '\\n\\n' +
+                  'الرجاء لصق هذا التصريح في شاشة الدعم الفني للدخول فوراً.';
+      window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+    }
+
+    function openClockResetModal(id) {
       const lic = allLicenses.find(l => l.id === id);
       if (!lic) return;
 
-      const shopNameEl = document.getElementById('rootOtpShopName');
-      const hwidEl = document.getElementById('rootOtpHwid');
-      const displayEl = document.getElementById('rootOtpDisplay');
-      const expiryTextEl = document.getElementById('rootOtpExpiryText');
-
-      shopNameEl.textContent = lic.shop_name;
-
       const fp = (lic.machine_fingerprint || '').trim();
       if (!fp) {
-        hwidEl.textContent = 'الجهاز غير مربوط حتى الآن';
-        displayEl.textContent = 'غير متاح';
-        displayEl.style.fontSize = '20px';
-        displayEl.style.letterSpacing = '1px';
-        expiryTextEl.textContent = 'يلزم تفعيل البرنامج على جهاز المحل أولاً لتسجيل بصمة الجهاز.';
-        currentRootOtp = '';
-        openModal('rootOtpModal');
+        showToast('هذا الترخيص غير مربوط بأي جهاز بعد', true);
         return;
       }
 
-      hwidEl.textContent = fp.length > 25 ? fp.slice(0, 12) + '...' + fp.slice(-10) : fp;
-      displayEl.textContent = 'جاري التوليد...';
-      displayEl.style.fontSize = '24px';
-      displayEl.style.letterSpacing = '2px';
+      document.getElementById('clockResetShopName').textContent = lic.shop_name;
+      document.getElementById('clockResetHwid').textContent = fp.length > 25 ? fp.slice(0, 12) + '...' + fp.slice(-10) : fp;
+      document.getElementById('clockResetCodeInput').value = 'جاري التوليد والتشفير...';
 
-      try {
-        const pin = await generateRootOtp(fp);
-        currentRootOtp = pin;
-        displayEl.textContent = pin;
-        displayEl.style.fontSize = '34px';
-        displayEl.style.letterSpacing = '8px';
+      const phone = lic.owner_phone ? lic.owner_phone.replace(/\D/g, '') : '';
+      document.getElementById('clockResetWhatsAppBtn').style.display = phone ? 'inline-flex' : 'none';
 
-        const now = new Date();
-        const minsLeft = 60 - now.getUTCMinutes();
-        expiryTextEl.textContent = 'صالح لمدة ' + minsLeft + ' دقيقة (حتى نهاية الساعة الحالية)';
-      } catch (err) {
-        displayEl.textContent = 'خطأ';
-        currentRootOtp = '';
-      }
+      openModal('clockResetModal');
 
-      openModal('rootOtpModal');
+      (async () => {
+        try {
+          const secret = getSecret();
+          const res = await fetch('/api/admin/licenses/' + encodeURIComponent(lic.id) + '/clock-reset', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Admin-Secret': secret
+            }
+          });
+          const data = await res.json();
+          if (res.ok && data.success && data.clock_reset_code) {
+            document.getElementById('clockResetCodeInput').value = data.clock_reset_code;
+            currentClockResetData = {
+              shop: lic.shop_name,
+              phone: phone,
+              code: data.clock_reset_code
+            };
+          } else {
+            document.getElementById('clockResetCodeInput').value = 'فشل: ' + (data.message || 'خطأ');
+          }
+        } catch {
+          document.getElementById('clockResetCodeInput').value = 'خطأ في الاتصال';
+        }
+      })();
     }
 
-    function copyRootOtp() {
-      if (!currentRootOtp) {
-        showToast('لا يوجد رمز لنسخه');
-        return;
-      }
-      navigator.clipboard.writeText(currentRootOtp);
-      showToast('تم نسخ رمز Root المؤقت: ' + currentRootOtp);
+    function copyClockResetCode() {
+      const val = document.getElementById('clockResetCodeInput').value;
+      if (!val || val.startsWith('جاري') || val.startsWith('فشل')) return;
+      navigator.clipboard.writeText(val);
+      showToast('تم نسخ كود فك حظر الساعة!');
+    }
+
+    function sendClockResetWhatsApp() {
+      if (!currentClockResetData || !currentClockResetData.phone) return;
+      let phone = currentClockResetData.phone;
+      if (phone.startsWith('01')) phone = '2' + phone;
+
+      const msg = 'مرحباً، إليك كود فك حظر تراجع الساعة لبرنامج رفيق POS:\\n\\n' +
+                  currentClockResetData.code + '\\n\\n' +
+                  'الرجاء التأكد من ضبط توقيت الجهاز الصحيح أولاً ثم لصق الكود في شاشة القفل.';
+      window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+    }
+
+    function openOfflineForLicense(id) {
+      const lic = allLicenses.find(l => l.id === id);
+      if (!lic) return;
+      switchMainTab('offline');
+      document.getElementById('offlineShopName').value = lic.shop_name;
+      showToast('تم تحديد المنشأة: ' + lic.shop_name + '. يرجى إدخال بصمة الجهاز.');
     }
 
     // ==========================================
@@ -1600,9 +1681,22 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
     function toggleEditCustomDays() {
       const val = document.getElementById('editExtendAction').value;
       const w = document.getElementById('editCustomDaysWrapper');
-      if (val === 'custom') {
+      const label = document.getElementById('editCustomDaysLabel');
+      const input = document.getElementById('editCustomDaysInput');
+      if (val === 'set_exact') {
         w.style.display = 'flex';
-        document.getElementById('editCustomDaysInput').focus();
+        if (label) label.textContent = 'عدد الأيام المتبقية من اليوم (لتحديد أو تقليل المدة)';
+        if (input) {
+          input.placeholder = 'مثلاً: 1 لتنتهي غداً، أو 2 أو 4 أيام';
+          input.focus();
+        }
+      } else if (val === 'custom') {
+        w.style.display = 'flex';
+        if (label) label.textContent = 'عدد أيام التمديد الإضافية (+أيام)';
+        if (input) {
+          input.placeholder = 'مثلاً: 15 أو 45 أو 60 يوم';
+          input.focus();
+        }
       } else {
         w.style.display = 'none';
       }
@@ -1624,6 +1718,9 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
 
       if (act === 'lifetime') {
         payload.set_lifetime = true;
+      } else if (act === 'set_exact') {
+        const val = parseInt(document.getElementById('editCustomDaysInput').value);
+        payload.set_days = isNaN(val) ? 0 : Math.max(0, val);
       } else if (act === 'custom') {
         payload.days_to_add = parseInt(document.getElementById('editCustomDaysInput').value) || 0;
       } else if (act !== 'none') {

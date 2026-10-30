@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createMockD1Database } from './d1-mock.ts';
 import server from '../src/index.ts';
 import type { Env } from '../src/types.ts';
-import { verifyActivationToken } from '../src/crypto.ts';
+import { verifyActivationToken, computeFingerprintTag } from '../src/crypto.ts';
 
 async function generateTestPrivateKeyPem(): Promise<string> {
   const pair = (await crypto.subtle.generateKey(
@@ -295,6 +295,26 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       assert.ok(verifyData.token, 'Should return fresh token on verification');
       assert.equal(verifyData.details.status, 'active');
     });
+    it('SEC-04: Rejects verification of pending licenses (cannot activate via verify)', async () => {
+      await env.DB.prepare("UPDATE licenses SET status = 'pending', machine_fingerprint = NULL WHERE license_key = 'RFQ-TEST-2026-DEMO'").run();
+      const verifyReq = new Request('http://localhost/api/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Rafiq-Api-Key': APP_SECRET,
+        },
+        body: JSON.stringify({
+          
+          license_key: 'RFQ-TEST-2026-DEMO',
+          machine_fingerprint: 'pc-uuid-valid',
+        }),
+      });
+      const res = await server.fetch(verifyReq, env);
+      assert.equal(res.status, 403);
+      const data = await res.json() as any;
+      assert.equal(data.code, 'LICENSE_NOT_ACTIVATED');
+    });
+
   });
 
   describe('Task 170-7: Admin Dashboard & APIs', () => {
@@ -453,6 +473,122 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       assert.equal(verifyData.success, true);
       assert.equal(verifyData.valid, true);
     });
+    it('Admin can issue Root Temporary Session via Challenge-Response (SEC-01)', async () => {
+      const targetFp = 'A1B2C3D4E5F6';
+      const tag = await computeFingerprintTag(targetFp);
+      const challenge = '1234-5678-' + tag;
+
+      // 1. Success with matching tag
+      const req = new Request('http://localhost/api/admin/root-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          device_fingerprint: targetFp,
+          challenge: challenge,
+        }),
+      });
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.success, true);
+      assert.ok(data.session_token.startsWith('RFQ-ROOT-'));
+
+      const verified = await verifyActivationToken(data.session_token.substring('RFQ-ROOT-'.length), TOKEN_SECRET);
+      assert.equal(verified.valid, true);
+      assert.equal(verified.payload?.kind, 'root_session');
+      assert.equal(verified.payload?.fp, targetFp);
+
+      // 2. Failure with mismatched tag
+      const badReq = new Request('http://localhost/api/admin/root-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          device_fingerprint: targetFp,
+          challenge: '1234-5678-ZZ', // Wrong tag
+        }),
+      });
+      const badRes = await server.fetch(badReq, env);
+      assert.equal(badRes.status, 400);
+    });
+
+    it('Admin can generate PIN Recovery code without duplicating license rows (SEC-02)', async () => {
+      await env.DB.prepare("UPDATE licenses SET machine_fingerprint = 'A1B2C3D4E5F6' WHERE status = 'active'").run();
+      const lic = await env.DB.prepare("SELECT * FROM licenses WHERE status = 'active' LIMIT 1").first() as any;
+      assert.ok(lic);
+
+      const countBefore = ((await env.DB.prepare("SELECT COUNT(*) as c FROM licenses").first()) as any).c;
+
+      const req = new Request(`http://localhost/api/admin/licenses/${lic.id}/recovery-code`, {
+        method: 'POST',
+        headers: { 'X-Admin-Secret': ADMIN_SECRET },
+      });
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.success, true);
+      assert.ok(data.recovery_code.startsWith('RFQ-REC-'));
+
+      const verified = await verifyActivationToken(data.recovery_code.substring('RFQ-REC-'.length), TOKEN_SECRET);
+      assert.equal(verified.valid, true);
+      assert.equal(verified.payload?.kind, 'pin_reset');
+      assert.ok(verified.payload?.jti, 'Must contain single-use JTI');
+
+      const countAfter = ((await env.DB.prepare("SELECT COUNT(*) as c FROM licenses").first()) as any).c;
+      assert.equal(countAfter, countBefore, 'Recovery generation must NOT duplicate license rows');
+    });
+
+    it('Admin can generate Clock Reset code (BUG-06)', async () => {
+      await env.DB.prepare("UPDATE licenses SET machine_fingerprint = 'A1B2C3D4E5F6' WHERE status = 'active'").run();
+      const lic = await env.DB.prepare("SELECT * FROM licenses WHERE status = 'active' LIMIT 1").first() as any;
+      assert.ok(lic);
+
+      const req = new Request(`http://localhost/api/admin/licenses/${lic.id}/clock-reset`, {
+        method: 'POST',
+        headers: { 'X-Admin-Secret': ADMIN_SECRET },
+      });
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.success, true);
+      assert.ok(data.reset_code.startsWith('RFQ-TIME-'));
+
+      const verified = await verifyActivationToken(data.reset_code.substring('RFQ-TIME-'.length), TOKEN_SECRET);
+      assert.equal(verified.valid, true);
+      assert.equal(verified.payload?.kind, 'clock_reset');
+    });
+
+    it('Offline support code handles custom days without D1 check constraint error', async () => {
+      const req = new Request('http://localhost/api/admin/generate-support-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          device_fingerprint: 'CUSTOM-DAYS-FP-1',
+          license_type: 'custom',
+          days: 1,
+          shop_name: 'Custom Day Shop',
+        }),
+      });
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.success, true);
+      assert.ok(data.support_code.startsWith('RFQ-SUP-'));
+
+      // Check D1 DB record
+      const dbLic = await env.DB.prepare('SELECT * FROM licenses WHERE license_key = ?').bind(data.license_key).first() as any;
+      assert.ok(dbLic);
+      assert.ok(['trial', 'monthly', 'annual', 'lifetime'].includes(dbLic.license_type));
+    });
+
   });
 });
 

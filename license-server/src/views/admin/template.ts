@@ -76,10 +76,6 @@ export const adminTemplate = `
       </div>
 
       <div class="tabs-nav-extra">
-        <button type="button" class="nav-tab btn-master-root" onclick="openMasterRootOtpModal()">
-          <svg class="icon icon-sm" viewBox="0 0 24 24" style="stroke:#7c3aed;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <span>رمز Root الماستر (عام لجميع الأجهزة)</span>
-        </button>
         <div class="tabs-nav-version">
           إصدار النظام: <strong style="color:var(--primary);">v1.0 Production</strong> | SQLite Cloudflare D1
         </div>
@@ -636,51 +632,122 @@ export const adminTemplate = `
     </div>
   </div>
 
-  <!-- Modal: Root OTP (1-Hour Time-Based Master Password) -->
+  <!-- Modal: Root Challenge-Response (SEC-01) -->
   <div class="modal-overlay" id="rootOtpModal">
-    <div class="modal-card" style="max-width:520px;">
+    <div class="modal-card" style="max-width:540px;">
       <div class="modal-header">
         <h4>
           <svg class="icon" viewBox="0 0 24 24" style="stroke:#7c3aed;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <span>رمز Root المؤقت للمحل (صالح لمدة ساعة)</span>
+          <span>إصدار تصريح دخول Root للمطور (Challenge-Response)</span>
         </h4>
         <button class="modal-close" onclick="closeModal('rootOtpModal')">&times;</button>
       </div>
       <div class="modal-body">
+        <input type="hidden" id="rootChallengeLicenseId">
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:14px;">
           <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
             <span style="font-size:12px; color:#64748b;">اسم المنشأة:</span>
             <strong id="rootOtpShopName" style="color:var(--primary); font-size:13px;"></strong>
           </div>
-          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-            <span style="font-size:12px; color:#64748b;">بصمة الجهاز (HWID):</span>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="font-size:12px; color:#64748b;">بصمة الجهاز المربوط (HWID):</span>
             <span id="rootOtpHwid" style="font-family:monospace; font-size:11px; font-weight:700; color:#0f766e;"></span>
           </div>
-          <div style="display:flex; justify-content:space-between;">
-            <span style="font-size:12px; color:#64748b;">وقت الصلاحية:</span>
-            <span id="rootOtpExpiryText" style="font-size:11px; font-weight:700; color:#b45309;">صالح حتى نهاية الساعة الحالية (60 دقيقة)</span>
+        </div>
+
+        <div class="field" style="margin-bottom:12px;">
+          <label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">كود التحدي الظاهر على شاشة العميل:</label>
+          <input type="text" id="rootChallengeInput" placeholder="مثال: A79K-42M1-4F" style="font-family:monospace; font-size:14px; font-weight:700; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; width:100%; direction:ltr; text-transform:uppercase;">
+          <span style="font-size:11px; color:#64748b; margin-top:4px; display:block;">اطلب من العميل الضغط على "دخول الدعم الفني" في شاشة الدخول وإملاء الكود الظاهر له.</span>
+        </div>
+
+        <div id="rootManualFpWrapper" style="display:none; margin-bottom:12px;">
+          <label style="display:block; font-size:12px; font-weight:700; color:#b45309; margin-bottom:4px;">بصمة الجهاز اليدوية (إذا لم يكن الجهاز مربوطاً بعد):</label>
+          <input type="text" id="rootManualFpInput" placeholder="RAFIQ-DEV-..." style="font-family:monospace; font-size:11px; padding:8px 10px; border:1px solid #fed7aa; border-radius:6px; width:100%; direction:ltr;">
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <button type="button" class="btn-create" id="btnIssueRootSession" onclick="submitRootChallenge()" style="width:100%; height:42px;">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>توليد تصريح الدخول المشفر (RFQ-ROOT)</span>
+          </button>
+        </div>
+
+        <div id="rootSessionResultBox" style="display:none; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px;">
+          <div style="font-size:12px; font-weight:800; color:#0f766e; margin-bottom:6px;">تصريح الدخول جاهز (صالح لمدة 15 دقيقة فقط):</div>
+          <div class="direct-rec-input-group" style="display:flex; gap:6px;">
+            <input type="text" id="rootSessionResultToken" readonly style="font-family:monospace; font-size:12px; font-weight:700; padding:8px 10px; background:#0f172a; color:#38bdf8; border:1px solid #1e293b; border-radius:6px; flex:1; direction:ltr;" onclick="this.select()">
+            <button class="btn-create" type="button" onclick="copyRootSessionToken()" style="height:38px; white-space:nowrap; padding:0 12px;">
+              <span>نسخ التصريح</span>
+            </button>
           </div>
         </div>
 
-        <div class="root-otp-box">
-          <div style="font-size:11px; text-transform:uppercase; color:#cbd5e1; letter-spacing:1px; margin-bottom:6px;">رمز الدخول المخصص لهذا الجهاز الآن:</div>
-          <div class="root-otp-number" id="rootOtpDisplay">------</div>
-        </div>
-
-        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:12px; color:#1e40af; line-height:1.6;">
-          <strong>طريقة الدخول على جهاز المحل:</strong>
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:12px; color:#1e40af; line-height:1.6; margin-top:12px;">
+          <strong>طريقة الاستخدام:</strong>
           <ol style="margin:4px 0 0 18px; padding:0;">
-            <li>في شاشة تسجيل الدخول اكتب اسم المستخدم: <code style="font-weight:700; background:#dbeafe; padding:1px 4px; border-radius:4px;">islam</code> أو <code style="font-weight:700; background:#dbeafe; padding:1px 4px; border-radius:4px;">root</code></li>
-            <li>في خانة كلمة المرور اكتب الرمز الموضح بالأعلى المكون من 6 أرقام.</li>
-            <li>سيدخل النظام بصلاحيات الـ Root الكاملة، وسينتهي مفعول هذا الرمز تلقائياً بعد ساعة.</li>
+            <li>انسخ تصريح الدخول أعلاه وأرسله للمحل عبر واتساب أو AnyDesk.</li>
+            <li>يلصقه العميل في خانة تصريح الاستجابة بشاشة الدعم الفني.</li>
+            <li>يقوم البرنامج بالتحقق من التوقيع الرقمي ومطابقة كود التحدي اللحظي وفتح جلسة Root فوراً.</li>
           </ol>
         </div>
       </div>
       <div class="modal-footer" style="display:flex; justify-content:space-between; gap:8px;">
         <button class="btn-row" onclick="closeModal('rootOtpModal')">إغلاق</button>
-        <button class="btn-row btn-row-root" onclick="copyRootOtp()" id="rootOtpCopyBtn" style="padding:8px 16px;">
-          <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          <span>نسخ الرمز</span>
+        <button class="btn-row btn-row-share" id="rootWhatsAppBtn" onclick="sendRootSessionWhatsApp()" style="display:none;">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          <span>إرسال للعميل عبر واتساب</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Clock Rollback Unlock (BUG-06) -->
+  <div class="modal-overlay" id="clockResetModal">
+    <div class="modal-card" style="max-width:540px;">
+      <div class="modal-header">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24" style="stroke:#b45309;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>كود فك حظر تراجع ساعة الجهاز (Clock Reset)</span>
+        </h4>
+        <button class="modal-close" onclick="closeModal('clockResetModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span style="font-size:12px; color:#64748b;">اسم المنشأة:</span>
+            <strong id="clockResetShopName" style="color:var(--primary); font-size:13px;"></strong>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="font-size:12px; color:#64748b;">بصمة الجهاز (HWID):</span>
+            <span id="clockResetHwid" style="font-family:monospace; font-size:11px; font-weight:700; color:#0f766e;"></span>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">كود فك الحظر المشفر (RFQ-TIME):</label>
+          <div class="direct-rec-input-group" style="display:flex; gap:6px;">
+            <input type="text" id="clockResetCodeInput" readonly style="font-family:monospace; font-size:13px; font-weight:700; padding:10px 12px; background:#0f172a; color:#fde047; border:1px solid #1e293b; border-radius:8px; flex:1; direction:ltr;" onclick="this.select()">
+            <button class="btn-create" type="button" onclick="copyClockResetCode()" style="height:42px; white-space:nowrap; padding:0 14px;">
+              <span>نسخ</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="background:#fffbeb; border:1px solid #fef3c7; border-radius:8px; padding:10px 14px; font-size:12px; color:#92400e; line-height:1.6;">
+          <strong>طريقة الاستخدام:</strong>
+          <ol style="margin:4px 0 0 18px; padding:0;">
+            <li>اضبط ساعة وتاريخ جهاز العميل أولاً بشكل صحيح (توقيت مصر المحلي).</li>
+            <li>في شاشة القفل الناتجة عن تراجع الساعة، يلصق العميل هذا الكود.</li>
+            <li>يقوم البرنامج بفك الحظر وإعادة ضبط الوقت المرجعي بأمان لمرة واحدة فقط.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:space-between; gap:8px;">
+        <button class="btn-row" onclick="closeModal('clockResetModal')">إغلاق</button>
+        <button class="btn-row btn-row-share" id="clockResetWhatsAppBtn" onclick="sendClockResetWhatsApp()">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          <span>إرسال عبر واتساب</span>
         </button>
       </div>
     </div>
@@ -718,20 +785,22 @@ export const adminTemplate = `
           <label>إجراء التمديد</label>
           <select id="editExtendAction" onchange="toggleEditCustomDays()">
             <option value="none" selected>بدون تغيير الصلاحية (تعديل البيانات فقط)</option>
+            <option value="set_exact">تعيين مدة جديدة من اليوم (تقليل أو إعادة ضبط)...</option>
+            <option value="1">+ تمديد يوم واحد (+1)</option>
             <option value="7">+ تمديد 7 أيام (أسبوع)</option>
             <option value="14">+ تمديد 14 يوم (أسبوعين)</option>
             <option value="30">+ تمديد 30 يوم (شهر)</option>
             <option value="90">+ تمديد 90 يوم (3 أشهر)</option>
             <option value="180">+ تمديد 180 يوم (6 أشهر)</option>
             <option value="365">+ تمديد 365 يوم (سنة كاملة)</option>
-            <option value="custom">فترة مخصصة (تحديد عدد الأيام)...</option>
+            <option value="custom">إضافة أيام تمديد إضافية (+أيام)...</option>
             <option value="lifetime">ترقية إلى دائم مدى الحياة (Lifetime)</option>
           </select>
         </div>
 
         <div class="field" id="editCustomDaysWrapper" style="display:none;">
-          <label>عدد أيام التمديد المخصصة</label>
-          <input type="number" id="editCustomDaysInput" min="1" max="3650" placeholder="مثلاً: 15 أو 45 أو 60 يوم">
+          <label id="editCustomDaysLabel">عدد الأيام</label>
+          <input type="number" id="editCustomDaysInput" min="0" max="3650" placeholder="مثلاً: 1 لتنتهي غداً، أو 2 أو 4 أيام">
         </div>
 
         <div class="field">

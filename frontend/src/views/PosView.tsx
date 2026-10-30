@@ -1287,6 +1287,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         notes: paymentData.serviceFeeNote,
         changePiasters: paymentData.changeDuePiasters,
         idempotencyKey: cartSessionIdRef.current,
+        supervisorPin: paymentData.supervisorPin || supervisorPinRef.current || undefined,
         controlledDispenses: controlledDispenses.length > 0 ? (controlledDispenses as ControlledDrugDispense[]) : undefined,
         insuranceClaim: activeInsuranceClaim || undefined,
         orderType: showCafeMode ? orderType : 'takeaway',

@@ -1,0 +1,14 @@
+# بصمات التحقق الرقمية لملفات المتطلبات الخارجية لمشروع رفيق POS (SHA256)
+# ==============================================================================
+# Microsoft .NET Framework 4.8 Offline Installer (ndp48-x86-x64-allos-enu.exe)
+# 5b5a2bfb732560cd853ef821f5eb9d784a9ff5e9ebf2798e3b2e53fa5d996d99  ndp48-x86-x64-allos-enu.exe
+#
+# Windows 7 Service Pack 1 Updates (Servicing Stack Update & SHA-2 Code Signing)
+# 4236dc99b82f0a1c1d7bbefcb6fc9444b706c9b33a08d249f3e589e47761066c  KB4490628_x86.msu
+# 0b904d9a83eb720d20d7ee80d322b79c6b84000ee741630c70fa5113cf3e8395  KB4474419_x86.msu
+# dcbfdbefb2ea62d5bb41eb0579e0ec8ae1288219c63ad0aaee3387b99c759451  KB4490628_x64.msu
+# a931215b244795e1e75dbcf55e37890f5b99a544c0383187a414168798bf1291  KB4474419_x64.msu
+#
+# Microsoft Edge WebView2 Fixed Runtime 109.0.1518.140 (x86)
+# 9a83d3b769ea8be2810f6990bf9e34e7f86f2178dbf84f04df97b7b3b9095bb1  Microsoft.WebView2.FixedVersionRuntime.109.0.1518.140.x86.cab
+

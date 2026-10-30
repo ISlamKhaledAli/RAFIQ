@@ -414,6 +414,13 @@ namespace RafiqPOS.Services
                         }
                     }
 
+                    // BUG-08: If the original sale has any credit debt, always include settled debt cash collected after the sale
+                    if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase) || (origSale.PaidPiasters < origSale.TotalPiasters))
+                    {
+                        long allocatedDebtCash = _saleRepo != null ? _saleRepo.GetAllocatedDebtCashPiasters(origSale.Id) : 0;
+                        netCashPaidOnOrig += allocatedDebtCash;
+                    }
+
                     long allowableCashRefund = Math.Max(0, netCashPaidOnOrig - pastCashRefunds);
                     long allowableCardRefund = Math.Max(0, netCardPaidOnOrig - pastCardRefunds);
                     long allowableInstapayRefund = Math.Max(0, netInstapayPaidOnOrig - pastInstapayRefunds);

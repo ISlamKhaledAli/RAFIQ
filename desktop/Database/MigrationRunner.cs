@@ -79,6 +79,12 @@ namespace RafiqPOS.Database
                     }
                 }
 
+                // OPS-03: Block opening newer schema database on older application binary
+                if (currentVersion > LATEST_SUPPORTED_VERSION)
+                {
+                    throw new InvalidOperationException(string.Format("إصدار هيكل قاعدة البيانات ({0}) أحدث من الإصدار المدعوم في هذا البرنامج ({1}). يرجى تحديث برنامج رفيق أولاً لتفادي تلف البيانات.", currentVersion, LATEST_SUPPORTED_VERSION));
+                }
+
                 // 4. Apply Migration 1: Base Enterprise Schema
                 if (currentVersion < 1)
                 {
@@ -2357,8 +2363,14 @@ namespace RafiqPOS.Database
             }
         }
 
+        private static bool _migrationBatchBackupTaken = false;
+
         private static bool BackupDatabaseBeforeMigration(string dbPath, int targetVersion)
         {
+            if (_migrationBatchBackupTaken)
+            {
+                return true; // Single safety backup per migration batch run (BUG-05)
+            }
             if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
             {
                 return true; // Fresh DB, nothing to back up
@@ -2377,6 +2389,20 @@ namespace RafiqPOS.Database
                 {
                     Directory.CreateDirectory(backupDir);
                 }
+
+                // BUG-05: Ensure sufficient disk space (at least 2x db size) before creating migration backup
+                try
+                {
+                    string rootPath = Path.GetPathRoot(Path.GetFullPath(backupDir));
+                    DriveInfo drive = new DriveInfo(rootPath);
+                    long requiredBytes = fi.Length * 2;
+                    if (drive.AvailableFreeSpace < requiredBytes)
+                    {
+                        Common.Logger.Warn(string.Format("مساحة القرص غير كافية لنسخة الترحيل. المطلوب: {0} بايت، المتاح: {1} بايت", requiredBytes, drive.AvailableFreeSpace));
+                        return false;
+                    }
+                }
+                catch { }
 
                 string timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
                 string backupFile = Path.Combine(backupDir, string.Format("pre_v{0}_{1}.db", targetVersion, timestamp));
@@ -2407,6 +2433,7 @@ namespace RafiqPOS.Database
                 }
 
                 PruneOldMigrationBackups(backupDir, 30);
+                _migrationBatchBackupTaken = true;
                 Common.Logger.Info("تم إنشاء نسخة أمان لقاعدة البيانات قبل الترحيل بنجاح: " + backupFile);
                 return true;
             }
@@ -3858,25 +3885,29 @@ namespace RafiqPOS.Database
             {
                 try
                 {
-                    // 1. Purge all customer debts and test sales for a clean initial installation
-                    using (var cmd = new SQLiteCommand(@"
-                        -- حذف أي ديون أو كشوف حسابات تجريبية سابقة للعملاء
-                        DELETE FROM customer_ledger;
-                        DELETE FROM customers WHERE id IN ('cust_demo_1', 'cust_demo_2');
-                        UPDATE customers SET balance_piasters = 0;
-
-                        -- حذف أي مبيعات أو فواتير تجريبية سابقة
-                        DELETE FROM sale_items;
-                        DELETE FROM sales;
-                        DELETE FROM payments;
-                        DELETE FROM stock_movements WHERE movement_type IN ('SALE', 'REFUND');
-
-                        -- تصفير رقم الفاتورة ليبدأ الكاشير من الفاتورة رقم 1
-                        UPDATE counters SET current_value = 0 WHERE name = 'invoice_number';
-                        DELETE FROM customers WHERE id = 'cust_general_cash';
-                    ", conn, trans))
+                    // DATA-02: Check if real sales exist; NEVER wipe customer records on upgrades
+                    long nonDemoSales = 0;
+                    using (var checkCmd = new SQLiteCommand("SELECT COUNT(*) FROM sales WHERE id NOT LIKE 'demo_%';", conn, trans))
                     {
-                        cmd.ExecuteNonQuery();
+                        object val = checkCmd.ExecuteScalar();
+                        if (val != null && val != DBNull.Value) nonDemoSales = Convert.ToInt64(val);
+                    }
+
+                    if (nonDemoSales == 0)
+                    {
+                        using (var cmd = new SQLiteCommand(@"
+                            DELETE FROM customer_ledger WHERE customer_id IN ('cust_demo_1', 'cust_demo_2');
+                            DELETE FROM customers WHERE id IN ('cust_demo_1', 'cust_demo_2');
+                            DELETE FROM sale_items WHERE sale_id LIKE 'demo_%';
+                            DELETE FROM sales WHERE id LIKE 'demo_%';
+                            DELETE FROM payments WHERE sale_id LIKE 'demo_%';
+                            DELETE FROM stock_movements WHERE reference_id LIKE 'demo_%';
+                            UPDATE counters SET current_value = 0 WHERE name = 'invoice_number';
+                            DELETE FROM customers WHERE id = 'cust_general_cash';
+                        ", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
                     }
 
                     // 2. Update schema_migrations

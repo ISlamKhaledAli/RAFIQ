@@ -147,6 +147,12 @@ namespace RafiqPOS.Models
         [JsonProperty("supervisorPin")]
         public string SupervisorPin { get; set; }
 
+        [JsonIgnore]
+        public bool IsSupervisorAuthorized { get; set; }
+
+        [JsonIgnore]
+        public string AuthorizedSupervisorName { get; set; }
+
         [JsonProperty("shiftId")]
         public string ShiftId { get; set; }
 

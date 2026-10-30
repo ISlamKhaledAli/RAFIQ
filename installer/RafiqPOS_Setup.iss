@@ -64,7 +64,6 @@ english.FinishedLabel=Rafiq POS has been successfully installed and is ready for
 
 [Tasks]
 Name: "desktopicon"; Description: "إنشاء اختصار لبرنامج رفيق على سطح المكتب"; GroupDescription: "خيارات إضافية:"
-Name: "cleaninstall"; Description: "بدء تثبيت نظيف 100% (تفريغ أي بيانات تجريبية والبدء من جديد)"; GroupDescription: "تهيئة بيانات المتجر:"; Flags: checkedonce
 
 [Dirs]
 ; إعطاء صلاحيات الكتابة الكاملة لجميع المستخدمين في مجلد البيانات
@@ -335,24 +334,7 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var
-  DataDir: String;
 begin
-  if CurStep = ssInstall then
-  begin
-    if WizardIsTaskSelected('cleaninstall') then
-    begin
-      DataDir := ExpandConstant('{commonappdata}\RafiqPOS\data');
-      if DirExists(DataDir) then
-      begin
-        DeleteFile(DataDir + '\rafiq_pos.db');
-        DeleteFile(DataDir + '\rafiq_pos.db-wal');
-        DeleteFile(DataDir + '\rafiq_pos.db-shm');
-        DelTree(DataDir + '\webview_profile', True, True, True);
-      end;
-    end;
-  end;
-
   if CurStep = ssDone then
   begin
     AllowSetForegroundWindow(ASFW_ANY);

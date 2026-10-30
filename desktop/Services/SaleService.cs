@@ -169,6 +169,17 @@ namespace RafiqPOS.Services
                 }
             }
 
+            // Pre-verify supervisor PIN outside SQLite write transaction to prevent deadlocks (BUG-02)
+            if (!string.IsNullOrEmpty(sale.SupervisorPin) && DatabaseService.Security != null)
+            {
+                var authRes = DatabaseService.Security.VerifySupervisorPin(sale.SupervisorPin, "SALE_APPROVAL");
+                if (authRes != null && authRes.Success)
+                {
+                    sale.IsSupervisorAuthorized = true;
+                    sale.AuthorizedSupervisorName = authRes.SupervisorName;
+                }
+            }
+
             // Server-side input validation: never trust client amounts (Audit F-10)
             if (sale.DiscountPiasters < 0)
             {

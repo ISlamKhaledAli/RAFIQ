@@ -124,7 +124,7 @@ namespace RafiqPOS.Repositories
                 WHERE b.status = 'ACTIVE' 
                   AND b.quantity_milli > 0
                   AND b.expiry_date IS NOT NULL
-                  AND date(b.expiry_date) >= date('now')
+                  AND date(b.expiry_date) >= date('now', 'localtime')
                   AND date(b.expiry_date) <= date('now', '+' || @days || ' days')
                 ORDER BY b.expiry_date ASC, p.name ASC;
             ";
@@ -163,7 +163,7 @@ namespace RafiqPOS.Repositories
                 LEFT JOIN suppliers s ON b.supplier_id = s.id
                 WHERE b.quantity_milli > 0
                   AND b.expiry_date IS NOT NULL
-                  AND date(b.expiry_date) < date('now')
+                  AND date(b.expiry_date) < date('now', 'localtime')
                 ORDER BY b.expiry_date ASC, p.name ASC;
             ";
 
@@ -219,7 +219,7 @@ namespace RafiqPOS.Repositories
                     FROM product_batches
                     WHERE quantity_milli > 0
                       AND expiry_date IS NOT NULL
-                      AND date(expiry_date) < date('now');
+                      AND date(expiry_date) < date('now', 'localtime');
                 ", conn))
                 using (var reader = cmd.ExecuteReader())
                 {
@@ -239,7 +239,7 @@ namespace RafiqPOS.Repositories
                     WHERE status = 'ACTIVE'
                       AND quantity_milli > 0
                       AND expiry_date IS NOT NULL
-                      AND date(expiry_date) >= date('now')
+                      AND date(expiry_date) >= date('now', 'localtime')
                       AND date(expiry_date) <= date('now', '+' || @days || ' days');
                 ", conn))
                 {
@@ -490,7 +490,7 @@ namespace RafiqPOS.Repositories
             // Rule: Unless explicitly overridden by supervisor (allowExpired == true), expired batches are NEVER sold automatically!
             string filterExpired = allowExpired 
                 ? "" 
-                : " AND (expiry_date IS NULL OR expiry_date = '' OR date(expiry_date) >= date('now'))";
+                : " AND (expiry_date IS NULL OR expiry_date = '' OR date(expiry_date) >= date('now', 'localtime'))";
 
             string sql = @"
                 SELECT id, batch_number, expiry_date, quantity_milli, cost_price_piasters, sell_price_piasters, public_price_piasters
@@ -599,7 +599,7 @@ namespace RafiqPOS.Repositories
                 WHERE b.product_id = @pid 
                   AND b.status = 'ACTIVE' 
                   AND b.quantity_milli > 0
-                  AND (b.expiry_date IS NULL OR b.expiry_date = '' OR date(b.expiry_date) >= date('now'))
+                  AND (b.expiry_date IS NULL OR b.expiry_date = '' OR date(b.expiry_date) >= date('now', 'localtime'))
                 ORDER BY 
                     CASE WHEN b.expiry_date IS NULL OR b.expiry_date = '' THEN 1 ELSE 0 END ASC,
                     b.expiry_date ASC,
@@ -655,7 +655,7 @@ namespace RafiqPOS.Repositories
                   AND b.quantity_milli > 0
                   AND b.expiry_date IS NOT NULL
                   AND b.expiry_date != ''
-                  AND date(b.expiry_date) < date('now')
+                  AND date(b.expiry_date) < date('now', 'localtime')
                 ORDER BY b.expiry_date ASC
                 LIMIT 1;
             ";
@@ -702,8 +702,8 @@ namespace RafiqPOS.Repositories
 
             string sql = @"
                 SELECT 
-                    COUNT(CASE WHEN (expiry_date IS NULL OR expiry_date = '' OR date(expiry_date) >= date('now')) AND status = 'ACTIVE' AND quantity_milli > 0 THEN 1 END) AS valid_count,
-                    COUNT(CASE WHEN date(expiry_date) < date('now') AND quantity_milli > 0 THEN 1 END) AS expired_count
+                    COUNT(CASE WHEN (expiry_date IS NULL OR expiry_date = '' OR date(expiry_date) >= date('now', 'localtime')) AND status = 'ACTIVE' AND quantity_milli > 0 THEN 1 END) AS valid_count,
+                    COUNT(CASE WHEN date(expiry_date) < date('now', 'localtime') AND quantity_milli > 0 THEN 1 END) AS expired_count
                 FROM product_batches
                 WHERE product_id = @pid;
             ";

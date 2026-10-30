@@ -289,12 +289,14 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, reportRows);
                     return true;
 
+                case "pharma:getControlledMandatoryFields":
                 case "pharma:getMandatoryFieldsSettings":
                 case "pharma.getMandatoryFieldsSettings":
                     var mFields = DatabaseService.ControlledDrugs.GetMandatoryFields();
                     response = BridgeResponse.Ok(request.Id, mFields);
                     return true;
 
+                case "pharma:saveControlledMandatoryFields":
                 case "pharma:saveMandatoryFieldsSettings":
                 case "pharma.saveMandatoryFieldsSettings":
                     if (request.Payload == null)

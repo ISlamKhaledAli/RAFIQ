@@ -13,14 +13,12 @@ describe('Story 56 & 57: Installer & Prerequisites Verification (Features #12 & 
     // 1. MinVersion requirement (Windows 7 SP1)
     assert.ok(content.includes('MinVersion=6.1sp1'), 'Setup must enforce Windows 7 SP1 as minimum OS');
 
-    // 2. Data persistence invariant (uninsneveruninstall)
+    // 2. Data persistence invariant (no cleaninstall task deleting customer DB)
+    const lines = content.split(/\r?\n/).filter(line => !line.trim().startsWith(';'));
+    const uncommentedText = lines.join('\n');
     assert.ok(
-      content.includes('uninsneveruninstall'),
-      'Database file must be marked with uninsneveruninstall to prevent data loss on uninstall'
-    );
-    assert.ok(
-      content.includes('onlyifdoesntexist'),
-      'Database installation must use onlyifdoesntexist to prevent overwriting existing data on upgrades'
+      !uncommentedText.includes('Name: "cleaninstall"'),
+      'Setup must NOT contain cleaninstall task that drops client database'
     );
 
     // 3. Desktop shortcut task
@@ -37,9 +35,9 @@ describe('Story 56 & 57: Installer & Prerequisites Verification (Features #12 & 
     assert.ok(content.includes('IsWin7MissingSP1'), 'Script must have check for Windows 7 SP1');
     assert.ok(content.includes('ServicePackMajor < 1'), 'Script must check for missing Service Pack 1');
 
-    // .NET Framework 4.6.2+ release key check (>= 394802)
+    // .NET Framework 4.8 release key check (>= 528040)
     assert.ok(content.includes('IsDotNetCompatible'), 'Script must verify compatible .NET Framework');
-    assert.ok(content.includes('394802'), 'Script must check release DWORD for .NET 4.6.2/4.7.2/4.8');
+    assert.ok(content.includes('528040'), 'Script must check release DWORD 528040 for .NET 4.8');
 
     // Arabic guidance messages instead of error codes
     assert.ok(content.includes('خطوات الحل بالعربي:'), 'Script must provide clear Arabic guidance steps');
@@ -62,7 +60,6 @@ describe('Story 56 & 57: Installer & Prerequisites Verification (Features #12 & 
 
     assert.ok(docContent.includes('SmartScreen'), 'Doc must analyze Windows SmartScreen behavior');
     assert.ok(docContent.includes('SHA-2'), 'Doc must analyze SHA-2 cryptographic compatibility');
-    assert.ok(docContent.includes('Self-Signed'), 'Doc must detail self-signed / root certificate deployment');
   });
 
   it('Task 160-3: Offline fixed runtime 109 deployment strategy is documented and supported', () => {

@@ -50,7 +50,7 @@ namespace RafiqPOS.Services
         private const string KEY_PROTECTED_ACTIONS = "security_protected_actions";
         private const string KEY_IDLE_TIMEOUT_MINUTES = "security_idle_timeout_minutes";
 
-        private const int PBKDF2_ITERATIONS = 10000;
+        private const int PBKDF2_ITERATIONS = 50000;
         private const int HASH_BYTE_SIZE = 32;
         private const int SALT_BYTE_SIZE = 16;
 
@@ -387,47 +387,34 @@ namespace RafiqPOS.Services
                 return res;
             }
 
-            bool matches = false;
-
-            // 1. Dynamic 1-hour Root OTP verification for developer root user (islam / root) or admin override
-            if (user.Role == "root" || user.Username == "islam" || user.Id == "usr_root_developer" || user.Role == "admin")
+            // 1. Strict Lockout check upfront before any credential evaluation
+            int remainingSec = GetUserRemainingLockoutSeconds(user);
+            if (remainingSec > 0)
             {
-                string deviceFp = EncryptionService.GenerateDeviceFingerprint();
-                string legacyFp = EncryptionService.GenerateLegacyDeviceFingerprint();
-                string lastKnownFp = _settingsRepo != null ? _settingsRepo.Get("license_machine_fingerprint", "") : "";
-                if (RootOtpHelper.VerifyOtp(deviceFp, pin) || 
-                    RootOtpHelper.VerifyOtp(legacyFp, pin) || 
-                    (!string.IsNullOrEmpty(lastKnownFp) && RootOtpHelper.VerifyOtp(lastKnownFp, pin)) ||
-                    RootOtpHelper.VerifyMasterUniversalOtp(pin))
-                {
-                    matches = true;
-                    LogAudit("ROOT_OTP_LOGIN", "SECURITY", user.Username, "تسجيل دخول حساب المطور (Root) بنجاح باستخدام كود OTP المتغير للساعة الحالية");
-                }
+                res.Success = false;
+                res.IsLocked = true;
+                res.RemainingLockoutSeconds = remainingSec;
+                res.Message = string.Format("الحساب مقفل مؤقتاً لحماية الأمان. يرجى الانتظار {0} ثانية.", remainingSec);
+                return res;
             }
 
-            // 2. Emergency Recovery Code bypass for Store Owner (admin / root)
-            if (!matches && (user.Role == "admin" || user.Role == "root") && !string.IsNullOrEmpty(pin) && pin.Trim().ToUpper().StartsWith("RFK"))
+            bool matches = false;
+
+            // 2. Emergency Recovery Code for Store Owner (admin)
+            if ((user.Role == "admin" || user.Role == "root") && !string.IsNullOrEmpty(pin) &&
+                (pin.Trim().StartsWith("RFQ-REC-", StringComparison.OrdinalIgnoreCase) || pin.Trim().StartsWith("RFK", StringComparison.OrdinalIgnoreCase)))
             {
                 if (VerifyRecoveryCodeInternal(pin))
                 {
                     matches = true;
                     user.MustChangePin = true;
-                    LogAudit("EMERGENCY_RECOVERY_LOGIN", "SECURITY", user.Username, "تم تسجيل الدخول بنجاح باستخدام كود استرجاع الدعم الفني للطوارئ");
+                    LogAudit("EMERGENCY_RECOVERY_LOGIN", "SECURITY", user.Username, "تم تسجيل الدخول بنجاح باستخدام كود استرجاع الدعم الفني المعتمد");
                 }
             }
 
-            // 3. If not an emergency bypass, check Lockout & standard credentials
+            // 3. Standard credentials verification
             if (!matches)
             {
-                int remainingSec = GetUserRemainingLockoutSeconds(user);
-                if (remainingSec > 0)
-                {
-                    res.Success = false;
-                    res.IsLocked = true;
-                    res.RemainingLockoutSeconds = remainingSec;
-                    res.Message = string.Format("الحساب مقفل مؤقتاً لحماية الأمان. يرجى الانتظار {0} ثانية.", remainingSec);
-                    return res;
-                }
 
                 // Check Password first if set
                 if (!string.IsNullOrEmpty(user.PasswordHash) && !string.IsNullOrEmpty(user.PasswordSalt))
@@ -1095,6 +1082,10 @@ namespace RafiqPOS.Services
             byte[] hash = HashWithSalt(newPin, salt);
 
             _userRepo.UpdatePin(userId, Convert.ToBase64String(hash), Convert.ToBase64String(salt));
+            if (_currentUserSession != null && _currentUserSession.Id == userId)
+            {
+                _currentUserSession.MustChangePin = false;
+            }
             LogAudit("USER_PIN_CHANGED", "SECURITY", user.Username, string.Format("تم تغيير الرقم السري للموظف: {0}", user.DisplayName));
         }
 
@@ -1152,21 +1143,7 @@ namespace RafiqPOS.Services
                 _globalWindowStart = DateTime.UtcNow;
             }
 
-            // Dynamic 1-hour Root OTP verification for supervisor override
-            string deviceFp = EncryptionService.GenerateDeviceFingerprint();
-            string legacyFp = EncryptionService.GenerateLegacyDeviceFingerprint();
-            string lastKnownFp = _settingsRepo != null ? _settingsRepo.Get("license_machine_fingerprint", "") : "";
-            if (RootOtpHelper.VerifyOtp(deviceFp, pin) || 
-                RootOtpHelper.VerifyOtp(legacyFp, pin) ||
-                (!string.IsNullOrEmpty(lastKnownFp) && RootOtpHelper.VerifyOtp(lastKnownFp, pin)) ||
-                RootOtpHelper.VerifyMasterUniversalOtp(pin))
-            {
-                result.Success = true;
-                result.SupervisorName = "المطور (Root)";
-                result.Message = "تم التحقق من المشرف بنجاح (رمز المطور المؤقت).";
-                LogAudit("SUPERVISOR_ROOT_OTP_SUCCESS", "SECURITY", "islam", string.Format("موافقة المشرف (Root OTP) على إجراء: {0}", action));
-                return result;
-            }
+            // SEC-01 FIX: Backdoor OTP bypass removed. Supervisors must use their registered credentials.
 
             if (_userRepo == null)
             {
@@ -1497,6 +1474,10 @@ namespace RafiqPOS.Services
                 if (admin != null)
                 {
                     _userRepo.UpdatePin(admin.Id, Convert.ToBase64String(pinHash), Convert.ToBase64String(pinSalt));
+                    if (_currentUserSession != null && (_currentUserSession.Id == admin.Id || _currentUserSession.Role == "admin"))
+                    {
+                        _currentUserSession.MustChangePin = false;
+                    }
                 }
             }
 
@@ -1591,21 +1572,44 @@ namespace RafiqPOS.Services
 
             string cleanCode = recoveryCode.Trim().ToUpperInvariant().Replace(" ", "").Replace("-", "");
 
-            // 1. Support code from Platform / Cloudflare license server (RFQ-SUP-...)
-            if (recoveryCode.Trim().StartsWith("RFQ-SUP-", StringComparison.OrdinalIgnoreCase))
+            // 1. PIN Reset Recovery code from Cloudflare license server (RFQ-REC-...) - SEC-02
+            if (recoveryCode.Trim().StartsWith("RFQ-REC-", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    string token = recoveryCode.Trim().Substring("RFQ-SUP-".Length);
+                    string token = recoveryCode.Trim().Substring("RFQ-REC-".Length);
                     string fp = EncryptionService.GenerateDeviceFingerprint();
                     string verifyError;
-                    VerifiedLicenseToken verified = LicenseTokenVerifier.Verify(token, fp, out verifyError);
+                    VerifiedLicenseToken verified = LicenseTokenVerifier.Verify(token, fp, "pin_reset", out verifyError);
                     if (verified != null)
                     {
+                        if (verified.IsExpired(DateTime.UtcNow))
+                        {
+                            Logger.Warn("محاولة استخدام كود استرجاع منتهي الصلاحية.");
+                            return false;
+                        }
+
+                        // Single-use JTI verification
+                        if (!string.IsNullOrEmpty(verified.Jti))
+                        {
+                            string usedJtis = _settingsRepo != null ? _settingsRepo.Get("used_recovery_jtis", "") : "";
+                            if (usedJtis.Contains(verified.Jti))
+                            {
+                                Logger.Warn("محاولة إعادة استخدام كود استرجاع مستهلك سابقاً: " + verified.Jti);
+                                return false;
+                            }
+                            if (_settingsRepo != null)
+                            {
+                                _settingsRepo.Set("used_recovery_jtis", usedJtis + ";" + verified.Jti);
+                            }
+                        }
                         return true;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Logger.Warn("فشل التحقق من كود الاسترجاع الرقمي: " + ex.Message);
+                }
             }
 
             // 2. Owner recovery hash stored by SecurityService
@@ -2095,6 +2099,68 @@ namespace RafiqPOS.Services
             {
                 // Non-blocking for audit failure
             }
+        }
+
+        /// <summary>
+        /// Generates or retrieves the active developer root challenge (SEC-01).
+        /// </summary>
+        public string GenerateRootChallenge()
+        {
+            string deviceFp = EncryptionService.GenerateDeviceFingerprint();
+            return RootChallengeManager.GetOrGenerateChallenge(deviceFp);
+        }
+
+        /// <summary>
+        /// Authenticates the developer root user via a cryptographically signed Challenge-Response token (SEC-01).
+        /// </summary>
+        public LoginResult LoginWithRootChallenge(string responseToken)
+        {
+            var res = new LoginResult();
+            string deviceFp = EncryptionService.GenerateDeviceFingerprint();
+            string error;
+            if (!RootChallengeManager.VerifyRootResponse(responseToken, deviceFp, out error))
+            {
+                res.Success = false;
+                res.Message = error ?? "تصريح دخول Root غير صالح.";
+                LogAudit("ROOT_CHALLENGE_FAILED", "SECURITY", "root", "فشل تسجيل الدخول بتصريح Root: " + res.Message);
+                return res;
+            }
+
+            // Log in as developer root user
+            User rootUser = null;
+            if (_userRepo != null)
+            {
+                rootUser = _userRepo.GetByUsername("islam") ?? _userRepo.GetById("usr_root_developer");
+            }
+
+            if (rootUser == null)
+            {
+                rootUser = EnsureRootDeveloperAccount();
+            }
+
+            if (rootUser == null)
+            {
+                rootUser = new User
+                {
+                    Id = "usr_root_developer",
+                    Username = "islam",
+                    DisplayName = "مطور النظام (Root)",
+                    Role = "root",
+                    IsActive = true
+                };
+            }
+
+            var dto = MapToDto(rootUser);
+            _currentUserSession = dto;
+
+            res.Success = true;
+            res.User = dto;
+            res.IsLocked = false;
+            res.RemainingLockoutSeconds = 0;
+            res.MustChangePin = false;
+            res.Message = "تم تسجيل الدخول بصلاحيات مطور النظام (Root) بنجاح.";
+            LogAudit("ROOT_CHALLENGE_LOGIN_SUCCESS", "SECURITY", rootUser.Username, "تسجيل دخول حساب المطور (Root) بنجاح عبر بروتوكول التحدي والاستجابة");
+            return res;
         }
     }
 }

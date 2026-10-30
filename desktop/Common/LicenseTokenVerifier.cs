@@ -16,6 +16,8 @@ namespace RafiqPOS.Common
         public string ShopName { get; set; }
         public string LicenseType { get; set; }
         public string Kind { get; set; }
+        public string Nonce { get; set; }
+        public string Jti { get; set; }
         public long IssuedAtUnix { get; set; }
         public long? ExpiresAtUnix { get; set; }
 
@@ -37,6 +39,11 @@ namespace RafiqPOS.Common
         private static RSA _ephemeralTestKey;
 
         public static VerifiedLicenseToken Verify(string token, string deviceFingerprint, out string error)
+        {
+            return Verify(token, deviceFingerprint, null, out error);
+        }
+
+        public static VerifiedLicenseToken Verify(string token, string deviceFingerprint, string requiredKind, out string error)
         {
             error = null;
             if (string.IsNullOrWhiteSpace(token))
@@ -83,10 +90,19 @@ namespace RafiqPOS.Common
                 result.ShopName = payload["shop"] != null ? payload["shop"].ToString() : "";
                 result.LicenseType = payload["type"] != null ? payload["type"].ToString() : "lifetime";
                 result.Kind = payload["kind"] != null ? payload["kind"].ToString() : "activation";
+                result.Nonce = payload["nonce"] != null ? payload["nonce"].ToString() : "";
+                result.Jti = payload["jti"] != null ? payload["jti"].ToString() : "";
                 result.IssuedAtUnix = payload["iat"] != null && payload["iat"].Type != JTokenType.Null ? payload["iat"].Value<long>() : 0;
                 if (payload["exp"] != null && payload["exp"].Type != JTokenType.Null)
                 {
                     result.ExpiresAtUnix = payload["exp"].Value<long>();
+                }
+
+                if (!string.IsNullOrEmpty(requiredKind) &&
+                    !string.Equals(result.Kind, requiredKind, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "نوع التوكن غير مصرح به لهذه العملية (مطلوب: " + requiredKind + ")";
+                    return null;
                 }
 
                 if (!string.IsNullOrEmpty(deviceFingerprint) &&
@@ -109,6 +125,16 @@ namespace RafiqPOS.Common
                 Logger.Warn("فشل فحص توكن الترخيص: " + ex.Message);
                 error = "تعذر قراءة توكن الترخيص";
                 return null;
+            }
+        }
+
+        public static string ComputeFingerprintTag(string fingerprint)
+        {
+            if (string.IsNullOrEmpty(fingerprint)) return "00";
+            using (var sha = SHA256.Create())
+            {
+                byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(fingerprint.Trim().ToUpperInvariant()));
+                return hash[0].ToString("X2");
             }
         }
 

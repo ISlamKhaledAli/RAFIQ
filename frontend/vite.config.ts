@@ -10,6 +10,7 @@ export default defineConfig({
     target: 'chrome109',
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -18,6 +19,27 @@ export default defineConfig({
           }
           if (id.includes('node_modules/lucide-react')) {
             return 'vendor-icons';
+          }
+          if (id.includes('src/views/PosView')) {
+            return 'view-pos';
+          }
+          if (id.includes('src/views/ProductsView') || id.includes('src/components/ProductFormModal')) {
+            return 'view-products';
+          }
+          if (id.includes('src/views/PurchasesView')) {
+            return 'view-purchases';
+          }
+          if (id.includes('src/views/SettingsView')) {
+            return 'view-settings';
+          }
+          if (id.includes('src/views/pharma/')) {
+            return 'view-pharma';
+          }
+          if (id.includes('src/views/insurance/')) {
+            return 'view-insurance';
+          }
+          if (id.includes('src/views/cafe/')) {
+            return 'view-cafe';
           }
         },
       },

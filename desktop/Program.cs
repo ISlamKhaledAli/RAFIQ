@@ -23,6 +23,7 @@ namespace RafiqPOS
             bool isDemoError = false;
             if (args != null)
             {
+#if DEBUG
                 for (int i = 0; i < args.Length; i++)
                 {
                     if (args[i] == "--run-license-tests")
@@ -698,17 +699,16 @@ namespace RafiqPOS
                         return;
                     }
 
-#if DEBUG
                     if (args[i] == "--demo-error" || args[i] == "--test-error")
                     {
                         isDemoError = true;
                         break;
                     }
-#endif
                 }
+#endif
             }
 
-            const string mutexName = "RafiqPOS_SingleInstance_AppMutex";
+            const string mutexName = @"Global\RafiqPOS_SingleInstance_AppMutex";
             bool createdNew;
 
             _singleInstanceMutex = new Mutex(true, mutexName, out createdNew);

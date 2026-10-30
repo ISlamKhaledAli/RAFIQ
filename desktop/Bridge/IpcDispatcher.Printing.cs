@@ -33,6 +33,8 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, testPrintResult);
                     return true;
 
+                case "barcode:printLabel":
+                case "barcode:printLabels":
                 case "printer:printLabels":
                     if (request.Payload == null)
                     {
