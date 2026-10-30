@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   KeyRound, 
   ShieldCheck, 
@@ -14,7 +14,8 @@ import {
   Smartphone,
   Wifi,
   RefreshCw,
-  Cpu
+  Cpu,
+  Download
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert, rafiqConfirm } from '../utils/dialogService';
@@ -47,6 +48,26 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
   const [license, setLicense] = useState<LicenseInfoData | null>(null);
   const [inputKey, setInputKey] = useState('');
   const [supportCode, setSupportCode] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportFromFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = (event.target?.result as string || '').trim();
+      if (content) {
+        if (content.toUpperCase().startsWith('RFQ-SUP-')) {
+          setSupportCode('RFQ-SUP-' + content.slice(8).trim());
+        } else {
+          setSupportCode(content);
+        }
+        setStatusMessage({ text: 'تم قراءة كود الدعم من الملف بنجاح', type: 'success' });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
   const [transferReason, setTransferReason] = useState('');
   const [releaseCodeResult, setReleaseCodeResult] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -102,7 +123,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
     } catch (e) {
       console.error('Failed to get license info:', e);
     }
-  }, []);
+  }, [setReleaseCodeResult]);
 
   useEffect(() => {
     let active = true;
@@ -541,9 +562,26 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           {activeTab === 'offline' && (
             <div className="space-y-2.5">
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-ink">
-                  كود الدعم الفني (بدون إنترنت):
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-ink">
+                    كود الدعم الفني (بدون إنترنت):
+                  </label>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImportFromFile}
+                    accept=".txt"
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-[11px] font-bold text-brand hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>استيراد كود من ملف (.txt)</span>
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={supportCode}

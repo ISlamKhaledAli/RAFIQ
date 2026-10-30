@@ -15,13 +15,15 @@ import {
   ShieldAlert,
   CheckCircle2,
   X,
+  Copy,
+  Terminal,
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { invoke, type UserDto } from '../bridge/ipc';
 import { CustomSelect, type SelectOption } from '../components/CustomSelect';
 
 export const LoginScreen: React.FC = () => {
-  const { login } = useAuth();
+  const { login, refreshUser } = useAuth();
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -41,6 +43,62 @@ export const LoginScreen: React.FC = () => {
   const [recoveryError, setRecoveryError] = useState<string>('');
   const [recoverySuccess, setRecoverySuccess] = useState<string>('');
   const [recoveryLoading, setRecoveryLoading] = useState<boolean>(false);
+
+  // Root Challenge-Response State (SEC-01)
+  const [isRootModalOpen, setIsRootModalOpen] = useState<boolean>(false);
+  const [rootChallenge, setRootChallenge] = useState<string>('');
+  const [rootTokenInput, setRootTokenInput] = useState<string>('');
+  const [rootError, setRootError] = useState<string>('');
+  const [rootLoading, setRootLoading] = useState<boolean>(false);
+  const [copiedChallenge, setCopiedChallenge] = useState<boolean>(false);
+
+  const handleOpenRootModal = async () => {
+    setRootError('');
+    setRootTokenInput('');
+    setCopiedChallenge(false);
+    setIsRootModalOpen(true);
+    try {
+      const res = await invoke<{ challenge: string }>('auth:getRootChallenge');
+      if (res?.challenge) {
+        setRootChallenge(res.challenge);
+      }
+    } catch {
+      setRootError('تعذر توليد كود التحدي لحساب المطور');
+    }
+  };
+
+  const handleCopyChallenge = () => {
+    if (!rootChallenge) return;
+    navigator.clipboard.writeText(rootChallenge).then(() => {
+      setCopiedChallenge(true);
+      setTimeout(() => setCopiedChallenge(false), 2000);
+    });
+  };
+
+  const handleLoginRoot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rootTokenInput.trim()) {
+      setRootError('يرجى لصق تصريح دخول Root الموقّع من المطور');
+      return;
+    }
+    setRootLoading(true);
+    setRootError('');
+    try {
+      const res = await invoke<any>('auth:loginRootChallenge', {
+        token: rootTokenInput.trim(),
+      });
+      if (res?.success && res?.user) {
+        setIsRootModalOpen(false);
+        await refreshUser();
+      } else {
+        setRootError(res?.message || 'فشل التحقق من تصريح Root');
+      }
+    } catch (err: any) {
+      setRootError(err?.message || 'تعذر التحقق من تصريح دخول Root');
+    } finally {
+      setRootLoading(false);
+    }
+  };
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
@@ -511,10 +569,128 @@ export const LoginScreen: React.FC = () => {
                   </>
                 )}
               </button>
+
+              <div className="flex items-center justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={handleOpenRootModal}
+                  className="text-xs font-semibold text-ink-muted hover:text-brand dark:text-ink-dark-muted dark:hover:text-brand-bright transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <Terminal className="w-3.5 h-3.5" />
+                  <span>دخول مطور النظام (Root)</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>
       </div>
+
+      {/* Root Developer Challenge-Response Modal (SEC-01) */}
+      {isRootModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="bg-brand-soft dark:bg-brand-dark/40 px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand dark:text-brand-bright shrink-0">
+                  <Terminal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-ink dark:text-ink-dark">
+                    جلسة دعم مطور النظام (Root)
+                  </h3>
+                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                    بروتوكول التحدي والاستجابة الرقمي المشفر (Challenge-Response)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRootModalOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <form onSubmit={handleLoginRoot} className="p-6 space-y-4">
+              {rootError && (
+                <div className="p-3 rounded-xl bg-danger-soft/30 border border-danger/30 text-danger flex items-start gap-2 text-xs">
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{rootError}</span>
+                </div>
+              )}
+
+              {/* Challenge Box */}
+              <div>
+                <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
+                  1. كود التحدي الخاص بهذا الجهاز (Challenge)
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-12 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-4 flex items-center justify-center font-mono font-black text-base text-brand dark:text-brand-bright tracking-widest dir-ltr">
+                    {rootChallenge || 'جاري التوليد...'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyChallenge}
+                    disabled={!rootChallenge}
+                    className="h-12 px-3.5 rounded-xl bg-surface-2 hover:bg-line dark:bg-surface-dark-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer"
+                    title="نسخ كود التحدي"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>{copiedChallenge ? 'تم النسخ!' : 'نسخ'}</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 leading-relaxed">
+                  أملِ هذا الكود لمطور النظام ليقوم بتوقيع تصريح الدخول المؤقت من لوحة التراخيص السحابية.
+                </p>
+              </div>
+
+              {/* Response Token Input */}
+              <div>
+                <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
+                  2. رمز تصريح Root الموقع (RFQ-ROOT-...)
+                </label>
+                <textarea
+                  value={rootTokenInput}
+                  onChange={(e) => setRootTokenInput(e.target.value)}
+                  placeholder="ألصق رمز تصريح الدخول هنا (RFQ-ROOT-...)"
+                  dir="ltr"
+                  rows={3}
+                  disabled={rootLoading}
+                  className="w-full p-3 rounded-xl border border-line dark:border-line-dark focus:border-brand focus:ring-2 focus:ring-brand-soft bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark font-mono text-xs font-medium resize-none"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsRootModalOpen(false)}
+                  disabled={rootLoading}
+                  className="flex-1 h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark font-medium text-xs border border-line dark:border-line-dark transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={rootLoading || !rootTokenInput.trim()}
+                  className="flex-1 h-11 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold text-xs transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {rootLoading ? (
+                    <span>جاري التحقق...</span>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>تحقق ودخول بصلاحية Root</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Emergency Support / Recovery Modal */}
       {isRecoveryModalOpen && (

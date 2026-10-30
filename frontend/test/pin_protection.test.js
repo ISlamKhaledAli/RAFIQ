@@ -19,7 +19,7 @@ describe('Story 58: Sensitive Screens PIN Code Protection (Feature #52)', () => 
     // 1. PBKDF2 hashing with salt (Task 52-1)
     assert.ok(content.includes('Rfc2898DeriveBytes'), 'Must use Rfc2898DeriveBytes for PBKDF2 salted hashing');
     assert.ok(content.includes('RNGCryptoServiceProvider'), 'Must use RNGCryptoServiceProvider for cryptographic salt generation');
-    assert.ok(content.includes('PBKDF2_ITERATIONS = 10000'), 'Must use at least 10,000 PBKDF2 iterations');
+    assert.ok(content.includes('PBKDF2_ITERATIONS = 50000') || content.includes('PBKDF2_ITERATIONS = 10000'), 'Must use at least 10,000 PBKDF2 iterations');
     assert.ok(content.includes('SlowEquals'), 'Must implement constant-time equality comparison to prevent timing attacks');
 
     // IPC endpoints registration
