@@ -13,6 +13,7 @@ export interface Env {
 
 export type LicenseStatus = 'pending' | 'active' | 'disabled' | 'expired';
 export type LicenseType = 'lifetime' | 'annual' | 'monthly' | 'trial';
+export type TokenKind = 'activation' | 'support' | 'root_session' | 'pin_reset' | 'clock_reset';
 
 export interface LicenseRecord {
   id: string;
@@ -58,6 +59,10 @@ export interface ActivationTokenPayload {
   type: LicenseType;
   iat: number;
   exp: number | null;
-  /** 'support' marks an offline support code; absent for normal online activation tokens */
-  kind?: 'activation' | 'support';
+  /** Kind identifies the purpose of the cryptographically signed token */
+  kind?: TokenKind;
+  /** Ephemeral challenge nonce for root challenge-response */
+  nonce?: string;
+  /** Unique token identifier used to prevent replay attacks and burn on single-use */
+  jti?: string;
 }

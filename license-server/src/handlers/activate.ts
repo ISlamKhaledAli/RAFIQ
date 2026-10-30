@@ -32,8 +32,10 @@ export async function handleActivate(request: Request, env: Env): Promise<Respon
 
   const licenseKey = (body.license_key || '').trim().toUpperCase();
   const machineFingerprint = (body.machine_fingerprint || '').trim();
-  const ipAddress = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || 'unknown';
-  const userAgent = request.headers.get('user-agent') || 'unknown';
+  const rawIp = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || 'unknown';
+  const ipAddress = rawIp.slice(0, 64).replace(/[^0-9a-fA-F:., ]/g, '');
+  const rawUa = request.headers.get('user-agent') || 'unknown';
+  const userAgent = rawUa.slice(0, 255).replace(/[<>"']/g, '');
 
   if (!licenseKey || !machineFingerprint) {
     return new Response(
@@ -41,6 +43,19 @@ export async function handleActivate(request: Request, env: Env): Promise<Respon
         success: false,
         code: 'MISSING_FIELDS',
         message: 'رمز الترخيص وبصمة الجهاز كلاهما مطلوب لإتمام التفعيل',
+      }),
+      { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
+  }
+
+  // SEC-05: Reject invalid or malicious device fingerprint formats (prevent Stored XSS)
+  const fpRegex = /^[A-Za-z0-9_-]{4,128}$/;
+  if (!fpRegex.test(machineFingerprint)) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        code: 'INVALID_FINGERPRINT',
+        message: 'صيغة بصمة الجهاز غير صحيحة',
       }),
       { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
     );
@@ -188,6 +203,7 @@ export async function handleActivate(request: Request, env: Env): Promise<Respon
       type: license.license_type,
       iat: Math.floor(Date.now() / 1000),
       exp: expTimestamp,
+      kind: 'activation',
     },
     env.LICENSE_PRIVATE_KEY
   );

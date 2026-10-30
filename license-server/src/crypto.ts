@@ -1,4 +1,4 @@
-import type { ActivationTokenPayload } from './types.ts';
+import type { ActivationTokenPayload, LicenseType } from './types.ts';
 
 /**
  * Base64URL encode a string or Uint8Array
@@ -85,6 +85,17 @@ async function derivePublicKey(privateKeyPem: string): Promise<CryptoKey> {
 }
 
 /**
+ * Computes a 2-character hex verification tag from a device fingerprint.
+ * Used in Challenge-Response to instantly catch wrong shop selection before signing.
+ */
+export async function computeFingerprintTag(fp: string): Promise<string> {
+  const clean = (fp || '').trim().toUpperCase();
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(clean));
+  const bytes = new Uint8Array(hash);
+  return bytes[0].toString(16).padStart(2, '0').toUpperCase();
+}
+
+/**
  * Create an RS256-signed JWT activation token
  */
 export async function signActivationToken(
@@ -160,14 +171,14 @@ export async function generateOfflineSupportCode(
   }
 
   const now = Math.floor(Date.now() / 1000);
-  let type: ActivationTokenPayload['type'] = 'annual';
+  let type: LicenseType = 'annual';
   let exp: number | null = null;
   const safeDays = Math.max(1, Math.floor(Number(days) || 1));
 
   if (licenseType === 'lifetime' || safeDays >= 9000) {
     type = 'lifetime';
     exp = null;
-  } else if (licenseType === 'trial') {
+  } else if (licenseType === 'trial' || safeDays <= 14) {
     type = 'trial';
     exp = now + safeDays * 86400;
   } else if (licenseType === 'monthly' || safeDays <= 31) {
@@ -192,9 +203,124 @@ export async function generateOfflineSupportCode(
       iat: now,
       exp,
       kind: 'support',
+      jti: crypto.randomUUID(),
     },
     privateKeyPem
   );
 
   return `RFQ-SUP-${token}`;
+}
+
+/**
+ * Generate an RS256-signed Root Session Challenge-Response token.
+ * Output format: RFQ-ROOT-{signed JWT with 15m expiration & challenge nonce}
+ */
+export async function generateRootSessionToken(
+  deviceFingerprint: string,
+  challengeNonce: string,
+  licenseKey: string,
+  shopName: string,
+  privateKeyPem: string
+): Promise<string> {
+  if (!deviceFingerprint || !deviceFingerprint.trim()) {
+    throw new Error('بصمة الجهاز مطلوبة لتوليد تصريح Root');
+  }
+  if (!challengeNonce || !challengeNonce.trim()) {
+    throw new Error('كود التحدي من شاشة العميل مطلوب');
+  }
+
+  const cleanFp = deviceFingerprint.trim().toUpperCase();
+  const cleanNonce = challengeNonce.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + 900; // 15 minutes validity
+
+  const token = await signActivationToken(
+    {
+      iss: 'rafiq-license-server',
+      sub: licenseKey || `ROOT-${cleanNonce}`,
+      fp: cleanFp,
+      shop: shopName || 'جلسة دعم فني للمطور',
+      type: 'lifetime',
+      iat: now,
+      exp,
+      kind: 'root_session',
+      nonce: cleanNonce,
+      jti: crypto.randomUUID(),
+    },
+    privateKeyPem
+  );
+
+  return `RFQ-ROOT-${token}`;
+}
+
+/**
+ * Generate an RS256-signed Owner PIN Reset token.
+ * Output format: RFQ-REC-{signed JWT with 24h expiration & unique JTI}
+ */
+export async function generatePinRecoveryToken(
+  deviceFingerprint: string,
+  licenseKey: string,
+  shopName: string,
+  privateKeyPem: string
+): Promise<string> {
+  if (!deviceFingerprint || !deviceFingerprint.trim()) {
+    throw new Error('بصمة الجهاز مطلوبة لتوليد كود استعادة كلمة السر');
+  }
+
+  const cleanFp = deviceFingerprint.trim().toUpperCase();
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + 86400; // 24 hours validity
+
+  const token = await signActivationToken(
+    {
+      iss: 'rafiq-license-server',
+      sub: licenseKey || `RECOVERY-${crypto.randomUUID()}`,
+      fp: cleanFp,
+      shop: shopName || 'استعادة كلمة السر',
+      type: 'lifetime',
+      iat: now,
+      exp,
+      kind: 'pin_reset',
+      jti: crypto.randomUUID(),
+    },
+    privateKeyPem
+  );
+
+  return `RFQ-REC-${token}`;
+}
+
+/**
+ * Generate an RS256-signed Clock Reset token.
+ * Output format: RFQ-TIME-{signed JWT with 24h expiration & server UTC timestamp}
+ */
+export async function generateClockResetToken(
+  deviceFingerprint: string,
+  licenseKey: string,
+  shopName: string,
+  privateKeyPem: string
+): Promise<string> {
+  if (!deviceFingerprint || !deviceFingerprint.trim()) {
+    throw new Error('بصمة الجهاز مطلوبة لتوليد كود فك حظر الساعة');
+  }
+
+  const cleanFp = deviceFingerprint.trim().toUpperCase();
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + 86400; // 24 hours validity
+
+  const token = await signActivationToken(
+    {
+      iss: 'rafiq-license-server',
+      sub: licenseKey || `CLOCK-${crypto.randomUUID()}`,
+      fp: cleanFp,
+      shop: shopName || 'فك حظر ساعة الجهاز',
+      type: 'lifetime',
+      iat: now,
+      exp,
+      kind: 'clock_reset',
+      jti: crypto.randomUUID(),
+    },
+    privateKeyPem
+  );
+
+  return `RFQ-TIME-${token}`;
 }

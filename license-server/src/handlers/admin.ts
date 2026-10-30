@@ -1,7 +1,14 @@
 import type { Env, LicenseRecord, LicenseType, ActivationLogRecord } from '../types.ts';
 import { validateAdminSecret } from '../auth.ts';
-import { generateOfflineSupportCode } from '../crypto.ts';
+import { 
+  generateOfflineSupportCode,
+  generateRootSessionToken,
+  generatePinRecoveryToken,
+  generateClockResetToken,
+  computeFingerprintTag
+} from '../crypto.ts';
 import { serveAdminHtml } from '../views/admin/index.ts';
+
 /**
  * Handle Admin API & Dashboard
  */
@@ -28,7 +35,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     ).all<LicenseRecord>();
 
     return new Response(
-      JSON.stringify({ success: true, count: licenses.results.length, data: licenses.results }),
+      JSON.stringify({ success: true, licenses: licenses.results || [], data: licenses.results || [] }),
       { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
     );
   }
@@ -103,6 +110,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       shop_name?: string;
       owner_phone?: string;
       days_to_add?: number;
+      set_days?: number;
       set_lifetime?: boolean;
       notes?: string;
     }>();
@@ -129,6 +137,17 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       newExpiresAt = null;
       newType = 'lifetime';
       if (newStatus === 'expired') newStatus = 'active';
+    } else if (body.set_days !== undefined && Number(body.set_days) >= 0) {
+      const days = Number(body.set_days);
+      const baseDate = new Date();
+      baseDate.setDate(baseDate.getDate() + days);
+      newExpiresAt = baseDate.toISOString();
+      newType = days >= 365 ? 'annual' : (days >= 30 ? 'monthly' : 'trial');
+      if (days === 0) {
+        newStatus = 'expired';
+      } else if (newStatus === 'expired') {
+        newStatus = 'active';
+      }
     } else if (body.days_to_add && Number(body.days_to_add) > 0) {
       const days = Number(body.days_to_add);
       let baseDate = new Date();
@@ -241,18 +260,20 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     ).all<ActivationLogRecord>();
 
     return new Response(
-      JSON.stringify({ success: true, count: logs.results.length, data: logs.results }),
+      JSON.stringify({ success: true, logs: logs.results || [], data: logs.results || [] }),
       { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
     );
   }
 
-  // 9. POST /api/admin/generate-support-code - Generate cryptographically signed offline code for air-gapped devices
+  // 9. POST /api/admin/generate-support-code - Generate cryptographically signed offline code
+  // Handles custom duration without CHECK constraint failure and links seamlessly to existing license if available
   if (request.method === 'POST' && url.pathname === '/api/admin/generate-support-code') {
     const body = await request.json<{
       device_fingerprint: string;
       license_type?: string;
       days?: number;
       shop_name?: string;
+      license_id?: string;
     }>();
 
     if (!body.device_fingerprint || !body.device_fingerprint.trim()) {
@@ -262,42 +283,77 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       );
     }
 
-    const licType = (body.license_type as LicenseType) || 'lifetime';
-    const safeDays = Math.max(1, Math.floor(Number(body.days) || (licType === 'lifetime' ? 9999 : 7)));
-    const licenseKey = generateLicenseKey();
-    const cleanFp = body.device_fingerprint.trim().toUpperCase();
-    const cleanShop = body.shop_name && body.shop_name.trim() ? body.shop_name.trim() : 'جهاز أوفلاين';
-
+    const safeDays = Math.max(1, Math.floor(Number(body.days) || (body.license_type === 'lifetime' ? 9999 : 7)));
+    let licType: LicenseType = 'annual';
     let expiresAt: string | null = null;
-    if (licType !== 'lifetime' && safeDays < 9000) {
+
+    if (body.license_type === 'lifetime' || safeDays >= 9000) {
+      licType = 'lifetime';
+      expiresAt = null;
+    } else if (body.license_type === 'trial' || safeDays <= 14) {
+      licType = 'trial';
+      const expDate = new Date();
+      expDate.setDate(expDate.getDate() + safeDays);
+      expiresAt = expDate.toISOString();
+    } else if (safeDays <= 31) {
+      licType = 'monthly';
+      const expDate = new Date();
+      expDate.setDate(expDate.getDate() + safeDays);
+      expiresAt = expDate.toISOString();
+    } else {
+      licType = 'annual';
       const expDate = new Date();
       expDate.setDate(expDate.getDate() + safeDays);
       expiresAt = expDate.toISOString();
     }
 
+    const cleanFp = body.device_fingerprint.trim().toUpperCase();
+    const cleanShop = body.shop_name && body.shop_name.trim() ? body.shop_name.trim() : 'جهاز أوفلاين';
+
     try {
+      // Find matching existing license if license_id passed or by machine_fingerprint
+      let existingLic: LicenseRecord | null = null;
+      if (body.license_id) {
+        existingLic = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?')
+          .bind(body.license_id)
+          .first<LicenseRecord>();
+      }
+      if (!existingLic) {
+        existingLic = await env.DB.prepare('SELECT * FROM licenses WHERE machine_fingerprint = ?')
+          .bind(cleanFp)
+          .first<LicenseRecord>();
+      }
+
+      const licenseKey = existingLic ? existingLic.license_key : generateLicenseKey();
+      const finalShop = existingLic && existingLic.shop_name ? existingLic.shop_name : cleanShop;
+
       const supportCode = await generateOfflineSupportCode(
         cleanFp,
         licType,
         safeDays,
         env.LICENSE_PRIVATE_KEY,
-        cleanShop,
+        finalShop,
         licenseKey
       );
 
-      // Save into D1 database so it appears in the Issued Licenses table & can be managed online!
-      const id = crypto.randomUUID();
-      await env.DB.prepare(
-        `INSERT INTO licenses (id, license_key, shop_name, owner_phone, license_type, status, machine_fingerprint, max_devices, activated_at, expires_at, notes, created_at, updated_at)
-         VALUES (?, ?, ?, NULL, ?, 'active', ?, 1, datetime('now'), ?, 'ترخيص صادر بكود دعم أوفلاين (RFQ-SUP)', datetime('now'), datetime('now'))`
-      ).bind(
-        id,
-        licenseKey,
-        cleanShop,
-        licType,
-        cleanFp,
-        expiresAt
-      ).run();
+      if (existingLic) {
+        await env.DB.prepare(
+          `UPDATE licenses 
+           SET status = 'active', 
+               machine_fingerprint = ?, 
+               license_type = ?, 
+               expires_at = ?, 
+               shop_name = ?, 
+               updated_at = datetime('now') 
+           WHERE id = ?`
+        ).bind(cleanFp, licType, expiresAt, finalShop, existingLic.id).run();
+      } else {
+        const id = crypto.randomUUID();
+        await env.DB.prepare(
+          `INSERT INTO licenses (id, license_key, shop_name, owner_phone, license_type, status, machine_fingerprint, max_devices, activated_at, expires_at, notes, created_at, updated_at)
+           VALUES (?, ?, ?, NULL, ?, 'active', ?, 1, datetime('now'), ?, 'ترخيص صادر بكود دعم أوفلاين (RFQ-SUP)', datetime('now'), datetime('now'))`
+        ).bind(id, licenseKey, finalShop, licType, cleanFp, expiresAt).run();
+      }
 
       // Log in activation_logs
       try {
@@ -329,6 +385,209 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     }
   }
 
+  // 10. POST /api/admin/root-session - Challenge-Response Developer Root Access (SEC-01)
+  if (request.method === 'POST' && url.pathname === '/api/admin/root-session') {
+    const body = await request.json<{
+      license_id?: string;
+      challenge_code?: string;
+      challenge?: string;
+      manual_fingerprint?: string;
+      device_fingerprint?: string;
+    }>();
+
+    const challengeCode = (body.challenge_code || body.challenge || '').trim();
+    if (!challengeCode) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'كود التحدي الظاهر على شاشة العميل مطلوب' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    let targetFp = (body.manual_fingerprint || body.device_fingerprint || '').trim().toUpperCase();
+    let licenseKey = '';
+    let shopName = 'جلسة دعم فني للمطور';
+
+    if (body.license_id) {
+      const lic = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?')
+        .bind(body.license_id)
+        .first<LicenseRecord>();
+      if (lic) {
+        if (lic.machine_fingerprint) targetFp = lic.machine_fingerprint.trim().toUpperCase();
+        licenseKey = lic.license_key;
+        shopName = lic.shop_name;
+      }
+    }
+
+    if (!targetFp) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'هذا الترخيص غير مربوط بأي جهاز بعد. يرجى إدخال بصمة الجهاز يدوياً.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    const rawChallenge = challengeCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (rawChallenge.length >= 10) {
+      const tagInChallenge = rawChallenge.slice(-2);
+      const expectedTag = await computeFingerprintTag(targetFp);
+      if (tagInChallenge !== expectedTag) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            code: 'CHALLENGE_MISMATCH',
+            message: 'كود التحدي لا يطابق بصمة جهاز هذا الترخيص! تأكد من اختيار المنشأة الصحيحة أو أدخل البصمة يدوياً.'
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+        );
+      }
+    }
+
+    try {
+      const rootToken = await generateRootSessionToken(
+        targetFp,
+        rawChallenge,
+        licenseKey,
+        shopName,
+        env.LICENSE_PRIVATE_KEY
+      );
+
+      try {
+        const logId = crypto.randomUUID();
+        await env.DB.prepare(
+          `INSERT INTO activation_logs (id, license_key, machine_fingerprint, action, status, failure_reason, ip_address, user_agent, created_at)
+           VALUES (?, ?, ?, 'verify', 'success', 'إصدار تصريح دخول Root للمطور', 'admin_portal', 'admin', datetime('now'))`
+        ).bind(logId, licenseKey || 'ROOT_SESSION', targetFp).run();
+      } catch {}
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'تم إصدار تصريح الدعم الفني Root بنجاح',
+          root_token: rootToken,
+          session_token: rootToken,
+          shop_name: shopName,
+          device_fingerprint: targetFp,
+          expires_in_seconds: 900
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل إصدار تصريح Root';
+      return new Response(
+        JSON.stringify({ success: false, message: msg }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+  }
+
+  // 11. POST /api/admin/licenses/:id/recovery-code - Owner PIN Recovery Token (SEC-02)
+  const recoveryMatch = url.pathname.match(/^\/api\/admin\/licenses\/([^/]+)\/recovery-code$/);
+  if (request.method === 'POST' && recoveryMatch) {
+    const licenseId = recoveryMatch[1];
+    const lic = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?')
+      .bind(licenseId)
+      .first<LicenseRecord>();
+
+    if (!lic) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'سجل الترخيص غير موجود' }),
+        { status: 404, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    if (!lic.machine_fingerprint) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'هذا الترخيص غير مربوط بأي جهاز بعد ولا يمكن استعادة PIN المالك له' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    try {
+      const recToken = await generatePinRecoveryToken(
+        lic.machine_fingerprint,
+        lic.license_key,
+        lic.shop_name,
+        env.LICENSE_PRIVATE_KEY
+      );
+
+      try {
+        const logId = crypto.randomUUID();
+        await env.DB.prepare(
+          `INSERT INTO activation_logs (id, license_key, machine_fingerprint, action, status, failure_reason, ip_address, user_agent, created_at)
+           VALUES (?, ?, ?, 'verify', 'success', 'توليد كود استعادة PIN المالك', 'admin_portal', 'admin', datetime('now'))`
+        ).bind(logId, lic.license_key, lic.machine_fingerprint).run();
+      } catch {}
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'تم توليد كود استعادة PIN المالك بنجاح',
+          recovery_code: recToken,
+          shop_name: lic.shop_name,
+          owner_phone: lic.owner_phone,
+          device_fingerprint: lic.machine_fingerprint
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل توليد كود الاستعادة';
+      return new Response(
+        JSON.stringify({ success: false, message: msg }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+  }
+
+  // 12. POST /api/admin/licenses/:id/clock-reset - Clock Rollback Unlock Token (BUG-06)
+  const clockMatch = url.pathname.match(/^\/api\/admin\/licenses\/([^/]+)\/clock-reset$/);
+  if (request.method === 'POST' && clockMatch) {
+    const licenseId = clockMatch[1];
+    const lic = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?')
+      .bind(licenseId)
+      .first<LicenseRecord>();
+
+    if (!lic || !lic.machine_fingerprint) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'الترخيص غير موجود أو غير مربوط بجهاز' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    try {
+      const clockToken = await generateClockResetToken(
+        lic.machine_fingerprint,
+        lic.license_key,
+        lic.shop_name,
+        env.LICENSE_PRIVATE_KEY
+      );
+
+      try {
+        const logId = crypto.randomUUID();
+        await env.DB.prepare(
+          `INSERT INTO activation_logs (id, license_key, machine_fingerprint, action, status, failure_reason, ip_address, user_agent, created_at)
+           VALUES (?, ?, ?, 'verify', 'success', 'توليد كود فك حظر تراجع الساعة', 'admin_portal', 'admin', datetime('now'))`
+        ).bind(logId, lic.license_key, lic.machine_fingerprint).run();
+      } catch {}
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'تم توليد كود فك حظر الساعة بنجاح',
+          clock_reset_code: clockToken,
+          reset_code: clockToken,
+          shop_name: lic.shop_name,
+          device_fingerprint: lic.machine_fingerprint
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل توليد كود فك حظر الساعة';
+      return new Response(
+        JSON.stringify({ success: false, message: msg }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+  }
+
   return new Response(
     JSON.stringify({ success: false, message: 'المسار غير موجود' }),
     { status: 404, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
@@ -351,4 +610,3 @@ function generateLicenseKey(): string {
   }
   return `RFQ-${part(4)}-${part(4)}-${part(4)}`;
 }
-
