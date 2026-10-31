@@ -173,17 +173,24 @@ export default function App() {
   const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(false);
   const [isAppUpdateModalOpen, setIsAppUpdateModalOpen] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState<AppUpdateInfo | null>(null);
+  const handleUpdateInfoChange = useCallback((info: AppUpdateInfo | null) => {
+    setAvailableUpdate(info);
+  }, []);
 
-  // Automatic Background Update Check on Startup
+  // Automatic Background Update Check on Startup & Periodically
   useEffect(() => {
     let isMounted = true;
     const checkUpdates = async () => {
       try {
         const info = await invoke<AppUpdateInfo>('updates:check');
-        if (isMounted && info && info.hasUpdate) {
-          setAvailableUpdate(info);
-          if (info.isMandatory) {
-            setIsAppUpdateModalOpen(true);
+        if (isMounted && info) {
+          if (info.hasUpdate) {
+            setAvailableUpdate(info);
+            if (info.isMandatory) {
+              setIsAppUpdateModalOpen(true);
+            }
+          } else {
+            setAvailableUpdate(null);
           }
         }
       } catch {
@@ -191,9 +198,11 @@ export default function App() {
       }
     };
     const timer = setTimeout(checkUpdates, 2000);
+    const interval = setInterval(checkUpdates, 15 * 60 * 1000);
     return () => {
       isMounted = false;
       clearTimeout(timer);
+      clearInterval(interval);
     };
   }, []);
 
@@ -929,7 +938,7 @@ export default function App() {
     items.push(
       { id: 'backup' as SettingsSubTab, label: 'نسخة احتياطية وحماية البيانات', icon: HardDrive },
     );
-    if (isRoot || isAdmin || hasPermission('settings.features')) {
+    if (isRoot) {
       items.push(
         { id: 'system' as SettingsSubTab, label: 'فحص سرعة النظام والتشخيص', icon: Activity },
       );
@@ -940,7 +949,7 @@ export default function App() {
       );
     }
     return items;
-  }, [isRoot, isAdmin, hasPermission]);
+  }, [isRoot, hasPermission]);
 
   const allNavItems = [
     { id: 'pos' as TabType, label: 'الكاشير وشاشة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
@@ -1303,19 +1312,37 @@ export default function App() {
             </kbd>
           </button>
 
-          {/* Over-the-Air Update Button */}
-            {availableUpdate && availableUpdate.hasUpdate && (
+          {/* Over-the-Air & Manual Update Button (Always Present for Admin/Root) */}
+          {(isAdmin || isRoot || hasPermission('settings')) && (
+            availableUpdate && availableUpdate.hasUpdate ? (
               <button
                 type="button"
                 onClick={() => setIsAppUpdateModalOpen(true)}
-                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-paid hover:bg-paid-hover text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer animate-pulse shrink-0"
-                title={`تحديث جديد متاح: v${availableUpdate.latestVersion || ''} - اضغط للتثبيت الآن`}
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-paid dark:bg-paid hover:bg-paid/90 text-white text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer animate-pulse shrink-0 ring-2 ring-paid/50"
+                title={`تحديث جديد متاح: v${availableUpdate.latestVersion || ''} - اضغط للفحص والتثبيت الآن`}
               >
-                <DownloadCloud className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline text-[11.5px]">تحديث متاح</span>
-                <span className="font-mono text-[11px] bg-white/20 px-1 rounded">v{availableUpdate.latestVersion}</span>
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                </span>
+                <DownloadCloud className="w-3.5 h-3.5 text-white shrink-0 animate-bounce" />
+                <span className="text-[11.5px] font-extrabold text-white">تحديث متاح</span>
+                <span className="font-mono text-[10.5px] bg-white/25 text-white px-1.5 py-0.5 rounded font-black tracking-tight">
+                  v{availableUpdate.latestVersion}
+                </span>
               </button>
-            )}
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAppUpdateModalOpen(true)}
+                className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft/70 dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-brand/40 text-ink dark:text-ink-dark text-xs font-bold shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
+                title="فحص وتنزيل تحديثات رفيق (أونلاين أو فلاشة أوفلاين)"
+              >
+                <DownloadCloud className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
+                <span className="hidden xl:inline text-[11.5px]">تحديثات رفيق</span>
+              </button>
+            )
+          )}
 
             {/* Notification Bell Button with live Badge */}
           <NotificationBellButton
@@ -2222,6 +2249,14 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Over-the-Air & Offline App Update Modal */}
+      <AppUpdateModal
+        isOpen={isAppUpdateModalOpen}
+        onClose={() => setIsAppUpdateModalOpen(false)}
+        autoCheck={true}
+        onUpdateInfoChange={handleUpdateInfoChange}
+      />
 
       {/* Global Rafiq Custom Dialog Modal System */}
       <RafiqDialogContainer />

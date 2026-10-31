@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   DownloadCloud, 
   Sparkles, 
@@ -22,9 +22,20 @@ interface AppUpdateModalProps {
   isOpen: boolean;
   onClose: () => void;
   autoCheck?: boolean;
+  onUpdateInfoChange?: (info: AppUpdateInfo | null) => void;
 }
 
-export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdateModalProps) => {
+export const AppUpdateModal = ({ 
+  isOpen, 
+  onClose, 
+  autoCheck = false,
+  onUpdateInfoChange 
+}: AppUpdateModalProps) => {
+  const onUpdateInfoChangeRef = useRef(onUpdateInfoChange);
+  useEffect(() => {
+    onUpdateInfoChangeRef.current = onUpdateInfoChange;
+  });
+
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
@@ -39,6 +50,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
     try {
       const res = await invoke<AppUpdateInfo>('updates:check');
       setUpdateInfo(res);
+      onUpdateInfoChangeRef.current?.(res);
       if (res.hasUpdate) {
         if (res.isEligible === false) {
           setStatusMessage({
@@ -84,6 +96,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
       });
 
       setUpdateInfo(inspectRes);
+      onUpdateInfoChangeRef.current?.(inspectRes);
 
       if (inspectRes.errorMessage) {
         setStatusMessage({
@@ -111,16 +124,20 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
     }
   };
 
+  const hasAutoCheckedRef = useRef(false);
+
   useEffect(() => {
     let timer: any;
     if (isOpen) {
       setIsReadyToRestart(false);
-      if (autoCheck || !updateInfo) {
+      if (autoCheck && !hasAutoCheckedRef.current) {
+        hasAutoCheckedRef.current = true;
         timer = setTimeout(() => {
           void checkForUpdates();
         }, 10);
       }
     } else {
+      hasAutoCheckedRef.current = false;
       timer = setTimeout(() => {
         setApplyProgress(0);
         setIsApplying(false);
@@ -128,7 +145,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
       }, 0);
     }
     return () => clearTimeout(timer);
-  }, [isOpen, autoCheck, checkForUpdates, updateInfo]);
+  }, [isOpen, autoCheck, checkForUpdates]);
 
   const handleApplyUpdate = async () => {
     if (!updateInfo) return;
@@ -188,6 +205,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
 
       if (res.success) {
         setIsReadyToRestart(true);
+        onUpdateInfoChangeRef.current?.(null);
         setStatusMessage({
           text: 'تم تجهيز وتأمين التحديث بنجاح! تم الحفاظ على قاعدة البيانات بنسبة 100%. يمكنك إعادة التشغيل الآن أو التأجيل لنهاية الوردية.',
           type: 'success'
@@ -257,7 +275,14 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
       if (res.success) {
         await rafiqAlert({
           title: 'فحص منظومة التحديث والتراجع',
-          message: `${res.message}\\nتأكيدات النجاح: ${res.passedAssertions}/${res.totalAssertions}\\n• مقارنة الإصدارات: ناجح\\n• مطابقة بصمة الهاش: ناجح\\n• عزل وحماية قاعدة البيانات: ناجح\\n• التراجع التلقائي الفوري عند الخطأ: ناجح\\n• دعم التحديث الأوفلاين بالفلاشة: ناجح`,
+          message: `${res.message}
+
+تأكيدات النجاح: ${res.passedAssertions}/${res.totalAssertions}
+• مقارنة الإصدارات: ناجح
+• مطابقة بصمة الهاش: ناجح
+• عزل وحماية قاعدة البيانات: ناجح
+• التراجع التلقائي الفوري عند الخطأ: ناجح
+• دعم التحديث الأوفلاين بالفلاشة: ناجح`,
           variant: 'success'
         });
       } else {
