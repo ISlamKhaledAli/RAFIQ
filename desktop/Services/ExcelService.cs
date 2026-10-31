@@ -1043,7 +1043,28 @@ namespace RafiqPOS.Services
 
             byte[] bytes = Convert.FromBase64String(base64);
             using (var ms = new MemoryStream(bytes))
-            using (var wb = new XLWorkbook(ms))
+            {
+                return ParseDrugReferenceImportStream(ms, drugRefRepo);
+            }
+        }
+
+        public DrugReferenceImportPreviewResult ParseDrugReferenceImportFile(string filePath, DrugReferenceRepository drugRefRepo)
+        {
+            var result = new DrugReferenceImportPreviewResult();
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return result;
+
+            using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                return ParseDrugReferenceImportStream(fs, drugRefRepo);
+            }
+        }
+
+        public DrugReferenceImportPreviewResult ParseDrugReferenceImportStream(Stream stream, DrugReferenceRepository drugRefRepo)
+        {
+            var result = new DrugReferenceImportPreviewResult();
+            if (stream == null) return result;
+
+            using (var wb = new XLWorkbook(stream))
             {
                 var ws = wb.Worksheets.Count > 0 ? wb.Worksheet(1) : null;
                 if (ws == null) return result;

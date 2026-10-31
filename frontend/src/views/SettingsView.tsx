@@ -39,11 +39,13 @@ export interface SettingsViewProps {
   activeSubTab?: SettingsSubTab;
   onSubTabChange?: (tab: SettingsSubTab) => void;
   initialSubTab?: SettingsSubTab;
+  onOpenLicenseModal?: () => void;
 }
 
 export const SettingsView = ({ 
   sysInfo, 
   activeSubTab = 'profile', 
+  onOpenLicenseModal, 
 }: SettingsViewProps) => {
   const { flags, toggleFlag } = useFeatures();
   const { isRoot, hasPermission } = useAuth();
@@ -518,7 +520,7 @@ export const SettingsView = ({
       </div>
 
       {/* 2. Sub-Tab Views */}
-      {subTab === 'backup' && <BackupManager />}
+      {subTab === 'backup' && <BackupManager onOpenLicenseModal={onOpenLicenseModal} />}
 
       {subTab === 'printer' && (
         <PrinterSettingsTab

@@ -334,6 +334,14 @@ export default function App() {
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [isLicenseReadOnlyMode, setIsLicenseReadOnlyMode] = useState(false);
 
+  useEffect(() => {
+    const handleOpenLicenseEvent = () => setIsLicenseModalOpen(true);
+    window.addEventListener('rafiq:open-license', handleOpenLicenseEvent);
+    return () => {
+      window.removeEventListener('rafiq:open-license', handleOpenLicenseEvent);
+    };
+  }, []);
+
   // Feature #176: Unified Notification & Alert System State
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
   const [isAlertTickerDismissed, setIsAlertTickerDismissed] = useState(false);
@@ -2075,6 +2083,7 @@ export default function App() {
                 sysInfo={sysInfo} 
                 activeSubTab={settingsSubTab} 
                 onSubTabChange={(tab) => setSettingsSubTab(tab)} 
+                onOpenLicenseModal={() => setIsLicenseModalOpen(true)} 
               />
             </div>
           )}
