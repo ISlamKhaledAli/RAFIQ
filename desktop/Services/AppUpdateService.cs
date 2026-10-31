@@ -268,6 +268,42 @@ namespace RafiqPOS.Services
             return info;
         }
 
+        public static string GetUpdatesWorkingFolder()
+        {
+            string commonData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            string updatesFolder = Path.Combine(commonData, "RafiqPOS", "updates");
+            if (!Directory.Exists(updatesFolder))
+            {
+                Directory.CreateDirectory(updatesFolder);
+            }
+            return updatesFolder;
+        }
+
+        public static string GetStagingDirectory()
+        {
+            return Path.Combine(GetUpdatesWorkingFolder(), "staging");
+        }
+
+        public static string GetRollbackDirectory()
+        {
+            return Path.Combine(GetUpdatesWorkingFolder(), "rollback_backup");
+        }
+
+        private static bool HasWriteAccessToFolder(string folderPath)
+        {
+            try
+            {
+                string testFile = Path.Combine(folderPath, "perm_test_" + Guid.NewGuid().ToString("N") + ".tmp");
+                File.WriteAllText(testFile, "test");
+                File.Delete(testFile);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public AppUpdateResult ApplyUpdate(string packagePath, string expectedSha256, bool simulateFailure = false)
         {
             AppUpdateResult result = new AppUpdateResult();
@@ -314,10 +350,10 @@ namespace RafiqPOS.Services
                 Logger.Warn("AppUpdateService: تعذر إنشاء نسخة احتياطية قبل التحديث: " + ex.Message);
             }
 
-            // Step 3: Prepare Rollback Snapshot Directory & Staging Area
+            // Step 3: Prepare Rollback Snapshot Directory & Staging Area in Safe ProgramData (UAC-Safe)
             string appDir = AppDomain.CurrentDomain.BaseDirectory;
-            string rollbackDir = Path.Combine(appDir, "rollback_backup");
-            string stagingDir = Path.Combine(appDir, "update_staging");
+            string rollbackDir = GetRollbackDirectory();
+            string stagingDir = GetStagingDirectory();
 
             try
             {
@@ -424,7 +460,7 @@ namespace RafiqPOS.Services
                     // Restore main executable from rollback snapshot
                     string rollbackExe = Path.Combine(rollbackDir, "RafiqPOS.exe.bak");
                     string mainExe = Path.Combine(appDir, "RafiqPOS.exe");
-                    if (File.Exists(rollbackExe))
+                    if (File.Exists(rollbackExe) && !File.Exists(mainExe))
                     {
                         File.Copy(rollbackExe, mainExe, true);
                     }
@@ -525,8 +561,7 @@ namespace RafiqPOS.Services
             {
                 ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | SecurityProtocolType.Tls12;
 
-                string commonData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-                string updatesFolder = Path.Combine(commonData, "RafiqPOS", "updates");
+                string updatesFolder = GetUpdatesWorkingFolder();
                 if (!Directory.Exists(updatesFolder))
                 {
                     Directory.CreateDirectory(updatesFolder);
@@ -581,7 +616,7 @@ namespace RafiqPOS.Services
             try
             {
                 string appDir = AppDomain.CurrentDomain.BaseDirectory;
-                string stagingDir = Path.Combine(appDir, "update_staging");
+                string stagingDir = GetStagingDirectory();
 
                 if (!Directory.Exists(stagingDir))
                 {
@@ -590,8 +625,8 @@ namespace RafiqPOS.Services
                 }
 
                 string currentPid = System.Diagnostics.Process.GetCurrentProcess().Id.ToString();
-                string commonData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-                string updaterBatPath = Path.Combine(commonData, "RafiqPOS", "rafiq_updater.bat");
+                string updatesFolder = GetUpdatesWorkingFolder();
+                string updaterBatPath = Path.Combine(updatesFolder, "rafiq_updater.bat");
 
                 StringBuilder sb = new StringBuilder();
                 sb.AppendLine("@echo off");
@@ -609,8 +644,17 @@ namespace RafiqPOS.Services
                 sb.AppendLine();
                 sb.AppendLine("timeout /t 1 /nobreak > nul");
                 sb.AppendLine();
-                sb.AppendLine(":: Copy new files safely");
+                sb.AppendLine(":: Copy new files safely with retries");
+                sb.AppendLine("set RETRY_COUNT=0");
+                sb.AppendLine(":COPY_LOOP");
                 sb.AppendLine("xcopy \"%STAGING_DIR%\\*\" \"%APP_DIR%\\\" /s /e /y /q > nul 2>&1");
+                sb.AppendLine("if %errorlevel% neq 0 (");
+                sb.AppendLine("    set /a RETRY_COUNT+=1");
+                sb.AppendLine("    if %RETRY_COUNT% leq 5 (");
+                sb.AppendLine("        timeout /t 1 /nobreak > nul");
+                sb.AppendLine("        goto COPY_LOOP");
+                sb.AppendLine("    )");
+                sb.AppendLine(")");
                 sb.AppendLine();
                 sb.AppendLine(":: Clean staging area");
                 sb.AppendLine("rd /s /q \"%STAGING_DIR%\" > nul 2>&1");
@@ -623,15 +667,42 @@ namespace RafiqPOS.Services
 
                 File.WriteAllText(updaterBatPath, sb.ToString(), Encoding.GetEncoding(1256));
 
+                bool isAppDirWritable = HasWriteAccessToFolder(appDir);
+
                 var psi = new System.Diagnostics.ProcessStartInfo();
                 psi.FileName = "cmd.exe";
                 psi.Arguments = "/c \"" + updaterBatPath + "\"";
-                psi.CreateNoWindow = true;
-                psi.UseShellExecute = false;
-                psi.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+
+                if (isAppDirWritable)
+                {
+                    psi.CreateNoWindow = true;
+                    psi.UseShellExecute = false;
+                    psi.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                }
+                else
+                {
+                    // If appDir is protected (e.g. C:\Program Files\RafiqPOS), request UAC elevation
+                    psi.UseShellExecute = true;
+                    psi.Verb = "runas";
+                    psi.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                }
+
                 System.Diagnostics.Process.Start(psi);
 
                 return true;
+            }
+            catch (System.ComponentModel.Win32Exception winEx)
+            {
+                if (winEx.NativeErrorCode == 1223)
+                {
+                    errorMessage = "تم إلغاء التحديث: يتطلب تثبيت التحديث في مجلد Program Files منح صلاحيات المسؤول (UAC).";
+                }
+                else
+                {
+                    errorMessage = "تعذر تشغيل معالج التحديث بصلاحيات المسؤول: " + winEx.Message;
+                }
+                Logger.Error("AppUpdateService: خطأ صلاحيات تشغيل رافع التحديث", winEx);
+                return false;
             }
             catch (Exception ex)
             {

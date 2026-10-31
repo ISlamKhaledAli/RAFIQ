@@ -246,7 +246,7 @@ namespace RafiqPOS.Services
                 // ==========================================
                 result.TotalAssertions++;
                 string errRestart;
-                string testStaging = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "update_staging");
+                string testStaging = AppUpdateService.GetStagingDirectory();
                 if (Directory.Exists(testStaging))
                 {
                     try { Directory.Delete(testStaging, true); } catch { }

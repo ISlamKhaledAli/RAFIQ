@@ -13,6 +13,7 @@ import {
   AlertCircle,
   RotateCcw,
   Laptop,
+  KeyRound,
   X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
@@ -66,7 +67,11 @@ interface BackupResult {
   createdAt: string;
 }
 
-export const BackupManager = () => {
+interface BackupManagerProps {
+  onOpenLicenseModal?: () => void;
+}
+
+export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) => {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<BackupStatusInfo | null>(null);
   const [drives, setDrives] = useState<DriveItem[]>([]);
@@ -81,6 +86,14 @@ export const BackupManager = () => {
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<BackupFileInfo | null>(null);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+
+  const handleOpenLicense = () => {
+    if (onOpenLicenseModal) {
+      onOpenLicenseModal();
+    } else {
+      window.dispatchEvent(new CustomEvent('rafiq:open-license'));
+    }
+  };
 
   const fetchBackupStatus = async () => {
     try {
@@ -327,7 +340,17 @@ export const BackupManager = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleOpenLicense}
+              className="h-[38px] px-3.5 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand-soft/80 dark:hover:bg-brand-bright/25 border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright rounded text-[12.5px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              title="ترخيص وتفعيل برنامج رفيق، تجديد الاشتراك، أو نقل الترخيص لجهاز آخر"
+            >
+              <KeyRound className="w-4 h-4 text-brand dark:text-brand-bright" />
+              <span>ترخيص وتفعيل البرنامج</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setIsMigrationModalOpen(true)}

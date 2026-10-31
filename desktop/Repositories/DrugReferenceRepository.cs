@@ -245,6 +245,10 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA cache_size = -64000; PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
                 using (var trans = conn.BeginTransaction())
                 {
                     try

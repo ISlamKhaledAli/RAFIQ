@@ -70,6 +70,8 @@ Name: "desktopicon"; Description: "إنشاء اختصار لبرنامج رفي
 Name: "{commonappdata}\RafiqPOS"; Permissions: users-full
 Name: "{commonappdata}\RafiqPOS\data"; Permissions: users-full
 Name: "{commonappdata}\RafiqPOS\data\webview_profile"; Permissions: users-full
+Name: "{commonappdata}\RafiqPOS\updates"; Permissions: users-full
+Name: "{app}"; Permissions: users-full
 
 [Files]
 Source: "..\desktop\bin\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.xml,*_test_output.json,data\*,rollback_backup\*,update_staging\*,نسخة_تلقائية_*\*,*.db,*.db-wal,*.db-shm"

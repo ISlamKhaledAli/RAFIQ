@@ -578,33 +578,52 @@ namespace RafiqPOS.Bridge
                 case "pharma.previewDrugReferenceImport":
                     if (request.Payload == null)
                     {
-                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "ملف الإكسل مشفر Base64 مطلوب.");
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات ملف الإكسل مطلوبة.");
                         return true;
                     }
                     try
                     {
                         string b64 = null;
+                        bool useBuiltin = false;
                         var importPJObj = request.Payload as JObject;
                         if (importPJObj != null)
                         {
+                            if (importPJObj["useBuiltin"] != null)
+                            {
+                                useBuiltin = Convert.ToBoolean(importPJObj["useBuiltin"]);
+                            }
                             if (importPJObj["fileBase64"] != null) b64 = importPJObj["fileBase64"].ToString();
                             else if (importPJObj["base64"] != null) b64 = importPJObj["base64"].ToString();
                         }
-                        if (string.IsNullOrWhiteSpace(b64) && request.Payload != null)
+                        if (string.IsNullOrWhiteSpace(b64) && request.Payload != null && !useBuiltin)
                         {
                             b64 = request.Payload.ToString();
                         }
 
-                        if (!string.IsNullOrWhiteSpace(b64) && b64.Contains(","))
+                        DrugReferenceImportPreviewResult preview = null;
+                        if (useBuiltin)
                         {
-                            b64 = b64.Substring(b64.IndexOf(",") + 1);
+                            string bPath = DatabaseService.DrugReference.FindBuiltinCatalogPath();
+                            if (string.IsNullOrEmpty(bPath))
+                            {
+                                response = BridgeResponse.Fail(request.Id, "FILE_NOT_FOUND", "لم يتم العثور على ملف الدليل الشامل المدمج على القرص.");
+                                return true;
+                            }
+                            preview = DatabaseService.DrugReference.PreviewImportFile(bPath);
                         }
-                        if (!string.IsNullOrWhiteSpace(b64))
+                        else
                         {
-                            b64 = b64.Trim().Replace(" ", "").Replace("\r", "").Replace("\n", "");
+                            if (!string.IsNullOrWhiteSpace(b64) && b64.Contains(","))
+                            {
+                                b64 = b64.Substring(b64.IndexOf(",") + 1);
+                            }
+                            if (!string.IsNullOrWhiteSpace(b64))
+                            {
+                                b64 = b64.Trim().Replace(" ", "").Replace("\r", "").Replace("\n", "");
+                            }
+                            preview = DatabaseService.DrugReference.PreviewImport(b64);
                         }
 
-                        var preview = DatabaseService.DrugReference.PreviewImport(b64);
                         response = BridgeResponse.Ok(request.Id, preview);
                     }
                     catch (Exception ex)
@@ -625,12 +644,42 @@ namespace RafiqPOS.Bridge
                         var cObj = request.Payload as JObject;
                         List<DrugReference> impItems = null;
                         string src = "Excel Import";
+                        bool useBuiltin = false;
 
                         if (cObj != null)
                         {
+                            if (cObj["useBuiltin"] != null)
+                            {
+                                useBuiltin = Convert.ToBoolean(cObj["useBuiltin"]);
+                            }
+                            if (cObj["source"] != null)
+                            {
+                                src = cObj["source"].ToString();
+                            }
+
+                            if (useBuiltin)
+                            {
+                                string bPath = DatabaseService.DrugReference.FindBuiltinCatalogPath();
+                                if (string.IsNullOrEmpty(bPath))
+                                {
+                                    response = BridgeResponse.Fail(request.Id, "FILE_NOT_FOUND", "لم يتم العثور على ملف الدليل الشامل المدمج على القرص.");
+                                    return true;
+                                }
+                                string actorIdBuiltin = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                                int count = DatabaseService.DrugReference.ConfirmImportFromFile(bPath, src, actorIdBuiltin);
+                                response = BridgeResponse.Ok(request.Id, new { 
+                                    totalProcessed = count,
+                                    createdCount = count,
+                                    updatedCount = 0,
+                                    failedCount = 0,
+                                    importedCount = count
+                                });
+                                return true;
+                            }
+
                             if (cObj["items"] != null)
                             {
-                                impItems = JsonConvert.DeserializeObject<List<DrugReference>>(cObj["items"].ToString());
+                                impItems = cObj["items"].ToObject<List<DrugReference>>();
                             }
                             else if (cObj["base64"] != null || cObj["fileBase64"] != null)
                             {
@@ -670,11 +719,6 @@ namespace RafiqPOS.Bridge
                                         }
                                     }
                                 }
-                            }
-
-                            if (cObj["source"] != null)
-                            {
-                                src = cObj["source"].ToString();
                             }
                         }
                         else

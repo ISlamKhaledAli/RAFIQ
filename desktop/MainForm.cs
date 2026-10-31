@@ -1340,7 +1340,9 @@ namespace RafiqPOS
 
                 try
                 {
-                    this.BeginInvoke(new Action(delegate
+                    if (!this.IsDisposed && this.IsHandleCreated)
+                    {
+                        this.BeginInvoke(new Action(delegate
                     {
                         try
                         {
@@ -1354,6 +1356,7 @@ namespace RafiqPOS
                             Logger.Error("فشل إرسال رد IPC إلى WebView2: ", postEx);
                         }
                     }));
+                    }
                 }
                 catch (Exception invokeEx)
                 {

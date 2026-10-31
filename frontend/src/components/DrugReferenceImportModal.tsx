@@ -194,79 +194,141 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
   };
 
   const [isLoadingBuiltin, setIsLoadingBuiltin] = useState(false);
+  const [isBuiltinCatalog, setIsBuiltinCatalog] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
 
   const handleImportBuiltinCatalog = async () => {
     setIsLoadingBuiltin(true);
     setErrorMessage(null);
     setSuccessMessage(null);
+    setSelectedFile({ name: 'دليل_الأدوية_المصرية_الشامل.xlsx', size: 29970873 } as File);
+    setFileBase64('');
+    setIsPreviewing(true);
+    setPreviewData(null);
+    setIsBuiltinCatalog(true);
     try {
-      const response = await fetch('/دليل_الأدوية_المصرية_الشامل.xlsx');
-      if (!response.ok) {
-        throw new Error('تعذر العثور على ملف الدليل الشامل المدمج');
+      const preview = await invoke<DrugReferenceImportPreviewResult>(
+        'pharma:previewDrugReferenceImport',
+        { useBuiltin: true },
+        180000
+      );
+      setPreviewData(preview);
+    } catch {
+      // Fallback: If not in desktop host or file not found on disk, try web fetch
+      try {
+        const response = await fetch('/دليل_الأدوية_المصرية_الشامل.xlsx');
+        if (!response.ok) {
+          throw new Error('تعذر العثور على ملف الدليل الشامل المدمج');
+        }
+        const blob = await response.blob();
+        const file = new File([blob], 'دليل_الأدوية_المصرية_الشامل.xlsx', {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        await handleProcessFile(file);
+      } catch (innerErr: unknown) {
+        const msg = innerErr instanceof Error ? innerErr.message : 'فشل تحميل الدليل المصري الشامل';
+        setErrorMessage(msg);
+        setSelectedFile(null);
+        setIsBuiltinCatalog(false);
       }
-      const blob = await response.blob();
-      const file = new File([blob], 'دليل_الأدوية_المصرية_الشامل.xlsx', {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
-      await handleProcessFile(file);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل تحميل الدليل المصري الشامل';
-      setErrorMessage(msg);
     } finally {
       setIsLoadingBuiltin(false);
+      setIsPreviewing(false);
     }
   };
 
   const handleConfirmImport = async () => {
-    if (!fileBase64 && (!previewData || !previewData.rows.length)) return;
+    if (!isBuiltinCatalog && !fileBase64 && (!previewData || !previewData.rows.length)) return;
     setIsImporting(true);
     setErrorMessage(null);
+    setImportProgress(null);
     try {
+      if (isBuiltinCatalog) {
+        // Fast direct disk-based import on C# Host
+        const res = await invoke<{
+          totalProcessed?: number;
+          createdCount?: number;
+          importedCount?: number;
+        }>(
+          'pharma:confirmDrugReferenceImport',
+          {
+            useBuiltin: true,
+            source: 'دليل_الأدوية_المصرية_الشامل.xlsx'
+          },
+          300000
+        );
+
+        const count = res.createdCount ?? res.importedCount ?? previewData?.newRowsCount ?? 0;
+        const msg = `تم استيراد الدليل المرجعي بنجاح: تم اعتماد (${count}) دواء في قاعدة بيانات الدليل الاسترشادي.`;
+        setSuccessMessage(msg);
+        setSelectedFile(null);
+        setFileBase64('');
+        setPreviewData(null);
+        setIsBuiltinCatalog(false);
+        void loadReferenceData(searchQuery, 1, pageSize);
+        if (onSuccess) onSuccess(msg);
+        return;
+      }
+
+      // Custom file import: chunk valid rows to prevent WebView2 IPC SEHException
       const validRows = (previewData?.rows || []).filter((r) => r.status !== 'ERROR');
-      const items = validRows.map((r) => ({
-        barcode: r.barcode,
-        tradeName: r.tradeName,
-        scientificName: r.scientificName,
-        form: r.form,
-        strength: r.strength,
-        manufacturer: r.manufacturer,
-        packDesc: r.packDesc,
-        publicPricePiasters: r.publicPricePiasters,
-        therapeuticClass: r.therapeuticClass,
-        category: r.category,
-        storageLocation: r.storageLocation,
-        isRefrigerated: r.isRefrigerated,
-        route: r.route,
-        pregnancyCategory: r.pregnancyCategory,
-        isAntibiotic: r.isAntibiotic,
-        rxStatus: r.rxStatus,
-        flavorForm: r.flavorForm,
-        piecesPerPack: r.piecesPerPack,
-      }));
+      if (validRows.length === 0) {
+        setErrorMessage('لا توجد أصناف صالحة للاستيراد في الملف.');
+        return;
+      }
 
-      const res = await invoke<{
-        totalProcessed?: number;
-        createdCount?: number;
-        updatedCount?: number;
-        failedCount?: number;
-        importedCount?: number;
-      }>(
-        'pharma:confirmDrugReferenceImport', 
-        { 
-          items,
-          base64: fileBase64,
-          fileBase64,
-          source: selectedFile?.name || 'Excel Import'
-        },
-        180000
-      );
+      const BATCH_SIZE = 2500;
+      let totalImported = 0;
+      for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+        const batch = validRows.slice(i, i + BATCH_SIZE);
+        const batchItems = batch.map((r) => ({
+          barcode: r.barcode,
+          tradeName: r.tradeName,
+          scientificName: r.scientificName,
+          form: r.form,
+          strength: r.strength,
+          manufacturer: r.manufacturer,
+          packDesc: r.packDesc,
+          publicPricePiasters: r.publicPricePiasters,
+          therapeuticClass: r.therapeuticClass,
+          category: r.category,
+          storageLocation: r.storageLocation,
+          isRefrigerated: r.isRefrigerated,
+          route: r.route,
+          pregnancyCategory: r.pregnancyCategory,
+          isAntibiotic: r.isAntibiotic,
+          rxStatus: r.rxStatus,
+          flavorForm: r.flavorForm,
+          piecesPerPack: r.piecesPerPack,
+        }));
 
-      const count = res.createdCount ?? res.importedCount ?? items.length;
-      const msg = `تم استيراد الدليل المرجعي بنجاح: تم اعتماد (${count}) دواء في قاعدة بيانات الدليل الاسترشادي.`;
+        setImportProgress({
+          current: Math.min(i + batch.length, validRows.length),
+          total: validRows.length
+        });
+
+        const res = await invoke<{
+          totalProcessed?: number;
+          createdCount?: number;
+          importedCount?: number;
+        }>(
+          'pharma:confirmDrugReferenceImport',
+          {
+            items: batchItems,
+            source: selectedFile?.name || 'Excel Import'
+          },
+          120000
+        );
+
+        totalImported += (res.createdCount ?? res.importedCount ?? batchItems.length);
+      }
+
+      const msg = `تم استيراد الدليل المرجعي بنجاح: تم اعتماد (${totalImported}) دواء في قاعدة بيانات الدليل الاسترشادي.`;
       setSuccessMessage(msg);
       setSelectedFile(null);
       setFileBase64('');
       setPreviewData(null);
+      setIsBuiltinCatalog(false);
       void loadReferenceData(searchQuery, 1, pageSize);
       if (onSuccess) onSuccess(msg);
     } catch (err: unknown) {
@@ -274,6 +336,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
       setErrorMessage(msg);
     } finally {
       setIsImporting(false);
+      setImportProgress(null);
     }
   };
 
@@ -846,7 +909,13 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                   className="px-5 h-9 bg-brand dark:bg-brand-bright hover:bg-brand-dark text-white dark:text-surface-dark rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>{isImporting ? 'جاري الاستيراد والتحديث...' : 'تأكيد الاستيراد والحفظ بالدليل'}</span>
+                  <span>
+                    {isImporting
+                      ? importProgress
+                        ? `جاري حفظ الدليل (${importProgress.current.toLocaleString('ar-EG')} / ${importProgress.total.toLocaleString('ar-EG')})...`
+                        : 'جاري الاستيراد والتحديث بالدليل...'
+                      : 'تأكيد الاستيراد والحفظ بالدليل'}
+                  </span>
                 </button>
               )}
             </div>

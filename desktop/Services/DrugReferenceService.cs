@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using RafiqPOS.Models;
+using System.IO;
+using RafiqPOS.Common;
 using RafiqPOS.Repositories;
 
 namespace RafiqPOS.Services
@@ -53,6 +55,79 @@ namespace RafiqPOS.Services
         public DrugReferenceImportPreviewResult PreviewImport(string base64)
         {
             return _excelService.ParseDrugReferenceImportBase64(base64, _repo);
+        }
+
+        public string FindBuiltinCatalogPath()
+        {
+            try
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string[] candidates = new string[]
+                {
+                    Path.Combine(baseDir, "dist", "دليل_الأدوية_المصرية_الشامل.xlsx"),
+                    Path.Combine(baseDir, "دليل_الأدوية_المصرية_الشامل.xlsx"),
+                    Path.Combine(baseDir, "..", "..", "frontend", "public", "دليل_الأدوية_المصرية_الشامل.xlsx"),
+                    Path.Combine(baseDir, "..", "..", "frontend", "dist", "دليل_الأدوية_المصرية_الشامل.xlsx")
+                };
+                for (int i = 0; i < candidates.Length; i++)
+                {
+                    if (File.Exists(candidates[i]))
+                    {
+                        return Path.GetFullPath(candidates[i]);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("خطأ أثناء البحث عن مسار الدليل الشامل المدمج: ", ex);
+            }
+            return null;
+        }
+
+        public DrugReferenceImportPreviewResult PreviewImportFile(string filePath)
+        {
+            return _excelService.ParseDrugReferenceImportFile(filePath, _repo);
+        }
+
+        public int ConfirmImportFromFile(string filePath, string source, string userId)
+        {
+            var preview = _excelService.ParseDrugReferenceImportFile(filePath, _repo);
+            if (preview == null || preview.Rows == null || preview.Rows.Count == 0)
+            {
+                return 0;
+            }
+
+            var items = new List<DrugReference>();
+            for (int i = 0; i < preview.Rows.Count; i++)
+            {
+                var row = preview.Rows[i];
+                if (row != null && row.Status != "ERROR")
+                {
+                    items.Add(new DrugReference
+                    {
+                        Barcode = row.Barcode,
+                        TradeName = row.TradeName,
+                        ScientificName = row.ScientificName,
+                        Form = row.Form,
+                        Strength = row.Strength,
+                        Manufacturer = row.Manufacturer,
+                        PackDesc = row.PackDesc,
+                        PublicPricePiasters = row.PublicPricePiasters,
+                        TherapeuticClass = row.TherapeuticClass,
+                        Category = row.Category,
+                        StorageLocation = row.StorageLocation,
+                        IsRefrigerated = row.IsRefrigerated,
+                        Route = row.Route,
+                        PregnancyCategory = row.PregnancyCategory,
+                        IsAntibiotic = row.IsAntibiotic,
+                        RxStatus = row.RxStatus,
+                        FlavorForm = row.FlavorForm,
+                        PiecesPerPack = row.PiecesPerPack
+                    });
+                }
+            }
+
+            return _repo.BulkInsertOrUpdate(items, source, userId);
         }
 
         public int ConfirmImport(List<DrugReference> items, string source, string userId)
