@@ -11,7 +11,8 @@ import {
   FolderOpen,
   Info,
   FileCheck2,
-  Lock
+  Lock,
+  Clock
 } from 'lucide-react';
 import { invoke, type AppUpdateInfo, type AppUpdateResult } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
@@ -27,20 +28,29 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [isReadyToRestart, setIsReadyToRestart] = useState(false);
   const [applyProgress, setApplyProgress] = useState(0);
-  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' | 'warn' } | null>(null);
 
   const checkForUpdates = useCallback(async () => {
     setIsChecking(true);
     setStatusMessage(null);
+    setIsReadyToRestart(false);
     try {
       const res = await invoke<AppUpdateInfo>('updates:check');
       setUpdateInfo(res);
       if (res.hasUpdate) {
-        setStatusMessage({
-          text: `يوجد تحديث جديد متاح (${res.latestVersion}) يتضمن ميزات وتحسينات إضافية.`,
-          type: 'info'
-        });
+        if (res.isEligible === false) {
+          setStatusMessage({
+            text: `يوجد إصدار جديد (${res.latestVersion})، ولكن ترخيص هذا الجهاز غير مصرح له باستلام التحديثات حالياً.`,
+            type: 'warn'
+          });
+        } else {
+          setStatusMessage({
+            text: `يوجد تحديث جديد متاح (${res.latestVersion}) يتضمن ميزات وتحسينات إضافية.`,
+            type: 'info'
+          });
+        }
       } else {
         setStatusMessage({
           text: 'أنت تعمل بأحدث إصدار رسمي من نظام رفيق، ولا توجد تحديثات جديدة.',
@@ -63,6 +73,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
       if (browseRes.cancelled || !browseRes.selectedPath) return;
 
       setIsChecking(true);
+      setIsReadyToRestart(false);
       setStatusMessage({
         text: 'بيتم فحص ملف التحديث من الفلاشة والتحقق من سلامة البصمة الأمنية...',
         type: 'info'
@@ -103,6 +114,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
   useEffect(() => {
     let timer: any;
     if (isOpen) {
+      setIsReadyToRestart(false);
       if (autoCheck || !updateInfo) {
         timer = setTimeout(() => {
           void checkForUpdates();
@@ -112,6 +124,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
       timer = setTimeout(() => {
         setApplyProgress(0);
         setIsApplying(false);
+        setIsReadyToRestart(false);
       }, 0);
     }
     return () => clearTimeout(timer);
@@ -121,28 +134,51 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
     if (!updateInfo) return;
 
     setIsApplying(true);
-    setApplyProgress(15);
+    setApplyProgress(10);
     setStatusMessage({
-      text: 'جاري إنشاء نسخة احتياطية آمنة لقاعدة بيانات المحل والإعدادات الحالية...',
+      text: 'جاري بدء عملية التحديث...',
       type: 'info'
     });
 
     try {
-      await new Promise((r) => setTimeout(r, 600));
-      setApplyProgress(45);
+      let targetPath = updateInfo.packagePath;
+
+      // Online package: Download first if downloadUrl is provided
+      if (!targetPath && updateInfo.downloadUrl) {
+        setStatusMessage({
+          text: 'جاري تحميل ملف التحديث الآمن من السيرفر السحابي...',
+          type: 'info'
+        });
+        setApplyProgress(25);
+
+        const dlRes = await invoke<{ success: boolean; packagePath?: string; message?: string }>('updates:download', {
+          downloadUrl: updateInfo.downloadUrl,
+          expectedSha256: updateInfo.sha256 || ''
+        });
+
+        if (!dlRes || !dlRes.success || !dlRes.packagePath) {
+          throw new Error(dlRes?.message || 'فشل تحميل ملف التحديث من السيرفر.');
+        }
+        targetPath = dlRes.packagePath;
+      }
+
+      if (!targetPath) {
+        targetPath = 'C:\\\\ProgramData\\\\RafiqPOS\\\\updates\\\\update_v' + updateInfo.latestVersion + '.pkg';
+      }
+
+      setApplyProgress(50);
       setStatusMessage({
-        text: 'التحقق من بصمة التشفير (SHA-256) وعزل قاعدة البيانات عن ملفات البرنامج...',
+        text: 'جاري إنشاء نسخة احتياطية آمنة لقاعدة بيانات المحل والإعدادات الحالية...',
+        type: 'info'
+      });
+      await new Promise((r) => setTimeout(r, 400));
+
+      setApplyProgress(75);
+      setStatusMessage({
+        text: 'التحقق من بصمة التشفير (SHA-256) وتجهيز ملفات الإصدار الجديد في منطقة العزل...',
         type: 'info'
       });
 
-      await new Promise((r) => setTimeout(r, 600));
-      setApplyProgress(80);
-      setStatusMessage({
-        text: 'تجهيز ملفات الإصدار الجديد وإعداد نقطة التراجع الآمنة...',
-        type: 'info'
-      });
-
-      const targetPath = updateInfo.packagePath || ('C:\\ProgramData\\RafiqPOS\\updates\\update_v' + updateInfo.latestVersion + '.pkg');
       const res = await invoke<AppUpdateResult>('updates:apply', {
         packagePath: targetPath,
         expectedSha256: updateInfo.sha256 || ''
@@ -151,16 +187,11 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
       setApplyProgress(100);
 
       if (res.success) {
+        setIsReadyToRestart(true);
         setStatusMessage({
-          text: res.message || 'تم تحديث ملفات البرنامج بنجاح مع حفظ نسخة احتياطية لكامل بيانات المحل.',
+          text: 'تم تجهيز وتأمين التحديث بنجاح! تم الحفاظ على قاعدة البيانات بنسبة 100%. يمكنك إعادة التشغيل الآن أو التأجيل لنهاية الوردية.',
           type: 'success'
         });
-        await rafiqAlert({
-          title: 'اكتمال التحديث بنجاح',
-          message: 'تم تجهيز وتأمين التحديث بنجاح وأخذ نسخة احتياطية شاملة للبيانات. تم الحفاظ على قاعدة البيانات والإعدادات بنسبة 100%.',
-          variant: 'success'
-        });
-        onClose();
       } else {
         setStatusMessage({
           text: res.message || 'حدث خطأ أثناء التحديث وتم التراجع التلقائي بنجاح لحماية المتجر دون أي فقد للبيانات.',
@@ -177,13 +208,56 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
     }
   };
 
+  const handleRestartNow = async () => {
+    // Active Transaction Guard (Rule 9): Ensure no active cart exists in POS
+    try {
+      const raw = localStorage.getItem('rafiq_pos_cart_draft');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+          await rafiqAlert({
+            title: 'يوجد عملية بيع جارية',
+            message: 'لا يمكن إعادة تشغيل البرنامج الآن لوجود أصناف غير مكتملة في سلة البيع.\\n\\nيرجى إنهاء عملية البيع الحالية أو حفظها كفاتورة معلقة أولاً لحماية حقوق المتجر، ثم إعادة المحاولة.',
+            variant: 'warning'
+          });
+          return;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      setStatusMessage({
+        text: 'جاري إغلاق النظام وتطبيق التحديث وإعادة التشغيل تلقائياً...',
+        type: 'info'
+      });
+      const res = await invoke<{ success: boolean; message?: string }>('updates:restart');
+      if (res && res.success) {
+        // App will exit shortly and restart automatically
+      } else {
+        await rafiqAlert({
+          title: 'تعذر إعادة التشغيل',
+          message: res?.message || 'تعذر إطلاق التحديث التلقائي. يمكنك إغلاق البرنامج وإعادة فتحه يدوياً لتطبيق التحديث.',
+          variant: 'error'
+        });
+      }
+    } catch (err: any) {
+      await rafiqAlert({
+        title: 'خطأ في التحديث',
+        message: err?.message || 'تعذر إطلاق سكريبت التحديث التلقائي.',
+        variant: 'error'
+      });
+    }
+  };
+
   const handleRunVerificationTests = async () => {
     try {
       const res = await invoke<any>('updates:runTests');
       if (res.success) {
         await rafiqAlert({
           title: 'فحص منظومة التحديث والتراجع',
-          message: `${res.message}\nتأكيدات النجاح: ${res.passedAssertions}/${res.totalAssertions}\n• مقارنة الإصدارات: ناجح\n• مطابقة بصمة الهاش: ناجح\n• عزل وحماية قاعدة البيانات: ناجح\n• التراجع التلقائي الفوري عند الخطأ: ناجح\n• دعم التحديث الأوفلاين بالفلاشة: ناجح`,
+          message: `${res.message}\\nتأكيدات النجاح: ${res.passedAssertions}/${res.totalAssertions}\\n• مقارنة الإصدارات: ناجح\\n• مطابقة بصمة الهاش: ناجح\\n• عزل وحماية قاعدة البيانات: ناجح\\n• التراجع التلقائي الفوري عند الخطأ: ناجح\\n• دعم التحديث الأوفلاين بالفلاشة: ناجح`,
           variant: 'success'
         });
       } else {
@@ -284,11 +358,15 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
                 ? 'bg-paid-soft text-paid border-paid/20' 
                 : statusMessage.type === 'error'
                 ? 'bg-danger-soft text-danger border-danger/20'
+                : statusMessage.type === 'warn'
+                ? 'bg-warn-soft text-warn border-warn/20'
                 : 'bg-brand-soft text-brand-dark border-brand/20'
             }`}>
               {statusMessage.type === 'success' ? (
                 <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
               ) : statusMessage.type === 'error' ? (
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+              ) : statusMessage.type === 'warn' ? (
                 <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
               ) : (
                 <Info className="w-5 h-5 shrink-0 mt-0.5" />
@@ -315,6 +393,32 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
                   </span>
                 )}
               </div>
+
+              {/* Ineligible Warning if not authorized */}
+              {updateInfo.isEligible === false && (
+                <div className="p-3.5 bg-warn-soft border border-warn/30 rounded-xl flex items-start gap-3 text-warn">
+                  <AlertTriangle className="w-5 h-5 text-warn shrink-0 mt-0.5" />
+                  <div className="text-xs leading-relaxed">
+                    <strong className="block text-ink font-bold">الترخيص غير مفعّل لاستلام هذا الإصدار</strong>
+                    <span className="text-ink-muted">
+                      انتهت فترة اشتراك التحديثات لهذا الجهاز أو أن نوع الترخيص الحالي لا يشمل الإصدار v{updateInfo.latestVersion}. يمكنك التواصل مع إدارة النظام لتجديد أو ترقية باقة التحديثات.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Ready to Restart Notice */}
+              {isReadyToRestart && (
+                <div className="p-3.5 bg-paid-soft border border-paid/30 rounded-xl flex items-start gap-3 text-paid">
+                  <CheckCircle2 className="w-5 h-5 text-paid shrink-0 mt-0.5" />
+                  <div className="text-xs leading-relaxed">
+                    <strong className="block text-ink font-bold">التحديث جاهز للتطبيق!</strong>
+                    <span className="text-ink-muted">
+                      تم تنزيل وتأمين الملفات بنجاح في منطقة العزل. اضغط "إعادة التشغيل والتثبيت الآن" لإتمام الترقية فوراً، أو اختر "تأجيل التثبيت" للمتابعة والبيع كالمعتاد حتى إغلاق الوردية.
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Offline Package Badge info if from USB */}
               {updateInfo.isOfflinePackage && (
@@ -400,23 +504,44 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              disabled={isApplying}
-              className="px-4 py-2 rounded-xl border border-line text-ink-muted hover:text-ink text-xs font-semibold hover:bg-surface transition-all disabled:opacity-50"
-            >
-              إغلاق
-            </button>
+            {isReadyToRestart ? (
+              <>
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-xl border border-line text-ink font-semibold text-xs hover:bg-surface transition-all flex items-center gap-1.5"
+                >
+                  <Clock className="w-4 h-4 text-ink-muted" />
+                  <span>تأجيل التثبيت لنهاية الوردية</span>
+                </button>
+                <button
+                  onClick={handleRestartNow}
+                  className="px-5 py-2 rounded-xl bg-paid hover:bg-paid/90 text-white text-xs font-bold flex items-center gap-2 shadow-sm transition-all"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>إعادة التشغيل والتثبيت الآن</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={onClose}
+                  disabled={isApplying}
+                  className="px-4 py-2 rounded-xl border border-line text-ink-muted hover:text-ink text-xs font-semibold hover:bg-surface transition-all disabled:opacity-50"
+                >
+                  إغلاق
+                </button>
 
-            {updateInfo?.hasUpdate && (
-              <button
-                onClick={handleApplyUpdate}
-                disabled={isApplying}
-                className="px-5 py-2 rounded-xl bg-paid hover:bg-paid/90 text-white text-xs font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
-              >
-                <HardDriveDownload className="w-4 h-4" />
-                <span>{isApplying ? 'جاري التثبيت...' : 'تثبيت التحديث الآن'}</span>
-              </button>
+                {updateInfo?.hasUpdate && updateInfo.isEligible !== false && (
+                  <button
+                    onClick={handleApplyUpdate}
+                    disabled={isApplying}
+                    className="px-5 py-2 rounded-xl bg-paid hover:bg-paid/90 text-white text-xs font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                  >
+                    <HardDriveDownload className="w-4 h-4" />
+                    <span>{isApplying ? 'جاري التجهيز...' : 'تثبيت التحديث الآن'}</span>
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

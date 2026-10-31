@@ -1,25 +1,20 @@
 @echo off
-chcp 65001 > nul
-title Rafiq POS - Desktop Application
+setlocal
+cd /d "%~dp0"
 
-echo ===================================================
-echo     Starting Rafiq POS Desktop Application...
-echo ===================================================
-echo.
+taskkill /f /im RafiqPOS.exe >nul 2>&1
 
-if exist "%~dp0desktop\bin\Release\RafiqPOS.exe" (
-    start "" "%~dp0desktop\bin\Release\RafiqPOS.exe"
-    exit
+if exist "desktop\bin\Release\RafiqPOS.exe" (
+    cd "desktop\bin\Release"
+    start "" "RafiqPOS.exe"
+    exit /b 0
 )
 
-if exist "%~dp0desktop\bin\Debug\RafiqPOS.exe" (
-    start "" "%~dp0desktop\bin\Debug\RafiqPOS.exe"
-    exit
+if exist "desktop\bin\Debug\RafiqPOS.exe" (
+    cd "desktop\bin\Debug"
+    start "" "RafiqPOS.exe"
+    exit /b 0
 )
 
-echo ===================================================
-echo [خطأ] لم يتم العثور على ملف تشغيل البرنامج RafiqPOS.exe
-echo يرجى بناء المشروع أولاً عبر MSBuild.
-echo ===================================================
+echo [ERROR] RafiqPOS.exe not found in desktop\bin\Release or desktop\bin\Debug.
 pause
-

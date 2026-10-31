@@ -405,6 +405,41 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, updateApplyRes);
                     return true;
 
+                case "updates:download":
+                    string dlUrl = null;
+                    string dlSha = null;
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null)
+                        {
+                            if (pObj["downloadUrl"] != null) dlUrl = pObj["downloadUrl"].ToString();
+                            if (pObj["expectedSha256"] != null) dlSha = pObj["expectedSha256"].ToString();
+                        }
+                    }
+                    var dlRes = DatabaseService.Updates.DownloadUpdate(dlUrl, dlSha);
+                    response = BridgeResponse.Ok(request.Id, dlRes);
+                    return true;
+
+                case "updates:restart":
+                    string errLaunch = null;
+                    bool okLaunch = DatabaseService.Updates.LaunchRestartUpdater(out errLaunch);
+                    if (okLaunch)
+                    {
+                        response = BridgeResponse.Ok(request.Id, new { success = true, message = "جارٍ إعادة تشغيل وتحديث النظام..." });
+                        var exitThread = new System.Threading.Thread(delegate()
+                        {
+                            System.Threading.Thread.Sleep(500);
+                            System.Windows.Forms.Application.Exit();
+                        });
+                        exitThread.Start();
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Fail(request.Id, "FAILED", errLaunch ?? "تعذر إطلاق عملية التحديث");
+                    }
+                    return true;
+
                 case "updates:browsePackage":
                     string selectedPkg = null;
                     var updatePkgThread = new System.Threading.Thread(delegate()

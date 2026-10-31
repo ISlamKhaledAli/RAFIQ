@@ -52,6 +52,8 @@ backups/
 RafiqPOS_Setup_*.exe
 *.msu
 installer/Output/
+output/
+*.zip
 tools/nuget.exe
 
 # Large Installer Prerequisites (>100MB, excluded from GitHub)

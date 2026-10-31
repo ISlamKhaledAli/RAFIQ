@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { LicenseExpiryDetails } from '../components/LicenseExpiredLockScreen';
+import type { AppUpdateInfo } from '../bridge/ipc';
 
 export interface SystemNotificationItem {
   id: string;
@@ -7,7 +8,7 @@ export interface SystemNotificationItem {
   title: string;
   message: string;
   badge?: string;
-  iconType: 'license' | 'expiry' | 'readonly' | 'backup' | 'stock' | 'demo' | 'clock';
+  iconType: 'license' | 'expiry' | 'readonly' | 'backup' | 'stock' | 'demo' | 'clock' | 'update';
   actionLabel?: string;
   onAction?: () => void;
   dismissible?: boolean;
@@ -28,11 +29,13 @@ export interface UseSystemNotificationsProps {
   lowStockDismissed: boolean;
   setLowStockDismissed: (val: boolean) => void;
   hasDemoData: boolean;
+  availableUpdate?: AppUpdateInfo | null;
   onOpenLicenseModal: () => void;
   onOpenLockScreen: () => void;
   onOpenBackupSettings: () => void;
   onOpenLowStockCatalog: () => void;
   onOpenDemoManagement: () => void;
+  onOpenUpdateModal?: () => void;
 }
 
 /**
@@ -51,11 +54,13 @@ export const useSystemNotifications = ({
   lowStockDismissed,
   setLowStockDismissed,
   hasDemoData,
+  availableUpdate,
   onOpenLicenseModal,
   onOpenLockScreen,
   onOpenBackupSettings,
   onOpenLowStockCatalog,
   onOpenDemoManagement,
+  onOpenUpdateModal,
 }: UseSystemNotificationsProps): SystemNotificationItem[] => {
   const [liveCountdown, setLiveCountdown] = useState<string | null>(null);
 
@@ -168,6 +173,21 @@ export const useSystemNotifications = ({
       }
     }
 
+    // 2.5 Over-the-Air App Update Notification (Priority: 92)
+    if (availableUpdate && availableUpdate.hasUpdate) {
+      list.push({
+        id: 'app_update_available',
+        type: availableUpdate.isMandatory ? 'critical' : 'info',
+        title: availableUpdate.isMandatory ? 'تحديث أمني إجباري متاح' : 'تحديث جديد متاح للبرنامج',
+        message: `يتوفر إصدار جديد من رفيق (${availableUpdate.latestVersion || 'v1.1.0'}). اضغط للتثبيت الآمن مع النسخ الاحتياطي التلقائي.`,
+        badge: availableUpdate.isMandatory ? 'إصدار إجباري' : 'تحديث متاح',
+        iconType: 'update',
+        actionLabel: 'تثبيت التحديث الآن',
+        onAction: onOpenUpdateModal,
+        priority: availableUpdate.isMandatory ? 98 : 75,
+      });
+    }
+
     // 3. Low Stock Alert (Priority: 60)
     if (lowStockCount > 0 && !lowStockDismissed) {
       list.push({
@@ -233,6 +253,8 @@ export const useSystemNotifications = ({
     onOpenLockScreen,
     onOpenBackupSettings,
     onOpenLowStockCatalog,
+    availableUpdate,
+    onOpenUpdateModal,
     onOpenDemoManagement,
     setClockWarning,
     setBackupWarning,
