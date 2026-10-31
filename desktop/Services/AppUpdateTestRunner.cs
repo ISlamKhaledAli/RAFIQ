@@ -20,6 +20,8 @@ namespace RafiqPOS.Services
         public bool OfflinePackageInspectionPassed { get; set; }
         public bool SuccessfulUpdateStagingPassed { get; set; }
         public bool DatabasePreservationPassed { get; set; }
+        public bool DownloadValidationPassed { get; set; }
+        public bool RestartGuardPassed { get; set; }
         public int TotalAssertions { get; set; }
         public int PassedAssertions { get; set; }
     }
@@ -224,6 +226,38 @@ namespace RafiqPOS.Services
                     }
                 }
                 result.DatabasePreservationPassed = true;
+                result.PassedAssertions++;
+
+                // ==========================================
+                // TEST 9: Download Validation (Empty URL & Checksum Guard)
+                // ==========================================
+                result.TotalAssertions++;
+                var badDl = DatabaseService.Updates.DownloadUpdate("", "");
+                if (badDl.Success)
+                {
+                    result.Message = "فشل اختبار التحقق من رابط التحميل الفارغ";
+                    return result;
+                }
+                result.DownloadValidationPassed = true;
+                result.PassedAssertions++;
+
+                // ==========================================
+                // TEST 10: Restart Updater Guard (Requires Staging)
+                // ==========================================
+                result.TotalAssertions++;
+                string errRestart;
+                string testStaging = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "update_staging");
+                if (Directory.Exists(testStaging))
+                {
+                    try { Directory.Delete(testStaging, true); } catch { }
+                }
+                bool restartRefused = !DatabaseService.Updates.LaunchRestartUpdater(out errRestart);
+                if (!restartRefused || string.IsNullOrEmpty(errRestart))
+                {
+                    result.Message = "فشل اختبار حماية إعادة التشغيل عند عدم وجود ملفات التحديث المجهزة";
+                    return result;
+                }
+                result.RestartGuardPassed = true;
                 result.PassedAssertions++;
 
                 result.Success = true;

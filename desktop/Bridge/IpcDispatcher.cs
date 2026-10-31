@@ -599,6 +599,8 @@ namespace RafiqPOS.Bridge
             { "updates:browsePackage", REQUIRE_ADMIN },
             { "updates:inspectPackage", REQUIRE_ADMIN },
             { "updates:apply", REQUIRE_ADMIN },
+            { "updates:download", REQUIRE_ADMIN },
+            { "updates:restart", REQUIRE_ADMIN },
 
             // Security & Users
             { "security:setPin", REQUIRE_ADMIN },

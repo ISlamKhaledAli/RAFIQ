@@ -589,6 +589,225 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       assert.ok(['trial', 'monthly', 'annual', 'lifetime'].includes(dbLic.license_type));
     });
 
+
+  describe('Over-the-Air Updates & Selective Rollout (Feature #171)', () => {
+    async function seedTestRelease(db: any, version = '1.1.0', isPublished = 1) {
+      await db.prepare(
+        `INSERT INTO app_releases (id, version, release_date, title, changelog, download_url, sha256, file_size_bytes, is_mandatory, is_published, min_client_version, created_at, updated_at)
+         VALUES ('test-rel-id-1', ?, '2026-11-01', 'إصدار رفيق v1.1.0 المستقر', 'إضافة موديول الصيدليات', 'https://github.com/ISlamKhaledAli/RAFIQ/releases/download/v1.1.0/RafiqPOS_Update_v1.1.0.zip', 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855', 25480120, 0, ?, '1.0.0', datetime('now'), datetime('now'))`
+      ).bind(version, isPublished).run();
+    }
+
+    it('Returns hasUpdate=false when no releases published', async () => {
+      const req = new Request('http://localhost/api/updates/check?version=1.0.0');
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.hasUpdate, false);
+      assert.ok(data.message);
+    });
+
+    it('Admin can publish new release to D1', async () => {
+      const req = new Request('http://localhost/api/admin/releases', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          version: '1.1.0',
+          title: 'إصدار رفيق v1.1.0 المستقر',
+          changelog: 'إضافة موديول الصيدليات والكافيهات المتكامل',
+          download_url: 'https://github.com/ISlamKhaledAli/RAFIQ/releases/download/v1.1.0/RafiqPOS_Update_v1.1.0.zip',
+          sha256: 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855',
+          file_size_bytes: 25480120,
+          is_mandatory: false,
+        }),
+      });
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 201);
+      const data = await res.json() as any;
+      assert.equal(data.success, true);
+      assert.equal(data.version, '1.1.0');
+
+      // Verify in DB
+      const inDb = await env.DB.prepare('SELECT * FROM app_releases WHERE version = ?').bind('1.1.0').first() as any;
+      assert.ok(inDb);
+      assert.equal(inDb.version, '1.1.0');
+    });
+
+    it('Admin can list published releases via /api/admin/releases', async () => {
+      await seedTestRelease(env.DB, '1.1.0', 1);
+
+      const req = new Request('http://localhost/api/admin/releases', {
+        headers: { 'X-Admin-Secret': ADMIN_SECRET },
+      });
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.success, true);
+      assert.ok(Array.isArray(data.releases));
+      assert.equal(data.releases.length, 1);
+      assert.equal(data.releases[0].version, '1.1.0');
+    });
+
+    it('Client receives update when newer version is published', async () => {
+      await seedTestRelease(env.DB, '1.1.0', 1);
+
+      const req = new Request('http://localhost/api/updates/check?version=1.0.0');
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.hasUpdate, true);
+      assert.equal(data.latestVersion, '1.1.0');
+      assert.ok(data.downloadUrl);
+      assert.ok(data.sha256);
+    });
+
+    it('Client with same or newer version receives hasUpdate=false', async () => {
+      await seedTestRelease(env.DB, '1.1.0', 1);
+
+      const req = new Request('http://localhost/api/updates/check?version=1.1.0');
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.hasUpdate, false);
+      assert.equal(data.latestVersion, '1.1.0');
+    });
+
+    it('Admin can emergency-toggle (kill switch) published release', async () => {
+      await seedTestRelease(env.DB, '1.1.0', 1);
+      const rel = await env.DB.prepare('SELECT id FROM app_releases WHERE version = ?').bind('1.1.0').first() as any;
+      assert.ok(rel);
+
+      // Disable release
+      const toggleReq = new Request(`http://localhost/api/admin/releases/${rel.id}/toggle`, {
+        method: 'POST',
+        headers: { 'X-Admin-Secret': ADMIN_SECRET },
+      });
+      const toggleRes = await server.fetch(toggleReq, env);
+      assert.equal(toggleRes.status, 200);
+      const toggleData = await toggleRes.json() as any;
+      assert.equal(toggleData.is_published, 0);
+
+      // Client check now returns no update!
+      const checkReq = new Request('http://localhost/api/updates/check?version=1.0.0');
+      const checkRes = await server.fetch(checkReq, env);
+      const checkData = await checkRes.json() as any;
+      assert.equal(checkData.hasUpdate, false);
+
+      // Re-enable
+      const reToggle = await server.fetch(toggleReq, env);
+      const reData = await reToggle.json() as any;
+      assert.equal(reData.is_published, 1);
+    });
+
+    it('Client update check respects license status and can_receive_updates entitlement', async () => {
+      await seedTestRelease(env.DB, '1.1.0', 1);
+
+      // 1. Valid active license
+      const reqActive = new Request('http://localhost/api/updates/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          license_key: 'RFQ-PERM-8899-A1B2',
+          current_version: '1.0.0',
+        }),
+      });
+      const resActive = await server.fetch(reqActive, env);
+      const dataActive = await resActive.json() as any;
+      assert.equal(dataActive.hasUpdate, true);
+      assert.equal(dataActive.isEligible, true);
+
+      // 2. Disabled license
+      const reqDisabled = new Request('http://localhost/api/updates/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          license_key: 'RFQ-DISA-0000-DEAD',
+          current_version: '1.0.0',
+        }),
+      });
+      const resDisabled = await server.fetch(reqDisabled, env);
+      const dataDisabled = await resDisabled.json() as any;
+      assert.equal(dataDisabled.hasUpdate, false);
+      assert.equal(dataDisabled.isEligible, false);
+
+      // 3. Blocked updates entitlement
+      await env.DB.prepare("UPDATE licenses SET can_receive_updates = 0 WHERE license_key = 'RFQ-PERM-8899-A1B2'").run();
+      const reqBlocked = new Request('http://localhost/api/updates/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          license_key: 'RFQ-PERM-8899-A1B2',
+          current_version: '1.0.0',
+        }),
+      });
+      const resBlocked = await server.fetch(reqBlocked, env);
+      const dataBlocked = await resBlocked.json() as any;
+      assert.equal(dataBlocked.hasUpdate, false);
+      assert.equal(dataBlocked.isEligible, false);
+
+      // Restore
+      await env.DB.prepare("UPDATE licenses SET can_receive_updates = 1 WHERE license_key = 'RFQ-PERM-8899-A1B2'").run();
+    });
+
+    it('Client update check rejects expired updates_until subscription', async () => {
+      await seedTestRelease(env.DB, '1.1.0', 1);
+
+      // Set expired updates_until (yesterday)
+      const yesterday = new Date(Date.now() - 86400000).toISOString();
+      await env.DB.prepare("UPDATE licenses SET updates_until = ? WHERE license_key = 'RFQ-PERM-8899-A1B2'").bind(yesterday).run();
+
+      const req = new Request('http://localhost/api/updates/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          license_key: 'RFQ-PERM-8899-A1B2',
+          current_version: '1.0.0',
+        }),
+      });
+      const res = await server.fetch(req, env);
+      const data = await res.json() as any;
+      assert.equal(data.hasUpdate, false);
+      assert.equal(data.isEligible, false);
+      assert.ok(data.message.includes('انتهت فترة الدعم والتحديثات'));
+
+      // Clean up
+      await env.DB.prepare("UPDATE licenses SET updates_until = NULL WHERE license_key = 'RFQ-PERM-8899-A1B2'").run();
+    });
+
+    it('Admin can toggle license update entitlement and extend subscription', async () => {
+      const lic = await env.DB.prepare("SELECT id FROM licenses WHERE license_key = 'RFQ-PERM-8899-A1B2'").first() as any;
+      assert.ok(lic);
+
+      // 1. Toggle updates
+      const togReq = new Request(`http://localhost/api/admin/licenses/${lic.id}/toggle-updates`, {
+        method: 'POST',
+        headers: { 'X-Admin-Secret': ADMIN_SECRET },
+      });
+      const togRes = await server.fetch(togReq, env);
+      assert.equal(togRes.status, 200);
+      const togData = await togRes.json() as any;
+      assert.equal(togData.can_receive_updates, 0);
+
+      // 2. Extend subscription for 365 days
+      const extReq = new Request(`http://localhost/api/admin/licenses/${lic.id}/extend-updates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({ days: 365 }),
+      });
+      const extRes = await server.fetch(extReq, env);
+      assert.equal(extRes.status, 200);
+      const extData = await extRes.json() as any;
+      assert.equal(extData.success, true);
+      assert.equal(extData.can_receive_updates, 1);
+      assert.ok(extData.updates_until);
+    });
+  });
   });
 });
 

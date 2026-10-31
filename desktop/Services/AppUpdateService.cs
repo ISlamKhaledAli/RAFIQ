@@ -16,6 +16,7 @@ namespace RafiqPOS.Services
     public class AppUpdateInfo
     {
         public bool HasUpdate { get; set; }
+        public bool IsEligible { get; set; }
         public string CurrentVersion { get; set; }
         public string LatestVersion { get; set; }
         public string ReleaseDate { get; set; }
@@ -39,6 +40,14 @@ namespace RafiqPOS.Services
         public string BackupPath { get; set; }
         public bool RollbackTriggered { get; set; }
         public int FilesStagedCount { get; set; }
+    }
+
+    public class AppDownloadResult
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; }
+        public string PackagePath { get; set; }
+        public string ActualSha256 { get; set; }
     }
 
     public class AppUpdateService
@@ -86,6 +95,16 @@ namespace RafiqPOS.Services
                     ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | SecurityProtocolType.Tls12;
                     string targetUrl = string.IsNullOrEmpty(manifestJsonOrUrl) ? DEFAULT_UPDATE_SERVER_URL : manifestJsonOrUrl;
 
+                    // Automatically attach license and machine identity if querying the official server
+                    if (targetUrl.StartsWith(DEFAULT_UPDATE_SERVER_URL, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string licKey = _settingsRepo != null ? _settingsRepo.Get("license_key", "") : "";
+                        string fp = EncryptionService.GenerateDeviceFingerprint();
+                        string sep = targetUrl.Contains("?") ? "&" : "?";
+                        targetUrl = string.Format("{0}{1}version={2}&license_key={3}&machine_fingerprint={4}",
+                            targetUrl, sep, Uri.EscapeDataString(CURRENT_VERSION), Uri.EscapeDataString(licKey), Uri.EscapeDataString(fp));
+                    }
+
                     HttpWebRequest request = (HttpWebRequest)WebRequest.Create(targetUrl);
                     request.Method = "GET";
                     request.Timeout = NETWORK_TIMEOUT_MS;
@@ -102,14 +121,17 @@ namespace RafiqPOS.Services
                 if (!string.IsNullOrEmpty(jsonContent))
                 {
                     JObject json = JObject.Parse(jsonContent);
-                    string remoteVer = json["version"] != null ? json["version"].ToString() : "";
+                    string remoteVer = json["latestVersion"] != null ? json["latestVersion"].ToString() : (json["version"] != null ? json["version"].ToString() : "");
                     string releaseDate = json["releaseDate"] != null ? json["releaseDate"].ToString() : "";
                     string changelog = json["changelog"] != null ? json["changelog"].ToString() : "";
                     string downloadUrl = json["downloadUrl"] != null ? json["downloadUrl"].ToString() : "";
                     string sha = json["sha256"] != null ? json["sha256"].ToString() : "";
                     bool isMandatory = json["isMandatory"] != null && json["isMandatory"].Value<bool>();
                     long size = json["fileSizeBytes"] != null ? json["fileSizeBytes"].Value<long>() : 0;
+                    bool isEligible = json["isEligible"] == null || json["isEligible"].Value<bool>();
+                    string srvMsg = json["message"] != null ? json["message"].ToString() : "";
 
+                    info.IsEligible = isEligible;
                     info.LatestVersion = remoteVer;
                     info.ReleaseDate = releaseDate;
                     info.Changelog = changelog;
@@ -118,7 +140,12 @@ namespace RafiqPOS.Services
                     info.IsMandatory = isMandatory;
                     info.FileSizeBytes = size;
 
-                    if (!string.IsNullOrEmpty(remoteVer) && CompareVersions(remoteVer, CURRENT_VERSION) > 0)
+                    if (!isEligible)
+                    {
+                        info.HasUpdate = false;
+                        info.ErrorMessage = !string.IsNullOrEmpty(srvMsg) ? srvMsg : "الترخيص غير مؤهل لتلقي التحديثات.";
+                    }
+                    else if (!string.IsNullOrEmpty(remoteVer) && CompareVersions(remoteVer, CURRENT_VERSION) > 0)
                     {
                         info.HasUpdate = true;
                     }
@@ -483,7 +510,138 @@ namespace RafiqPOS.Services
             return 0;
         }
 
-        public static string ComputeFileSha256(string filePath)
+
+        public AppDownloadResult DownloadUpdate(string downloadUrl, string expectedSha256)
+        {
+            AppDownloadResult result = new AppDownloadResult();
+            if (string.IsNullOrEmpty(downloadUrl))
+            {
+                result.Success = false;
+                result.Message = "رابط تحميل التحديث غير صالح أو فارغ.";
+                return result;
+            }
+
+            try
+            {
+                ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | SecurityProtocolType.Tls12;
+
+                string commonData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+                string updatesFolder = Path.Combine(commonData, "RafiqPOS", "updates");
+                if (!Directory.Exists(updatesFolder))
+                {
+                    Directory.CreateDirectory(updatesFolder);
+                }
+
+                string fileName = Path.GetFileName(new Uri(downloadUrl).AbsolutePath);
+                if (string.IsNullOrEmpty(fileName) || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                {
+                    fileName = "rafiq_update_latest.pkg";
+                }
+                string targetFilePath = Path.Combine(updatesFolder, fileName);
+
+                if (File.Exists(targetFilePath))
+                {
+                    try { File.Delete(targetFilePath); } catch { }
+                }
+
+                using (var client = new WebClient())
+                {
+                    client.Headers.Add("User-Agent", "RafiqPOS/" + CURRENT_VERSION + " (.NET4.8; Win7-11)");
+                    client.DownloadFile(new Uri(downloadUrl), targetFilePath);
+                }
+
+                // Verify Checksum Integrity
+                string actualSha = ComputeFileSha256(targetFilePath);
+                if (!string.IsNullOrEmpty(expectedSha256) && !string.Equals(actualSha, expectedSha256.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    try { File.Delete(targetFilePath); } catch { }
+                    result.Success = false;
+                    result.Message = "فشل التحقق من أمان وبصمة ملف التحديث المنقول (SHA-256). تم إلغاء العملية لحماية النظام.";
+                    return result;
+                }
+
+                result.Success = true;
+                result.PackagePath = targetFilePath;
+                result.ActualSha256 = actualSha;
+                result.Message = "تم تحميل حزمة التحديث بنجاح والتحقق من سلامتها الرقمية.";
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("AppUpdateService: فشل تحميل التحديث أونلاين", ex);
+                result.Success = false;
+                result.Message = "حدث خطأ أثناء تحميل ملف التحديث: " + ex.Message;
+                return result;
+            }
+        }
+
+        public bool LaunchRestartUpdater(out string errorMessage)
+        {
+            errorMessage = null;
+            try
+            {
+                string appDir = AppDomain.CurrentDomain.BaseDirectory;
+                string stagingDir = Path.Combine(appDir, "update_staging");
+
+                if (!Directory.Exists(stagingDir))
+                {
+                    errorMessage = "مجلد تجهيز التحديث غير موجود. يرجى تجهيز التحديث أولاً.";
+                    return false;
+                }
+
+                string currentPid = System.Diagnostics.Process.GetCurrentProcess().Id.ToString();
+                string commonData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+                string updaterBatPath = Path.Combine(commonData, "RafiqPOS", "rafiq_updater.bat");
+
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("@echo off");
+                sb.AppendLine("chcp 65001 > nul");
+                sb.AppendLine("set APP_DIR=" + appDir.TrimEnd('\\'));
+                sb.AppendLine("set STAGING_DIR=" + stagingDir.TrimEnd('\\'));
+                sb.AppendLine("set TARGET_PID=" + currentPid);
+                sb.AppendLine();
+                sb.AppendLine(":WAIT_LOOP");
+                sb.AppendLine("tasklist /FI \"PID eq %TARGET_PID%\" 2>nul | find \"%TARGET_PID%\" >nul");
+                sb.AppendLine("if %errorlevel% equ 0 (");
+                sb.AppendLine("    timeout /t 1 /nobreak > nul");
+                sb.AppendLine("    goto WAIT_LOOP");
+                sb.AppendLine(")");
+                sb.AppendLine();
+                sb.AppendLine("timeout /t 1 /nobreak > nul");
+                sb.AppendLine();
+                sb.AppendLine(":: Copy new files safely");
+                sb.AppendLine("xcopy \"%STAGING_DIR%\\*\" \"%APP_DIR%\\\" /s /e /y /q > nul 2>&1");
+                sb.AppendLine();
+                sb.AppendLine(":: Clean staging area");
+                sb.AppendLine("rd /s /q \"%STAGING_DIR%\" > nul 2>&1");
+                sb.AppendLine();
+                sb.AppendLine(":: Restart Rafiq POS");
+                sb.AppendLine("start \"\" \"%APP_DIR%\\RafiqPOS.exe\"");
+                sb.AppendLine();
+                sb.AppendLine(":: Self-delete updater");
+                sb.AppendLine("(goto) 2>nul & del \"%~f0\"");
+
+                File.WriteAllText(updaterBatPath, sb.ToString(), Encoding.GetEncoding(1256));
+
+                var psi = new System.Diagnostics.ProcessStartInfo();
+                psi.FileName = "cmd.exe";
+                psi.Arguments = "/c \"" + updaterBatPath + "\"";
+                psi.CreateNoWindow = true;
+                psi.UseShellExecute = false;
+                psi.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                System.Diagnostics.Process.Start(psi);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("AppUpdateService: فشل إطلاق سكريبت التحديث والتبديل", ex);
+                errorMessage = "تعذر إطلاق التحديث التلقائي: " + ex.Message;
+                return false;
+            }
+        }
+
+                public static string ComputeFileSha256(string filePath)
         {
             using (var sha = SHA256.Create())
             using (var stream = File.OpenRead(filePath))

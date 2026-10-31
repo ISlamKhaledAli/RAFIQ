@@ -12,6 +12,7 @@ import {
   Clock,
   Layers,
   CheckCircle2,
+  DownloadCloud,
 } from 'lucide-react';
 import type { SystemNotificationItem } from '../utils/useSystemNotifications';
 
@@ -100,6 +101,8 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
           return <AlertTriangle className="w-4 h-4 text-rose-600" />;
         case 'demo':
           return <FlaskConical className="w-4 h-4 text-amber-600" />;
+        case 'update':
+          return <DownloadCloud className="w-4 h-4 text-emerald-600" />;
         default:
           return type === 'critical' ? (
             <AlertTriangle className="w-4 h-4 text-rose-600" />

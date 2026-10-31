@@ -1,4 +1,4 @@
-import type { Env, LicenseRecord, LicenseType, ActivationLogRecord } from '../types.ts';
+import type { Env, LicenseRecord, LicenseType, ActivationLogRecord, ReleaseRecord } from '../types.ts';
 import { validateAdminSecret } from '../auth.ts';
 import { 
   generateOfflineSupportCode,
@@ -586,6 +586,181 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
         { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );
     }
+  }
+
+  
+  // ==========================================
+  // RELEASES & UPDATE ENTITLEMENT MANAGEMENT
+  // ==========================================
+
+  // 12. GET /api/admin/releases - List all releases
+  if (request.method === 'GET' && url.pathname === '/api/admin/releases') {
+    const releases = await env.DB.prepare(
+      'SELECT * FROM app_releases ORDER BY release_date DESC, created_at DESC LIMIT 100'
+    ).all<ReleaseRecord>();
+
+    return new Response(
+      JSON.stringify({ success: true, releases: releases.results || [] }),
+      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
+  }
+
+  // 13. POST /api/admin/releases - Publish new release
+  if (request.method === 'POST' && url.pathname === '/api/admin/releases') {
+    const body = await request.json<{
+      version: string;
+      release_date?: string;
+      title?: string;
+      changelog?: string;
+      download_url: string;
+      sha256: string;
+      file_size_bytes?: number;
+      is_mandatory?: boolean;
+      is_published?: boolean;
+    }>();
+
+    if (!body.version || !body.download_url || !body.sha256) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'بيانات رقم الإصدار ورابط التحميل وبصمة الهاش (SHA-256) إلزامية' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    const id = crypto.randomUUID();
+    const cleanVersion = body.version.trim().replace(/^[vV]/, '');
+    const releaseDate = body.release_date ? body.release_date.trim() : new Date().toISOString().slice(0, 10);
+    const title = body.title && body.title.trim() ? body.title.trim() : ('إصدار رفيق v' + cleanVersion);
+    const changelog = body.changelog && body.changelog.trim() ? body.changelog.trim() : 'تحسينات عامة واستقرار إضافي للنظام.';
+    const downloadUrl = body.download_url.trim();
+    const sha256 = body.sha256.trim().toUpperCase();
+    const fileSizeBytes = Number(body.file_size_bytes) || 0;
+    const isMandatory = body.is_mandatory ? 1 : 0;
+    const isPublished = body.is_published !== undefined ? (body.is_published ? 1 : 0) : 1;
+
+    // Check if version already exists
+    const existing = await env.DB.prepare('SELECT id FROM app_releases WHERE version = ?').bind(cleanVersion).first();
+    if (existing) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'رقم هذا الإصدار مسجل مسبقاً في قائمة التحديثات' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    await env.DB.prepare(
+      `INSERT INTO app_releases (id, version, release_date, title, changelog, download_url, sha256, file_size_bytes, is_mandatory, is_published, min_client_version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1.0.0', datetime('now'), datetime('now'))`
+    ).bind(
+      id, cleanVersion, releaseDate, title, changelog, downloadUrl, sha256, fileSizeBytes, isMandatory, isPublished
+    ).run();
+
+    return new Response(
+      JSON.stringify({ success: true, message: 'تم نشر حزمة الإصدار الجديد بنجاح', id, version: cleanVersion }),
+      { status: 201, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
+  }
+
+  // 14. POST /api/admin/releases/:id/toggle - Toggle release published state (Emergency Kill Switch)
+  const toggleRelMatch = url.pathname.match(/^\/api\/admin\/releases\/([^/]+)\/toggle$/);
+  if (request.method === 'POST' && toggleRelMatch) {
+    const relId = toggleRelMatch[1];
+    const rel = await env.DB.prepare('SELECT * FROM app_releases WHERE id = ?').bind(relId).first<ReleaseRecord>();
+    if (!rel) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'الإصدار غير موجود' }),
+        { status: 404, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+    const newPublished = rel.is_published === 1 ? 0 : 1;
+    await env.DB.prepare("UPDATE app_releases SET is_published = ?, updated_at = datetime('now') WHERE id = ?")
+      .bind(newPublished, relId)
+      .run();
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: newPublished === 1 ? 'تم تفعيل نشر الإصدار للعملاء' : 'تم إيقاف نشر الإصدار فورياً للعملاء (Emergency Stop)',
+        is_published: newPublished
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
+  }
+
+  // 15. POST /api/admin/releases/:id/delete - Delete release record
+  const delRelMatch = url.pathname.match(/^\/api\/admin\/releases\/([^/]+)\/delete$/);
+  if (request.method === 'POST' && delRelMatch) {
+    const relId = delRelMatch[1];
+    await env.DB.prepare('DELETE FROM app_releases WHERE id = ?').bind(relId).run();
+    return new Response(
+      JSON.stringify({ success: true, message: 'تم حذف سجل الإصدار بنجاح' }),
+      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
+  }
+
+  // 16. POST /api/admin/licenses/:id/toggle-updates - Toggle license update entitlement
+  const toggleLicUpdMatch = url.pathname.match(/^\/api\/admin\/licenses\/([^/]+)\/toggle-updates$/);
+  if (request.method === 'POST' && toggleLicUpdMatch) {
+    const licId = toggleLicUpdMatch[1];
+    const lic = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?').bind(licId).first<LicenseRecord>();
+    if (!lic) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'الترخيص غير موجود' }),
+        { status: 404, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+    const newCan = lic.can_receive_updates === 1 ? 0 : 1;
+    await env.DB.prepare("UPDATE licenses SET can_receive_updates = ?, updated_at = datetime('now') WHERE id = ?")
+      .bind(newCan, licId)
+      .run();
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: newCan === 1 ? 'تم تفعيل استلام التحديثات الهوائية لهذا المحل' : 'تم إيقاف استلام التحديثات الهوائية لهذا المحل',
+        can_receive_updates: newCan
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
+  }
+
+  // 17. POST /api/admin/licenses/:id/extend-updates - Extend update entitlement period
+  const extLicUpdMatch = url.pathname.match(/^\/api\/admin\/licenses\/([^/]+)\/extend-updates$/);
+  if (request.method === 'POST' && extLicUpdMatch) {
+    const licId = extLicUpdMatch[1];
+    const body = await request.json<{ days?: number; lifetime?: boolean }>();
+    const lic = await env.DB.prepare('SELECT * FROM licenses WHERE id = ?').bind(licId).first<LicenseRecord>();
+    if (!lic) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'الترخيص غير موجود' }),
+        { status: 404, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    let newUntil: string | null = null;
+    if (body.lifetime) {
+      newUntil = null;
+    } else if (body.days && Number(body.days) > 0) {
+      let base = new Date();
+      if (lic.updates_until) {
+        const cur = new Date(lic.updates_until);
+        if (cur > base) base = cur;
+      }
+      base.setDate(base.getDate() + Number(body.days));
+      newUntil = base.toISOString();
+    }
+
+    await env.DB.prepare("UPDATE licenses SET can_receive_updates = 1, updates_until = ?, updated_at = datetime('now') WHERE id = ?")
+      .bind(newUntil, licId)
+      .run();
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'تم تمديد فترة التحديثات الهوائية بنجاح',
+        updates_until: newUntil,
+        can_receive_updates: 1
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
   }
 
   return new Response(

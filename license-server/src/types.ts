@@ -26,6 +26,9 @@ export interface LicenseRecord {
   max_devices: number;
   activated_at: string | null;
   expires_at: string | null;
+  can_receive_updates: number; // 1 = eligible, 0 = blocked
+  updates_until: string | null; // ISO datetime or null for lifetime
+  max_allowed_version: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -65,4 +68,41 @@ export interface ActivationTokenPayload {
   nonce?: string;
   /** Unique token identifier used to prevent replay attacks and burn on single-use */
   jti?: string;
+}
+
+export interface ReleaseRecord {
+  id: string;
+  version: string;
+  release_date: string;
+  title: string;
+  changelog: string;
+  download_url: string;
+  sha256: string;
+  file_size_bytes: number;
+  is_mandatory: number;
+  is_published: number;
+  min_client_version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CheckUpdateRequest {
+  license_key?: string;
+  machine_fingerprint?: string;
+  current_version?: string;
+}
+
+export interface CheckUpdateResponse {
+  hasUpdate: boolean;
+  isEligible?: boolean;
+  currentVersion?: string;
+  latestVersion?: string;
+  releaseDate?: string;
+  title?: string;
+  changelog?: string;
+  downloadUrl?: string;
+  sha256?: string;
+  isMandatory?: boolean;
+  fileSizeBytes?: number;
+  message?: string;
 }

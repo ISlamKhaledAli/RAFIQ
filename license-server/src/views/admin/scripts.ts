@@ -17,6 +17,7 @@ export const adminScripts = `
     let activeMainTab = 'licenses'; // 'licenses' | 'logs'
     let allLicenses = [];
     let allLogs = [];
+    let allReleases = [];
     let currentShareData = null;
 
     // Licenses Filter & Pagination State
@@ -103,17 +104,23 @@ export const adminScripts = `
       const tabBtnLic = document.getElementById('tabBtnLicenses');
       const tabBtnLogs = document.getElementById('tabBtnLogs');
       const tabBtnOffline = document.getElementById('tabBtnOffline');
+      const releasesView = document.getElementById('releasesView');
+      const tabBtnReleases = document.getElementById('tabBtnReleases');
 
       if (licView) licView.style.display = tab === 'licenses' ? 'flex' : 'none';
       if (logsView) logsView.style.display = tab === 'logs' ? 'flex' : 'none';
       if (offlineView) offlineView.style.display = tab === 'offline' ? 'flex' : 'none';
+      if (releasesView) releasesView.style.display = tab === 'releases' ? 'flex' : 'none';
 
       if (tabBtnLic) tabBtnLic.classList.toggle('active', tab === 'licenses');
       if (tabBtnLogs) tabBtnLogs.classList.toggle('active', tab === 'logs');
       if (tabBtnOffline) tabBtnOffline.classList.toggle('active', tab === 'offline');
+      if (tabBtnReleases) tabBtnReleases.classList.toggle('active', tab === 'releases');
 
       if (tab === 'logs' && allLogs.length === 0) {
         loadLogs();
+      } else if (tab === 'releases' && allReleases.length === 0) {
+        loadReleases();
       }
     }
 
@@ -122,6 +129,8 @@ export const adminScripts = `
         loadLicenses();
       } else if (activeMainTab === 'logs') {
         loadLogs();
+      } else if (activeMainTab === 'releases') {
+        loadReleases();
       }
     }
 
@@ -553,7 +562,7 @@ export const adminScripts = `
 
       // Render Pagination Info & Controls
       document.getElementById('licensesPaginationText').textContent = 
-        totalItems === 0 ? 'لا توجد نتائج' : \`عرض \${startIndex + 1} إلى \${endIndex} من أصل \${totalItems} ترخيص\`;
+        totalItems === 0 ? 'لا توجد نتائج' : ('عرض ' + (startIndex + 1) + ' إلى ' + endIndex + ' من أصل ' + totalItems + ' ترخيص');
 
       renderPaginationControls(
         'licensesPaginationControls',
@@ -601,7 +610,10 @@ export const adminScripts = `
         } else if (isExpired || lic.status === 'expired') {
           statusHtml = '<span class="pill pill-expired">منتهي الصلاحية</span>';
         } else if (lic.status === 'active') {
-          statusHtml = '<span class="pill pill-active">مفعل ونشط</span>';
+          const updBadge = lic.can_receive_updates === 0 
+            ? '<span style="font-size:10.5px; color:#b45309; display:block; margin-top:3px; font-weight:800;">(التحديثات معطلة)</span>'
+            : '<span style="font-size:10.5px; color:var(--emerald); display:block; margin-top:3px; font-weight:800;">(التحديثات مفعّلة)</span>';
+          statusHtml = '<span class="pill pill-active">مفعل ونشط</span>' + updBadge;
         }
 
         // Hardware device info
@@ -668,6 +680,15 @@ export const adminScripts = `
                 <button class="actions-menu-item" onclick="closeAllRowMenus(); openEditModal('\${lic.id}')">
                   <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   <span>تمديد وتعديل الصلاحية</span>
+                </button>
+                <div class="actions-menu-divider"></div>
+                <button class="actions-menu-item" onclick="closeAllRowMenus(); toggleLicenseUpdates('\${lic.id}', '\${lic.shop_name}')">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <span>\${lic.can_receive_updates === 0 ? 'تفعيل استلام التحديثات' : 'إيقاف استلام التحديثات'}</span>
+                </button>
+                <button class="actions-menu-item" onclick="closeAllRowMenus(); openExtendUpdatesModal('\${lic.id}', '\${lic.shop_name}')">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                  <span>تمديد فترة التحديثات الهوائية</span>
                 </button>
                 \${lic.machine_fingerprint ? \`
                   <button class="actions-menu-item" onclick="closeAllRowMenus(); resetDevice('\${lic.id}', '\${lic.shop_name}')">
@@ -856,7 +877,7 @@ export const adminScripts = `
 
       // Render Pagination Info & Controls
       document.getElementById('logsPaginationText').textContent = 
-        totalItems === 0 ? 'لا توجد حركات تدقيق' : \`عرض \${startIndex + 1} إلى \${endIndex} من أصل \${totalItems} حركة\`;
+        totalItems === 0 ? 'لا توجد حركات تدقيق' : ('عرض ' + (startIndex + 1) + ' إلى ' + endIndex + ' من أصل ' + totalItems + ' حركة');
 
       renderPaginationControls(
         'logsPaginationControls',
@@ -906,7 +927,7 @@ export const adminScripts = `
               <span>\${isSuccess ? 'ناجح' : 'فشل'}</span>
             </span>
           </td>
-          <td>\${escapeHtml(translateReason(log.failure_reason))}</td>
+          <td>\${translateReason(log.failure_reason)}</td>
           <td>
             <code style="font-size:12px; color:var(--text); font-family:monospace; font-weight:700;">\${log.ip_address || '-'}</code>
           </td>
@@ -1021,7 +1042,7 @@ export const adminScripts = `
       if (r === 'LICENSE_DISABLED') return '<span style="color:#dc2626; font-weight:800;">الترخيص معطل من الإدارة</span>';
       if (r === 'LICENSE_EXPIRED') return '<span style="color:#475569; font-weight:800;">انتهت فترة الصلاحية</span>';
       if (r === 'LICENSE_NOT_FOUND') return '<span style="color:#dc2626; font-weight:800;">الرمز غير مسجل بقاعدة البيانات</span>';
-      return '<span style="font-weight:700;">' + r + '</span>';
+      return '<span style="font-weight:700; color:var(--text);">' + escapeHtml(r) + '</span>';
     }
 
     function formatLogDate(d) {
@@ -1812,6 +1833,231 @@ export const adminScripts = `
           }
         }
       );
+    }
+
+
+
+    // ==========================================
+    // RELEASES & OVER-THE-AIR UPDATE MANAGEMENT
+    // ==========================================
+
+    function openPublishReleaseModal() {
+      var today = new Date().toISOString().split('T')[0];
+      document.getElementById('pubDate').value = today;
+      document.getElementById('pubVersion').value = '';
+      document.getElementById('pubTitle').value = '';
+      document.getElementById('pubUrl').value = '';
+      document.getElementById('pubSha').value = '';
+      document.getElementById('pubSize').value = '';
+      document.getElementById('pubChangelog').value = '';
+      openModal('publishReleaseModal');
+    }
+
+    async function handlePublishRelease(e) {
+      e.preventDefault();
+      var version = document.getElementById('pubVersion').value.trim();
+      var release_date = document.getElementById('pubDate').value;
+      var title = document.getElementById('pubTitle').value.trim();
+      var download_url = document.getElementById('pubUrl').value.trim();
+      var sha256 = document.getElementById('pubSha').value.trim().toUpperCase();
+      var file_size_bytes = Number(document.getElementById('pubSize').value) || 0;
+      var is_mandatory = Number(document.getElementById('pubMandatory').value) || 0;
+      var changelog = document.getElementById('pubChangelog').value.trim();
+
+      try {
+        var res = await fetch('/api/admin/releases', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Secret': getSecret()
+          },
+          body: JSON.stringify({
+            version: version,
+            release_date: release_date,
+            title: title,
+            download_url: download_url,
+            sha256: sha256,
+            file_size_bytes: file_size_bytes,
+            is_mandatory: is_mandatory,
+            changelog: changelog
+          })
+        });
+        var data = await res.json();
+        if (data.success) {
+          closeModal('publishReleaseModal');
+          showToast('تم نشر حزمة الإصدار الجديد بنجاح!');
+          loadReleases();
+        } else {
+          showToast(data.message || 'فشل نشر الإصدار', true);
+        }
+      } catch (err) {
+        showToast('خطأ في الاتصال بالسيرفر', true);
+      }
+    }
+
+    async function loadReleases() {
+      if (!checkAuth()) return;
+      try {
+        var res = await fetch('/api/admin/releases', {
+          headers: { 'X-Admin-Secret': getSecret() }
+        });
+        if (res.status === 401) {
+          checkAuth();
+          return;
+        }
+        var data = await res.json();
+        if (data.success) {
+          allReleases = data.releases || [];
+          var kpiTotal = document.getElementById('kpi-releases-total');
+          if (kpiTotal) kpiTotal.textContent = allReleases.length;
+          var badgeCount = document.getElementById('badgeReleasesCount');
+          if (badgeCount) badgeCount.textContent = allReleases.length;
+          var kpiLatest = document.getElementById('kpi-releases-latest');
+          var activeRel = allReleases.find(function(r) { return r.is_published === 1; });
+          if (kpiLatest) {
+            kpiLatest.textContent = activeRel ? 'v' + activeRel.version : 'لا يوجد نشط';
+          }
+          renderReleasesTable();
+        }
+      } catch (err) {
+        console.error('Failed to load releases:', err);
+        showToast('تعذر تحميل سجل التحديثات', true);
+      }
+    }
+
+    function renderReleasesTable() {
+      var tbody = document.getElementById('releasesTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (allReleases.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted); font-size:13px; font-weight:700;">لا توجد إصدارات منشورة حتى الآن. اضغط على زر (نشر إصدار جديد للعملاء) للبدء.</td></tr>';
+        return;
+      }
+
+      allReleases.forEach(function(rel, idx) {
+        var tr = document.createElement('tr');
+        tr.className = 'table-row-animated';
+        var isPub = rel.is_published === 1;
+        var pubBadge = isPub 
+          ? '<span class="pill pill-active"><span class="status-dot"></span>متاح للعملاء (نشط)</span>'
+          : '<span class="pill pill-expired">متوقف (Kill Switch)</span>';
+        var mandBadge = rel.is_mandatory ? '<span class="pill pill-danger" style="font-size:10px; padding:2px 6px;">إجباري</span>' : '';
+        var shaShort = rel.sha256 ? rel.sha256.substring(0, 10) + '...' : '-';
+        var copyShaBtn = rel.sha256 ? '<button class="btn-icon-copy" data-val="' + rel.sha256 + '" onclick="copyKey(this.dataset.val)" title="نسخ الهاش الكامل"><svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>' : '';
+
+        tr.innerHTML = 
+          '<td style="font-family:monospace; color:var(--text-muted); font-size:12px; font-weight:700;">' + (idx + 1) + '</td>' +
+          '<td><div style="font-family:monospace; font-size:13.5px; font-weight:900; color:var(--primary); display:flex; align-items:center; gap:6px;"><span>v' + rel.version + '</span>' + mandBadge + '</div></td>' +
+          '<td style="font-size:12px; font-weight:700; color:var(--text-muted);">' + (rel.release_date || '-') + '</td>' +
+          '<td><div style="font-weight:800; font-size:12.5px; color:var(--text-main); margin-bottom:2px;">' + (rel.title || 'تحديث رفيق') + '</div><div style="font-size:11.5px; color:var(--text-muted); max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (rel.changelog || '-') + '</div></td>' +
+          '<td><div style="display:flex; align-items:center; gap:6px;"><a href="' + rel.download_url + '" target="_blank" style="font-size:11.5px; font-family:monospace; color:var(--primary); text-decoration:none; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + rel.download_url + '</a><button class="btn-icon-copy" data-val="' + rel.download_url + '" onclick="copyKey(this.dataset.val)" title="نسخ رابط التنزيل"><svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></td>' +
+          '<td><div style="display:flex; align-items:center; gap:4px;"><span style="font-family:monospace; font-size:11px; background:#f1f5f9; padding:3px 6px; border-radius:4px; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + (rel.sha256 || '') + '">' + shaShort + '</span>' + copyShaBtn + '</div></td>' +
+          '<td>' + pubBadge + '</td>' +
+          '<td><div style="display:flex; align-items:center; gap:6px;"><button class="btn-row" data-id="' + rel.id + '" data-status="' + (isPub ? 0 : 1) + '" onclick="toggleReleaseStatus(this.dataset.id, Number(this.dataset.status))" title="' + (isPub ? 'إيقاف هذا الإصدار فوراً' : 'تفعيل هذا الإصدار وإتاحته للعملاء') + '">' + (isPub ? 'إيقاف التوزيع' : 'تفعيل وتوزيع') + '</button><button class="btn-row" style="color:var(--danger); border-color:rgba(239,68,68,0.2);" data-id="' + rel.id + '" data-version="' + rel.version + '" onclick="deleteRelease(this.dataset.id, this.dataset.version)" title="حذف الإصدار">حذف</button></div></td>';
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function toggleReleaseStatus(id, newStatus) {
+      try {
+        var res = await fetch('/api/admin/releases/' + id + '/toggle', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Secret': getSecret()
+          },
+          body: JSON.stringify({ is_published: newStatus })
+        });
+        var data = await res.json();
+        if (data.success) {
+          showToast(newStatus === 1 ? 'تم تفعيل التحديث وإتاحته للعملاء!' : 'تم إيقاف التحديث فوراً (Kill Switch)');
+          loadReleases();
+        } else {
+          showToast(data.message || 'فشل تحديث الحالة', true);
+        }
+      } catch (err) {
+        showToast('خطأ في الاتصال بالسيرفر', true);
+      }
+    }
+
+    async function deleteRelease(id, version) {
+      showConfirm(
+        'حذف سجل التحديث',
+        'هل أنت متأكد من حذف سجل الإصدار v' + version + ' نهائياً؟',
+        async function() {
+          try {
+            var res = await fetch('/api/admin/releases/' + id + '/delete', {
+              method: 'POST',
+              headers: { 'X-Admin-Secret': getSecret() }
+            });
+            var data = await res.json();
+            if (data.success) {
+              showToast('تم حذف سجل الإصدار بنجاح');
+              loadReleases();
+            } else {
+              showToast(data.message || 'فشل الحذف', true);
+            }
+          } catch (err) {
+            showToast('خطأ في الاتصال بالسيرفر', true);
+          }
+        }
+      );
+    }
+
+    // License Update Entitlements Functions
+    async function toggleLicenseUpdates(id, shopName) {
+      try {
+        var res = await fetch('/api/admin/licenses/' + id + '/toggle-updates', {
+          method: 'POST',
+          headers: { 'X-Admin-Secret': getSecret() }
+        });
+        var data = await res.json();
+        if (data.success) {
+          showToast(data.message || 'تم تحديث حالة استلام التحديثات');
+          loadLicenses();
+        } else {
+          showToast(data.message || 'فشل تبديل حالة التحديثات', true);
+        }
+      } catch (err) {
+        showToast('خطأ في الاتصال بالسيرفر', true);
+      }
+    }
+
+    function openExtendUpdatesModal(id, shopName) {
+      document.getElementById('extUpdLicId').value = id;
+      document.getElementById('extUpdShopName').textContent = shopName;
+      openModal('extendUpdatesModal');
+    }
+
+    async function handleExtendUpdates(e) {
+      e.preventDefault();
+      var id = document.getElementById('extUpdLicId').value;
+      var duration = document.getElementById('extUpdDuration').value;
+      var isLifetime = duration === 'lifetime';
+      var days = isLifetime ? 0 : Number(duration);
+
+      try {
+        var res = await fetch('/api/admin/licenses/' + id + '/extend-updates', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Secret': getSecret()
+          },
+          body: JSON.stringify({ days: days, lifetime: isLifetime })
+        });
+        var data = await res.json();
+        if (data.success) {
+          closeModal('extendUpdatesModal');
+          showToast('تم تمديد فترة التحديثات الهوائية بنجاح!');
+          loadLicenses();
+        } else {
+          showToast(data.message || 'فشل تمديد التحديثات', true);
+        }
+      } catch (err) {
+        showToast('خطأ في الاتصال بالسيرفر', true);
+      }
     }
 
     function initDashboard() {

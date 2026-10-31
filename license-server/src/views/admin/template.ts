@@ -73,6 +73,13 @@ export const adminTemplate = `
           <span class="tab-text-full">توليد كود أوفلاين بالبصمة</span>
           <span class="tab-text-short">كود أوفلاين</span>
         </button>
+
+        <button class="nav-tab" id="tabBtnReleases" onclick="switchMainTab('releases')">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="tab-text-full">إدارة التحديثات (Releases)</span>
+          <span class="tab-text-short">التحديثات</span>
+          <span class="tab-badge" id="badgeReleasesCount">0</span>
+        </button>
       </div>
 
       <div class="tabs-nav-extra">
@@ -517,6 +524,89 @@ export const adminTemplate = `
       </div>
     </div>
 
+
+    <!-- ========================================== -->
+    <!-- TAB 4: RELEASES & UPDATES VIEW             -->
+    <!-- ========================================== -->
+    <div id="releasesView" style="display:none; flex-direction:column; gap:20px;">
+      
+      <!-- KPI Summary Row for Releases -->
+      <div class="kpi-row">
+        <div class="kpi-box">
+          <div class="kpi-info">
+            <span class="kpi-label">إجمالي الإصدارات</span>
+            <span class="kpi-value" id="kpi-releases-total">0</span>
+          </div>
+          <div class="kpi-icon-box">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+        </div>
+
+        <div class="kpi-box">
+          <div class="kpi-info">
+            <span class="kpi-label">أحدث إصدار رسمي</span>
+            <span class="kpi-value" id="kpi-releases-latest" style="color:var(--emerald);">v1.0.0</span>
+          </div>
+          <div class="kpi-icon-box" style="background:#ecfdf5; color:var(--emerald);">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+        </div>
+
+        <div class="kpi-box">
+          <div class="kpi-info">
+            <span class="kpi-label">قناة التوزيع المعتمدة</span>
+            <span class="kpi-value" style="font-size:16px; color:#2563eb;">GitHub CDN Free</span>
+          </div>
+          <div class="kpi-icon-box" style="background:#eff6ff; color:#2563eb;">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Card: Publish New Release -->
+      <div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+        <div>
+          <h3 style="font-size:16px; font-weight:900; color:var(--primary); margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>إدارة وتوزيع التحديثات الهوائية (Over-the-Air Releases)</span>
+          </h3>
+          <p style="font-size:12.5px; color:var(--text-muted); margin:0;">
+            يمكنك نشر حزمة تحديث جديدة بعد رفعها على GitHub Releases، أو إيقاف أي إصدار فورياً (Kill Switch) لحماية المتاجر.
+          </p>
+        </div>
+        <button class="btn-create" onclick="openPublishReleaseModal()">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>نشر إصدار جديد للعملاء</span>
+        </button>
+      </div>
+
+      <!-- Releases Table -->
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div style="padding:16px 20px; border-bottom:1px solid var(--border); background:#f8fafc; font-weight:800; font-size:13px; color:var(--text-main);">
+          سجل الإصدارات المنشورة في السيرفر
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:40px;">#</th>
+                <th>رقم الإصدار</th>
+                <th>تاريخ الطرح</th>
+                <th>العنوان والميزات</th>
+                <th>رابط التنزيل</th>
+                <th>بصمة الهاش (SHA-256)</th>
+                <th>حالة النشر</th>
+                <th>الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="releasesTableBody">
+              <tr><td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);">لا توجد إصدارات منشورة حتى الآن</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Modal: Handover Slip -->
@@ -886,4 +976,104 @@ export const adminTemplate = `
 
   <!-- Toast Notification -->
   <div id="toast"></div>
+
+  <!-- Modal: Publish Release -->
+  <div class="modal-overlay" id="publishReleaseModal">
+    <div class="modal-card" style="max-width:620px;">
+      <div class="modal-header">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>نشر حزمة تحديث هوائي جديدة</span>
+        </h4>
+        <button class="modal-close" onclick="closeModal('publishReleaseModal')">&times;</button>
+      </div>
+      <form onsubmit="handlePublishRelease(event)">
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="field">
+              <label>رقم الإصدار (Version):</label>
+              <input type="text" id="pubVersion" required placeholder="مثال: 1.1.0" style="font-family:monospace; font-weight:700;">
+            </div>
+            <div class="field">
+              <label>تاريخ الطرح:</label>
+              <input type="date" id="pubDate" required>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>عنوان الإصدار بالعربية:</label>
+            <input type="text" id="pubTitle" required placeholder="مثال: تحديث رفيق v1.1.0 — موديول الصيدليات واستقرار فائق">
+          </div>
+
+          <div class="field">
+            <label>رابط التحميل المباشر (GitHub Releases Direct URL):</label>
+            <input type="url" id="pubUrl" required placeholder="https://github.com/.../releases/download/v1.1.0/RafiqPOS_Update_v1.1.0.zip" style="direction:ltr; font-family:monospace; font-size:12px;">
+          </div>
+
+          <div class="field">
+            <label>بصمة التشفير الرقمية (SHA-256 Hash):</label>
+            <input type="text" id="pubSha" required placeholder="بصمة الهاش الناتجة من سكريبت التحزيم (64 حرف hex)" style="direction:ltr; font-family:monospace; font-size:12px; text-transform:uppercase;">
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="field">
+              <label>حجم الملف التقريبي (بايت):</label>
+              <input type="number" id="pubSize" placeholder="مثال: 25000000">
+            </div>
+            <div class="field">
+              <label>نوع التحديث:</label>
+              <select id="pubMandatory" style="padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:white; font-family:inherit;">
+                <option value="0">اختياري (ينصح به)</option>
+                <option value="1">إجباري (Critical Update)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>سجل التغييرات والميزات الجديدة (Changelog):</label>
+            <textarea id="pubChangelog" rows="3" required placeholder="اكتب للعميل ما تم إضافته أو تحسينه في هذا التحديث..." style="width:100%; border:1px solid var(--border); border-radius:8px; padding:10px; font-family:inherit;"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-row" onclick="closeModal('publishReleaseModal')">إلغاء</button>
+          <button type="submit" class="btn-create">نشر التحديث الآن</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Extend License Updates -->
+  <div class="modal-overlay" id="extendUpdatesModal">
+    <div class="modal-card" style="max-width:480px;">
+      <div class="modal-header">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+          <span>تجديد اشتراك التحديثات الهوائية</span>
+        </h4>
+        <button class="modal-close" onclick="closeModal('extendUpdatesModal')">&times;</button>
+      </div>
+      <form onsubmit="handleExtendUpdates(event)">
+        <input type="hidden" id="extUpdLicId">
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
+          <p style="font-size:13px; color:var(--text-muted); margin:0;">
+            تجديد وتمديد فترة استحقاق التحديثات السحابية للمتجر: <strong id="extUpdShopName" style="color:var(--primary);"></strong>
+          </p>
+
+          <div class="field">
+            <label>فترة التمديد المطلوبة:</label>
+            <select id="extUpdDuration" style="padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:white; font-family:inherit;">
+              <option value="365">تمديد لمدة سنة كاملة (365 يوم)</option>
+              <option value="180">تمديد لمدة 6 أشهر (180 يوم)</option>
+              <option value="30">تمديد لمدة شهر (30 يوم تجريبي)</option>
+              <option value="lifetime">تفعيل دائم مدى الحياة (Lifetime)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-row" onclick="closeModal('extendUpdatesModal')">إلغاء</button>
+          <button type="submit" class="btn-create">تأكيد التمديد</button>
+        </div>
+      </form>
+    </div>
+  </div>
 `;

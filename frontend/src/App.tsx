@@ -47,6 +47,7 @@ import {
   FileSpreadsheet,
   Percent,
   Keyboard,
+  DownloadCloud,
 } from 'lucide-react';
 import { 
   NotificationBellButton, 
@@ -95,6 +96,8 @@ import { RecoveryCodeModal } from './components/RecoveryCodeModal';
 import { useFeatures } from './context/useFeatures';
 import { useAuth } from './context/useAuth';
 import { LoginScreen } from './views/LoginScreen';
+import { AppUpdateModal } from './components/AppUpdateModal';
+import type { AppUpdateInfo } from './bridge/ipc';
 
 export interface SystemInfo {
   appName: string;
@@ -168,6 +171,31 @@ export default function App() {
   const [isPurchasesMenuExpanded, setIsPurchasesMenuExpanded] = useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
   const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(false);
+  const [isAppUpdateModalOpen, setIsAppUpdateModalOpen] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<AppUpdateInfo | null>(null);
+
+  // Automatic Background Update Check on Startup
+  useEffect(() => {
+    let isMounted = true;
+    const checkUpdates = async () => {
+      try {
+        const info = await invoke<AppUpdateInfo>('updates:check');
+        if (isMounted && info && info.hasUpdate) {
+          setAvailableUpdate(info);
+          if (info.isMandatory) {
+            setIsAppUpdateModalOpen(true);
+          }
+        }
+      } catch {
+        // Silent in offline / normal mode
+      }
+    };
+    const timer = setTimeout(checkUpdates, 2000);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, []);
 
   // Senior Architecture: Lazy Keep-Alive Tabs
   // Views are mounted on first visit, then retained in DOM and toggled via CSS
@@ -901,7 +929,7 @@ export default function App() {
     items.push(
       { id: 'backup' as SettingsSubTab, label: 'نسخة احتياطية وحماية البيانات', icon: HardDrive },
     );
-    if (isRoot || hasPermission('settings.features')) {
+    if (isRoot || isAdmin || hasPermission('settings.features')) {
       items.push(
         { id: 'system' as SettingsSubTab, label: 'فحص سرعة النظام والتشخيص', icon: Activity },
       );
@@ -912,7 +940,7 @@ export default function App() {
       );
     }
     return items;
-  }, [isRoot, hasPermission]);
+  }, [isRoot, isAdmin, hasPermission]);
 
   const allNavItems = [
     { id: 'pos' as TabType, label: 'الكاشير وشاشة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
@@ -1064,7 +1092,13 @@ export default function App() {
             window.location.reload();
           }}
         />
-        <RafiqDialogContainer />
+        <AppUpdateModal
+        isOpen={isAppUpdateModalOpen}
+        onClose={() => setIsAppUpdateModalOpen(false)}
+        autoCheck={true}
+      />
+
+      <RafiqDialogContainer />
       </div>
     );
   }
@@ -1269,7 +1303,21 @@ export default function App() {
             </kbd>
           </button>
 
-          {/* Notification Bell Button with live Badge */}
+          {/* Over-the-Air Update Button */}
+            {availableUpdate && availableUpdate.hasUpdate && (
+              <button
+                type="button"
+                onClick={() => setIsAppUpdateModalOpen(true)}
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-paid hover:bg-paid-hover text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer animate-pulse shrink-0"
+                title={`تحديث جديد متاح: v${availableUpdate.latestVersion || ''} - اضغط للتثبيت الآن`}
+              >
+                <DownloadCloud className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline text-[11.5px]">تحديث متاح</span>
+                <span className="font-mono text-[11px] bg-white/20 px-1 rounded">v{availableUpdate.latestVersion}</span>
+              </button>
+            )}
+
+            {/* Notification Bell Button with live Badge */}
           <NotificationBellButton
             count={systemNotifications.length}
             hasCritical={systemNotifications.some((n) => n.type === 'critical')}

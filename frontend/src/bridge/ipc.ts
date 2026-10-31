@@ -63,6 +63,7 @@ export interface AppUpdateInfo {
   packageFileName?: string;
   isOfflinePackage?: boolean;
   checksumValid?: boolean;
+  isEligible?: boolean;
 }
 
 export interface AppUpdateResult {

@@ -2,6 +2,7 @@ import type { Env } from './types.ts';
 import { handleActivate } from './handlers/activate.ts';
 import { handleVerify } from './handlers/verify.ts';
 import { handleAdmin } from './handlers/admin.ts';
+import { handleCheckUpdate } from './handlers/updates.ts';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -25,8 +26,8 @@ export default {
         return new Response(
           JSON.stringify({
             status: 'online',
-            service: 'Rafiq POS License Activation Server',
-            version: '1.0.0',
+            service: 'Rafiq POS License Activation & Updates Server',
+            version: '1.1.0',
             timestamp: new Date().toISOString(),
           }),
           {
@@ -42,7 +43,6 @@ export default {
       // 2. Client Device Activation
       if (url.pathname === '/api/activate' && request.method === 'POST') {
         const response = await handleActivate(request, env);
-        // Add CORS headers to response
         const newHeaders = new Headers(response.headers);
         newHeaders.set('Access-Control-Allow-Origin', '*');
         return new Response(response.body, { status: response.status, headers: newHeaders });
@@ -56,7 +56,15 @@ export default {
         return new Response(response.body, { status: response.status, headers: newHeaders });
       }
 
-      // 4. Admin Dashboard and Management APIs
+      // 4. Over-the-Air Update Check & Selective Rollout Gate
+      if (url.pathname === '/api/updates/check') {
+        const response = await handleCheckUpdate(request, env);
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set('Access-Control-Allow-Origin', '*');
+        return new Response(response.body, { status: response.status, headers: newHeaders });
+      }
+
+      // 5. Admin Dashboard and Management APIs
       if (url.pathname.startsWith('/admin') || url.pathname.startsWith('/api/admin')) {
         const response = await handleAdmin(request, env);
         const newHeaders = new Headers(response.headers);
@@ -64,7 +72,7 @@ export default {
         return new Response(response.body, { status: response.status, headers: newHeaders });
       }
 
-      // 5. 404 Route Not Found
+      // 6. 404 Route Not Found
       return new Response(
         JSON.stringify({ success: false, message: 'المسار المطلوب غير موجود في خادم التراخيص' }),
         {
