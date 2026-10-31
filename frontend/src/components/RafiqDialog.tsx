@@ -130,7 +130,7 @@ export const RafiqDialogContainer: React.FC = () => {
         {/* Content Body */}
         <div className="p-6 bg-slate-50/50 dark:bg-surface-dark-2">
           <div className="text-sm font-semibold text-slate-800 dark:text-ink-dark leading-relaxed whitespace-pre-line">
-            {state.message}
+            {typeof state.message === 'string' ? state.message.replace(/\\n/g, '\n') : state.message}
           </div>
         </div>
 
