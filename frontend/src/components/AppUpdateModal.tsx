@@ -80,12 +80,12 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false, onUpdateInf
 
   const statusClass = (type: StatusType) =>
     type === 'success'
-      ? 'bg-paid-soft text-paid border-paid/20'
+      ? 'bg-paid-soft text-paid border-paid/20 dark:bg-paid-dark-soft dark:text-paid-bright dark:border-paid-dark-border'
       : type === 'error'
-      ? 'bg-danger-soft text-danger border-danger/20'
+      ? 'bg-danger-soft text-danger border-danger/20 dark:bg-danger-dark-soft dark:text-danger-bright dark:border-danger/30'
       : type === 'warn'
-      ? 'bg-warn-soft text-warn border-warn/20'
-      : 'bg-brand-soft text-brand-dark border-brand/20';
+      ? 'bg-warn-soft text-warn border-warn/20 dark:bg-warn-dark-soft dark:text-warn-bright dark:border-warn/30'
+      : 'bg-brand-soft text-brand-dark border-brand/20 dark:bg-brand-dark-soft dark:text-brand-bright dark:border-brand/30';
 
   return (
     <div
@@ -93,44 +93,44 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false, onUpdateInf
       onClick={handleBackdropClick}
     >
       <div
-        className="w-full max-w-xl bg-surface rounded-2xl shadow-2xl border border-line flex flex-col overflow-hidden text-ink font-sans text-right"
+        className="w-full max-w-xl bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark flex flex-col overflow-hidden text-ink dark:text-ink-dark font-sans text-right"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="bg-brand-dark px-6 py-4 flex items-center justify-between text-white border-b border-white/10">
+        <div className="bg-brand-dark dark:bg-surface-dark-2 px-6 py-4 flex items-center justify-between text-white dark:text-ink-dark border-b border-white/10 dark:border-line-dark">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-paid">
+            <div className="w-10 h-10 rounded-xl bg-white/10 dark:bg-surface-dark-3 flex items-center justify-center text-paid dark:text-paid-bright">
               <DownloadCloud className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">تحديثات نظام رفيق</h2>
-              <p className="text-xs text-white/70">
-                إصدار النظام الحالي: <span className="font-mono font-semibold">{updateInfo?.currentVersion || '1.0.0'}</span>
+              <h2 className="text-lg font-bold text-white dark:text-ink-dark">تحديثات نظام رفيق</h2>
+              <p className="text-xs text-white/70 dark:text-ink-dark-muted">
+                إصدار النظام الحالي: <span className="font-mono font-semibold text-white dark:text-ink-dark">{updateInfo?.currentVersion || '1.0.0'}</span>
               </p>
             </div>
           </div>
           <button
             onClick={requestClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition-colors"
             title="إغلاق"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+        <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh] bg-surface dark:bg-surface-dark">
           <button
             type="button"
             onClick={() => void checkForUpdates()}
             disabled={isChecking}
-            className="w-full p-3 rounded-xl border border-line hover:border-brand/40 bg-surface-2 hover:bg-surface text-right transition-all flex items-center gap-3 disabled:opacity-50"
+            className="w-full p-3 rounded-xl border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark text-right transition-all flex items-center gap-3 disabled:opacity-50"
           >
-            <div className="w-8 h-8 rounded-lg bg-brand-soft flex items-center justify-center text-brand-dark shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft flex items-center justify-center text-brand-dark dark:text-brand-bright shrink-0">
               <RefreshCw className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />
             </div>
             <div>
-              <div className="text-xs font-bold text-ink">فحص وجود إصدار أحدث</div>
-              <div className="text-[10px] text-ink-muted">يعرض فقط إن كان هناك إصدار جديد، ولا يقوم بتثبيت أي شيء</div>
+              <div className="text-xs font-bold text-ink dark:text-ink-dark">فحص وجود إصدار أحدث</div>
+              <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted">يعرض فقط إن كان هناك إصدار جديد، ولا يقوم بتثبيت أي شيء</div>
             </div>
           </button>
 
@@ -148,28 +148,28 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false, onUpdateInf
           )}
 
           {updateInfo?.hasUpdate && (
-            <div className="bg-surface-2 rounded-xl p-5 border border-line space-y-3">
+            <div className="bg-surface-2 dark:bg-surface-dark-2 rounded-xl p-5 border border-line dark:border-line-dark space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-warn" />
-                  <span className="font-bold text-base text-ink">الإصدار الجديد: v{updateInfo.latestVersion}</span>
+                  <Sparkles className="w-5 h-5 text-warn dark:text-warn-bright" />
+                  <span className="font-bold text-base text-ink dark:text-ink-dark">الإصدار الجديد: v{updateInfo.latestVersion}</span>
                 </div>
                 {updateInfo.releaseDate && (
-                  <span className="text-xs bg-brand/10 text-brand px-2.5 py-1 rounded-full font-medium">
+                  <span className="text-xs bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright px-2.5 py-1 rounded-full font-medium border border-transparent dark:border-brand/20">
                     تاريخ الإصدار: {updateInfo.releaseDate}
                   </span>
                 )}
               </div>
               {updateInfo.changelog && (
-                <p className="text-xs text-ink-muted leading-relaxed whitespace-pre-line">{updateInfo.changelog}</p>
+                <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-relaxed whitespace-pre-line">{updateInfo.changelog}</p>
               )}
             </div>
           )}
 
-          <div className="p-4 rounded-xl bg-brand-soft border border-brand/20 text-brand-dark flex items-start gap-3">
-            <HardDriveDownload className="w-5 h-5 shrink-0 mt-0.5" />
+          <div className="p-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand/30 text-brand-dark dark:text-ink-dark-muted flex items-start gap-3">
+            <HardDriveDownload className="w-5 h-5 shrink-0 mt-0.5 text-brand dark:text-brand-bright" />
             <div className="text-xs leading-relaxed">
-              <strong className="block text-ink font-bold mb-1">طريقة تثبيت الإصدار الجديد</strong>
+              <strong className="block text-ink dark:text-ink-dark font-bold mb-1">طريقة تثبيت الإصدار الجديد</strong>
               لحماية الجهاز، لا يتم تثبيت التحديثات من داخل البرنامج. اطلب من الفني المعتمد ملف التثبيت الرسمي الجديد
               (Setup) على فلاشة USB وشغّله على هذا الجهاز؛ كل بيانات المحل والمبيعات والإعدادات تبقى محفوظة كما هي.
             </div>

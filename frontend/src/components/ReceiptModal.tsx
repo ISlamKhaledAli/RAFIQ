@@ -12,57 +12,11 @@ interface ReceiptModalProps {
   storeName?: string;
   storePhone?: string;
   storeAddress?: string;
+  receiptHeader?: string;
   receiptFooter?: string;
 }
 
-function formatReceiptUnit(unitName?: string, unit?: string, quantityMilli?: number): string {
-  const raw = (unitName || unit || '').trim().toLowerCase();
-  if (['piece', 'pc', 'pcs', 'item', 'unit', 'قطعة'].includes(raw)) return 'ق';
-  if (['kg', 'kilo', 'kilogram'].includes(raw)) return 'كجم';
-  if (['g', 'gm', 'gram'].includes(raw)) return 'جم';
-  if (['l', 'liter', 'litre'].includes(raw)) return 'لتر';
-  if (['m', 'meter'].includes(raw)) return 'متر';
-  if (['box', 'carton'].includes(raw)) return 'علبة';
-  if (['strip'].includes(raw)) return 'شريط';
-  if (['bottle'].includes(raw)) return 'زجاجة';
-  if (['capsule'].includes(raw)) return 'كبسولة';
-  if (['tablet'].includes(raw)) return 'قرص';
-  if (['sachet'].includes(raw)) return 'كيس';
-  if (['ampoule'].includes(raw)) return 'أمبول';
-  if (['vial'].includes(raw)) return 'فيال';
-  if (unitName && unitName.trim()) return unitName;
-  if (unit === 'kg' || (quantityMilli !== undefined && quantityMilli % 1000 !== 0)) return 'كجم';
-  return 'ق';
-}
 
-function getDefaultFooterForStoreType(storeType?: string): string {
-  const t = (storeType || '').trim().toLowerCase();
-  if (t === 'pharmacy') {
-    return 'شكراً لزيارتكم ونتمنى لكم الشفاء العاجل! الأدوية غير المفتوحة تستبدل خلال 14 يوماً بالإيصال. أدوية الثلاجة والأمبولات المعقمة لا ترد حفاظاً على الصحة العامة.';
-  }
-  if (t === 'clothing_apparel' || t === 'clothing' || t === 'clothing_shoes') {
-    return 'شكراً لاختياركم متجرنا! الاستبدال والاسترجاع خلال 14 يوماً بالإيصال مع بقاء تكت المصنع وبنفس الحالة الأصلية. الملابس الداخلية وسواريهات الحفلات لا ترد ولا تستبدل.';
-  }
-  if (t === 'phones_electronics' || t === 'electronics') {
-    return 'شكراً لثقتكم بنا! الضمان ساري بوجود الفاتورة والعلبة الأصلية ولا يشمل الكسر أو الحريق وسوء الاستخدام ودخول السوائل. الاسترجاع خلال 14 يوماً ضد عيوب الصناعة.';
-  }
-  if (t === 'produce_butchery' || t === 'butchery' || t === 'meat_poultry' || t === 'fruits_vegetables') {
-    return 'شكراً لثقتكم باختيار لحومنا وخضرواتنا الطازجة! تخضع منتجاتنا لأعلى معايير الفحص والذبح الشرعي. يرجى حفظ المشتريات مبردة فوراً.';
-  }
-  if (t === 'cafe_restaurant' || t === 'cafe' || t === 'restaurant') {
-    return 'صحة وهنا! شكراً لتشريفكم ونسعد دائماً بخدمتكم. يسعدنا سماع ملاحظاتكم لتطوير جودتنا دوماً.';
-  }
-  if (t === 'spices_roastery' || t === 'roastery' || t === 'nuts') {
-    return 'شكراً لاختياركم أجود أنواع التوابل والمكسرات المحمصة طازجة! يرجى حفظ المنتجات في مكان جاف ومحكم الغلق للحفاظ على النكهة.';
-  }
-  if (t === 'dairy_bakery' || t === 'bakery' || t === 'pastry') {
-    return 'بالهناء والشفاء! مخبوزات وألبان طازجة يومياً خالية من المواد الحافظة. يرجى استهلاك المنتجات خلال فترة الصلاحية المدونة.';
-  }
-  if (t === 'stationery_gifts' || t === 'toys_kids') {
-    return 'شكراً لزيارتكم ونسعد بإسعاد أطفالكم! الاستبدال خلال 14 يوماً بحالة المصنع والعلبة الأصلية كاملة الملحقات.';
-  }
-  return 'شكراً لزيارتكم! البضاعة المباعة تستبدل خلال 14 يوماً بالإيصال بحالتها الأصلية وفقاً لقانون حماية المستهلك.';
-}
 
 export function ReceiptModal({
   isOpen,
@@ -71,7 +25,8 @@ export function ReceiptModal({
   storeName = 'متجر رفيق',
   storePhone = '',
   storeAddress = '',
-  receiptFooter = 'شكراً لتعاملكم معنا! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.'
+  receiptHeader = '',
+  receiptFooter = ''
 }: ReceiptModalProps) {
   const { handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -117,17 +72,17 @@ export function ReceiptModal({
   const isStationeryOrToys = ['stationery_gifts', 'toys_kids'].includes(storeType);
   const isSupermarketOrGrocery = ['supermarket', 'general_grocery', 'grocery'].includes(storeType) || !storeType;
 
-  const defaultFooter = getDefaultFooterForStoreType(storeType);
-  const configuredFooter = liveSettings.receipt_footer || receiptFooter;
+
+  const configuredFooter = liveSettings.receipt_footer !== undefined ? liveSettings.receipt_footer : (receiptFooter || '');
   const activeFooter = (configuredFooter && configuredFooter !== 'شكراً لتعاملكم معنا! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.' && configuredFooter !== 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.')
     ? configuredFooter
-    : defaultFooter;
+    : '';
 
   const activeStoreName = liveSettings.store_name || storeName;
-  const activePhone = liveSettings.store_phone || storePhone;
-  const activeAddress = liveSettings.store_address || storeAddress;
+  const activePhone = liveSettings.store_phone !== undefined ? liveSettings.store_phone : (storePhone || '');
+  const activeAddress = liveSettings.store_address !== undefined ? liveSettings.store_address : (storeAddress || '');
   const activeTaxNumber = liveSettings.tax_number || '';
-  const activeHeader = liveSettings.receipt_header || '';
+  const activeHeader = (liveSettings.receipt_header !== undefined && liveSettings.receipt_header !== '') ? liveSettings.receipt_header : (receiptHeader || '');
   const activeCashier = liveSettings.cashier_name || 'كاشير (1)';
   const showReceiptLogo = liveSettings.show_receipt_logo !== '0';
   const activeLogoUrl = 
@@ -376,7 +331,7 @@ export function ReceiptModal({
             {/* Items Table */}
             <div className="space-y-1.5 font-sans">
               {sale.items.map((item, idx) => {
-                const uLabel = formatReceiptUnit(item.unitName, item.unit, item.quantityMilli);
+                
                 const isSingle = (item.quantityMilli === 1000) && (item.unit !== 'kg');
                 const qtyVal = item.quantityMilli % 1000 !== 0 ? (item.quantityMilli / 1000).toFixed(3) : (item.quantityMilli / 1000).toString();
                 
@@ -389,20 +344,21 @@ export function ReceiptModal({
 
                 return (
                   <div key={idx} className={is57mm ? 'text-[10px]' : 'text-[11px]'}>
-                    <div className="font-semibold text-right text-black">{item.productName}</div>
+                    <div className="flex justify-between items-baseline pt-0.5">
+                      <span className="truncate max-w-[130px] font-medium text-right text-black">{item.productName}</span>
                     
-                    <div className="flex justify-between items-baseline text-[10px]">
+
                       <span className="font-mono text-gray-700">
                         {isSingle ? (
-                          <span>الكمية: 1 {uLabel}</span>
+                          <span>1 × {formatArabicCurrency(item.unitPricePiasters, false)}</span>
                         ) : (
-                          <span dir="ltr">{qtyVal} {uLabel} × {formatArabicCurrency(item.unitPricePiasters, false)}</span>
+                          <span dir="ltr">{qtyVal} × {formatArabicCurrency(item.unitPricePiasters, false)}</span>
                         )}
                         {item.discountPiasters > 0 && (
                           <span className="text-red-700 mr-1"> (خصم -{(item.discountPiasters / 100).toFixed(2)})</span>
                         )}
                       </span>
-                      <span className="font-bold text-black font-mono">{formatArabicCurrency(item.totalPiasters)}</span>
+                      <span className="font-bold text-black font-mono">{formatArabicCurrency(item.totalPiasters, false)}</span>
                     </div>
 
                     {/* Pharmacy batch and expiry */}
@@ -445,11 +401,7 @@ export function ReceiptModal({
               </div>
             )}
 
-            {isSupermarketOrGrocery && sale.items && sale.items.length > 0 && (
-              <div className="border-t border-dashed border-gray-400 mt-2 pt-1 text-[10px] font-semibold text-gray-800">
-                عدد البنود: {sale.items.length} أصناف
-              </div>
-            )}
+            
 
             {/* Solid Divider */}
             <div className="border-t border-black my-2"></div>
@@ -488,7 +440,7 @@ export function ReceiptModal({
               )}
 
               <div className={`border-t-2 border-black my-1.5 pt-1 flex justify-between font-bold ${is57mm ? 'text-[12.5px]' : 'text-[14px]'}`}>
-                <span>الصافي المستحق:</span>
+                <span>الإجمالي المطلوب:</span>
                 <span className="font-mono font-bold">{formatArabicCurrency(sale.totalPiasters)}</span>
               </div>
 
@@ -509,7 +461,7 @@ export function ReceiptModal({
                     <span className="font-mono font-bold">{formatArabicCurrency(sale.paidPiasters)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-emerald-800">
-                    <span>الباقي للمشتري:</span>
+                    <span>الباقي للزبون:</span>
                     <span className="font-mono font-bold">{formatArabicCurrency(changePiasters)}</span>
                   </div>
                 </>
@@ -617,7 +569,7 @@ export function ReceiptModal({
 
             {/* Footer and Code 128 Barcode Simulation */}
             <div className="text-center space-y-1.5 mt-2">
-              <div className="text-[10px] text-gray-700 font-sans leading-relaxed">{activeFooter}</div>
+              {activeFooter && <div className="text-[10px] text-gray-700 font-sans leading-relaxed">{activeFooter}</div>}
               
               {/* Authentic Barcode Visual Strip */}
               <div className="pt-1 flex flex-col items-center">

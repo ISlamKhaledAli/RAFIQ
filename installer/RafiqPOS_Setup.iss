@@ -158,6 +158,19 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 ; تشغيل البرنامج بعد انتهاء التثبيت (لا يُعرض إذا كانت إعادة تشغيل الجهاز مطلوبة بعد تثبيت .NET 4.8)
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent; Check: IsAppReadyToLaunch
 
+[UninstallRun]
+Filename: "{sys}\taskkill.exe"; Parameters: "/f /im RafiqPOS.exe"; Flags: runhidden; RunOnceId: "KillRafiq"
+Filename: "{sys}\taskkill.exe"; Parameters: "/f /im msedgewebview2.exe"; Flags: runhidden; RunOnceId: "KillWebView" 
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\data"
+Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\webview_profile"
+Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\backups"
+Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\logs"
+Type: filesandordirs; Name: "{commonappdata}\RafiqPOS"
+Type: filesandordirs; Name: "{userappdata}\RafiqPOS"
+Type: filesandordirs; Name: "{localappdata}\RafiqPOS"
+
 [Code]
 // واجهات Win32 لإجبار نافذة التثبيت على الظهور في المقدمة وأخذ التركيز بعد تخطي رسالة UAC
 function GetForegroundWindow(): HWND;
@@ -888,5 +901,49 @@ begin
   else if CurStep = ssDone then
   begin
     AllowSetForegroundWindow(ASFW_ANY);
+  end;
+end;
+
+function InitializeUninstall(): Boolean;
+var
+  ErrorCode: Integer;
+begin
+  // إيقاف تشغيل رفيق ومشغل الويب فوراً لفك أي قفل على ملفات قاعدة البيانات والمتصفح
+  ShellExec('open', 'taskkill.exe', '/f /im RafiqPOS.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  ShellExec('open', 'taskkill.exe', '/f /im msedgewebview2.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+  Result := True;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  CommonDir, UserDir, LocalDir: String;
+  ErrorCode: Integer;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    // إغلاق أي عمليات عالقة
+    ShellExec('open', 'taskkill.exe', '/f /im RafiqPOS.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+    ShellExec('open', 'taskkill.exe', '/f /im msedgewebview2.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
+
+    // 1. تنظيف بيانات البرنامج المشتركة (قاعدة البيانات، كلمات المرور، الإعدادات، البروفايل)
+    CommonDir := ExpandConstant('{commonappdata}\RafiqPOS');
+    if DirExists(CommonDir) then
+    begin
+      DelTree(CommonDir, True, True, True);
+    end;
+
+    // 2. تنظيف بيانات المستخدم (التقارير المصدرة والملفات المؤقتة)
+    UserDir := ExpandConstant('{userappdata}\RafiqPOS');
+    if DirExists(UserDir) then
+    begin
+      DelTree(UserDir, True, True, True);
+    end;
+
+    // 3. تنظيف الملفات المؤقتة المحلية
+    LocalDir := ExpandConstant('{localappdata}\RafiqPOS');
+    if DirExists(LocalDir) then
+    begin
+      DelTree(LocalDir, True, True, True);
+    end;
   end;
 end;

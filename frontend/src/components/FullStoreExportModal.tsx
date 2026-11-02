@@ -132,19 +132,19 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
       onClick={handleBackdropClick}
     >
       <div 
-        className="w-full max-w-2xl bg-surface rounded-2xl shadow-2xl border border-line flex flex-col overflow-hidden text-ink font-sans text-right"
+        className="w-full max-w-2xl bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark flex flex-col overflow-hidden text-ink dark:text-ink-dark font-sans text-right"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="bg-brand-dark px-6 py-4 flex items-center justify-between text-white border-b border-white/10">
+        <div className="bg-brand-dark dark:bg-surface-dark-2 px-6 py-4 flex items-center justify-between text-white dark:text-ink-dark border-b border-white/10 dark:border-line-dark">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-paid">
+            <div className="w-10 h-10 rounded-xl bg-white/10 dark:bg-surface-dark-3 flex items-center justify-center text-paid dark:text-paid-bright">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">تصدير كل بيانات المحل بضغطة واحدة</h2>
-              <p className="text-xs text-white/70">
+              <h2 className="text-lg font-bold text-white dark:text-ink-dark">تصدير كل بيانات المحل بضغطة واحدة</h2>
+              <p className="text-xs text-white/70 dark:text-ink-dark-muted">
                 بياناتك ملكك 100% في ملفات إكسل مفتوحة بدون أي قيود
               </p>
             </div>
@@ -152,19 +152,19 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
           <button 
             onClick={requestClose} 
             disabled={isExporting}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+        <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh] bg-surface dark:bg-surface-dark">
           {/* Freedom & Security Guarantee Banner */}
-          <div className="flex items-start gap-3 p-4 bg-paid-soft rounded-xl text-xs text-paid border border-paid/20 leading-relaxed font-sans">
-            <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 p-4 bg-paid-soft dark:bg-paid-dark-soft rounded-xl text-xs text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-dark-border leading-relaxed font-sans">
+            <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5 text-paid dark:text-paid-bright" />
             <div>
-              <strong className="block text-sm font-bold text-paid mb-1">
+              <strong className="block text-sm font-bold text-paid dark:text-paid-bright mb-1">
                 بياناتك ملكك بالكامل (حرية تامة 100%):
               </strong>
               تقدر في أي وقت تستخرج كل بيانات وسجلات محلك (البضاعة، الزبائن، الشكك والديون، الموردين، فواتير البيع، وحركات المخزن) في ملفات إكسل جاهزة ومنظمة، بدون أي تشفير أو رسوم خروج.
@@ -172,44 +172,44 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
           </div>
 
           {/* Files Summary Grid */}
-          <div className="bg-surface-2 p-4 rounded-xl border border-line space-y-3">
-            <h4 className="text-xs font-bold text-ink-muted uppercase tracking-wider">
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-xl border border-line dark:border-line-dark space-y-3">
+            <h4 className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
               الملفات اللي هتتعمل في المجلد ده:
             </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-ink font-medium">
-              <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
-                <Package className="w-4 h-4 text-brand shrink-0" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-ink dark:text-ink-dark font-medium">
+              <div className="flex items-center gap-2 p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                <Package className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
                 <span>01. البضاعة والمخزن</span>
               </div>
-              <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
-                <Users className="w-4 h-4 text-paid shrink-0" />
+              <div className="flex items-center gap-2 p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                <Users className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
                 <span>02. الزبائن وحسابات الشكك</span>
               </div>
-              <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
-                <Truck className="w-4 h-4 text-warn shrink-0" />
+              <div className="flex items-center gap-2 p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                <Truck className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
                 <span>03. الموردين والأرصدة</span>
               </div>
-              <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
-                <Receipt className="w-4 h-4 text-brand-dark shrink-0" />
+              <div className="flex items-center gap-2 p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                <Receipt className="w-4 h-4 text-brand-dark dark:text-brand-bright shrink-0" />
                 <span>04. فواتير وحركات البيع</span>
               </div>
-              <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
-                <Database className="w-4 h-4 text-brand shrink-0" />
+              <div className="flex items-center gap-2 p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                <Database className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
                 <span>05. حركات المخزن</span>
               </div>
-              <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
-                <Layers className="w-4 h-4 text-paid shrink-0" />
+              <div className="flex items-center gap-2 p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                <Layers className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
                 <span>06. الورديات والتقفيل اليومي</span>
               </div>
             </div>
-            <p className="text-[11px] text-ink-muted font-normal pt-1">
+            <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-normal pt-1">
               معاهم شيت مجمّع فيه كل البيانات في ملف واحد، ووثيقة رسمية بملكية البيانات.
             </p>
           </div>
 
           {/* Export Destination Folder Picker */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-ink">
+            <label className="text-xs font-bold text-ink dark:text-ink-dark">
               عاوز تحفظ الملفات فين؟ (مجلد على الجهاز أو فلاشة):
             </label>
             <div className="flex items-center gap-2">
@@ -217,16 +217,16 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
                 type="text"
                 readOnly
                 value={selectedFolder || 'على سطح المكتب تلقائياً (Desktop / RafiqExport)'}
-                className="flex-1 px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line text-xs font-mono text-ink-muted select-all"
+                className="flex-1 px-3.5 py-2.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-mono text-ink-muted dark:text-ink-dark-muted select-all"
                 dir="ltr"
               />
               <button
                 type="button"
                 onClick={handleBrowseFolder}
                 disabled={isExporting}
-                className="px-4 py-2.5 rounded-xl bg-surface border border-line hover:border-line-hover text-ink text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+                className="px-4 py-2.5 rounded-xl bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-line-hover text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50"
               >
-                <FolderOpen className="w-4 h-4 text-brand" />
+                <FolderOpen className="w-4 h-4 text-brand dark:text-brand-bright" />
                 <span>تغيير المجلد</span>
               </button>
             </div>
@@ -234,34 +234,34 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
 
           {/* Result Card If Exported */}
           {exportResult && exportResult.success && (
-            <div className="p-4 bg-paid-soft rounded-xl border border-paid/30 space-y-3 animate-in fade-in">
+            <div className="p-4 bg-paid-soft dark:bg-paid-dark-soft rounded-xl border border-paid/30 dark:border-paid-dark-border space-y-3 animate-in fade-in">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-paid font-bold text-sm">
+                <div className="flex items-center gap-2 text-paid dark:text-paid-bright font-bold text-sm">
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
                   <span>تم تصدير {exportResult.generatedFiles.length} ملفات بنجاح تام!</span>
                 </div>
                 <button
                   onClick={handleOpenFolder}
-                  className="px-3 py-1.5 rounded-lg bg-paid text-white text-xs font-bold flex items-center gap-1.5 hover:bg-paid/90 transition-all shadow-xs"
+                  className="px-3 py-1.5 rounded-lg bg-paid dark:bg-paid-hover text-white text-xs font-bold flex items-center gap-1.5 hover:bg-paid/90 transition-all shadow-xs"
                 >
                   <FolderOpen className="w-3.5 h-3.5" />
                   <span>فتح المجلد دلوقتي</span>
                 </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-xs font-medium text-ink pt-1 border-t border-paid/20">
-                <div className="p-2 bg-surface rounded-lg">
+              <div className="grid grid-cols-3 gap-2 text-xs font-medium text-ink dark:text-ink-dark pt-1 border-t border-paid/20 dark:border-paid-dark-border">
+                <div className="p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                   أصناف البضاعة: <strong>{exportResult.productsCount}</strong>
                 </div>
-                <div className="p-2 bg-surface rounded-lg">
+                <div className="p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                   الزبائن: <strong>{exportResult.customersCount}</strong>
                 </div>
-                <div className="p-2 bg-surface rounded-lg">
+                <div className="p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                   الفواتير: <strong>{exportResult.salesCount}</strong>
                 </div>
               </div>
 
-              <div className="text-[11px] font-mono text-ink-muted break-all" dir="ltr">
+              <div className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted break-all" dir="ltr">
                 Folder: {exportResult.exportFolder}
               </div>
             </div>
@@ -269,15 +269,15 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
         </div>
 
         {/* Modal Footer */}
-        <div className="bg-surface-2 px-6 py-4 border-t border-line flex items-center justify-between gap-3">
+        <div className="bg-surface-2 dark:bg-surface-dark-2 px-6 py-4 border-t border-line dark:border-line-dark flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={handleRunParityTests}
             disabled={isExporting}
-            className="px-3.5 py-2 rounded-xl bg-surface border border-line hover:border-line-hover text-ink-muted hover:text-ink text-xs font-medium transition-all disabled:opacity-50 flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-line-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs font-medium transition-all disabled:opacity-50 flex items-center gap-1.5"
             title="فحص مطابقة عدد الصفوف والمجاميع بين إكسل وقاعدة البيانات"
           >
-            <FileCheck className="w-4 h-4 text-paid" />
+            <FileCheck className="w-4 h-4 text-paid dark:text-paid-bright" />
             <span>مطابقة الأرقام والإجمالي</span>
           </button>
 
@@ -285,7 +285,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
             <button
               onClick={onClose}
               disabled={isExporting}
-              className="px-4 py-2 rounded-xl border border-line text-ink-muted hover:text-ink text-xs font-semibold hover:bg-surface transition-all disabled:opacity-50"
+              className="px-4 py-2 rounded-xl border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs font-semibold hover:bg-surface dark:hover:bg-surface-dark-3 transition-all disabled:opacity-50"
             >
               إغلاق
             </button>
@@ -293,7 +293,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
             <button
               onClick={handleExport}
               disabled={isExporting}
-              className="px-5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-brand dark:bg-brand-container hover:bg-brand-dark dark:hover:bg-brand text-white text-xs font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
             >
               <FolderDown className="w-4 h-4" />
               <span>{isExporting ? 'بيتم تجهيز وتصدير كل الملفات دلوقتي...' : 'تصدير كل البيانات بضغطة واحدة'}</span>
@@ -304,4 +304,3 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
     </div>
   );
 };
-

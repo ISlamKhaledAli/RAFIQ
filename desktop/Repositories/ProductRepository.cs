@@ -67,6 +67,18 @@ namespace RafiqPOS.Repositories
         {
             if (string.IsNullOrWhiteSpace(barcode)) return null;
 
+            string cleanBc = barcode.Trim();
+            string altBarcode = "";
+            long dummyLong;
+            if (cleanBc.Length == 12 && long.TryParse(cleanBc, out dummyLong))
+            {
+                altBarcode = "0" + cleanBc;
+            }
+            else if (cleanBc.Length == 13 && cleanBc.StartsWith("0") && long.TryParse(cleanBc, out dummyLong))
+            {
+                altBarcode = cleanBc.Substring(1);
+            }
+
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -86,14 +98,24 @@ namespace RafiqPOS.Repositories
                     LEFT JOIN product_units pu ON p.id = pu.product_id
                     LEFT JOIN product_pharma_info pi ON p.id = pi.product_id
                     LEFT JOIN pharma_dosage_forms df ON pi.dosage_form_id = df.id
-                    WHERE p.is_active = 1 AND (p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode)
-                    ORDER BY CASE WHEN p.barcode = @barcode THEN 0 WHEN pb.barcode = @barcode THEN 1 ELSE 2 END ASC,
-                             p.created_at ASC, p.id ASC
+                    WHERE p.is_active = 1 AND (
+                        p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode
+                        OR (@altBarcode != '' AND (p.barcode = @altBarcode OR pb.barcode = @altBarcode OR pu.barcode = @altBarcode))
+                    )
+                    ORDER BY CASE 
+                        WHEN p.barcode = @barcode THEN 0 
+                        WHEN pb.barcode = @barcode THEN 1 
+                        WHEN pu.barcode = @barcode THEN 2 
+                        WHEN @altBarcode != '' AND (p.barcode = @altBarcode OR pb.barcode = @altBarcode OR pu.barcode = @altBarcode) THEN 3
+                        ELSE 4 
+                    END ASC,
+                    p.created_at ASC, p.id ASC
                     LIMIT 1;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@barcode", barcode.Trim());
+                    cmd.Parameters.AddWithValue("@barcode", cleanBc);
+                    cmd.Parameters.AddWithValue("@altBarcode", altBarcode);
                     using (var reader = cmd.ExecuteReader())
                     {
                         if (reader.Read())
@@ -119,6 +141,18 @@ namespace RafiqPOS.Repositories
         {
             if (string.IsNullOrWhiteSpace(barcode)) return null;
 
+            string cleanBc = barcode.Trim();
+            string altBarcode = "";
+            long dummyLong;
+            if (cleanBc.Length == 12 && long.TryParse(cleanBc, out dummyLong))
+            {
+                altBarcode = "0" + cleanBc;
+            }
+            else if (cleanBc.Length == 13 && cleanBc.StartsWith("0") && long.TryParse(cleanBc, out dummyLong))
+            {
+                altBarcode = cleanBc.Substring(1);
+            }
+
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -132,14 +166,18 @@ namespace RafiqPOS.Repositories
                     LEFT JOIN storage_locations sl ON p.location_id = sl.id
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
                     LEFT JOIN product_units pu ON p.id = pu.product_id
-                    WHERE (p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode)
-                      AND (@exclude IS NULL OR p.id != @exclude)
+                    WHERE (
+                        p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode
+                        OR (@altBarcode != '' AND (p.barcode = @altBarcode OR pb.barcode = @altBarcode OR pu.barcode = @altBarcode))
+                    )
+                    AND (@exclude IS NULL OR p.id != @exclude)
                     ORDER BY p.is_active DESC, p.created_at ASC, p.id ASC
                     LIMIT 1;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@barcode", barcode.Trim());
+                    cmd.Parameters.AddWithValue("@barcode", cleanBc);
+                    cmd.Parameters.AddWithValue("@altBarcode", altBarcode);
                     cmd.Parameters.AddWithValue("@exclude", string.IsNullOrWhiteSpace(excludeProductId) ? (object)DBNull.Value : excludeProductId);
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -241,6 +279,16 @@ namespace RafiqPOS.Repositories
 
             string cleanQuery = query.Trim();
             string normalizedQuery = Common.ArabicTextNormalizer.Normalize(cleanQuery);
+            string altExact = "";
+            long dummySearchLong;
+            if (cleanQuery.Length == 12 && long.TryParse(cleanQuery, out dummySearchLong))
+            {
+                altExact = "0" + cleanQuery;
+            }
+            else if (cleanQuery.Length == 13 && cleanQuery.StartsWith("0") && long.TryParse(cleanQuery, out dummySearchLong))
+            {
+                altExact = cleanQuery.Substring(1);
+            }
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -299,6 +347,7 @@ namespace RafiqPOS.Repositories
                        p.barcode = @exact 
                     OR pb.barcode = @exact 
                     OR pu.barcode = @exact
+                    OR (@altExact != '' AND (p.barcode = @altExact OR pb.barcode = @altExact OR pu.barcode = @altExact))
                     OR p.internal_code = @exact 
                     OR p.normalized_name = @normExactText
                     OR p.normalized_name LIKE @normPrefix
@@ -309,6 +358,7 @@ namespace RafiqPOS.Repositories
                 ORDER BY 
                   CASE 
                     WHEN p.barcode = @exact OR pb.barcode = @exact OR pu.barcode = @exact OR p.internal_code = @exact THEN 1
+                    WHEN @altExact != '' AND (p.barcode = @altExact OR pb.barcode = @altExact OR pu.barcode = @altExact) THEN 1
                     WHEN p.normalized_name = @normExactText THEN 2
                     WHEN p.normalized_name LIKE @normPrefix THEN 3
                     WHEN p.normalized_name LIKE @normLike THEN 4
@@ -320,6 +370,7 @@ namespace RafiqPOS.Repositories
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@exact", cleanQuery);
+                    cmd.Parameters.AddWithValue("@altExact", altExact);
                     cmd.Parameters.AddWithValue("@normExactText", normalizedQuery);
                     cmd.Parameters.AddWithValue("@normPrefix", normalizedQuery + "%");
                     cmd.Parameters.AddWithValue("@normLike", "%" + normalizedQuery + "%");
@@ -551,6 +602,16 @@ namespace RafiqPOS.Repositories
 
             string cleanQuery = query.Trim();
             string normalizedQuery = Common.ArabicTextNormalizer.Normalize(cleanQuery);
+            string altExact = "";
+            long dummyCountLong;
+            if (cleanQuery.Length == 12 && long.TryParse(cleanQuery, out dummyCountLong))
+            {
+                altExact = "0" + cleanQuery;
+            }
+            else if (cleanQuery.Length == 13 && cleanQuery.StartsWith("0") && long.TryParse(cleanQuery, out dummyCountLong))
+            {
+                altExact = cleanQuery.Substring(1);
+            }
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -578,6 +639,8 @@ namespace RafiqPOS.Repositories
                       AND (
                            p.barcode = @exact 
                         OR pb.barcode = @exact 
+                        OR pu.barcode = @exact
+                        OR (@altExact != '' AND (p.barcode = @altExact OR pb.barcode = @altExact OR pu.barcode = @altExact))
                         OR p.internal_code = @exact 
                         OR p.normalized_name = @normExactText
                         OR p.normalized_name LIKE @normPrefix
@@ -588,6 +651,7 @@ namespace RafiqPOS.Repositories
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@exact", cleanQuery);
+                    cmd.Parameters.AddWithValue("@altExact", altExact);
                     cmd.Parameters.AddWithValue("@normExactText", normalizedQuery);
                     cmd.Parameters.AddWithValue("@normPrefix", normalizedQuery + "%");
                     cmd.Parameters.AddWithValue("@normLike", "%" + normalizedQuery + "%");

@@ -63,10 +63,10 @@ export const SettingsView = ({
   const [storeName, setStoreName] = useState('متجر رفيق');
   const [cashierName, setCashierName] = useState('كاشير (1)');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('الفرع الرئيسي');
+  const [address, setAddress] = useState('');
   const [taxNumber, setTaxNumber] = useState('');
-  const [receiptHeader, setReceiptHeader] = useState('أهلاً بكم في متجرنا');
-  const [receiptFooter, setReceiptFooter] = useState('شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.');
+  const [receiptHeader, setReceiptHeader] = useState('');
+  const [receiptFooter, setReceiptFooter] = useState('');
   const [showReceiptLogo, setShowReceiptLogo] = useState(true);
   const [storeLogoUrl, setStoreLogoUrl] = useState('/receipt_logo_square.png');
   const [developerSignature, setDeveloperSignature] = useState('نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965');
@@ -103,6 +103,7 @@ export const SettingsView = ({
   const [paperWidth, setPaperWidth] = useState<'80mm' | '57mm' | 'a4'>('80mm');
   const [autoPrintOnSale, setAutoPrintOnSale] = useState<boolean>(true);
   const [openDrawerOnSale, setOpenDrawerOnSale] = useState<boolean>(false);
+  const [drawerPulseMs, setDrawerPulseMs] = useState<string>('30');
   const [printersLoading, setPrintersLoading] = useState<boolean>(false);
   const [testPrinting, setTestPrinting] = useState<boolean>(false);
   const [printerSaveSuccess, setPrinterSaveSuccess] = useState<boolean>(false);
@@ -146,12 +147,12 @@ export const SettingsView = ({
               // ignore
             }
           }
-          if (settings.cashier_name) setCashierName(settings.cashier_name);
-          if (settings.store_phone) setPhone(settings.store_phone);
-          if (settings.store_address) setAddress(settings.store_address);
-          if (settings.tax_number) setTaxNumber(settings.tax_number);
-          if (settings.receipt_header) setReceiptHeader(settings.receipt_header);
-          if (settings.receipt_footer) setReceiptFooter(settings.receipt_footer);
+          if (settings.cashier_name !== undefined) setCashierName(settings.cashier_name);
+          if (settings.store_phone !== undefined) setPhone(settings.store_phone);
+          if (settings.store_address !== undefined) setAddress(settings.store_address);
+          if (settings.tax_number !== undefined) setTaxNumber(settings.tax_number);
+          if (settings.receipt_header !== undefined) setReceiptHeader(settings.receipt_header);
+          if (settings.receipt_footer !== undefined) setReceiptFooter(settings.receipt_footer);
           if (settings.show_receipt_logo !== undefined) {
             setShowReceiptLogo(settings.show_receipt_logo === '1' || settings.show_receipt_logo === 'true');
           }
@@ -185,6 +186,7 @@ export const SettingsView = ({
           if (settings.receipt_paper_width) setPaperWidth(settings.receipt_paper_width as '80mm' | '57mm' | 'a4');
           if (settings.printer_auto_print !== undefined) setAutoPrintOnSale(settings.printer_auto_print === '1');
           if (settings.printer_open_drawer !== undefined) setOpenDrawerOnSale(settings.printer_open_drawer === '1');
+          if (settings.drawer_pulse_ms) setDrawerPulseMs(settings.drawer_pulse_ms);
           if (settings.logo_variant === 'modern' || settings.logo_variant === 'classic') {
             setLogoVariant(settings.logo_variant);
             try {
@@ -294,6 +296,7 @@ export const SettingsView = ({
         receipt_paper_width: paperWidth,
         printer_auto_print: autoPrintOnSale ? '1' : '0',
         printer_open_drawer: openDrawerOnSale ? '1' : '0',
+        drawer_pulse_ms: drawerPulseMs,
       });
       setPrinterSaveSuccess(true);
       setTimeout(() => setPrinterSaveSuccess(false), 3500);
@@ -342,6 +345,12 @@ export const SettingsView = ({
   const handleToggleOpenDrawer = async (newVal: boolean) => {
     setOpenDrawerOnSale(newVal);
     await autoSaveSetting({ printer_open_drawer: newVal ? '1' : '0' }, () => setOpenDrawerOnSale(!newVal), 'فتح الدرج تلقائياً');
+  };
+
+  const handleChangeDrawerPulse = async (newVal: string) => {
+    const prev = drawerPulseMs;
+    setDrawerPulseMs(newVal);
+    await autoSaveSetting({ drawer_pulse_ms: newVal }, () => setDrawerPulseMs(prev), 'قوة ونبضة فتح الدرج');
   };
 
   const handleTestPrint = async () => {
@@ -525,6 +534,9 @@ export const SettingsView = ({
           openDrawerOnSale={openDrawerOnSale}
           setOpenDrawerOnSale={setOpenDrawerOnSale}
           onToggleOpenDrawer={handleToggleOpenDrawer}
+          drawerPulseMs={drawerPulseMs}
+          setDrawerPulseMs={setDrawerPulseMs}
+          onChangeDrawerPulse={handleChangeDrawerPulse}
           printersLoading={printersLoading}
           testPrinting={testPrinting}
           printerSaveSuccess={printerSaveSuccess}

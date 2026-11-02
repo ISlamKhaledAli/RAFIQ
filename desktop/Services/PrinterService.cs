@@ -97,9 +97,53 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
+        /// فحص ما إذا كانت الطابعة طابعة فواتير حرارية (وليست طابعة وهمية كـ PDF أو طابعة A4 عادية)
+        /// </summary>
+        public static bool IsThermalPrinter(string printerName, string paperWidth)
+        {
+            if (string.Equals(paperWidth, "a4", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(printerName))
+            {
+                return true;
+            }
+
+            string pLower = printerName.ToLowerInvariant();
+            if (pLower.Contains("pdf") ||
+                pLower.Contains("xps") ||
+                pLower.Contains("onenote") ||
+                pLower.Contains("fax") ||
+                pLower.Contains("document writer") ||
+                pLower.Contains("writer"))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        public int GetConfiguredDrawerPulseMs()
+        {
+            if (_settings != null)
+            {
+                string val = _settings.Get("drawer_pulse_ms", "30");
+                int ms;
+                if (int.TryParse(val, out ms) && ms >= 10 && ms <= 250)
+                {
+                    return ms;
+                }
+            }
+            return 30;
+        }
+
+
+        /// <summary>
         /// نبضة فتح درج النقدية المادي عبر ESC/POS (USB Spooler أو طابعة شبكية TCP)
         /// </summary>
-        public PrintResult KickDrawer(string printerName = null)
+        public PrintResult KickDrawer(string printerName = null, int? pulseMs = null)
         {
             string targetPrinter = ResolvePrinterName(printerName);
             if (string.IsNullOrWhiteSpace(targetPrinter))
@@ -115,14 +159,15 @@ namespace RafiqPOS.Services
             try
             {
                 string errMsg;
-                bool ok = RawPrinterHelper.SendDrawerKick(targetPrinter, out errMsg);
+                int effectivePulse = pulseMs.HasValue ? pulseMs.Value : GetConfiguredDrawerPulseMs();
+                bool ok = RawPrinterHelper.SendDrawerKick(targetPrinter, out errMsg, effectivePulse);
                 if (ok)
                 {
                     Logger.Info("تم إرسال نبضة فتح درج النقدية بنجاح إلى: " + targetPrinter);
                     return new PrintResult
                     {
                         Success = true,
-                        Message = "تم فتح درج النقدية بنجاح.",
+                        Message = string.Format("تم فتح درج النقدية بنجاح بقوة ({0} مللي ثانية).", effectivePulse),
                         PrinterUsed = targetPrinter
                     };
                 }
@@ -249,6 +294,7 @@ namespace RafiqPOS.Services
 
             string targetPrinter = ResolvePrinterName(printerName);
             string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
+            bool isCompact = IsCompactPaper(targetWidth);
             int printWidth = GetContentWidthPoints(targetWidth);
 
             bool shouldOpenDrawer;
@@ -279,6 +325,59 @@ namespace RafiqPOS.Services
                 return PrintSaleReceiptToNetwork(sale, targetPrinter, targetWidth, shouldOpenDrawer, isCopy);
             }
 
+            bool isThermal = IsThermalPrinter(targetPrinter, targetWidth);
+            bool autoCut = GetConfiguredAutoCut();
+
+            // للطابعات الحرارية المحلية (USB / Spooler): نستخدم ESC/POS Raster المباشر لمنع أي هدر في الورق
+            if (isThermal)
+            {
+                try
+                {
+                    using (var bmp = RenderReceiptToBitmap(sale, targetWidth, isCopy))
+                    {
+                        if (bmp != null)
+                        {
+                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs());
+                            string errMsg;
+                            string docTitle = string.Format("Rafiq Receipt #{0}", sale.InvoiceNumber);
+                            bool ok = RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, docTitle, out errMsg);
+                            if (ok)
+                            {
+                                if (isCopy && DatabaseService.Audit != null)
+                                {
+                                    try
+                                    {
+                                        DatabaseService.Audit.Log(
+                                            userId: !string.IsNullOrEmpty(sale.CashierId) ? sale.CashierId : "usr_admin_default",
+                                            action: "sale_reprint",
+                                            entityType: "sale",
+                                            entityId: sale.Id,
+                                            detailsJson: string.Format("{{\"invoiceNumber\":{0},\"isCopy\":true,\"timestamp\":\"{1}\"}}", sale.InvoiceNumber, DateTime.UtcNow.ToString("o"))
+                                        );
+                                    }
+                                    catch { }
+                                }
+
+                                return new PrintResult
+                                {
+                                    Success = true,
+                                    Message = string.Format("تم إرسال {0} للفاتورة #{1} إلى الطابعة '{2}' بنجاح.", isCopy ? "نسخة طبق الأصل" : "الإيصال", sale.InvoiceNumber, targetPrinter),
+                                    PrinterUsed = targetPrinter
+                                };
+                            }
+                            else
+                            {
+                                Logger.Warn(string.Format("فشل الإرسال المباشر ESC/POS للطابعة '{0}': {1}، جاري المحاولة عبر Windows PrintDocument.", targetPrinter, errMsg));
+                            }
+                        }
+                    }
+                }
+                catch (Exception exRaster)
+                {
+                    Logger.Warn("استثناء أثناء طباعة ESC/POS Raster: " + exRaster.Message);
+                }
+            }
+
             try
             {
                 var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
@@ -286,13 +385,8 @@ namespace RafiqPOS.Services
                 string phone = store.ContainsKey("store_phone") ? store["store_phone"] : "";
                 string address = store.ContainsKey("store_address") ? store["store_address"] : "";
                 string taxNumber = store.ContainsKey("tax_number") ? store["tax_number"] : "";
-                string header = store.ContainsKey("receipt_header") ? store["receipt_header"] : "أهلاً بكم في متجرنا";
-                string storeType = store.ContainsKey("store_type") ? store["store_type"] : (_settings != null ? _settings.Get("store_type", "supermarket") : "supermarket");
-                string defaultFooter = GetDefaultFooterForStoreType(storeType);
-                string configuredFooter = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "";
-                string footer = (!string.IsNullOrWhiteSpace(configuredFooter) && configuredFooter != "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.")
-                    ? configuredFooter
-                    : defaultFooter;
+                string header = store.ContainsKey("receipt_header") ? store["receipt_header"] : "";
+                string footer = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "";
 
                 using (var doc = new PrintDocument())
                 {
@@ -314,12 +408,26 @@ namespace RafiqPOS.Services
                         };
                     }
 
+                    float measuredHeight;
+                    using (var bmpMeasure = new Bitmap(10, 10))
+                    using (var gMeasure = Graphics.FromImage(bmpMeasure))
+                    {
+                        measuredHeight = RenderReceiptPage(gMeasure, sale, storeName, phone, address, taxNumber, header, footer, printWidth, isCopy);
+                    }
+
+                    int widthHundredths = isCompact ? 228 : 314;
+                    int heightHundredths = (int)Math.Ceiling((measuredHeight / 72.0) * 100.0) + 12;
+                    try
+                    {
+                        doc.DefaultPageSettings.PaperSize = new PaperSize("RafiqReceipt", widthHundredths, heightHundredths);
+                    }
+                    catch { }
+
                     doc.DocumentName = string.Format(isCopy ? "إيصال رفيق (نسخة) - فاتورة #{0}" : "إيصال رفيق - فاتورة #{0}", sale.InvoiceNumber);
                     doc.PrintController = new StandardPrintController(); // طباعة صامتة بدون نوافذ حوارية مزعجة
 
                     doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
                     {
-                        // ضبط خيارات الرسم للحصول على أقصى دقة على رؤوس الطباعة الحرارية (203/300 DPI)
                         e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
                         e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
                         e.Graphics.SmoothingMode = SmoothingMode.None;
@@ -332,13 +440,12 @@ namespace RafiqPOS.Services
                     doc.Print();
                 }
 
-                // تنفيذ أوامر الهاردوير: فتح درج النقدية وقص الورق التلقائي بعد انتهاء طباعة الإيصال
                 if (shouldOpenDrawer)
                 {
                     try
                     {
                         string kickErr;
-                        RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr);
+                        RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr, GetConfiguredDrawerPulseMs());
                     }
                     catch (Exception exDrawer)
                     {
@@ -346,7 +453,7 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                if (GetConfiguredAutoCut())
+                if (autoCut && !isThermal)
                 {
                     try
                     {
@@ -359,7 +466,6 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // تسجيل إعادة الطباعة في سجل التدقيق الرقابي
                 if (isCopy && DatabaseService.Audit != null)
                 {
                     try
@@ -372,10 +478,7 @@ namespace RafiqPOS.Services
                             detailsJson: string.Format("{{\"invoiceNumber\":{0},\"isCopy\":true,\"timestamp\":\"{1}\"}}", sale.InvoiceNumber, DateTime.UtcNow.ToString("o"))
                         );
                     }
-                    catch
-                    {
-                        // لا تفشل الطباعة إذا حدث خطأ عرضي في سجل التدقيق
-                    }
+                    catch { }
                 }
 
                 return new PrintResult
@@ -397,9 +500,6 @@ namespace RafiqPOS.Services
             }
         }
 
-        /// <summary>
-        /// طباعة إيصال البيع على طابعة شبكية (TCP/IP Port 9100) عبر أوامر ESC/POS النقطية عالية الدقة
-        /// </summary>
         private PrintResult PrintSaleReceiptToNetwork(Sale sale, string networkTarget, string paperWidth, bool shouldOpenDrawer, bool isCopy)
         {
             try
@@ -417,7 +517,7 @@ namespace RafiqPOS.Services
                     }
 
                     bool autoCut = GetConfiguredAutoCut();
-                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut);
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs());
 
                     string errMsg;
                     string docTitle = string.Format("Rafiq Network Receipt #{0}", sale.InvoiceNumber);
@@ -494,13 +594,8 @@ namespace RafiqPOS.Services
             string phone = store.ContainsKey("store_phone") ? store["store_phone"] : "";
             string address = store.ContainsKey("store_address") ? store["store_address"] : "";
             string taxNumber = store.ContainsKey("tax_number") ? store["tax_number"] : "";
-            string header = store.ContainsKey("receipt_header") ? store["receipt_header"] : "أهلاً بكم في متجرنا";
-            string storeType = store.ContainsKey("store_type") ? store["store_type"] : (_settings != null ? _settings.Get("store_type", "supermarket") : "supermarket");
-            string defaultFooter = GetDefaultFooterForStoreType(storeType);
-            string configuredFooter = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "";
-            string footer = (!string.IsNullOrWhiteSpace(configuredFooter) && configuredFooter != "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.")
-                ? configuredFooter
-                : defaultFooter;
+            string header = store.ContainsKey("receipt_header") ? store["receipt_header"] : "";
+            string footer = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "";
 
             var bmpTemp = new Bitmap(pixelWidth, pixelHeight);
             float finalY;
@@ -516,7 +611,7 @@ namespace RafiqPOS.Services
                 finalY = RenderReceiptPage(g, sale, storeName, phone, address, taxNumber, header, footer, contentWidth, isCopy);
             }
 
-            int finalPixelHeight = Math.Max(50, (int)Math.Ceiling((finalY + 12f) * scale));
+            int finalPixelHeight = Math.Max(50, (int)Math.Ceiling((finalY + 4f) * scale));
             var bmpFinal = new Bitmap(pixelWidth, finalPixelHeight);
             using (var gFinal = Graphics.FromImage(bmpFinal))
             {
@@ -763,7 +858,7 @@ namespace RafiqPOS.Services
             float boldSize = isCompact ? 8f : 9f;
             float regSize = isCompact ? 7.5f : 8.5f;
             float smallSize = isCompact ? 6.8f : 7.5f;
-            float largeSize = isCompact ? 11.5f : 13f;
+            float largeSize = isCompact ? 11f : 12.5f;
 
             using (var fontTitle = new Font(fontName, titleSize, FontStyle.Bold))
             using (var fontBold = new Font(fontName, boldSize, FontStyle.Bold))
@@ -771,7 +866,7 @@ namespace RafiqPOS.Services
             using (var fontSmall = new Font(fontName, smallSize, FontStyle.Regular))
             using (var fontLarge = new Font(fontName, largeSize, FontStyle.Bold))
             using (var penDashed = new Pen(Color.Black, 1f) { DashStyle = DashStyle.Dash })
-            using (var penSolid = new Pen(Color.Black, 1.5f))
+            using (var penSolid = new Pen(Color.Black, 1.2f))
             {
                 var rtlFormat = new StringFormat
                 {
@@ -793,7 +888,8 @@ namespace RafiqPOS.Services
                     LineAlignment = StringAlignment.Center
                 };
 
-                float y = 4;
+                // مسافة بداية علوية متوازنة وبسيطة (2pt لمنع الهدر العلوي)
+                float y = 2f;
 
                 // 0. رسم شعار المتجر إذا وجد
                 using (var logo = TryLoadStoreLogo())
@@ -803,7 +899,7 @@ namespace RafiqPOS.Services
                         try
                         {
                             float maxLogoW = isCompact ? 90f : 130f;
-                            float maxLogoH = isCompact ? 40f : 55f;
+                            float maxLogoH = isCompact ? 38f : 48f;
                             float scale = Math.Min(maxLogoW / logo.Width, maxLogoH / logo.Height);
                             if (scale > 1f) scale = 1f;
 
@@ -812,192 +908,96 @@ namespace RafiqPOS.Services
                             float drawX = (contentWidth - drawW) / 2f;
 
                             g.DrawImage(logo, drawX, y, drawW, drawH);
-                            y += drawH + 4f;
+                            y += drawH + 3f;
                         }
                         catch
                         {
-                            // تجاوز الخطأ في رسم الشعار
                         }
                     }
                 }
 
                 // 1. ترويسة المتجر
-                g.DrawString(storeName, fontTitle, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 20 : 24), centerFormat);
-                y += isCompact ? 20 : 24;
+                g.DrawString(storeName, fontTitle, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 19 : 22), centerFormat);
+                y += isCompact ? 19 : 22;
 
                 if (!string.IsNullOrWhiteSpace(address))
                 {
-                    g.DrawString(address, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 14 : 16), centerFormat);
-                    y += isCompact ? 14 : 16;
+                    g.DrawString(address, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 13 : 15), centerFormat);
+                    y += isCompact ? 13 : 15;
                 }
 
                 if (!string.IsNullOrWhiteSpace(phone))
                 {
-                    g.DrawString("هاتف: " + phone, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 14 : 16), centerFormat);
-                    y += isCompact ? 14 : 16;
+                    g.DrawString("تليفون: " + phone, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 13 : 15), centerFormat);
+                    y += isCompact ? 13 : 15;
                 }
 
                 if (!string.IsNullOrWhiteSpace(taxNumber))
                 {
-                    g.DrawString("الرقم الضريبي: " + taxNumber, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 14 : 16), centerFormat);
-                    y += isCompact ? 14 : 16;
+                    g.DrawString("ر.ض: " + taxNumber, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 13 : 15), centerFormat);
+                    y += isCompact ? 13 : 15;
                 }
 
                 if (!string.IsNullOrWhiteSpace(header))
                 {
                     g.DrawLine(penDashed, 5, y + 2, contentWidth - 5, y + 2);
                     y += 5;
-                    g.DrawString(header, fontRegular, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 16 : 18), centerFormat);
-                    y += isCompact ? 17 : 20;
+                    g.DrawString(header, fontRegular, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 15 : 17), centerFormat);
+                    y += isCompact ? 16 : 18;
                     g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 5;
-                }
-                else
-                {
-                    g.DrawLine(penDashed, 5, y + 3, contentWidth - 5, y + 3);
-                    y += 8;
+                    y += 4;
                 }
 
-                // 2. بيانات الفاتورة الأساسية
-                string invNumStr = string.Format("فاتورة رقم: #{0}", sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
+                // 2. بيانات الفاتورة الأساسية في سطر واحد منظم (طابق المعاينة بدقة)
+                g.DrawLine(penDashed, 5, y + 1, contentWidth - 5, y + 1);
+                y += 4;
+
+                string invNumStr = string.Format("فاتورة: #{0}", sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
                 DateTime saleDate;
                 if (!DateTime.TryParse(sale.CreatedAt, out saleDate)) saleDate = DateTime.Now;
                 string dateStr = saleDate.ToString("yyyy/MM/dd HH:mm");
 
                 float metaHalf = contentWidth / 2f;
-                g.DrawString(invNumStr, fontBold, Brushes.Black, new RectangleF(metaHalf, y, metaHalf - 5, 17), rtlFormat);
-                g.DrawString(dateStr, fontSmall, Brushes.Black, new RectangleF(5, y, metaHalf - 5, 17), leftFormat);
+                g.DrawString(invNumStr, fontBold, Brushes.Black, new RectangleF(metaHalf, y, metaHalf - 5, 16), rtlFormat);
+                g.DrawString(dateStr, fontSmall, Brushes.Black, new RectangleF(5, y, metaHalf - 5, 16), leftFormat);
                 y += 18;
 
                 if (isCopy)
                 {
-                    g.DrawLine(penSolid, 5, y + 1, contentWidth - 5, y + 1);
-                    y += 3;
-                    g.DrawString("*** نسخة طبق الأصل - إيصال مكرر ***", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 18), centerFormat);
-                    y += 18;
-                    g.DrawLine(penSolid, 5, y + 1, contentWidth - 5, y + 1);
-                    y += 4;
+                    g.DrawString("*** نسخة طبق الأصل - إيصال مكرر ***", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
+                    y += 17;
                 }
 
                 if (string.Equals(sale.Status, "TEST_PILOT", StringComparison.OrdinalIgnoreCase))
                 {
-                    g.DrawLine(penSolid, 5, y + 1, contentWidth - 5, y + 1);
-                    y += 3;
-                    g.DrawString("*** فاتورة تجريبية - فحص وتدريب ***", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 18), centerFormat);
-                    y += 18;
-                    g.DrawLine(penSolid, 5, y + 1, contentWidth - 5, y + 1);
-                    y += 4;
+                    g.DrawString("*** فاتورة تجريبية - تدريب ***", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
+                    y += 17;
                 }
 
                 if (string.Equals(sale.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
                 {
-                    g.DrawString("*** فاتورة ملغاة ***", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 18), centerFormat);
-                    y += 20;
+                    g.DrawString("*** فاتورة ملغاة ***", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
+                    y += 18;
                 }
 
-                // 2.b هوية وتخصيص نوع المتجر (عزل صارم لمنع تداخل الأنشطة التجارية)
-                string rawStoreType = _settings != null ? _settings.Get("store_type", "supermarket") : "supermarket";
-                string storeType = (rawStoreType ?? "").Trim().ToLowerInvariant();
-
-                bool isHospitality = storeType == "cafe_restaurant" || storeType == "cafe" || storeType == "restaurant";
-                bool isPharmacy = storeType == "pharmacy";
-                bool isClothing = storeType == "clothing_apparel" || storeType == "clothing" || storeType == "clothing_shoes";
-                bool isElectronics = storeType == "phones_electronics" || storeType == "electronics";
-                bool isProduceOrButchery = storeType == "produce_butchery" || storeType == "butchery" || storeType == "produce";
-                bool isRoastery = storeType == "spices_roastery" || storeType == "roastery";
-                bool isBakery = storeType == "dairy_bakery" || storeType == "bakery";
-                bool isStationeryOrToys = storeType == "stationery_gifts" || storeType == "toys_kids";
-                bool isSupermarketOrGrocery = storeType == "supermarket" || storeType == "general_grocery" || storeType == "grocery" || string.IsNullOrEmpty(storeType);
-
-                // بيانات الروشتة والتأمين الطبي للصيدليات
-                if (isPharmacy)
-                {
-                    if (sale.Prescription != null && !string.IsNullOrWhiteSpace(sale.Prescription.DoctorName))
-                    {
-                        g.DrawString("الطبيب: د. " + sale.Prescription.DoctorName, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
-                        y += 15;
-                    }
-                    if (sale.InsuranceClaim != null && !string.IsNullOrWhiteSpace(sale.InsuranceClaim.CompanyName))
-                    {
-                        string insInfo = "تأمين طبي: " + sale.InsuranceClaim.CompanyName;
-                        if (!string.IsNullOrWhiteSpace(sale.InsuranceClaim.PatientName))
-                        {
-                            insInfo += " - المريض: " + sale.InsuranceClaim.PatientName;
-                        }
-                        g.DrawString(insInfo, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
-                        y += 15;
-                    }
-                }
-
-                // بيانات الصالة والطلب للكافيهات والمطاعم (محظورة تماماً على باقي الأنشطة)
-                bool isDineIn = string.Equals(sale.OrderType, "dine_in", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrWhiteSpace(sale.TableName);
-                bool isDelivery = string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase) || sale.DeliveryFeePiasters > 0 || sale.DeliveryInfo != null;
-                bool isTakeaway = string.Equals(sale.OrderType, "takeaway", StringComparison.OrdinalIgnoreCase);
-
-                bool hasHospitalityMeta = isDineIn || isDelivery || (isHospitality && (isTakeaway || sale.OrderCallNumber > 0));
-
-                if (hasHospitalityMeta)
-                {
-                    g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
-                    y += 3;
-
-                    string orderTypeBadge = "تيك أواي (سفري)";
-                    if (isDineIn)
-                    {
-                        orderTypeBadge = !string.IsNullOrWhiteSpace(sale.TableName)
-                            ? ("صالة - طاولة: " + sale.TableName)
-                            : "طلب صالة (Dine-In)";
-                    }
-                    else if (isDelivery)
-                    {
-                        orderTypeBadge = "دليفري - توصيل طلبات";
-                    }
-
-                    if (sale.OrderCallNumber > 0)
-                    {
-                        string callStr = string.Format("نداء #{0:D3} | {1}", sale.OrderCallNumber, orderTypeBadge);
-                        g.DrawString(callStr, fontLarge, Brushes.Black, new RectangleF(5, y, contentWidth - 10, isCompact ? 20 : 24), centerFormat);
-                        y += isCompact ? 21 : 25;
-                    }
-                    else
-                    {
-                        g.DrawString(orderTypeBadge, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 18), centerFormat);
-                        y += 19;
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(sale.WaiterName) || sale.GuestsCount > 1)
-                    {
-                        string tableMeta = "";
-                        if (!string.IsNullOrWhiteSpace(sale.WaiterName)) tableMeta += "الكابتن: " + sale.WaiterName;
-                        if (sale.GuestsCount > 0)
-                        {
-                            if (tableMeta.Length > 0) tableMeta += " | ";
-                            tableMeta += "الضيوف: " + sale.GuestsCount.ToString();
-                        }
-                        g.DrawString(tableMeta, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), centerFormat);
-                        y += 16;
-                    }
-                }
-
-                // بيانات المشتري (المريض في الصيدليات / العميل في باقي الأنشطة)
+                // بيانات المشتري (إذا تم إدخال اسم عميل)
                 if (!string.IsNullOrWhiteSpace(sale.CustomerName))
                 {
-                    string custPrefix = isPharmacy ? "المريض: " : "العميل: ";
-                    string custStr = custPrefix + sale.CustomerName;
+                    string custStr = "العميل: " + sale.CustomerName;
                     if (!string.IsNullOrWhiteSpace(sale.CustomerPhone))
                     {
                         custStr += " (" + sale.CustomerPhone + ")";
                     }
-                    g.DrawString(custStr, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
-                    y += 16;
+                    g.DrawString(custStr, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rtlFormat);
+                    y += 15;
                 }
 
-                // 3. جدول الأصناف المباعة
-                g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                // 3. جدول الأصناف المباعة (مطابق للمعاينة بالكامل: الصنف | الكمية × السعر | الإجمالي في سطر واحد)
+                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
                 y += 3;
 
-                float colTotW = isCompact ? 50f : 68f;
-                float colQtyW = isCompact ? 72f : 96f;
+                float colTotW = isCompact ? 48f : 65f;
+                float colQtyW = isCompact ? 68f : 85f;
                 float colItemW = contentWidth - colTotW - colQtyW - 10f;
 
                 using (var headerCenterFormat = new StringFormat
@@ -1007,156 +1007,90 @@ namespace RafiqPOS.Services
                     LineAlignment = StringAlignment.Center
                 })
                 {
-                    g.DrawString("الصنف", fontBold, Brushes.Black, new RectangleF(contentWidth - colItemW - 5, y, colItemW, 17), rtlFormat);
-                    g.DrawString("الكمية × السعر", fontBold, Brushes.Black, new RectangleF(colTotW + 5, y, colQtyW, 17), headerCenterFormat);
-                    g.DrawString("الإجمالي", fontBold, Brushes.Black, new RectangleF(5, y, colTotW - 5, 17), leftFormat);
+                    g.DrawString("الصنف", fontBold, Brushes.Black, new RectangleF(contentWidth - colItemW - 5, y, colItemW, 16), rtlFormat);
+                    g.DrawString("الكمية × السعر", fontBold, Brushes.Black, new RectangleF(colTotW + 5, y, colQtyW, 16), headerCenterFormat);
+                    g.DrawString("الإجمالي", fontBold, Brushes.Black, new RectangleF(5, y, colTotW - 5, 16), leftFormat);
                 }
-                y += 18;
-                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                y += 5;
+                y += 17;
+                g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                y += 4;
 
                 // 4. أسطر الأصناف
                 if (sale.Items != null)
                 {
                     foreach (var item in sale.Items)
                     {
-                        string unitLabel = FormatReceiptUnit(item.UnitName, item.Unit, item.QuantityMilli);
-
-                        string qtyNum;
+                        string qStr;
                         if (string.Equals(item.Unit, "kg", StringComparison.OrdinalIgnoreCase))
                         {
-                            qtyNum = (item.QuantityMilli / 1000.0).ToString("0.000");
+                            qStr = (item.QuantityMilli / 1000.0).ToString("0.000");
                         }
                         else if (item.QuantityMilli % 1000 != 0)
                         {
-                            qtyNum = (item.QuantityMilli / 1000.0).ToString("0.###");
+                            qStr = (item.QuantityMilli / 1000.0).ToString("0.###");
                         }
                         else
                         {
-                            qtyNum = (item.QuantityMilli / 1000).ToString();
+                            qStr = (item.QuantityMilli / 1000).ToString();
                         }
-                        string qtyStr = !string.IsNullOrEmpty(unitLabel) ? (qtyNum + " " + unitLabel) : qtyNum;
 
-                        string rateStr = (item.UnitPricePiasters / 100.0).ToString("0.00");
-                        string totalStr = (item.TotalPiasters / 100.0).ToString("0.00");
+                        string pStr = (item.UnitPricePiasters / 100.0).ToString("0.00");
+                        string tStr = (item.TotalPiasters / 100.0).ToString("0.00");
+                        string qtyPriceStr = qStr + " × " + pStr;
 
-                        // السطر 1: اسم الصنف
-                        g.DrawString(item.ProductName ?? "صنف", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 17), rtlFormat);
-                        y += 16;
+                        var nameSize = g.MeasureString(item.ProductName ?? "صنف", fontBold, (int)colItemW, rtlFormat);
+                        float rowH = Math.Max(isCompact ? 15f : 17f, nameSize.Height + 1f);
 
-                        // السطر 2: تفاصيل الكمية وإجمالي الصنف (منع تكرار السعر عند شراء صنف واحد)
-                        bool isSingle = (item.QuantityMilli == 1000) && !string.Equals(item.Unit, "kg", StringComparison.OrdinalIgnoreCase);
+                        // رسم الأعمدة الثلاثة على نفس السطر
+                        g.DrawString(item.ProductName ?? "صنف", fontBold, Brushes.Black, new RectangleF(contentWidth - colItemW - 5, y, colItemW, rowH), rtlFormat);
+                        g.DrawString(qtyPriceStr, fontRegular, Brushes.Black, new RectangleF(colTotW + 5, y, colQtyW, 16), centerFormat);
+                        g.DrawString(tStr, fontBold, Brushes.Black, new RectangleF(5, y, colTotW - 5, 16), leftFormat);
+                        y += rowH + 1f;
 
-                        string lineDetail;
-                        if (isSingle)
+                        // سطر خصم الصنف إن وجد
+                        if (item.DiscountPiasters > 0)
                         {
-                            // صنف مفرد (كمية = 1): لا نكرر السعر مرتين (1 ق × 550.00 وبجانبها 550.00)، بل نكتفي بذكر الكمية والإجمالي
-                            lineDetail = "الكمية: 1 " + unitLabel;
-                            if (item.DiscountPiasters > 0)
-                            {
-                                lineDetail += string.Format(" (خصم -{0:0.00})", item.DiscountPiasters / 100.0);
-                            }
+                            string discStr = string.Format("(خصم -{0:0.00})", item.DiscountPiasters / 100.0);
+                            g.DrawString(discStr, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 13), rtlFormat);
+                            y += 13f;
                         }
-                        else
+
+                        // تشغيلة وصلاحية الأدوية (للصيدليات)
+                        if (!string.IsNullOrWhiteSpace(item.BatchNumber) || !string.IsNullOrWhiteSpace(item.ExpiryDate))
                         {
-                            // أصناف متعددة أو بالوزن: نكتب الكمية × سعر الوحدة لتوضيح تفاصيل الحسبة
-                            lineDetail = qtyStr + " × " + rateStr;
-                            if (item.DiscountPiasters > 0)
-                            {
-                                lineDetail += string.Format(" (خصم -{0:0.00})", item.DiscountPiasters / 100.0);
-                            }
+                            string bInfo = "تشغيلة: " + (!string.IsNullOrWhiteSpace(item.BatchNumber) ? item.BatchNumber : "---");
+                            if (!string.IsNullOrWhiteSpace(item.ExpiryDate)) bInfo += " | انتهاء: " + item.ExpiryDate;
+                            g.DrawString(bInfo, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 13), rtlFormat);
+                            y += 13f;
                         }
 
-                        g.DrawString(lineDetail, fontSmall, Brushes.Black, new RectangleF(contentWidth * 0.30f, y, contentWidth * 0.65f, 15), rtlFormat);
-                        g.DrawString(totalStr, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth * 0.30f, 15), leftFormat);
-                        y += 17;
-
-                        // تشغيلة وصلاحية الأدوية (للصيدليات فقط)
-                        if (isPharmacy && (!string.IsNullOrWhiteSpace(item.BatchNumber) || !string.IsNullOrWhiteSpace(item.ExpiryDate)))
-                        {
-                            string bInfo = "  تشغيلة: " + (!string.IsNullOrWhiteSpace(item.BatchNumber) ? item.BatchNumber : "---");
-                            if (!string.IsNullOrWhiteSpace(item.ExpiryDate))
-                            {
-                                bInfo += " | انتهاء: " + item.ExpiryDate;
-                            }
-                            g.DrawString(bInfo, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 15, 14), rtlFormat);
-                            y += 14;
-                        }
-
-                        // إضافات وتعديلات المطبخ (للكافيهات والمطاعم فقط)
-                        if (isHospitality && item.Modifiers != null && item.Modifiers.Count > 0)
+                        // إضافات المطاعم
+                        if (item.Modifiers != null && item.Modifiers.Count > 0)
                         {
                             for (int mi = 0; mi < item.Modifiers.Count; mi++)
                             {
                                 var mod = item.Modifiers[mi];
                                 if (mod == null || string.IsNullOrWhiteSpace(mod.OptionName)) continue;
                                 string modLine = "  + " + mod.OptionName;
-                                if (mod.ExtraPricePiasters > 0)
-                                {
-                                    modLine += string.Format(" (+{0:0.00})", mod.ExtraPricePiasters / 100.0);
-                                }
-                                g.DrawString(modLine, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 15, 14), rtlFormat);
-                                y += 14;
+                                if (mod.ExtraPricePiasters > 0) modLine += string.Format(" (+{0:0.00})", mod.ExtraPricePiasters / 100.0);
+                                g.DrawString(modLine, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 13), rtlFormat);
+                                y += 13f;
                             }
                         }
 
-                        // ملاحظات مخصصة بحسب هوية المحل
+                        // ملاحظات الصنف
                         if (!string.IsNullOrWhiteSpace(item.Notes))
                         {
-                            string notePrefix = "  * ملاحظة: ";
-                            if (isPharmacy) notePrefix = "  * الجرعة/الإرشادات: ";
-                            else if (isClothing) notePrefix = "  * المقاس/اللون: ";
-                            else if (isElectronics) notePrefix = "  * السيريال/الضمان: ";
-                            else if (isRoastery) notePrefix = "  * التحميص/الطحن: ";
-                            else if (isProduceOrButchery) notePrefix = "  * التقطيع/الطلب: ";
-
-                            g.DrawString(notePrefix + item.Notes, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 15, 14), rtlFormat);
-                            y += 14;
+                            g.DrawString("  * " + item.Notes, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 13), rtlFormat);
+                            y += 13f;
                         }
                     }
                 }
 
-                // 4.b ملخص كميات وأوزان مخصص بحسب النشاط
-                if (sale.Items != null && sale.Items.Count > 0)
-                {
-                    if (isClothing || isStationeryOrToys)
-                    {
-                        long totalPieces = 0;
-                        for (int itmIdx = 0; itmIdx < sale.Items.Count; itmIdx++)
-                        {
-                            totalPieces += Math.Max(1, sale.Items[itmIdx].QuantityMilli / 1000);
-                        }
-                        g.DrawString(string.Format("إجمالي عدد القطع: {0} قطعة", totalPieces), fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rtlFormat);
-                        y += 15;
-                    }
-                    else if (isProduceOrButchery)
-                    {
-                        double totalKg = 0;
-                        for (int itmIdx = 0; itmIdx < sale.Items.Count; itmIdx++)
-                        {
-                            if (string.Equals(sale.Items[itmIdx].Unit, "kg", StringComparison.OrdinalIgnoreCase) || sale.Items[itmIdx].QuantityMilli % 1000 != 0)
-                            {
-                                totalKg += (sale.Items[itmIdx].QuantityMilli / 1000.0);
-                            }
-                        }
-                        if (totalKg > 0)
-                        {
-                            g.DrawString(string.Format("إجمالي وزن الأصناف الموزونة: {0:0.000} كجم", totalKg), fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rtlFormat);
-                            y += 15;
-                        }
-                    }
-                    else if (isSupermarketOrGrocery)
-                    {
-                        g.DrawString(string.Format("عدد البنود: {0} أصناف", sale.Items.Count), fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rtlFormat);
-                        y += 15;
-                    }
-                }
-
-                // 5. قسم الإجماليات
-                g.DrawLine(penSolid, 5, y + 2, contentWidth - 5, y + 2);
+                // 5. قسم الإجماليات (مطابق تماماً للمعاينة في الصورة 2)
+                g.DrawLine(penDashed, 5, y + 1, contentWidth - 5, y + 1);
                 y += 5;
 
-                // Receipt discount = invoice-level discount + every line discount, so subtotal - discount matches the item lines
                 long receiptDiscountPiasters = sale.DiscountPiasters;
                 if (sale.Items != null)
                 {
@@ -1166,203 +1100,80 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                if (receiptDiscountPiasters > 0 || sale.TaxPiasters > 0 || sale.ServiceChargePiasters > 0 || sale.DeliveryFeePiasters > 0)
-                {
-                    g.DrawString("المجموع الفرعي:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
-                    g.DrawString((sale.SubtotalPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
-                    y += 17;
-                }
+                // المجموع الفرعي
+                g.DrawString("المجموع الفرعي:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
+                g.DrawString((sale.SubtotalPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
+                y += 17;
 
-                if (receiptDiscountPiasters > 0)
+                // الخصم (إذا وجد خصم)
+                if (receiptDiscountPiasters > 0 || sale.DiscountPiasters > 0)
                 {
-                    g.DrawString("قيمة الخصم:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
-                    g.DrawString("-" + (receiptDiscountPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
-                    y += 17;
-                }
-
-                if (sale.ServiceChargePiasters > 0)
-                {
-                    g.DrawString("رسوم الخدمة / الصالة:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
-                    g.DrawString((sale.ServiceChargePiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
-                    y += 17;
-                }
-
-                if (sale.DeliveryFeePiasters > 0)
-                {
-                    g.DrawString("رسوم التوصيل (دليفري):", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
-                    g.DrawString((sale.DeliveryFeePiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
+                    long totalDiscount = Math.Max(receiptDiscountPiasters, sale.DiscountPiasters);
+                    g.DrawString("الخصم:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
+                    g.DrawString("-" + (totalDiscount / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
                     y += 17;
                 }
 
                 if (sale.TaxPiasters > 0)
                 {
-                    g.DrawString("ضريبة القيمة المضافة:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
-                    g.DrawString((sale.TaxPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
+                    g.DrawString("ضريبة القيمة المضافة:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
+                    g.DrawString((sale.TaxPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
                     y += 17;
                 }
 
-                // الصافي المستحق
-                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                if (sale.DeliveryFeePiasters > 0)
+                {
+                    g.DrawString("رسوم التوصيل:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
+                    g.DrawString((sale.DeliveryFeePiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
+                    y += 17;
+                }
+
+                if (sale.ServiceChargePiasters > 0)
+                {
+                    g.DrawString("خدمة الصالة:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
+                    g.DrawString((sale.ServiceChargePiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
+                    y += 17;
+                }
+
+                // خط فاصل عريض قبل الإجمالي المطلوب
+                g.DrawLine(penSolid, 5, y + 1, contentWidth - 5, y + 1);
                 y += 4;
-                g.DrawString("الصافي المستحق:", fontLarge, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, isCompact ? 22 : 26), rtlFormat);
+
+                // الإجمالي المطلوب (بخط عريض وواضح كما في الصورة 2)
+                g.DrawString("الإجمالي المطلوب:", fontLarge, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, isCompact ? 22 : 26), rtlFormat);
                 g.DrawString((sale.TotalPiasters / 100.0).ToString("0.00") + " ج.م", fontLarge, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, isCompact ? 22 : 26), leftFormat);
                 y += isCompact ? 24 : 28;
-                g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
-                y += 5;
 
-                // 6. طرق الدفع والمتبقي
+                // طريقة الدفع والمتبقي
+                string methodLabel = "المدفوع كاش:";
+                if (sale.PaymentMethod == "credit") methodLabel = "المبلغ (آجل):";
+                else if (sale.PaymentMethod == "instapay") methodLabel = "المدفوع إنستاباي:";
+                else if (sale.PaymentMethod == "vodafone_cash") methodLabel = "المدفوع محفظة:";
+                else if (sale.PaymentMethod == "card") methodLabel = "المدفوع بطاقة:";
+                else if (sale.PaymentMethod == "multi") methodLabel = "المدفوع مجزأ:";
+
                 long totalPaid = sale.PaidPiasters > 0 ? sale.PaidPiasters : sale.TotalPiasters;
-                long changeDue = sale.ServiceFeePiasters > 0 ? 0 : Math.Max(0, sale.ChangePiasters);
+                long changeDue = Math.Max(0, sale.ChangePiasters);
 
-                string methodArabic = "نقداً";
-                if (sale.PaymentMethod == "credit") methodArabic = "آجل (على الحساب)";
-                else if (sale.PaymentMethod == "instapay") methodArabic = "انستاباي (InstaPay)";
-                else if (sale.PaymentMethod == "vodafone_cash") methodArabic = "فودافون كاش / محفظة";
-                else if (sale.PaymentMethod == "card") methodArabic = "بطاقة بنكية / فيزا";
-                else if (sale.PaymentMethod == "multi") methodArabic = "دفع مقسّم / متعدد";
+                g.DrawString(methodLabel, fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
+                g.DrawString((totalPaid / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
+                y += 17;
 
                 if (changeDue > 0)
                 {
-                    g.DrawString("المدفوع (" + methodArabic + "):", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
-                    g.DrawString((totalPaid / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
-                    y += 17;
-
-                    g.DrawString("المبلغ المتبقي (الباقي):", fontBold, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 17), rtlFormat);
+                    g.DrawString("الباقي للزبون:", fontBold, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 17), rtlFormat);
                     g.DrawString((changeDue / 100.0).ToString("0.00") + " ج.م", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 17), leftFormat);
                     y += 18;
                 }
-                else
-                {
-                    g.DrawString("طريقة السداد: " + methodArabic, fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rtlFormat);
-                    y += 17;
-                }
 
-                if (sale.PaymentMethod == "multi" && sale.Payments != null && sale.Payments.Count > 1)
-                {
-                    for (int pIdx = 0; pIdx < sale.Payments.Count; pIdx++)
-                    {
-                        var p = sale.Payments[pIdx];
-                        if (p == null || p.AmountPiasters <= 0) continue;
-                        string pName = "نقداً";
-                        if (p.Method == "credit") pName = "آجل (شكك)";
-                        else if (p.Method == "card") pName = "فيزا / بطاقة";
-                        else if (p.Method == "instapay") pName = "إنستاباي";
-                        else if (p.Method == "vodafone_cash") pName = "محفظة كاش";
-
-                        g.DrawString("  • " + pName + ":", fontSmall, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 14), rtlFormat);
-                        g.DrawString((p.AmountPiasters / 100.0).ToString("0.00") + " ج.م", fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 14), leftFormat);
-                        y += 15;
-                    }
-                }
-
-                // 6.a شريط توفير العميل (للسوبر ماركت والبقالة فقط)
-                if (isSupermarketOrGrocery && receiptDiscountPiasters > 0)
-                {
-                    y += 2;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                    g.DrawString(string.Format("إجمالي التوفير في هذه الفاتورة: {0:0.00} ج.م", receiptDiscountPiasters / 100.0), fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
-                    y += 17;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                }
-
-                // 6.b تنبيه سلسلة التبريد والأدوية المحفوظة بالثلاجة (للصيدليات فقط وممنوع ظهوره لغيرها)
-                if (isPharmacy)
-                {
-                    bool hasColdChain = sale.HasColdChainItems;
-                    if (!hasColdChain && sale.Items != null)
-                    {
-                        for (int cIdx = 0; cIdx < sale.Items.Count; cIdx++)
-                        {
-                            if (sale.Items[cIdx] != null && sale.Items[cIdx].IsColdChain)
-                            {
-                                hasColdChain = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (hasColdChain)
-                    {
-                        y += 4;
-                        g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
-                        y += 4;
-                        g.DrawString("* تنبيه طبي: يحفظ في الثلاجة (2-8 مئوية) *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, isCompact ? 16 : 18), centerFormat);
-                        y += isCompact ? 17 : 19;
-                        g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
-                        y += 4;
-                    }
-                }
-
-                // 6.c شارة ضمان الأجهزة الإلكترونية (لمحلات الموبايل والإلكترونيات فقط)
-                if (isElectronics)
-                {
-                    y += 4;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                    g.DrawString("* ضمان الأجهزة الإلكترونية ساري بالفاتورة الأصلية *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
-                    y += 18;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                }
-
-                // 6.d شارة الذبح الإسلامي وجودة اللحوم (لمحلات الجزارة واللحوم والخضار فقط)
-                if (isProduceOrButchery)
-                {
-                    y += 4;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                    g.DrawString("* لحوم وخضروات طازجة مذبوحة وفقاً للشريعة الإسلامية *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
-                    y += 18;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                }
-
-                // 6.e شارة استبدال الملابس بتكت المصنع (لمحلات الملابس والأزياء فقط)
-                if (isClothing)
-                {
-                    y += 4;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                    g.DrawString("* الاستبدال والاسترجاع خلال 14 يوماً بتكت المصنع *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
-                    y += 18;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                }
-
-                // 6.f شارة جودة المحامص والعطارة (لمحلات العطارة والبن والمكسرات فقط)
-                if (isRoastery)
-                {
-                    y += 4;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                    g.DrawString("* بن ومكسرات وتوابل طازجة عالية الجودة *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
-                    y += 18;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                }
-
-                // 6.g شارة طزاجة المخبوزات والحلويات (للمخابز والحلواني والألبان فقط)
-                if (isBakery)
-                {
-                    y += 4;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                    g.DrawString("* مخبوزات وحلويات طازجة يومياً خالية من المواد الحافظة *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
-                    y += 18;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                }
-
-                // 6.b قسيمة توصيل الطيار (Rider Delivery Slip) في طلبات الدليفري
+                // قسيمة الدليفري إن وجدت
                 if (string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
                 {
                     y += 4;
                     g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
                     y += 3;
-                    g.DrawString("=== قسيمة توصيل الطيار (DELIVERY) ===", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 17), centerFormat);
-                    y += 18;
+                    g.DrawString("=== توصيل دليفري ===", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
+                    y += 17;
 
                     string dCust = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.CustomerName))
                         ? sale.DeliveryInfo.CustomerName
@@ -1373,75 +1184,54 @@ namespace RafiqPOS.Services
                     string dAddr = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.DeliveryAddress))
                         ? sale.DeliveryInfo.DeliveryAddress
                         : "";
-                    string dLandmark = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.Landmark))
-                        ? sale.DeliveryInfo.Landmark
-                        : "";
-                    string dNotes = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.Notes))
-                        ? sale.DeliveryInfo.Notes
-                        : (sale.Notes ?? "");
 
-                    g.DrawString("العميل: " + dCust, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rtlFormat);
-                    y += 16;
-                    if (!string.IsNullOrWhiteSpace(dPhone))
-                    {
-                        g.DrawString("الهاتف: " + dPhone, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rtlFormat);
-                        y += 16;
-                    }
+                    g.DrawString("العميل: " + dCust + (string.IsNullOrWhiteSpace(dPhone) ? "" : " (" + dPhone + ")"), fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
+                    y += 15;
                     if (!string.IsNullOrWhiteSpace(dAddr))
                     {
-                        var addrSize = g.MeasureString("العنوان: " + dAddr, fontRegular, contentWidth - 10, rtlFormat);
-                        float addrH = Math.Max(16f, addrSize.Height + 2f);
-                        g.DrawString("العنوان: " + dAddr, fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth - 10, addrH), rtlFormat);
-                        y += addrH;
-                    }
-                    if (!string.IsNullOrWhiteSpace(dLandmark))
-                    {
-                        g.DrawString("علامة مميزة: " + dLandmark, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
+                        g.DrawString("العنوان: " + dAddr, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
                         y += 15;
                     }
-                    if (!string.IsNullOrWhiteSpace(dNotes))
-                    {
-                        g.DrawString("ملاحظات: " + dNotes, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
-                        y += 15;
-                    }
-                    g.DrawString(string.Format("المطلوب تحصيله من العميل: {0:0.00} ج.م", sale.TotalPiasters / 100.0), fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 17), centerFormat);
-                    y += 18;
                     g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
                     y += 4;
                 }
 
-                // 7. خاتمة الإيصال
+                // 6. باركود الفاتورة مطابق للمعاينة
+                y += 4;
+                string barcodeValue = sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString("D8") : (sale.Id ?? "00000000");
+                float barcodeH = isCompact ? 30f : 36f;
+                var barcodeRect = new RectangleF(isCompact ? 15 : 25, y, contentWidth - (isCompact ? 30 : 50), barcodeH);
+                BarcodeGenerator.DrawBarcode(g, barcodeValue, barcodeRect, showText: false);
+                y += barcodeH + 2;
+
+                g.DrawString(barcodeValue, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 14), centerFormat);
+                y += 16;
+
+                // 7. خاتمة الإيصال (فقط وحصرياً إذا قام المستخدم بكتابة خاتمة)
                 if (!string.IsNullOrWhiteSpace(footer))
                 {
-                    y += 4;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    g.DrawLine(penDashed, 5, y + 1, contentWidth - 5, y + 1);
                     y += 5;
-                    g.DrawString(footer, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, isCompact ? 30 : 36), centerFormat);
-                    y += isCompact ? 32 : 38;
+                    var footerSize = g.MeasureString(footer, fontSmall, (int)(contentWidth - 10), centerFormat);
+                    float footerH = Math.Max(15f, footerSize.Height + 2f);
+                    g.DrawString(footer, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, footerH), centerFormat);
+                    y += footerH + 4;
                 }
 
-                // 8. باركود Code 128 قياسي عالي الدقة وسريع المسح
-                string barcodeValue = sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString("D8") : (sale.Id ?? "00000000");
-                float barcodeH = isCompact ? 36f : 42f;
-                var barcodeRect = new RectangleF(10, y, contentWidth - 20, barcodeH);
-                BarcodeGenerator.DrawBarcode(g, barcodeValue, barcodeRect, showText: true, textFont: fontSmall);
-                y += barcodeH + 6;
-
-                // 9. حقوق وتوقيع مطور النظام (دعاية ثابتة لا يمكن لغير الروت تغييرها)
+                // 8. حقوق وتوقيع مطور النظام
+                g.DrawLine(penDashed, 5, y + 1, contentWidth - 5, y + 1);
+                y += 4;
                 string defaultSig = "نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965";
                 string devSig = _settings != null ? _settings.Get("developer_signature", defaultSig) : defaultSig;
                 if (string.IsNullOrWhiteSpace(devSig) || devSig == "نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد")
                 {
                     devSig = defaultSig;
                 }
-                y += 2;
-                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                y += 4;
-                g.DrawString(devSig, fontSmall, Brushes.Black, new RectangleF(2, y, contentWidth - 4, isCompact ? 28 : 18), centerFormat);
-                y += isCompact ? 30 : 20;
+                g.DrawString(devSig, fontSmall, Brushes.Black, new RectangleF(2, y, contentWidth - 4, isCompact ? 22 : 16), centerFormat);
+                y += isCompact ? 24 : 18;
 
-                // مسافة أمان سفلية متوازنة لتعادل المسافة الفيزيائية بين رأس الطباعة وسكين القطع
-                y += isCompact ? 22 : 28;
+                // هامش سفلي طفيف جداً قبل شفرة القص
+                y += 8f;
 
                 return y;
             }
@@ -1515,7 +1305,7 @@ namespace RafiqPOS.Services
                     try
                     {
                         string kickErr;
-                        RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr);
+                        RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr, GetConfiguredDrawerPulseMs());
                     }
                     catch { }
                 }
@@ -1561,7 +1351,7 @@ namespace RafiqPOS.Services
                     }
 
                     bool autoCut = GetConfiguredAutoCut();
-                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut);
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs());
 
                     string errMsg;
                     string docTitle = string.Format("Rafiq Network Return #{0}", returnObj.ReturnNumber);

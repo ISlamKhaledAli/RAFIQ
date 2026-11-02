@@ -238,22 +238,22 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
       onClick={handleBackdropClick}
     >
       <div 
-        className="w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-line overflow-hidden flex flex-col text-ink"
+        className="w-full max-w-sm bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark overflow-hidden flex flex-col text-ink dark:text-ink-dark"
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-brand text-white px-5 py-4 flex items-center justify-between border-b border-brand-dark">
+        <div className="bg-brand-dark dark:bg-surface-dark-2 text-white dark:text-ink-dark px-5 py-4 flex items-center justify-between border-b border-brand-dark dark:border-line-dark">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/20">
-              <ShieldCheck className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-white/10 dark:bg-surface-dark-3 flex items-center justify-center border border-white/20 dark:border-line-dark">
+              <ShieldCheck className="w-5 h-5 text-white dark:text-brand-bright" />
             </div>
             <div>
-              <h3 className="font-bold text-base leading-tight">
+              <h3 className="font-bold text-base leading-tight text-white dark:text-ink-dark">
                 {isRecoveryMode ? 'استرجاع الرقم السري للطوارئ' : 'الرقم السري للمشرف'}
               </h3>
-              <p className="text-xs text-white/80">
+              <p className="text-xs text-white/80 dark:text-ink-dark-muted">
                 {isRecoveryMode ? 'إعادة تعيين باستخدام رمز الطوارئ' : `مطلوب تصريح لتنفيذ: ${actionLabel}`}
               </p>
             </div>
@@ -261,7 +261,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
           <button
             type="button"
             onClick={requestClose}
-            className="p-1 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1 rounded-lg text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition-colors"
             title="إلغاء (Esc)"
           >
             <X className="w-5 h-5" />
@@ -269,30 +269,30 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-5 flex-1 flex flex-col bg-canvas">
+        <div className="p-5 flex-1 flex flex-col bg-canvas dark:bg-canvas-dark">
           {/* Recovery Code Success Banner */}
           {newRecoveryCodeGenerated ? (
             <div className="space-y-4 py-2 text-center">
-              <div className="w-12 h-12 rounded-full bg-paid-soft text-paid mx-auto flex items-center justify-center border border-paid-border">
+              <div className="w-12 h-12 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright mx-auto flex items-center justify-center border border-paid-border dark:border-paid-dark-border">
                 <CheckCircle2 className="w-7 h-7" />
               </div>
               <div>
-                <h4 className="font-bold text-lg text-ink">تم تعيين الرقم السري بنجاح!</h4>
-                <p className="text-xs text-ink-muted mt-1">
+                <h4 className="font-bold text-lg text-ink dark:text-ink-dark">تم تعيين الرقم السري بنجاح!</h4>
+                <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">
                   احفظ رمز الاسترجاع الجديد الموضح أدناه في مكان آمن. لن يظهر لك هذا الرمز مرة أخرى.
                 </p>
               </div>
 
-              <div className="p-3 bg-surface rounded-xl border border-dashed border-line flex items-center justify-between">
-                <span className="font-mono text-base font-bold text-paid tracking-wider">
+              <div className="p-3 bg-surface dark:bg-surface-dark-2 rounded-xl border border-dashed border-line dark:border-line-dark flex items-center justify-between">
+                <span className="font-mono text-base font-bold text-paid dark:text-paid-bright tracking-wider">
                   {newRecoveryCodeGenerated}
                 </span>
                 <button
                   type="button"
                   onClick={copyRecoveryCode}
-                  className="px-2.5 py-1.5 bg-surface hover:bg-surface-2 text-xs font-semibold rounded-lg border border-line text-ink flex items-center gap-1.5 transition-colors"
+                  className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark text-xs font-semibold rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark flex items-center gap-1.5 transition-colors"
                 >
-                  {copied ? <Check className="w-3.5 h-3.5 text-paid" /> : <Copy className="w-3.5 h-3.5 text-ink-muted" />}
+                  {copied ? <Check className="w-3.5 h-3.5 text-paid dark:text-paid-bright" /> : <Copy className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />}
                   <span>{copied ? 'تم النسخ' : 'نسخ'}</span>
                 </button>
               </div>
@@ -302,7 +302,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                 onClick={() => {
                   onSuccess();
                 }}
-                className="w-full py-2.5 bg-brand hover:bg-brand-hover text-white font-bold rounded-xl text-sm transition-colors mt-2 shadow-xs"
+                className="w-full py-2.5 bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white font-bold rounded-xl text-sm transition-colors mt-2 shadow-xs"
               >
                 متابعة العملية
               </button>
@@ -311,14 +311,14 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
             /* Recovery Code Form */
             <form onSubmit={handleResetWithRecovery} className="space-y-3">
               {error && (
-                <div className="p-2.5 bg-danger-soft border border-danger-border rounded-xl text-xs text-danger flex items-center gap-2">
+                <div className="p-2.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 rounded-xl text-xs text-danger dark:text-danger-bright flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-bold text-ink mb-1">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                   رمز استرجاع الطوارئ (مثال: RFK-XXXX-XXXX)
                 </label>
                 <input
@@ -326,13 +326,13 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                   value={recoveryCode}
                   onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
                   placeholder="RFK-...."
-                  className="w-full px-3 py-2 text-center font-mono font-bold tracking-widest text-sm rounded-xl border border-line bg-surface text-ink focus:outline-none focus:border-brand"
+                  className="w-full px-3 py-2 text-center font-mono font-bold tracking-widest text-sm rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink mb-1">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                   الرقم السري الجديد (4-8 أرقام)
                 </label>
                 <input
@@ -341,14 +341,14 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                   maxLength={8}
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                  className="w-full px-3 py-2 text-center font-mono font-bold tracking-widest text-sm rounded-xl border border-line bg-surface text-ink focus:outline-none focus:border-brand"
+                  className="w-full px-3 py-2 text-center font-mono font-bold tracking-widest text-sm rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                   placeholder="••••"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink mb-1">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                   تأكيد الرقم السري الجديد
                 </label>
                 <input
@@ -357,7 +357,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                   maxLength={8}
                   value={newPinConfirm}
                   onChange={(e) => setNewPinConfirm(e.target.value.replace(/\D/g, ''))}
-                  className="w-full px-3 py-2 text-center font-mono font-bold tracking-widest text-sm rounded-xl border border-line bg-surface text-ink focus:outline-none focus:border-brand"
+                  className="w-full px-3 py-2 text-center font-mono font-bold tracking-widest text-sm rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                   placeholder="••••"
                   required
                 />
@@ -367,7 +367,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                 <button
                   type="submit"
                   disabled={loading || !recoveryCode.trim() || !newPin.trim()}
-                  className="flex-1 py-2.5 bg-brand hover:bg-brand-hover text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
+                  className="flex-1 py-2.5 bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
                   <span>إعادة تعيين الرقم</span>
@@ -378,7 +378,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                     setIsRecoveryMode(false);
                     setError(null);
                   }}
-                  className="px-3 py-2.5 bg-surface hover:bg-surface-2 border border-line font-bold rounded-xl text-xs text-ink transition-colors"
+                  className="px-3 py-2.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark font-bold rounded-xl text-xs text-ink dark:text-ink-dark transition-colors"
                 >
                   رجوع
                 </button>
@@ -389,15 +389,15 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
             <div className="space-y-4">
               {/* Lockout Warning */}
               {isLocked ? (
-                <div className="p-3 bg-danger-soft border border-danger-border rounded-xl text-xs text-danger text-center space-y-1">
+                <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 rounded-xl text-xs text-danger dark:text-danger-bright text-center space-y-1">
                   <div className="font-bold flex items-center justify-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-danger" />
+                    <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright" />
                     <span>النظام مقفل مؤقتاً لكثرة المحاولات</span>
                   </div>
-                  <p>يرجى الانتظار <span className="font-mono font-bold text-sm text-danger">{lockoutRemaining}</span> ثانية قبل المحاولة مجدداً.</p>
+                  <p>يرجى الانتظار <span className="font-mono font-bold text-sm text-danger dark:text-danger-bright">{lockoutRemaining}</span> ثانية قبل المحاولة مجدداً.</p>
                 </div>
               ) : error ? (
-                <div className="p-2.5 bg-danger-soft border border-danger-border rounded-xl text-xs text-danger flex items-center gap-2">
+                <div className="p-2.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 rounded-xl text-xs text-danger dark:text-danger-bright flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   <span>{error}</span>
                 </div>
@@ -431,7 +431,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                 {/* Bullets Display (Dynamic 4 to 8 digits) */}
                 <div 
                   onClick={() => inputRef.current?.focus()}
-                  className="flex items-center gap-2.5 px-4 py-2.5 bg-surface rounded-2xl border border-line cursor-text shadow-2xs min-w-[200px] justify-center"
+                  className="flex items-center gap-2.5 px-4 py-2.5 bg-surface dark:bg-surface-dark-2 rounded-2xl border border-line dark:border-line-dark cursor-text shadow-2xs min-w-[200px] justify-center"
                   dir="ltr"
                 >
                   {Array.from({ length: Math.max(4, pin.length) }).map((_, idx) => {
@@ -441,8 +441,8 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                         key={idx}
                         className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
                           filled
-                            ? 'bg-paid scale-110 shadow-xs shadow-paid/50'
-                            : 'border-2 border-line bg-transparent'
+                            ? 'bg-paid dark:bg-paid-bright scale-110 shadow-xs shadow-paid/50'
+                            : 'border-2 border-line dark:border-line-dark bg-transparent'
                         }`}
                       />
                     );
@@ -458,7 +458,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                     type="button"
                     disabled={isLocked || loading}
                     onClick={() => handleKeypadPress(num.toString())}
-                    className="h-11 rounded-xl bg-surface hover:bg-surface-2 border border-line text-lg font-bold font-mono text-ink transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
+                    className="h-11 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-lg font-bold font-mono text-ink dark:text-ink-dark transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
                   >
                     {num}
                   </button>
@@ -467,7 +467,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                   type="button"
                   disabled={isLocked || loading || pin.length === 0}
                   onClick={handleClear}
-                  className="h-11 rounded-xl bg-surface hover:bg-warn-soft border border-line text-xs font-bold text-warn transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
+                  className="h-11 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-warn-soft dark:hover:bg-warn-dark-soft border border-line dark:border-line-dark text-xs font-bold text-warn dark:text-warn-bright transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
                 >
                   مسح
                 </button>
@@ -475,7 +475,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                   type="button"
                   disabled={isLocked || loading}
                   onClick={() => handleKeypadPress('0')}
-                  className="h-11 rounded-xl bg-surface hover:bg-surface-2 border border-line text-lg font-bold font-mono text-ink transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
+                  className="h-11 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-lg font-bold font-mono text-ink dark:text-ink-dark transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
                 >
                   0
                 </button>
@@ -483,7 +483,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                   type="button"
                   disabled={isLocked || loading || pin.length === 0}
                   onClick={handleBackspace}
-                  className="h-11 rounded-xl bg-surface hover:bg-danger-soft border border-line flex items-center justify-center text-danger transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
+                  className="h-11 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-line dark:border-line-dark flex items-center justify-center text-danger dark:text-danger-bright transition-colors active:scale-95 disabled:opacity-40 shadow-2xs"
                   title="حذف"
                 >
                   <Delete className="w-5 h-5" />
@@ -496,7 +496,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                   type="button"
                   disabled={isLocked || loading || pin.length < 4}
                   onClick={() => void handleVerify()}
-                  className="flex-1 py-2.5 bg-brand hover:bg-brand-hover text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
+                  className="flex-1 py-2.5 bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
                   <span>تأكيد الرقم (Enter)</span>
@@ -504,23 +504,23 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-3.5 py-2.5 bg-surface hover:bg-surface-2 border border-line font-bold rounded-xl text-xs text-ink transition-colors shadow-2xs"
+                  className="px-3.5 py-2.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark font-bold rounded-xl text-xs text-ink dark:text-ink-dark transition-colors shadow-2xs"
                 >
                   إلغاء
                 </button>
               </div>
 
               {/* Forgot PIN / Emergency Recovery Link */}
-              <div className="text-center pt-1 border-t border-line">
+              <div className="text-center pt-1 border-t border-line dark:border-line-dark">
                 <button
                   type="button"
                   onClick={() => {
                     setIsRecoveryMode(true);
                     setError(null);
                   }}
-                  className="text-[11px] font-semibold text-ink-muted hover:text-brand transition-colors flex items-center justify-center gap-1 mx-auto"
+                  className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-colors flex items-center justify-center gap-1 mx-auto"
                 >
-                  <LifeBuoy className="w-3.5 h-3.5 text-brand" />
+                  <LifeBuoy className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                   <span>نسيت الرقم السري؟ استخدام رمز استرجاع الطوارئ</span>
                 </button>
               </div>

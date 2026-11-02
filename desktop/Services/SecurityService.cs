@@ -214,6 +214,62 @@ namespace RafiqPOS.Services
             }
         }
 
+        public static void ResetUsersToFactoryDefaults(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans)
+        {
+            if (conn == null) return;
+
+            // 1. Delete all users except developer root if it exists
+            using (var delCmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM users WHERE id NOT IN ('usr_root_developer');", conn, trans))
+            {
+                delCmd.ExecuteNonQuery();
+            }
+
+            // 2. Generate factory admin PIN ('1234')
+            byte[] oSaltBytes = GenerateSalt();
+            string oSaltStr = Convert.ToBase64String(oSaltBytes);
+            byte[] oHashBytes = HashWithSalt("1234", oSaltBytes);
+            string oHashStr = Convert.ToBase64String(oHashBytes);
+            string nowIso = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+
+            using (var insAdmin = new System.Data.SQLite.SQLiteCommand(@"
+                INSERT OR REPLACE INTO users (id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, created_at, updated_at, max_depth, can_delegate, must_change_pin, permissions_json)
+                VALUES ('usr_admin_default', 'admin', 'صاحب المحل', @pinHash, @pinSalt, 'admin', 1, 0, @now, @now, 10, 1, 1, NULL);
+            ", conn, trans))
+            {
+                insAdmin.Parameters.AddWithValue("@pinHash", oHashStr);
+                insAdmin.Parameters.AddWithValue("@pinSalt", oSaltStr);
+                insAdmin.Parameters.AddWithValue("@now", nowIso);
+                insAdmin.ExecuteNonQuery();
+            }
+
+            // 3. Generate factory cashier PIN ('0000')
+            byte[] cSaltBytes = GenerateSalt();
+            string cSaltStr = Convert.ToBase64String(cSaltBytes);
+            byte[] cHashBytes = HashWithSalt("0000", cSaltBytes);
+            string cHashStr = Convert.ToBase64String(cHashBytes);
+
+            using (var insCashier = new System.Data.SQLite.SQLiteCommand(@"
+                INSERT OR REPLACE INTO users (id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, created_at, updated_at, max_depth, can_delegate, must_change_pin, parent_id, permissions_json)
+                VALUES ('usr_cashier_1', 'cashier1', 'كاشير (1)', @pinHash, @pinSalt, 'cashier', 1, 0, @now, @now, 0, 0, 1, 'usr_admin_default', NULL);
+            ", conn, trans))
+            {
+                insCashier.Parameters.AddWithValue("@pinHash", cHashStr);
+                insCashier.Parameters.AddWithValue("@pinSalt", cSaltStr);
+                insCashier.Parameters.AddWithValue("@now", nowIso);
+                insCashier.ExecuteNonQuery();
+            }
+
+            // 4. Reset root user lockout / failed attempts if root exists
+            using (var rootCmd = new System.Data.SQLite.SQLiteCommand("UPDATE users SET failed_attempts = 0, lockout_until = NULL, is_active = 1 WHERE id = 'usr_root_developer';", conn, trans))
+            {
+                rootCmd.ExecuteNonQuery();
+            }
+
+            // 5. Reset in-memory session immediately
+            _currentUserSession = null;
+            _recoveryLoginUserId = null;
+        }
+
         private User EnsureRootDeveloperAccount()
         {
             if (_userRepo == null) return null;

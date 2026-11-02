@@ -352,17 +352,17 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
       onClick={handleBackdropClick}
       dir="rtl"
     >
-      <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh] text-ink dark:text-ink-dark">
         
         {/* Header */}
-        <div className="px-5 py-3.5 bg-surface-2 border-b border-line flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-paid-soft text-paid flex items-center justify-center shadow-2xs">
+            <div className="w-8 h-8 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shadow-2xs">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-ink leading-tight m-0">إضافة صنف سريع أو عرض للمحل</h3>
-              <p className="text-[11px] text-ink-muted m-0 mt-0.5">
+              <h3 className="text-sm font-bold text-ink dark:text-ink-dark leading-tight m-0">إضافة صنف سريع أو عرض للمحل</h3>
+              <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted m-0 mt-0.5">
                 أزرار فورية بنقرة واحدة لشاشة البيع مع ربط بالمخزن وحسابات الجرد
               </p>
             </div>
@@ -370,7 +370,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="w-7 h-7 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-2 flex items-center justify-center transition-colors cursor-pointer"
+            className="w-7 h-7 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 flex items-center justify-center transition-colors cursor-pointer"
             title="إغلاق"
           >
             <X className="w-4 h-4" />
@@ -378,8 +378,8 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
         </div>
 
         {/* Mode Selector Tabs */}
-        <div className="p-3 bg-surface-2/60 border-b border-line shrink-0">
-          <div className="grid grid-cols-3 gap-2 p-1 bg-surface rounded-lg border border-line">
+        <div className="p-3 bg-surface-2/60 dark:bg-surface-dark-2/60 border-b border-line dark:border-line-dark shrink-0">
+          <div className="grid grid-cols-3 gap-2 p-1 bg-surface dark:bg-surface-dark-3 rounded-lg border border-line dark:border-line-dark">
             <button
               type="button"
               onClick={() => {
@@ -389,7 +389,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 mode === 'warehouse'
                   ? 'bg-paid text-white shadow-2xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark'
               }`}
             >
               <Store className="w-3.5 h-3.5" />
@@ -408,7 +408,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 mode === 'bundle'
                   ? 'bg-paid text-white shadow-2xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark'
               }`}
             >
               <Boxes className="w-3.5 h-3.5" />
@@ -424,7 +424,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 mode === 'service'
                   ? 'bg-paid text-white shadow-2xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark'
               }`}
             >
               <ShoppingBag className="w-3.5 h-3.5" />
@@ -477,17 +477,17 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               
               {/* Product Search Field */}
               <div className="relative">
-                <label className="block text-xs font-bold text-ink mb-1.5">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
                   ابحث عن الصنف في المخزن لربطه بالزر السريع:
                 </label>
                 <div className="relative">
-                  <Search className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => void handleProductSearch(e.target.value)}
                     placeholder="اكتب اسم الصنف أو امسح الباركود للبحث في المخزن..."
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface border border-line rounded-lg text-ink focus:border-paid focus:outline-none transition-all font-medium"
+                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:border-paid dark:focus:border-brand-bright focus:outline-none transition-all font-medium"
                   />
                   {isSearching && (
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-ink-muted font-bold animate-pulse">
@@ -498,16 +498,16 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
 
                 {/* Dropdown Results */}
                 {searchResults.length > 0 && (
-                  <div className="absolute z-20 top-full mt-1 w-full bg-surface border border-line rounded-lg shadow-xl max-h-56 overflow-y-auto divide-y divide-line">
+                  <div className="absolute z-20 top-full mt-1 w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg shadow-xl max-h-56 overflow-y-auto divide-y divide-line dark:divide-line-dark">
                     {searchResults.map((p) => (
                       <div
                         key={p.id}
                         onClick={() => selectWarehouseProduct(p)}
-                        className="p-2.5 hover:bg-surface-2 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                        className="p-2.5 hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer flex items-center justify-between text-xs transition-colors"
                       >
                         <div className="flex flex-col">
-                          <span className="font-bold text-ink">{p.name}</span>
-                          <span className="text-[10px] text-ink-muted font-mono">{p.barcode || 'بدون باركود'}</span>
+                          <span className="font-bold text-ink dark:text-ink-dark">{p.name}</span>
+                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono">{p.barcode || 'بدون باركود'}</span>
                         </div>
                         <div className="flex items-center gap-2.5">
                           <span className="font-mono font-bold text-paid">
@@ -530,8 +530,8 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     <CheckCircle2 className="w-4 h-4 text-paid shrink-0" />
                     <div>
                       <span className="font-bold text-paid">تم ربط الصنف المخزني: </span>
-                      <span className="font-semibold text-ink">{selectedProduct.name}</span>
-                      <span className="block text-[10.5px] text-ink-muted font-mono mt-0.5">
+                      <span className="font-semibold text-ink dark:text-ink-dark">{selectedProduct.name}</span>
+                      <span className="block text-[10.5px] text-ink-muted dark:text-ink-dark-muted font-mono mt-0.5">
                         الرصيد المتاح: {selectedProduct.stockQuantityMilli / 1000} {selectedProduct.unit === 'kg' ? 'كجم' : 'قطعة'}
                       </span>
                     </div>
@@ -544,39 +544,39 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       setPriceEgp('');
                       setOriginalPriceEgp('');
                     }}
-                    className="text-ink-muted hover:text-danger text-[11px] underline cursor-pointer"
+                    className="text-ink-muted dark:text-ink-dark-muted hover:text-danger text-[11px] underline cursor-pointer"
                   >
                     تغيير الصنف
                   </button>
                 </div>
               ) : (
-                <div className="p-2.5 rounded-lg bg-surface-2 border border-line text-[11.5px] text-ink-muted">
+                <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-[11.5px] text-ink-muted dark:text-ink-dark-muted">
                   اختر صنفاً من المخزن أعلاه لجلبه تلقائياً، أو اكتب بيانات الصنف أدناه مباشرة.
                 </div>
               )}
 
               {/* Item Name */}
               <div>
-                <label className="block text-xs font-bold text-ink mb-1">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                   اسم الصنف السريع على الشاشة <span className="text-danger">*</span>
                 </label>
                 <div className="relative">
-                  <Tag className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     required
                     placeholder="مثال: عيش فينو، لبن جهينة، خيار، إلخ..."
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-paid focus:bg-surface focus:outline-none transition-all font-medium"
+                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:border-paid dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark-3 focus:outline-none transition-all font-medium"
                   />
                 </div>
               </div>
 
               {/* Pricing Options */}
-              <div className="bg-surface-2/60 p-3 rounded-lg border border-line/80 flex flex-col gap-2.5">
+              <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 p-3 rounded-lg border border-line/80 dark:border-line-dark flex flex-col gap-2.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-ink">
+                  <label className="text-xs font-bold text-ink dark:text-ink-dark">
                     سعر البيع لهذا الزر
                   </label>
                   
@@ -597,7 +597,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                 {!isOpenPrice ? (
                   <div>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted font-mono pointer-events-none">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-mono pointer-events-none">
                         ج.م
                       </span>
                       <input
@@ -608,7 +608,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         placeholder="0.00"
                         value={priceEgp}
                         onChange={(e) => setPriceEgp(normalizeArabicNumerals(e.target.value))}
-                        className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface border border-line rounded-lg text-paid focus:border-paid focus:outline-none transition-all"
+                        className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-paid dark:text-paid-bright focus:border-paid dark:focus:border-brand-bright focus:outline-none transition-all"
                       />
                     </div>
                     {originalPriceEgp && (
@@ -629,17 +629,17 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 {isEnabled('feature_scale_weight') ? (
                   <div>
-                    <label className="block text-xs font-bold text-ink mb-1">
+                    <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                       وحدة الصنف
                     </label>
-                    <div className="grid grid-cols-2 gap-1.5 h-10 bg-surface-2 p-1 rounded-lg border border-line">
+                    <div className="grid grid-cols-2 gap-1.5 h-10 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-lg border border-line dark:border-line-dark">
                       <button
                         type="button"
                         onClick={() => setUnit('piece')}
                         className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                           unit === 'piece'
-                            ? 'bg-surface text-paid shadow-2xs border border-line'
-                            : 'text-ink-muted hover:text-ink'
+                            ? 'bg-surface dark:bg-surface-dark-3 text-paid dark:text-paid-bright shadow-2xs border border-line dark:border-line-dark'
+                            : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                         }`}
                       >
                         <Package className="w-3.5 h-3.5" />
@@ -650,8 +650,8 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         onClick={() => setUnit('kg')}
                         className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                           unit === 'kg'
-                            ? 'bg-surface text-paid shadow-2xs border border-line'
-                            : 'text-ink-muted hover:text-ink'
+                            ? 'bg-surface dark:bg-surface-dark-3 text-paid dark:text-paid-bright shadow-2xs border border-line dark:border-line-dark'
+                            : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                         }`}
                       >
                         <Scale className="w-3.5 h-3.5" />
@@ -662,7 +662,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                 ) : null}
 
                 <div className={isEnabled('feature_scale_weight') ? '' : 'col-span-2'}>
-                  <label className="block text-xs font-bold text-ink mb-1">
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                     القسم / التبويب
                   </label>
                   {!isCustomCategory ? (
@@ -678,7 +678,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsCustomCategory(true)}
-                        className="h-10 px-3 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
+                        className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
                         title="كتابة قسم جديد"
                       >
                         + جديد
@@ -691,7 +691,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         placeholder="اسم القسم الجديد..."
                         value={customCategoryInput}
                         onChange={(e) => setCustomCategoryInput(e.target.value)}
-                        className="flex-1 px-2.5 text-xs bg-surface border border-paid rounded-lg text-ink focus:outline-none"
+                        className="flex-1 px-2.5 text-xs bg-surface dark:bg-surface-dark-3 border border-paid rounded-lg text-ink dark:text-ink-dark focus:outline-none"
                       />
                       <button
                         type="button"
@@ -699,7 +699,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                           setIsCustomCategory(false);
                           setCustomCategoryInput('');
                         }}
-                        className="px-2 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs cursor-pointer"
+                        className="px-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -718,35 +718,35 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               
               {/* Bundle Title */}
               <div>
-                <label className="block text-xs font-bold text-ink mb-1">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                   اسم العرض التجميعي / الكرتونة <span className="text-danger">*</span>
                 </label>
                 <div className="relative">
-                  <Tag className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     required
                     placeholder="مثال: كرتونة رمضان الخير، عرض التوفير الأسبوعي، باقة السحور..."
                     value={bundleName}
                     onChange={(e) => setBundleName(e.target.value)}
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-paid focus:bg-surface focus:outline-none transition-all font-medium"
+                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:border-paid dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark-3 focus:outline-none transition-all font-medium"
                   />
                 </div>
               </div>
 
               {/* Add items to bundle search */}
               <div className="relative">
-                <label className="block text-xs font-bold text-ink mb-1.5">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
                   أضف الأصناف المكونة للعرض من المخزن:
                 </label>
                 <div className="relative">
-                  <Search className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={bundleSearchQuery}
                     onChange={(e) => void handleBundleSearch(e.target.value)}
                     placeholder="ابحث عن صنف لإضافته للعرض (زيت، سكر، أرز...)..."
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface border border-line rounded-lg text-ink focus:border-paid focus:outline-none transition-all font-medium"
+                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:border-paid dark:focus:border-brand-bright focus:outline-none transition-all font-medium"
                   />
                   {isBundleSearching && (
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-ink-muted font-bold animate-pulse">
@@ -757,16 +757,16 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
 
                 {/* Dropdown Results */}
                 {bundleSearchResults.length > 0 && (
-                  <div className="absolute z-20 top-full mt-1 w-full bg-surface border border-line rounded-lg shadow-xl max-h-56 overflow-y-auto divide-y divide-line">
+                  <div className="absolute z-20 top-full mt-1 w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg shadow-xl max-h-56 overflow-y-auto divide-y divide-line dark:divide-line-dark">
                     {bundleSearchResults.map((p) => (
                       <div
                         key={p.id}
                         onClick={() => addProductToBundle(p)}
-                        className="p-2.5 hover:bg-surface-2 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                        className="p-2.5 hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer flex items-center justify-between text-xs transition-colors"
                       >
                         <div className="flex flex-col">
-                          <span className="font-bold text-ink">{p.name}</span>
-                          <span className="text-[10px] text-ink-muted font-mono">{p.barcode || 'بدون باركود'}</span>
+                          <span className="font-bold text-ink dark:text-ink-dark">{p.name}</span>
+                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono">{p.barcode || 'بدون باركود'}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-bold text-paid">
@@ -783,16 +783,16 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               </div>
 
               {/* Bundle Components List */}
-              <div className="bg-surface-2/60 rounded-lg border border-line p-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between text-xs font-bold text-ink border-b border-line pb-2">
+              <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 rounded-lg border border-line dark:border-line-dark p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between text-xs font-bold text-ink dark:text-ink-dark border-b border-line dark:border-line-dark pb-2">
                   <span>مكونات العرض ({bundleItems.length} أصناف)</span>
-                  <span className="font-mono text-[11px] text-ink-muted">
+                  <span className="font-mono text-[11px] text-ink-muted dark:text-ink-dark-muted">
                     إجمالي سعر الأصناف في المخزن: {totalBundleOriginalEgp} ج.م
                   </span>
                 </div>
 
                 {bundleItems.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-ink-muted">
+                  <div className="py-6 text-center text-xs text-ink-muted dark:text-ink-dark-muted">
                     لم تقم بإضافة أي أصناف للعرض بعد. ابحث في المخزن أعلاه لإدراج الأصناف.
                   </div>
                 ) : (
@@ -800,32 +800,32 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     {bundleItems.map((item) => (
                       <div
                         key={item.product.id}
-                        className="bg-surface p-2 rounded-md border border-line flex items-center justify-between text-xs"
+                        className="bg-surface dark:bg-surface-dark-3 p-2 rounded-md border border-line dark:border-line-dark flex items-center justify-between text-xs"
                       >
                         <div className="flex-1 truncate pl-2">
-                          <span className="font-bold text-ink block truncate">{item.product.name}</span>
-                          <span className="text-[10.5px] text-ink-muted font-mono">
+                          <span className="font-bold text-ink dark:text-ink-dark block truncate">{item.product.name}</span>
+                          <span className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted font-mono">
                             {((item.product.pricePiasters * item.quantity) / 100).toFixed(2)} ج.م
                           </span>
                         </div>
 
                         {/* Quantity Stepper */}
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center border border-line rounded bg-surface-2">
+                          <div className="flex items-center border border-line dark:border-line-dark rounded bg-surface-2 dark:bg-surface-dark-2">
                             <button
                               type="button"
                               onClick={() => updateBundleItemQuantity(item.product.id, -1)}
-                              className="w-6 h-6 flex items-center justify-center font-bold text-ink hover:bg-surface cursor-pointer"
+                              className="w-6 h-6 flex items-center justify-center font-bold text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 cursor-pointer"
                             >
                               -
                             </button>
-                            <span className="w-8 text-center font-mono font-bold text-xs">
+                            <span className="w-8 text-center font-mono font-bold text-xs text-ink dark:text-ink-dark">
                               {item.quantity}
                             </span>
                             <button
                               type="button"
                               onClick={() => updateBundleItemQuantity(item.product.id, 1)}
-                              className="w-6 h-6 flex items-center justify-center font-bold text-ink hover:bg-surface cursor-pointer"
+                              className="w-6 h-6 flex items-center justify-center font-bold text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 cursor-pointer"
                             >
                               +
                             </button>
@@ -834,7 +834,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                           <button
                             type="button"
                             onClick={() => removeProductFromBundle(item.product.id)}
-                            className="w-6 h-6 text-ink-muted hover:text-danger flex items-center justify-center rounded transition-colors cursor-pointer"
+                            className="w-6 h-6 text-ink-muted dark:text-ink-dark-muted hover:text-danger flex items-center justify-center rounded transition-colors cursor-pointer"
                             title="حذف من العرض"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -847,9 +847,9 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               </div>
 
               {/* Bundle Pricing */}
-              <div className="bg-surface-2/60 p-3 rounded-lg border border-line/80 flex flex-col gap-2">
+              <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 p-3 rounded-lg border border-line/80 dark:border-line-dark flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-ink">
+                  <label className="text-xs font-bold text-ink dark:text-ink-dark">
                     سعر بيع العرض للمستهلك (الإجمالي) <span className="text-danger">*</span>
                   </label>
                   {bundleSavingsPiasters > 0 && (
@@ -861,7 +861,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                 </div>
 
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted font-mono pointer-events-none">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-mono pointer-events-none">
                     ج.م
                   </span>
                   <input
@@ -872,17 +872,17 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     placeholder="مثال: 150.00"
                     value={bundlePriceEgp}
                     onChange={(e) => setBundlePriceEgp(normalizeArabicNumerals(e.target.value))}
-                    className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface border border-line rounded-lg text-paid focus:border-paid focus:outline-none transition-all"
+                    className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-paid dark:text-paid-bright focus:border-paid dark:focus:border-brand-bright focus:outline-none transition-all"
                   />
                 </div>
-                <p className="text-[10.5px] text-ink-muted m-0">
+                <p className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted m-0">
                   عند بيع هذا العرض، سيقوم النظام تلقائياً بخصم كميات كافة الأصناف المكونة له من المخزن بدقة تامة.
                 </p>
               </div>
 
               {/* Category */}
               <div>
-                <label className="block text-xs font-bold text-ink mb-1">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                   القسم / التبويب
                 </label>
                 {!isCustomBundleCategory ? (
@@ -898,7 +898,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsCustomBundleCategory(true)}
-                      className="h-10 px-3 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
+                      className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
                       title="كتابة قسم جديد"
                     >
                       + جديد
@@ -911,7 +911,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       placeholder="اسم القسم الجديد..."
                       value={customBundleCategoryInput}
                       onChange={(e) => setCustomBundleCategoryInput(e.target.value)}
-                      className="flex-1 px-2.5 text-xs bg-surface border border-paid rounded-lg text-ink focus:outline-none"
+                      className="flex-1 px-2.5 text-xs bg-surface dark:bg-surface-dark-3 border border-paid rounded-lg text-ink dark:text-ink-dark focus:outline-none"
                     />
                     <button
                       type="button"
@@ -919,7 +919,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         setIsCustomBundleCategory(false);
                         setCustomBundleCategoryInput('');
                       }}
-                      className="px-2 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs cursor-pointer"
+                      className="px-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -937,7 +937,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               
               {/* Presets */}
               <div>
-                <label className="block text-[11px] font-bold text-ink-muted mb-1.5">
+                <label className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">
                   نماذج جاهزة للاختيار السريع:
                 </label>
                 <div className="flex flex-wrap gap-1.5">
@@ -956,7 +956,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         }
                         setUnit((preset.unit as 'piece' | 'kg') || 'piece');
                       }}
-                      className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-line transition-all active:scale-95 text-right flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark transition-all active:scale-95 text-right flex items-center gap-1 cursor-pointer"
                     >
                       <span>{preset.label}</span>
                       {!preset.isOpenPrice && preset.price && (
@@ -971,26 +971,26 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
 
               {/* Item Name */}
               <div>
-                <label className="block text-xs font-bold text-ink mb-1">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                   اسم الصنف السريع <span className="text-danger">*</span>
                 </label>
                 <div className="relative">
-                  <Tag className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     required
                     placeholder="مثال: كيس بلاستيك كبير، خدمة توصيل، فنجان شاي..."
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-paid focus:bg-surface focus:outline-none transition-all font-medium"
+                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:border-paid dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark-3 focus:outline-none transition-all font-medium"
                   />
                 </div>
               </div>
 
               {/* Pricing Options */}
-              <div className="bg-surface-2/60 p-3 rounded-lg border border-line/80 flex flex-col gap-2.5">
+              <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 p-3 rounded-lg border border-line/80 dark:border-line-dark flex flex-col gap-2.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-ink">
+                  <label className="text-xs font-bold text-ink dark:text-ink-dark">
                     سعر البيع
                   </label>
                   
@@ -1010,7 +1010,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
 
                 {!isOpenPrice ? (
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted font-mono pointer-events-none">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-mono pointer-events-none">
                       ج.م
                     </span>
                     <input
@@ -1021,7 +1021,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       placeholder="0.00"
                       value={priceEgp}
                       onChange={(e) => setPriceEgp(normalizeArabicNumerals(e.target.value))}
-                      className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface border border-line rounded-lg text-paid focus:border-paid focus:outline-none transition-all"
+                      className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-paid dark:text-paid-bright focus:border-paid dark:focus:border-brand-bright focus:outline-none transition-all"
                     />
                   </div>
                 ) : (
@@ -1035,17 +1035,17 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 {isEnabled('feature_scale_weight') ? (
                   <div>
-                    <label className="block text-xs font-bold text-ink mb-1">
+                    <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                       وحدة الصنف
                     </label>
-                    <div className="grid grid-cols-2 gap-1.5 h-10 bg-surface-2 p-1 rounded-lg border border-line">
+                    <div className="grid grid-cols-2 gap-1.5 h-10 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-lg border border-line dark:border-line-dark">
                       <button
                         type="button"
                         onClick={() => setUnit('piece')}
                         className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                           unit === 'piece'
-                            ? 'bg-surface text-paid shadow-2xs border border-line'
-                            : 'text-ink-muted hover:text-ink'
+                            ? 'bg-surface dark:bg-surface-dark-3 text-paid dark:text-paid-bright shadow-2xs border border-line dark:border-line-dark'
+                            : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                         }`}
                       >
                         <Package className="w-3.5 h-3.5" />
@@ -1056,8 +1056,8 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         onClick={() => setUnit('kg')}
                         className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                           unit === 'kg'
-                            ? 'bg-surface text-paid shadow-2xs border border-line'
-                            : 'text-ink-muted hover:text-ink'
+                            ? 'bg-surface dark:bg-surface-dark-3 text-paid dark:text-paid-bright shadow-2xs border border-line dark:border-line-dark'
+                            : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                         }`}
                       >
                         <Scale className="w-3.5 h-3.5" />
@@ -1068,7 +1068,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                 ) : null}
 
                 <div className={isEnabled('feature_scale_weight') ? '' : 'col-span-2'}>
-                  <label className="block text-xs font-bold text-ink mb-1">
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
                     القسم / التبويب
                   </label>
                   {!isCustomCategory ? (
@@ -1084,7 +1084,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsCustomCategory(true)}
-                        className="h-10 px-3 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
+                        className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
                         title="كتابة قسم جديد"
                       >
                         + جديد
@@ -1097,7 +1097,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         placeholder="اسم القسم الجديد..."
                         value={customCategoryInput}
                         onChange={(e) => setCustomCategoryInput(e.target.value)}
-                        className="flex-1 px-2.5 text-xs bg-surface border border-paid rounded-lg text-ink focus:outline-none"
+                        className="flex-1 px-2.5 text-xs bg-surface dark:bg-surface-dark-3 border border-paid rounded-lg text-ink dark:text-ink-dark focus:outline-none"
                       />
                       <button
                         type="button"
@@ -1105,7 +1105,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                           setIsCustomCategory(false);
                           setCustomCategoryInput('');
                         }}
-                        className="px-2 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs cursor-pointer"
+                        className="px-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -1117,7 +1117,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
           )}
 
           {/* Action Buttons */}
-          <div className="mt-2 pt-3 border-t border-line flex items-center justify-between gap-2 shrink-0">
+          <div className="mt-2 pt-3 border-t border-line dark:border-line-dark flex items-center justify-between gap-2 shrink-0">
             {onOpenFullManager && (
               <button
                 type="button"
@@ -1125,7 +1125,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                   onClose();
                   onOpenFullManager();
                 }}
-                className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-paid font-semibold py-1.5 px-2 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-paid-bright font-semibold py-1.5 px-2 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
               >
                 <Settings className="w-3.5 h-3.5" />
                 <span>إدارة وترتيب الأزرار السريعة</span>
@@ -1137,7 +1137,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                 type="button"
                 onClick={() => void requestClose()}
                 disabled={loading}
-                className="px-4 h-9 bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-ink rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                className="px-4 h-9 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               >
                 إلغاء
               </button>

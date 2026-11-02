@@ -561,12 +561,12 @@ export const HelpCenterModal = ({
       dir="rtl"
     >
       <div 
-        className="w-full max-w-5xl h-[88vh] max-h-[820px] bg-white rounded-2xl shadow-2xl border border-[#dce1dc] flex flex-col overflow-hidden font-sans text-[#0f172a]"
+        className="w-full max-w-5xl h-[88vh] max-h-[820px] bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark flex flex-col overflow-hidden font-sans text-ink dark:text-ink-dark"
         role="dialog"
         aria-modal="true"
       >
         {/* Header */}
-        <div className="px-5 py-3.5 bg-[#00372d] text-white flex items-center justify-between shrink-0 select-none shadow-sm">
+        <div className="px-5 py-3.5 bg-[#00372d] dark:bg-surface-dark-2 text-white flex items-center justify-between shrink-0 select-none shadow-sm dark:border-b dark:border-line-dark">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-[#006d41] flex items-center justify-center text-white shadow-inner">
               <HelpCircle className="w-5 h-5 text-emerald-200" />
@@ -610,21 +610,21 @@ export const HelpCenterModal = ({
         </div>
 
         {/* Search Bar & Fast Navigation Bar */}
-        <div className="p-3 bg-[#f8fafc] border-b border-[#dce1dc] flex items-center gap-3 shrink-0">
+        <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center gap-3 shrink-0">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-[#52605d] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="ابحث في مركز المساعدة (مثال: باركود، وزن، مرتجع، آجل، طابعة، نسخة احتياطية)..."
-              className="w-full h-10 pr-9 pl-9 rounded-xl bg-white border border-[#dce1dc] focus:border-[#006d41] focus:ring-2 focus:ring-[#006d41]/20 text-xs text-[#0f172a] placeholder-[#52605d]/60 outline-none transition-all"
+              className="w-full h-10 pr-9 pl-9 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark focus:border-paid dark:focus:border-brand-bright focus:ring-2 focus:ring-paid/20 text-xs text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 outline-none transition-all"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark p-0.5 rounded cursor-pointer"
                 title="مسح البحث"
               >
                 <X className="w-3.5 h-3.5" />
@@ -636,9 +636,9 @@ export const HelpCenterModal = ({
         {/* Main Body: 2 Columns (Sidebar Tabs + Content Area) */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Navigation Sidebar */}
-          <div className="w-64 bg-[#f8fafc] border-l border-[#dce1dc] p-2 flex flex-col gap-1 overflow-y-auto shrink-0 select-none">
+          <div className="w-64 bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark p-2 flex flex-col gap-1 overflow-y-auto shrink-0 select-none">
             {allowedArticles.length > 0 && (
-              <span className="text-[11px] font-bold text-[#52605d] px-2 py-1">
+              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted px-2 py-1">
                 شروحات شاشات البرنامج
               </span>
             )}
@@ -649,15 +649,15 @@ export const HelpCenterModal = ({
                 onClick={() => setActiveSection('pos')}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'pos'
-                    ? 'bg-[#00372d] text-white shadow-xs'
-                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                    ? 'bg-brand dark:bg-brand-container text-white shadow-xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-3 dark:hover:bg-surface-dark-3 hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
                   <ShoppingCart className="w-4 h-4" />
                   <span>نقطة البيع والكاشير</span>
                 </div>
-                <span className={`text-[10px] font-mono px-1 rounded ${activeSection === 'pos' ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'}`}>
+                <span className={`text-[10px] font-mono px-1 rounded ${activeSection === 'pos' ? 'bg-white/20 text-white' : 'bg-surface-3 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'}`}>
                   F1
                 </span>
               </button>
@@ -669,8 +669,8 @@ export const HelpCenterModal = ({
                 onClick={() => setActiveSection('products')}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'products'
-                    ? 'bg-[#00372d] text-white shadow-xs'
-                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                    ? 'bg-brand dark:bg-brand-container text-white shadow-xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-3 dark:hover:bg-surface-dark-3 hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -686,8 +686,8 @@ export const HelpCenterModal = ({
                 onClick={() => setActiveSection('purchases')}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'purchases'
-                    ? 'bg-[#00372d] text-white shadow-xs'
-                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                    ? 'bg-brand dark:bg-brand-container text-white shadow-xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-3 dark:hover:bg-surface-dark-3 hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -703,8 +703,8 @@ export const HelpCenterModal = ({
                 onClick={() => setActiveSection('customers')}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'customers'
-                    ? 'bg-[#00372d] text-white shadow-xs'
-                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                    ? 'bg-brand dark:bg-brand-container text-white shadow-xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-3 dark:hover:bg-surface-dark-3 hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -720,8 +720,8 @@ export const HelpCenterModal = ({
                 onClick={() => setActiveSection('sales')}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'sales'
-                    ? 'bg-[#00372d] text-white shadow-xs'
-                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                    ? 'bg-brand dark:bg-brand-container text-white shadow-xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-3 dark:hover:bg-surface-dark-3 hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -737,8 +737,8 @@ export const HelpCenterModal = ({
                 onClick={() => setActiveSection('backup_security')}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'backup_security'
-                    ? 'bg-[#00372d] text-white shadow-xs'
-                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                    ? 'bg-brand dark:bg-brand-container text-white shadow-xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-3 dark:hover:bg-surface-dark-3 hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -748,7 +748,7 @@ export const HelpCenterModal = ({
               </button>
             )}
 
-            <div className="h-px bg-[#dce1dc] my-2" />
+            <div className="h-px bg-line dark:bg-line-dark my-2" />
 
             <span className="text-[11px] font-bold text-[#52605d] px-2 py-1">
               المساعدة التفاعلية
@@ -759,15 +759,15 @@ export const HelpCenterModal = ({
               onClick={() => setActiveSection('faq')}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 activeSection === 'faq'
-                  ? 'bg-[#006d41] text-white shadow-xs'
-                  : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                  ? 'bg-paid dark:bg-paid text-white shadow-xs'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-3 dark:hover:bg-surface-dark-3 hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <div className="flex items-center gap-2.5">
                 <FileQuestion className="w-4 h-4" />
                 <span>الأسئلة الشائعة (FAQ)</span>
               </div>
-              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-surface-3 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted">
                 {FAQS.length}
               </span>
             </button>
@@ -777,8 +777,8 @@ export const HelpCenterModal = ({
               onClick={() => setActiveSection('support')}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer mt-auto border ${
                 activeSection === 'support'
-                  ? 'bg-[#00372d] text-amber-300 border-[#00372d] shadow-xs'
-                  : 'bg-emerald-50 text-[#006d41] border-emerald-200 hover:bg-emerald-100'
+                  ? 'bg-brand dark:bg-brand-container text-amber-300 border-brand dark:border-brand-container shadow-xs'
+                  : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid-dark-border hover:bg-paid-soft/80'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -790,18 +790,18 @@ export const HelpCenterModal = ({
           </div>
 
           {/* Content Viewport */}
-          <div className="flex-1 p-5 overflow-y-auto bg-white min-h-0">
+          <div className="flex-1 p-5 overflow-y-auto bg-surface dark:bg-surface-dark min-h-0 text-ink dark:text-ink-dark">
             {/* Search Results Override View */}
             {searchQuery.trim().length > 0 && (
               <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between pb-3 border-b border-[#dce1dc]">
+                <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                   <div className="flex items-center gap-2">
                     <Search className="w-4 h-4 text-[#006d41]" />
-                    <span className="text-sm font-bold text-[#0f172a]">
+                    <span className="text-sm font-bold text-ink dark:text-ink-dark">
                       نتائج البحث عن: "{searchQuery}"
                     </span>
                   </div>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
                     وجد {filteredArticles.length} شرح و {filteredFaqs.length} سؤال شائع
                   </span>
                 </div>
@@ -825,23 +825,23 @@ export const HelpCenterModal = ({
                     {filteredArticles.map((art) => (
                       <div
                         key={art.id}
-                        className="p-4 rounded-xl border border-[#dce1dc] hover:border-[#006d41]/50 bg-[#f8fafc] transition-all flex flex-col gap-2"
+                        className="p-4 rounded-xl border border-line dark:border-line-dark hover:border-paid/50 dark:hover:border-paid-bright/50 bg-surface-2 dark:bg-surface-dark-2 transition-all flex flex-col gap-2"
                       >
                         <div className="flex items-center justify-between">
-                          <h4 className="font-bold text-sm text-[#00372d]">{art.title}</h4>
+                          <h4 className="font-bold text-sm text-brand dark:text-brand-bright">{art.title}</h4>
                           <button
                             type="button"
                             onClick={() => {
                               setActiveSection(art.sectionId);
                               setSearchQuery('');
                             }}
-                            className="text-xs font-bold text-[#006d41] hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-xs font-bold text-paid dark:text-paid-bright hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             <span>عرض الدليل الكامل</span>
                             <ExternalLink className="w-3 h-3" />
                           </button>
                         </div>
-                        <p className="text-xs text-slate-600 m-0">{art.summary}</p>
+                        <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0">{art.summary}</p>
                       </div>
                     ))}
                   </div>
@@ -856,12 +856,12 @@ export const HelpCenterModal = ({
                     {filteredFaqs.map((faq) => (
                       <div
                         key={faq.id}
-                        className="p-4 rounded-xl border border-[#dce1dc] bg-[#f8fafc] flex flex-col gap-2"
+                        className="p-4 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-2"
                       >
-                        <span className="text-[10px] font-bold text-[#006d41] bg-emerald-50 px-2 py-0.5 rounded-md w-fit border border-emerald-200">
+                        <span className="text-[10px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded-md w-fit border border-paid/20 dark:border-paid-dark-border">
                           {faq.category} • {faq.tag}
                         </span>
-                        <h4 className="font-bold text-xs text-[#0f172a] m-0">{faq.question}</h4>
+                        <h4 className="font-bold text-xs text-ink dark:text-ink-dark m-0">{faq.question}</h4>
                         <p className="text-xs text-slate-600 m-0 leading-relaxed">{faq.answer}</p>
                       </div>
                     ))}
@@ -877,17 +877,17 @@ export const HelpCenterModal = ({
                 {activeSection !== 'faq' && activeSection !== 'support' && activeArticle && (
                   <div className="flex flex-col gap-5 animate-in fade-in duration-150">
                     {/* Title banner */}
-                    <div className="flex flex-col gap-1.5 pb-4 border-b border-[#dce1dc]">
+                    <div className="flex flex-col gap-1.5 pb-4 border-b border-line dark:border-line-dark">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-[#00372d] m-0">
+                        <h3 className="text-lg font-bold text-brand dark:text-brand-bright m-0">
                           {activeArticle.title}
                         </h3>
-                        <span className="text-xs font-bold text-[#006d41] bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
+                        <span className="text-xs font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2.5 py-1 rounded-lg border border-paid/20 dark:border-paid-dark-border flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>شرح عملي خطوة بخطوة</span>
                         </span>
                       </div>
-                      <p className="text-xs text-slate-600 leading-relaxed m-0">
+                      <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0">
                         {activeArticle.summary}
                       </p>
                     </div>
@@ -907,8 +907,8 @@ export const HelpCenterModal = ({
 
                     {/* Step by Step Visual Guide Cards */}
                     <div className="flex flex-col gap-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-[#52605d]">
-                        <Keyboard className="w-4 h-4 text-[#00372d]" />
+                      <div className="flex items-center gap-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                        <Keyboard className="w-4 h-4 text-brand dark:text-brand-bright" />
                         <span>الخطوات العملية واختصارات السرعة:</span>
                       </div>
 
@@ -916,26 +916,26 @@ export const HelpCenterModal = ({
                         {activeArticle.steps.map((st, idx) => (
                           <div
                             key={idx}
-                            className="p-3.5 rounded-xl border border-[#dce1dc] hover:border-[#006d41]/60 bg-[#f8fafc] flex flex-col gap-2 transition-all shadow-2xs"
+                            className="p-3.5 rounded-xl border border-line dark:border-line-dark hover:border-paid/60 dark:hover:border-paid-bright/60 bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-2 transition-all shadow-2xs"
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-lg bg-[#00372d] text-white text-xs font-bold flex items-center justify-center shrink-0">
+                                <span className="w-6 h-6 rounded-lg bg-brand dark:bg-brand-container text-white text-xs font-bold flex items-center justify-center shrink-0">
                                   {st.badge}
                                 </span>
-                                <h4 className="font-bold text-xs text-[#0f172a] m-0">
+                                <h4 className="font-bold text-xs text-ink dark:text-ink-dark m-0">
                                   {st.title}
                                 </h4>
                               </div>
 
                               {st.shortcut && (
-                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white border border-[#dce1dc] text-[#00372d] shadow-2xs">
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-brand dark:text-brand-bright shadow-2xs">
                                   {st.shortcut}
                                 </span>
                               )}
                             </div>
 
-                            <p className="text-[11px] text-slate-600 leading-relaxed m-0 font-sans">
+                            <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0 font-sans">
                               {st.description}
                             </p>
                           </div>
@@ -945,8 +945,8 @@ export const HelpCenterModal = ({
 
                     {/* Troubleshooting Footnote */}
                     {activeArticle.troubleshooting && (
-                      <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 text-blue-900 text-xs flex items-start gap-2.5">
-                        <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-blue-900 dark:text-blue-200 text-xs flex items-start gap-2.5">
+                        <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                         <div className="leading-relaxed">
                           <span className="font-bold">حل المشاكل الشائعة: </span>
                           <span>{activeArticle.troubleshooting}</span>
@@ -960,8 +960,8 @@ export const HelpCenterModal = ({
                 {activeSection !== 'faq' && activeSection !== 'support' && !activeArticle && (
                   <div className="py-16 flex flex-col items-center justify-center text-center text-slate-500 gap-3">
                     <ShieldAlert className="w-12 h-12 text-warn dark:text-warn-bright" />
-                    <p className="font-bold text-base text-[#0f172a]">هذا الدليل غير متاح لصلاحيات حسابك الحالية</p>
-                    <p className="text-xs text-[#52605d] max-w-sm">
+                    <p className="font-bold text-base text-ink dark:text-ink-dark">هذا الدليل غير متاح لصلاحيات حسابك الحالية</p>
+                    <p className="text-xs text-ink-muted dark:text-ink-dark-muted max-w-sm">
                       يرجى اختيار أحد الأدلة المصرح لك بالاطلاع عليها من القائمة الجانبية أو مراجعة مسؤول النظام.
                     </p>
                   </div>
@@ -972,14 +972,14 @@ export const HelpCenterModal = ({
                   <div className="flex flex-col gap-4 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between pb-3 border-b border-[#dce1dc]">
                       <div>
-                        <h3 className="text-base font-bold text-[#00372d] m-0">
+                        <h3 className="text-base font-bold text-brand dark:text-brand-bright m-0">
                           الأسئلة الشائعة وحلول المشاكل الواقعية
                         </h3>
-                        <p className="text-xs text-slate-500 m-0">
+                        <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0">
                           إجابات واضحة ومباشرة لتساؤلات أصحاب المتاجر ومحلات التجزئة بدون إنترنت
                         </p>
                       </div>
-                      <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                      <span className="text-xs font-bold text-ink dark:text-ink-dark bg-surface-2 dark:bg-surface-dark-2 px-2.5 py-1 rounded-lg border border-line dark:border-line-dark">
                         {FAQS.length} إجابة معتمدة
                       </span>
                     </div>
@@ -992,8 +992,8 @@ export const HelpCenterModal = ({
                             key={faq.id}
                             className={`rounded-xl border transition-all overflow-hidden ${
                               isExpanded
-                                ? 'border-[#006d41] bg-white shadow-xs'
-                                : 'border-[#dce1dc] bg-[#f8fafc] hover:border-slate-400'
+                                ? 'border-paid dark:border-paid-bright bg-surface dark:bg-surface-dark-2 shadow-xs'
+                                : 'border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 hover:border-line-hover dark:hover:border-line-dark-hover'
                             }`}
                           >
                             <button
@@ -1002,10 +1002,10 @@ export const HelpCenterModal = ({
                               className="w-full p-3.5 text-right flex items-center justify-between gap-3 cursor-pointer select-none"
                             >
                               <div className="flex items-center gap-2.5">
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100/70 text-[#006d41] border border-emerald-200 shrink-0">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-dark-border shrink-0">
                                   {faq.tag}
                                 </span>
-                                <span className="font-bold text-xs text-[#0f172a] leading-tight">
+                                <span className="font-bold text-xs text-ink dark:text-ink-dark leading-tight">
                                   {faq.question}
                                 </span>
                               </div>
@@ -1020,7 +1020,7 @@ export const HelpCenterModal = ({
                             </button>
 
                             {isExpanded && (
-                              <div className="px-4 pb-4 pt-1 text-xs text-slate-700 leading-relaxed border-t border-[#dce1dc]/60 bg-white">
+                              <div className="px-4 pb-4 pt-1 text-xs text-ink-muted dark:text-ink-dark-muted leading-relaxed border-t border-line/60 dark:border-line-dark bg-surface dark:bg-surface-dark-3">
                                 <p className="m-0 font-sans">{faq.answer}</p>
                               </div>
                             )}
@@ -1043,7 +1043,7 @@ export const HelpCenterModal = ({
                           بيانات جهازك والترخيص ورقم الاتصال المباشر مع مهندسي رفيق POS
                         </p>
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                      <div className="flex items-center gap-1.5 text-xs text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-2.5 py-1 rounded-lg border border-paid/20 dark:border-paid-dark-border">
                         <ShieldCheck className="w-4 h-4 text-emerald-600" />
                         <span>دعم فني معتمد</span>
                       </div>
@@ -1052,7 +1052,7 @@ export const HelpCenterModal = ({
                     {/* Direct Contact Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {/* Phone Call Card */}
-                      <div className="p-4 rounded-xl bg-[#00372d] text-white flex flex-col justify-between gap-3 shadow-sm">
+                      <div className="p-4 rounded-xl bg-brand-dark dark:bg-surface-dark-2 text-white border dark:border-line-dark flex flex-col justify-between gap-3 shadow-sm">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <PhoneCall className="w-4 h-4 text-amber-300" />
@@ -1089,74 +1089,74 @@ export const HelpCenterModal = ({
                       </div>
 
                       {/* Hardware Fingerprint & Machine Identity */}
-                      <div className="p-4 rounded-xl border border-[#dce1dc] bg-[#f8fafc] flex flex-col justify-between gap-3 shadow-2xs">
+                      <div className="p-4 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col justify-between gap-3 shadow-2xs">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 text-xs font-bold text-[#0f172a]">
-                            <KeyRound className="w-4 h-4 text-[#006d41]" />
+                            <KeyRound className="w-4 h-4 text-paid dark:text-paid-bright" />
                             <span>بصمة هذا الجهاز (Machine ID)</span>
                           </div>
-                          <span className="text-[10px] text-slate-500">مطلوبة لتفعيل الترخيص</span>
+                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">مطلوبة لتفعيل الترخيص</span>
                         </div>
 
-                        <div className="flex items-center justify-between bg-white p-2.5 rounded-lg border border-[#dce1dc]">
-                          <span className="font-mono text-xs font-bold text-[#00372d] tracking-wider truncate select-all" dir="ltr">
+                        <div className="flex items-center justify-between bg-surface dark:bg-surface-dark-3 p-2.5 rounded-lg border border-line dark:border-line-dark">
+                          <span className="font-mono text-xs font-bold text-brand dark:text-brand-bright tracking-wider truncate select-all" dir="ltr">
                             {licenseInfo?.deviceFingerprint || 'RAFIQ-POS-HOST'}
                           </span>
 
                           <button
                             type="button"
                             onClick={() => void handleCopyFingerprint()}
-                            className="text-xs px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-[#0f172a] font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                            className="text-xs px-2.5 py-1 rounded bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface-3 dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0"
                           >
                             {copiedFingerprint ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                             <span>{copiedFingerprint ? 'تم النسخ' : 'نسخ'}</span>
                           </button>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] text-slate-600">
+                        <div className="flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted">
                           <span>اسم المحل: <strong>{licenseInfo?.shopName || 'متجر رفيق'}</strong></span>
-                          <span>الترخيص: <strong className="text-[#006d41]">{licenseInfo?.statusLabel || 'مفعّل'}</strong></span>
+                          <span>الترخيص: <strong className="text-paid dark:text-paid-bright">{licenseInfo?.statusLabel || 'مفعّل'}</strong></span>
                         </div>
                       </div>
                     </div>
 
                     {/* System Diagnostic Spec Grid */}
-                    <div className="p-3.5 rounded-xl border border-[#dce1dc] bg-[#f8fafc] flex flex-col gap-2">
+                    <div className="p-3.5 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-2">
                       <div className="flex items-center gap-2 text-xs font-bold text-[#0f172a]">
-                        <Cpu className="w-4 h-4 text-[#00372d]" />
+                        <Cpu className="w-4 h-4 text-brand dark:text-brand-bright" />
                         <span>مواصفات وإصدار النظام الحالي:</span>
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                        <div className="p-2 rounded bg-white border border-[#dce1dc]">
-                          <span className="text-[10px] text-slate-500 block">إصدار البرنامج</span>
-                          <span className="font-mono font-bold text-[#00372d]">{sysInfo?.version || 'v1.0.0'}</span>
+                        <div className="p-2 rounded bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark">
+                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">إصدار البرنامج</span>
+                          <span className="font-mono font-bold text-brand dark:text-brand-bright">{sysInfo?.version || 'v1.0.0'}</span>
                         </div>
-                        <div className="p-2 rounded bg-white border border-[#dce1dc]">
-                          <span className="text-[10px] text-slate-500 block">نظام التشغيل</span>
-                          <span className="font-bold text-[#0f172a] truncate block">{sysInfo?.osVersion || 'Windows'}</span>
+                        <div className="p-2 rounded bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark">
+                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">نظام التشغيل</span>
+                          <span className="font-bold text-ink dark:text-ink-dark truncate block">{sysInfo?.osVersion || 'Windows'}</span>
                         </div>
-                        <div className="p-2 rounded bg-white border border-[#dce1dc]">
-                          <span className="text-[10px] text-slate-500 block">قاعدة البيانات</span>
+                        <div className="p-2 rounded bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark">
+                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">قاعدة البيانات</span>
                           <span className="font-bold text-[#006d41]">{sysInfo?.dbStatus ? 'نشطة ومؤمنة' : 'متصلة'}</span>
                         </div>
-                        <div className="p-2 rounded bg-white border border-[#dce1dc]">
-                          <span className="text-[10px] text-slate-500 block">نوع الترخيص</span>
-                          <span className="font-bold text-[#0f172a]">{licenseInfo?.licenseType || 'دائم'}</span>
+                        <div className="p-2 rounded bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark">
+                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">نوع الترخيص</span>
+                          <span className="font-bold text-ink dark:text-ink-dark">{licenseInfo?.licenseType || 'دائم'}</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Support Bundle Generation Action Card (Task 147-3 & Feature #111) */}
-                    <div className="p-4 rounded-xl border border-[#006d41]/30 bg-emerald-50/50 flex flex-col gap-3 shadow-2xs">
+                    <div className="p-4 rounded-xl border border-paid/30 dark:border-paid/30 bg-paid-soft/50 dark:bg-surface-dark-2 flex flex-col gap-3 shadow-2xs">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Package className="w-4 h-4 text-[#006d41]" />
-                          <span className="font-bold text-xs text-[#00372d]">
+                          <Package className="w-4 h-4 text-paid dark:text-paid-bright" />
+                          <span className="font-bold text-xs text-brand dark:text-brand-bright">
                             توليد حزمة معلومات الدعم الفني وسجل الأخطاء (Support Bundle)
                           </span>
                         </div>
-                        <span className="text-[10px] text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded-md">
+                        <span className="text-[10px] text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded-md">
                           محمية وخالية من بيانات الزبائن والأسعار
                         </span>
                       </div>
@@ -1166,7 +1166,7 @@ export const HelpCenterModal = ({
                       </p>
 
                       {supportMessage && (
-                        <div className="p-3 rounded-lg bg-white border border-emerald-300 text-xs text-slate-800 flex flex-col gap-1.5">
+                        <div className="p-3 rounded-lg bg-surface dark:bg-surface-dark-3 border border-paid-border dark:border-paid-dark-border text-xs text-ink dark:text-ink-dark flex flex-col gap-1.5">
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-emerald-800">{supportMessage}</span>
                             <button
@@ -1181,7 +1181,7 @@ export const HelpCenterModal = ({
                             </button>
                           </div>
                           {supportSavedPath && (
-                            <span className="font-mono text-[11px] text-slate-500 bg-slate-100 p-1.5 rounded break-all" dir="ltr">
+                            <span className="font-mono text-[11px] text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-lowest p-1.5 rounded break-all" dir="ltr">
                               {supportSavedPath}
                             </span>
                           )}
@@ -1192,7 +1192,7 @@ export const HelpCenterModal = ({
                         type="button"
                         onClick={() => void handleCreateSupportBundle()}
                         disabled={supportLoading}
-                        className="h-10 bg-[#006d41] hover:bg-[#005a36] text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-xs cursor-pointer shadow-xs disabled:opacity-50"
+                        className="h-10 bg-paid hover:bg-paid-hover active:bg-brand-dark text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-xs cursor-pointer shadow-xs disabled:opacity-50"
                       >
                         <Download className="w-4 h-4" />
                         <span>
@@ -1210,9 +1210,9 @@ export const HelpCenterModal = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 bg-[#f8fafc] border-t border-[#dce1dc] flex items-center justify-between text-xs text-slate-500 select-none shrink-0">
+        <div className="px-5 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted select-none shrink-0">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-600" />
+            <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright" />
             <span className="font-medium">
               نظام رفيق POS — نظام إدارة نقاط البيع والمتاجر ومحلات التجزئة
             </span>
@@ -1223,7 +1223,7 @@ export const HelpCenterModal = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-[#0f172a] font-bold text-xs transition-colors cursor-pointer"
+              className="px-4 py-1.5 rounded-lg bg-surface-3 dark:bg-surface-dark-3 hover:bg-line dark:hover:bg-surface-dark-high text-ink dark:text-ink-dark font-bold text-xs transition-colors cursor-pointer"
             >
               إغلاق
             </button>

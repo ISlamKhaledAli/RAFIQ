@@ -66,7 +66,7 @@ namespace RafiqPOS.Services
                 : null;
             if (adminUser != null)
             {
-                SecurityService.SetCurrentUserForTesting(SecurityService.MapToDto(adminUser));
+                var dto = SecurityService.MapToDto(adminUser); dto.MustChangePin = false; dto.Permissions = SecurityService.GetAllPermissionsDictionary(true); SecurityService.SetCurrentUserForTesting(dto);
             }
             else
             {
@@ -80,7 +80,8 @@ namespace RafiqPOS.Services
                     DisplayName = "مدير النظام التجريبي",
                     Role = "admin",
                     IsActive = true,
-                    Permissions = testPerms
+                    MustChangePin = false,
+                    Permissions = SecurityService.GetAllPermissionsDictionary(true)
                 });
             }
 
@@ -95,7 +96,7 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("license_status", "active");
                 settingsRepo.Set("license_type", "annual");
                 settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(-2).ToString("yyyy-MM-dd HH:mm:ss"));
-                settingsRepo.Set("last_known_utc", DateTime.UtcNow.AddDays(-3).ToString("o"));
+                settingsRepo.Set("last_known_utc", DateTime.UtcNow.AddDays(-3).ToString("o")); LicenseService.InvalidateCache();
 
                 var expiredInfo = DatabaseService.License.GetLicenseInfo();
                 if (expiredInfo.IsActive || !expiredInfo.IsExpired || expiredInfo.Status != "expired")
@@ -112,7 +113,7 @@ namespace RafiqPOS.Services
                 result.TotalAssertions++;
                 settingsRepo.Set("license_token", SignedTestToken("RFQ-TEST-EXPIRED-KEY", "annual", DateTime.UtcNow.AddDays(30)));
                 settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd HH:mm:ss"));
-                settingsRepo.Set("last_known_utc", DateTime.UtcNow.AddMinutes(30).ToString("o"));
+                settingsRepo.Set("last_known_utc", DateTime.UtcNow.AddMinutes(30).ToString("o")); LicenseService.InvalidateCache();
 
                 var tamperedInfo = DatabaseService.License.GetLicenseInfo();
                 if (tamperedInfo.IsActive || !tamperedInfo.ClockTampered)
@@ -129,7 +130,7 @@ namespace RafiqPOS.Services
                 result.TotalAssertions++;
                 settingsRepo.Set("last_known_utc", DateTime.UtcNow.AddDays(-1).ToString("o"));
                 settingsRepo.Set("license_token", SignedTestToken("RFQ-TEST-EXPIRED-KEY", "annual", DateTime.UtcNow.AddDays(-1)));
-                settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd HH:mm:ss"));
+                settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd HH:mm:ss")); LicenseService.InvalidateCache();
 
                 // Test full spectrum of commercial mutation actions that must be blocked when license is expired
                 string[] mutationActions = new string[] { "sales:create", "sales:hold", "returns:create", "purchases:create", "expenses:create" };
@@ -150,7 +151,8 @@ namespace RafiqPOS.Services
                     var blockResponse = IpcDispatcher.Dispatch(fakeMutationReq);
                     if (blockResponse.Success || blockResponse.Error == null || blockResponse.Error.Code != "LICENSE_EXPIRED")
                     {
-                        result.Message = string.Format("فشل اختبار منع العمليات التجارية: النواة سمحت بإجراء {0} أثناء انتهاء الترخيص أو لم ترجع كود LICENSE_EXPIRED", actionName);
+                        string errCode = blockResponse.Error != null ? (blockResponse.Error.Code + ": " + blockResponse.Error.Message) : (blockResponse.Success ? "SUCCESS" : "NULL_ERROR");
+                        result.Message = string.Format("فشل اختبار منع العمليات التجارية: النواة سمحت بإجراء {0} أثناء انتهاء الترخيص أو لم ترجع كود LICENSE_EXPIRED ({1})", actionName, errCode);
                         return result;
                     }
                 }
@@ -225,7 +227,7 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("license_status", "");
                 settingsRepo.Set("license_type", "");
                 settingsRepo.Set("license_expires_at", "");
-                settingsRepo.Set("last_known_utc", DateTime.UtcNow.ToString("o"));
+                settingsRepo.Set("last_known_utc", DateTime.UtcNow.ToString("o")); LicenseService.InvalidateCache();
 
                 var initialInfo = DatabaseService.License.GetLicenseInfo();
                 if (initialInfo.IsActive || initialInfo.Status != "unlicensed")
@@ -239,7 +241,7 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("license_token", SignedTestToken("RFQ-TR-TEST-1234", "trial", DateTime.UtcNow.AddDays(7)));
                 settingsRepo.Set("license_status", "trial");
                 settingsRepo.Set("license_type", "trial");
-                settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(7).ToString("yyyy-MM-dd HH:mm:ss"));
+                settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(7).ToString("yyyy-MM-dd HH:mm:ss")); LicenseService.InvalidateCache();
 
                 var trialInfo = DatabaseService.License.GetLicenseInfo();
                 if (!trialInfo.IsActive || trialInfo.Status != "trial" || trialInfo.DaysRemaining < 5)
@@ -250,7 +252,7 @@ namespace RafiqPOS.Services
 
                 // Simulate trial expired
                 settingsRepo.Set("license_token", SignedTestToken("RFQ-TR-TEST-1234", "trial", DateTime.UtcNow.AddDays(-1)));
-                settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd HH:mm:ss"));
+                settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd HH:mm:ss")); LicenseService.InvalidateCache();
                 var expiredTrialInfo = DatabaseService.License.GetLicenseInfo();
                 if (expiredTrialInfo.IsActive || expiredTrialInfo.Status != "expired")
                 {
@@ -261,7 +263,7 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("license_status", "active");
                 settingsRepo.Set("license_type", "lifetime");
                 settingsRepo.Set("license_expires_at", "");
-                settingsRepo.Set("license_token", "forged.token.value");
+                settingsRepo.Set("license_token", "forged.token.value"); LicenseService.InvalidateCache();
                 var forgedInfo = DatabaseService.License.GetLicenseInfo();
                 if (forgedInfo.IsActive)
                 {
@@ -386,6 +388,7 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("transfer_release_code", origRel);
                 settingsRepo.Set("consumed_offline_codes", origConsumed);
                 SecurityService.SetCurrentUserForTesting(origUser);
+                LicenseService.InvalidateCache();
             }
         }
 

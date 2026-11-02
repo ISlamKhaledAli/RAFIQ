@@ -463,7 +463,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
             <span>
               {loading 
                 ? 'جاري حفظ الفاتورة...' 
-                : `تأكيد استلام التحويل (${formatArabicCurrency(netTotalPiasters)})`}
+                : 'تأكيد استلام التحويل'}
             </span>
           </button>
         </div>

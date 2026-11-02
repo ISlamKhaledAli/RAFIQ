@@ -374,7 +374,7 @@ namespace RafiqPOS.Services
             {
                 ProductId = p.Id,
                 BatchNumber = "BATCH-001",
-                ExpiryDate = "2026-11-01",
+                ExpiryDate = DateTime.UtcNow.AddDays(5).ToString("yyyy-MM-dd"),
                 QuantityMilli = 10000,
                 CostPricePiasters = 700,
                 Status = "ACTIVE"
@@ -383,7 +383,7 @@ namespace RafiqPOS.Services
             {
                 ProductId = p.Id,
                 BatchNumber = "BATCH-002",
-                ExpiryDate = "2026-11-15",
+                ExpiryDate = DateTime.UtcNow.AddDays(20).ToString("yyyy-MM-dd"),
                 QuantityMilli = 10000,
                 CostPricePiasters = 700,
                 Status = "ACTIVE"
@@ -392,7 +392,7 @@ namespace RafiqPOS.Services
             {
                 ProductId = p.Id,
                 BatchNumber = "BATCH-003",
-                ExpiryDate = "2026-12-01",
+                ExpiryDate = DateTime.UtcNow.AddDays(40).ToString("yyyy-MM-dd"),
                 QuantityMilli = 10000,
                 CostPricePiasters = 700,
                 Status = "ACTIVE"

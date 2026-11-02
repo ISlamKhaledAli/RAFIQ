@@ -1050,11 +1050,21 @@ namespace RafiqPOS.Services
                             recTrgCmd.ExecuteNonQuery();
                         }
 
-                        // 4. Reset sequence counters and first run flag
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters; DELETE FROM app_settings WHERE key IN ('first_run_completed', 'has_demo_data', 'wizard_completed', 'is_first_run_completed');", conn, trans))
+                        // 4. Reset sequence counters, wipe all app settings, and restore factory users
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters; DELETE FROM app_settings;", conn, trans))
                         {
                             cmd.ExecuteNonQuery();
                         }
+
+                        if (TableExists(conn, trans, "sqlite_sequence"))
+                        {
+                            using (var seqCmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM sqlite_sequence WHERE name IN ('sales', 'customers', 'products', 'held_sales');", conn, trans))
+                            {
+                                seqCmd.ExecuteNonQuery();
+                            }
+                        }
+
+                        SecurityService.ResetUsersToFactoryDefaults(conn, trans);
 
                         // 5. Reset audit logs with genesis reset entry (temporarily authorized to bypass tamper trigger)
                         using (var authCmd = new System.Data.SQLite.SQLiteCommand("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('allow_audit_reset', 'CONFIRM_PURGE_AUTHORIZED', datetime('now'));", conn, trans))

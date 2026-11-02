@@ -32,7 +32,8 @@ import {
   convertArabicLayoutToBarcode,
   loadScannerSettings,
   type BarcodeScannerSettings, 
-  DEFAULT_SCANNER_SETTINGS 
+  DEFAULT_SCANNER_SETTINGS,
+  isBarcodeMatch
 } from '../utils/barcodeReader';
 import { parseScaleBarcode } from '../utils/scaleBarcode';
 import { useFeatures } from '../context/useFeatures';
@@ -1628,17 +1629,17 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         let matchedUnit: ProductUnit | undefined;
         const exactMatch = results.find((p) => {
           if (p.units && p.units.length > 0) {
-            const u = p.units.find(unit => unit.barcode === scannedBarcode);
+            const u = p.units.find(unit => isBarcodeMatch(unit.barcode, scannedBarcode));
             if (u) {
               matchedUnit = u;
               return true;
             }
           }
-          return p.barcode === scannedBarcode || (p.barcodes && p.barcodes.includes(scannedBarcode));
+          return isBarcodeMatch(p.barcode, scannedBarcode) || (p.barcodes && p.barcodes.some(bc => isBarcodeMatch(bc, scannedBarcode)));
         }) || results[0];
 
         if (!matchedUnit && exactMatch.units && exactMatch.units.length > 0) {
-          matchedUnit = exactMatch.units.find(u => u.barcode === scannedBarcode);
+          matchedUnit = exactMatch.units.find(u => isBarcodeMatch(u.barcode, scannedBarcode));
         }
 
         addProductToCart(exactMatch, scaleWeightMilli, matchedUnit);
@@ -1688,16 +1689,16 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     // Priority 1: Check liveSearchResults for an exact barcode match (fast in-memory path)
     if (isSearchDropdownOpen && liveSearchResults.length > 0) {
       const exactMatch = liveSearchResults.find((p) => {
-        if (p.barcode === query) return true;
-        if (p.barcodes && p.barcodes.includes(query)) return true;
-        if (p.units && p.units.some((u) => u.barcode === query)) return true;
+        if (isBarcodeMatch(p.barcode, query)) return true;
+        if (p.barcodes && p.barcodes.some(bc => isBarcodeMatch(bc, query))) return true;
+        if (p.units && p.units.some((u) => isBarcodeMatch(u.barcode, query))) return true;
         return false;
       });
 
       if (exactMatch) {
         let matchedUnit: ProductUnit | undefined;
         if (exactMatch.units && exactMatch.units.length > 0) {
-          matchedUnit = exactMatch.units.find((u) => u.barcode === query);
+          matchedUnit = exactMatch.units.find((u) => isBarcodeMatch(u.barcode, query));
         }
         const added = addProductToCart(exactMatch, undefined, matchedUnit);
         setBarcodeQuery('');
@@ -1763,17 +1764,17 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         let matchedUnit: ProductUnit | undefined;
         const targetProd = results.find((p) => {
           if (p.units && p.units.length > 0) {
-            const u = p.units.find(unit => unit.barcode === query);
+            const u = p.units.find(unit => isBarcodeMatch(unit.barcode, query));
             if (u) {
               matchedUnit = u;
               return true;
             }
           }
-          return p.barcode === query || (p.barcodes && p.barcodes.includes(query));
+          return isBarcodeMatch(p.barcode, query) || (p.barcodes && p.barcodes.some(bc => isBarcodeMatch(bc, query)));
         }) || results[0];
 
         if (!matchedUnit && targetProd.units && targetProd.units.length > 0) {
-          matchedUnit = targetProd.units.find(u => u.barcode === query);
+          matchedUnit = targetProd.units.find(u => isBarcodeMatch(u.barcode, query));
         }
 
         const added = addProductToCart(targetProd, scaleWeightMilli, matchedUnit);

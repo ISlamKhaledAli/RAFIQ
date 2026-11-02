@@ -173,11 +173,38 @@ export interface DiagnosticScanRecord {
  * Helper to clean barcode with prefix & suffix handling
  */
 export function sanitizeScannedBarcode(rawBarcode: string, prefix = ''): string {
-  const converted = convertArabicLayoutToBarcode(rawBarcode);
+  if (!rawBarcode) return '';
+  // 1. Remove non-printable ASCII control characters (0x00 - 0x1F and 0x7F)
+  let clean = '';
+  for (let i = 0; i < rawBarcode.length; i++) {
+    const code = rawBarcode.charCodeAt(i);
+    if ((code >= 32 && code !== 127) || code === 9 || code === 10 || code === 13) {
+      clean += rawBarcode[i];
+    }
+  }
+
+  // 2. Strip AIM Symbology Identifiers if scanner has them enabled (e.g., ]C1, ]E0, ]e0, etc.)
+  clean = clean.replace(/^\][A-Za-z0-9]{2}/, '');
+
+  const converted = convertArabicLayoutToBarcode(clean);
   if (prefix && converted.startsWith(prefix)) {
     return converted.substring(prefix.length).trim();
   }
   return converted.trim();
+}
+
+/**
+ * Robust barcode matching helper that matches exact string as well as
+ * UPC-A (12 digits) vs EAN-13 (13 digits with leading zero '0')
+ */
+export function isBarcodeMatch(storedBarcode: string | null | undefined, scannedBarcode: string | null | undefined): boolean {
+  if (!storedBarcode || !scannedBarcode) return false;
+  const b1 = storedBarcode.trim();
+  const b2 = scannedBarcode.trim();
+  if (b1 === b2) return true;
+  if (b1.length === 12 && b2.length === 13 && b2.startsWith('0') && b2.substring(1) === b1) return true;
+  if (b1.length === 13 && b2.length === 12 && b1.startsWith('0') && b1.substring(1) === b2) return true;
+  return false;
 }
 
 /**

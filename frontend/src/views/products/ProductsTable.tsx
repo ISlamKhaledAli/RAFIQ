@@ -30,6 +30,8 @@ export interface ProductsTableProps {
   selectedCategoryFilter: string;
   selectedProductIds: string[];
   loading?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
   onToggleSelectAll: (filteredProds: Product[]) => void;
   onToggleSelectProduct: (id: string) => void;
   onOpenBulkMinStockModal: () => void;
@@ -53,6 +55,8 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   selectedCategoryFilter,
   selectedProductIds,
   loading = false,
+  canEdit = true,
+  canDelete = true,
   onToggleSelectAll,
   onToggleSelectProduct,
   onOpenBulkMinStockModal,
@@ -252,8 +256,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 return (
                   <tr
                     key={prod.id}
-                    onDoubleClick={() => onEditProduct(prod)}
-                    title="انقر مرتين لتعديل بيانات الصنف"
+                    onDoubleClick={() => {
+                      if (canEdit) onEditProduct(prod);
+                    }}
+                    title={canEdit ? "انقر مرتين لتعديل بيانات الصنف" : undefined}
                     className={`h-12 hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors select-none ${
                       isSelected ? 'bg-brand/10 dark:bg-brand/20' : ''
                     }`}
@@ -518,7 +524,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               <span>حد النواقص</span>
             </button>
 
-            {onBulkDelete && (
+            {canDelete && onBulkDelete && (
               <button
                 type="button"
                 onClick={onBulkDelete}
@@ -580,20 +586,22 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             {/* Actions List */}
             <div className="p-1.5 flex flex-col gap-0.5 max-h-[min(520px,calc(100vh-60px))] overflow-y-auto">
               {/* 1. Edit */}
-              <button
-                type="button"
-                onClick={() => {
-                  const p = activeMenu.product;
-                  setActiveMenu(null);
-                  onEditProduct(p);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
-              >
-                <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
-                  <Edit2 className="w-3.5 h-3.5" />
-                </div>
-                <span className="flex-1 min-w-0 truncate">تعديل بيانات الصنف</span>
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = activeMenu.product;
+                    setActiveMenu(null);
+                    onEditProduct(p);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">تعديل بيانات الصنف</span>
+                </button>
+              )}
 
               {/* 2. Movements Card */}
               <button
@@ -719,20 +727,22 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               <div className="my-0.5 border-t border-line dark:border-line-dark" />
 
               {/* 9. Delete Product */}
-              <button
-                type="button"
-                onClick={() => {
-                  const p = activeMenu.product;
-                  setActiveMenu(null);
-                  onDeleteProduct(p);
-                }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink dark:text-ink-dark hover:text-danger dark:hover:text-danger-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
-              >
-                <div className="w-6 h-6 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright group-hover:bg-danger group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </div>
-                <span className="flex-1 min-w-0 truncate text-danger dark:text-danger-bright">مسح الصنف من المحل</span>
-              </button>
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = activeMenu.product;
+                    setActiveMenu(null);
+                    onDeleteProduct(p);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink dark:text-ink-dark hover:text-danger dark:hover:text-danger-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright group-hover:bg-danger group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate text-danger dark:text-danger-bright">مسح الصنف من المحل</span>
+                </button>
+              )}
             </div>
           </div>,
           document.body

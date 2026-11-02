@@ -66,14 +66,14 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
   };
 
   const pinInputClass =
-    'w-full h-11 px-3 rounded-xl border border-line bg-surface text-ink text-center text-lg font-mono tracking-widest focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-2xs';
+    'w-full h-11 px-3 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark text-center text-lg font-mono tracking-widest focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-2xs';
 
   return (
-    <div className="p-6 bg-canvas flex flex-col gap-5" dir="rtl">
-      <div className="p-4 rounded-xl bg-warn-soft border border-warn/20 text-warn flex items-start gap-3">
+    <div className="p-6 bg-canvas dark:bg-canvas-dark flex flex-col gap-5" dir="rtl">
+      <div className="p-4 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-dark-soft text-warn dark:text-warn-bright flex items-start gap-3">
         <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
         <div className="text-xs leading-relaxed">
-          <span className="font-bold block text-sm mb-1 text-ink">تنبيه حماية الحساب والبيانات:</span>
+          <span className="font-bold block text-sm mb-1 text-ink dark:text-ink-dark">تنبيه حماية الحساب والبيانات:</span>
           الحساب الحالي ({user.displayName}) مسجل برقم سري مبدئي أو مؤقت. لحماية حسابك ومنع أي شخص من التلاعب بالأسعار أو الحسابات،
           يرجى كتابة رقم سري جديد وخاص بك (يتكون من 4 إلى 8 أرقام غير متتالية) قبل استخدام البرنامج.
         </div>
@@ -82,7 +82,7 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 max-w-md mx-auto w-full">
         {needsOldPin && (
           <div>
-            <label className="block text-xs font-bold text-ink mb-1.5">الرقم السري الحالي</label>
+            <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">الرقم السري الحالي</label>
             <input
               type="password"
               inputMode="numeric"
@@ -101,7 +101,7 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
         )}
 
         <div>
-          <label className="block text-xs font-bold text-ink mb-1.5">الرقم السري الجديد (4 إلى 8 أرقام)</label>
+          <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">الرقم السري الجديد (4 إلى 8 أرقام)</label>
           <input
             type="password"
             inputMode="numeric"
@@ -119,7 +119,7 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-ink mb-1.5">تأكيد الرقم السري الجديد</label>
+          <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">تأكيد الرقم السري الجديد</label>
           <input
             type="password"
             inputMode="numeric"
@@ -136,7 +136,7 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-danger/10 border border-danger/20 text-danger text-xs font-bold flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-danger/10 dark:bg-danger-dark-soft border border-danger/20 dark:border-danger/30 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -145,7 +145,7 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
         <button
           type="submit"
           disabled={saving || !newPin || !newPinConfirm || (needsOldPin && !oldPin)}
-          className="w-full h-11 rounded-xl bg-brand hover:bg-brand-dark text-white font-bold text-sm transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2 shadow-sm"
+          className="w-full h-11 rounded-xl bg-brand dark:bg-brand-container hover:bg-brand-dark dark:hover:bg-brand text-white font-bold text-sm transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2 shadow-sm"
         >
           {saving ? (
             <>

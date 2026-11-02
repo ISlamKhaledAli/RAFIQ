@@ -146,19 +146,47 @@ const HeaderClock: FC = memo(() => {
   );
 });
 
-const ADMIN_ONLY_TABS: TabType[] = ['dashboard', 'products', 'purchases', 'sales', 'audit', 'settings'];
-const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'epay', 'wallets', 'customers'];
-
 export default function App() {
   const { isEnabled } = useFeatures();
   const { currentUser, isLoading, logout, hasPermission, isRoot, isAdmin, refreshUser } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('pos');
-  const isCashier = currentUser?.role === 'cashier';
   // Effects key on stable primitives, never on the user object, so a user refresh cannot re-trigger them.
   const currentUserId = currentUser?.id ?? null;
   const mustChangePinNow = requiresForcedPinChange(currentUser);
-  const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
+
+  // Granular capability-based access permissions (Senior RBAC Standard - Rule 8)
+  const canAccessPos = isRoot || hasPermission('pos.access') || hasPermission('pos');
+  const canAccessEpay = (isRoot || hasPermission('epay.access') || hasPermission('epay')) && isEnabled('feature_epay_services');
+  const canAccessWallets = (isRoot || hasPermission('wallets.access') || hasPermission('wallets')) && 
+    (isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets'));
+  const canAccessInsurance = (isRoot || isAdmin || hasPermission('insurance.manage_contracts') || hasPermission('insurance.claims.manage')) && isEnabled('feature_insurance');
+  const canAccessDashboard = isRoot || hasPermission('reports.sales') || hasPermission('reports');
+  const canAccessCustomers = isRoot || hasPermission('customers.view') || hasPermission('customers');
+  const canAccessProducts = isRoot || hasPermission('products.view') || hasPermission('products');
+  const canAccessPurchases = isRoot || hasPermission('purchases.view');
+  const canAccessSales = isRoot || hasPermission('invoices.view');
+  const canAccessAudit = isRoot && hasPermission('audit_log.view');
+  const canAccessSettings = isRoot || hasPermission('settings.store') || hasPermission('settings');
+
+  const canAccessTab = useCallback((id: TabType): boolean => {
+    switch (id) {
+      case 'pos': return canAccessPos;
+      case 'epay': return canAccessEpay;
+      case 'wallets': return canAccessWallets;
+      case 'insurance': return canAccessInsurance;
+      case 'dashboard': return canAccessDashboard;
+      case 'customers': return canAccessCustomers;
+      case 'products': return canAccessProducts;
+      case 'purchases': return canAccessPurchases;
+      case 'sales': return canAccessSales;
+      case 'audit': return canAccessAudit;
+      case 'settings': return canAccessSettings;
+      default: return true;
+    }
+  }, [canAccessPos, canAccessEpay, canAccessWallets, canAccessInsurance, canAccessDashboard, canAccessCustomers, canAccessProducts, canAccessPurchases, canAccessSales, canAccessAudit, canAccessSettings]);
+
+  const effectiveActiveTab: TabType = canAccessTab(activeTab) ? activeTab : 'pos';
 
   const [isUniversalRefreshing, setIsUniversalRefreshing] = useState(false);
   const [refreshToastMsg, setRefreshToastMsg] = useState<string | null>(null);
@@ -815,54 +843,51 @@ export default function App() {
       if (e.altKey && !e.ctrlKey && !e.shiftKey) {
         if (e.key === '1') {
           e.preventDefault();
-          if (hasPermission('pos.access') || hasPermission('pos')) setActiveTab('pos');
+          if (canAccessPos) setActiveTab('pos');
         } else if (e.key === '2') {
           e.preventDefault();
-          if (hasPermission('invoices.view')) setActiveTab('sales');
+          if (canAccessSales) setActiveTab('sales');
         } else if (e.key === '3') {
           e.preventDefault();
-          if (hasPermission('customers.view') || hasPermission('customers')) setActiveTab('customers');
-        } else if (currentUser?.role !== 'cashier') {
-          if (e.key === '4') {
-            e.preventDefault();
-            if (hasPermission('products.view') || hasPermission('products')) {
-              setActiveTab('products');
-              setIsProductsMenuExpanded(true);
+          if (canAccessCustomers) setActiveTab('customers');
+        } else if (e.key === '4') {
+          e.preventDefault();
+          if (canAccessProducts) {
+            setActiveTab('products');
+            setIsProductsMenuExpanded(true);
+          }
+        } else if (e.key === '5') {
+          e.preventDefault();
+          if (canAccessPurchases) {
+            setActiveTab('purchases');
+            setIsPurchasesMenuExpanded(true);
+          }
+        } else if (e.key === '6') {
+          e.preventDefault();
+          if (canAccessWallets) {
+            setActiveTab('wallets');
+            if (!isEnabled('feature_digital_wallets') && walletsSubTab === 'transact') {
+              setWalletsSubTab('accounts');
             }
-          } else if (e.key === '5') {
-            e.preventDefault();
-            if (isAdmin || hasPermission('purchases.view')) {
-              setActiveTab('purchases');
-              setIsPurchasesMenuExpanded(true);
-            }
-          } else if (e.key === '6') {
-            e.preventDefault();
-            if ((hasPermission('wallets.access') || hasPermission('wallets')) && 
-                (isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets'))) {
-              setActiveTab('wallets');
-              if (!isEnabled('feature_digital_wallets') && walletsSubTab === 'transact') {
-                setWalletsSubTab('accounts');
-              }
-              setIsWalletsMenuExpanded(true);
-            }
-          } else if (e.key === '7') {
-            e.preventDefault();
-            if ((hasPermission('epay.access') || hasPermission('epay')) && isEnabled('feature_epay_services')) {
-              setActiveTab('epay');
-              setIsEpayMenuExpanded(true);
-            }
-          } else if (e.key === '8') {
-            e.preventDefault();
-            if ((isAdmin || hasPermission('insurance.manage_contracts') || hasPermission('insurance.claims.manage')) && isEnabled('feature_insurance')) {
-              setActiveTab('insurance');
-              setIsInsuranceMenuExpanded(true);
-            }
-          } else if (e.key === '9') {
-            e.preventDefault();
-            if (isAdmin || hasPermission('reports.sales') || hasPermission('reports')) {
-              setActiveTab('dashboard');
-              setIsDashboardMenuExpanded(true);
-            }
+            setIsWalletsMenuExpanded(true);
+          }
+        } else if (e.key === '7') {
+          e.preventDefault();
+          if (canAccessEpay) {
+            setActiveTab('epay');
+            setIsEpayMenuExpanded(true);
+          }
+        } else if (e.key === '8') {
+          e.preventDefault();
+          if (canAccessInsurance) {
+            setActiveTab('insurance');
+            setIsInsuranceMenuExpanded(true);
+          }
+        } else if (e.key === '9') {
+          e.preventDefault();
+          if (canAccessDashboard) {
+            setActiveTab('dashboard');
+            setIsDashboardMenuExpanded(true);
           }
         }
         return;
@@ -892,7 +917,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeTab, currentUser?.role, handleUniversalRefresh, hasPermission, isAdmin, isEnabled, isRoot, walletsSubTab]);
+  }, [activeTab, canAccessAudit, canAccessCustomers, canAccessDashboard, canAccessEpay, canAccessInsurance, canAccessPos, canAccessProducts, canAccessPurchases, canAccessSales, canAccessSettings, canAccessWallets, handleUniversalRefresh, isEnabled, walletsSubTab]);
 
   const handleExitApp = async () => {
     const confirmed = await rafiqConfirm({
@@ -921,14 +946,14 @@ export default function App() {
       });
       return;
     }
-    if ((currentUser?.role === 'cashier' || (!isAdmin && !isRoot)) && ADMIN_ONLY_TABS.includes(tabId)) {
-      setActiveTab('pos');
+    if (!canAccessTab(tabId)) {
+      void rafiqAlert({
+        title: 'غير مصرح',
+        message: 'ليس لديك صلاحية للدخول إلى هذه الشاشة.',
+        variant: 'warning',
+      });
       return;
     }
-    if (tabId === 'pos' && !hasPermission('pos.access')) return;
-    if (tabId === 'epay' && !hasPermission('epay.access')) return;
-    if (tabId === 'wallets' && !hasPermission('wallets.access')) return;
-    if (tabId === 'customers' && !hasPermission('customers.view')) return;
     setActiveTab(tabId);
     if (subAction) subAction();
   };
@@ -973,19 +998,6 @@ export default function App() {
     { id: 'audit' as TabType, label: 'سجل المراقبة والأمان', icon: ShieldAlert, shortcut: '' },
     { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: '' },
   ];
-
-  const canAccessPos = isRoot || hasPermission('pos.access') || hasPermission('pos');
-  const canAccessEpay = (isRoot || hasPermission('epay.access') || hasPermission('epay')) && isEnabled('feature_epay_services');
-  const canAccessWallets = (isRoot || hasPermission('wallets.access') || hasPermission('wallets')) && 
-    (isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets'));
-  const canAccessInsurance = (isRoot || isAdmin || hasPermission('insurance.manage_contracts') || hasPermission('insurance.claims.manage')) && isEnabled('feature_insurance');
-  const canAccessDashboard = isRoot || hasPermission('reports.sales') || hasPermission('reports');
-  const canAccessCustomers = isRoot || hasPermission('customers.view') || hasPermission('customers');
-  const canAccessProducts = isRoot || hasPermission('products.view') || hasPermission('products');
-  const canAccessPurchases = isRoot || hasPermission('purchases.view');
-  const canAccessSales = isRoot || hasPermission('invoices.view');
-  const canAccessAudit = isRoot && hasPermission('audit_log.view');
-  const canAccessSettings = isRoot || hasPermission('settings.store') || hasPermission('settings');
 
   const canAccessEpayTerminals = isRoot || isAdmin || hasPermission('epay.terminals_manage') || hasPermission('epay.fund');
   const canAccessEpayHistory = isRoot || isAdmin || hasPermission('epay.history');
@@ -1442,7 +1454,7 @@ export default function App() {
                 });
               }}
               title={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'تصغير القائمة الجانبية'}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft transition-colors cursor-pointer"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft transition-colors cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0"
             >
               {isSidebarCollapsed ? (
                 <PanelRightOpen className="w-4 h-4 text-brand-dark dark:text-brand-bright" />
@@ -1482,7 +1494,7 @@ export default function App() {
                       });
                     }}
                     title={item.label}
-                    className={`relative w-full h-[42px] rounded-xl flex items-center justify-center transition-all duration-150 group cursor-pointer ${
+                    className={`relative w-full h-[42px] rounded-xl flex items-center justify-center transition-all duration-150 group cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                       isActive
                         ? 'bg-brand-dark dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright shadow-xs'
                         : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white'
@@ -1560,7 +1572,7 @@ export default function App() {
                         handleNavClick(item.id);
                       }
                     }}
-                    className={`w-full relative flex items-center justify-between px-3 h-[41px] rounded-xl text-[13px] transition-all duration-150 cursor-pointer ${
+                    className={`w-full relative flex items-center justify-between px-3 h-[41px] rounded-xl text-[13px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                       isActive
                         ? 'bg-brand-dark dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-xs'
                         : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1602,11 +1614,12 @@ export default function App() {
                             key={sub.id}
                             type="button"
                             title={sub.label}
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.currentTarget.blur();
                               setActiveTab('epay');
                               setEpaySubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1633,11 +1646,12 @@ export default function App() {
                             key={sub.id}
                             type="button"
                             title={sub.label}
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.currentTarget.blur();
                               setActiveTab('wallets');
                               setWalletsSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1664,11 +1678,12 @@ export default function App() {
                             key={sub.id}
                             type="button"
                             title={sub.label}
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.currentTarget.blur();
                               setActiveTab('insurance');
                               setInsuranceSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1695,11 +1710,12 @@ export default function App() {
                             key={sub.id}
                             type="button"
                             title={sub.label}
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.currentTarget.blur();
                               setActiveTab('dashboard');
                               setDashboardSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1725,7 +1741,7 @@ export default function App() {
                           setProductsSubView('catalog');
                           setInitialProductFilter('all');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'products' && productsSubView === 'catalog'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1744,7 +1760,7 @@ export default function App() {
                           setActiveTab('products');
                           setProductsSubView('movements');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'products' && productsSubView === 'movements'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1764,7 +1780,7 @@ export default function App() {
                             setActiveTab('products');
                             setProductsSubView('batches');
                           }}
-                          className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                          className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                             effectiveActiveTab === 'products' && productsSubView === 'batches'
                               ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                               : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1789,7 +1805,7 @@ export default function App() {
                           setActiveTab('purchases');
                           setPurchasesSubView('new_invoice');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'new_invoice'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1808,7 +1824,7 @@ export default function App() {
                           setActiveTab('purchases');
                           setPurchasesSubView('shortages');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'shortages'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1827,7 +1843,7 @@ export default function App() {
                           setActiveTab('purchases');
                           setPurchasesSubView('invoices');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'invoices'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1846,7 +1862,7 @@ export default function App() {
                           setActiveTab('purchases');
                           setPurchasesSubView('suppliers');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'suppliers'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1872,11 +1888,12 @@ export default function App() {
                             key={sub.id}
                             type="button"
                             title={sub.label}
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.currentTarget.blur();
                               setActiveTab('settings');
                               setSettingsSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1905,7 +1922,7 @@ export default function App() {
               type="button"
               onClick={() => openHelpCenterModal(effectiveActiveTab)}
               title="مركز المساعدة والشروحات والدعم الفني (F1)"
-              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer ${
+              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 ${
                 isSidebarCollapsed
                   ? 'h-[40px] justify-center text-paid dark:text-brand-bright hover:bg-paid-soft dark:hover:bg-brand-dark-soft border border-transparent hover:border-paid/30'
                   : 'px-3 h-[39px] text-[12.5px] text-paid dark:text-brand-bright hover:text-brand-dark dark:hover:text-white bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid-border dark:border-paid/30 shadow-2xs'
@@ -1927,7 +1944,7 @@ export default function App() {
               type="button"
               onClick={() => void handleExitApp()}
               title="إغلاق البرنامج والخروج بأمان"
-              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer ${
+              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 ${
                 isSidebarCollapsed
                   ? 'h-[40px] justify-center text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-transparent hover:border-danger/30 dark:hover:border-danger-bright/30'
                   : 'px-3 h-[39px] text-[12.5px] text-danger dark:text-danger-bright hover:text-danger-ink dark:hover:text-white bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/80 dark:hover:bg-danger-dark-soft/80 border border-danger/20 dark:border-danger-bright/30 shadow-2xs'
@@ -2001,7 +2018,7 @@ export default function App() {
             </div>
           )}
 
-          {!isCashier && visitedTabs.has('dashboard') && (
+          {canAccessDashboard && visitedTabs.has('dashboard') && (
             <div className={`h-full w-full overflow-hidden ${effectiveActiveTab === 'dashboard' ? '' : 'hidden'}`}>
               {visitedDashboardSubTabs.has('today') && (
                 <div className={`h-full w-full ${dashboardSubTab === 'today' ? '' : 'hidden'}`}>
@@ -2071,7 +2088,7 @@ export default function App() {
             </div>
           )}
 
-          {!isCashier && visitedTabs.has('products') && (
+          {canAccessProducts && visitedTabs.has('products') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'products' ? '' : 'hidden'}`}>
               <ProductsView 
                 isActive={effectiveActiveTab === 'products'}
@@ -2085,7 +2102,7 @@ export default function App() {
             </div>
           )}
 
-          {!isCashier && visitedTabs.has('purchases') && (
+          {canAccessPurchases && visitedTabs.has('purchases') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'purchases' ? '' : 'hidden'}`}>
               <PurchasesView 
                 isActive={effectiveActiveTab === 'purchases'}
@@ -2095,19 +2112,19 @@ export default function App() {
             </div>
           )}
 
-          {!isCashier && visitedTabs.has('sales') && (
+          {canAccessSales && visitedTabs.has('sales') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'sales' ? '' : 'hidden'}`}>
               <SalesHistoryView isActive={effectiveActiveTab === 'sales'} />
             </div>
           )}
 
-          {!isCashier && visitedTabs.has('audit') && (
+          {canAccessAudit && visitedTabs.has('audit') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'audit' ? '' : 'hidden'}`}>
               <AuditLogView isActive={effectiveActiveTab === 'audit'} />
             </div>
           )}
 
-          {!isCashier && visitedTabs.has('settings') && (
+          {canAccessSettings && visitedTabs.has('settings') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'settings' ? '' : 'hidden'}`}>
               <SettingsView 
                 sysInfo={sysInfo} 

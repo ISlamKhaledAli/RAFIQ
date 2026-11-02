@@ -59,8 +59,8 @@ namespace RafiqPOS.Common
         // 0x07 (BEL - Star Micronics pulse)
         private static readonly byte[] DRAWER_KICK_PULSE = new byte[]
         {
-            0x1B, 0x70, 0x00, 0x19, 0xFA,
-            0x1B, 0x70, 0x01, 0x19, 0xFA,
+            0x1B, 0x70, 0x00, 0x0F, 0x64,
+            0x1B, 0x70, 0x01, 0x0F, 0x64,
             0x07
         };
 
@@ -73,9 +73,21 @@ namespace RafiqPOS.Common
             0x1D, 0x56, 0x42, 0x00
         };
 
+        public static byte[] GetDrawerKickPulse(int pulseMs = 30)
+        {
+            byte t1 = (byte)Math.Max(5, Math.Min(125, pulseMs / 2));
+            byte t2 = 100;
+            return new byte[]
+            {
+                0x1B, 0x70, 0x00, t1, t2,
+                0x1B, 0x70, 0x01, t1, t2,
+                0x07
+            };
+        }
+
         public static byte[] DrawerKickPulse
         {
-            get { return (byte[])DRAWER_KICK_PULSE.Clone(); }
+            get { return GetDrawerKickPulse(30); }
         }
 
         public static byte[] PaperCutSequence
@@ -88,7 +100,7 @@ namespace RafiqPOS.Common
         /// تضمن طباعة النصوص العربية والباركود والشعار بأعلى دقة على كافة طابعات الإيصالات الشبكية (TCP) و USB
         /// وتعمل بسرعة فائقة (&lt; 2ms) عبر معالجة الذاكرة المباشرة LockBits
         /// </summary>
-        public static byte[] ConvertBitmapToEscPosRaster(Bitmap bitmap, bool kickDrawer, bool autoCut)
+        public static byte[] ConvertBitmapToEscPosRaster(Bitmap bitmap, bool kickDrawer, bool autoCut, int drawerPulseMs = 30)
         {
             if (bitmap == null) return new byte[0];
 
@@ -106,7 +118,7 @@ namespace RafiqPOS.Common
                 // 2. نبضة فتح درج النقدية إذا طُلبت
                 if (kickDrawer)
                 {
-                    bw.Write(DRAWER_KICK_PULSE);
+                    bw.Write(GetDrawerKickPulse(drawerPulseMs));
                 }
 
                 // 3. محاذاة في المنتصف: ESC a 1
@@ -252,9 +264,9 @@ namespace RafiqPOS.Common
         /// <summary>
         /// إرسال نبضة فتح درج النقدية المادي (Cash Drawer Kick)
         /// </summary>
-        public static bool SendDrawerKick(string printerTarget, out string errorMessage)
+        public static bool SendDrawerKick(string printerTarget, out string errorMessage, int pulseMs = 30)
         {
-            return SendRawBytes(printerTarget, DRAWER_KICK_PULSE, "Rafiq Drawer Kick", out errorMessage);
+            return SendRawBytes(printerTarget, GetDrawerKickPulse(pulseMs), "Rafiq Drawer Kick", out errorMessage);
         }
 
         /// <summary>

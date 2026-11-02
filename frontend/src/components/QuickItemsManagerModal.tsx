@@ -361,25 +361,25 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
   return (
     <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div 
-        className="bg-surface border border-line rounded-xl shadow-2xl w-full max-w-5xl h-[88vh] max-h-[850px] flex flex-col overflow-hidden text-ink animate-in fade-in zoom-in-95 duration-150"
+        className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-2xl w-full max-w-5xl h-[88vh] max-h-[850px] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95 duration-150"
         dir="rtl"
       >
         {/* Header */}
-        <div className="p-4 hairline-b flex items-center justify-between bg-surface-2">
+        <div className="p-4 hairline-b flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-brand/10 text-brand flex items-center justify-center">
+            <div className="w-8 h-8 rounded bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold leading-tight">إدارة الأصناف السريعة (Fast Picks)</h2>
-              <p className="text-xs text-ink-muted leading-tight mt-0.5">
+              <h2 className="text-base font-bold text-ink dark:text-ink-dark leading-tight">إدارة الأصناف السريعة (Fast Picks)</h2>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">
                 تخصيص أزرار الكاشير السريعة للأصناف بدون باركود الأكثر طلباً
               </p>
             </div>
           </div>
           <button
             onClick={requestClose}
-            className="p-1.5 rounded hover:bg-surface text-ink-muted hover:text-ink transition-colors cursor-pointer"
+            className="p-1.5 rounded hover:bg-surface dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -423,15 +423,15 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                         }}
                         className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 flex items-center gap-1.5 shadow-2xs border ${
                           isActive 
-                            ? 'bg-brand text-white border-brand shadow-sm ring-2 ring-brand/20' 
-                            : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/40 hover:text-brand hover:shadow-xs hover:-translate-y-0.5'
+                            ? 'bg-brand dark:bg-brand text-white border-brand shadow-sm ring-2 ring-brand/20' 
+                            : 'bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark border-line dark:border-line-dark hover:border-brand/70 dark:hover:border-brand-bright/70 hover:bg-brand-soft/40 dark:hover:bg-brand-dark-soft/40 hover:text-brand dark:hover:text-brand-bright hover:shadow-xs hover:-translate-y-0.5'
                         }`}
                       >
                         <span>{cat}</span>
                         <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
                           isActive 
                             ? 'bg-white/25 text-white' 
-                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            : 'bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark'
                         }`}>
                           {count}
                         </span>

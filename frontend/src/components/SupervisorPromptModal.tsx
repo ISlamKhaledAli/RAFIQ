@@ -96,26 +96,26 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
       }}
       tabIndex={0}
     >
-      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
         {/* Sleek Top Accent Line */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600" />
+        <div className="h-1.5 w-full bg-brand dark:bg-brand-bright" />
 
         {/* Modern Clean Header */}
-        <div className="bg-white px-6 py-4 flex items-center justify-between border-b border-slate-100">
+        <div className="bg-surface dark:bg-surface-dark-2 px-6 py-4 flex items-center justify-between border-b border-line dark:border-line-dark">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-[#006D41] flex items-center justify-center shrink-0 shadow-2xs">
-              <svg className="w-5 h-5 text-[#006D41]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-10 h-10 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border text-paid dark:text-paid-bright flex items-center justify-center shrink-0 shadow-2xs">
+              <svg className="w-5 h-5 text-paid dark:text-paid-bright" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-900">موافقة مدير النظام مطلوبة</h2>
-              <p className="text-xs text-slate-500 font-medium">{actionTitle}</p>
+              <h2 className="text-base font-black text-ink dark:text-ink-dark">موافقة مدير النظام مطلوبة</h2>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">{actionTitle}</p>
             </div>
           </div>
           <button
             onClick={onCancel}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
             title="إغلاق"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -125,15 +125,15 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="p-6 bg-canvas space-y-4">
+        <div className="p-6 bg-canvas dark:bg-canvas-dark space-y-4">
           {actionDescription && (
-            <div className="bg-surface border border-line rounded-xl p-3 text-xs text-ink-muted leading-relaxed">
+            <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-3 text-xs text-ink-muted dark:text-ink-dark-muted leading-relaxed">
               {actionDescription}
             </div>
           )}
 
           {/* Dynamic Dots Display (4 to 8 digits) */}
-          <div className="bg-surface border border-line rounded-xl p-3 flex items-center justify-center h-12 shadow-2xs">
+          <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-3 flex items-center justify-center h-12 shadow-2xs">
             <div className="flex items-center gap-2.5" dir="ltr">
               {Array.from({ length: Math.max(4, pin.length) }).map((_, idx) => {
                 const filled = idx < pin.length;
@@ -142,8 +142,8 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
                     key={idx}
                     className={`w-3.5 h-3.5 rounded-full transition-all duration-150 ${
                       filled
-                        ? 'bg-paid scale-110 shadow-xs shadow-paid/50'
-                        : 'border-2 border-line bg-transparent'
+                        ? 'bg-paid dark:bg-paid-bright scale-110 shadow-xs shadow-paid/50'
+                        : 'border-2 border-line dark:border-line-dark bg-transparent'
                     }`}
                   />
                 );
@@ -152,7 +152,7 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
           </div>
 
           {error && (
-            <div className="bg-danger-soft border border-danger-border text-danger text-xs px-3 py-2 rounded-lg flex items-center gap-2">
+            <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 text-danger dark:text-danger-bright text-xs px-3 py-2 rounded-lg flex items-center gap-2">
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -168,7 +168,7 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
                 type="button"
                 disabled={loading}
                 onClick={() => handleNumberClick(digit)}
-                className="h-11 bg-surface hover:bg-surface-2 text-ink font-bold text-lg rounded-xl border border-line active:scale-95 transition-all shadow-2xs"
+                className="h-11 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-lg rounded-xl border border-line dark:border-line-dark active:scale-95 transition-all shadow-2xs"
               >
                 {digit}
               </button>
@@ -177,7 +177,7 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
               type="button"
               disabled={loading || pin.length === 0}
               onClick={handleClear}
-              className="h-11 bg-surface hover:bg-warn-soft text-warn font-bold text-xs rounded-xl border border-line active:scale-95 transition-all"
+              className="h-11 bg-surface dark:bg-surface-dark-2 hover:bg-warn-soft dark:hover:bg-warn-dark-soft text-warn dark:text-warn-bright font-bold text-xs rounded-xl border border-line dark:border-line-dark active:scale-95 transition-all"
             >
               مسح
             </button>
@@ -185,7 +185,7 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
               type="button"
               disabled={loading}
               onClick={() => handleNumberClick('0')}
-              className="h-11 bg-surface hover:bg-surface-2 text-ink font-bold text-lg rounded-xl border border-line active:scale-95 transition-all shadow-2xs"
+              className="h-11 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-lg rounded-xl border border-line dark:border-line-dark active:scale-95 transition-all shadow-2xs"
             >
               0
             </button>
@@ -193,7 +193,7 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
               type="button"
               disabled={loading || pin.length === 0}
               onClick={handleBackspace}
-              className="h-11 bg-surface hover:bg-danger-soft text-danger font-bold text-xs rounded-xl border border-line active:scale-95 transition-all flex items-center justify-center"
+              className="h-11 bg-surface dark:bg-surface-dark-2 hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-danger dark:text-danger-bright font-bold text-xs rounded-xl border border-line dark:border-line-dark active:scale-95 transition-all flex items-center justify-center"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
@@ -207,14 +207,14 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
               type="button"
               disabled={loading || !pin}
               onClick={() => handleSubmit()}
-              className="flex-1 py-3 bg-brand hover:bg-brand-hover text-white font-bold text-sm rounded-xl transition-all shadow-xs disabled:opacity-40"
+              className="flex-1 py-3 bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white font-bold text-sm rounded-xl transition-all shadow-xs disabled:opacity-40"
             >
               {loading ? 'جاري التحقق...' : 'تأكيد الموافقة (Enter)'}
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-3 bg-surface hover:bg-surface-2 border border-line text-ink font-bold text-sm rounded-xl transition-colors"
+              className="px-4 py-3 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-sm rounded-xl transition-colors"
             >
               إلغاء
             </button>

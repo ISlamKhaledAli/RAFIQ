@@ -775,7 +775,7 @@ export const StoreProfileTab = ({
               </div>
             )}
             <h4 className="text-base font-bold m-0 font-sans text-black">{storeName || 'متجر رفيق'}</h4>
-            <p className="text-[11px] text-gray-700 m-0">{address || 'الفرع الرئيسي'}</p>
+            {address ? <p className="text-[11px] text-gray-700 m-0">{address}</p> : null}
             {phone && <p className="text-[11px] text-gray-700 m-0 dir-ltr text-center">تليفون: {phone}</p>}
             {taxNumber && <p className="text-[10px] text-gray-500 m-0">ر.ض: {taxNumber}</p>}
             {receiptHeader && (

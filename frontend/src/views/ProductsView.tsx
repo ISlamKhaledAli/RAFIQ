@@ -167,7 +167,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [selectedParentForVariants, setSelectedParentForVariants] = useState<Product | null>(null);
   const [batchesInitialSearch, setBatchesInitialSearch] = useState<string>('');
   const { isEnabled } = useFeatures();
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAdmin, isRoot } = useAuth();
+
+  const canCreateProduct = isRoot || isAdmin || hasPermission('products.create');
+  const canEditProduct = isRoot || isAdmin || hasPermission('products.edit');
+  const canEditPrice = isRoot || isAdmin || hasPermission('products.edit_price');
+  const canDeleteProduct = isRoot || isAdmin || hasPermission('products.archive') || hasPermission('products.clear_all');
+  const canManageCategories = isRoot || isAdmin || hasPermission('categories.manage');
+  const canImportProducts = isRoot || isAdmin || hasPermission('products.import');
+  const canExportProducts = isRoot || isAdmin || hasPermission('products.export');
 
   const [storeType, setStoreType] = useState<string>(() => {
     try {
@@ -633,6 +641,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   };
 
   const openEditModal = (prod: Product) => {
+    if (!canEditProduct) return;
     setEditingId(prod.id);
     setEditingProduct(prod);
     setIsLooseSellable(prod.isLooseSellable ?? false);
@@ -1175,32 +1184,36 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     />
                     <div className="absolute left-0 top-full mt-1.5 w-72 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-card py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 flex flex-col">
                       {/* Section 1: Excel & Files */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsToolsDropdownOpen(false);
-                          setShowExcelImportModal(true);
-                        }}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
-                      >
-                        <FileSpreadsheet className="w-4 h-4 text-brand dark:text-brand-bright" />
-                        <span>استيراد بضاعة من شيت إكسل</span>
-                      </button>
+                      {canImportProducts && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            setShowExcelImportModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 text-brand dark:text-brand-bright" />
+                          <span>استيراد بضاعة من شيت إكسل</span>
+                        </button>
+                      )}
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsToolsDropdownOpen(false);
-                          void handleExportProductsToExcel();
-                        }}
-                        disabled={isExportingExcel}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        <Download className="w-4 h-4 text-brand dark:text-brand-bright" />
-                        <span>تصدير كل البضاعة لملف إكسل</span>
-                      </button>
+                      {canExportProducts && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            void handleExportProductsToExcel();
+                          }}
+                          disabled={isExportingExcel}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <Download className="w-4 h-4 text-brand dark:text-brand-bright" />
+                          <span>تصدير كل البضاعة لملف إكسل</span>
+                        </button>
+                      )}
 
-                      <div className="h-px bg-line dark:bg-line-dark my-1" />
+                      {(canImportProducts || canExportProducts) && <div className="h-px bg-line dark:bg-line-dark my-1" />}
 
                       {/* Section 2: Barcodes & Bulk Pricing */}
                       <button
@@ -1216,30 +1229,34 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         <span>طباعة استيكرات الباركود والأسعار (F8)</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsToolsDropdownOpen(false);
-                          void handleStartBulkBarcodeGeneration();
-                        }}
-                        disabled={isGeneratingBarcodes || loading}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        <Barcode className="w-4 h-4 text-brand dark:text-brand-bright" />
-                        <span>عمل باركود تلقائي للأصناف بدون كود</span>
-                      </button>
+                      {canEditProduct && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            void handleStartBulkBarcodeGeneration();
+                          }}
+                          disabled={isGeneratingBarcodes || loading}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <Barcode className="w-4 h-4 text-brand dark:text-brand-bright" />
+                          <span>عمل باركود تلقائي للأصناف بدون كود</span>
+                        </button>
+                      )}
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsToolsDropdownOpen(false);
-                          setShowBulkPriceModal(true);
-                        }}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
-                      >
-                        <TrendingUp className="w-4 h-4 text-brand dark:text-brand-bright" />
-                        <span>تعديل أسعار وتكلفة البضاعة بالجملة</span>
-                      </button>
+                      {canEditPrice && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            setShowBulkPriceModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <TrendingUp className="w-4 h-4 text-brand dark:text-brand-bright" />
+                          <span>تعديل أسعار وتكلفة البضاعة بالجملة</span>
+                        </button>
+                      )}
 
                       {/* Section 3: Storage Locations (if enabled and applicable) */}
                       {isEnabled('feature_shelf_locations') && !isProduceOrButchery && (
@@ -1493,23 +1510,27 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => setShowCategoryModal(true)}
-                className="h-9 px-3 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
-                title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
-              >
-                <Tags className="w-4 h-4 text-brand dark:text-brand-bright" />
-                <span>إدارة الأقسام</span>
-              </button>
+              {canManageCategories && (
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryModal(true)}
+                  className="h-9 px-3 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
+                  title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
+                >
+                  <Tags className="w-4 h-4 text-brand dark:text-brand-bright" />
+                  <span>إدارة الأقسام</span>
+                </button>
+              )}
 
-              <button
-                onClick={openAddModal}
-                className="h-9 px-3.5 bg-brand hover:bg-brand-dark dark:hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>{isPharmacy ? 'دواء جديد' : 'صنف جديد'}</span>
-              </button>
+              {canCreateProduct && (
+                <button
+                  onClick={openAddModal}
+                  className="h-9 px-3.5 bg-brand hover:bg-brand-dark dark:hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{isPharmacy ? 'دواء جديد' : 'صنف جديد'}</span>
+                </button>
+              )}
             </>
           ) : null}
         </div>
@@ -1675,13 +1696,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           <ProductsTable
             products={displayedProducts}
             loading={loading}
+            canEdit={canEditProduct}
+            canDelete={canDeleteProduct}
             selectedCategoryFilter={selectedCategoryFilter}
             selectedProductIds={selectedProductIds}
             onToggleSelectAll={toggleSelectAll}
             onToggleSelectProduct={toggleSelectProduct}
             onOpenBulkMinStockModal={() => setShowBulkMinStockModal(true)}
-            onOpenBulkPriceAdjustment={() => setShowBulkPriceModal(true)}
-            onBulkDelete={() => setShowBulkDeleteConfirm(true)}
+            onOpenBulkPriceAdjustment={canEditPrice ? () => setShowBulkPriceModal(true) : undefined}
+            onBulkDelete={canDeleteProduct ? () => setShowBulkDeleteConfirm(true) : undefined}
             onBulkPrintLabels={() => {
               setLabelModalProduct(null);
               setShowBarcodeLabelModal(true);

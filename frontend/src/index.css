@@ -157,6 +157,38 @@
     box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.06);
   }
 
+  /* 5b. Eliminate native browser focus outlines on all elements */
+  *:focus,
+  *:focus-visible {
+    outline: none !important;
+  }
+
+  /* Buttons focus reset */
+  button,
+  [role="button"],
+  [role="tab"],
+  [type="button"],
+  [type="submit"] {
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:focus,
+  button:focus-visible,
+  [role="button"]:focus,
+  [role="button"]:focus-visible,
+  [role="tab"]:focus,
+  [role="tab"]:focus-visible,
+  [type="button"]:focus,
+  [type="button"]:focus-visible,
+  [type="submit"]:focus,
+  [type="submit"]:focus-visible,
+  a:focus,
+  a:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
   /* 6. Interactive table rows hover */
   tbody tr {
     transition: background-color 0.12s ease;

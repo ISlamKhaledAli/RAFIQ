@@ -23,11 +23,11 @@ namespace RafiqPOS.Services
             // Populate defaults if missing
             if (!settings.ContainsKey("store_name")) settings["store_name"] = "متجر رفيق";
             if (!settings.ContainsKey("store_phone")) settings["store_phone"] = "";
-            if (!settings.ContainsKey("store_address")) settings["store_address"] = "الفرع الرئيسي";
+            if (!settings.ContainsKey("store_address")) settings["store_address"] = "";
             if (!settings.ContainsKey("tax_number")) settings["tax_number"] = "";
             if (!settings.ContainsKey("cashier_name")) settings["cashier_name"] = "كاشير (1)";
-            if (!settings.ContainsKey("receipt_header")) settings["receipt_header"] = "أهلاً بكم في متجرنا";
-            if (!settings.ContainsKey("receipt_footer")) settings["receipt_footer"] = "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.";
+            if (!settings.ContainsKey("receipt_header")) settings["receipt_header"] = "";
+            if (!settings.ContainsKey("receipt_footer")) settings["receipt_footer"] = "";
             if (!settings.ContainsKey("show_receipt_logo")) settings["show_receipt_logo"] = "1";
             if (!settings.ContainsKey("store_logo_url") || settings["store_logo_url"] == "/logo.png" || settings["store_logo_url"] == "/receipt_logo.png")
             {
