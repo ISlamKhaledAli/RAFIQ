@@ -1,4 +1,4 @@
-﻿; =====================================================================
+; =====================================================================
 ; رفيق POS — اسكربت برنامج التثبيت الرسمي (Inno Setup 6)
 ; متوافق من Windows 7 SP1 (32 و 64 بت) حتى Windows 11
 ; =====================================================================
@@ -14,8 +14,8 @@
 ; المتطلبات المدمجة داخل ملف التثبيت (تعمل بدون إنترنت) — راجع installer\prerequisites\README.md
 ; يتحقق ملف البناء (انشاء_ملف_التثبيت_Setup.bat) من بصمات SHA256 قبل الوصول لهنا.
 ; ---------------------------------------------------------------------
-#if Ver < EncodeVer(6,7,4)
-  #error Inno Setup 6.7.4+ required (security fixes incl. RedirectionGuard). See installer\prerequisites\README.md
+#if Ver < EncodeVer(6,7,3)
+  #error Inno Setup 6.7.3+ required (security fixes incl. RedirectionGuard). See installer\prerequisites\README.md
 #endif
 
 #define DotNetInstaller "ndp48-x86-x64-allos-enu.exe"

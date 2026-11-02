@@ -46,6 +46,17 @@ set "SETUP_EXE=%ROOT%installer\Output\RafiqPOS_Setup_v1.0.0.exe"
 set "STAGING="
 set "SIGN_ENABLED="
 
+rem Auto-detect pre-existing extracted WebView2 Fixed Runtime 109 if CAB is not present
+if not defined RAFIQ_FIXED109_DIR if not exist "%PREREQ%\%FIXED_CAB%" (
+    if exist "%ROOT%desktop\bin\Debug\runtimes\fixed109\msedgewebview2.exe" (
+        set "RAFIQ_FIXED109_DIR=%ROOT%desktop\bin\Debug\runtimes\fixed109"
+        set "RAFIQ_ALLOW_UNVERIFIED_FIXED109=YES"
+    ) else if exist "%RELEASE_DIR%\runtimes\fixed109\msedgewebview2.exe" (
+        set "RAFIQ_FIXED109_DIR=%RELEASE_DIR%\runtimes\fixed109"
+        set "RAFIQ_ALLOW_UNVERIFIED_FIXED109=YES"
+    )
+)
+
 echo ========================================================
 echo        Rafiq POS - Single Setup Builder (Inno Setup)
 echo ========================================================
@@ -200,10 +211,12 @@ if not exist "%RAFIQ_FIXED109_DIR%\msedgewebview2.exe" goto :err_fixed_dir
 set "FIXED_SOURCE=%RAFIQ_FIXED109_DIR%"
 :fixed_verify
 call :check_tree "%FIXED_SOURCE%" || goto :fail
+if /i "%FIXED_SOURCE%"=="%RELEASE_DIR%\runtimes\fixed109" goto :fixed_skip_copy
 if exist "%RELEASE_DIR%\runtimes\fixed109" rmdir /S /Q "%RELEASE_DIR%\runtimes\fixed109"
 if exist "%RELEASE_DIR%\runtimes\fixed109" goto :err_fixed_copy
 "%XCOPY%" /E /I /Y /Q "%FIXED_SOURCE%" "%RELEASE_DIR%\runtimes\fixed109" >nul
 if errorlevel 1 goto :err_fixed_copy
+:fixed_skip_copy
 rem Re-verify the copy that ISCC will pack
 call :check_tree "%RELEASE_DIR%\runtimes\fixed109" || goto :fail
 
