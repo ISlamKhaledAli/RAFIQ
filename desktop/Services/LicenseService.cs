@@ -514,6 +514,7 @@ namespace RafiqPOS.Services
                         }
                         else
                         {
+                            InvalidateCache();
                             result.Success = false;
                             result.Code = json["code"] != null ? json["code"].ToString() : "ACTIVATION_FAILED";
                             result.Message = json["message"] != null ? json["message"].ToString() : "فشل تفعيل الترخيص من السيرفر";
@@ -532,6 +533,7 @@ namespace RafiqPOS.Services
                         {
                             string errJson = reader.ReadToEnd();
                             JObject json = JObject.Parse(errJson);
+                            InvalidateCache();
                             result.Success = false;
                             result.Code = json["code"] != null ? json["code"].ToString() : "SERVER_ERROR";
                             result.Message = json["message"] != null ? json["message"].ToString() : "رفض خادم التراخيص الطلب";
@@ -634,6 +636,7 @@ namespace RafiqPOS.Services
 
                             _settingsRepo.Set("last_online_verify_at", DateTime.UtcNow.ToString("o"));
                             RecordKnownUtc();
+                            InvalidateCache();
 
                             result.Success = true;
                             result.Code = "VERIFIED";
@@ -670,6 +673,7 @@ namespace RafiqPOS.Services
                                 MarkDeviceMismatch();
                             }
 
+                            InvalidateCache();
                             result.Success = false;
                             result.Code = errCode;
                             result.Message = json["message"] != null ? json["message"].ToString() : "فشل التحقق من الترخيص";
@@ -756,6 +760,7 @@ namespace RafiqPOS.Services
             }
 
             result.Success = true;
+            InvalidateCache();
             result.Code = "TRANSFER_DEACTIVATED";
             result.ReleaseCode = releaseCode;
             result.Message = string.Format("تم إلغاء تفعيل الترخيص على هذا الجهاز بنجاح.\nكود إثبات النقل: {0}\nيرجى تزويد الدعم الفني بهذا الكود مع بصمة الجهاز الجديد لتفعيل رفيق على جهازك الجديد.", releaseCode);
@@ -891,6 +896,7 @@ namespace RafiqPOS.Services
             }
 
             result.Success = true;
+            InvalidateCache();
             result.Code = "SUPPORT_ACTIVATION_SUCCESS";
             result.Message = "تم تفعيل الترخيص بنجاح عبر كود الدعم الفني أوفلاين!";
             result.License = GetLicenseInfo();

@@ -69,8 +69,8 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
 
         const isLicenseActive = Boolean(
           res?.success &&
-            res.license?.isActive &&
-            (res.license.status === 'active' || res.license.status === 'trial')
+            (res.code === 'VERIFIED' || Boolean(res.license?.isActive && (res.license?.status === 'active' || res.license?.status === 'trial')))
+
         );
 
         if (!isCancelled && isLicenseActive) {
@@ -215,8 +215,8 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
 
       const isLicenseActive = Boolean(
         res?.success &&
-          res.license?.isActive &&
-          (res.license.status === 'active' || res.license.status === 'trial')
+          (res.code === 'VERIFIED' || Boolean(res.license?.isActive && (res.license?.status === 'active' || res.license?.status === 'trial')))
+
       );
 
       if (isLicenseActive) {
