@@ -5,17 +5,17 @@ import {
   Copy, 
   Check, 
   X, 
-  Sparkles,
-  AlertCircle,
-  Clock,
-  PhoneCall,
-  ArrowLeftRight,
-  ShieldAlert,
-  Smartphone,
-  Wifi,
-  RefreshCw,
-  Cpu,
-  Download
+  Sparkles, 
+  AlertCircle, 
+  Clock, 
+  PhoneCall, 
+  ArrowLeftRight, 
+  ShieldAlert, 
+  Smartphone, 
+  Wifi, 
+  RefreshCw, 
+  Cpu, 
+  Download 
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert, rafiqConfirm } from '../utils/dialogService';
@@ -196,8 +196,9 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
       } else {
         setStatusMessage({ text: res?.message || 'فشل التفعيل، تأكد من صحة الرمز والاتصال بالإنترنت.', type: 'error' });
       }
-    } catch (err: any) {
-      setStatusMessage({ text: err?.message || 'حدث خطأ أثناء الاتصال بسيرفر التراخيص.', type: 'error' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatusMessage({ text: msg || 'حدث خطأ أثناء الاتصال بسيرفر التراخيص.', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -233,8 +234,9 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
       } else {
         setStatusMessage({ text: res?.message || 'كود الدعم غير صالح أو غير مخصص لبصمة هذا الجهاز.', type: 'error' });
       }
-    } catch (err: any) {
-      setStatusMessage({ text: err?.message || 'حدث خطأ أثناء تفعيل كود الدعم.', type: 'error' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatusMessage({ text: msg || 'حدث خطأ أثناء تفعيل كود الدعم.', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -275,8 +277,9 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
       } else {
         setStatusMessage({ text: res?.message || 'تعذر إلغاء التفعيل', type: 'error' });
       }
-    } catch (err: any) {
-      setStatusMessage({ text: err?.message || 'خطأ أثناء تنفيذ إلغاء التفعيل', type: 'error' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatusMessage({ text: msg || 'خطأ أثناء تنفيذ إلغاء التفعيل', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -293,8 +296,9 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
       } else {
         setStatusMessage({ text: res?.message || 'تعذر التحقق من صلاحية الترخيص', type: 'error' });
       }
-    } catch (err: any) {
-      setStatusMessage({ text: err?.message || 'خطأ أثناء فحص السيرفر', type: 'error' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatusMessage({ text: msg || 'خطأ أثناء فحص السيرفر', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -318,28 +322,28 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
       onClick={handleBackdropClick}
     >
       <div 
-        className="bg-surface rounded-3xl shadow-2xl border border-line w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh] text-ink font-sans"
+        className="bg-surface dark:bg-surface-dark rounded-3xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh] text-ink dark:text-ink-dark font-sans"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-surface px-6 py-5 border-b border-line flex items-center justify-between shrink-0">
+        <div className="bg-surface dark:bg-surface-dark px-6 py-5 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-brand-soft border border-brand/20 flex items-center justify-center text-brand shadow-2xs">
-              <KeyRound className="w-6 h-6 text-brand" />
+            <div className="w-11 h-11 rounded-2xl bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/20 flex items-center justify-center text-brand dark:text-brand-bright shadow-2xs">
+              <KeyRound className="w-6 h-6 text-brand dark:text-brand-bright" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-ink font-sans m-0">ترخيص وتفعيل برنامج رفيق</h2>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-brand-soft text-brand border border-brand/20">
+                <h2 className="text-lg font-bold text-ink dark:text-ink-dark font-sans m-0">ترخيص وتفعيل برنامج رفيق</h2>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20">
                   نسخة المحل
                 </span>
               </div>
-              <p className="text-xs text-ink-muted font-sans mt-0.5">
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-sans mt-0.5">
                 حماية كاملة بدون إنترنت • تفعيل فوري سحابي أو بكود الدعم المباشر
               </p>
             </div>
@@ -348,7 +352,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           <button 
             type="button"
             onClick={requestClose}
-            className="w-9 h-9 rounded-xl bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink flex items-center justify-center transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center transition-colors cursor-pointer"
             title="إغلاق"
           >
             <X className="w-5 h-5" />
@@ -357,17 +361,17 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
 
         {/* Mode Switcher Tabs */}
         <div className="px-6 pt-4 pb-1 shrink-0">
-          <div className="bg-surface-2 border border-line p-1 rounded-2xl flex items-center gap-1">
+          <div className="bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark p-1 rounded-2xl flex items-center gap-1">
             <button
               type="button"
               onClick={() => setActiveTab('online')}
               className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === 'online' 
-                  ? 'bg-surface text-brand shadow-xs border border-line/80 font-black' 
-                  : 'text-ink-muted hover:text-ink hover:bg-surface/50'
+                  ? 'bg-surface dark:bg-surface-dark-3 text-brand dark:text-brand-bright shadow-xs border border-line/80 dark:border-line-dark/80 font-black' 
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface/50 dark:hover:bg-surface-dark-3/50'
               }`}
             >
-              <Wifi className="w-4 h-4 text-brand" />
+              <Wifi className="w-4 h-4 text-brand dark:text-brand-bright" />
               <span>تفعيل أونلاين (سحابي)</span>
             </button>
             <button
@@ -375,11 +379,11 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
               onClick={() => setActiveTab('offline')}
               className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === 'offline' 
-                  ? 'bg-surface text-brand shadow-xs border border-line/80 font-black' 
-                  : 'text-ink-muted hover:text-ink hover:bg-surface/50'
+                  ? 'bg-surface dark:bg-surface-dark-3 text-brand dark:text-brand-bright shadow-xs border border-line/80 dark:border-line-dark/80 font-black' 
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface/50 dark:hover:bg-surface-dark-3/50'
               }`}
             >
-              <Smartphone className="w-4 h-4 text-brand" />
+              <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" />
               <span>كود الدعم (بدون نت)</span>
             </button>
             <button
@@ -387,11 +391,11 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
               onClick={() => setActiveTab('transfer')}
               className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === 'transfer' 
-                  ? 'bg-surface text-brand shadow-xs border border-line/80 font-black' 
-                  : 'text-ink-muted hover:text-ink hover:bg-surface/50'
+                  ? 'bg-surface dark:bg-surface-dark-3 text-brand dark:text-brand-bright shadow-xs border border-line/80 dark:border-line-dark/80 font-black' 
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface/50 dark:hover:bg-surface-dark-3/50'
               }`}
             >
-              <ArrowLeftRight className="w-4 h-4 text-brand" />
+              <ArrowLeftRight className="w-4 h-4 text-brand dark:text-brand-bright" />
               <span>نقل الترخيص لجهاز آخر</span>
             </button>
           </div>
@@ -402,19 +406,19 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           {/* Status Card */}
           <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 ${
             isTransferred
-              ? 'bg-danger-soft border-danger-border text-danger'
+              ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger/30 text-danger dark:text-danger-bright'
               : isTrial
-              ? 'bg-brand-soft/50 border-brand/20 text-brand-dark'
+              ? 'bg-brand-soft/50 dark:bg-brand-dark-soft/50 border-brand/20 dark:border-brand-bright/20 text-brand-dark dark:text-brand-bright'
               : isAlreadyActive 
-              ? 'bg-paid-soft/50 border-paid-border text-paid' 
-              : 'bg-warn-soft/60 border-warn-border text-warn'
+              ? 'bg-paid-soft/50 dark:bg-paid-dark-soft/50 border-paid-border dark:border-paid-dark-border text-paid dark:text-paid-bright' 
+              : 'bg-warn-soft/60 dark:bg-warn-dark-soft/60 border-warn-border dark:border-warn-border/30 text-warn dark:text-warn-bright'
           }`}>
             <div className="flex items-center gap-3.5">
               <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-2xs ${
                 isTransferred 
                   ? 'bg-danger text-white' 
                   : isTrial 
-                  ? 'bg-brand text-white' 
+                  ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark' 
                   : isAlreadyActive 
                   ? 'bg-paid text-white' 
                   : 'bg-warn text-white'
@@ -430,20 +434,20 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 )}
               </div>
               <div>
-                <div className="text-[11px] font-bold text-ink-muted">حالة ترخيص البرنامج الحالية</div>
-                <div className="text-sm font-black text-ink">
+                <div className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">حالة ترخيص البرنامج الحالية</div>
+                <div className="text-sm font-black text-ink dark:text-ink-dark">
                   {license?.statusLabel || (isAlreadyActive ? 'ترخيص دائم نشط (مدى الحياة)' : 'نسخة تجريبية / بانتظار التفعيل')}
                 </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted mt-1">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted dark:text-ink-dark-muted mt-1">
                   {license?.shopName && (
-                    <span>المحل: <span className="font-bold text-ink">{license.shopName}</span></span>
+                    <span>المحل: <span className="font-bold text-ink dark:text-ink-dark">{license.shopName}</span></span>
                   )}
                   {license?.expiresAt && (
-                    <span>ينتهي في: <span className="font-mono font-bold text-ink">{license.expiresAt.split('T')[0]}</span></span>
+                    <span>ينتهي في: <span className="font-mono font-bold text-ink dark:text-ink-dark">{license.expiresAt.split('T')[0]}</span></span>
                   )}
                   {countdownStr && (
-                    <span className="inline-flex items-center gap-1 bg-danger-soft text-danger border border-danger-border px-2 py-0.5 rounded-full font-mono text-[11px] font-bold">
-                      <Clock className="w-3 h-3 text-danger animate-pulse" />
+                    <span className="inline-flex items-center gap-1 bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger/30 px-2 py-0.5 rounded-full font-mono text-[11px] font-bold">
+                      <Clock className="w-3 h-3 text-danger dark:text-danger-bright animate-pulse" />
                       متبقي {countdownStr}
                     </span>
                   )}
@@ -453,12 +457,12 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
 
             <span className={`px-3 py-1.5 rounded-xl text-xs font-black border shrink-0 shadow-2xs ${
               isTransferred
-                ? 'bg-danger-soft text-danger border-danger-border'
+                ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger/30'
                 : isTrial
-                ? 'bg-brand-soft text-brand border-brand/30'
+                ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border-brand/30 dark:border-brand-bright/30'
                 : isAlreadyActive 
-                ? 'bg-paid-soft text-paid border-paid-border' 
-                : 'bg-warn-soft text-warn border-warn-border'
+                ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid-border dark:border-paid-dark-border' 
+                : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border-warn-border dark:border-warn-border/30'
             }`}>
               {isTransferred ? 'تم النقل' : isTrial ? 'تجربة مجانية' : isAlreadyActive ? 'مفعل ومعتمد' : 'بحاجة لتفعيل'}
             </span>
@@ -466,15 +470,15 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
 
           {/* Trial Notice (Feature #151 / Story 97) */}
           {isTrial && (
-            <div className="bg-surface-2 border border-line p-3.5 rounded-2xl flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-brand-soft text-brand flex items-center justify-center border border-brand/20 shrink-0 mt-0.5">
-                <Sparkles className="w-4 h-4 text-brand" />
+            <div className="bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark p-3.5 rounded-2xl flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center border border-brand/20 dark:border-brand-bright/20 shrink-0 mt-0.5">
+                <Sparkles className="w-4 h-4 text-brand dark:text-brand-bright" />
               </div>
               <div className="space-y-0.5">
-                <div className="text-xs font-black text-ink">
+                <div className="text-xs font-black text-ink dark:text-ink-dark">
                   النسخة التجريبية تعمل بكافة خصائصها بدون أي قيود!
                 </div>
-                <p className="text-[11.5px] text-ink-muted leading-relaxed m-0">
+                <p className="text-[11.5px] text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0">
                   تقدر تسجل أصنافك وبضاعتك وتصدر فواتيرك براحتك خالص. ولما تشتري البرنامج وتدخل كود التفعيل، نسختك هتتحول لنسخة دائمة فوراً من غير ما تفقد أي فاتورة أو صنف مسجل.
                 </p>
               </div>
@@ -485,10 +489,10 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           {statusMessage && (
             <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
               statusMessage.type === 'success' 
-                ? 'bg-paid-soft text-paid border border-paid-border' 
+                ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border' 
                 : statusMessage.type === 'error'
-                ? 'bg-danger-soft text-danger border border-danger-border'
-                : 'bg-brand-soft text-brand-dark border border-brand/20'
+                ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger/30'
+                : 'bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20'
             }`}>
               {statusMessage.type === 'success' ? <Check className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
               <span className="whitespace-pre-line">{statusMessage.text}</span>
@@ -496,10 +500,10 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           )}
 
           {/* Hardware Fingerprint Box (Feature #96 / Story 95) */}
-          <div className="bg-surface-2 p-4 rounded-2xl border border-line space-y-2.5">
-            <div className="flex items-center justify-between text-xs text-ink-muted font-bold">
-              <span className="flex items-center gap-1.5 text-ink">
-                <Cpu className="w-4 h-4 text-brand" />
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-2.5">
+            <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
+              <span className="flex items-center gap-1.5 text-ink dark:text-ink-dark">
+                <Cpu className="w-4 h-4 text-brand dark:text-brand-bright" />
                 بصمة جهاز الكاشير (Hardware Fingerprint):
               </span>
               <button 
@@ -507,30 +511,30 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 onClick={handleCopyFp}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all cursor-pointer ${
                   copiedFp 
-                    ? 'bg-paid-soft text-paid border-paid-border' 
-                    : 'bg-surface hover:bg-surface-3 text-brand border-line'
+                    ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid-border dark:border-paid-dark-border' 
+                    : 'bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-brand dark:text-brand-bright border-line dark:border-line-dark'
                 }`}
                 title="انقر لنسخ بصمة الجهاز"
               >
-                {copiedFp ? <Check className="w-3.5 h-3.5 text-paid" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedFp ? <Check className="w-3.5 h-3.5 text-paid dark:text-paid-bright" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copiedFp ? 'تم النسخ!' : 'نسخ البصمة'}</span>
               </button>
             </div>
             
-            <div className="bg-surface p-3 rounded-xl border border-line font-mono text-xs font-bold text-ink select-all break-all dir-ltr text-center tracking-wider leading-relaxed shadow-2xs">
+            <div className="bg-surface dark:bg-surface-dark p-3 rounded-xl border border-line dark:border-line-dark font-mono text-xs font-bold text-ink dark:text-ink-dark select-all break-all dir-ltr text-center tracking-wider leading-relaxed shadow-2xs">
               {license?.deviceFingerprint || 'RAFIQ-DEV-ACTIVE'}
             </div>
 
-            <div className="bg-paid-soft/50 border border-paid-border/60 rounded-xl p-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold text-ink">
-                <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid flex items-center justify-center border border-paid-border">
-                  <PhoneCall className="w-3.5 h-3.5 text-paid" />
+            <div className="bg-paid-soft/50 dark:bg-paid-dark-soft/50 border border-paid-border/60 dark:border-paid-dark-border/60 rounded-xl p-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark">
+                <div className="w-7 h-7 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center border border-paid-border dark:border-paid-dark-border">
+                  <PhoneCall className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
                 </div>
                 <span>لطلب كود التفعيل أو الدعم الفني المباشر:</span>
               </div>
               <a 
                 href="tel:01097782965"
-                className="font-mono text-sm font-black text-paid hover:text-paid-hover tracking-wider px-3 py-1 rounded-lg bg-surface border border-paid-border hover:bg-paid hover:text-white transition-all shadow-2xs cursor-pointer dir-ltr flex items-center gap-1.5" 
+                className="font-mono text-sm font-black text-paid dark:text-paid-bright hover:text-paid-hover tracking-wider px-3 py-1 rounded-lg bg-surface dark:bg-surface-dark border border-paid-border dark:border-paid-dark-border hover:bg-paid hover:text-white transition-all shadow-2xs cursor-pointer dir-ltr flex items-center gap-1.5" 
                 title="انقر للاتصال بفريق الدعم"
               >
                 <span>01097782965</span>
@@ -541,7 +545,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           {/* Tab 1: Online Cloud Activation */}
           {activeTab === 'online' && (
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-ink">
+              <label className="block text-xs font-bold text-ink dark:text-ink-dark">
                 كود الترخيص السحابي (License Key):
               </label>
               <input
@@ -549,10 +553,10 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 value={inputKey}
                 onChange={(e) => setInputKey(e.target.value.toUpperCase())}
                 placeholder="RFQ-PERM-XXXX-XXXX"
-                className="w-full h-12 bg-surface border-2 border-line focus:border-brand rounded-2xl px-4 text-sm font-mono tracking-widest font-black text-ink placeholder:text-ink-muted/40 text-center dir-ltr shadow-2xs focus:outline-none transition-all"
+                className="w-full h-12 bg-surface dark:bg-surface-dark-2 border-2 border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-2xl px-4 text-sm font-mono tracking-widest font-black text-ink dark:text-ink-dark placeholder:text-ink-muted/40 dark:placeholder:text-ink-dark-muted/40 text-center dir-ltr shadow-2xs focus:outline-none transition-all"
               />
-              <div className="flex items-center gap-1.5 text-[11px] text-ink-muted">
-                <Wifi className="w-3.5 h-3.5 text-paid shrink-0" />
+              <div className="flex items-center gap-1.5 text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                <Wifi className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                 <span>بيحتاج اتصال بالإنترنت لثانية واحدة فقط لتأكيد التفعيل، وبعدها بيشتغل بدون نت نهائياً.</span>
               </div>
             </div>
@@ -563,7 +567,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
             <div className="space-y-2.5">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-ink">
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark">
                     كود الدعم الفني (بدون إنترنت):
                   </label>
                   <input
@@ -576,7 +580,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="text-[11px] font-bold text-brand hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>استيراد كود من ملف (.txt)</span>
@@ -594,13 +598,13 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                     }
                   }}
                   placeholder="RFQ-SUP-eyJhbGci..."
-                  className="w-full h-12 bg-surface border-2 border-line focus:border-brand rounded-2xl px-4 text-sm font-mono tracking-widest font-black text-ink placeholder:text-ink-muted/40 text-center dir-ltr shadow-2xs focus:outline-none transition-all"
+                  className="w-full h-12 bg-surface dark:bg-surface-dark-2 border-2 border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-2xl px-4 text-sm font-mono tracking-widest font-black text-ink dark:text-ink-dark placeholder:text-ink-muted/40 dark:placeholder:text-ink-dark-muted/40 text-center dir-ltr shadow-2xs focus:outline-none transition-all"
                 />
               </div>
-              <div className="bg-paid-soft/50 border border-paid-border p-3 rounded-xl flex items-start gap-2.5 text-xs text-paid">
-                <ShieldCheck className="w-4 h-4 text-paid shrink-0 mt-0.5" />
-                <p className="text-[11.5px] text-ink-muted leading-relaxed m-0">
-                  <strong className="text-ink block mb-0.5">تفعيل أوفلاين فوري:</strong>
+              <div className="bg-paid-soft/50 dark:bg-paid-dark-soft/50 border border-paid-border dark:border-paid-dark-border p-3 rounded-xl flex items-start gap-2.5 text-xs text-paid dark:text-paid-bright">
+                <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright shrink-0 mt-0.5" />
+                <p className="text-[11.5px] text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0">
+                  <strong className="text-ink dark:text-ink-dark block mb-0.5">تفعيل أوفلاين فوري:</strong>
                   فريق الدعم بيبعتلك الكود ده على الواتساب أو التليفون بعد ما تديهم بصمة جهازك، وبيفعل البرنامج فوراً بدون أي اتصال بالإنترنت.
                 </p>
               </div>
@@ -611,19 +615,19 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           {activeTab === 'transfer' && (
             <div className="space-y-3">
               {releaseCodeResult ? (
-                <div className="bg-paid-soft border border-paid-border p-5 rounded-2xl space-y-3 text-center shadow-xs">
+                <div className="bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border p-5 rounded-2xl space-y-3 text-center shadow-xs">
                   <div className="w-11 h-11 bg-paid text-white rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
                     <Check className="w-6 h-6" />
                   </div>
                   <div>
-                    <div className="text-sm font-black text-paid">
+                    <div className="text-sm font-black text-paid dark:text-paid-bright">
                       تم إلغاء التفعيل على هذا الجهاز بنجاح
                     </div>
-                    <div className="text-xs text-ink-muted mt-0.5">
+                    <div className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
                       كود إثبات النقل الخاص بك:
                     </div>
                   </div>
-                  <div className="bg-surface p-3.5 rounded-xl border border-line font-mono text-base font-black text-paid tracking-widest select-all dir-ltr shadow-2xs">
+                  <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark font-mono text-base font-black text-paid dark:text-paid-bright tracking-widest select-all dir-ltr shadow-2xs">
                     {releaseCodeResult}
                   </div>
                   <button
@@ -634,35 +638,35 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                     {copiedRel ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     <span>{copiedRel ? 'تم النسخ!' : 'نسخ كود النقل لإرساله للدعم'}</span>
                   </button>
-                  <p className="text-[11px] text-ink-muted m-0">
+                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted m-0">
                     أرسل الكود ده مع بصمة الجهاز الجديد للدعم الفني لتفعيل رفيق على جهازك الجديد فوراً.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="bg-warn-soft border border-warn-border text-warn p-3.5 rounded-2xl space-y-2">
-                    <div className="font-bold text-xs flex items-center gap-1.5 text-warn">
-                      <ArrowLeftRight className="w-4 h-4 text-warn shrink-0" />
+                  <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-border/30 text-warn dark:text-warn-bright p-3.5 rounded-2xl space-y-2">
+                    <div className="font-bold text-xs flex items-center gap-1.5 text-warn dark:text-warn-bright">
+                      <ArrowLeftRight className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
                       <span>خطوات نقل البرنامج لجهاز كاشير جديد:</span>
                     </div>
-                    <div className="space-y-1.5 text-xs text-ink-muted pr-1">
+                    <div className="space-y-1.5 text-xs text-ink-muted dark:text-ink-dark-muted pr-1">
                       <div className="flex items-start gap-2">
-                        <span className="w-4 h-4 rounded-full bg-warn/15 text-warn font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+                        <span className="w-4 h-4 rounded-full bg-warn/15 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
                         <span>إلغاء التفعيل على الجهاز القديم ده واستخراج كود إثبات النقل.</span>
                       </div>
                       <div className="flex items-start gap-2">
-                        <span className="w-4 h-4 rounded-full bg-warn/15 text-warn font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+                        <span className="w-4 h-4 rounded-full bg-warn/15 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
                         <span>تسطيب رفيق على الجهاز الجديد وأخذ بصمة الجهاز الجديد.</span>
                       </div>
                       <div className="flex items-start gap-2">
-                        <span className="w-4 h-4 rounded-full bg-warn/15 text-warn font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+                        <span className="w-4 h-4 rounded-full bg-warn/15 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
                         <span>إرسال كود النقل وبصمة الجهاز الجديد للدعم الفني لاستلام كود التفعيل للجهاز الجديد.</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-ink">
+                    <label className="block text-xs font-bold text-ink dark:text-ink-dark">
                       سبب النقل (اختياري):
                     </label>
                     <input
@@ -670,7 +674,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                       value={transferReason}
                       onChange={(e) => setTransferReason(e.target.value)}
                       placeholder="مثال: قمت بتغيير جهاز الكاشير أو ترقية الهارد"
-                      className="w-full bg-surface-2 border border-line rounded-xl px-3.5 py-2.5 text-xs text-ink focus:outline-none focus:border-brand"
+                      className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                     />
                   </div>
                 </div>
@@ -680,15 +684,15 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 bg-surface-2 border-t border-line flex items-center justify-between gap-3 shrink-0">
+        <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between gap-3 shrink-0">
           <button
             type="button"
             onClick={handleVerify}
             disabled={isLoading}
-            className="h-10 px-4 rounded-xl border border-line bg-surface hover:bg-surface-3 text-ink font-bold text-xs transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            className="h-10 px-4 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-xs transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-2xs"
             title="التحقق من حالة وسريان الترخيص"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-ink-muted ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted ${isLoading ? 'animate-spin' : ''}`} />
             <span>فحص صلاحية الترخيص</span>
           </button>
 
@@ -696,7 +700,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
             <button
               type="button"
               onClick={onClose}
-              className="h-10 px-5 rounded-xl border border-line bg-surface hover:bg-surface-3 text-ink-muted hover:text-ink font-bold text-xs transition-all cursor-pointer shadow-2xs"
+              className="h-10 px-5 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark font-bold text-xs transition-all cursor-pointer shadow-2xs"
             >
               إغلاق
             </button>
@@ -706,7 +710,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 type="button"
                 onClick={handleActivateOnline}
                 disabled={isLoading || !inputKey.trim()}
-                className="h-10 px-6 rounded-xl bg-brand hover:bg-brand-dark text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                className="h-10 px-6 rounded-xl bg-brand dark:bg-brand-bright hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark font-bold text-xs shadow-sm transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
               >
                 {isLoading ? (
                   <>
@@ -727,7 +731,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 type="button"
                 onClick={handleActivateSupportCode}
                 disabled={isLoading || !supportCode.trim()}
-                className="h-10 px-6 rounded-xl bg-brand hover:bg-brand-dark text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                className="h-10 px-6 rounded-xl bg-brand dark:bg-brand-bright hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark font-bold text-xs shadow-sm transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
               >
                 {isLoading ? (
                   <>
@@ -769,4 +773,3 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
     </div>
   );
 };
-

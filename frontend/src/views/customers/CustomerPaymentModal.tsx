@@ -196,10 +196,10 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                 setDigitalAccountId('');
               }}
               options={[
-                { value: 'cash', label: 'نقداً (كاش بالدرج)', icon: <Coins className="w-4 h-4 text-paid" /> },
-                { value: 'instapay', label: 'إنستاباي (InstaPay)', icon: <Smartphone className="w-4 h-4 text-brand" /> },
-                { value: 'wallet', label: 'محفظة كاش (فودافون / أورنج / اتصالات)', icon: <Smartphone className="w-4 h-4 text-brand" /> },
-                { value: 'card', label: 'تحويل بنكي / فيزا', icon: <Building2 className="w-4 h-4 text-brand" /> },
+                { value: 'cash', label: 'نقداً (كاش بالدرج)', icon: <Coins className="w-4 h-4 text-paid dark:text-paid-bright" /> },
+                { value: 'instapay', label: 'إنستاباي (InstaPay)', icon: <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" /> },
+                { value: 'wallet', label: 'محفظة كاش (فودافون / أورنج / اتصالات)', icon: <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" /> },
+                { value: 'card', label: 'تحويل بنكي / فيزا', icon: <Building2 className="w-4 h-4 text-brand dark:text-brand-bright" /> },
               ]}
               className="w-full"
             />

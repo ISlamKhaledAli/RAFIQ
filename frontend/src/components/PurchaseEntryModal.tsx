@@ -140,24 +140,24 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
   };
 
   return (
-    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 select-none">
+      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-ink dark:text-ink-dark">
         
         {/* Header */}
-        <div className="px-5 py-3.5 border-b border-line flex items-center justify-between bg-surface-2 shrink-0">
+        <div className="px-5 py-3.5 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded bg-brand text-white flex items-center justify-center font-bold">
               <Truck className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-ink leading-tight">تسجيل استلام بضاعة / فاتورة شراء</h3>
-              <p className="text-xs text-ink-muted leading-tight mt-0.5">{product.name}</p>
+              <h3 className="text-sm font-bold text-ink dark:text-ink-dark leading-tight">تسجيل استلام بضاعة / فاتورة شراء</h3>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">{product.name}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={requestClose}
-            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface border border-transparent hover:border-line transition-colors"
+            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 border border-transparent hover:border-line dark:hover:border-line-dark transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -166,23 +166,23 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
         {/* Content Form */}
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
           {error && (
-            <div className="p-3 bg-danger-soft border border-danger/30 rounded text-danger text-xs flex items-center gap-2">
+            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 rounded text-danger dark:text-danger-bright text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3 bg-paid-soft border border-paid/30 rounded text-paid text-xs flex items-center gap-2 font-bold">
+            <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid-dark-border rounded text-paid dark:text-paid-bright text-xs flex items-center gap-2 font-bold">
               <PackageCheck className="w-4 h-4 shrink-0" />
               <span>{successMsg}</span>
             </div>
           )}
 
           {/* Current Stock Banner */}
-          <div className="p-3 bg-surface-2 rounded border border-line flex items-center justify-between text-xs">
-            <span className="text-ink-muted">الرصيد الفعلي الحالي في المخزن:</span>
-            <span className="font-mono font-bold text-ink text-sm">
+          <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark flex items-center justify-between text-xs">
+            <span className="text-ink-muted dark:text-ink-dark-muted">الرصيد الفعلي الحالي في المخزن:</span>
+            <span className="font-mono font-bold text-ink dark:text-ink-dark text-sm">
               {isKg ? `${currentBaseQty.toFixed(3)} كجم` : `${Math.round(currentBaseQty)} قطعة`}
             </span>
           </div>
@@ -190,8 +190,8 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
           {/* Task 161-8: Unit Selection Dropdown & Conversion Factor Display */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-ink block mb-1">
-                وحدة الشراء المستلمة <span className="text-danger">*</span>
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
+                وحدة الشراء المستلمة <span className="text-danger dark:text-danger-bright">*</span>
               </label>
               {unitsList.length > 1 ? (
                   <CustomSelect
@@ -205,17 +205,17 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
                     size="md"
                   />
               ) : (
-                <div className="h-10 px-3 bg-surface-2 border border-line rounded flex items-center justify-between text-xs text-ink font-bold">
+                <div className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded flex items-center justify-between text-xs text-ink dark:text-ink-dark font-bold">
                   <span>{unitName} (الوحدة الأساسية)</span>
-                  <span className="text-ink-muted text-[11px]">معامل: ×1</span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">معامل: ×1</span>
                 </div>
               )}
             </div>
 
             {/* Quantity Input */}
             <div>
-              <label className="text-xs font-bold text-ink block mb-1">
-                الكمية المشتراة <span className="text-danger">*</span>
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
+                الكمية المشتراة <span className="text-danger dark:text-danger-bright">*</span>
               </label>
               <div className="relative">
                 <input
@@ -227,9 +227,9 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
                     setPurchaseQtyInput(normalizeArabicNumerals(e.target.value));
                     setError('');
                   }}
-                  className="w-full h-10 px-3 font-mono text-sm font-bold text-ink bg-surface border border-line rounded focus:border-brand focus:outline-none"
+                  className="w-full h-10 px-3 font-mono text-sm font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded focus:border-brand dark:focus:border-brand-bright focus:outline-none placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                 />
-                <span className="absolute left-3 top-2.5 text-xs text-ink-muted font-bold pointer-events-none">
+                <span className="absolute left-3 top-2.5 text-xs text-ink-muted dark:text-ink-dark-muted font-bold pointer-events-none">
                   {unitName}
                 </span>
               </div>
@@ -238,9 +238,9 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
 
           {/* Conversion Indicator (Task 161-9 & 161-10) */}
           {factor > 1 && (
-            <div className="px-3 py-2 bg-brand-soft/60 border border-brand/20 rounded flex items-center justify-between text-xs text-brand font-bold">
+            <div className="px-3 py-2 bg-brand-soft/60 dark:bg-brand-dark-soft/60 border border-brand/20 dark:border-brand-bright/20 rounded flex items-center justify-between text-xs text-brand dark:text-brand-bright font-bold">
               <div className="flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-brand" />
+                <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
                 <span>العبوة: 1 {unitName} = {factor} قطعة أساسية</span>
               </div>
               <span>إجمالي الكمية للمخزن: +{baseQtyAdded} قطعة</span>
@@ -249,8 +249,8 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
 
           {/* Unit Purchase Cost Input via MoneyInput */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-ink block">
-              سعر شراء الوحدة الواحدة ({unitName}) <span className="text-danger">*</span>
+            <label className="text-xs font-bold text-ink dark:text-ink-dark block">
+              سعر شراء الوحدة الواحدة ({unitName}) <span className="text-danger dark:text-danger-bright">*</span>
             </label>
             <MoneyInput
               valuePiasters={packageCostPiasters}
@@ -261,51 +261,51 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
           </div>
 
           {/* Financial & Stock Preview Box */}
-          <div className="p-3.5 bg-surface-2 rounded-xl border border-line space-y-2 text-xs">
-            <div className="flex items-center justify-between text-ink-muted">
+          <div className="p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark space-y-2 text-xs">
+            <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted">
               <span>إجمالي فاتورة الشراء للصنف:</span>
-              <span className="font-mono font-bold text-ink text-sm">
+              <span className="font-mono font-bold text-ink dark:text-ink-dark text-sm">
                 {formatArabicCurrency(totalPurchasePiasters)}
               </span>
             </div>
 
             {/* Task 161-10: Calculated Base Unit Cost */}
-            <div className="flex items-center justify-between pt-1 border-t border-line">
-              <div className="flex items-center gap-1 text-ink">
-                <TrendingDown className="w-3.5 h-3.5 text-paid" />
+            <div className="flex items-center justify-between pt-1 border-t border-line dark:border-line-dark">
+              <div className="flex items-center gap-1 text-ink dark:text-ink-dark">
+                <TrendingDown className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
                 <span className="font-bold">سعر تكلفة القطعة الأساسية المحتسب:</span>
               </div>
-              <span className="font-mono font-bold text-paid text-sm">
+              <span className="font-mono font-bold text-paid dark:text-paid-bright text-sm">
                 {formatArabicCurrency(computedBaseCostPiasters)}
               </span>
             </div>
 
             {/* Task 161-9: Stock Addition Preview */}
-            <div className="flex items-center justify-between pt-1 border-t border-line text-ink">
+            <div className="flex items-center justify-between pt-1 border-t border-line dark:border-line-dark text-ink dark:text-ink-dark">
               <span>رصيد المخزن بعد الاستلام:</span>
               <div className="flex items-center gap-1.5 font-mono font-bold">
-                <span className="text-ink-muted">({Math.round(currentBaseQty)})</span>
-                <ArrowRight className="w-3 h-3 text-brand" />
-                <span className="text-brand text-sm">{Math.round(newBaseQtyTotal)} {isKg ? 'كجم' : 'قطعة'}</span>
+                <span className="text-ink-muted dark:text-ink-dark-muted">({Math.round(currentBaseQty)})</span>
+                <ArrowRight className="w-3 h-3 text-brand dark:text-brand-bright" />
+                <span className="text-brand dark:text-brand-bright text-sm">{Math.round(newBaseQtyTotal)} {isKg ? 'كجم' : 'قطعة'}</span>
               </div>
             </div>
           </div>
 
           {/* Checkbox: Update Product Cost in Catalog */}
-          <label className="flex items-center gap-2 text-xs font-semibold text-ink cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-xs font-semibold text-ink dark:text-ink-dark cursor-pointer select-none">
             <input
               type="checkbox"
               checked={updateProductCost}
               onChange={(e) => setUpdateProductCost(e.target.checked)}
-              className="w-4 h-4 rounded border-line text-brand focus:ring-0 cursor-pointer"
+              className="w-4 h-4 rounded border-line dark:border-line-dark text-brand dark:text-brand-bright focus:ring-0 cursor-pointer"
             />
             <span>تحديث سعر التكلفة الافتراضي للصنف في الكتالوج إلى {formatArabicCurrency(computedBaseCostPiasters)}</span>
           </label>
 
           {/* Supplier & Invoice Reference Fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-line">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-line dark:border-line-dark">
             <div>
-              <label className="text-[11px] font-bold text-ink-muted mb-1 flex items-center gap-1">
+              <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5" />
                 <span>اسم المورد / الشركة</span>
               </label>
@@ -314,11 +314,11 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
                 placeholder="مثال: شركة النور للتوزيع"
                 value={supplierName}
                 onChange={(e) => setSupplierName(e.target.value)}
-                className="w-full h-9 px-3 text-xs bg-surface border border-line rounded text-ink focus:border-brand focus:outline-none"
+                className="w-full h-9 px-3 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:border-brand dark:focus:border-brand-bright focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-ink-muted mb-1 flex items-center gap-1">
+              <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center gap-1">
                 <Receipt className="w-3.5 h-3.5" />
                 <span>رقم الفاتورة / إذن الاستلام</span>
               </label>
@@ -327,19 +327,19 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
                 placeholder="مثال: INV-9842"
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
-                className="w-full h-9 px-3 text-xs font-mono bg-surface border border-line rounded text-ink focus:border-brand focus:outline-none"
+                className="w-full h-9 px-3 text-xs font-mono bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:border-brand dark:focus:border-brand-bright focus:outline-none"
               />
             </div>
           </div>
         </form>
 
         {/* Footer Actions */}
-        <div className="px-5 py-3 border-t border-line bg-surface-2 flex items-center justify-between shrink-0">
+        <div className="px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
           <button
             type="button"
             onClick={requestClose}
             disabled={loading}
-            className="px-4 py-2 bg-surface border border-line text-ink hover:bg-surface-2 rounded text-xs font-bold transition-colors disabled:opacity-50"
+            className="px-4 py-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 rounded text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
           >
             إلغاء (Esc)
           </button>
@@ -348,7 +348,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
             type="button"
             onClick={handleSubmit}
             disabled={loading || !isValidQty}
-            className="px-5 py-2 bg-brand hover:bg-brand-hover text-white rounded text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+            className="px-5 py-2 bg-brand dark:bg-brand-bright hover:bg-brand-hover dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark rounded text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
           >
             <PackageCheck className="w-4 h-4" />
             <span>{loading ? 'جارٍ الحفظ...' : 'تأكيد استلام البضاعة وإضافة المخزون'}</span>

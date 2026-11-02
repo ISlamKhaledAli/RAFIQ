@@ -157,26 +157,26 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
   return (
     <div
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150 select-none"
     >
       <div
         dir="rtl"
-        className="bg-surface rounded-2xl border border-line shadow-2xl w-full max-w-xl overflow-hidden text-ink font-sans flex flex-col max-h-[88vh]"
+        className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl w-full max-w-xl overflow-hidden text-ink dark:text-ink-dark font-sans flex flex-col max-h-[88vh]"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-surface-2/60 shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line dark:border-line-dark bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand">
+            <div className="w-10 h-10 rounded-xl bg-brand/10 dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/20 flex items-center justify-center text-brand dark:text-brand-bright">
               <Layers className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-ink">{parentProduct.name}</h3>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-brand-soft text-brand border border-brand/20">
+                <h3 className="text-base font-bold text-ink dark:text-ink-dark">{parentProduct.name}</h3>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20">
                   {variants.length} تركيبة
                 </span>
               </div>
-              <p className="text-xs text-ink-muted">
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
                 {mode === 'purchase'
                   ? `اختر ${terminology.sizeLabel} و ${terminology.colorLabel} لإضافته إلى فاتورة الشراء وتوريد الكميات`
                   : `اختر ${terminology.sizeLabel} و ${terminology.colorLabel} المطلوب لإضافته إلى سلة البيع`}
@@ -185,7 +185,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
           </div>
           <button
             onClick={() => void requestClose()}
-            className="p-1.5 text-ink-muted hover:text-ink hover:bg-line/40 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-line/40 dark:hover:bg-line-dark/40 rounded-lg transition-colors cursor-pointer"
             title="إغلاق"
           >
             <X className="w-5 h-5" />
@@ -195,21 +195,21 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
         {/* Content */}
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {isLoading ? (
-            <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted">
-              <Loader2 className="w-6 h-6 animate-spin text-brand" />
+            <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted dark:text-ink-dark-muted">
+              <Loader2 className="w-6 h-6 animate-spin text-brand dark:text-brand-bright" />
               <span className="text-xs">جاري تحميل {terminology.variantsTitle}...</span>
             </div>
           ) : variants.length === 0 ? (
-            <div className="py-8 text-center text-ink-muted text-xs flex flex-col items-center gap-2">
-              <Package className="w-8 h-8 opacity-40 text-brand" />
+            <div className="py-8 text-center text-ink-muted dark:text-ink-dark-muted text-xs flex flex-col items-center gap-2">
+              <Package className="w-8 h-8 opacity-40 text-brand dark:text-brand-bright" />
               <span>لا توجد تركيبات مسجلة لهذا المنتج</span>
             </div>
           ) : (
             <>
               {/* Quick Filter Reset */}
               {(selectedColor || selectedSize) && (
-                <div className="flex items-center justify-between bg-surface-2/70 px-3 py-1.5 rounded-xl border border-line text-xs">
-                  <span className="text-ink-muted font-medium">
+                <div className="flex items-center justify-between bg-surface-2/70 dark:bg-surface-dark-2/70 px-3 py-1.5 rounded-xl border border-line dark:border-line-dark text-xs">
+                  <span className="text-ink-muted dark:text-ink-dark-muted font-medium">
                     تصفية نشطة: {selectedColor && `${terminology.colorLabel}: ${selectedColor}`} {selectedSize && `• ${terminology.sizeLabel}: ${selectedSize}`}
                   </span>
                   <button
@@ -218,7 +218,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                       setSelectedColor(null);
                       setSelectedSize(null);
                     }}
-                    className="text-brand hover:underline font-bold flex items-center gap-1 text-[11px] cursor-pointer"
+                    className="text-brand dark:text-brand-bright hover:underline font-bold flex items-center gap-1 text-[11px] cursor-pointer"
                   >
                     <RefreshCw className="w-3 h-3" />
                     عرض الكل
@@ -230,12 +230,12 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
               {allColors.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-ink-muted">1. تصفية بـ{terminology.colorLabel}:</label>
+                    <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">1. تصفية بـ{terminology.colorLabel}:</label>
                     {selectedColor && (
                       <button
                         type="button"
                         onClick={() => setSelectedColor(null)}
-                        className="text-[11px] text-ink-muted hover:text-brand"
+                        className="text-[11px] text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright cursor-pointer"
                       >
                         إلغاء التحديد
                       </button>
@@ -255,10 +255,10 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                           }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                             isSelected
-                              ? 'bg-brand text-white border-brand shadow-sm'
+                              ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark border-brand dark:border-brand-bright shadow-sm'
                               : isAvailableForSelectedSize
-                              ? 'bg-surface border-line text-ink hover:border-brand-soft hover:bg-surface-2'
-                              : 'bg-surface-2/40 border-line text-ink-muted opacity-40 hover:opacity-80'
+                              ? 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand-soft dark:hover:border-brand-bright/40 hover:bg-surface-2 dark:hover:bg-surface-dark-3'
+                              : 'bg-surface-2/40 dark:bg-surface-dark-2/40 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted opacity-40 hover:opacity-80'
                           }`}
                         >
                           <span>{color}</span>
@@ -273,12 +273,12 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
               {allSizes.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-ink-muted">2. {terminology.filterBySizeLabel}</label>
+                    <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">2. {terminology.filterBySizeLabel}</label>
                     {selectedSize && (
                       <button
                         type="button"
                         onClick={() => setSelectedSize(null)}
-                        className="text-[11px] text-ink-muted hover:text-paid"
+                        className="text-[11px] text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-paid-bright cursor-pointer"
                       >
                         إلغاء التحديد
                       </button>
@@ -300,8 +300,8 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                             isSelected
                               ? 'bg-paid text-white border-paid shadow-sm'
                               : isAvailableForSelectedColor
-                              ? 'bg-surface border-line text-ink hover:border-paid/40 hover:bg-surface-2'
-                              : 'bg-surface-2/40 border-line text-ink-muted opacity-40 hover:opacity-80'
+                              ? 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-paid/40 dark:hover:border-paid-dark-border hover:bg-surface-2 dark:hover:bg-surface-dark-3'
+                              : 'bg-surface-2/40 dark:bg-surface-dark-2/40 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted opacity-40 hover:opacity-80'
                           }`}
                         >
                           <span>{size}</span>
@@ -315,17 +315,17 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
               {/* Matching Variants List */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-ink-muted">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
                     التركيبات المتاحة ({filteredVariants.length}):
                   </label>
-                  <span className="text-[11px] text-ink-muted">
+                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
                     اضغط للإضافة المباشرة
                   </span>
                 </div>
 
                 <div className="space-y-2">
                   {filteredVariants.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-ink-muted border border-dashed border-line rounded-xl">
+                    <div className="p-6 text-center text-xs text-ink-muted dark:text-ink-dark-muted border border-dashed border-line dark:border-line-dark rounded-xl">
                       لا توجد تركيبة تطابق هذه الخيارات معاً
                     </div>
                   ) : (
@@ -339,18 +339,18 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                           key={v.id}
                           className={`w-full p-3 rounded-xl border text-right transition-all flex items-center justify-between gap-3 shadow-sm ${
                             wasJustAdded
-                              ? 'border-paid bg-paid-soft/50 ring-1 ring-paid'
-                              : 'border-line bg-surface hover:border-brand hover:bg-brand-soft/10'
+                              ? 'border-paid dark:border-paid-dark-border bg-paid-soft/50 dark:bg-paid-dark-soft/50 ring-1 ring-paid'
+                              : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:border-brand dark:hover:border-brand-bright hover:bg-brand-soft/10 dark:hover:bg-brand-dark-soft/30'
                           }`}
                         >
                           <div className="space-y-1.5 flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-sm text-ink">
+                              <span className="font-bold text-sm text-ink dark:text-ink-dark">
                                 {v.color} - {v.size}
                               </span>
                               {v.barcode && (
-                                <span className="text-[11px] font-mono text-ink-muted flex items-center gap-1 bg-surface-2 px-1.5 py-0.5 rounded border border-line">
-                                  <Barcode className="w-3 h-3 text-ink-muted" />
+                                <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
+                                  <Barcode className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                                   {v.barcode}
                                 </span>
                               )}
@@ -359,27 +359,27 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                             <div className="flex items-center gap-2 text-xs flex-wrap">
                               {/* Stock status badges */}
                               {isOutOfStock ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-danger bg-danger/10 px-2 py-0.5 rounded-md border border-danger/20">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-danger dark:text-danger-bright bg-danger/10 dark:bg-danger-dark-soft px-2 py-0.5 rounded-md border border-danger/20 dark:border-danger-bright/20">
                                   <AlertTriangle className="w-3 h-3" />
                                   {mode === 'purchase'
                                     ? 'المخزون الحالي: 0 قطعة (جاهز للتوريد)'
                                     : 'نفد من المخزن (0)'}
                                 </span>
                               ) : isOnlyOnePiece ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-md border border-warn/20">
-                                  <Sparkles className="w-3 h-3 text-warn" />
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-warn dark:text-warn-bright bg-warn/10 dark:bg-warn-dark-soft px-2 py-0.5 rounded-md border border-warn/20 dark:border-warn-border/30">
+                                  <Sparkles className="w-3 h-3 text-warn dark:text-warn-bright" />
                                   متبقي قطعة واحدة فقط بالمخزن!
                                 </span>
                               ) : (
-                                <span className="text-ink-muted text-xs">
-                                  المخزون: <strong className="text-ink font-mono font-bold">{v.stockQuantityMilli / 1000}</strong> قطعة
+                                <span className="text-ink-muted dark:text-ink-dark-muted text-xs">
+                                  المخزون: <strong className="text-ink dark:text-ink-dark font-mono font-bold">{v.stockQuantityMilli / 1000}</strong> قطعة
                                 </span>
                               )}
                             </div>
                           </div>
 
                           <div className="text-left space-y-1.5 shrink-0 flex flex-col items-end">
-                            <div className="text-sm font-bold font-mono text-paid">
+                            <div className="text-sm font-bold font-mono text-paid dark:text-paid-bright">
                               {(v.pricePiasters / 100).toFixed(2)} ج.م
                             </div>
 
@@ -389,7 +389,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                                   <button
                                     type="button"
                                     onClick={() => handlePick(v, true)}
-                                    className="px-2 py-1 rounded-lg bg-surface-2 border border-line hover:border-brand text-[11px] font-bold text-brand flex items-center gap-1 transition-colors cursor-pointer"
+                                    className="px-2 py-1 rounded-lg bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright text-[11px] font-bold text-brand dark:text-brand-bright flex items-center gap-1 transition-colors cursor-pointer"
                                     title="إضافة إلى الفاتورة مع إبقاء النافذة مفتوحة لاختيار باقي الخيارات"
                                   >
                                     <Plus className="w-3 h-3" />
@@ -398,7 +398,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                                   <button
                                     type="button"
                                     onClick={() => handlePick(v, false)}
-                                    className="px-2.5 py-1 rounded-lg bg-brand hover:bg-brand-dark text-white text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                    className="px-2.5 py-1 rounded-lg bg-brand dark:bg-brand-bright hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
                                   >
                                     <Check className="w-3 h-3" />
                                     <span>إضافة وإنهاء</span>
@@ -408,7 +408,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                                 <button
                                   type="button"
                                   onClick={() => handlePick(v, false)}
-                                  className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                  className="px-3 py-1.5 rounded-lg bg-brand dark:bg-brand-bright hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                                 >
                                   <Check className="w-3.5 h-3.5" />
                                   <span>إضافة للسلة</span>

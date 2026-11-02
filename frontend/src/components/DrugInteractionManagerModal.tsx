@@ -150,30 +150,29 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
       return;
     }
     if (!formRec.trim()) {
-      setFormError('التوصية الطبية مطلوبة.');
+      setFormError('التوصية الطبية العملية مطلوبة.');
       return;
     }
 
     setSaving(true);
     setFormError(null);
     try {
-      const payload: Partial<DrugInteraction> = {
-        id: editingItem ? editingItem.id : undefined,
-        activeIngredientA: formA.trim().toLowerCase(),
-        activeIngredientB: formB.trim().toLowerCase(),
+      await invoke('ddi:save', {
+        id: editingItem?.id,
+        activeIngredientA: formA.trim(),
+        activeIngredientB: formB.trim(),
         severity: formSeverity,
         mechanismAr: formMech.trim(),
         clinicalRiskAr: formRisk.trim(),
         recommendationAr: formRec.trim(),
-        alternativeAr: formAlt.trim(),
-        source: editingItem?.source || 'custom',
-      };
+        alternativeAr: formAlt.trim() || null,
+      });
 
-      await invoke('ddi:save', payload);
       setIsEditOpen(false);
-      setMessage({ type: 'success', text: 'تم حفظ التفاعل الدوائي بنجاح.' });
       loadInteractions();
-      if (onSuccess) onSuccess('تم حفظ التفاعل الدوائي بنجاح.');
+      if (onSuccess) {
+        onSuccess(editingItem ? 'تم تعديل التفاعل الدوائي بنجاح.' : 'تمت إضافة التفاعل الدوائي بنجاح.');
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل حفظ التفاعل الدوائي.';
       setFormError(msg);
@@ -187,8 +186,10 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
     try {
       await invoke('ddi:delete', { id: deleteCandidate.id });
       setDeleteCandidate(null);
-      setMessage({ type: 'success', text: 'تم حذف التفاعل الدوائي بنجاح.' });
       loadInteractions();
+      if (onSuccess) {
+        onSuccess('تم حذف التفاعل الدوائي بنجاح.');
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل حذف التفاعل الدوائي.';
       setMessage({ type: 'error', text: msg });
@@ -199,14 +200,11 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
     setIsExporting(true);
     setMessage(null);
     try {
-      const res = await invoke<{ success: boolean; filePath: string }>('ddi:exportToExcel', {
-        search: search.trim(),
-        severity: severityFilter,
-      });
-      if (res && res.filePath) {
+      const res = await invoke<{ success: boolean; filePath: string }>('ddi:exportExcel');
+      if (res?.success) {
         setMessage({
           type: 'success',
-          text: `تم تصدير جدول التفاعلات إلى: ${res.filePath}`,
+          text: `تم تصدير ملف الإكسل بنجاح إلى: ${res.filePath}`,
         });
       }
     } catch (err: unknown) {
@@ -219,15 +217,15 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
   const handleDownloadTemplate = async () => {
     try {
-      const res = await invoke<{ success: boolean; filePath: string }>('ddi:generateTemplate', {});
-      if (res && res.filePath) {
+      const res = await invoke<{ success: boolean; filePath: string }>('ddi:downloadTemplate');
+      if (res?.success) {
         setMessage({
           type: 'success',
-          text: `تم حفظ القالب الفارغ في: ${res.filePath}`,
+          text: `تم حفظ قالب الإكسل الفارغ في: ${res.filePath}`,
         });
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل توليد القالب.';
+      const msg = err instanceof Error ? err.message : 'فشل استخراج قالب الإكسل.';
       setMessage({ type: 'error', text: msg });
     }
   };
@@ -236,16 +234,14 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Read full path if available in WebView/Electron environment, or handle file upload
-    const filePath = (file as unknown as { path?: string }).path || file.name;
-
     setIsImporting(true);
     setMessage(null);
     try {
-      const res = await invoke<{ success: boolean; importedCount: number }>('ddi:importFromExcel', {
+      const filePath = (file as unknown as { path?: string }).path || file.name;
+      const res = await invoke<{ success: boolean; importedCount: number }>('ddi:importExcel', {
         filePath,
       });
-      if (res) {
+      if (res?.success) {
         setMessage({
           type: 'success',
           text: `تم استيراد ${res.importedCount} تفاعل دوائي بنجاح.`,
@@ -264,7 +260,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
   const getSeverityBadge = (sev: string) => {
     if (sev === 'severe') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-danger/10 text-danger border border-danger/30">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-danger/10 dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30 dark:border-danger-bright/30">
           <ShieldAlert className="w-3 h-3" />
           حرج
         </span>
@@ -272,14 +268,14 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
     }
     if (sev === 'moderate') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-warn/10 text-warn border border-warn/30">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-warn/10 dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/30 dark:border-warn-border/30">
           <AlertTriangle className="w-3 h-3" />
           متوسط
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-brand/10 text-brand border border-brand/30">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/30 dark:border-brand-bright/30">
         <Info className="w-3 h-3" />
         طفيف
       </span>
@@ -303,18 +299,18 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
       aria-labelledby="ddi-manager-title"
     >
       <div
-        className="w-full max-w-5xl bg-surface border-2 border-line shadow-2xl rounded-2xl overflow-hidden flex flex-col h-[90vh]"
+        className="w-full max-w-5xl bg-surface dark:bg-surface-dark border-2 border-line dark:border-line-dark shadow-2xl rounded-2xl overflow-hidden flex flex-col h-[90vh] text-ink dark:text-ink-dark"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-brand text-white px-6 py-4 flex items-center justify-between">
+        <div className="bg-brand dark:bg-brand-dark text-white px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0">
               <ShieldAlert className="w-6 h-6" />
@@ -339,11 +335,11 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
         </div>
 
         {/* Action Toolbar */}
-        <div className="p-4 bg-surface-2 border-b border-line flex flex-wrap items-center justify-between gap-3">
+        <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
             {/* Search */}
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={search}
@@ -352,7 +348,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                   setPage(1);
                 }}
                 placeholder="بحث بالمادة الفعالة أو آلية التفاعل أو التوصية..."
-                className="w-full pr-9 pl-3 py-2 text-xs bg-surface border border-line rounded-lg focus:outline-none focus:border-brand text-ink"
+                className="w-full pr-9 pl-3 py-2 text-xs bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
               />
             </div>
 
@@ -374,7 +370,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
             <button
               type="button"
               onClick={handleOpenAdd}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-brand text-white hover:bg-brand-dark transition-colors cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-dark transition-colors cursor-pointer shadow-xs"
             >
               <Plus className="w-4 h-4" />
               إضافة تفاعل
@@ -384,10 +380,10 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isImporting}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-surface border border-line text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
               title="استيراد تفاعلات من ملف إكسل"
             >
-              <UploadCloud className="w-4 h-4 text-brand" />
+              <UploadCloud className="w-4 h-4 text-brand dark:text-brand-bright" />
               {isImporting ? 'جاري الاستيراد...' : 'استيراد إكسل'}
             </button>
 
@@ -395,20 +391,20 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               type="button"
               onClick={handleExport}
               disabled={isExporting}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-surface border border-line text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
               title="تصدير جدول التفاعلات لملف إكسل"
             >
-              <FileSpreadsheet className="w-4 h-4 text-paid" />
+              <FileSpreadsheet className="w-4 h-4 text-paid dark:text-paid-bright" />
               {isExporting ? 'جاري التصدير...' : 'تصدير'}
             </button>
 
             <button
               type="button"
               onClick={handleDownloadTemplate}
-              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-bold bg-surface border border-line text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-bold bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
               title="تحميل قالب إكسل فارغ"
             >
-              <Download className="w-4 h-4 text-ink-muted" />
+              <Download className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
             </button>
 
             <input
@@ -424,10 +420,10 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
         {/* Notification Toast */}
         {message && (
           <div
-            className={`mx-4 mt-3 px-4 py-2.5 rounded-lg text-xs flex items-center justify-between gap-2 border ${
+            className={`mx-4 mt-3 px-4 py-2.5 rounded-lg text-xs flex items-center justify-between gap-2 border shrink-0 ${
               message.type === 'success'
-                ? 'bg-paid-soft text-paid border-paid/30'
-                : 'bg-danger/10 text-danger border-danger/30'
+                ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/30 dark:border-paid-dark-border'
+                : 'bg-danger/10 dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/30 dark:border-danger-bright/30'
             }`}
           >
             <div className="flex items-center gap-2">
@@ -451,22 +447,22 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
         {/* Table Content */}
         <div className="p-4 flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-16 text-ink-muted gap-2">
-              <RefreshCw className="w-6 h-6 animate-spin text-brand" />
+            <div className="flex flex-col items-center justify-center py-16 text-ink-muted dark:text-ink-dark-muted gap-2">
+              <RefreshCw className="w-6 h-6 animate-spin text-brand dark:text-brand-bright" />
               <span className="text-xs">جاري تحميل جدول التفاعلات...</span>
             </div>
           ) : items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-ink-muted gap-3">
-              <ShieldAlert className="w-12 h-12 text-ink-muted/40" />
-              <span className="text-sm font-bold text-ink">لا توجد تفاعلات دوائية مطابقة للبحث</span>
-              <p className="text-xs text-ink-muted">
+            <div className="flex flex-col items-center justify-center py-16 text-ink-muted dark:text-ink-dark-muted gap-3">
+              <ShieldAlert className="w-12 h-12 text-ink-muted/40 dark:text-ink-dark-muted/40" />
+              <span className="text-sm font-bold text-ink dark:text-ink-dark">لا توجد تفاعلات دوائية مطابقة للبحث</span>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
                 يمكنك إضافة تفاعل جديد يدوياً أو استيراد ملف إكسل يحتوي على المواد الفعالة المتعارضة.
               </p>
             </div>
           ) : (
-            <div className="border border-line rounded-xl overflow-hidden shadow-2xs">
+            <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
               <table className="w-full text-right text-xs">
-                <thead className="bg-surface-2 border-b border-line text-ink font-bold">
+                <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold">
                   <tr>
                     <th className="p-3 w-40">المادة الفعالة الأولى</th>
                     <th className="p-3 w-40">المادة الفعالة الثانية</th>
@@ -476,32 +472,32 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                     <th className="p-3 w-24 text-center">إجراءات</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line/60">
+                <tbody className="divide-y divide-line/60 dark:divide-line-dark/60">
                   {items.map((item) => (
-                    <tr key={item.id} className="hover:bg-surface-2/60 transition-colors">
-                      <td className="p-3 font-bold text-ink">
+                    <tr key={item.id} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
+                      <td className="p-3 font-bold text-ink dark:text-ink-dark">
                         <div className="flex items-center gap-1.5">
-                          <Pill className="w-3.5 h-3.5 text-brand shrink-0" />
+                          <Pill className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                           <span>{item.activeIngredientA}</span>
                         </div>
                       </td>
-                      <td className="p-3 font-bold text-ink">
+                      <td className="p-3 font-bold text-ink dark:text-ink-dark">
                         <div className="flex items-center gap-1.5">
-                          <Pill className="w-3.5 h-3.5 text-brand shrink-0" />
+                          <Pill className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                           <span>{item.activeIngredientB}</span>
                         </div>
                       </td>
                       <td className="p-3 text-center">{getSeverityBadge(item.severity)}</td>
                       <td className="p-3 space-y-1">
-                        <div className="text-ink leading-relaxed">{item.mechanismAr}</div>
-                        <div className="text-2xs text-danger font-medium leading-relaxed">
+                        <div className="text-ink dark:text-ink-dark leading-relaxed">{item.mechanismAr}</div>
+                        <div className="text-2xs text-danger dark:text-danger-bright font-medium leading-relaxed">
                           الخطر: {item.clinicalRiskAr}
                         </div>
                       </td>
                       <td className="p-3 space-y-1">
-                        <div className="text-ink leading-relaxed font-medium">{item.recommendationAr}</div>
+                        <div className="text-ink dark:text-ink-dark leading-relaxed font-medium">{item.recommendationAr}</div>
                         {item.alternativeAr && (
-                          <div className="text-2xs text-paid font-bold">
+                          <div className="text-2xs text-paid dark:text-paid-bright font-bold">
                             البديل: {item.alternativeAr}
                           </div>
                         )}
@@ -511,7 +507,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(item)}
-                            className="p-1.5 rounded-lg text-brand hover:bg-brand/10 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-brand dark:text-brand-bright hover:bg-brand/10 dark:hover:bg-brand-dark-soft transition-colors cursor-pointer"
                             title="تعديل"
                           >
                             <Edit2 className="w-4 h-4" />
@@ -519,7 +515,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                           <button
                             type="button"
                             onClick={() => setDeleteCandidate(item)}
-                            className="p-1.5 rounded-lg text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-danger dark:text-danger-bright hover:bg-danger/10 dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
                             title="حذف"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -535,9 +531,9 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
         </div>
 
         {/* Pagination Footer */}
-        <div className="px-6 py-3 bg-surface-2 border-t border-line flex items-center justify-between text-xs">
-          <div className="text-ink-muted">
-            إجمالي التفاعلات المسجلة: <span className="font-bold text-ink">{totalCount}</span> (الصفحة {page} من {totalPages})
+        <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between text-xs shrink-0">
+          <div className="text-ink-muted dark:text-ink-dark-muted">
+            إجمالي التفاعلات المسجلة: <span className="font-bold text-ink dark:text-ink-dark">{totalCount}</span> (الصفحة {page} من {totalPages})
           </div>
 
           <div className="flex items-center gap-2">
@@ -545,16 +541,16 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="px-3 py-1.5 rounded-lg border border-line bg-surface text-ink hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer font-medium"
+              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer font-medium"
             >
               السابق
             </button>
-            <span className="text-xs font-bold text-ink px-2">{page}</span>
+            <span className="text-xs font-bold text-ink dark:text-ink-dark px-2">{page}</span>
             <button
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="px-3 py-1.5 rounded-lg border border-line bg-surface text-ink hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer font-medium"
+              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer font-medium"
             >
               التالي
             </button>
@@ -565,14 +561,14 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
       {/* Add / Edit Interaction Modal */}
       {isEditOpen && (
         <div
-          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
           onClick={() => setIsEditOpen(false)}
         >
           <div
-            className="w-full max-w-xl bg-surface border-2 border-brand shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            className="w-full max-w-xl bg-surface dark:bg-surface-dark border-2 border-brand dark:border-brand-bright shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[90vh] text-ink dark:text-ink-dark"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-brand text-white px-5 py-3.5 flex items-center justify-between">
+            <div className="bg-brand dark:bg-brand-dark text-white px-5 py-3.5 flex items-center justify-between shrink-0">
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <ShieldAlert className="w-5 h-5" />
                 {editingItem ? 'تعديل التفاعل الدوائي' : 'إضافة تفاعل دوائي جديد'}
@@ -588,43 +584,43 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
             <form onSubmit={handleSaveInteraction} className="p-5 flex-1 overflow-y-auto space-y-3.5">
               {formError && (
-                <div className="p-2.5 rounded-lg bg-danger/10 border border-danger/30 text-danger text-xs font-bold">
+                <div className="p-2.5 rounded-lg bg-danger/10 dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-bold">
                   {formError}
                 </div>
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-2xs font-bold text-ink mb-1">
-                    المادة الفعالة الأولى (بالإنجليزية): <span className="text-danger">*</span>
+                  <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                    المادة الفعالة الأولى (بالإنجليزية): <span className="text-danger dark:text-danger-bright">*</span>
                   </label>
                   <input
                     type="text"
                     value={formA}
                     onChange={(e) => setFormA(e.target.value)}
                     placeholder="مثال: warfarin"
-                    className="w-full px-3 py-2 text-xs bg-surface border border-line rounded-lg focus:outline-none focus:border-brand text-ink font-mono"
+                    className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark font-mono placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-2xs font-bold text-ink mb-1">
-                    المادة الفعالة الثانية (بالإنجليزية): <span className="text-danger">*</span>
+                  <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                    المادة الفعالة الثانية (بالإنجليزية): <span className="text-danger dark:text-danger-bright">*</span>
                   </label>
                   <input
                     type="text"
                     value={formB}
                     onChange={(e) => setFormB(e.target.value)}
                     placeholder="مثال: diclofenac"
-                    className="w-full px-3 py-2 text-xs bg-surface border border-line rounded-lg focus:outline-none focus:border-brand text-ink font-mono"
+                    className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark font-mono placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-2xs font-bold text-ink mb-1">
-                  درجة الخطورة السريرية: <span className="text-danger">*</span>
+                <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                  درجة الخطورة السريرية: <span className="text-danger dark:text-danger-bright">*</span>
                 </label>
                 <CustomSelect
                   value={formSeverity}
@@ -634,49 +630,49 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               </div>
 
               <div>
-                <label className="block text-2xs font-bold text-ink mb-1">
-                  شرح آلية التفاعل الصيدلانية: <span className="text-danger">*</span>
+                <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                  شرح آلية التفاعل الصيدلانية: <span className="text-danger dark:text-danger-bright">*</span>
                 </label>
                 <textarea
                   value={formMech}
                   onChange={(e) => setFormMech(e.target.value)}
                   placeholder="شرح علمي لكيفية تأثير المادتين على بعضهما كبدياً أو امتصاصاً..."
                   rows={2}
-                  className="w-full px-3 py-2 text-xs bg-surface border border-line rounded-lg focus:outline-none focus:border-brand text-ink leading-relaxed"
+                  className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 leading-relaxed"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-2xs font-bold text-ink mb-1">
-                  الخطر السريري على المريض: <span className="text-danger">*</span>
+                <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                  الخطر السريري على المريض: <span className="text-danger dark:text-danger-bright">*</span>
                 </label>
                 <textarea
                   value={formRisk}
                   onChange={(e) => setFormRisk(e.target.value)}
                   placeholder="الأثر الخطير المتوقع: نزيف حاد، فشل امتصاص، تسمم، استطالة QT..."
                   rows={2}
-                  className="w-full px-3 py-2 text-xs bg-surface border border-line rounded-lg focus:outline-none focus:border-brand text-ink leading-relaxed"
+                  className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 leading-relaxed"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-2xs font-bold text-ink mb-1">
-                  التوصية الطبية العملية للصيدلي: <span className="text-danger">*</span>
+                <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                  التوصية الطبية العملية للصيدلي: <span className="text-danger dark:text-danger-bright">*</span>
                 </label>
                 <textarea
                   value={formRec}
                   onChange={(e) => setFormRec(e.target.value)}
                   placeholder="الإجراء الصيدلاني المطلوب: منع الجمع، الفصل بساعتين، خفض الجرعة..."
                   rows={2}
-                  className="w-full px-3 py-2 text-xs bg-surface border border-line rounded-lg focus:outline-none focus:border-brand text-ink leading-relaxed"
+                  className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 leading-relaxed"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-2xs font-bold text-ink mb-1">
+                <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
                   البديل الآمن المقترح (اختياري):
                 </label>
                 <input
@@ -684,22 +680,22 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                   value={formAlt}
                   onChange={(e) => setFormAlt(e.target.value)}
                   placeholder="مثال: باراسيتامول (Paracetamol) أو بانتوبرازول (Pantoprazole)"
-                  className="w-full px-3 py-2 text-xs bg-surface border border-line rounded-lg focus:outline-none focus:border-brand text-ink"
+                  className="w-full px-3 py-2 text-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-line">
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-line dark:border-line-dark">
                 <button
                   type="button"
                   onClick={() => setIsEditOpen(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-bold bg-surface border border-line text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-lg text-xs font-bold bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-brand text-white hover:bg-brand-dark disabled:opacity-50 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-dark disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   {saving ? 'جاري الحفظ...' : 'حفظ التفاعل'}

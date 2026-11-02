@@ -188,16 +188,16 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-line bg-surface-2 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/30 flex items-center justify-center text-brand">
+            <div className="w-10 h-10 rounded-xl bg-brand/10 dark:bg-brand-dark-soft border border-brand/30 flex items-center justify-center text-brand dark:text-brand-bright">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-ink">إدارة مجموعات الإضافات وتخصيصات الأصناف (Modifiers)</h2>
-              <p className="text-xs text-ink-muted font-bold">
+              <h2 className="text-lg font-black text-ink dark:text-ink-dark">إدارة مجموعات الإضافات وتخصيصات الأصناف (Modifiers)</h2>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                 تعريف مجموعات التخصيص (مستوى السكر، نوع الحليب، الصوصات، الإضافات المدفوعة) وربطها بأصناف المنيو
               </p>
             </div>
@@ -206,7 +206,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-surface border border-line text-ink-muted hover:text-danger"
+            className="p-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger/10 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -215,12 +215,12 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
         {(errorMsg || successMsg) && (
           <div className="px-6 pt-3">
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger text-xs font-black">
+              <div className="p-3 rounded-xl bg-danger/10 dark:bg-danger-dark-soft border border-danger/30 text-danger dark:text-danger-bright text-xs font-black">
                 {errorMsg}
               </div>
             )}
             {successMsg && (
-              <div className="p-3 rounded-xl bg-paid/10 border border-paid/30 text-paid text-xs font-black">
+              <div className="p-3 rounded-xl bg-paid/10 dark:bg-paid-dark-soft border border-paid/30 text-paid dark:text-paid-bright text-xs font-black">
                 {successMsg}
               </div>
             )}
@@ -229,15 +229,15 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
 
         <div className="p-6 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: Groups List & Create Group */}
-          <div className="bg-surface-2 p-4 rounded-2xl border border-line space-y-4">
-            <h3 className="text-sm font-black text-ink">1. مجموعات الإضافات ({groups.length})</h3>
-            <form onSubmit={handleCreateGroup} className="space-y-2.5 bg-surface p-3 rounded-xl border border-line">
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
+            <h3 className="text-sm font-black text-ink dark:text-ink-dark">1. مجموعات الإضافات ({groups.length})</h3>
+            <form onSubmit={handleCreateGroup} className="space-y-2.5 bg-surface dark:bg-surface-dark p-3 rounded-xl border border-line dark:border-line-dark">
               <input
                 type="text"
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
                 placeholder="اسم المجموعة (مثال: مستوى السكر / إضافات البرجر)"
-                className="w-full px-3 py-2 rounded-xl bg-surface-2 border border-line text-xs font-bold text-ink"
+                className="w-full px-3 py-2 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
               />
               <div className="grid grid-cols-2 gap-2">
                 <CustomSelect
@@ -248,12 +248,12 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                     { value: 'multiple', label: 'اختيار متعدد' },
                   ]}
                 />
-                <label className="flex items-center gap-1.5 text-xs font-bold text-ink px-2">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark px-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={newIsRequired}
                     onChange={(e) => setNewIsRequired(e.target.checked)}
-                    className="rounded border-line text-brand"
+                    className="rounded border-line dark:border-line-dark text-brand accent-brand"
                   />
                   <span>اختيار إجباري</span>
                 </label>
@@ -261,7 +261,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2 rounded-xl bg-brand text-white text-xs font-black flex items-center justify-center gap-1"
+                className="w-full py-2 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black flex items-center justify-center gap-1 hover:opacity-90 transition-opacity"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>إنشاء مجموعة إضافات</span>
@@ -275,13 +275,13 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                   onClick={() => setSelectedGroupId(g.id)}
                   className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
                     selectedGroupId === g.id
-                      ? 'bg-brand/10 border-brand text-ink'
-                      : 'bg-surface border-line text-ink hover:border-brand/40'
+                      ? 'bg-brand/10 dark:bg-brand-dark-soft border-brand dark:border-brand-bright text-ink dark:text-ink-dark'
+                      : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand/40'
                   }`}
                 >
                   <div>
                     <div className="text-xs font-black">{g.name}</div>
-                    <div className="text-[11px] text-ink-muted font-bold">
+                    <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">
                       {(g.options || []).length} خيارات • {g.selectionType === 'single' ? 'واحد' : 'متعدد'}
                     </div>
                   </div>
@@ -291,7 +291,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                       e.stopPropagation();
                       handleDeleteGroup(g.id);
                     }}
-                    className="p-1 text-ink-muted hover:text-danger"
+                    className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -301,39 +301,40 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
           </div>
 
           {/* Middle: Options inside Selected Group */}
-          <div className="bg-surface-2 p-4 rounded-2xl border border-line space-y-4">
-            <h3 className="text-sm font-black text-ink">
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
+            <h3 className="text-sm font-black text-ink dark:text-ink-dark">
               2. خيارات المجموعة: {selectedGroup ? selectedGroup.name : 'اختر مجموعة'}
             </h3>
 
             {selectedGroup ? (
               <>
-                <form onSubmit={handleCreateOption} className="space-y-2.5 bg-surface p-3 rounded-xl border border-line">
+                <form onSubmit={handleCreateOption} className="space-y-2.5 bg-surface dark:bg-surface-dark p-3 rounded-xl border border-line dark:border-line-dark">
                   <input
                     type="text"
                     value={newOptName}
                     onChange={(e) => setNewOptName(e.target.value)}
                     placeholder="اسم الخيار (مثال: جبنة شيدر إضافية / حليب لوز)"
-                    className="w-full px-3 py-2 rounded-xl bg-surface-2 border border-line text-xs font-bold text-ink"
+                    className="w-full px-3 py-2 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[11px] text-ink-muted font-bold mb-0.5">السعر الإضافي (ج.م)</label>
+                      <label className="block text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold mb-0.5">السعر الإضافي (ج.م)</label>
                       <input
                         type="number"
                         min={0}
                         step="0.5"
                         value={newOptPriceEgp}
                         onChange={(e) => setNewOptPriceEgp(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-xl bg-surface-2 border border-line text-xs font-black text-brand"
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-black text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
                       />
                     </div>
                     <div className="flex items-end pb-1">
-                      <label className="flex items-center gap-1.5 text-xs font-bold text-ink">
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark cursor-pointer">
                         <input
                           type="checkbox"
                           checked={newOptIsDefault}
                           onChange={(e) => setNewOptIsDefault(e.target.checked)}
+                          className="accent-brand"
                         />
                         <span>خيار افتراضي</span>
                       </label>
@@ -341,7 +342,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-ink-muted font-bold mb-0.5">
+                    <label className="block text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold mb-0.5">
                       ربط بخامة مخزنية لخصمها تلقائياً (اختياري)
                     </label>
                     <CustomSelect
@@ -356,7 +357,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
 
                   {newOptIngredientId && (
                     <div>
-                      <label className="block text-[11px] text-ink-muted font-bold mb-0.5">
+                      <label className="block text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold mb-0.5">
                         الكمية المخصومة من الخامة لكل وحدة
                       </label>
                       <input
@@ -365,7 +366,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                         step="0.001"
                         value={newOptIngredientQtyUnits}
                         onChange={(e) => setNewOptIngredientQtyUnits(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-xl bg-surface-2 border border-line text-xs font-bold text-ink"
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                       />
                     </div>
                   )}
@@ -373,7 +374,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2 rounded-xl bg-brand text-white text-xs font-black flex items-center justify-center gap-1"
+                    className="w-full py-2 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black flex items-center justify-center gap-1 hover:opacity-90 transition-opacity"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>إضافة الخيار للمجموعة</span>
@@ -384,18 +385,18 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                   {(selectedGroup.options || []).map((opt) => (
                     <div
                       key={opt.id}
-                      className="p-2.5 rounded-xl bg-surface border border-line flex items-center justify-between text-xs"
+                      className="p-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-center justify-between text-xs"
                     >
                       <div>
-                        <span className="font-black text-ink">{opt.name}</span>
-                        <span className="text-brand font-black mr-2">
+                        <span className="font-black text-ink dark:text-ink-dark">{opt.name}</span>
+                        <span className="text-brand dark:text-brand-bright font-black mr-2">
                           {opt.extraPricePiasters > 0 ? `+${formatArabicCurrency(opt.extraPricePiasters)}` : 'مجاناً'}
                         </span>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleDeleteOption(opt.id)}
-                        className="p-1 text-ink-muted hover:text-danger"
+                        className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -404,19 +405,19 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                 </div>
               </>
             ) : (
-              <p className="text-xs text-ink-muted font-bold">اختر مجموعة من القائمة اليمنى لإضافة خياراتها.</p>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">اختر مجموعة من القائمة اليمنى لإضافة خياراتها.</p>
             )}
           </div>
 
           {/* Right: Link Modifier Groups to Product */}
-          <div className="bg-surface-2 p-4 rounded-2xl border border-line space-y-4">
-            <h3 className="text-sm font-black text-ink flex items-center gap-1.5">
-              <Link2 className="w-4 h-4 text-brand" />
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
+            <h3 className="text-sm font-black text-ink dark:text-ink-dark flex items-center gap-1.5">
+              <Link2 className="w-4 h-4 text-brand dark:text-brand-bright" />
               <span>3. ربط الإضافات بصنف في المنيو</span>
             </h3>
 
             <div>
-              <label className="block text-xs font-bold text-ink-muted mb-1">اختر الصنف المراد تخصيصه:</label>
+              <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اختر الصنف المراد تخصيصه:</label>
               <CustomSelect
                 value={targetProductId}
                 onChange={(v) => setTargetProductId(v)}
@@ -435,16 +436,18 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                     return (
                       <label
                         key={g.id}
-                        className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer ${
-                          checked ? 'bg-brand/10 border-brand' : 'bg-surface border-line'
+                        className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${
+                          checked
+                            ? 'bg-brand/10 dark:bg-brand-dark-soft border-brand dark:border-brand-bright'
+                            : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark'
                         }`}
                       >
-                        <span className="text-xs font-black text-ink">{g.name}</span>
+                        <span className="text-xs font-black text-ink dark:text-ink-dark">{g.name}</span>
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleLinkGroup(g.id)}
-                          className="rounded border-line text-brand"
+                          className="rounded border-line dark:border-line-dark text-brand accent-brand"
                         />
                       </label>
                     );
@@ -455,7 +458,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                   type="button"
                   disabled={loading}
                   onClick={handleSaveProductLinks}
-                  className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black flex items-center justify-center gap-1.5 hover:opacity-95 disabled:opacity-50 transition-opacity shadow-sm"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>حفظ ربط الإضافات بالصنف</span>

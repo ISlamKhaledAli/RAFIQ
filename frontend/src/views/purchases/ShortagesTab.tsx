@@ -761,7 +761,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                           </span>
                         )}
                         {item.status === 'received' && (
-                          <span className="px-2 py-0.5 rounded-full bg-paid-soft text-paid font-bold text-[10.5px]">
+                          <span className="px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold text-[10.5px]">
                             تم الاستلام
                           </span>
                         )}
@@ -802,7 +802,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                             <button
                               type="button"
                               onClick={() => setPendingAction({ type: 'receive', item })}
-                              className="p-1.5 rounded-lg border border-paid/20 hover:bg-paid-soft text-paid transition-all cursor-pointer shadow-2xs"
+                              className="p-1.5 rounded-lg border border-paid/20 dark:border-paid/30 hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-paid dark:text-paid-bright transition-all cursor-pointer shadow-2xs"
                               title="استلام بالمخزن (تأكيد استلام الشحنة وتوريدها)"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1340,14 +1340,14 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                 <div
                   className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                     pendingAction.type === 'order'
-                      ? 'bg-brand-soft text-brand'
+                      ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
                       : pendingAction.type === 'receive'
-                      ? 'bg-paid-soft text-paid'
+                      ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
                       : pendingAction.type === 'cancel'
-                      ? 'bg-warn-soft text-warn'
+                      ? 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright'
                       : pendingAction.type === 'restore'
-                      ? 'bg-brand-soft text-brand'
-                      : 'bg-danger-soft text-danger'
+                      ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
+                      : 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright'
                   }`}
                 >
                   {pendingAction.type === 'order' && <Truck className="w-4 h-4" />}

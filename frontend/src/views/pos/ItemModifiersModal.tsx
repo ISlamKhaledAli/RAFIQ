@@ -119,17 +119,17 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none" dir="rtl">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-line bg-surface-2 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/30 flex items-center justify-center text-brand">
+            <div className="w-10 h-10 rounded-xl bg-brand/10 dark:bg-brand-dark-soft border border-brand/30 dark:border-brand-bright/30 flex items-center justify-center text-brand dark:text-brand-bright">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-black text-ink">تخصيص الصنف والإضافات: {productName}</h3>
-              <p className="text-xs text-ink-muted font-bold">
+              <h3 className="text-base font-black text-ink dark:text-ink-dark">تخصيص الصنف والإضافات: {productName}</h3>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                 السعر الأساسي: {formatArabicCurrency(basePricePiasters)}
                 {extraTotalPiasters > 0 && ` • إضافات: +${formatArabicCurrency(extraTotalPiasters)}`}
               </p>
@@ -139,14 +139,14 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-surface border border-line text-ink-muted hover:text-danger"
+            className="p-2 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {validationError && (
-          <div className="mx-6 mt-4 p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger text-xs font-black">
+          <div className="mx-6 mt-4 p-3 rounded-xl bg-danger/10 dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-black">
             {validationError}
           </div>
         )}
@@ -157,21 +157,21 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
             const chosen = selectedByGroup[group.id] || [];
             const activeOptions = (group.options || []).filter((o) => o.isActive !== false);
             return (
-              <div key={group.id} className="bg-surface-2 p-4 rounded-2xl border border-line space-y-3">
+              <div key={group.id} className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-ink">{group.name}</span>
+                    <span className="text-sm font-black text-ink dark:text-ink-dark">{group.name}</span>
                     {group.isRequired ? (
-                      <span className="px-2 py-0.5 rounded-full bg-warn/20 text-warn text-[10px] font-black">
+                      <span className="px-2 py-0.5 rounded-full bg-warn/20 dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-[10px] font-black">
                         إجباري
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full bg-surface text-ink-muted text-[10px] font-bold">
+                      <span className="px-2 py-0.5 rounded-full bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted text-[10px] font-bold">
                         اختياري
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-ink-muted font-bold">
+                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">
                     {group.selectionType === 'single' ? 'اختيار واحد' : `اختيار متعدد (حتى ${group.maxSelections || 5})`}
                   </span>
                 </div>
@@ -184,15 +184,15 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
                         key={opt.id}
                         type="button"
                         onClick={() => toggleOption(group, opt)}
-                        className={`p-3 rounded-xl border text-right transition-all flex items-center justify-between gap-2 ${
+                        className={`p-3 rounded-xl border text-right transition-all flex items-center justify-between gap-2 cursor-pointer ${
                           isSelected
-                            ? 'bg-brand text-white border-brand shadow-xs'
-                            : 'bg-surface border-line text-ink hover:border-brand/50'
+                            ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark border-brand dark:border-brand-bright shadow-xs'
+                            : 'bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand/50 dark:hover:border-brand-bright/50'
                         }`}
                       >
                         <div>
                           <div className="text-xs font-black">{opt.name}</div>
-                          <div className={`text-[11px] font-bold ${isSelected ? 'text-white/90' : 'text-ink-muted'}`}>
+                          <div className={`text-[11px] font-bold ${isSelected ? 'text-white/90 dark:text-surface-dark/90' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
                             {opt.extraPricePiasters > 0
                               ? `+ ${formatArabicCurrency(opt.extraPricePiasters)}`
                               : 'بدون تكلفة إضافية'}
@@ -208,9 +208,9 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
           })}
 
           {/* Special Kitchen Notes */}
-          <div className="bg-surface-2 p-4 rounded-2xl border border-line space-y-2">
-            <label className="flex items-center gap-1.5 text-xs font-black text-ink">
-              <MessageSquare className="w-3.5 h-3.5 text-brand" />
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-2">
+            <label className="flex items-center gap-1.5 text-xs font-black text-ink dark:text-ink-dark">
+              <MessageSquare className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
               <span>ملاحظات خاصة للتحضير (تُطبع في بون المطبخ والبار):</span>
             </label>
             <input
@@ -218,16 +218,16 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="مثال: بدون ثلج، سكر خفيف، تسوية زيادة، صوص خارجي..."
-              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink focus:outline-none focus:border-brand"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-line bg-surface-2 flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
           <div>
-            <div className="text-xs text-ink-muted font-bold">سعر الوحدة شامل الإضافات:</div>
-            <div className="text-base font-black text-brand">
+            <div className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">سعر الوحدة شامل الإضافات:</div>
+            <div className="text-base font-black text-brand dark:text-brand-bright">
               {formatArabicCurrency(basePricePiasters + extraTotalPiasters)}
             </div>
           </div>
@@ -236,14 +236,14 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink-muted hover:text-ink"
+              className="px-4 py-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer transition-colors"
             >
               إلغاء
             </button>
             <button
               type="button"
               onClick={handleConfirm}
-              className="px-6 py-2.5 rounded-xl bg-brand text-white text-xs font-black hover:opacity-95 flex items-center gap-1.5"
+              className="px-6 py-2.5 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black hover:opacity-95 flex items-center gap-1.5 cursor-pointer transition-opacity"
             >
               <Check className="w-4 h-4" />
               <span>تأكيد وإضافة للسلة</span>

@@ -294,10 +294,40 @@ html.dark select option {
   color: #E6ECEA;
 }
 
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([class*="text-white"]):not([class*="text-amber-"]):not([class*="text-emerald-"]):not([class*="text-danger"]),
+html.dark textarea:not([class*="text-white"]):not([class*="text-amber-"]):not([class*="text-emerald-"]):not([class*="text-danger"]) {
+  color: #E6ECEA;
+}
+
+html.dark input.text-ink,
+html.dark textarea.text-ink {
+  color: #E6ECEA !important;
+}
+
+/* Dark Mode Automatic Contrast Guard (Protects dark greens and dark text from black-on-black) */
+html.dark .text-paid:not([class*="dark:text-"]) {
+  color: #34D399;
+}
+
+html.dark .text-\[\#006d41\]:not([class*="dark:text-"]),
+html.dark .text-\[\#006D41\]:not([class*="dark:text-"]) {
+  color: #34D399;
+}
+
+html.dark .text-\[\#00372d\]:not([class*="dark:text-"]),
+html.dark .text-\[\#00372D\]:not([class*="dark:text-"]) {
+  color: #5FBFA2;
+}
+
+html.dark .text-\[\#0f172a\]:not([class*="dark:text-"]),
+html.dark .text-\[\#0F172A\]:not([class*="dark:text-"]) {
+  color: #E6ECEA;
+}
+
 html.dark input::placeholder,
 html.dark textarea::placeholder {
   opacity: 0.50;
-  color: #93A19D;
+  color: #93A19D !important;
 }
 
 html.dark tbody tr.cursor-pointer:hover,

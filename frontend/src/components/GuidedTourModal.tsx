@@ -153,11 +153,11 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn select-none"
       onClick={handleBackdropClick}
     >
       <div
-        className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -209,21 +209,21 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-canvas">
-          <p className="text-ink leading-relaxed text-base font-normal">
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-canvas dark:bg-canvas-dark">
+          <p className="text-ink dark:text-ink-dark leading-relaxed text-base font-normal">
             {currentStep.description}
           </p>
 
           {/* Key Features List */}
-          <div className="bg-surface border border-line rounded-xl p-4 space-y-2.5">
-            <h4 className="text-xs font-black text-ink-muted flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-paid" />
+          <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-4 space-y-2.5">
+            <h4 className="text-xs font-black text-ink-muted dark:text-ink-dark-muted flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright" />
               أهم المزايا في هذه الشاشة
             </h4>
-            <ul className="space-y-2 text-sm text-ink">
+            <ul className="space-y-2 text-sm text-ink dark:text-ink-dark">
               {currentStep.keyFeatures.map((feat, idx) => (
                 <li key={idx} className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-paid-soft text-paid flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                  <span className="w-5 h-5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
                     {idx + 1}
                   </span>
                   <span className="leading-snug">{feat}</span>
@@ -234,13 +234,13 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
 
           {/* Shortcut Tip Callout */}
           {currentStep.shortcutTip && (
-            <div className="bg-warn-soft border border-warn-border rounded-xl p-3.5 flex items-center gap-3 text-ink text-sm">
-              <div className="w-9 h-9 rounded-lg bg-surface text-warn flex items-center justify-center shrink-0 border border-line">
+            <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-border/30 rounded-xl p-3.5 flex items-center gap-3 text-ink dark:text-ink-dark text-sm">
+              <div className="w-9 h-9 rounded-lg bg-surface dark:bg-surface-dark-3 text-warn dark:text-warn-bright flex items-center justify-center shrink-0 border border-line dark:border-line-dark">
                 <Keyboard className="w-4 h-4" />
               </div>
               <div className="flex-1">
-                <span className="font-bold block text-xs text-warn">تلميح الكيبورد السريع للكاشير:</span>
-                <p className="text-xs text-ink font-medium leading-relaxed">
+                <span className="font-bold block text-xs text-warn dark:text-warn-bright">تلميح الكيبورد السريع للكاشير:</span>
+                <p className="text-xs text-ink dark:text-ink-dark font-medium leading-relaxed">
                   {currentStep.shortcutTip}
                 </p>
               </div>
@@ -249,7 +249,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
         </div>
 
         {/* Footer Navigation */}
-        <div className="bg-surface-2 border-t border-line px-6 py-4 flex items-center justify-between gap-3">
+        <div className="bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-6 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {!hasDemoData && onLoadDemoData && (
               <button
@@ -258,7 +258,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
                   onClose();
                   onLoadDemoData();
                 }}
-                className="text-xs text-brand hover:text-brand-dark font-bold bg-brand/10 hover:bg-brand/20 px-3 py-2 rounded-lg border border-brand/30 transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="text-xs text-brand dark:text-brand-bright hover:text-brand-dark font-bold bg-brand/10 dark:bg-brand-dark-soft hover:bg-brand/20 px-3 py-2 rounded-lg border border-brand/30 dark:border-brand-bright/30 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 تحميل بيانات تجريبية للتدريب
@@ -267,7 +267,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="text-xs text-ink-muted hover:text-ink font-semibold px-2 py-1 cursor-pointer"
+              className="text-xs text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark font-semibold px-2 py-1 cursor-pointer"
             >
               تخطي الجولة
             </button>
@@ -278,7 +278,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
               <button
                 type="button"
                 onClick={handlePrev}
-                className="px-4 py-2 text-sm font-bold text-ink bg-surface border border-line rounded-xl hover:bg-surface-2 transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                className="px-4 py-2 text-sm font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <ArrowRight className="w-4 h-4" />
                 السابق

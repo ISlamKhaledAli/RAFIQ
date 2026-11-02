@@ -198,20 +198,20 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
   return (
     <>
       <div 
-        className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-150"
+        className="fixed inset-0 z-50 bg-ink/50 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-150"
         onClick={handleBackdropClick}
       >
-        <div className="w-full max-w-3xl max-h-[88vh] bg-surface rounded-[8px] shadow-2xl border border-line overflow-hidden flex flex-col text-right">
+        <div className="w-full max-w-3xl max-h-[88vh] bg-surface dark:bg-surface-dark rounded-[8px] shadow-2xl border border-line dark:border-line-dark overflow-hidden flex flex-col text-right text-ink dark:text-ink-dark">
           {/* Modal Header */}
-          <div className="h-[48px] bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
+          <div className="h-[48px] bg-surface-2 dark:bg-surface-dark-2 hairline-b border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <Tags className="w-4 h-4 text-brand" />
-              <h3 className="text-[14px] font-bold text-ink m-0">إدارة تصنيفات وأقسام المنتجات</h3>
+              <Tags className="w-4 h-4 text-brand dark:text-brand-bright" />
+              <h3 className="text-[14px] font-bold text-ink dark:text-ink-dark m-0">إدارة تصنيفات وأقسام المنتجات</h3>
             </div>
             <button
               type="button"
               onClick={() => void requestClose()}
-              className="text-ink-muted hover:text-danger p-1 rounded transition-colors cursor-pointer"
+              className="text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright p-1 rounded transition-colors cursor-pointer"
               title="إغلاق"
             >
               <X className="w-4 h-4" />
@@ -219,9 +219,9 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
           </div>
 
           {/* Modal Body */}
-          <div className="p-4 flex flex-col gap-3 text-[12px] flex-1 min-h-0 overflow-y-auto">
+          <div className="p-4 flex flex-col gap-3 text-[12px] flex-1 min-h-0 overflow-y-auto bg-surface dark:bg-surface-dark">
             {errorMessage && (
-              <div className="p-2.5 rounded bg-danger-soft border border-danger-border text-danger flex items-center gap-2 font-bold text-[11.5px]">
+              <div className="p-2.5 rounded bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 text-danger dark:text-danger-bright flex items-center gap-2 font-bold text-[11.5px]">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMessage}</span>
               </div>
@@ -233,11 +233,11 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
               <button
                 type="button"
                 onClick={() => setPickingCategory({ name: newCatName || 'تصنيف جديد' })}
-                className="h-[36px] px-2.5 rounded bg-surface border border-line hover:border-brand/40 hover:bg-brand-soft/40 text-brand flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                className="h-[36px] px-2.5 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 hover:bg-brand-soft/40 dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
                 title="تخصيص أيقونة هذا القسم الجديد"
               >
                 <CategoryIconDisplay name={newCatName} customKey={newCatCustomIcon} className="w-4 h-4" />
-                <span className="text-[11px] font-bold text-ink-muted hidden sm:inline">
+                <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted hidden sm:inline">
                   {newCatCustomIcon ? 'مخصصة' : 'تلقائي'}
                 </span>
               </button>
@@ -253,14 +253,14 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                     void handleAddCategory();
                   }
                 }}
-                className="flex-1 bg-surface border border-line rounded h-[36px] px-3 text-[12.5px] text-ink focus:outline-none focus:border-brand font-sans"
+                className="flex-1 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] px-3 text-[12.5px] text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-sans"
                 autoFocus
               />
               <button
                 type="button"
                 onClick={() => void handleAddCategory()}
                 disabled={!newCatName.trim()}
-                className="px-3.5 h-[36px] bg-brand hover:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                className="px-3.5 h-[36px] bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>إضافة تصنيف</span>
@@ -268,8 +268,8 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
             </div>
 
             {/* Toggle Archived Checkbox */}
-            <div className="flex items-center justify-between border-b border-line pb-2 pt-1 text-[11px] text-ink-muted">
-              <label className="flex items-center gap-2 cursor-pointer hover:text-ink">
+            <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-2 pt-1 text-[11px] text-ink-muted dark:text-ink-dark-muted">
+              <label className="flex items-center gap-2 cursor-pointer hover:text-ink dark:hover:text-ink-dark">
                 <input
                   type="checkbox"
                   checked={includeArchived}
@@ -285,9 +285,9 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
             </div>
 
             {/* Categories List */}
-            <div className="max-h-[320px] overflow-y-auto divide-y divide-line border border-line rounded bg-surface">
+            <div className="max-h-[320px] overflow-y-auto divide-y divide-line dark:divide-line-dark border border-line dark:border-line-dark rounded bg-surface dark:bg-surface-dark">
               {categories.length === 0 ? (
-                <div className="p-6 text-center text-ink-muted">
+                <div className="p-6 text-center text-ink-muted dark:text-ink-dark-muted">
                   {loading ? 'جاري تحميل التصنيفات...' : 'لا توجد تصنيفات حالياً'}
                 </div>
               ) : (
@@ -299,7 +299,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                     <div
                       key={cat.id}
                       className={`p-2.5 flex items-center justify-between transition-colors ${
-                        !cat.isActive ? 'bg-surface-2/70 opacity-70' : 'hover:bg-surface-2/40'
+                        !cat.isActive ? 'bg-surface-2/70 dark:bg-surface-dark-2/70 opacity-70' : 'hover:bg-surface-2/40 dark:hover:bg-surface-dark-2'
                       }`}
                     >
                       {/* Right side: Reorder + Icon + Name */}
@@ -310,7 +310,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                             type="button"
                             disabled={idx === 0}
                             onClick={() => void handleMoveOrder(idx, 'up')}
-                            className="p-0.5 text-ink-muted hover:text-ink disabled:opacity-30 rounded hover:bg-surface-2 cursor-pointer"
+                            className="p-0.5 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark disabled:opacity-30 rounded hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer"
                             title="تحريك لأعلى"
                           >
                             <ArrowUp className="w-3 h-3" />
@@ -319,7 +319,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                             type="button"
                             disabled={idx === categories.length - 1}
                             onClick={() => void handleMoveOrder(idx, 'down')}
-                            className="p-0.5 text-ink-muted hover:text-ink disabled:opacity-30 rounded hover:bg-surface-2 cursor-pointer"
+                            className="p-0.5 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark disabled:opacity-30 rounded hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer"
                             title="تحريك لأسفل"
                           >
                             <ArrowDown className="w-3 h-3" />
@@ -332,8 +332,8 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                           onClick={() => setPickingCategory({ id: cat.id, name: cat.name })}
                           className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 relative group ${
                             hasCustom
-                              ? 'bg-brand text-white border-brand shadow-xs'
-                              : 'bg-surface-2 hover:bg-brand-soft border-line hover:border-brand/40 text-brand'
+                              ? 'bg-brand dark:bg-brand-bright text-white dark:text-brand-dark border-brand dark:border-brand-bright shadow-xs'
+                              : 'bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand-soft dark:hover:bg-brand-dark-soft border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 text-brand dark:text-brand-bright'
                           }`}
                           title={`أيقونة القسم: ${cat.name} (انقر لتغييرها أو استعادة التلقائي)`}
                         >
@@ -351,13 +351,13 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                                 if (e.key === 'Enter') void handleSaveEdit(cat);
                                 if (e.key === 'Escape') setEditingId(null);
                               }}
-                              className="flex-1 bg-surface border border-brand rounded h-[28px] px-2 text-[12px] text-ink focus:outline-none"
+                              className="flex-1 bg-surface dark:bg-surface-dark-2 border border-brand dark:border-brand-bright rounded h-[28px] px-2 text-[12px] text-ink dark:text-ink-dark focus:outline-none"
                               autoFocus
                             />
                             <button
                               type="button"
                               onClick={() => void handleSaveEdit(cat)}
-                              className="p-1 rounded bg-brand text-white hover:bg-brand-hover cursor-pointer"
+                              className="p-1 rounded bg-brand dark:bg-brand-container text-white hover:bg-brand-hover dark:hover:bg-brand cursor-pointer"
                               title="حفظ التعديل"
                             >
                               <Check className="w-3.5 h-3.5" />
@@ -365,7 +365,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                             <button
                               type="button"
                               onClick={() => setEditingId(null)}
-                              className="p-1 rounded bg-surface-2 text-ink-muted hover:text-ink cursor-pointer"
+                              className="p-1 rounded bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
                               title="إلغاء"
                             >
                               <X className="w-3.5 h-3.5" />
@@ -373,11 +373,11 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 truncate">
-                            <span className={`font-semibold text-[12.5px] truncate ${cat.isActive ? 'text-ink' : 'line-through text-ink-muted'}`}>
+                            <span className={`font-semibold text-[12.5px] truncate ${cat.isActive ? 'text-ink dark:text-ink-dark' : 'line-through text-ink-muted dark:text-ink-dark-muted'}`}>
                               {cat.name}
                             </span>
                             {!cat.isActive && (
-                              <span className="px-1.5 py-0.2 rounded bg-surface-2 text-[10px] text-ink-muted border border-line">
+                              <span className="px-1.5 py-0.2 rounded bg-surface-2 dark:bg-surface-dark-3 text-[10px] text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
                                 مؤرشف
                               </span>
                             )}
@@ -387,7 +387,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
 
                       {/* Left side: Product Count Badge & Actions */}
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-surface-2 text-ink-muted border border-line" title="عدد الأصناف النشطة في هذا التصنيف">
+                        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark" title="عدد الأصناف النشطة في هذا التصنيف">
                           {cat.productCount} صنف
                         </span>
 
@@ -399,7 +399,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                                 setEditingId(cat.id);
                                 setEditingName(cat.name);
                               }}
-                              className="p-1 text-ink-muted hover:text-brand rounded hover:bg-surface transition-colors cursor-pointer"
+                              className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright rounded hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
                               title="إعادة تسمية التصنيف"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
@@ -408,13 +408,13 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                             <button
                               type="button"
                               onClick={() => void handleToggleArchive(cat)}
-                              className="p-1 text-ink-muted hover:text-danger rounded hover:bg-surface transition-colors cursor-pointer"
+                              className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright rounded hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
                               title={cat.isActive ? 'أرشفة التصنيف' : 'إلغاء الأرشفة واستعادة التصنيف'}
                             >
                               {cat.isActive ? (
                                 <Archive className="w-3.5 h-3.5" />
                               ) : (
-                                <RotateCcw className="w-3.5 h-3.5 text-paid" />
+                                <RotateCcw className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
                               )}
                             </button>
                           </>
@@ -428,14 +428,14 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
           </div>
 
           {/* Modal Footer */}
-          <div className="h-[44px] bg-surface-2 hairline-t px-4 flex items-center justify-between text-[11px] text-ink-muted">
+          <div className="h-[44px] bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted">
             <span>تتعرف المنظومة الذكية تلقائياً على أنسب أيقونة لكل قسم، كما يمكنك تغيير أيقونة أي قسم يدوياً بالضغط عليها.</span>
             <button
               type="button"
               onClick={() => void requestClose()}
-              className="px-3 py-1 bg-surface border border-line rounded text-ink hover:bg-surface-2 text-[11.5px] font-bold cursor-pointer"
+              className="px-3 py-1 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark text-[11.5px] font-bold cursor-pointer"
             >
-              إغلاق
+              إلغاء
             </button>
           </div>
         </div>

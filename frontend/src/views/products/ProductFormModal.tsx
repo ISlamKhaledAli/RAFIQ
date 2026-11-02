@@ -1570,7 +1570,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             <div className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-3 shadow-2xs">
               <div className="flex items-center justify-between border-b border-line/60 dark:border-line-dark/60 pb-2">
                 <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark text-[13px]">
-                  <div className="w-6 h-6 rounded-md bg-paid-soft dark:bg-paid-soft/20 text-paid dark:text-paid flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center">
                     <Coins className="w-3.5 h-3.5" />
                   </div>
                   <span>
@@ -1792,10 +1792,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 }
 
                 return (
-                  <div className="p-2.5 rounded-lg bg-paid-soft/80 dark:bg-paid-soft/20 border border-paid/20 text-paid dark:text-paid flex flex-col gap-1 text-[11.5px]">
+                  <div className="p-2.5 rounded-lg bg-paid-soft/80 dark:bg-paid-dark-soft/70 border border-paid/20 dark:border-paid-dark-border text-paid dark:text-paid-bright flex flex-col gap-1 text-[11.5px]">
                     <div className="flex items-center justify-between font-bold">
                       <span className="flex items-center gap-1.5">
-                        <TrendingUp className="w-3.5 h-3.5 text-paid shrink-0" />
+                        <TrendingUp className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                         <span>
                           {unit === 'kg' ? 'المكسب الصافي للكيلو:' :
                            isPharmacy ? 'المكسب الصافي للعلبة:' :
@@ -1806,7 +1806,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         +{formatArabicCurrency(profitPiasters)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between font-mono text-[10.5px] text-paid/90">
+                    <div className="flex items-center justify-between font-mono text-[10.5px] text-paid/90 dark:text-paid-bright/90">
                       <span>نسبة الربح من التكلفة (Markup): +{markupPercent.toFixed(1)}%</span>
                       <span>هامش الربح من البيع (Margin): {marginPercent.toFixed(1)}%</span>
                     </div>
@@ -1821,14 +1821,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <AlertTriangle className="w-4 h-4 shrink-0 text-warn mt-0.5" />
                     <div>
                       <p>سعر البيع ({formatArabicCurrency(belowCostWarning.pricePiasters)}) أقل من سعر التكلفة ({formatArabicCurrency(belowCostWarning.costPiasters)}).</p>
-                      <p className="text-[11px] font-normal text-ink-muted mt-0.5">متأكد إنك عاوز تكمل وتحفظ الصنف بسعر بيع فيه خسارة؟</p>
+                      <p className="text-[11px] font-normal text-ink-muted dark:text-ink-dark-muted mt-0.5">متأكد إنك عاوز تكمل وتحفظ الصنف بسعر بيع فيه خسارة؟</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-2 pt-1 border-t border-warn/20">
                     <button
                       type="button"
                       onClick={() => setBelowCostWarning(null)}
-                      className="px-2.5 h-6 bg-surface hover:bg-surface-2 border border-line rounded text-[11px] font-semibold text-ink transition-colors"
+                      className="px-2.5 h-6 bg-surface hover:bg-surface-2 dark:bg-surface-dark-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark rounded text-[11px] font-semibold text-ink dark:text-ink-dark transition-colors cursor-pointer"
                     >
                       تعديل الأسعار
                     </button>
@@ -2217,14 +2217,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </span>
                   )}
                   {taxRatePercent > 0 && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-brand/10 text-brand">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-brand/10 dark:bg-brand-bright/10 text-brand dark:text-brand-bright">
                       ضريبة {taxRatePercent}%
                     </span>
                   )}
                 </div>
                 <button
                   type="button"
-                  className="p-1 text-ink-muted hover:text-ink"
+                  className="p-1 text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-ink-dark cursor-pointer"
                 >
                   {showAdvancedDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
@@ -2411,23 +2411,23 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                                         <td className="px-2.5 py-1.5 font-bold text-ink dark:text-ink-dark font-mono text-[11px]">
                                           {ing.ingredientName}
                                         </td>
-                                        <td className="px-2.5 py-1.5 text-center font-mono font-bold text-brand">
+                                        <td className="px-2.5 py-1.5 text-center font-mono font-bold text-brand dark:text-brand-bright">
                                           {ing.strengthMilli / 1000} {ing.strengthUnit}
                                         </td>
                                         <td className="px-2.5 py-1.5 text-center text-[10px]">
                                           {ing.isPrimary ? (
-                                            <span className="px-1.5 py-0.2 rounded bg-brand/10 text-brand font-bold">
+                                            <span className="px-1.5 py-0.2 rounded bg-brand/10 dark:bg-brand-bright/10 text-brand dark:text-brand-bright font-bold">
                                               رئيسية
                                             </span>
                                           ) : (
-                                            <span className="text-ink-muted">إضافية</span>
+                                            <span className="text-ink-muted dark:text-ink-dark-muted">إضافية</span>
                                           )}
                                         </td>
                                         <td className="px-2.5 py-1.5 text-center">
                                           <button
                                             type="button"
                                             onClick={() => handleRemoveIngredient(idx)}
-                                            className="p-0.5 text-ink-muted hover:text-danger rounded cursor-pointer"
+                                            className="p-0.5 text-ink-muted hover:text-danger dark:text-ink-dark-muted dark:hover:text-danger-bright rounded cursor-pointer"
                                           >
                                             <Trash2 className="w-3 h-3" />
                                           </button>
@@ -2494,23 +2494,23 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       <span className="text-[11.5px] font-bold text-ink dark:text-ink-dark">{terminology.sizeLabel} و {terminology.colorLabel} (اختياري)</span>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[10.5px] text-ink-muted mb-1">{terminology.sizeLabel}</label>
+                          <label className="block text-[10.5px] text-ink-muted dark:text-ink-dark-muted mb-1">{terminology.sizeLabel}</label>
                           <input
                             type="text"
                             placeholder={terminology.sizePlaceholder}
                             value={variantSize}
                             onChange={(e) => setVariantSize?.(e.target.value)}
-                            className="w-full bg-surface dark:bg-surface-dark border border-line rounded h-[32px] px-2 text-xs font-mono text-ink"
+                            className="w-full bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded h-[32px] px-2 text-xs font-mono text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10.5px] text-ink-muted mb-1">{terminology.colorLabel}</label>
+                          <label className="block text-[10.5px] text-ink-muted dark:text-ink-dark-muted mb-1">{terminology.colorLabel}</label>
                           <input
                             type="text"
                             placeholder={terminology.colorPlaceholder}
                             value={variantColor}
                             onChange={(e) => setVariantColor?.(e.target.value)}
-                            className="w-full bg-surface dark:bg-surface-dark border border-line rounded h-[32px] px-2 text-xs text-ink"
+                            className="w-full bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded h-[32px] px-2 text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                           />
                         </div>
                       </div>

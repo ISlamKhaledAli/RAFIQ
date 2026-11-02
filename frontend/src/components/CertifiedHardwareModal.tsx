@@ -382,7 +382,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
       onClick={handleBackdropClick}
     >
       <div
-        className="w-full max-w-4xl h-[86vh] max-h-[800px] bg-white rounded-2xl shadow-2xl border border-[#dce1dc] flex flex-col overflow-hidden font-sans text-[#0f172a]"
+        className="w-full max-w-4xl h-[86vh] max-h-[800px] bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark flex flex-col overflow-hidden font-sans text-ink dark:text-ink-dark"
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
@@ -419,16 +419,16 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
         </div>
 
         {/* Filter bar & Search */}
-        <div className="p-3 bg-canvas border-b border-line flex flex-wrap items-center justify-between gap-3 shrink-0 select-none">
+        <div className="p-3 bg-canvas dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3 shrink-0 select-none">
           {/* Category Tabs */}
-          <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-xl border border-line text-xs">
+          <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark text-xs">
             <button
               type="button"
               onClick={() => setActiveCategory('all')}
               className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 activeCategory === 'all'
                   ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               الكل ({CERTIFIED_DEVICES.length})
@@ -439,7 +439,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
               className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeCategory === 'printer'
                   ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <Printer className="w-3.5 h-3.5" />
@@ -451,7 +451,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
               className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeCategory === 'scanner'
                   ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <Barcode className="w-3.5 h-3.5" />
@@ -463,7 +463,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
               className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeCategory === 'drawer'
                   ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <Coins className="w-3.5 h-3.5" />
@@ -475,7 +475,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
               className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeCategory === 'scale'
                   ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <Scale className="w-3.5 h-3.5" />
@@ -491,22 +491,22 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="ابحث بموديل أو ماركة الجهاز..."
-              className="w-full h-8.5 pr-8.5 pl-3 rounded-lg bg-surface border border-line focus:border-brand focus:ring-1 focus:ring-brand text-xs text-ink placeholder-ink-muted/60 outline-none transition-all"
+              className="w-full h-8.5 pr-8.5 pl-3 rounded-lg bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand text-xs text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 outline-none transition-all"
             />
           </div>
         </div>
 
         {/* Device Cards List */}
-        <div className="flex-1 p-4 overflow-y-auto bg-surface flex flex-col gap-3 min-h-0">
+        <div className="flex-1 p-4 overflow-y-auto bg-surface dark:bg-surface-dark-2 flex flex-col gap-3 min-h-0">
           {/* Advice Banner */}
-          <div className="p-3 rounded-xl bg-paid-soft border border-line text-ink text-xs flex items-center justify-between shadow-2xs">
+          <div className="p-3 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs flex items-center justify-between shadow-2xs">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-paid shrink-0" />
+              <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
               <span>
                 <strong>ضمان التوافق 100%:</strong> كل الأجهزة دي متجربة عملياً وشغالة بامتياز على كل نسخ الويندوز (ويندوز 7 و 8 و 10 و 11) مع دعم كامل للغة العربي بدون أي تشويه.
               </span>
             </div>
-            <span className="text-[10px] font-bold text-paid bg-surface px-2 py-0.5 rounded border border-line shrink-0">
+            <span className="text-[10px] font-bold text-paid dark:text-paid-bright bg-surface dark:bg-surface-dark px-2 py-0.5 rounded border border-line dark:border-line-dark shrink-0">
               100% Plug & Play
             </span>
           </div>
@@ -518,8 +518,8 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                 key={device.id}
                 className={`rounded-xl border transition-all overflow-hidden ${
                   isExpanded
-                    ? 'border-[#006d41] bg-white shadow-sm'
-                    : 'border-[#dce1dc] bg-[#f8fafc] hover:border-slate-400'
+                    ? 'border-brand dark:border-brand-bright bg-surface dark:bg-surface-dark shadow-sm'
+                    : 'border-line dark:border-line-dark bg-canvas dark:bg-surface-dark hover:border-line-hover dark:hover:border-line-dark-strong'
                 }`}
               >
                 {/* Header row */}
@@ -528,7 +528,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                   className="p-3.5 flex items-center justify-between gap-3 cursor-pointer select-none"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-white border border-[#dce1dc] flex items-center justify-center text-[#006d41] shadow-2xs shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark flex items-center justify-center text-brand dark:text-brand-bright shadow-2xs shrink-0">
                       {device.category === 'printer' && <Printer className="w-5 h-5" />}
                       {device.category === 'scanner' && <Barcode className="w-5 h-5" />}
                       {device.category === 'drawer' && <Coins className="w-5 h-5" />}
@@ -537,7 +537,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
 
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-xs text-[#0f172a] truncate">
+                        <span className="font-bold text-xs text-ink dark:text-ink-dark truncate">
                           {device.brand} — {device.model}
                         </span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
@@ -549,15 +549,15 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-500 truncate m-0 mt-0.5">
+                      <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted truncate m-0 mt-0.5">
                         {device.notes}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
-                    <div className="hidden sm:flex items-center gap-2 text-[11px] font-medium text-slate-600">
-                      <span className="font-mono bg-white px-2 py-0.5 rounded border border-[#dce1dc]">
+                    <div className="hidden sm:flex items-center gap-2 text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted">
+                      <span className="font-mono bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark px-2 py-0.5 rounded border border-line dark:border-line-dark">
                         {device.connectionType}
                       </span>
                       <span className="text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded border border-paid/20 dark:border-paid/30">
@@ -565,9 +565,9 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                       </span>
                     </div>
 
-                    <span className="text-slate-400">
+                    <span className="text-ink-muted dark:text-ink-dark-muted">
                       {isExpanded ? (
-                        <ChevronUp className="w-4 h-4 text-[#006d41]" />
+                        <ChevronUp className="w-4 h-4 text-brand dark:text-brand-bright" />
                       ) : (
                         <ChevronDown className="w-4 h-4" />
                       )}
@@ -577,27 +577,27 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
 
                 {/* Expanded details & setup checklist */}
                 {isExpanded && (
-                  <div className="p-4 border-t border-[#dce1dc] bg-white flex flex-col gap-4 text-xs animate-in slide-in-from-top-1 duration-150">
+                  <div className="p-4 border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark flex flex-col gap-4 text-xs animate-in slide-in-from-top-1 duration-150">
                     {/* Test Results Summary Grid */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                      <div className="p-2.5 rounded-lg bg-[#f8fafc] border border-[#dce1dc]">
-                        <span className="text-[10px] text-slate-500 block mb-0.5">سرعة الاستجابة</span>
-                        <span className="font-bold text-[#006d41]">{device.testResults.latency}</span>
+                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mb-0.5">سرعة الاستجابة</span>
+                        <span className="font-bold text-paid dark:text-paid-bright">{device.testResults.latency}</span>
                       </div>
-                      <div className="p-2.5 rounded-lg bg-[#f8fafc] border border-[#dce1dc]">
-                        <span className="text-[10px] text-slate-500 block mb-0.5">دعم اللغة العربية</span>
-                        <span className="font-bold text-[#0f172a]">{device.arabicSupport}</span>
+                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mb-0.5">دعم اللغة العربية</span>
+                        <span className="font-bold text-ink dark:text-ink-dark">{device.arabicSupport}</span>
                       </div>
-                      <div className="p-2.5 rounded-lg bg-[#f8fafc] border border-[#dce1dc]">
-                        <span className="text-[10px] text-slate-500 block mb-0.5">ويندوز 7 و 8 و 10 و 11</span>
-                        <span className="font-bold text-emerald-700 flex items-center gap-1">
+                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mb-0.5">ويندوز 7 و 8 و 10 و 11</span>
+                        <span className="font-bold text-paid dark:text-paid-bright flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>متوافق ومجرّب 100%</span>
                         </span>
                       </div>
-                      <div className="p-2.5 rounded-lg bg-[#f8fafc] border border-[#dce1dc]">
-                        <span className="text-[10px] text-slate-500 block mb-0.5">القاطع / الزناد</span>
-                        <span className="font-bold text-[#0f172a] truncate block">
+                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mb-0.5">القاطع / الزناد</span>
+                        <span className="font-bold text-ink dark:text-ink-dark truncate block">
                           {device.testResults.autoCutterOrTrigger}
                         </span>
                       </div>
@@ -605,15 +605,15 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
 
                     {/* Step by Step Setup Sheet */}
                     <div className="flex flex-col gap-2">
-                      <span className="font-bold text-xs text-[#00372d] flex items-center gap-1.5">
-                        <Sliders className="w-3.5 h-3.5 text-[#006d41]" />
+                      <span className="font-bold text-xs text-brand dark:text-brand-bright flex items-center gap-1.5">
+                        <Sliders className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
                         <span>ورقة إعداد وتشغيل هذا الجهاز في رفيق POS:</span>
                       </span>
 
-                      <div className="p-3 rounded-xl bg-[#f8fafc] border border-[#dce1dc] flex flex-col gap-1.5">
+                      <div className="p-3 rounded-xl bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1.5">
                         {device.setupSteps.map((step, sIdx) => (
-                          <div key={sIdx} className="flex items-start gap-2 text-xs text-slate-700">
-                            <span className="w-4 h-4 rounded-full bg-[#00372d] text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                          <div key={sIdx} className="flex items-start gap-2 text-xs text-ink dark:text-ink-dark">
+                            <span className="w-4 h-4 rounded-full bg-brand dark:bg-brand-bright text-white dark:text-brand-dark text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                               {sIdx + 1}
                             </span>
                             <span className="leading-relaxed">{step}</span>
@@ -624,23 +624,23 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
 
                     {/* Recommended Driver & Commands */}
                     {device.recommendedSettings && (
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-3 text-slate-700">
+                      <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs flex flex-wrap items-center justify-between gap-3 text-ink dark:text-ink-dark">
                         {device.recommendedSettings.driverName && (
                           <div>
-                            <span className="text-[10px] text-slate-500 block">اسم التعريف المعتمد:</span>
-                            <strong className="font-mono text-[#00372d]">{device.recommendedSettings.driverName}</strong>
+                            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">اسم التعريف المعتمد:</span>
+                            <strong className="font-mono text-brand dark:text-brand-bright">{device.recommendedSettings.driverName}</strong>
                           </div>
                         )}
                         {device.recommendedSettings.paperOrCode && (
                           <div>
-                            <span className="text-[10px] text-slate-500 block">المقاس / الشفرة:</span>
-                            <strong className="font-mono text-[#00372d]">{device.recommendedSettings.paperOrCode}</strong>
+                            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">المقاس / الشفرة:</span>
+                            <strong className="font-mono text-brand dark:text-brand-bright">{device.recommendedSettings.paperOrCode}</strong>
                           </div>
                         )}
                         {device.recommendedSettings.drawerCode && (
                           <div>
-                            <span className="text-[10px] text-slate-500 block">أمر فتح الدرج:</span>
-                            <strong className="font-mono text-emerald-800">{device.recommendedSettings.drawerCode}</strong>
+                            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">أمر فتح الدرج:</span>
+                            <strong className="font-mono text-paid dark:text-paid-bright">{device.recommendedSettings.drawerCode}</strong>
                           </div>
                         )}
                       </div>
@@ -653,9 +653,9 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 bg-canvas border-t border-line flex items-center justify-between text-xs text-ink-muted select-none shrink-0">
+        <div className="px-5 py-3 bg-canvas dark:bg-surface-dark border-t border-line dark:border-line-dark flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted select-none shrink-0">
           <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-paid" />
+            <Info className="w-4 h-4 text-paid dark:text-paid-bright" />
             <span>
               تقدر تطبع الورقة دي وتديها لمحل أو شركة أجهزة الكاشير عشان يجهزلك أجهزة متوافقة ومضمونة 100%.
             </span>
@@ -665,9 +665,9 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
             <button
               type="button"
               onClick={() => window.print()}
-              className="px-3.5 py-1.5 rounded-lg bg-surface hover:bg-surface-2 border border-line text-ink font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3.5 py-1.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <FileText className="w-3.5 h-3.5 text-paid" />
+              <FileText className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
               <span>طباعة ورقة المواصفات</span>
             </button>
 

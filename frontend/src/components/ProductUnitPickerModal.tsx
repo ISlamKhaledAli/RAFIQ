@@ -71,23 +71,23 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
     >
       <div
         dir="rtl"
-        className="w-full max-w-md bg-surface rounded-2xl border border-line shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 font-sans"
+        className="w-full max-w-md bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 font-sans text-ink dark:text-ink-dark"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-brand-dark text-white px-5 py-4 flex items-center justify-between">
+        <div className="bg-brand-dark dark:bg-surface-dark-2 text-white dark:text-ink-dark px-5 py-4 flex items-center justify-between border-b border-white/10 dark:border-line-dark">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-emerald-300 border border-white/10">
+            <div className="w-9 h-9 rounded-xl bg-white/10 dark:bg-surface-dark-3 flex items-center justify-center text-paid dark:text-paid-bright border border-white/10 dark:border-line-dark">
               <Package className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white flex items-center gap-2">
+              <h3 className="font-bold text-sm text-white dark:text-ink-dark flex items-center gap-2">
                 <span>اختيار وحدة البيع</span>
-                <span className="text-[11px] bg-white/15 px-2 py-0.5 rounded-full font-mono text-emerald-200">
+                <span className="text-[11px] bg-white/15 dark:bg-surface-dark-3 px-2 py-0.5 rounded-full font-mono text-paid dark:text-paid-bright">
                   {units.length} وحدات
                 </span>
               </h3>
-              <p className="text-xs text-white/80 font-medium truncate max-w-[260px]" title={product.name}>
+              <p className="text-xs text-white/80 dark:text-ink-dark-muted font-medium truncate max-w-[260px]" title={product.name}>
                 {product.name}
               </p>
             </div>
@@ -95,7 +95,7 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
             title="إغلاق (Esc)"
           >
             <X className="w-4 h-4" />
@@ -103,8 +103,8 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
         </div>
 
         {/* Units List */}
-        <div className="p-4 flex flex-col gap-2.5 max-h-[60vh] overflow-y-auto">
-          <p className="text-[11px] text-ink-muted font-semibold mb-1">
+        <div className="p-4 flex flex-col gap-2.5 max-h-[60vh] overflow-y-auto bg-surface dark:bg-surface-dark">
+          <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-semibold mb-1">
             اختر وحدة البيع المطلوبة لإضافتها إلى الفاتورة (أو اضغط الرقم على لوحة المفاتيح):
           </p>
 
@@ -124,19 +124,19 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
                 }}
                 className={`group relative flex items-center justify-between p-3.5 rounded-xl border text-right transition-all cursor-pointer shadow-2xs ${
                   u.isBaseUnit
-                    ? 'bg-paid-soft hover:bg-paid-soft/80 border-paid/30 hover:border-paid'
-                    : 'bg-surface hover:bg-canvas border-line hover:border-paid'
+                    ? 'bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border-paid/30 dark:border-paid-dark-border hover:border-paid dark:hover:border-paid-bright'
+                    : 'bg-surface dark:bg-surface-dark-2 hover:bg-canvas dark:hover:bg-surface-dark-3 border-line dark:border-line-dark hover:border-paid dark:hover:border-paid-bright'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   {/* Shortcut Badge */}
-                  <span className="w-6 h-6 rounded-md bg-brand-dark text-white text-xs font-bold font-mono flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="w-6 h-6 rounded-md bg-brand-dark dark:bg-surface-dark-3 text-white dark:text-brand-bright text-xs font-bold font-mono flex items-center justify-center shrink-0 shadow-2xs">
                     {idx + 1}
                   </span>
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-ink group-hover:text-paid transition-colors">
+                      <span className="text-sm font-bold text-ink dark:text-ink-dark group-hover:text-paid dark:group-hover:text-paid-bright transition-colors">
                         {u.unitName}
                       </span>
                       {u.isBaseUnit ? (
@@ -145,7 +145,7 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
                           <span>الوحدة الأساسية</span>
                         </span>
                       ) : (
-                        <span className="text-[10.5px] font-medium text-ink-muted bg-surface-2 px-1.5 py-0.5 rounded border border-line">
+                        <span className="text-[10.5px] font-medium text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
                           تحتوي على {factor} قطعة
                         </span>
                       )}
@@ -154,10 +154,10 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
                     {/* Stock status for this unit */}
                     <div className="flex items-center gap-2 mt-1 text-[11px]">
                       {isUnitOutOfStock ? (
-                        <span className="text-danger font-bold">غير متوفر في المخزن</span>
+                        <span className="text-danger dark:text-danger-bright font-bold">غير متوفر في المخزن</span>
                       ) : (
-                        <span className="text-ink-muted font-mono">
-                          المتاح: <b className="text-ink">{availableUnits}</b> {u.unitName}
+                        <span className="text-ink-muted dark:text-ink-dark-muted font-mono">
+                          المتاح: <b className="text-ink dark:text-ink-dark">{availableUnits}</b> {u.unitName}
                         </span>
                       )}
                     </div>
@@ -166,11 +166,11 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
 
                 {/* Price */}
                 <div className="text-left shrink-0">
-                  <div className="flex items-baseline gap-1 text-paid font-mono font-bold text-base">
+                  <div className="flex items-baseline gap-1 text-paid dark:text-paid-bright font-mono font-bold text-base">
                     <span>{formatArabicCurrency(unitSellPrice)}</span>
                   </div>
                   {u.barcode && (
-                    <span className="text-[10px] text-ink-muted font-mono block">
+                    <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono block">
                       {u.barcode}
                     </span>
                   )}
@@ -181,12 +181,12 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 bg-canvas border-t border-line flex items-center justify-between text-xs text-ink-muted">
+        <div className="px-5 py-3 bg-canvas dark:bg-canvas-dark border-t border-line dark:border-line-dark flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted">
           <span>اختر الوحدة المطلوبة للبيع</span>
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink font-bold transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold transition-colors cursor-pointer"
           >
             إلغاء
           </button>

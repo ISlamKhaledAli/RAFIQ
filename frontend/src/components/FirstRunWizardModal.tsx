@@ -384,7 +384,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   };
 
   const getTemplateIcon = (iconName: string, isSelected: boolean) => {
-    const iconClass = isSelected ? 'w-6 h-6 text-brand' : 'w-6 h-6 text-ink-muted';
+    const iconClass = isSelected ? 'w-6 h-6 text-brand dark:text-brand-bright' : 'w-6 h-6 text-ink-muted dark:text-ink-dark-muted';
     switch (iconName) {
       case 'shopping-cart':
       case 'storefront':
@@ -431,9 +431,9 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
       return (
         <div className="flex flex-col gap-4">
           {/* Info banner */}
-          <div className="bg-brand-soft border border-brand/50 rounded-[6px] p-3.5 flex items-center gap-3 shrink-0">
-            <Info className="w-5 h-5 text-brand shrink-0" />
-            <span className="text-[14px] text-brand font-medium">
+          <div className="bg-brand-soft dark:bg-brand-dark-soft border border-brand/50 dark:border-brand/40 rounded-[6px] p-3.5 flex items-center gap-3 shrink-0">
+            <Info className="w-5 h-5 text-brand dark:text-brand-bright shrink-0" />
+            <span className="text-[14px] text-brand dark:text-brand-bright font-medium">
               اختر نشاط محلك لضبط ميزات البيع المناسبة فقط — قاعدة البيانات تبدأ نظيفة 100% بدون أي أقسام أو تصنيفات أو أصناف مسبقة
             </span>
           </div>
@@ -448,13 +448,13 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                   onClick={() => handleSelectTemplate(tpl.id)}
                   className={`relative rounded-[6px] p-4 flex flex-col gap-2.5 cursor-pointer transition-colors ${
                     isSelected
-                      ? 'bg-brand-soft border-2 border-brand shadow-2xs'
-                      : 'bg-surface border border-line hover:border-brand shadow-2xs'
+                      ? 'bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright shadow-2xs'
+                      : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand shadow-2xs'
                   }`}
                 >
                   {/* Selected badge in top-left corner */}
                   {isSelected && (
-                    <div className="absolute top-3.5 left-3.5 flex items-center gap-1 text-brand text-[12px] font-semibold bg-white/90 px-2 py-0.5 rounded-[4px] border border-brand/20 shadow-2xs">
+                    <div className="absolute top-3.5 left-3.5 flex items-center gap-1 text-brand dark:text-brand-bright text-[12px] font-semibold bg-white/90 dark:bg-surface-dark-2/90 px-2 py-0.5 rounded-[4px] border border-brand/20 dark:border-brand-bright/20 shadow-2xs">
                       <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                       <span>تم الاختيار</span>
                     </div>
@@ -462,22 +462,22 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
                   <div className="flex items-center gap-3">
                     {getTemplateIcon(tpl.icon, isSelected)}
-                    <span className="text-[16px] font-bold text-ink">
+                    <span className="text-[16px] font-bold text-ink dark:text-ink-dark">
                       {tpl.name}
                     </span>
                   </div>
 
-                  <p className="text-[12px] text-ink-muted leading-relaxed">
+                  <p className="text-[12px] text-ink-muted dark:text-ink-dark-muted leading-relaxed">
                     {tpl.description}
                   </p>
 
                   {/* Summary Feature Badges */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <span className="text-[12px] text-paid border border-paid/30 bg-paid-soft rounded-[6px] px-2 py-0.5 font-bold">
+                    <span className="text-[12px] text-paid dark:text-paid-bright border border-paid/30 dark:border-paid/40 bg-paid-soft dark:bg-paid-dark-soft rounded-[6px] px-2 py-0.5 font-bold">
                       نظيف 100%
                     </span>
                     {tpl.featuresSummary?.map((feat, idx) => (
-                      <span key={idx} className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2 py-0.5 bg-white font-medium">
+                      <span key={idx} className="text-[12px] text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark rounded-[6px] px-2 py-0.5 bg-white dark:bg-surface-dark-2 font-medium">
                         {feat}
                       </span>
                     ))}
@@ -494,35 +494,35 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
       return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pb-2">
           {/* LEFT FORM CARD (7 columns in RTL) */}
-          <div className="lg:col-span-7 bg-surface border border-line rounded-[6px] p-6 flex flex-col gap-4 shadow-2xs">
-            <h2 className="text-[18px] font-semibold text-ink leading-tight">
+          <div className="lg:col-span-7 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-6 flex flex-col gap-4 shadow-2xs">
+            <h2 className="text-[18px] font-semibold text-ink dark:text-ink-dark leading-tight">
               معلومات المنشأة وعناوين الإيصال
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-medium text-ink-muted">
+                <label className="text-[12px] font-medium text-ink-muted dark:text-ink-dark-muted">
                   اسم المحل / المنشأة *
                 </label>
                 <input
                   type="text"
                   value={storeName}
                   onChange={(e) => setStoreName(e.target.value)}
-                  className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink font-semibold outline-none focus:border-brand"
+                  className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-[14px] text-ink dark:text-ink-dark font-semibold outline-none focus:border-brand dark:focus:border-brand-bright"
                   placeholder="مثال: متجر رفيق / مؤسسة النور"
                   required
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-medium text-ink-muted">
+                <label className="text-[12px] font-medium text-ink-muted dark:text-ink-dark-muted">
                   رقم الهاتف / خدمة العملاء *
                 </label>
                 <input
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink font-mono outline-none focus:border-brand"
+                  className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-[14px] text-ink dark:text-ink-dark font-mono outline-none focus:border-brand dark:focus:border-brand-bright"
                   placeholder="01012345678"
                   required
                 />
@@ -530,50 +530,50 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium text-ink-muted">
+              <label className="text-[12px] font-medium text-ink-muted dark:text-ink-dark-muted">
                 العنوان بالتفصيل
               </label>
               <input
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink outline-none focus:border-brand"
+                className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-[14px] text-ink dark:text-ink-dark outline-none focus:border-brand dark:focus:border-brand-bright"
                 placeholder="الشارع الرئيسي - وسط البلد"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium text-ink-muted">
+              <label className="text-[12px] font-medium text-ink-muted dark:text-ink-dark-muted">
                 رسالة الترحيب أعلى الفاتورة (رأس الإيصال)
               </label>
               <input
                 type="text"
                 value={receiptHeader}
                 onChange={(e) => setReceiptHeader(e.target.value)}
-                className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink outline-none focus:border-brand"
+                className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-[14px] text-ink dark:text-ink-dark outline-none focus:border-brand dark:focus:border-brand-bright"
                 placeholder="أهلاً بكم في متجرنا"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium text-ink-muted">
+              <label className="text-[12px] font-medium text-ink-muted dark:text-ink-dark-muted">
                 شروط الاستبدال أسفل الفاتورة (تذييل الإيصال)
               </label>
               <input
                 type="text"
                 value={receiptFooter}
                 onChange={(e) => setReceiptFooter(e.target.value)}
-                className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink outline-none focus:border-brand"
+                className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-[14px] text-ink dark:text-ink-dark outline-none focus:border-brand dark:focus:border-brand-bright"
                 placeholder="شكراً لزيارتكم — الاستبدال خلال 3 أيام بالإيصال"
               />
             </div>
 
             {/* Section: Store Logo Customization & Toggle */}
-            <div className="bg-canvas border border-line rounded-[6px] p-4 flex flex-col gap-3 mt-1">
+            <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col gap-3 mt-1">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-brand" />
-                  <span className="font-bold text-ink text-[13px]">
+                  <ImageIcon className="w-4 h-4 text-brand dark:text-brand-bright" />
+                  <span className="font-bold text-ink dark:text-ink-dark text-[13px]">
                     شعار المتجر أعلى الإيصال والفاتورة
                   </span>
                 </div>
@@ -585,10 +585,10 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
               </div>
 
               {showReceiptLogo ? (
-                <div className="flex flex-col gap-3 pt-2 border-t border-line">
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-surface p-3 rounded-[6px] border border-line">
+                <div className="flex flex-col gap-3 pt-2 border-t border-line dark:border-line-dark">
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-surface dark:bg-surface-dark p-3 rounded-[6px] border border-line dark:border-line-dark">
                     <div className="flex items-center gap-3">
-                      <div className="w-14 h-11 rounded border border-line bg-white p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                      <div className="w-14 h-11 rounded border border-line dark:border-line-dark bg-white dark:bg-surface-dark-2 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
                         <img
                           src={storeLogoUrl}
                           alt="معاينة الشعار"
@@ -599,17 +599,17 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                         />
                       </div>
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[12px] font-semibold text-ink">
+                        <span className="text-[12px] font-semibold text-ink dark:text-ink-dark">
                           {storeLogoUrl !== '/logo.png' ? 'شعار مخصص للمتجر' : 'شعار رفيق الافتراضي'}
                         </span>
-                        <span className="text-[11px] text-ink-muted">
+                        <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
                           يظهر مطبوعاً في ترويسة جميع فواتير الكاشير والمرتجعات
                         </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <label className="px-3 py-1.5 bg-brand text-white hover:bg-brand-hover rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors">
+                      <label className="px-3 py-1.5 bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:opacity-90 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-opacity">
                         <Upload className="w-3.5 h-3.5" />
                         <span>رفع شعار جديد</span>
                         <input
@@ -624,7 +624,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                         <button
                           type="button"
                           onClick={handleResetLogo}
-                          className="px-2.5 py-1.5 bg-surface text-ink-muted hover:text-ink border border-line rounded text-xs font-medium flex items-center gap-1 transition-colors"
+                          className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark border border-line dark:border-line-dark rounded text-xs font-medium flex items-center gap-1 transition-colors"
                           title="استعادة الشعار الافتراضي لنظام رفيق"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
@@ -635,15 +635,15 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                   </div>
 
                   {/* Technical Guidance */}
-                  <div className="bg-brand-soft/50 border border-brand/20 rounded p-2.5 text-[11px] leading-relaxed text-ink flex items-start gap-2">
-                    <Info className="w-4 h-4 text-brand shrink-0 mt-0.5" />
-                    <div className="flex-1 text-[11px] text-ink-muted">
-                      <strong className="text-ink font-semibold">المقاسات الموصى بها للطابعات الحرارية:</strong> أبعاد <span dir="ltr" className="font-mono font-semibold">200 × 70</span> بكسل (أو مربع حتى <span dir="ltr" className="font-mono font-semibold">120 × 120</span> بكسل) بصيغة PNG وخلفية بيضاء أو مفرغة عالية التباين لضمان نقاء وسرعة الطباعة الحرارية.
+                  <div className="bg-brand-soft/50 dark:bg-brand-dark-soft/50 border border-brand/20 dark:border-brand-bright/20 rounded p-2.5 text-[11px] leading-relaxed text-ink dark:text-ink-dark flex items-start gap-2">
+                    <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
+                    <div className="flex-1 text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                      <strong className="text-ink dark:text-ink-dark font-semibold">المقاسات الموصى بها للطابعات الحرارية:</strong> أبعاد <span dir="ltr" className="font-mono font-semibold">200 × 70</span> بكسل (أو مربع حتى <span dir="ltr" className="font-mono font-semibold">120 × 120</span> بكسل) بصيغة PNG وخلفية بيضاء أو مفرغة عالية التباين لضمان نقاء وسرعة الطباعة الحرارية.
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-[11px] text-ink-muted bg-surface p-2.5 rounded border border-line text-center">
+                <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark p-2.5 rounded border border-line dark:border-line-dark text-center">
                   تم إلغاء طباعة الشعار — سيتم إصدار الإيصال باسم المتجر والعناوين مباشرة دون صورة في الترويسة.
                 </div>
               )}
@@ -651,19 +651,19 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           </div>
 
           {/* RIGHT CARD (5 columns in RTL): Live Receipt Preview (80 mm) */}
-          <div className="lg:col-span-5 bg-surface border border-line rounded-[6px] p-6 flex flex-col gap-4 shadow-2xs">
+          <div className="lg:col-span-5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-6 flex flex-col gap-4 shadow-2xs">
             <div className="flex items-center justify-between">
-              <h2 className="text-[18px] font-semibold text-ink leading-tight">
+              <h2 className="text-[18px] font-semibold text-ink dark:text-ink-dark leading-tight">
                 معاينة حية لإيصال الكاشير (80 مم)
               </h2>
-              <span className="text-[11px] text-brand border border-brand/40 bg-brand-soft px-2 py-0.5 rounded-[6px] font-medium">
+              <span className="text-[11px] text-brand dark:text-brand-bright border border-brand/40 dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-dark-soft px-2 py-0.5 rounded-[6px] font-medium">
                 تحديث فوري
               </span>
             </div>
 
             {/* Preview background container */}
-            <div className="bg-canvas border border-line rounded-[6px] p-4 flex justify-center items-start overflow-hidden">
-              {/* Receipt Sheet (280px wide, pure white paper with 1px border and zigzag torn bottom edge) */}
+            <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex justify-center items-start overflow-hidden">
+              {/* Receipt Sheet (280px wide, paper) */}
               <div className="w-[280px] bg-white border border-line rounded-t-[4px] p-4 text-[11px] font-mono leading-relaxed text-ink relative pb-6 select-none shadow-sm">
                 {/* Centered Header Block */}
                 <div className="text-center flex flex-col gap-0.5 items-center">
@@ -744,7 +744,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             </div>
 
             {/* Note under preview */}
-            <p className="text-[12px] text-ink-muted text-center">
+            <p className="text-[12px] text-ink-muted dark:text-ink-dark-muted text-center">
               معاينة تقريبية على ورق حراري قياسي 80 مم مع محاذاة تلقائية للنصوص
             </p>
           </div>
@@ -756,23 +756,23 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
       return (
         <div className="flex flex-col gap-4 max-w-[800px] mx-auto w-full py-2">
           {/* Card 1: Thermal Receipt Printer */}
-          <div className="bg-surface border border-line rounded-[6px] p-6 flex flex-col shadow-2xs">
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-6 flex flex-col shadow-2xs">
             <div className="flex items-start gap-3.5 mb-5">
-              <div className="w-10 h-10 rounded-[6px] border border-line flex items-center justify-center text-ink-muted shrink-0 bg-canvas">
-                <Printer className="w-5 h-5 text-ink-muted" />
+              <div className="w-10 h-10 rounded-[6px] border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted shrink-0 bg-canvas dark:bg-canvas-dark">
+                <Printer className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted" />
               </div>
               <div>
-                <h3 className="text-ink text-[16px] font-semibold">
+                <h3 className="text-ink dark:text-ink-dark text-[16px] font-semibold">
                   طابعة الفواتير الافتراضية (Thermal Receipt Printer)
                 </h3>
-                <p className="text-ink-muted text-[13px] mt-1">
+                <p className="text-ink-muted dark:text-ink-dark-muted text-[13px] mt-1">
                   حدد الطابعة المتصلة بجهاز الكاشير للطباعة السريعة فور الضغط على زر الدفع
                 </p>
               </div>
             </div>
 
             <div>
-              <label className="block text-ink-muted text-[12px] font-medium mb-1.5">
+              <label className="block text-ink-muted dark:text-ink-dark-muted text-[12px] font-medium mb-1.5">
                 طابعة الكاشير المعتمدة
               </label>
               <CustomSelect
@@ -793,30 +793,30 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           </div>
 
           {/* Card 2: Backup Folder */}
-          <div className="bg-surface border border-line rounded-[6px] p-6 flex flex-col shadow-2xs">
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-6 flex flex-col shadow-2xs">
             <div className="flex items-start gap-3.5 mb-5">
-              <div className="w-10 h-10 rounded-[6px] border border-line flex items-center justify-center text-ink-muted shrink-0 bg-canvas">
-                <HardDrive className="w-5 h-5 text-ink-muted" />
+              <div className="w-10 h-10 rounded-[6px] border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted shrink-0 bg-canvas dark:bg-canvas-dark">
+                <HardDrive className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted" />
               </div>
               <div>
-                <h3 className="text-ink text-[16px] font-semibold">
+                <h3 className="text-ink dark:text-ink-dark text-[16px] font-semibold">
                   مسار النسخ الاحتياطي التلقائي للبيانات (Backup Folder)
                 </h3>
-                <p className="text-ink-muted text-[13px] mt-1">
+                <p className="text-ink-muted dark:text-ink-dark-muted text-[13px] mt-1">
                   يُفضل اختيار مسار على قرص غير قرص النظام (مثل القرص D أو فلاشة USB) لحماية قاعدة بياناتك من مشاكل الويندوز
                 </p>
               </div>
             </div>
 
             <div>
-              <label className="block text-ink-muted text-[12px] font-medium mb-1.5">
+              <label className="block text-ink-muted dark:text-ink-dark-muted text-[12px] font-medium mb-1.5">
                 مجلد النسخ الاحتياطي التلقائي
               </label>
               <input
                 type="text"
                 value={backupFolder}
                 onChange={(e) => setBackupFolder(e.target.value)}
-                className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[13px] font-mono text-ink outline-none focus:border-brand"
+                className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-[13px] font-mono text-ink dark:text-ink-dark outline-none focus:border-brand dark:focus:border-brand-bright"
                 placeholder="D:\RafiqBackups"
               />
             </div>
@@ -831,78 +831,78 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           {/* 3-Column Summary Grid (6 cards) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Card 1 */}
-            <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted text-[12px] font-medium">النشاط التجاري المختار</span>
-              <span className="text-brand text-[16px] font-semibold mt-2">
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <span className="text-ink-muted dark:text-ink-dark-muted text-[12px] font-medium">النشاط التجاري المختار</span>
+              <span className="text-brand dark:text-brand-bright text-[16px] font-semibold mt-2">
                 {selectedTemplate?.name}
               </span>
             </div>
 
             {/* Card 2 */}
-            <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted text-[12px] font-medium">اسم المنشأة</span>
-              <span className="text-ink text-[16px] font-semibold mt-2 truncate">
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <span className="text-ink-muted dark:text-ink-dark-muted text-[12px] font-medium">اسم المنشأة</span>
+              <span className="text-ink dark:text-ink-dark text-[16px] font-semibold mt-2 truncate">
                 {storeName}
               </span>
             </div>
 
             {/* Card 3 */}
-            <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted text-[12px] font-medium">طابعة الفواتير</span>
-              <span className="text-ink text-[16px] font-semibold mt-2 font-mono truncate">
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <span className="text-ink-muted dark:text-ink-dark-muted text-[12px] font-medium">طابعة الفواتير</span>
+              <span className="text-ink dark:text-ink-dark text-[16px] font-semibold mt-2 font-mono truncate">
                 {selectedPrinter || 'معاينة فقط'}
               </span>
             </div>
 
             {/* Card 4 */}
-            <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted text-[12px] font-medium">حالة قاعدة البيانات</span>
-              <span className="text-paid text-[15px] font-bold mt-2 flex items-center gap-1.5">
-                <Check className="w-4 h-4 text-paid" />
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <span className="text-ink-muted dark:text-ink-dark-muted text-[12px] font-medium">حالة قاعدة البيانات</span>
+              <span className="text-paid dark:text-paid-bright text-[15px] font-bold mt-2 flex items-center gap-1.5">
+                <Check className="w-4 h-4 text-paid dark:text-paid-bright" />
                 <span>نظيفة 100% بدون أقسام أو أصناف</span>
               </span>
             </div>
 
             {/* Card 5 */}
-            <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted text-[12px] font-medium">الأقسام والأصناف المسبقة</span>
-              <span className="text-ink text-[15px] font-semibold mt-2 font-mono">
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <span className="text-ink-muted dark:text-ink-dark-muted text-[12px] font-medium">الأقسام والأصناف المسبقة</span>
+              <span className="text-ink dark:text-ink-dark text-[15px] font-semibold mt-2 font-mono">
                 0 أقسام · 0 أصناف
               </span>
             </div>
 
             {/* Card 6 (Special Highlighted) */}
-            <div className="bg-brand-soft border border-brand rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+            <div className="bg-brand-soft dark:bg-brand-dark-soft border border-brand dark:border-brand-bright rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
               <div className="flex items-center justify-between">
-                <span className="text-brand text-[12px] font-medium">إدخال بضاعتك وأقسامك</span>
-                <span className="text-[10px] font-semibold text-brand bg-white border border-brand/40 px-1.5 py-0.5 rounded-[3px]">
+                <span className="text-brand dark:text-brand-bright text-[12px] font-medium">إدخال بضاعتك وأقسامك</span>
+                <span className="text-[10px] font-semibold text-brand dark:text-brand-bright bg-white dark:bg-surface-dark border border-brand/40 dark:border-brand-bright/40 px-1.5 py-0.5 rounded-[3px]">
                   تسجيل حر
                 </span>
               </div>
-              <span className="text-brand text-[14px] font-semibold mt-2">
+              <span className="text-brand dark:text-brand-bright text-[14px] font-semibold mt-2">
                 إدخال يدوي أو استيراد ملفات Excel
               </span>
             </div>
           </div>
 
           {/* Clean Slate Reassurance Card */}
-          <div className="bg-paid-soft border border-paid/40 rounded-[6px] p-5 flex items-start gap-4 shadow-2xs">
+          <div className="bg-paid-soft dark:bg-paid-dark-soft border border-paid/40 dark:border-paid/40 rounded-[6px] p-5 flex items-start gap-4 shadow-2xs">
             <div className="w-8 h-8 rounded-[6px] bg-paid text-white flex items-center justify-center shrink-0 mt-0.5">
               <Check className="w-5 h-5 stroke-[2.5]" />
             </div>
             <div className="flex flex-col">
-              <h4 className="text-ink text-[16px] font-semibold">
+              <h4 className="text-ink dark:text-ink-dark text-[16px] font-semibold">
                 بداية نظيفة 100% بدون أي أقسام أو أصناف مسبقة
               </h4>
-              <p className="text-ink-muted text-[13px] mt-1 leading-relaxed">
+              <p className="text-ink-muted dark:text-ink-dark-muted text-[13px] mt-1 leading-relaxed">
                 تم ضبط وتفعيل ميزات البيع المناسبة لنشاطك، وتبدأ قاعدة البيانات نظيفة تماماً بدون أي أقسام أو تصنيفات أو أصناف مسبقة لتتمكن من إضافة بضاعتك وترتيب أقسامك بنفسك بكل حرية.
               </p>
             </div>
           </div>
 
           {/* Reassurance Line */}
-          <div className="flex items-center gap-2.5 px-1 text-ink-muted text-[13px]">
-            <ShieldCheck className="w-5 h-5 text-paid shrink-0" />
+          <div className="flex items-center gap-2.5 px-1 text-ink-muted dark:text-ink-dark-muted text-[13px]">
+            <ShieldCheck className="w-5 h-5 text-paid dark:text-paid-bright shrink-0" />
             <span>يمكنك في أي وقت تفعيل أو إيقاف أي ميزة وإضافة وتعديل أقسامك وبضاعتك</span>
           </div>
         </div>
@@ -917,7 +917,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   // --------------------------------------------------------------------------
   if (isFirstRun) {
     return (
-      <div className="fixed inset-0 z-[9999] flex flex-row bg-canvas text-ink select-none overflow-hidden font-sans" dir="rtl">
+      <div className="fixed inset-0 z-[9999] flex flex-row bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-hidden font-sans" dir="rtl">
         {/* RIGHT SIDE PANEL (360px wide, solid #0B4F42, matching designs) */}
         <aside className="w-[360px] h-full bg-[#0B4F42] text-white flex flex-col justify-between p-8 shrink-0 relative z-20 select-none">
           <div className="flex flex-col">
@@ -1014,52 +1014,52 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         {/* LEFT WORKING AREA (Matching 1_2_pos & 3_4_pos) */}
         {appliedStats ? (
           /* SUCCESS WORKING AREA (Replacing whole working area when completed) */
-          <main className="flex-1 h-full bg-canvas flex flex-col items-center justify-center p-12 select-none">
+          <main className="flex-1 h-full bg-canvas dark:bg-canvas-dark flex flex-col items-center justify-center p-12 select-none">
             <div className="w-[520px] flex flex-col items-center text-center">
               {/* 64px Outline Check in --paid */}
-              <div className="w-16 h-16 rounded-[8px] border-2 border-paid/30 bg-white flex items-center justify-center text-paid mb-6 shadow-sm">
-                <Check className="w-10 h-10 text-paid stroke-[2.5]" />
+              <div className="w-16 h-16 rounded-[8px] border-2 border-paid/30 bg-white dark:bg-surface-dark flex items-center justify-center text-paid dark:text-paid-bright mb-6 shadow-sm">
+                <Check className="w-10 h-10 text-paid dark:text-paid-bright stroke-[2.5]" />
               </div>
 
               {/* Title */}
-              <h1 className="text-ink text-[28px] font-semibold mb-3">
+              <h1 className="text-ink dark:text-ink-dark text-[28px] font-semibold mb-3">
                 تم تهيئة وتجهيز النظام بنجاح!
               </h1>
 
               {/* Description */}
-              <p className="text-ink-muted text-[14px] leading-relaxed mb-8">
+              <p className="text-ink-muted dark:text-ink-dark-muted text-[14px] leading-relaxed mb-8">
                 تم ضبط ميزات نشاطك بنجاح، وقاعدة البيانات جاهزة ونظيفة 100% بدون أي أقسام أو تصنيفات أو أصناف مسبقة. جاري نقلك لشاشة نقطة البيع…
               </p>
 
               {/* 44px Progress Strip */}
-              <div className="w-full h-[44px] bg-brand-soft border border-brand rounded-[6px] px-4 flex items-center justify-between relative overflow-hidden shadow-2xs">
-                <span className="text-ink text-[13px] font-medium z-10">جاري تحميل بيانات المتجر الجديد…</span>
-                <div className="flex items-center gap-2 z-10 font-mono text-[12px] text-brand font-semibold">
+              <div className="w-full h-[44px] bg-brand-soft dark:bg-brand-dark-soft border border-brand dark:border-brand-bright rounded-[6px] px-4 flex items-center justify-between relative overflow-hidden shadow-2xs">
+                <span className="text-ink dark:text-ink-dark text-[13px] font-medium z-10">جاري تحميل بيانات المتجر الجديد…</span>
+                <div className="flex items-center gap-2 z-10 font-mono text-[12px] text-brand dark:text-brand-bright font-semibold">
                   <span className="tabular-nums">100%</span>
                 </div>
                 {/* Indeterminate Animated Progress Bar at Bottom of Strip */}
-                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-brand/20 overflow-hidden">
-                  <div className="h-full bg-brand w-2/3 rounded-full animate-pulse" />
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-brand/20 dark:bg-brand-bright/20 overflow-hidden">
+                  <div className="h-full bg-brand dark:bg-brand-bright w-2/3 rounded-full animate-pulse" />
                 </div>
               </div>
             </div>
           </main>
         ) : (
-          <main className="flex-1 h-full flex flex-col bg-canvas overflow-hidden">
+          <main className="flex-1 h-full flex flex-col bg-canvas dark:bg-canvas-dark overflow-hidden">
             {/* STEP HEADER (72px, --surface, 1px bottom border) */}
-            <header className="h-[72px] px-8 bg-surface border-b border-line flex items-center justify-between shrink-0 shadow-2xs">
+            <header className="h-[72px] px-8 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex items-center justify-between shrink-0 shadow-2xs">
               <div className="flex items-center gap-3">
-                <span className="text-[12px] text-brand border border-brand/40 bg-brand-soft px-2.5 py-0.5 rounded-[6px] font-medium">
+                <span className="text-[12px] text-brand dark:text-brand-bright border border-brand/40 dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-dark-soft px-2.5 py-0.5 rounded-[6px] font-medium">
                   الخطوة {step} من 4
                 </span>
                 <div>
-                  <h1 className="text-[18px] font-semibold text-ink leading-tight">
+                  <h1 className="text-[18px] font-semibold text-ink dark:text-ink-dark leading-tight">
                     {step === 1 && 'اختر نوع نشاط محلك التجاري'}
                     {step === 2 && 'بيانات المتجر وهوية الفاتورة'}
                     {step === 3 && 'طابعة الفواتير والنسخ الاحتياطي'}
                     {step === 4 && 'مراجعة التجهيزات والبدء الفعلي'}
                   </h1>
-                  <p className="text-[13px] text-ink-muted mt-0.5">
+                  <p className="text-[13px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
                     {step === 1 && 'سيقوم رفيق بضبط خصائص وميزات البيع المناسبة لنشاطك مع إبقاء قاعدة البيانات نظيفة 100% بدون أي أقسام أو أصناف للبدء الفوري'}
                     {step === 2 && 'المعلومات اللي هتظهر في رأس وتذييل إيصال الكاشير للزبون'}
                     {step === 3 && 'حدد طابعة الإيصالات الحرارية ومسار النسخ الاحتياطي التلقائي لحماية بياناتك'}
@@ -1070,22 +1070,22 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
               <div className="hidden sm:block">
                 {step === 1 && (
-                  <span className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2.5 py-1 bg-surface tabular-nums">
+                  <span className="text-[12px] text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark rounded-[6px] px-2.5 py-1 bg-surface dark:bg-surface-dark tabular-nums">
                     {templates.length} قوالب متخصصة
                   </span>
                 )}
                 {step === 2 && (
-                  <span className="text-[12px] text-brand border border-brand/40 bg-brand-soft px-2.5 py-1 rounded-[6px] font-medium">
+                  <span className="text-[12px] text-brand dark:text-brand-bright border border-brand/40 dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-dark-soft px-2.5 py-1 rounded-[6px] font-medium">
                     معاينة حية للإيصال (80 مم)
                   </span>
                 )}
                 {step === 3 && (
-                  <span className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2.5 py-1 bg-surface tabular-nums">
+                  <span className="text-[12px] text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark rounded-[6px] px-2.5 py-1 bg-surface dark:bg-surface-dark tabular-nums">
                     {printers.length} طابعة مكتشفة
                   </span>
                 )}
                 {step === 4 && (
-                  <span className="text-[12px] text-brand border border-brand/40 bg-brand-soft px-2.5 py-1 rounded-[6px] font-medium">
+                  <span className="text-[12px] text-brand dark:text-brand-bright border border-brand/40 dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-dark-soft px-2.5 py-1 rounded-[6px] font-medium">
                     جاهز للاعتماد والتشغيل
                   </span>
                 )}
@@ -1095,7 +1095,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             {/* STEP BODY (scrolls internally, 24px padding) */}
             <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
               {error && (
-                <div className="p-3.5 bg-danger-soft border border-danger/40 rounded-[6px] text-xs text-danger flex items-center gap-2">
+                <div className="p-3.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger/40 dark:border-danger/40 rounded-[6px] text-xs text-danger dark:text-danger-bright flex items-center gap-2">
                   <span className="font-bold">تنبيه:</span>
                   <span>{error}</span>
                 </div>
@@ -1105,12 +1105,12 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             </div>
 
             {/* STEP FOOTER (80px, --surface, 1px top border) */}
-            <footer className="h-[80px] px-8 bg-surface border-t border-line flex items-center justify-between shrink-0 shadow-2xs">
-              <div className="text-ink-muted text-[14px]">
+            <footer className="h-[80px] px-8 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex items-center justify-between shrink-0 shadow-2xs">
+              <div className="text-ink-muted dark:text-ink-dark-muted text-[14px]">
                 <span>النشاط المختار: </span>
-                <span className="font-semibold text-ink">{selectedTemplate?.name}</span>
+                <span className="font-semibold text-ink dark:text-ink-dark">{selectedTemplate?.name}</span>
                 <span className="mx-2">·</span>
-                <span className="font-semibold text-paid">قاعدة بيانات نظيفة 100% · جاهز للبدء</span>
+                <span className="font-semibold text-paid dark:text-paid-bright">قاعدة بيانات نظيفة 100% · جاهز للبدء</span>
               </div>
 
               <div className="flex items-center gap-4">
@@ -1119,7 +1119,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                     type="button"
                     onClick={() => setStep((prev) => (prev - 1) as any)}
                     disabled={loading}
-                    className="h-[44px] px-5 border border-line rounded-[6px] bg-surface text-ink text-[14px] font-medium flex items-center gap-2 hover:bg-canvas cursor-pointer transition-colors"
+                    className="h-[44px] px-5 border border-line dark:border-line-dark rounded-[6px] bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark text-[14px] font-medium flex items-center gap-2 hover:bg-canvas dark:hover:bg-canvas-dark cursor-pointer transition-colors"
                   >
                     <ArrowRight className="w-4 h-4" />
                     <span>السابق</span>
@@ -1170,116 +1170,116 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   // --------------------------------------------------------------------------
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-ink select-none font-sans" 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-ink dark:text-ink-dark select-none font-sans" 
       dir="rtl"
       onClick={handleBackdropClick}
     >
       {/* MODAL CONTAINER (896px wide, max 85vh, 8px radius, 1px line border, modal-shadow) */}
       <div 
-        className="w-[896px] max-h-[85vh] bg-surface rounded-[8px] border border-line shadow-2xl flex flex-col overflow-hidden"
+        className="w-[896px] max-h-[85vh] bg-surface dark:bg-surface-dark rounded-[8px] border border-line dark:border-line-dark shadow-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. MODAL HEADER (72px, --surface, 1px bottom border) */}
-        <div className="h-[72px] bg-surface border-b border-line px-6 flex items-center justify-between shrink-0">
+        <div className="h-[72px] bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-6 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-[20px] font-semibold text-ink">معالج التجهيز السريع للنظام</h2>
-            <p className="text-[13px] text-ink-muted mt-0.5">تهيئة وتجهيز النظام حسب نشاط محلك</p>
+            <h2 className="text-[20px] font-semibold text-ink dark:text-ink-dark">معالج التجهيز السريع للنظام</h2>
+            <p className="text-[13px] text-ink-muted dark:text-ink-dark-muted mt-0.5">تهيئة وتجهيز النظام حسب نشاط محلك</p>
           </div>
           {/* 44px dismiss button */}
           <button
             type="button"
             onClick={requestClose}
-            className="w-11 h-11 border border-line rounded-[6px] bg-surface hover:bg-canvas text-ink flex items-center justify-center transition-colors cursor-pointer"
+            className="w-11 h-11 border border-line dark:border-line-dark rounded-[6px] bg-surface dark:bg-surface-dark hover:bg-canvas dark:hover:bg-canvas-dark text-ink dark:text-ink-dark flex items-center justify-center transition-colors cursor-pointer"
             title="إغلاق المعالج"
           >
-            <X className="w-5 h-5 text-ink" />
+            <X className="w-5 h-5 text-ink dark:text-ink-dark" />
           </button>
         </div>
 
         {/* 2. HORIZONTAL STEPPER (64px, --surface-2, 1px bottom border) */}
-        <div className="h-[64px] bg-[#F9FAFA] border-b border-line px-8 flex items-center justify-between shrink-0">
+        <div className="h-[64px] bg-[#F9FAFA] dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-8 flex items-center justify-between shrink-0">
           {/* Step 1: نوع المحل */}
           <div className="flex items-center gap-2.5">
             {step > 1 ? (
-              <div className="w-6 h-6 rounded-[4px] border border-brand bg-white text-brand flex items-center justify-center font-bold text-xs">
+              <div className="w-6 h-6 rounded-[4px] border border-brand dark:border-brand-bright bg-white dark:bg-surface-dark text-brand dark:text-brand-bright flex items-center justify-center font-bold text-xs">
                 <Check className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             ) : (
               <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
-                step === 1 ? 'bg-brand text-white' : 'border border-line bg-white text-ink-muted'
+                step === 1 ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark' : 'border border-line dark:border-line-dark bg-white dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
               }`}>
                 1
               </div>
             )}
-            <span className={`text-sm ${step === 1 ? 'font-bold text-brand' : step > 1 ? 'font-medium text-brand' : 'font-medium text-ink-muted'}`}>
+            <span className={`text-sm ${step === 1 ? 'font-bold text-brand dark:text-brand-bright' : step > 1 ? 'font-medium text-brand dark:text-brand-bright' : 'font-medium text-ink-muted dark:text-ink-dark-muted'}`}>
               نوع المحل
             </span>
           </div>
 
           {/* Connector 1-2 */}
-          <div className={`flex-1 h-px mx-4 ${step > 1 ? 'bg-brand/40' : 'bg-line'}`} />
+          <div className={`flex-1 h-px mx-4 ${step > 1 ? 'bg-brand/40 dark:bg-brand-bright/40' : 'bg-line dark:bg-line-dark'}`} />
 
           {/* Step 2: بيانات الفاتورة */}
           <div className="flex items-center gap-2.5">
             {step > 2 ? (
-              <div className="w-6 h-6 rounded-[4px] border border-brand bg-white text-brand flex items-center justify-center font-bold text-xs">
+              <div className="w-6 h-6 rounded-[4px] border border-brand dark:border-brand-bright bg-white dark:bg-surface-dark text-brand dark:text-brand-bright flex items-center justify-center font-bold text-xs">
                 <Check className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             ) : (
               <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
-                step === 2 ? 'bg-brand text-white' : 'border border-line bg-white text-ink-muted'
+                step === 2 ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark' : 'border border-line dark:border-line-dark bg-white dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
               }`}>
                 2
               </div>
             )}
-            <span className={`text-sm ${step === 2 ? 'font-bold text-brand' : step > 2 ? 'font-medium text-brand' : 'font-medium text-ink-muted'}`}>
+            <span className={`text-sm ${step === 2 ? 'font-bold text-brand dark:text-brand-bright' : step > 2 ? 'font-medium text-brand dark:text-brand-bright' : 'font-medium text-ink-muted dark:text-ink-dark-muted'}`}>
               بيانات الفاتورة
             </span>
           </div>
 
           {/* Connector 2-3 */}
-          <div className={`flex-1 h-px mx-4 ${step > 2 ? 'bg-brand/40' : 'bg-line'}`} />
+          <div className={`flex-1 h-px mx-4 ${step > 2 ? 'bg-brand/40 dark:bg-brand-bright/40' : 'bg-line dark:bg-line-dark'}`} />
 
           {/* Step 3: الأجهزة */}
           <div className="flex items-center gap-2.5">
             {step > 3 ? (
-              <div className="w-6 h-6 rounded-[4px] border border-brand bg-white text-brand flex items-center justify-center font-bold text-xs">
+              <div className="w-6 h-6 rounded-[4px] border border-brand dark:border-brand-bright bg-white dark:bg-surface-dark text-brand dark:text-brand-bright flex items-center justify-center font-bold text-xs">
                 <Check className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             ) : (
               <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
-                step === 3 ? 'bg-brand text-white' : 'border border-line bg-white text-ink-muted'
+                step === 3 ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark' : 'border border-line dark:border-line-dark bg-white dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
               }`}>
                 3
               </div>
             )}
-            <span className={`text-sm ${step === 3 ? 'font-bold text-brand' : step > 3 ? 'font-medium text-brand' : 'font-medium text-ink-muted'}`}>
+            <span className={`text-sm ${step === 3 ? 'font-bold text-brand dark:text-brand-bright' : step > 3 ? 'font-medium text-brand dark:text-brand-bright' : 'font-medium text-ink-muted dark:text-ink-dark-muted'}`}>
               الأجهزة
             </span>
           </div>
 
           {/* Connector 3-4 */}
-          <div className={`flex-1 h-px mx-4 ${step > 3 ? 'bg-brand/40' : 'bg-line'}`} />
+          <div className={`flex-1 h-px mx-4 ${step > 3 ? 'bg-brand/40 dark:bg-brand-bright/40' : 'bg-line dark:bg-line-dark'}`} />
 
           {/* Step 4: المراجعة */}
           <div className="flex items-center gap-2.5">
             <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
-              step === 4 ? 'bg-brand text-white' : 'border border-line bg-white text-ink-muted'
+              step === 4 ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark' : 'border border-line dark:border-line-dark bg-white dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
             }`}>
               4
             </div>
-            <span className={`text-sm ${step === 4 ? 'font-bold text-brand' : 'font-medium text-ink-muted'}`}>
+            <span className={`text-sm ${step === 4 ? 'font-bold text-brand dark:text-brand-bright' : 'font-medium text-ink-muted dark:text-ink-dark-muted'}`}>
               المراجعة
             </span>
           </div>
         </div>
 
         {/* 3. MODAL BODY (Scrolls internally, 24px padding) */}
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 bg-canvas">
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 bg-canvas dark:bg-canvas-dark">
           {error && (
-            <div className="p-3.5 bg-danger-soft border border-danger/40 rounded-[6px] text-xs text-danger flex items-center gap-2">
+            <div className="p-3.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger/40 dark:border-danger/40 rounded-[6px] text-xs text-danger dark:text-danger-bright flex items-center gap-2">
               <span className="font-bold">تنبيه:</span>
               <span>{error}</span>
             </div>
@@ -1289,13 +1289,13 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         </div>
 
         {/* 4. MODAL FOOTER (72px, --surface, 1px top border) */}
-        <div className="h-[72px] bg-surface border-t border-line px-6 flex items-center justify-between shrink-0">
+        <div className="h-[72px] bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark px-6 flex items-center justify-between shrink-0">
           {step > 1 ? (
             <button
               type="button"
               onClick={() => setStep((prev) => (prev - 1) as any)}
               disabled={loading}
-              className="h-[44px] px-5 border border-line rounded-[6px] bg-surface text-ink text-[14px] font-medium flex items-center gap-2 hover:bg-canvas cursor-pointer transition-colors"
+              className="h-[44px] px-5 border border-line dark:border-line-dark rounded-[6px] bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark text-[14px] font-medium flex items-center gap-2 hover:bg-canvas dark:hover:bg-canvas-dark cursor-pointer transition-colors"
             >
               <ArrowRight className="w-4 h-4" />
               <span>السابق</span>

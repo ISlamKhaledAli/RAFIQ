@@ -167,23 +167,23 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   };
 
   return (
-    <div onClick={handleBackdropClick} className="fixed inset-0 bg-ink/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in select-none">
-      <div className="bg-surface rounded-lg hairline-all shadow-xl w-full max-w-lg flex flex-col max-h-[90vh] overflow-hidden">
+    <div onClick={handleBackdropClick} className="fixed inset-0 bg-ink/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in select-none">
+      <div className="bg-surface dark:bg-surface-dark rounded-lg hairline-all shadow-xl w-full max-w-lg flex flex-col max-h-[90vh] overflow-hidden border border-line dark:border-line-dark">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-line flex items-center justify-between bg-surface-2/60 shrink-0">
+        <div className="px-5 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-brand-soft text-brand flex items-center justify-center">
+            <div className="w-8 h-8 rounded bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
               <Scale className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-[14px] font-bold text-ink leading-tight">تسوية جردية لصنف</h3>
-              <p className="text-[11px] text-ink-muted leading-tight mt-0.5">{product.name}</p>
+              <h3 className="text-[14px] font-bold text-ink dark:text-ink-dark leading-tight">تسوية جردية لصنف</h3>
+              <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">{product.name}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={requestClose}
-            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface border border-transparent hover:border-line transition-colors"
+            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 border border-transparent hover:border-line dark:hover:border-line-dark transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -192,20 +192,20 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
           {error && (
-            <div className="p-3 bg-danger-soft border border-danger/30 rounded text-danger text-[12px] flex items-center gap-2">
+            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 rounded text-danger dark:text-danger-bright text-[12px] flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {/* Current Stock Banner */}
-          <div className="p-3 bg-surface-2 rounded border border-line flex items-center justify-between text-[12px]">
-            <span className="text-ink-muted">الرصيد الحالي المسجل في النظام:</span>
-            <span className="font-mono font-bold text-ink text-[13px]">{currentStockDisplay}</span>
+          <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark flex items-center justify-between text-[12px]">
+            <span className="text-ink-muted dark:text-ink-dark-muted">الرصيد الحالي المسجل في النظام:</span>
+            <span className="font-mono font-bold text-ink dark:text-ink-dark text-[13px]">{currentStockDisplay}</span>
           </div>
 
           {/* Mode Switcher Tabs */}
-          <div className="flex rounded-lg bg-surface-2 p-1 border border-line text-xs font-bold">
+          <div className="flex rounded-lg bg-surface-2 dark:bg-surface-dark-2 p-1 border border-line dark:border-line-dark text-xs font-bold">
             <button
               type="button"
               onClick={() => {
@@ -214,8 +214,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               }}
               className={`flex-1 py-1.5 rounded-md transition-all text-center cursor-pointer ${
                 mode === 'actual'
-                  ? 'bg-white text-ink shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
+                  ? 'bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark shadow-xs'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               الرصيد الفعلي بعد الجرد
@@ -228,8 +228,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               }}
               className={`flex-1 py-1.5 rounded-md transition-all text-center cursor-pointer ${
                 mode === 'delta'
-                  ? 'bg-white text-ink shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
+                  ? 'bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark shadow-xs'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               إضافة أو خصم كمية (+ / -)
@@ -239,12 +239,12 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           {/* Counted Stock or Delta Input */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-[12px] font-bold text-ink block">
-                {mode === 'actual' ? 'الرصيد الفعلي بعد الجرد' : 'الكمية المراد تسويتها'} <span className="text-danger">*</span>
+              <label className="text-[12px] font-bold text-ink dark:text-ink-dark block">
+                {mode === 'actual' ? 'الرصيد الفعلي بعد الجرد' : 'الكمية المراد تسويتها'} <span className="text-danger dark:text-danger-bright">*</span>
               </label>
               {unitsList.length > 1 && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-ink-muted">الوحدة:</span>
+                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">الوحدة:</span>
                   <CustomSelect
                     value={activeUnit?.id || ''}
                     onChange={(val) => setSelectedUnitId(val)}
@@ -270,22 +270,22 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                     setActualStockInput(normalizeArabicNumerals(e.target.value));
                     setError('');
                   }}
-                  className="w-full h-10 px-3 font-mono text-[14px] font-bold text-ink bg-surface border border-line rounded focus:border-brand focus:outline-none"
+                  className="w-full h-10 px-3 font-mono text-[14px] font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded focus:border-brand dark:focus:border-brand-bright focus:outline-none placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                 />
-                <span className="absolute left-3 top-2.5 text-xs text-ink-muted font-bold">
+                <span className="absolute left-3 top-2.5 text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                   {unitLabel}
                 </span>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <div className="flex rounded border border-line overflow-hidden shrink-0">
+                <div className="flex rounded border border-line dark:border-line-dark overflow-hidden shrink-0">
                   <button
                     type="button"
                     onClick={() => setDeltaSign('-')}
                     className={`px-3 h-10 font-bold text-sm cursor-pointer transition-colors ${
                       deltaSign === '-'
-                        ? 'bg-danger text-white'
-                        : 'bg-surface text-ink-muted hover:bg-surface-2'
+                        ? 'bg-danger text-white dark:bg-danger dark:text-white'
+                        : 'bg-surface dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:bg-surface-2 dark:hover:bg-surface-dark-3'
                     }`}
                     title="خصم / عجز / تالف (-)"
                   >
@@ -296,8 +296,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                     onClick={() => setDeltaSign('+')}
                     className={`px-3 h-10 font-bold text-sm cursor-pointer transition-colors ${
                       deltaSign === '+'
-                        ? 'bg-paid text-white'
-                        : 'bg-surface text-ink-muted hover:bg-surface-2'
+                        ? 'bg-paid text-white dark:bg-paid dark:text-white'
+                        : 'bg-surface dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:bg-surface-2 dark:hover:bg-surface-dark-3'
                     }`}
                     title="إضافة / زيادة جرد (+)"
                   >
@@ -314,9 +314,9 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                       setDeltaInput(normalizeArabicNumerals(e.target.value));
                       setError('');
                     }}
-                    className="w-full h-10 px-3 font-mono text-[14px] font-bold text-ink bg-surface border border-line rounded focus:border-brand focus:outline-none"
+                    className="w-full h-10 px-3 font-mono text-[14px] font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded focus:border-brand dark:focus:border-brand-bright focus:outline-none placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                   />
-                  <span className="absolute left-3 top-2.5 text-xs text-ink-muted font-bold">
+                  <span className="absolute left-3 top-2.5 text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                     {unitLabel}
                   </span>
                 </div>
@@ -324,7 +324,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             )}
 
             {isValidNumber && factor > 1 && (
-              <p className="text-[11px] text-brand font-bold mt-1">
+              <p className="text-[11px] text-brand dark:text-brand-bright font-bold mt-1">
                 يعادل: {Math.abs(mode === 'actual' ? (parseFloat(actualStockInput) || 0) * factor : (parseFloat(deltaInput) || 0) * factor)} قطعة أساسية
               </p>
             )}
@@ -334,10 +334,10 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           {isValidNumber && (
             <div className={`p-3 rounded border text-[12px] flex flex-col gap-1.5 ${
               deltaMilli === 0 
-                ? 'bg-surface-2 border-line text-ink-muted'
+                ? 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted'
                 : deltaMilli > 0
-                ? 'bg-paid-soft border-paid/20 text-paid'
-                : 'bg-danger-soft border-danger/20 text-danger'
+                ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid-dark-border text-paid dark:text-paid-bright'
+                : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/20 text-danger dark:text-danger-bright'
             }`}>
               <div className="flex items-center justify-between font-bold">
                 <div className="flex items-center gap-1.5">
@@ -360,13 +360,13 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                 </span>
               </div>
 
-              <div className="flex items-center justify-between pt-1 border-t border-line/40 text-[11px] font-medium">
-                <span className="text-ink-muted">الرصيد النهائي الناتج:</span>
-                <span className="font-mono font-bold text-ink text-[12px]">{newStockDisplay}</span>
+              <div className="flex items-center justify-between pt-1 border-t border-line/40 dark:border-line-dark/40 text-[11px] font-medium">
+                <span className="text-ink-muted dark:text-ink-dark-muted">الرصيد النهائي الناتج:</span>
+                <span className="font-mono font-bold text-ink dark:text-ink-dark text-[12px]">{newStockDisplay}</span>
               </div>
 
               {deltaMilli !== 0 && (
-                <div className="flex items-center justify-between pt-1 border-t border-line/40 text-[11px] font-medium opacity-90">
+                <div className="flex items-center justify-between pt-1 border-t border-line/40 dark:border-line-dark/40 text-[11px] font-medium opacity-90">
                   <span>الأثر المالي المتوقع (بالتكلفة):</span>
                   <span className="font-mono font-bold text-[12px]">
                     {deltaMilli > 0 ? `+${estimatedImpactDisplay} (إضافة لقيمة المخزون)` : `-${estimatedImpactDisplay} (خسارة عجز وتالف)`}
@@ -378,8 +378,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
           {/* Preset Reason Tags & Adjustment Types (Task 37-1) */}
           <div className="space-y-1.5">
-            <label className="text-[12px] font-bold text-ink block">
-              سبب ونوع التسوية الجردية <span className="text-danger">*</span>
+            <label className="text-[12px] font-bold text-ink dark:text-ink-dark block">
+              سبب ونوع التسوية الجردية <span className="text-danger dark:text-danger-bright">*</span>
             </label>
             <div className="flex flex-wrap gap-1.5">
               {PRESET_OPTIONS.map((opt) => (
@@ -389,8 +389,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                   onClick={() => handleSelectPreset(opt)}
                   className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
                     reason === opt.label
-                      ? 'bg-brand text-white font-bold shadow-2xs'
-                      : 'bg-surface-2 border border-line text-ink-muted hover:text-ink hover:border-brand/40'
+                      ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-bold shadow-2xs'
+                      : 'bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:border-brand/40 dark:hover:border-brand-bright/40'
                   }`}
                 >
                   {opt.label}
@@ -402,23 +402,23 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               placeholder="أو اكتب سبباً مخصصاً للتسوية لتوثيقه..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full h-9 px-3 text-[12px] text-ink bg-surface border border-line rounded focus:border-brand focus:outline-none mt-1"
+              className="w-full h-9 px-3 text-[12px] text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded focus:border-brand dark:focus:border-brand-bright focus:outline-none placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 mt-1"
             />
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-3 border-t border-line flex items-center justify-end gap-2 mt-auto shrink-0">
+          <div className="pt-3 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 mt-auto shrink-0">
             <button
               type="button"
               onClick={requestClose}
-              className="h-9 px-4 rounded bg-surface border border-line text-ink hover:bg-surface-2 text-[12px] font-semibold transition-colors"
+              className="h-9 px-4 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-[12px] font-semibold transition-colors"
             >
               إلغاء
             </button>
             <button
               type="submit"
               disabled={loading || !isValidNumber || deltaMilli === 0}
-              className="h-9 px-5 rounded bg-brand text-white hover:bg-brand-hover disabled:opacity-50 text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+              className="h-9 px-5 rounded bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-hover dark:hover:bg-brand-bright/90 disabled:opacity-50 text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-xs"
             >
               {loading ? (
                 <>

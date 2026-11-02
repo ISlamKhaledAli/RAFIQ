@@ -212,16 +212,16 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn select-none"
       onClick={handleBackdropClick}
     >
       <div
-        className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-brand text-white px-6 py-5 flex items-center justify-between border-b border-brand-dark">
+        <div className="bg-brand dark:bg-brand-dark text-white px-6 py-5 flex items-center justify-between border-b border-brand-dark dark:border-line-dark">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-2xl">
               <FlaskConical className="w-6 h-6 text-white" />
@@ -242,37 +242,37 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-canvas">
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-canvas dark:bg-canvas-dark">
           {clearSuccessInfo && (
-            <div className="bg-paid-soft border-2 border-paid rounded-2xl p-5 text-center space-y-3.5 animate-fadeIn shadow-md">
-              <div className="w-14 h-14 bg-surface text-paid rounded-full flex items-center justify-center mx-auto shadow-inner border border-line">
+            <div className="bg-paid-soft dark:bg-paid-dark-soft border-2 border-paid dark:border-paid-dark-border rounded-2xl p-5 text-center space-y-3.5 animate-fadeIn shadow-md">
+              <div className="w-14 h-14 bg-surface dark:bg-surface-dark-2 text-paid dark:text-paid-bright rounded-full flex items-center justify-center mx-auto shadow-inner border border-line dark:border-line-dark">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-base font-black text-brand-dark">تم مسح كل البيانات التجريبية بنجاح!</h3>
-                <p className="text-xs text-paid mt-1 font-bold leading-relaxed">
+                <h3 className="text-base font-black text-brand-dark dark:text-brand-bright">تم مسح كل البيانات التجريبية بنجاح!</h3>
+                <p className="text-xs text-paid dark:text-paid-bright mt-1 font-bold leading-relaxed">
                   {clearSuccessInfo.message}
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2.5 max-w-sm mx-auto">
-                <div className="bg-surface border border-line rounded-xl p-2.5 shadow-2xs">
-                  <span className="block text-2xl font-black text-ink">{clearSuccessInfo.deletedProducts}</span>
-                  <span className="text-[11px] font-bold text-ink-muted">أصناف اتحذفت</span>
+                <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-2.5 shadow-2xs">
+                  <span className="block text-2xl font-black text-ink dark:text-ink-dark">{clearSuccessInfo.deletedProducts}</span>
+                  <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">أصناف اتحذفت</span>
                 </div>
-                <div className="bg-surface border border-line rounded-xl p-2.5 shadow-2xs">
-                  <span className="block text-2xl font-black text-ink">{clearSuccessInfo.deletedSales}</span>
-                  <span className="text-[11px] font-bold text-ink-muted">فواتير اتحذفت</span>
+                <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-2.5 shadow-2xs">
+                  <span className="block text-2xl font-black text-ink dark:text-ink-dark">{clearSuccessInfo.deletedSales}</span>
+                  <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">فواتير اتحذفت</span>
                 </div>
-                <div className="bg-surface border border-line rounded-xl p-2.5 shadow-2xs">
-                  <span className="block text-2xl font-black text-ink">{clearSuccessInfo.deletedCustomers}</span>
-                  <span className="text-[11px] font-bold text-ink-muted">زبائن اتحذفوا</span>
+                <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-2.5 shadow-2xs">
+                  <span className="block text-2xl font-black text-ink dark:text-ink-dark">{clearSuccessInfo.deletedCustomers}</span>
+                  <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">زبائن اتحذفوا</span>
                 </div>
               </div>
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
-                  className="w-full sm:w-auto px-5 py-2.5 bg-paid hover:bg-paid/90 text-white rounded-xl font-bold text-xs shadow transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-paid dark:bg-paid hover:bg-paid/90 text-white rounded-xl font-bold text-xs shadow transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <RefreshCw className="w-4 h-4 animate-spin" />
                   <span>تحديث الشاشة دلوقتي لتطبيق التغييرات</span>
@@ -283,12 +283,12 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                     setClearSuccessInfo(null);
                     onClose();
                   }}
-                  className="w-full sm:w-auto px-4 py-2.5 bg-surface border border-line text-ink hover:bg-surface-2 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                 >
                   إغلاق النافذة
                 </button>
               </div>
-              <p className="text-[11px] text-paid font-semibold animate-pulse">
+              <p className="text-[11px] text-paid dark:text-paid-bright font-semibold animate-pulse">
                 الشاشة هتحدث نفسها والكتالوج هيتجدد تلقائياً حالا...
               </p>
             </div>
@@ -298,43 +298,43 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
             <div
               className={`p-3.5 rounded-xl text-sm font-semibold flex items-center gap-2.5 ${
                 message.type === 'success'
-                  ? 'bg-paid-soft text-paid border border-paid-border'
-                  : 'bg-danger-soft text-danger border border-danger-border'
+                  ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
+                  : 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger/30'
               }`}
             >
               {message.type === 'success' ? (
-                <CheckCircle2 className="w-5 h-5 text-paid shrink-0" />
+                <CheckCircle2 className="w-5 h-5 text-paid dark:text-paid-bright shrink-0" />
               ) : (
-                <AlertCircle className="w-5 h-5 text-danger shrink-0" />
+                <AlertCircle className="w-5 h-5 text-danger dark:text-danger-bright shrink-0" />
               )}
               <span>{message.text}</span>
             </div>
           )}
 
           {/* Safety Guarantee Callout */}
-          <div className="bg-surface border border-line rounded-xl p-4 flex items-start gap-3">
-            <div className="w-9 h-9 rounded-lg bg-paid-soft text-paid flex items-center justify-center shrink-0">
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shrink-0">
               <Shield className="w-5 h-5" />
             </div>
             <div className="text-xs space-y-1">
-              <span className="font-bold text-ink block text-sm">أمان تام وعزل لبضاعة وفلوس المحل الحقيقية</span>
-              <p className="text-ink-muted leading-relaxed">
+              <span className="font-bold text-ink dark:text-ink-dark block text-sm">أمان تام وعزل لبضاعة وفلوس المحل الحقيقية</span>
+              <p className="text-ink-muted dark:text-ink-dark-muted leading-relaxed">
                 كل الأصناف والزبائن والفواتير التجريبية متعلمة بكود خاص في النظام. لما تمسحها، بيتم حذف السجلات التجريبية دي بس، وفواتيرك وبضاعتك وزبائنك الحقيقيين اللي سجلتهم بيفضلوا محفوظين وسليمة 100%.
               </p>
             </div>
           </div>
 
           {/* Current Status Box */}
-          <div className="border border-line rounded-xl p-4 space-y-3 bg-surface">
+          <div className="border border-line dark:border-line-dark rounded-xl p-4 space-y-3 bg-surface dark:bg-surface-dark">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-ink-muted tracking-wider">حالة البيانات التجريبية دلوقتي</span>
+              <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted tracking-wider">حالة البيانات التجريبية دلوقتي</span>
               {status.hasDemoData ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-warn-soft text-warn border border-warn-border">
-                  <span className="w-2 h-2 rounded-full bg-warn animate-pulse" />
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-border/30">
+                  <span className="w-2 h-2 rounded-full bg-warn dark:bg-warn-bright animate-pulse" />
                   شغالة ومحملة في النظام
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-surface-2 text-ink-muted border border-line">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
                   <MinusCircle className="w-3.5 h-3.5" />
                   مش محملة
                 </span>
@@ -343,21 +343,21 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
 
             {status.hasDemoData ? (
               <div className="grid grid-cols-3 gap-3 pt-2">
-                <div className="bg-canvas border border-line rounded-xl p-3 text-center">
-                  <span className="text-2xl font-black text-ink block">{status.demoProductsCount}</span>
-                  <span className="text-xs font-bold text-ink-muted">صنف تجريبي</span>
+                <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-xl p-3 text-center">
+                  <span className="text-2xl font-black text-ink dark:text-ink-dark block">{status.demoProductsCount}</span>
+                  <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">صنف تجريبي</span>
                 </div>
-                <div className="bg-canvas border border-line rounded-xl p-3 text-center">
-                  <span className="text-2xl font-black text-ink block">{status.demoCustomersCount}</span>
-                  <span className="text-xs font-bold text-ink-muted">زبون تجريبي</span>
+                <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-xl p-3 text-center">
+                  <span className="text-2xl font-black text-ink dark:text-ink-dark block">{status.demoCustomersCount}</span>
+                  <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">زبون تجريبي</span>
                 </div>
-                <div className="bg-canvas border border-line rounded-xl p-3 text-center">
-                  <span className="text-2xl font-black text-ink block">{status.demoSalesCount}</span>
-                  <span className="text-xs font-bold text-ink-muted">فاتورة تجريبية</span>
+                <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-xl p-3 text-center">
+                  <span className="text-2xl font-black text-ink dark:text-ink-dark block">{status.demoSalesCount}</span>
+                  <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">فاتورة تجريبية</span>
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-ink-muted font-medium">
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">
                 مفيش بيانات تجريبية محملة دلوقتي. تقدر تنزل بضاعة وفواتير نموذجية لتجربة البيع وتدريب الكاشير.
               </p>
             )}
@@ -367,18 +367,18 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
           {!status.hasDemoData && (
             <div className="space-y-3">
               {/* Remembered Active Activity Banner */}
-              <div className="flex items-center justify-between p-3.5 bg-surface border border-line rounded-xl text-xs">
+              <div className="flex items-center justify-between p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-brand/10 text-brand flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
                     {(() => {
                       const opt = STORE_TYPE_OPTIONS.find(o => o.id === selectedStoreType) || STORE_TYPE_OPTIONS[0];
                       const Icon = opt.icon;
-                      return <Icon className="w-4 h-4 text-brand" />;
+                      return <Icon className="w-4 h-4 text-brand dark:text-brand-bright" />;
                     })()}
                   </div>
                   <div>
-                    <span className="text-[11px] text-ink-muted font-semibold block">نشاط المحل المعتمد تلقائياً:</span>
-                    <span className="font-bold text-ink text-xs">
+                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-semibold block">نشاط المحل المعتمد تلقائياً:</span>
+                    <span className="font-bold text-ink dark:text-ink-dark text-xs">
                       {(STORE_TYPE_OPTIONS.find(o => o.id === selectedStoreType) || STORE_TYPE_OPTIONS[0]).label}
                     </span>
                   </div>
@@ -387,7 +387,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowTypeSelector(prev => !prev)}
-                  className="px-2.5 py-1 text-[11px] font-bold text-brand hover:text-brand-dark bg-canvas hover:bg-surface-2 border border-line rounded-lg transition-colors cursor-pointer"
+                  className="px-2.5 py-1 text-[11px] font-bold text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-brand bg-canvas dark:bg-canvas-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg transition-colors cursor-pointer"
                 >
                   {showTypeSelector ? 'إخفاء الخيارات' : 'تغيير النشاط'}
                 </button>
@@ -395,8 +395,8 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
 
               {/* Show the selection grid ONLY if the user clicks "تغيير النشاط" */}
               {showTypeSelector && (
-                <div className="p-3 bg-surface border border-line rounded-xl space-y-2 animate-fadeIn">
-                  <label className="block text-xs font-bold text-ink">
+                <div className="p-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl space-y-2 animate-fadeIn">
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark">
                     اختر نشاط المحل عشان ننزل أصناف مناسبة ليه:
                   </label>
                   <div className="grid grid-cols-2 gap-2">
@@ -414,11 +414,11 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                           }}
                           className={`p-2.5 rounded-lg border text-right transition-all flex items-center gap-2.5 cursor-pointer ${
                             isSelected
-                              ? 'border-brand bg-brand/10 text-brand font-bold shadow-2xs ring-1 ring-brand'
-                              : 'border-line bg-surface hover:bg-surface-2 text-ink'
+                              ? 'border-brand dark:border-brand-bright bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-bold shadow-2xs ring-1 ring-brand dark:ring-brand-bright'
+                              : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark'
                           }`}
                         >
-                          <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-brand' : 'text-ink-muted'}`} />
+                          <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-brand dark:text-brand-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
                           <span className="text-xs font-bold">{opt.label}</span>
                         </button>
                       );
@@ -431,7 +431,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                 type="button"
                 onClick={handleLoadDemo}
                 disabled={loading}
-                className="w-full py-3 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold shadow-xs hover:shadow transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
+                className="w-full py-3 bg-brand dark:bg-brand hover:bg-brand-dark text-white rounded-xl font-bold shadow-xs hover:shadow transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -456,18 +456,18 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                   type="button"
                   onClick={() => setShowClearConfirm(true)}
                   disabled={loading}
-                  className="w-full py-2.5 bg-danger-soft hover:bg-danger-soft/80 text-danger border border-danger-border rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer"
+                  className="w-full py-2.5 bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/80 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright border border-danger-border dark:border-danger/30 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>{status.hasDemoData ? 'مسح كل البيانات التجريبية واختبارات الحمل' : 'مسح وقائي لأي بيانات أو أصناف تجريبية متبقية'}</span>
                 </button>
               ) : (
-                <div className="bg-danger-soft border-2 border-danger-border rounded-xl p-4 space-y-3 animate-fadeIn shadow-sm">
+                <div className="bg-danger-soft dark:bg-danger-dark-soft border-2 border-danger-border dark:border-danger/40 rounded-xl p-4 space-y-3 animate-fadeIn shadow-sm">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-6 h-6 text-danger shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-6 h-6 text-danger dark:text-danger-bright shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-danger">متأكد إنك عاوز تمسح كل البيانات التجريبية واختبارات الحمل؟</h4>
-                      <p className="text-xs text-ink mt-1 leading-relaxed font-medium">
+                      <h4 className="text-sm font-bold text-danger dark:text-danger-bright">متأكد إنك عاوز تمسح كل البيانات التجريبية واختبارات الحمل؟</h4>
+                      <p className="text-xs text-ink dark:text-ink-dark mt-1 leading-relaxed font-medium">
                         النظام هيفحص قاعدة البيانات بالكامل، ويمسح أي أصناف تجريبية (بما فيها أصناف اختبار الحمل والتدريب)
                         والفواتير والزبائن التجريبيين بأمان تام، ومش هيلمس أي فواتير أو أصناف حقيقية أنشأتها بنفسك.
                       </p>
@@ -479,7 +479,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                       type="button"
                       onClick={() => setShowClearConfirm(false)}
                       disabled={loading}
-                      className="px-3.5 py-1.5 text-xs font-bold text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
+                      className="px-3.5 py-1.5 text-xs font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
                     >
                       إلغاء
                     </button>
@@ -508,16 +508,16 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
           )}
 
           {/* Start First Run Setup Wizard */}
-          <div className="border-t border-line pt-4 flex items-center justify-between">
+          <div className="border-t border-line dark:border-line-dark pt-4 flex items-center justify-between">
             <div>
-              <span className="text-xs font-bold text-ink block">إعادة ضبط وإعداد المحل من الصفر</span>
-              <span className="text-[11px] text-ink-muted">تحديد اسم المحل، النشاط، الفئات، ونظام البيع كأول تشغيل</span>
+              <span className="text-xs font-bold text-ink dark:text-ink-dark block">إعادة ضبط وإعداد المحل من الصفر</span>
+              <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">تحديد اسم المحل، النشاط، الفئات، ونظام البيع كأول تشغيل</span>
             </div>
             <button
               type="button"
               onClick={handleStartWizardFresh}
               disabled={isTriggeringWizard}
-              className="px-3.5 py-2 text-xs font-bold text-brand bg-brand-soft hover:bg-brand/20 border border-brand/30 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              className="px-3.5 py-2 text-xs font-bold text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand-dark-soft/80 border border-brand/30 dark:border-brand-bright/30 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
             >
               {isTriggeringWizard ? (
                 <>
@@ -535,10 +535,10 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
 
           {/* Start Tour Button */}
           {onStartTour && (
-            <div className="border-t border-line pt-4 flex items-center justify-between">
+            <div className="border-t border-line dark:border-line-dark pt-4 flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold text-ink block">الجولة السريعة لشرح النظام</span>
-                <span className="text-[11px] text-ink-muted">جولة من 5 خطوات تشرح شاشات البرنامج وأزرار البيع</span>
+                <span className="text-xs font-bold text-ink dark:text-ink-dark block">الجولة السريعة لشرح النظام</span>
+                <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">جولة من 5 خطوات تشرح شاشات البرنامج وأزرار البيع</span>
               </div>
               <button
                 type="button"
@@ -546,7 +546,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                   onClose();
                   onStartTour();
                 }}
-                className="px-3.5 py-2 text-xs font-bold text-paid bg-paid-soft hover:bg-paid-soft/80 border border-paid-border rounded-xl transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="px-3.5 py-2 text-xs font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid-border dark:border-paid-dark-border rounded-xl transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Compass className="w-4 h-4" />
                 بدء الجولة دلوقتي
@@ -556,11 +556,11 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="bg-surface border-t border-line px-6 py-3.5 flex justify-end">
+        <div className="bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark px-6 py-3.5 flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 text-sm font-bold text-ink bg-surface border border-line rounded-xl hover:bg-surface-2 transition-colors shadow-sm cursor-pointer"
+            className="px-5 py-2 text-sm font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors shadow-sm cursor-pointer"
           >
             إغلاق
           </button>

@@ -314,6 +314,8 @@ export interface Customer {
   balanceFormatted?: string;
   creditLimitFormatted?: string;
   isArchived?: boolean;
+  notes?: string;
+  address?: string;
 }
 
 export interface CustomerLedgerEntry {

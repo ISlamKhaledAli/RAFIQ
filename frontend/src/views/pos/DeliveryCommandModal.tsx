@@ -149,12 +149,13 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
 
   const handlePhoneLookup = (phoneVal: string) => {
     setCustomerPhone(phoneVal);
-    const cleaned = phoneVal.trim();
-    if (cleaned.length >= 6) {
-      const matched = customers.find((c) => c.phone && c.phone.includes(cleaned));
-      if (matched) {
-        setCustomerId(matched.id);
-        if (!customerName) setCustomerName(matched.name);
+    if (!phoneVal || phoneVal.length < 8) return;
+    const match = customers.find((c) => c.phone && c.phone.includes(phoneVal.trim()));
+    if (match) {
+      setCustomerName(match.name);
+      setCustomerId(match.id);
+      if (match.notes && !deliveryAddress) {
+        setDeliveryAddress(match.notes);
       }
     }
   };
@@ -163,48 +164,51 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
     setSelectedZoneId(zoneId);
     const z = zones.find((item) => item.id === zoneId);
     if (z) {
-      setDeliveryFeeEgp((z.feePiasters / 100).toString());
+      setDeliveryFeeEgp(((z.feePiasters || 0) / 100).toString());
     }
   };
 
   const handleConfirmOrderDeliveryInfo = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerPhone.trim() || !customerName.trim() || !deliveryAddress.trim()) {
-      setErrorMsg('يرجى إدخال اسم العميل ورقم الهاتف والعنوان التفصيلي للتوصيل.');
+    if (!customerPhone.trim()) {
+      setErrorMsg('يرجى إدخال رقم هاتف العميل على الأقل');
+      return;
+    }
+    if (!deliveryAddress.trim()) {
+      setErrorMsg('يرجى إدخال عنوان التوصيل');
       return;
     }
 
-    const z = zones.find((item) => item.id === selectedZoneId);
-    const r = riders.find((item) => item.id === selectedRiderId);
     const feePiasters = Math.max(0, Math.round((parseFloat(deliveryFeeEgp || '0') || 0) * 100));
+    const activeZone = zones.find((z) => z.id === selectedZoneId);
+    const activeRider = riders.find((r) => r.id === selectedRiderId);
 
-    onApplyDeliveryInfo({
-      customerId: customerId || null,
-      customerName: customerName.trim(),
+    const info: DeliveryOrderCreateInfo = {
       customerPhone: customerPhone.trim(),
+      customerName: customerName.trim() || 'عميل دليفري',
+      customerId: customerId || undefined,
       deliveryAddress: deliveryAddress.trim(),
-      landmark: landmark.trim() || null,
-      zoneId: z ? z.id : null,
-      zoneName: z ? z.name : null,
-      riderId: r ? r.id : null,
-      riderName: r ? r.name : null,
+      landmark: landmark.trim() || undefined,
+      zoneId: selectedZoneId || undefined,
+      zoneName: activeZone?.name,
+      riderId: selectedRiderId || undefined,
+      riderName: activeRider?.name,
       deliveryFeePiasters: feePiasters,
-      notes: orderNotes.trim() || null,
-    });
+      notes: orderNotes.trim() || undefined,
+    };
+
+    onApplyDeliveryInfo(info);
     onClose();
   };
 
   const handleAssignRiderToOrder = async (orderId: string, riderId: string) => {
-    if (!riderId) return;
     setLoading(true);
-    setErrorMsg(null);
     try {
-      await invoke('delivery:assignOrder', { orderId, riderId });
-      setSuccessMsg('تم إسناد الطلب للطيار وتحديث حالته إلى «خرج للتوصيل».');
+      await invoke('delivery:assignRider', { orderId, riderId: riderId || null });
       await fetchAllDeliveryData();
       onOrdersUpdated?.();
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'فشل إسناد الطيار');
+      setErrorMsg(err instanceof Error ? err.message : 'فشل إسناد الطيار للطلب');
     } finally {
       setLoading(false);
     }
@@ -212,10 +216,8 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
 
   const handleChangeOrderStatus = async (orderId: string, status: string) => {
     setLoading(true);
-    setErrorMsg(null);
     try {
       await invoke('delivery:updateStatus', { orderId, status });
-      setSuccessMsg('تم تحديث حالة طلب التوصيل بنجاح.');
       await fetchAllDeliveryData();
       onOrdersUpdated?.();
     } catch (err: unknown) {
@@ -227,20 +229,17 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
 
   const handleExecuteRiderSettlement = async () => {
     if (!settleRiderId) return;
+    if (!window.confirm('هل أنت متأكد من استلام النقدية وتصفية عهدة الطيار للطلبات المسلمة بالكامل؟')) return;
     setLoading(true);
-    setErrorMsg(null);
     try {
-      await invoke<RiderSettlementSummary>('delivery:settleRider', {
-        riderId: settleRiderId,
-        recordCommissionExpense: true,
-      });
-      setSuccessMsg('تمت تصفية عهدة الطيار بنجاح وتوريد النقدية لدرج الكاشير.');
-      const sumData = await invoke<RiderSettlementSummary>('delivery:getRiderSummary', { riderId: settleRiderId });
-      if (sumData) setSettlementSummary(sumData);
+      await invoke('delivery:settleRider', { riderId: settleRiderId });
+      setSuccessMsg('تمت تصفية عهدة الطيار بنجاح وتسجيل المبالغ في الخزينة.');
       await fetchAllDeliveryData();
+      setSettleRiderId('');
+      setSettlementSummary(null);
       onOrdersUpdated?.();
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'تعذر تصفية عهدة الطيار');
+      setErrorMsg(err instanceof Error ? err.message : 'فشل تصفية عهدة الطيار');
     } finally {
       setLoading(false);
     }
@@ -312,17 +311,17 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none" dir="rtl">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-line bg-surface-2 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/30 flex items-center justify-center text-brand">
+            <div className="w-10 h-10 rounded-xl bg-brand/10 dark:bg-brand-dark-soft border border-brand/30 dark:border-brand-bright/30 flex items-center justify-center text-brand dark:text-brand-bright">
               <Bike className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-ink">مركز إدارة الدليفري والطيارين وتصفية العهدة</h2>
-              <p className="text-xs text-ink-muted font-bold">
+              <h2 className="text-lg font-black text-ink dark:text-ink-dark">مركز إدارة الدليفري والطيارين وتصفية العهدة</h2>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                 توجيه طلبات التوصيل، احتساب رسوم المناطق تلقائياً، إسناد الطيارين، وتحصيل عهدة النقدية
               </p>
             </div>
@@ -332,14 +331,14 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
             <button
               type="button"
               onClick={fetchAllDeliveryData}
-              className="p-2 rounded-xl bg-surface border border-line text-ink-muted hover:text-ink"
+              className="p-2 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer transition-colors"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl bg-surface border border-line text-ink-muted hover:text-danger"
+              className="p-2 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -347,14 +346,14 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="px-6 py-2.5 bg-surface border-b border-line flex flex-wrap items-center gap-2">
+        <div className="px-6 py-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('order_setup')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'order_setup'
-                ? 'bg-brand text-white'
-                : 'bg-surface-2 text-ink-muted hover:text-ink'
+                ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
             }`}
           >
             <MapPin className="w-3.5 h-3.5" />
@@ -364,10 +363,10 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('active_orders')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'active_orders'
-                ? 'bg-brand text-white'
-                : 'bg-surface-2 text-ink-muted hover:text-ink'
+                ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
             }`}
           >
             <Send className="w-3.5 h-3.5" />
@@ -378,10 +377,10 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('rider_settlement')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === 'rider_settlement'
-                  ? 'bg-brand text-white'
-                  : 'bg-surface-2 text-ink-muted hover:text-ink'
+                  ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                  : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <Wallet className="w-3.5 h-3.5" />
@@ -393,10 +392,10 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('zones_riders')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === 'zones_riders'
-                  ? 'bg-brand text-white'
-                  : 'bg-surface-2 text-ink-muted hover:text-ink'
+                  ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                  : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <Settings className="w-3.5 h-3.5" />
@@ -406,14 +405,14 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
         </div>
 
         {(errorMsg || successMsg) && (
-          <div className="px-6 pt-3">
+          <div className="px-6 pt-3 shrink-0">
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-danger/10 border border-danger/30 text-danger text-xs font-black">
+              <div className="p-3 rounded-xl bg-danger/10 dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-black">
                 {errorMsg}
               </div>
             )}
             {successMsg && (
-              <div className="p-3 rounded-xl bg-paid/10 border border-paid/30 text-paid text-xs font-black">
+              <div className="p-3 rounded-xl bg-paid/10 dark:bg-paid-dark-soft border border-paid/30 dark:border-paid-dark-border text-paid dark:text-paid-bright text-xs font-black">
                 {successMsg}
               </div>
             )}
@@ -426,61 +425,61 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
             <form onSubmit={handleConfirmOrderDeliveryInfo} className="max-w-3xl mx-auto space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-black text-ink mb-1">
+                  <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">
                     رقم هاتف العميل (يبحث تلقائياً في سجل العملاء)
                   </label>
                   <div className="relative">
-                    <Phone className="w-4 h-4 text-ink-muted absolute right-3 top-2.5" />
+                    <Phone className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-2.5" />
                     <input
                       type="text"
                       value={customerPhone}
                       onChange={(e) => handlePhoneLookup(e.target.value)}
                       placeholder="010xxxxxxxx"
-                      className="w-full pr-9 pl-3 py-2 rounded-xl bg-surface-2 border border-line text-sm font-black text-ink focus:outline-none focus:border-brand"
+                      className="w-full pr-9 pl-3 py-2 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-sm font-black text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black text-ink mb-1">اسم العميل</label>
+                  <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">اسم العميل</label>
                   <div className="relative">
-                    <User className="w-4 h-4 text-ink-muted absolute right-3 top-2.5" />
+                    <User className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-2.5" />
                     <input
                       type="text"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                       placeholder="اسم مستلم الطلب"
-                      className="w-full pr-9 pl-3 py-2 rounded-xl bg-surface-2 border border-line text-sm font-bold text-ink focus:outline-none focus:border-brand"
+                      className="w-full pr-9 pl-3 py-2 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-sm font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-black text-ink mb-1">عنوان التوصيل بالتفصيل (يُطبع في قسيمة الطيار)</label>
+                <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">عنوان التوصيل بالتفصيل (يُطبع في قسيمة الطيار)</label>
                 <input
                   type="text"
                   value={deliveryAddress}
                   onChange={(e) => setDeliveryAddress(e.target.value)}
                   placeholder="الشارع، رقم العقار، الدور، رقم الشقة..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line text-sm font-bold text-ink focus:outline-none focus:border-brand"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-sm font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-black text-ink mb-1">علامة مميزة للعنوان</label>
+                  <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">علامة مميزة للعنوان</label>
                   <input
                     type="text"
                     value={landmark}
                     onChange={(e) => setLandmark(e.target.value)}
                     placeholder="بجوار صيدلية / مسجد..."
-                    className="w-full px-3 py-2 rounded-xl bg-surface-2 border border-line text-xs font-bold text-ink"
+                    className="w-full px-3 py-2 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black text-ink mb-1">منطقة التوصيل (تحدد الرسوم تلقائياً)</label>
+                  <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">منطقة التوصيل (تحدد الرسوم تلقائياً)</label>
                   <CustomSelect
                     value={selectedZoneId}
                     onChange={handleZoneSelect}
@@ -495,21 +494,21 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black text-ink mb-1">رسوم التوصيل (ج.م)</label>
+                  <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">رسوم التوصيل (ج.م)</label>
                   <input
                     type="number"
                     min={0}
                     step="0.5"
                     value={deliveryFeeEgp}
                     onChange={(e) => setDeliveryFeeEgp(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-surface-2 border border-line text-sm font-black text-brand"
+                    className="w-full px-3 py-2 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-sm font-black text-brand dark:text-brand-bright"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-black text-ink mb-1">إسناد مباشر لطيار (اختياري الآن)</label>
+                  <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">إسناد مباشر لطيار (اختياري الآن)</label>
                   <CustomSelect
                     value={selectedRiderId}
                     onChange={(v) => setSelectedRiderId(v)}
@@ -524,13 +523,13 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black text-ink mb-1">ملاحظات للطيار</label>
+                  <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">ملاحظات للطيار</label>
                   <input
                     type="text"
                     value={orderNotes}
                     onChange={(e) => setOrderNotes(e.target.value)}
                     placeholder="مثال: الاتصال قبل الوصول، فكة 200 ج..."
-                    className="w-full px-3 py-2 rounded-xl bg-surface-2 border border-line text-xs font-bold text-ink"
+                    className="w-full px-3 py-2 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                   />
                 </div>
               </div>
@@ -539,13 +538,13 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl bg-surface-2 border border-line text-xs font-bold text-ink-muted"
+                  className="px-4 py-2.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer transition-colors"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-brand text-white text-xs font-black hover:opacity-95 flex items-center gap-1.5"
+                  className="px-6 py-2.5 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black hover:opacity-95 flex items-center gap-1.5 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>اعتماد بيانات التوصيل وإضافة الرسوم للفاتورة</span>
@@ -568,10 +567,10 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                       key={st.key}
                       type="button"
                       onClick={() => setStatusFilter(st.key)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-black ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-all ${
                         statusFilter === st.key
-                          ? 'bg-brand text-white'
-                          : 'bg-surface-2 text-ink-muted border border-line'
+                          ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                          : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:text-ink dark:hover:text-ink-dark'
                       }`}
                     >
                       {st.label}
@@ -581,7 +580,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
               </div>
 
               {orders.length === 0 ? (
-                <div className="p-12 text-center bg-surface-2 rounded-2xl border border-line text-ink-muted text-sm font-bold">
+                <div className="p-12 text-center bg-surface-2 dark:bg-surface-dark-2 rounded-2xl border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-sm font-bold">
                   لا توجد طلبات دليفري مطابقة للفلتر المحدد حالياً.
                 </div>
               ) : (
@@ -589,22 +588,22 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                   {orders.map((ord) => (
                     <div
                       key={ord.id}
-                      className="p-4 rounded-2xl bg-surface-2 border border-line flex flex-wrap items-center justify-between gap-4"
+                      className="p-4 rounded-2xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-4"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded bg-brand/15 text-brand text-xs font-black">
+                          <span className="px-2 py-0.5 rounded bg-brand/15 dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-xs font-black">
                             فاتورة #{ord.invoiceNumber} {ord.orderCallNumber > 0 ? `• نداء #${ord.orderCallNumber}` : ''}
                           </span>
-                          <span className="font-black text-sm text-ink">{ord.customerName}</span>
-                          <span className="text-xs text-ink-muted font-bold">({ord.customerPhone})</span>
+                          <span className="font-black text-sm text-ink dark:text-ink-dark">{ord.customerName}</span>
+                          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">({ord.customerPhone})</span>
                         </div>
-                        <div className="text-xs text-ink font-bold">
+                        <div className="text-xs text-ink dark:text-ink-dark font-bold">
                           العنوان: {ord.deliveryAddress}
                           {ord.zoneName ? ` • المنطقة: ${ord.zoneName}` : ''}
                         </div>
-                        <div className="text-xs text-ink-muted font-bold">
-                          المطلوب تحصيله: <span className="text-brand font-black">{formatArabicCurrency(ord.cashToCollectPiasters)}</span>
+                        <div className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
+                          المطلوب تحصيله: <span className="text-brand dark:text-brand-bright font-black">{formatArabicCurrency(ord.cashToCollectPiasters)}</span>
                           {' • '}رسوم التوصيل: {formatArabicCurrency(ord.deliveryFeePiasters)}
                         </div>
                       </div>
@@ -645,8 +644,8 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
 
           {activeTab === 'rider_settlement' && (
             <div className="max-w-3xl mx-auto space-y-5">
-              <div className="bg-surface-2 p-4 rounded-2xl border border-line space-y-2">
-                <label className="block text-xs font-black text-ink">اختر الطيار لاستعراض وتصفية عهدته النقدية:</label>
+              <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-2">
+                <label className="block text-xs font-black text-ink dark:text-ink-dark">اختر الطيار لاستعراض وتصفية عهدته النقدية:</label>
                 <CustomSelect
                   value={settleRiderId}
                   onChange={(v) => setSettleRiderId(v)}
@@ -661,27 +660,27 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
               </div>
 
               {settlementSummary && (
-                <div className="bg-surface-2 p-5 rounded-2xl border border-line space-y-4">
+                <div className="bg-surface-2 dark:bg-surface-dark-2 p-5 rounded-2xl border border-line dark:border-line-dark space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="p-3 rounded-xl bg-surface border border-line">
-                      <div className="text-[11px] text-ink-muted font-bold">طلبات غير مصفاة</div>
-                      <div className="text-lg font-black text-ink">{settlementSummary.unsettledOrdersCount}</div>
+                    <div className="p-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
+                      <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">طلبات غير مصفاة</div>
+                      <div className="text-lg font-black text-ink dark:text-ink-dark">{settlementSummary.unsettledOrdersCount}</div>
                     </div>
-                    <div className="p-3 rounded-xl bg-surface border border-line">
-                      <div className="text-[11px] text-ink-muted font-bold">إجمالي النقدية مع الطيار</div>
-                      <div className="text-base font-black text-brand">
+                    <div className="p-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
+                      <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي النقدية مع الطيار</div>
+                      <div className="text-base font-black text-brand dark:text-brand-bright">
                         {formatArabicCurrency(settlementSummary.totalCashToCollectPiasters)}
                       </div>
                     </div>
-                    <div className="p-3 rounded-xl bg-surface border border-line">
-                      <div className="text-[11px] text-ink-muted font-bold">عمولة الطيار المستحقة</div>
-                      <div className="text-base font-black text-warn">
+                    <div className="p-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
+                      <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">عمولة الطيار المستحقة</div>
+                      <div className="text-base font-black text-warn dark:text-warn-bright">
                         {formatArabicCurrency(settlementSummary.totalRiderCommissionPiasters)}
                       </div>
                     </div>
-                    <div className="p-3 rounded-xl bg-surface border border-line">
-                      <div className="text-[11px] text-ink-muted font-bold">الصافي المورّد لدرج الكاشير</div>
-                      <div className="text-base font-black text-paid">
+                    <div className="p-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
+                      <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">الصافي المورّد لدرج الكاشير</div>
+                      <div className="text-base font-black text-paid dark:text-paid-bright">
                         {formatArabicCurrency(settlementSummary.netDrawerAmountPiasters)}
                       </div>
                     </div>
@@ -692,7 +691,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                       type="button"
                       disabled={loading}
                       onClick={handleExecuteRiderSettlement}
-                      className="w-full py-3 rounded-xl bg-paid text-white text-xs font-black hover:opacity-95 flex items-center justify-center gap-2"
+                      className="w-full py-3 rounded-xl bg-paid text-white text-xs font-black hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       <span>
@@ -708,15 +707,15 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
           {activeTab === 'zones_riders' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Zones Management */}
-              <div className="bg-surface-2 p-4 rounded-2xl border border-line space-y-4">
-                <h3 className="text-sm font-black text-ink">مناطق التوصيل ورسومها ({zones.length})</h3>
+              <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
+                <h3 className="text-sm font-black text-ink dark:text-ink-dark">مناطق التوصيل ورسومها ({zones.length})</h3>
                 <form onSubmit={handleAddZone} className="grid grid-cols-3 gap-2">
                   <input
                     type="text"
                     value={newZoneName}
                     onChange={(e) => setNewZoneName(e.target.value)}
                     placeholder="اسم المنطقة"
-                    className="px-3 py-2 rounded-xl bg-surface border border-line text-xs font-bold text-ink"
+                    className="px-3 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
                   <input
                     type="number"
@@ -725,11 +724,11 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                     value={newZoneFeeEgp}
                     onChange={(e) => setNewZoneFeeEgp(e.target.value)}
                     placeholder="الرسوم (ج.م)"
-                    className="px-3 py-2 rounded-xl bg-surface border border-line text-xs font-bold text-ink"
+                    className="px-3 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
                   <button
                     type="submit"
-                    className="px-3 py-2 rounded-xl bg-brand text-white text-xs font-black flex items-center justify-center gap-1"
+                    className="px-3 py-2 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>إضافة منطقة</span>
@@ -738,15 +737,15 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
 
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {zones.map((z) => (
-                    <div key={z.id} className="p-2.5 rounded-xl bg-surface border border-line flex items-center justify-between text-xs">
+                    <div key={z.id} className="p-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-center justify-between text-xs">
                       <div>
-                        <span className="font-black text-ink">{z.name}</span>
-                        <span className="text-brand font-black mr-2">{formatArabicCurrency(z.feePiasters)}</span>
+                        <span className="font-black text-ink dark:text-ink-dark">{z.name}</span>
+                        <span className="text-brand dark:text-brand-bright font-black mr-2">{formatArabicCurrency(z.feePiasters)}</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleDeleteZone(z.id)}
-                        className="p-1 text-ink-muted hover:text-danger"
+                        className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -756,22 +755,22 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
               </div>
 
               {/* Riders Management */}
-              <div className="bg-surface-2 p-4 rounded-2xl border border-line space-y-4">
-                <h3 className="text-sm font-black text-ink">الطيارون ومندوبو التوصيل ({riders.length})</h3>
+              <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
+                <h3 className="text-sm font-black text-ink dark:text-ink-dark">الطيارون ومندوبو التوصيل ({riders.length})</h3>
                 <form onSubmit={handleAddRider} className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
                     value={newRiderName}
                     onChange={(e) => setNewRiderName(e.target.value)}
                     placeholder="اسم الطيار"
-                    className="px-3 py-2 rounded-xl bg-surface border border-line text-xs font-bold text-ink"
+                    className="px-3 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
                   <input
                     type="text"
                     value={newRiderPhone}
                     onChange={(e) => setNewRiderPhone(e.target.value)}
                     placeholder="رقم الموبايل"
-                    className="px-3 py-2 rounded-xl bg-surface border border-line text-xs font-bold text-ink"
+                    className="px-3 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
                   <input
                     type="number"
@@ -780,11 +779,11 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                     value={newRiderFixedFeeEgp}
                     onChange={(e) => setNewRiderFixedFeeEgp(e.target.value)}
                     placeholder="عمولة ثابتة للطلب (ج.م)"
-                    className="px-3 py-2 rounded-xl bg-surface border border-line text-xs font-bold text-ink"
+                    className="px-3 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
                   <button
                     type="submit"
-                    className="px-3 py-2 rounded-xl bg-brand text-white text-xs font-black flex items-center justify-center gap-1"
+                    className="px-3 py-2 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>إضافة طيار</span>
@@ -793,12 +792,12 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
 
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {riders.map((r) => (
-                    <div key={r.id} className="p-2.5 rounded-xl bg-surface border border-line flex items-center justify-between text-xs">
+                    <div key={r.id} className="p-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-center justify-between text-xs">
                       <div>
-                        <span className="font-black text-ink">{r.name}</span>
-                        {r.phone && <span className="text-ink-muted font-bold mr-2">({r.phone})</span>}
+                        <span className="font-black text-ink dark:text-ink-dark">{r.name}</span>
+                        {r.phone && <span className="text-ink-muted dark:text-ink-dark-muted font-bold mr-2">({r.phone})</span>}
                         {r.fixedFeePerOrderPiasters > 0 && (
-                          <span className="text-brand font-bold mr-2">
+                          <span className="text-brand dark:text-brand-bright font-bold mr-2">
                             • عمولة: {formatArabicCurrency(r.fixedFeePerOrderPiasters)}/طلب
                           </span>
                         )}
@@ -806,7 +805,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleDeleteRider(r.id)}
-                        className="p-1 text-ink-muted hover:text-danger"
+                        className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

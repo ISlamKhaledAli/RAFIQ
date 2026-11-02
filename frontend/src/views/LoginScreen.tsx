@@ -113,8 +113,8 @@ export const LoginScreen: React.FC = () => {
         <div
           className={`w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs shrink-0 ${
             u.role === 'admin'
-              ? 'bg-paid-soft text-paid border border-paid-border'
-              : 'bg-brand-soft text-brand border border-brand/20'
+              ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
+              : 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20'
           }`}
         >
           {u.displayName.slice(0, 1)}
@@ -616,7 +616,7 @@ export const LoginScreen: React.FC = () => {
             {/* Body */}
             <form onSubmit={handleLoginRoot} className="p-6 space-y-4">
               {rootError && (
-                <div className="p-3 rounded-xl bg-danger-soft/30 border border-danger/30 text-danger flex items-start gap-2 text-xs">
+                <div className="p-3 rounded-xl bg-danger-soft/30 dark:bg-danger-dark-soft/50 border border-danger/30 dark:border-danger/40 text-danger dark:text-danger-bright flex items-start gap-2 text-xs">
                   <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{rootError}</span>
                 </div>
@@ -723,14 +723,14 @@ export const LoginScreen: React.FC = () => {
             {/* Body */}
             <form onSubmit={handleResetWithRecovery} className="p-6 space-y-4">
               {recoveryError && (
-                <div className="p-3 rounded-xl bg-danger-soft/30 border border-danger/30 text-danger flex items-start gap-2 text-xs">
+                <div className="p-3 rounded-xl bg-danger-soft/30 dark:bg-danger-dark-soft/50 border border-danger/30 dark:border-danger/40 text-danger dark:text-danger-bright flex items-start gap-2 text-xs">
                   <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{recoveryError}</span>
                 </div>
               )}
 
               {recoverySuccess && (
-                <div className="p-3 rounded-xl bg-paid-soft/40 border border-paid/30 text-paid flex items-start gap-2 text-xs">
+                <div className="p-3 rounded-xl bg-paid-soft/40 dark:bg-paid-dark-soft/50 border border-paid/30 dark:border-paid/40 text-paid dark:text-paid-bright flex items-start gap-2 text-xs">
                   <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{recoverySuccess}</span>
                 </div>

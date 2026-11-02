@@ -107,7 +107,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
           return type === 'critical' ? (
             <AlertTriangle className="w-4 h-4 text-rose-600" />
           ) : (
-            <Bell className="w-4 h-4 text-[#006d41]" />
+            <Bell className="w-4 h-4 text-paid dark:text-paid-bright" />
           );
       }
     };
