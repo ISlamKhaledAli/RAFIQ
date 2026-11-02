@@ -1,71 +1,74 @@
 @echo off
-chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-title أداة تصفير رفيق الشاملة (Rafiq POS Reset Tool)
+title Rafiq POS - Complete System Reset Tool
 
 echo ======================================================================
-echo             أداة التصفير الشامل والتهيئة لمشروع رفيق (Rafiq POS)
-echo                       [أداة صيانة وفلاشة متنقلة]
+echo                 Rafiq POS - Complete System Reset Tool
+echo                    [Maintenance and Reset Utility]
 echo ======================================================================
 echo.
-echo [تحذير هام]
-echo هذه العملية ستقوم بحذف كافة قواعد البيانات المحلية والإعدادات
-echo وكلمات المرور والحسابات القديمة المخزنة على هذا الجهاز نهائياً،
-echo وإعادة النظام لحالة المصنع النقية (كأنه مثبت لأول مرة).
+echo [WARNING]
+echo This operation will permanently DELETE all local databases, settings,
+echo user accounts, PINs, and stored data on this computer,
+echo and reset Rafiq POS back to clean factory state (fresh install).
 echo.
-echo المسارات المستهدفة للتنظيف على هذا الجهاز:
-echo   - %%ProgramData%%\RafiqPOS (قاعدة البيانات والبروفايل والنسخ)
-echo   - %%APPDATA%%\RafiqPOS (بيانات التقارير)
-echo   - %%LOCALAPPDATA%%\RafiqPOS (الملفات المؤقتة والكاش)
+echo Target cleanup directories on this machine:
+echo   - %%ProgramData%%\RafiqPOS (Database, Web Profiles, and Backups)
+echo   - %%APPDATA%%\RafiqPOS (Reports data)
+echo   - %%LOCALAPPDATA%%\RafiqPOS (Temporary cache and web files)
 echo.
-set /p CONFIRM="هل أنت متأكد من رغبتك في تصفير النظام على هذا الجهاز بالكامل؟ (y/n): "
+set /p CONFIRM="Are you sure you want to completely reset the system on this PC? (y/n): "
 if /i not "%CONFIRM%"=="y" (
     echo.
-    echo تم إلغاء العملية بناءً على طلبك. لم يتم حذف أي ملفات.
+    echo Operation canceled by user. No files were deleted.
     echo.
     pause
     exit /b 0
 )
 
 echo.
-echo [1/4] إيقاف تشغيل رفيق ومشغل الويب إن كان قيد العمل...
+echo [1/4] Stopping Rafiq POS and web runtime processes...
 taskkill /f /im RafiqPOS.exe >nul 2>&1
 taskkill /f /im msedgewebview2.exe >nul 2>&1
 
-echo [2/4] تنظيف بيانات النظام المشتركة (ProgramData)...
+echo [2/4] Cleaning shared system data (ProgramData)...
 if exist "%ProgramData%\RafiqPOS" (
     rmdir /s /q "%ProgramData%\RafiqPOS" >nul 2>&1
-    echo   - تم حذف مجلد بيانات رفيق بالكامل من ProgramData.
+    echo   - Successfully deleted Rafiq data folder from ProgramData.
+) else (
+    echo   - ProgramData\RafiqPOS not found (already clean).
 )
 
-echo [3/4] تنظيف بيانات المستخدم والكاش (AppData)...
+echo [3/4] Cleaning user data and cache (AppData)...
 if exist "%APPDATA%\RafiqPOS" (
     rmdir /s /q "%APPDATA%\RafiqPOS" >nul 2>&1
-    echo   - تم تنظيف بيانات AppData.
+    echo   - Successfully cleared AppData.
 )
 if exist "%LOCALAPPDATA%\RafiqPOS" (
     rmdir /s /q "%LOCALAPPDATA%\RafiqPOS" >nul 2>&1
-    echo   - تم تنظيف ملفات الكاش المحلية LocalAppData.
+    echo   - Successfully cleared LocalAppData cache.
 )
 
-echo [4/4] تنظيف مجلدات التطوير المحلية إن وجدت بجانب الملف...
+echo [4/4] Cleaning local development data folders (if present)...
 if exist "%~dp0desktop\bin\Release\data" (
     rmdir /s /q "%~dp0desktop\bin\Release\data" >nul 2>&1
+    echo   - Cleared Release data folder.
 )
 if exist "%~dp0desktop\bin\Debug\data" (
     rmdir /s /q "%~dp0desktop\bin\Debug\data" >nul 2>&1
+    echo   - Cleared Debug data folder.
 )
 
 echo.
 echo ======================================================================
-echo               اكتمل التصفير الشامل للنظام بنجاح تام
+echo                System Reset Completed Successfully!
 echo ======================================================================
-echo تم مسح كافة الحسابات والبيانات السابقة من هذا الجهاز.
-echo عند تشغيل البرنامج الآن على هذا الجهاز، سيبدأ معالج الإعداد كأول مرة،
-echo وستكون حسابات الدخول الافتراضية هي:
-echo   - المسؤول (Admin): PIN 1234
-echo   - الكاشير (Cashier): PIN 0000
+echo All accounts, databases, and local data have been removed from this PC.
+echo When you launch Rafiq POS now, the Initial Setup Wizard will start.
+echo Default initial credentials:
+echo   - Admin:   PIN 1234
+echo   - Cashier: PIN 0000
 echo ======================================================================
 echo.
 pause

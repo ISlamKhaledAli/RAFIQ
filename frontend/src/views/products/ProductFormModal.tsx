@@ -886,6 +886,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   });
 
   const formBodyRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const pricingCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (formError && formBodyRef.current) {
@@ -983,31 +985,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
             )}
 
-            {similarWarning && (
-              <div className="p-3 rounded-lg bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright flex flex-col gap-2 text-[12px]">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0 mt-0.5" />
-                  <span className="font-semibold leading-relaxed">{similarWarning}</span>
-                </div>
-                <div className="flex items-center justify-end gap-2 pt-1 border-t border-warn/20 dark:border-warn-bright/30">
-                  <button
-                    type="button"
-                    onClick={() => setSimilarWarning(null)}
-                    className="px-2.5 py-1 bg-white dark:bg-surface-dark hover:bg-surface dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold transition-colors"
-                  >
-                    تعديل الاسم
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void onSave(undefined, true)}
-                    className="px-3 py-1 bg-warn hover:bg-warn-dark text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-                  >
-                    <span>احفظ الصنف برضه</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* CARD 1: بطاقة تعريف الصنف والهوية المخصصة */}
             <div className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-3 shadow-2xs">
               <div className="flex items-center justify-between border-b border-line/60 dark:border-line-dark/60 pb-2">
@@ -1057,6 +1034,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                      isElectronics ? 'اسم الجهاز أو القطعة *' : 'اسم الصنف *'}
                   </label>
                   <input
+                    ref={nameInputRef}
                     type="text"
                     placeholder={namePlaceholder}
                     value={name}
@@ -1567,7 +1545,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </div>
 
             {/* CARD 2: التسعير وهوامش الربح وتجزئة العبوات */}
-            <div className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-3 shadow-2xs">
+            <div ref={pricingCardRef} className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-3 shadow-2xs">
               <div className="flex items-center justify-between border-b border-line/60 dark:border-line-dark/60 pb-2">
                 <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark text-[13px]">
                   <div className="w-6 h-6 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center">
@@ -1813,35 +1791,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </div>
                 );
               })()}
-
-              {/* Below Cost Warning Modal Prompt */}
-              {belowCostWarning && (
-                <div className="p-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 rounded-lg text-warn flex flex-col gap-2">
-                  <div className="flex items-start gap-2 text-[11.5px] font-semibold">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-warn mt-0.5" />
-                    <div>
-                      <p>سعر البيع ({formatArabicCurrency(belowCostWarning.pricePiasters)}) أقل من سعر التكلفة ({formatArabicCurrency(belowCostWarning.costPiasters)}).</p>
-                      <p className="text-[11px] font-normal text-ink-muted dark:text-ink-dark-muted mt-0.5">متأكد إنك عاوز تكمل وتحفظ الصنف بسعر بيع فيه خسارة؟</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-warn/20">
-                    <button
-                      type="button"
-                      onClick={() => setBelowCostWarning(null)}
-                      className="px-2.5 h-6 bg-surface hover:bg-surface-2 dark:bg-surface-dark-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark rounded text-[11px] font-semibold text-ink dark:text-ink-dark transition-colors cursor-pointer"
-                    >
-                      تعديل الأسعار
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void onSave(undefined, false, true)}
-                      className="px-2.5 h-6 bg-warn hover:bg-warn-dark text-white rounded text-[11px] font-bold transition-colors shadow-2xs cursor-pointer"
-                    >
-                      احفظ الصنف بالخسارة عادي
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {/* Multi-Units & Packaging Editor (Shown for stores with multi-unit support) */}
               {supportsPackaging && (
@@ -2521,6 +2470,81 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </div>
 
           </div>
+
+          {/* Pinned Warnings & Action Banners (Docked above footer, ALWAYS in viewport) */}
+          {similarWarning && (
+            <div className="shrink-0 border-t border-b border-warn/30 bg-warn-soft/95 dark:bg-warn-dark-soft/95 backdrop-blur-xs p-3 sm:px-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-start gap-2.5 text-xs text-warn dark:text-warn-bright leading-relaxed">
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
+                <div>
+                  <p className="font-bold text-[12.5px]">{similarWarning}</p>
+                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                    يمكنك المتابعة وحفظه كصنف منفصل، أو مراجعة وتعديل الاسم لمنع تكرار الأصناف.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSimilarWarning(null);
+                    formBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                    setTimeout(() => {
+                      nameInputRef.current?.focus();
+                      nameInputRef.current?.select();
+                    }, 200);
+                  }}
+                  className="px-3.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                >
+                  تعديل الاسم
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onSave(undefined, true)}
+                  className="px-4 py-1.5 bg-warn hover:bg-warn-dark dark:bg-warn-bright dark:text-surface-dark text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>احفظ الصنف برضه</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {belowCostWarning && (
+            <div className="shrink-0 border-t border-b border-warn/30 bg-warn-soft/95 dark:bg-warn-dark-soft/95 backdrop-blur-xs p-3 sm:px-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-start gap-2.5 text-xs text-warn dark:text-warn-bright leading-relaxed">
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
+                <div>
+                  <p className="font-bold text-[12.5px]">
+                    سعر البيع ({formatArabicCurrency(belowCostWarning.pricePiasters)}) أقل من سعر التكلفة ({formatArabicCurrency(belowCostWarning.costPiasters)}).
+                  </p>
+                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                    متأكد إنك عاوز تكمل وتحفظ الصنف بسعر بيع فيه خسارة؟
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBelowCostWarning(null);
+                    pricingCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                  className="px-3.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                >
+                  تعديل الأسعار
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onSave(undefined, false, true)}
+                  className="px-4 py-1.5 bg-warn hover:bg-warn-dark dark:bg-warn-bright dark:text-surface-dark text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>احفظ الصنف بالخسارة عادي</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Footer Actions (Docked at bottom) */}
           <div className="h-[52px] bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-between gap-2 shrink-0">

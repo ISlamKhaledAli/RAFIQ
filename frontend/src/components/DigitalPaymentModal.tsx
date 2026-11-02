@@ -178,7 +178,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
       onKeyDown={handleKeyDown}
       dir="rtl"
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl max-h-[94vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-2xl max-h-[94vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header - Specialized for the active method */}
         <div className={`h-[68px] px-5 flex items-center justify-between shrink-0 text-white transition-colors duration-200 ${
@@ -246,7 +246,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
 
             {/* Customer Row - Exactly matching PaymentModal (Image 2) */}
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+              <div className="flex items-center gap-2 flex-1 min-w-[220px] sm:min-w-[280px]">
                 <div className="flex items-center gap-1.5 text-xs text-[#006d41] dark:text-brand-bright font-bold shrink-0">
                   <UserCheck className="w-4 h-4" />
                   <span>الزبون:</span>
@@ -362,28 +362,50 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
 
             {/* Linked Account Balance Info vs Direct Store Handle vs Notice */}
             {matchedAccount ? (
-              <div className="w-full mt-2 p-3 rounded-xl bg-white/95 dark:bg-surface-dark-3 border border-emerald-200 dark:border-emerald-800/40 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
-                <span className="font-sans font-bold text-ink dark:text-ink-dark flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>الحساب المستلم: <strong className="text-brand dark:text-brand-bright font-black">{matchedAccount.name}</strong></span>
-                  {matchedAccount.identifier && (
-                    <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded border border-line dark:border-line-dark">
-                      {matchedAccount.identifier}
+              <div className="w-full mt-2 p-3 sm:p-3.5 rounded-xl bg-white/95 dark:bg-surface-dark-3 border border-emerald-200 dark:border-emerald-800/40 shadow-2xs flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 text-xs">
+                {/* Account Details */}
+                <div className="flex items-center gap-2 min-w-0 max-w-full">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 self-center" />
+                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                    <span className="font-sans font-bold text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
+                      الحساب المستلم:
                     </span>
-                  )}
-                </span>
-                <span className="font-bold text-paid dark:text-brand-bright whitespace-nowrap">
-                  الرصيد: {formatArabicCurrency(matchedAccount.balancePiasters)} (سيزداد +{formatArabicCurrency(netTotalPiasters)})
-                </span>
+                    <span className="font-sans font-black text-brand dark:text-brand-bright whitespace-nowrap">
+                      {matchedAccount.name}
+                    </span>
+                    {matchedAccount.identifier && (
+                      <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded border border-line dark:border-line-dark shrink-0">
+                        {matchedAccount.identifier}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Balance & Projection Badge */}
+                <div className="flex items-center gap-1.5 font-mono text-xs shrink-0 mr-auto sm:mr-0 self-end sm:self-auto bg-emerald-50/70 dark:bg-emerald-950/30 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
+                  <span className="font-sans font-medium text-ink-muted dark:text-ink-dark-muted text-[11px]">الرصيد:</span>
+                  <span className="font-bold text-ink dark:text-ink-dark">{formatArabicCurrency(matchedAccount.balancePiasters)}</span>
+                  <span className="font-sans font-bold text-[11px] text-paid dark:text-brand-bright whitespace-nowrap">
+                    (سيزداد +{formatArabicCurrency(netTotalPiasters)})
+                  </span>
+                </div>
               </div>
             ) : (isInstapay ? storePaymentDetails.instapayAddress : storePaymentDetails.walletNumber) ? (
-              <div className="w-full mt-2 p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/40 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <CheckCircle2 className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
-                  <span className="font-sans font-bold text-ink dark:text-ink-dark">
+              <div className={`w-full mt-2 p-3 sm:p-3.5 rounded-xl shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs border ${
+                isInstapay 
+                  ? 'bg-purple-50/70 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/40' 
+                  : 'bg-red-50/70 dark:bg-red-950/30 border-red-200 dark:border-red-800/40'
+              }`}>
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <CheckCircle2 className={`w-4 h-4 shrink-0 ${isInstapay ? 'text-purple-600 dark:text-purple-400' : 'text-[#e60000]'}`} />
+                  <span className="font-sans font-bold text-ink dark:text-ink-dark whitespace-nowrap">
                     {isInstapay ? 'عنوان إنستاباي للمحل:' : 'رقم محفظة المحل:'}
                   </span>
-                  <span className="font-mono font-bold text-sm text-purple-900 dark:text-purple-200 bg-white dark:bg-surface-dark-3 px-2.5 py-0.5 rounded-lg border border-purple-200 dark:border-purple-800/40 select-all">
+                  <span className={`font-mono font-bold text-sm bg-white dark:bg-surface-dark-3 px-2.5 py-0.5 rounded-lg border select-all ${
+                    isInstapay 
+                      ? 'text-purple-900 dark:text-purple-200 border-purple-200 dark:border-purple-800/40' 
+                      : 'text-[#e60000] dark:text-red-300 border-red-200 dark:border-red-800/40'
+                  }`}>
                     {isInstapay ? storePaymentDetails.instapayAddress : storePaymentDetails.walletNumber}
                   </span>
                 </div>
@@ -397,7 +419,11 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                       setTimeout(() => setCopied(false), 2000);
                     }
                   }}
-                  className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 self-end sm:self-auto transition-all active:scale-95"
+                  className={`px-3 py-1.5 rounded-lg text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 self-end sm:self-auto transition-all active:scale-95 ${
+                    isInstapay 
+                      ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800' 
+                      : 'bg-[#e60000] hover:bg-[#cc0000] active:bg-[#b30000]'
+                  }`}
                 >
                   {copied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-white" />}
                   <span>{copied ? 'تم النسخ!' : 'نسخ للزبون'}</span>
@@ -430,7 +456,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
               </div>
             )}
 
-            <p className="text-[11.5px] text-ink-muted dark:text-ink-dark-muted font-medium mt-1 mb-0 flex items-center gap-1.5">
+            <p className="text-[11.5px] text-ink-muted dark:text-ink-dark-muted font-medium mt-1 mb-0 flex items-center justify-center gap-1.5 text-center flex-wrap">
               <ShieldCheck className="w-4 h-4 text-paid dark:text-brand-bright shrink-0" />
               <span>تأكد من وصول إشعار التحويل المالي على الحساب قبل تأكيد الفاتورة</span>
             </p>
