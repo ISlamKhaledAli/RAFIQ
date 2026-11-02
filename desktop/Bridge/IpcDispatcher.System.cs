@@ -11,6 +11,97 @@ namespace RafiqPOS.Bridge
 {
     public partial class IpcDispatcher
     {
+        // Settings keys a non-admin may write, grouped by the permission that unlocks them; everything else is admin-only
+        private static readonly HashSet<string> PRINTER_SETTING_KEYS = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "default_printer_name", "receipt_paper_width", "printer_auto_print", "printer_open_drawer",
+            "default_label_printer_name", "default_label_paper_size"
+        };
+
+        private static readonly HashSet<string> BARCODE_SETTING_KEYS = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "scanner_enabled", "scanner_speed_ms", "scanner_speed_threshold_ms", "scanner_prefix", "scanner_suffix", "scanner_min_length"
+        };
+
+        private static readonly HashSet<string> STORE_SETTING_KEYS = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "store_name", "cashier_name", "store_phone", "store_address", "tax_number",
+            "receipt_header", "receipt_footer", "show_receipt_logo", "store_logo_url", "logo_variant",
+            "store_instapay_address", "store_wallet_number"
+        };
+
+        // Returns the keys the current session may not change. Runs after RemoveProtectedSettingKeys, so the
+        // unchanged-value no-op rule only ever applies to keys that are visible through settings:getAll.
+        private static List<string> FindUnauthorizedSettingKeys(Dictionary<string, string> settings)
+        {
+            var denied = new List<string>();
+            UserDto user = SecurityService.CurrentUser;
+            // No session is only reachable through the pre-login first-run gate in AuthorizeRequest
+            if (settings == null || user == null || DatabaseService.Security == null) return denied;
+            if (DatabaseService.Security.IsCurrentSessionAdmin()) return denied;
+
+            bool canPrinter = DatabaseService.Security.HasPermission(user.Id, "settings.printer");
+            bool canBarcode = DatabaseService.Security.HasPermission(user.Id, "settings.barcode");
+            bool canStore = DatabaseService.Security.HasPermission(user.Id, "settings.store");
+
+            foreach (var kvp in settings)
+            {
+                string key = kvp.Key ?? "";
+                if (canPrinter && PRINTER_SETTING_KEYS.Contains(key)) continue;
+                if (canBarcode && BARCODE_SETTING_KEYS.Contains(key)) continue;
+                if (canStore && STORE_SETTING_KEYS.Contains(key)) continue;
+
+                string current = DatabaseService.Settings != null ? DatabaseService.Settings.Get(key, null) : null;
+                if (current != null && current == (kvp.Value ?? "")) continue;
+                denied.Add(key);
+            }
+            return denied;
+        }
+
+        // settings:save / settings:updateBatch never echo stored settings back; callers re-read through settings:getAll
+        private static BridgeResponse SaveSettingsAuthorized(BridgeRequest request, Dictionary<string, string> input)
+        {
+            Dictionary<string, string> writable = RemoveProtectedSettingKeys(input);
+            List<string> denied = FindUnauthorizedSettingKeys(writable);
+            if (denied.Count > 0)
+            {
+                string who = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Username : "";
+                Logger.Warn(string.Format("رفض تعديل إعدادات غير مصرح بها للمستخدم {0}: {1}", who, string.Join(", ", denied.ToArray())));
+                return BridgeResponse.Fail(request.Id, "FORBIDDEN", "ليس لديك صلاحية لتعديل بعض هذه الإعدادات. يرجى التواصل مع مدير المحل.");
+            }
+            DatabaseService.Settings.SaveSettings(writable);
+            return BridgeResponse.Ok(request.Id, new { success = true });
+        }
+
+        // Secrets and license/security state owned by services: never returned to the UI and never writable through settings:*
+        private static bool IsProtectedSettingKey(string key)
+        {
+            string lower = (key ?? "").ToLowerInvariant();
+            return lower.StartsWith("license_") ||
+                lower.StartsWith("security_") ||
+                lower.StartsWith("transfer_") ||
+                lower.StartsWith("owner_") ||
+                lower.StartsWith("last_online_verify") ||
+                lower == "last_known_utc" ||
+                lower == "consumed_offline_codes" ||
+                lower == "used_recovery_jtis" ||
+                lower.Contains("hash") ||
+                lower.Contains("salt") ||
+                lower.Contains("secret") ||
+                lower.Contains("token");
+        }
+
+        private static Dictionary<string, string> SanitizeSettingsForUi(Dictionary<string, string> all)
+        {
+            var visible = new Dictionary<string, string>();
+            if (all == null) return visible;
+            foreach (var kvp in all)
+            {
+                if (!IsProtectedSettingKey(kvp.Key)) visible[kvp.Key] = kvp.Value;
+            }
+            return visible;
+        }
+
         // License, clock-guard and security state may only be written by their owning services (Audit F-15)
         private static Dictionary<string, string> RemoveProtectedSettingKeys(Dictionary<string, string> input)
         {
@@ -22,17 +113,6 @@ namespace RafiqPOS.Bridge
             {
                 string key = kvp.Key ?? "";
                 string lower = key.ToLowerInvariant();
-                bool isProtected =
-                    lower.StartsWith("license_") ||
-                    lower.StartsWith("security_") ||
-                    lower.StartsWith("transfer_") ||
-                    lower.StartsWith("last_online_verify") ||
-                    lower == "last_known_utc" ||
-                    lower == "consumed_offline_codes" ||
-                    lower.Contains("hash") ||
-                    lower.Contains("salt") ||
-                    lower.Contains("secret") ||
-                    lower == "used_recovery_jtis";
 
                 // حماية دعاية وتوقيع مطور النظام: محجوزة حصرياً لحساب الروت (المطور)
                 if (lower == "developer_signature" || lower == "developer_branding" || lower == "system_developer_signature")
@@ -44,7 +124,7 @@ namespace RafiqPOS.Bridge
                     }
                 }
 
-                if (isProtected)
+                if (IsProtectedSettingKey(key))
                 {
                     Logger.Warn("تم تجاهل محاولة تعديل إعداد محمي عبر الواجهة: " + key);
                     continue;
@@ -171,21 +251,7 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "settings:getAll":
-                    var allSettings = DatabaseService.Settings.GetAllSettings();
-                    var sanitizedSettings = new Dictionary<string, string>();
-                    if (allSettings != null)
-                    {
-                        foreach (var kvp in allSettings)
-                        {
-                            string lk = (kvp.Key ?? "").ToLowerInvariant();
-                            if (lk.Contains("hash") || lk.Contains("salt") || lk.Contains("secret") || lk == "used_recovery_jtis" || lk.StartsWith("security_pin") || lk.StartsWith("security_recovery") || lk.StartsWith("owner_recovery"))
-                            {
-                                continue; // Prevent leaking sensitive password hashes and salts
-                            }
-                            sanitizedSettings[kvp.Key] = kvp.Value;
-                        }
-                    }
-                    response = BridgeResponse.Ok(request.Id, sanitizedSettings);
+                    response = BridgeResponse.Ok(request.Id, SanitizeSettingsForUi(DatabaseService.Settings.GetAllSettings()));
                     return true;
 
                 case "settings:getStoreProfile":
@@ -202,9 +268,7 @@ namespace RafiqPOS.Bridge
                         response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الإعدادات فارغة");
                         return true;
                     }
-                    var settingsDict = RemoveProtectedSettingKeys(JsonConvert.DeserializeObject<Dictionary<string, string>>(request.Payload.ToString()));
-                    var updatedSettings = DatabaseService.Settings.SaveSettings(settingsDict);
-                    response = BridgeResponse.Ok(request.Id, updatedSettings);
+                    response = SaveSettingsAuthorized(request, JsonConvert.DeserializeObject<Dictionary<string, string>>(request.Payload.ToString()));
                     return true;
 
                 case "settings:updateBatch":
@@ -223,11 +287,7 @@ namespace RafiqPOS.Bridge
                     {
                         batchDict = JsonConvert.DeserializeObject<Dictionary<string, string>>(request.Payload.ToString());
                     }
-                    if (batchDict != null)
-                    {
-                        DatabaseService.Settings.SaveSettings(RemoveProtectedSettingKeys(batchDict));
-                    }
-                    response = BridgeResponse.Ok(request.Id, new { success = true });
+                    response = SaveSettingsAuthorized(request, batchDict);
                     return true;
 
                 case "features:getAll":

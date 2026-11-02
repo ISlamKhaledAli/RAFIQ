@@ -9,6 +9,7 @@ import { CustomDatePicker } from './CustomDatePicker';
 import { useFeatures } from '../context/useFeatures';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { getStoreTerminology } from '../utils/storeTerminology';
+import { parseCountedStockMilli } from './quickAddStock';
 
 interface QuickAddProductModalProps {
   isOpen: boolean;
@@ -58,6 +59,7 @@ export function QuickAddProductModal({
   const [name, setName] = useState('');
   const [priceEgp, setPriceEgp] = useState('');
   const [costEgp, setCostEgp] = useState('');
+  const [countedStock, setCountedStock] = useState('');
   const [unit, setUnit] = useState<'piece' | 'kg'>('piece');
   const [categoryId, setCategoryId] = useState('cat_general');
   const [categories, setCategories] = useState<Category[]>([]);
@@ -78,6 +80,7 @@ export function QuickAddProductModal({
     setName(initialName || '');
     setPriceEgp(initialPriceEgp || '');
     setCostEgp('');
+    setCountedStock('');
     setError(null);
 
     let active = true;
@@ -129,6 +132,14 @@ export function QuickAddProductModal({
       return;
     }
 
+    const stockQuantityMilli = parseCountedStockMilli(countedStock, unit);
+    if (stockQuantityMilli === null) {
+      setError(unit === 'kg'
+        ? 'يرجى إدخال الوزن الموجود فعلياً بالكيلو (اكتب 0 إن لم يتوفر)'
+        : 'يرجى إدخال عدد القطع الموجودة فعلياً كرقم صحيح (اكتب 0 إن لم تتوفر)');
+      return;
+    }
+
     setLoading(true);
     try {
       const pricePiasters = poundsToPiasters(priceNum);
@@ -141,7 +152,7 @@ export function QuickAddProductModal({
         categoryId: categoryId || 'cat_general',
         pricePiasters,
         costPiasters,
-        stockQuantityMilli: unit === 'kg' ? 1000 : 10000, // Initial provisional stock (10 pieces or 1kg)
+        stockQuantityMilli,
         minStockQuantityMilli: 5000,
         unit,
         taxRatePercent: 0,
@@ -153,7 +164,7 @@ export function QuickAddProductModal({
 
       const saved = await invoke<Product>('products:save', productPayload);
       if (saved) {
-        if (isEnabled('feature_expiry_dates') && expiryDate.trim()) {
+        if (isEnabled('feature_expiry_dates') && expiryDate.trim() && saved.stockQuantityMilli > 0) {
           await invoke('batch:save', {
             productId: saved.id,
             batchNumber: batchNumber.trim() || `B-${Date.now().toString().slice(-6)}`,
@@ -174,7 +185,7 @@ export function QuickAddProductModal({
     }
   };
 
-  const isDirty = Boolean(name.trim() || priceEgp.trim() || costEgp.trim() || variantSize.trim() || variantColor.trim() || expiryDate.trim());
+  const isDirty = Boolean(name.trim() || priceEgp.trim() || costEgp.trim() || countedStock.trim() || variantSize.trim() || variantColor.trim() || expiryDate.trim());
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -298,6 +309,23 @@ export function QuickAddProductModal({
                 className="w-full h-9 px-3 text-xs bg-canvas rounded-lg border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono text-left"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-ink mb-1">
+              {unit === 'kg' ? 'الوزن الموجود فعلياً الآن (كجم)' : 'عدد القطع الموجودة فعلياً الآن'} <span className="text-danger">*</span>
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={countedStock}
+              onChange={(e) => setCountedStock(normalizeArabicNumerals(e.target.value))}
+              onFocus={(e) => e.target.select()}
+              placeholder={unit === 'kg' ? '0.000' : '0'}
+              className="w-full h-9 px-3 text-xs bg-canvas rounded-lg border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono text-left"
+              required
+            />
+            <p className="mt-1 text-[11px] text-ink-muted">يُسجَّل كرصيد افتتاحي للصنف؛ اكتب 0 إن لم تتوفر كمية.</p>
           </div>
 
           {/* Unit & Category Grid */}

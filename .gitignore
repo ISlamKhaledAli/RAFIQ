@@ -65,8 +65,12 @@ installer/prerequisites/*.msi
 # UI Design Reference Assets
 stitch_rafeeq_pos_system_ui_design/
 
-# Windows 7 Offline Updates (>300MB)
-تحديثات_ويندوز7_الجاهزة/
+# Windows 7 Offline Updates (>300MB): ignore only the Microsoft binaries; the scripts/instructions are version-controlled
+تحديثات_ويندوز7_الجاهزة/**/*.msu
+
+# Code-signing certificates / private keys must never be committed
+*.pfx
+*.p12
 
 # IDE & Local Agent Tools
 .vscode/

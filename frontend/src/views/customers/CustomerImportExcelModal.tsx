@@ -97,6 +97,16 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
                 <div>السطور المتخطاة: <strong className="font-mono text-ink dark:text-ink-dark">{importResult.skippedCount}</strong></div>
                 <div>إجمالي الديون الافتتاحية: <strong className="font-mono text-paid dark:text-paid-bright">{importResult.totalOpeningDebtsFormatted}</strong></div>
               </div>
+              {importResult.rowErrors && importResult.rowErrors.length > 0 && (
+                <ul className="pt-2 border-t border-paid-border dark:border-emerald-800/40 space-y-1 text-[11px] text-danger dark:text-danger-bright max-h-32 overflow-y-auto">
+                  {importResult.rowErrors.map((rowError) => (
+                    <li key={rowError} className="flex items-start gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>{rowError}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 

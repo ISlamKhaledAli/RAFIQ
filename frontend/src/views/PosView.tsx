@@ -22,6 +22,7 @@ import { KeyboardShortcutsModal } from '../components/KeyboardShortcutsModal';
 import { ItemDiscountModal } from '../components/ItemDiscountModal';
 import { SupervisorPromptModal } from '../components/SupervisorPromptModal';
 import { HeldSalesModal } from '../components/HeldSalesModal';
+import { HeldSalePriceReviewModal } from './pos/HeldSalePriceReviewModal';
 import { ReturnModal } from '../components/ReturnModal';
 import { ProductVariantPickerModal } from '../components/ProductVariantPickerModal';
 import { ProductVariantMatrixModal } from '../components/ProductVariantMatrixModal';
@@ -39,6 +40,17 @@ import { useAuth } from '../context/useAuth';
 
 // Modular POS Subcomponents & Hooks
 import type { CartItem } from './pos/types';
+import {
+  applyCurrentPrices,
+  findHeldPriceChanges,
+  keepHeldPricesRequiresApproval,
+  resolveBaseSellPrice,
+  resolveHeldInvoiceDiscount,
+  resolveUnitSellPrice,
+  serializeHeldCart,
+  stripHeldCartMarker,
+  type HeldPriceChange,
+} from './pos/heldSalePricing';
 import { PosBarcodeBar } from './pos/PosBarcodeBar';
 import { PosCartTable } from './pos/PosCartTable';
 import { PosCatalogPanel } from './pos/PosCatalogPanel';
@@ -74,6 +86,7 @@ import type {
   SaleItemModifier,
   DeliveryOrderCreateInfo,
 } from '../types/cafe';
+import { enforcesOwnStock } from './pos/stockGuard';
 
 export interface PosViewProps {
   isActive?: boolean;
@@ -83,6 +96,11 @@ export interface PosViewProps {
 
 export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToEpay, onNavigateToWallets }) => {
   const { hasPermission, isAdmin } = useAuth();
+  // Mirrors the server-side discount permission checks in SaleService
+  const canDiscountInvoice = isAdmin || hasPermission('pos.discount_invoice');
+  const canDiscountLine = isAdmin || hasPermission('pos.discount_line');
+  // Mirrors the server: admin/root always may sell off-catalog prices, others need pos.price_override
+  const canOverridePrice = isAdmin || hasPermission('pos.price_override');
   const { isEnabled } = useFeatures();
   const showFastItems = isEnabled('feature_fast_buttons');
   const showCredit = isEnabled('feature_credit_debts');
@@ -124,6 +142,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [heldSalesCount, setHeldSalesCount] = useState<number>(0);
   const [isHeldSalesModalOpen, setIsHeldSalesModalOpen] = useState(false);
+  const [isRecallReplaceConfirmOpen, setIsRecallReplaceConfirmOpen] = useState(false);
+  const [heldPriceReview, setHeldPriceReview] = useState<{
+    items: CartItem[];
+    changes: HeldPriceChange[];
+    invoiceDiscountPiasters: number;
+  } | null>(null);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [currentShift, setCurrentShift] = useState<Shift | null>(null);
@@ -256,6 +280,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     title: string;
     description?: string;
     onApproved: (supervisorName?: string) => void;
+    onCancelled?: () => void;
   }>({
     isOpen: false,
     title: '',
@@ -317,6 +342,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setIsDdiOverridden(false);
     setIsDdiModalOpen(false);
     setIsDdiManagerOpen(false);
+    resetCartSession();
     try {
       localStorage.removeItem('rafiq_pos_cart_draft');
     } catch {
@@ -383,12 +409,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
     const qtyMilli = customWeightMilli !== undefined ? customWeightMilli : 1000;
     const factor = unitToUse && unitToUse.conversionFactor > 0 ? unitToUse.conversionFactor : 1;
-    const baseSellingPrice = (isEnabled('feature_batch_pricing') && prod.suggestedBatchSellPricePiasters && prod.suggestedBatchSellPricePiasters > 0)
-      ? prod.suggestedBatchSellPricePiasters
-      : prod.pricePiasters;
-    const unitPrice = unitToUse 
-      ? (unitToUse.sellPricePiasters > 0 ? unitToUse.sellPricePiasters : baseSellingPrice * factor)
-      : baseSellingPrice;
+    const unitPrice = resolveUnitSellPrice(resolveBaseSellPrice(prod, isEnabled('feature_batch_pricing')), unitToUse);
     const unitCost = unitToUse 
       ? (unitToUse.costPricePiasters > 0 ? unitToUse.costPricePiasters : prod.costPiasters * factor)
       : prod.costPiasters;
@@ -424,7 +445,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     const totalRequestedBaseMilli = (existingBaseMilli - currentItemBaseMilli) + newItemBaseMilli;
     const availableStockMilli = prod.stockQuantityMilli ?? 0;
 
-    if (!allowNegativeStock) {
+    if (enforcesOwnStock(allowNegativeStock, prod)) {
       if (availableStockMilli <= 0) {
         if (isEnabled('feature_pharmacy')) {
           showStatus(`الصنف "${prod.name}" رصيده في المخزن 0 (نافد)! تم فتح محرك البدائل المتوفرة لاختيار بديل مناسب.`, 'warning');
@@ -486,6 +507,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         taxPiasters: calculateTaxPiasters(totalPiasters, taxRate, true),
         taxRatePercent: taxRate,
         stockQuantityMilli: prod.stockQuantityMilli,
+        consumesIngredientsOnSale: prod.consumesIngredientsOnSale,
         unit: unitName,
         unitName: unitName,
         unitId: unitId,
@@ -549,7 +571,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const newFactor = targetUnit.conversionFactor > 0 ? targetUnit.conversionFactor : 1;
 
       // Upfront Stock Check when changing unit
-      if (!allowNegativeStock) {
+      if (enforcesOwnStock(allowNegativeStock, item)) {
         const otherCartBaseMilli = prev.reduce((sum, it, i) => {
           if (i !== index && it.productId === item.productId) {
             const itFactor = it.conversionFactor && it.conversionFactor > 0 ? it.conversionFactor : 1;
@@ -632,10 +654,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       it.discountPiasters = itemDiscountPiasters;
       it.totalPiasters = calculateLineTotal(it.unitPricePiasters, it.quantityMilli, it.discountPiasters);
       it.taxPiasters = calculateTaxPiasters(it.totalPiasters, it.taxRatePercent || 0, true);
-
-      const sumItemDiscounts = updated.reduce((sum, item) => sum + (item.discountPiasters || 0), 0);
-      setDiscountPiasters(sumItemDiscounts);
-
+      // Line discounts stay on the item; discountPiasters is the invoice-level discount only
       return updated;
     });
 
@@ -792,7 +811,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     try {
       const updatedSale = await invoke<HeldSale>('tables:updateOrder', {
         tableId: activeTable.id,
-        cartJson: JSON.stringify(cart),
+        cartJson: serializeHeldCart(cart),
         subtotalPiasters,
         discountPiasters,
         serviceChargePiasters,
@@ -835,7 +854,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       if (orderType === 'dine_in' && activeTable && !currentHeldId) {
         const saved = await invoke<HeldSale>('tables:updateOrder', {
           tableId: activeTable.id,
-          cartJson: JSON.stringify(cart),
+          cartJson: serializeHeldCart(cart),
           subtotalPiasters,
           discountPiasters,
           serviceChargePiasters,
@@ -898,7 +917,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const cust = customers.find(c => c.id === selectedCustomerId);
       await invoke('sales:hold', {
         items: cart,
-        cartJson: JSON.stringify(cart),
+        cartJson: serializeHeldCart(cart),
         itemsCount: cart.length,
         subtotalPiasters,
         discountPiasters,
@@ -909,6 +928,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setCart([]);
       setDiscountPiasters(0);
       setSelectedCustomerId('');
+      resetCartSession();
       try {
         localStorage.removeItem('rafiq_pos_cart_draft');
       } catch {
@@ -923,65 +943,112 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setLoading(false);
       barcodeInputRef.current?.focus();
     }
-  }, [cart, subtotalPiasters, discountPiasters, selectedCustomerId, customers, netTotalPiasters, loadHeldSalesCount, showStatus]);
+  }, [cart, subtotalPiasters, discountPiasters, selectedCustomerId, customers, netTotalPiasters, loadHeldSalesCount, resetCartSession, showStatus]);
+
+  // Supervisor approvals belong to the original cart session, so a recalled invoice discount is re-approved here
+  const applyRecalledInvoiceDiscount = useCallback((items: CartItem[], heldInvoiceDiscount: number) => {
+    const heldGross = items.reduce((sum, it) => sum + Math.round((it.unitPricePiasters * it.quantityMilli) / 1000), 0);
+    const heldTotalDiscount = heldInvoiceDiscount + items.reduce((sum, it) => sum + (it.discountPiasters || 0), 0);
+    const exceedsCashierLimit = currentUserRole === 'cashier' && heldGross > 0 &&
+      (heldTotalDiscount * 100 > maxDiscountPercentCashier * heldGross || heldTotalDiscount > maxDiscountAmountCashierPiasters);
+    if (heldInvoiceDiscount > 0 && (!canDiscountInvoice || exceedsCashierLimit)) {
+      setDiscountPiasters(0);
+      setSupervisorPrompt({
+        isOpen: true,
+        title: 'اعتماد خصم الفاتورة المعلقة',
+        description: `الفاتورة المسترجعة عليها خصم ${formatArabicCurrency(heldInvoiceDiscount)} يحتاج اعتماد المشرف مرة أخرى. عند الإلغاء تُسترجع الفاتورة بدون هذا الخصم.`,
+        onApproved: () => setDiscountPiasters(heldInvoiceDiscount),
+      });
+    } else {
+      setDiscountPiasters(heldInvoiceDiscount);
+    }
+  }, [currentUserRole, maxDiscountPercentCashier, maxDiscountAmountCashierPiasters, canDiscountInvoice]);
 
   const handleRecallHeldSale = useCallback((heldSale: HeldSale) => {
-    let itemsToRestore: CartItem[] = [];
+    let heldLines: Array<CartItem & { heldFormatVersion?: number }> = [];
     if (Array.isArray(heldSale.items) && heldSale.items.length > 0) {
-      itemsToRestore = heldSale.items as CartItem[];
+      heldLines = heldSale.items as CartItem[];
     } else if (heldSale.cartJson) {
       try {
         const parsed = JSON.parse(heldSale.cartJson);
-        if (Array.isArray(parsed)) itemsToRestore = parsed as CartItem[];
+        if (Array.isArray(parsed)) heldLines = parsed as CartItem[];
       } catch {
         // ignore
       }
     }
-    if (itemsToRestore.length > 0) {
-      // Scenario 1: Refresh prices from catalog if changed while on hold, preserving weights & discounts
-      let priceChangedCount = 0;
-      const priceChangeNotes: string[] = [];
-      const refreshedItems = itemsToRestore.map((it) => {
-        const liveProd = catalogProducts.find((p) => p.id === it.productId);
-        if (liveProd && liveProd.pricePiasters > 0) {
-          let expectedUnitPrice = liveProd.pricePiasters;
-          if (it.conversionFactor && it.conversionFactor > 1) {
-            expectedUnitPrice = liveProd.pricePiasters * it.conversionFactor;
-          }
-          if (it.unitPricePiasters !== expectedUnitPrice) {
-            priceChangedCount++;
-            priceChangeNotes.push(`${it.productName || liveProd.name}: من ${(it.unitPricePiasters / 100).toFixed(2)} إلى ${(expectedUnitPrice / 100).toFixed(2)} ج.م`);
-            const newTotal = calculateLineTotal(expectedUnitPrice, it.quantityMilli, it.discountPiasters || 0);
-            const newTax = calculateTaxPiasters(newTotal, it.taxRatePercent || 0, true);
-            return {
-              ...it,
-              unitPricePiasters: expectedUnitPrice,
-              totalPiasters: newTotal,
-              taxPiasters: newTax,
-            };
-          }
-        }
-        return it;
-      });
+    if (heldLines.length === 0) return;
 
-      setCart(refreshedItems);
-      setDiscountPiasters(heldSale.discountPiasters || 0);
-      if (heldSale.customerId) {
-        setSelectedCustomerId(heldSale.customerId);
-      }
-      resetCartSession();
-      if (priceChangedCount > 0) {
-        showStatus(
-          `تم استرجاع الفاتورة المعلقة وتحديث أسعار ${priceChangedCount} صنف لأسعار الكتالوج الحالية (${priceChangeNotes.slice(0, 2).join('، ')})`,
-          'warning'
-        );
-      } else {
-        showStatus(`تم استرجاع الفاتورة المعلقة بنجاح (${refreshedItems.length} صنف)`, 'success');
-      }
-      void loadHeldSalesCount();
-      barcodeInputRef.current?.focus();
+    // Owner rule: a recalled sale keeps the prices it was held with; catalog changes are only offered, never applied silently
+    const heldInvoiceDiscount = resolveHeldInvoiceDiscount(heldLines, heldSale.discountPiasters);
+    const itemsToRestore: CartItem[] = stripHeldCartMarker(heldLines);
+    const priceChanges = findHeldPriceChanges(itemsToRestore, catalogProducts, isEnabled('feature_batch_pricing'));
+
+    setCart(itemsToRestore);
+    setDiscountPiasters(0);
+    setSelectedCustomerId(heldSale.customerId || '');
+    resetCartSession();
+    void loadHeldSalesCount();
+
+    if (priceChanges.length > 0) {
+      setHeldPriceReview({ items: itemsToRestore, changes: priceChanges, invoiceDiscountPiasters: heldInvoiceDiscount });
+      return;
     }
-  }, [catalogProducts, loadHeldSalesCount, resetCartSession, showStatus]);
+    applyRecalledInvoiceDiscount(itemsToRestore, heldInvoiceDiscount);
+    showStatus(`تم استرجاع الفاتورة المعلقة بنجاح (${itemsToRestore.length} صنف)`, 'success');
+    barcodeInputRef.current?.focus();
+  }, [catalogProducts, isEnabled, loadHeldSalesCount, resetCartSession, showStatus, applyRecalledInvoiceDiscount]);
+
+  const updateRecalledToCurrentPrices = useCallback((review: NonNullable<typeof heldPriceReview>, message: string) => {
+    const repriced = applyCurrentPrices(review.items, review.changes);
+    setCart(repriced);
+    applyRecalledInvoiceDiscount(repriced, review.invoiceDiscountPiasters);
+    showStatus(message, 'warning');
+    barcodeInputRef.current?.focus();
+  }, [applyRecalledInvoiceDiscount, showStatus]);
+
+  const keepRequiresApproval = heldPriceReview !== null &&
+    keepHeldPricesRequiresApproval(heldPriceReview.changes, canOverridePrice);
+
+  const handleKeepHeldPrices = useCallback(() => {
+    if (!heldPriceReview) return;
+    const review = heldPriceReview;
+    setHeldPriceReview(null);
+    const keepHeld = () => {
+      applyRecalledInvoiceDiscount(review.items, review.invoiceDiscountPiasters);
+      showStatus('تم استرجاع الفاتورة المعلقة بأسعار التعليق الأصلية', 'success');
+      barcodeInputRef.current?.focus();
+    };
+    if (!keepHeldPricesRequiresApproval(review.changes, canOverridePrice)) {
+      keepHeld();
+      return;
+    }
+    // Server price authority accepts non-catalog prices from this user only with the verified supervisor PIN sent at checkout
+    setSupervisorPrompt({
+      isOpen: true,
+      title: 'اعتماد البيع بأسعار الفاتورة المعلقة',
+      description: `${review.changes.length} صنف سعره الحالي مختلف عن سعر التعليق. البيع بسعر التعليق يحتاج اعتماد المشرف.`,
+      onApproved: keepHeld,
+      onCancelled: () => updateRecalledToCurrentPrices(
+        review,
+        'لم يتم اعتماد أسعار التعليق، فتم تحديث الأصناف للأسعار الحالية في الكتالوج'
+      ),
+    });
+  }, [heldPriceReview, canOverridePrice, applyRecalledInvoiceDiscount, showStatus, updateRecalledToCurrentPrices]);
+
+  const handleUpdateHeldToCurrentPrices = useCallback(() => {
+    if (!heldPriceReview) return;
+    const review = heldPriceReview;
+    setHeldPriceReview(null);
+    updateRecalledToCurrentPrices(review, `تم تحديث أسعار ${review.changes.length} صنف للأسعار الحالية بموافقة الكاشير`);
+  }, [heldPriceReview, updateRecalledToCurrentPrices]);
+
+  const requestOpenHeldSales = useCallback(() => {
+    if (cart.length > 0) {
+      setIsRecallReplaceConfirmOpen(true);
+      return;
+    }
+    setIsHeldSalesModalOpen(true);
+  }, [cart.length]);
 
   // Load customers for selection
   const loadCustomers = useCallback(async () => {
@@ -1409,7 +1476,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       if (!item) return prev;
       const factor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
 
-      if (!allowNegativeStock) {
+      if (enforcesOwnStock(allowNegativeStock, item)) {
         const otherCartBaseMilli = prev.reduce((sum, it, i) => {
           if (i !== index && it.productId === item.productId) {
             const itFactor = it.conversionFactor && it.conversionFactor > 0 ? it.conversionFactor : 1;
@@ -1882,7 +1949,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const newPieces = Math.max(1, currentPieces + deltaPieces);
       const factor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
 
-      if (!allowNegativeStock && deltaPieces > 0) {
+      if (enforcesOwnStock(allowNegativeStock, item) && deltaPieces > 0) {
         const otherCartBaseMilli = prev.reduce((sum, it, i) => {
           if (i !== index && it.productId === item.productId) {
             const itFactor = it.conversionFactor && it.conversionFactor > 0 ? it.conversionFactor : 1;
@@ -2260,6 +2327,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     isQuickFastItemModalOpen ||
     isHelpModalOpen ||
     isHeldSalesModalOpen ||
+    isRecallReplaceConfirmOpen ||
+    heldPriceReview !== null ||
     isReturnModalOpen ||
     isShiftModalOpen ||
     isDiscountModalOpen ||
@@ -2548,7 +2617,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             lastInvoiceNumber={lastInvoiceNumber}
             totalItemCount={totalItemCount}
             subtotalPiasters={subtotalPiasters}
-            discountPiasters={discountPiasters}
+            discountPiasters={totalDiscountPiasters}
             totalTaxPiasters={totalTaxPiasters}
             showTaxes={showTaxes}
             selectedCustomerId={selectedCustomerId}
@@ -2562,7 +2631,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             requestClearCart={requestClearCart}
             handleHoldCurrentSale={handleHoldCurrentSale}
             heldSalesCount={heldSalesCount}
-            onOpenHeldSales={() => setIsHeldSalesModalOpen(true)}
+            onOpenHeldSales={requestOpenHeldSales}
             onOpenReturnModal={() => setIsReturnModalOpen(true)}
             onOpenExpenseModal={() => setIsExpenseModalOpen(true)}
             activeInsuranceClaim={activeInsuranceClaim}
@@ -2726,7 +2795,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         totalItemCount={totalItemCount}
         subtotalPiasters={subtotalPiasters}
         discountPiasters={discountPiasters}
-        onDiscountChange={setDiscountPiasters}
+        onDiscountChange={canDiscountInvoice ? setDiscountPiasters : undefined}
         netTotalPiasters={netTotalPiasters}
         selectedCustomerId={selectedCustomerId}
         onCustomerChange={(id) => {
@@ -2752,7 +2821,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         itemCount={cart.length}
         totalItemCount={totalItemCount}
         subtotalPiasters={subtotalPiasters}
-        discountPiasters={discountPiasters}
+        discountPiasters={totalDiscountPiasters}
         netTotalPiasters={netTotalPiasters}
         selectedCustomerId={selectedCustomerId}
         onCustomerChange={setSelectedCustomerId}
@@ -2802,6 +2871,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         }}
         subtotalPiasters={subtotalPiasters}
         currentUserRole={currentUserRole}
+        canDiscountInvoice={canDiscountInvoice}
         maxDiscountPercentCashier={maxDiscountPercentCashier}
         maxDiscountAmountCashierPiasters={maxDiscountAmountCashierPiasters}
         onApplyDiscount={handleApplyInvoiceDiscount}
@@ -2837,6 +2907,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           item={cart[selectedDiscountItemIndex] || null}
           itemIndex={selectedDiscountItemIndex}
           userRole={currentUserRole}
+          canDiscountLine={canDiscountLine}
           maxPercentWithoutPin={maxDiscountPercentCashier}
           maxAmountWithoutPinPiasters={maxDiscountAmountCashierPiasters}
           onClose={() => {
@@ -2863,6 +2934,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       <SupervisorPromptModal
         isOpen={supervisorPrompt.isOpen}
         actionTitle={supervisorPrompt.title}
+        actionDescription={supervisorPrompt.description}
         onApproved={(supervisorName, verifiedPin) => {
           if (verifiedPin) {
             supervisorPinRef.current = verifiedPin;
@@ -2873,7 +2945,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           cb(supervisorName);
         }}
         onCancel={() => {
+          const onCancelled = supervisorPrompt.onCancelled;
           setSupervisorPrompt({ isOpen: false, title: '', onApproved: () => {} });
+          onCancelled?.();
         }}
       />
 
@@ -2889,6 +2963,31 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         onHeldSalesChanged={() => {
           void loadHeldSalesCount();
         }}
+      />
+
+      <ConfirmModal
+        isOpen={isRecallReplaceConfirmOpen}
+        title="السلة الحالية غير فارغة"
+        message="استرجاع فاتورة معلقة سيستبدل الأصناف الموجودة في السلة الآن بالكامل."
+        consequence={`سيتم فقد ${cart.length} صنف/أصناف من السلة الحالية عند الاسترجاع. لحفظها اضغط تراجع ثم علّقها أولاً (F6).`}
+        confirmText="متابعة لاختيار فاتورة معلقة"
+        cancelText="تراجع"
+        isDanger={true}
+        onConfirm={() => {
+          setIsRecallReplaceConfirmOpen(false);
+          setIsHeldSalesModalOpen(true);
+        }}
+        onCancel={() => {
+          setIsRecallReplaceConfirmOpen(false);
+          barcodeInputRef.current?.focus();
+        }}
+      />
+
+      <HeldSalePriceReviewModal
+        changes={heldPriceReview ? heldPriceReview.changes : null}
+        keepRequiresApproval={keepRequiresApproval}
+        onKeepHeldPrices={handleKeepHeldPrices}
+        onUpdateToCurrentPrices={handleUpdateHeldToCurrentPrices}
       />
 
       {/* 15. SALES RETURN MODAL (Feature #26 / Tasks 26-1 to 26-7) */}

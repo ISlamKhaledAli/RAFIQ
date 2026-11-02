@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text;
 using Microsoft.Win32;
 using RafiqPOS.Common;
@@ -808,6 +809,42 @@ namespace RafiqPOS.Services
             return null;
         }
 
+        /// <summary>
+        /// True only when the file is a v2 dual-wrap Rafiq backup whose recovery slot opens with this owner recovery code.
+        /// The device key is deliberately not tried: this proves knowledge of the code, not possession of the machine.
+        /// </summary>
+        public static bool CanUnlockWithRecoveryCode(string encryptedPath, string recoveryCode)
+        {
+            if (string.IsNullOrWhiteSpace(recoveryCode) || string.IsNullOrEmpty(encryptedPath) || !File.Exists(encryptedPath))
+            {
+                return false;
+            }
+
+            byte[] headerPreHmac = new byte[118];
+            byte[] storedHeaderHmac = new byte[32];
+            using (var fs = new FileStream(encryptedPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                if (fs.Read(headerPreHmac, 0, 118) < 118 || fs.Read(storedHeaderHmac, 0, 32) < 32)
+                {
+                    return false;
+                }
+            }
+            for (int i = 0; i < RFBK_MAGIC.Length; i++)
+            {
+                if (headerPreHmac[i] != RFBK_MAGIC[i]) return false;
+            }
+
+            byte[] recoverySalt = new byte[16];
+            Buffer.BlockCopy(headerPreHmac, 6, recoverySalt, 0, 16);
+            byte[] recoveryWrappedKey = new byte[48];
+            Buffer.BlockCopy(headerPreHmac, 70, recoveryWrappedKey, 0, 48);
+
+            byte[] recAes;
+            byte[] recHmac;
+            DeriveKeyFromRecoveryCode(recoveryCode, recoverySalt, out recAes, out recHmac);
+            return TryUnwrapDataKey(recoveryWrappedKey, recAes, headerPreHmac, storedHeaderHmac) != null;
+        }
+
         private void DecryptFileLegacy(FileStream sourceStream, string targetDecryptedPath, string fallbackKeyOrPassword)
         {
             byte[] header = new byte[MAGIC_HEADER.Length];
@@ -937,6 +974,9 @@ namespace RafiqPOS.Services
             }
         }
 
+        // Downgrades explicit FullControl grants for broad groups (Users/Everyone/Authenticated Users) to Modify,
+        // so standard users can still read/write the database but can no longer rewrite the folder ACL or take ownership.
+        // Needs WRITE_DAC; on installs where the installer already applied users-modify this is a no-op.
         public static void ProtectDatabaseFolderAcl(string folderPath)
         {
             try
@@ -947,14 +987,50 @@ namespace RafiqPOS.Services
                 }
 
                 var dInfo = new DirectoryInfo(folderPath);
-                var dSecurity = dInfo.GetAccessControl();
-                dSecurity.SetAccessRuleProtection(false, true);
-                dInfo.SetAccessControl(dSecurity);
+                DirectorySecurity dSecurity = dInfo.GetAccessControl(AccessControlSections.Access);
+                AuthorizationRuleCollection rules = dSecurity.GetAccessRules(true, false, typeof(SecurityIdentifier));
+                const FileSystemRights dangerousRights = FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership;
+                bool changed = false;
+
+                foreach (FileSystemAccessRule rule in rules)
+                {
+                    if (rule.AccessControlType != AccessControlType.Allow) continue;
+                    SecurityIdentifier sid = rule.IdentityReference as SecurityIdentifier;
+                    if (sid == null || !IsBroadGroupSid(sid)) continue;
+                    if ((rule.FileSystemRights & dangerousRights) == 0) continue;
+
+                    dSecurity.RemoveAccessRuleSpecific(rule);
+                    dSecurity.AddAccessRule(new FileSystemAccessRule(
+                        sid,
+                        FileSystemRights.Modify | FileSystemRights.Synchronize,
+                        rule.InheritanceFlags,
+                        rule.PropagationFlags,
+                        AccessControlType.Allow));
+                    changed = true;
+                }
+
+                if (changed)
+                {
+                    dInfo.SetAccessControl(dSecurity);
+                    Logger.Info("تم تقليص صلاحيات المستخدمين على مجلد البيانات من تحكم كامل إلى تعديل فقط.");
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Standard users cannot change the ACL set by the installer; that ACL is already the hardened one
+                Logger.Info("صلاحيات مجلد البيانات مُدارة من برنامج التثبيت ولا تحتاج تعديلاً.");
             }
             catch (Exception ex)
             {
                 Logger.Warn("تعذر تعيين قيود الأمان المتقدمة على مجلد البيانات: " + ex.Message);
             }
+        }
+
+        private static bool IsBroadGroupSid(SecurityIdentifier sid)
+        {
+            return sid.IsWellKnown(WellKnownSidType.BuiltinUsersSid)
+                || sid.IsWellKnown(WellKnownSidType.WorldSid)
+                || sid.IsWellKnown(WellKnownSidType.AuthenticatedUserSid);
         }
 
 

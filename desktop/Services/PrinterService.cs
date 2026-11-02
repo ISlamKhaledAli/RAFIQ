@@ -922,17 +922,27 @@ namespace RafiqPOS.Services
                 g.DrawLine(penSolid, 5, y + 2, contentWidth - 5, y + 2);
                 y += 5;
 
-                if (sale.DiscountPiasters > 0 || sale.TaxPiasters > 0 || sale.ServiceChargePiasters > 0 || sale.DeliveryFeePiasters > 0)
+                // Receipt discount = invoice-level discount + every line discount, so subtotal - discount matches the item lines
+                long receiptDiscountPiasters = sale.DiscountPiasters;
+                if (sale.Items != null)
+                {
+                    for (int di = 0; di < sale.Items.Count; di++)
+                    {
+                        receiptDiscountPiasters += sale.Items[di].DiscountPiasters;
+                    }
+                }
+
+                if (receiptDiscountPiasters > 0 || sale.TaxPiasters > 0 || sale.ServiceChargePiasters > 0 || sale.DeliveryFeePiasters > 0)
                 {
                     g.DrawString("المجموع الفرعي:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
                     g.DrawString((sale.SubtotalPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
                     y += 17;
                 }
 
-                if (sale.DiscountPiasters > 0)
+                if (receiptDiscountPiasters > 0)
                 {
                     g.DrawString("قيمة الخصم:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
-                    g.DrawString("-" + (sale.DiscountPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
+                    g.DrawString("-" + (receiptDiscountPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
                     y += 17;
                 }
 

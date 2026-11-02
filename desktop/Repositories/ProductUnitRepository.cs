@@ -405,6 +405,28 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        // Stock, costs and every unit factor are expressed in the current base unit; promoting a unit with a
+                        // factor above 1 would silently rescale them, so only another factor-1 unit may become the base.
+                        using (var factorCmd = new SQLiteCommand("SELECT conversion_factor, unit_name FROM product_units WHERE id = @unitId AND product_id = @productId;", conn, trans))
+                        {
+                            factorCmd.Parameters.AddWithValue("@unitId", unitId.Trim());
+                            factorCmd.Parameters.AddWithValue("@productId", productId.Trim());
+                            using (var reader = factorCmd.ExecuteReader())
+                            {
+                                if (!reader.Read())
+                                {
+                                    throw new InvalidOperationException("الوحدة المحددة غير تابعة لهذا المنتج");
+                                }
+                                int factor = Convert.ToInt32(reader["conversion_factor"]);
+                                if (factor != 1)
+                                {
+                                    throw new InvalidOperationException(string.Format(
+                                        "لا يمكن جعل الوحدة ({0}) وحدة أساسية لأن معامل تحويلها {1}؛ رصيد الصنف وتكلفته ومعاملات باقي الوحدات محسوبة بالوحدة الأساسية الحالية وسيتغير معناها. عدّل الوحدات من بطاقة الصنف أو أنشئ صنفاً جديداً بالوحدة المطلوبة.",
+                                        reader["unit_name"], factor));
+                                }
+                            }
+                        }
+
                         string now = DateTime.UtcNow.ToString("o");
                         string resetSql = "UPDATE product_units SET is_base_unit = 0 WHERE product_id = @productId;";
                         using (var cmd = new SQLiteCommand(resetSql, conn, trans))
@@ -413,7 +435,7 @@ namespace RafiqPOS.Repositories
                             cmd.ExecuteNonQuery();
                         }
 
-                        string setSql = "UPDATE product_units SET is_base_unit = 1, conversion_factor = 1, updated_at = @now WHERE id = @unitId AND product_id = @productId;";
+                        string setSql = "UPDATE product_units SET is_base_unit = 1, updated_at = @now WHERE id = @unitId AND product_id = @productId;";
                         using (var cmd = new SQLiteCommand(setSql, conn, trans))
                         {
                             cmd.Parameters.AddWithValue("@unitId", unitId.Trim());

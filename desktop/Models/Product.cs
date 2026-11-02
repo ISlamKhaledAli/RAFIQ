@@ -35,6 +35,10 @@ namespace RafiqPOS.Models
         [JsonProperty("originalStockQuantityMilli", NullValueHandling = NullValueHandling.Ignore)]
         public long? OriginalStockQuantityMilli { get; set; }
 
+        // Required when a product-card save changes the stock of an existing product (recorded on the ADJUSTMENT movement)
+        [JsonProperty("stockAdjustReason", NullValueHandling = NullValueHandling.Ignore)]
+        public string StockAdjustReason { get; set; }
+
         [JsonProperty("minStockQuantityMilli")]
         public long MinStockQuantityMilli { get; set; }
 
@@ -52,6 +56,10 @@ namespace RafiqPOS.Models
 
         [JsonProperty("isActive")]
         public bool IsActive { get; set; }
+
+        /// <summary>Menu item made from an active on-sale recipe: selling it consumes ingredients, not its own stock.</summary>
+        [JsonProperty("consumesIngredientsOnSale")]
+        public bool ConsumesIngredientsOnSale { get; set; }
 
         [JsonProperty("needsReview")]
         public bool NeedsReview { get; set; }

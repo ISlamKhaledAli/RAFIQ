@@ -14,6 +14,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
+import { getAllowedSettingsSubTabs } from '../utils/settingsAccess';
 import type { SystemInfo } from '../App';
 import { BackupManager } from '../components/BackupManager';
 import { rafiqAlert } from '../utils/dialogService';
@@ -48,14 +49,10 @@ export const SettingsView = ({
   onOpenLicenseModal, 
 }: SettingsViewProps) => {
   const { flags, toggleFlag } = useFeatures();
-  const { isRoot, hasPermission } = useAuth();
+  const { isRoot, isAdmin, hasPermission } = useAuth();
   const canManageFeatures = isRoot || hasPermission('settings.features');
-  const allowedSubTabs = isRoot 
-    ? ['profile', 'features', 'printer', 'scanner', 'security', 'backup', 'system', 'demo'] 
-    : (canManageFeatures 
-        ? ['profile', 'features', 'printer', 'backup'] 
-        : ['profile', 'printer', 'backup']);
-  const subTab = allowedSubTabs.includes(activeSubTab) ? activeSubTab : 'profile';
+  const allowedSubTabs = getAllowedSettingsSubTabs({ isRoot, isAdmin, hasPermission });
+  const subTab: SettingsSubTab = allowedSubTabs.includes(activeSubTab) ? activeSubTab : (allowedSubTabs[0] || 'profile');
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -261,14 +258,17 @@ export const SettingsView = ({
         receipt_footer: receiptFooter.trim(),
         show_receipt_logo: showReceiptLogo ? '1' : '0',
         store_logo_url: storeLogoUrl,
-        allow_negative_stock: allowNegativeStock ? '1' : '0',
-        require_open_shift_to_sell: requireOpenShiftToSell ? '1' : '0',
-        default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
         store_instapay_address: storeInstapayAddress.trim(),
         store_wallet_number: storeWalletNumber.trim(),
-        instapay_fee_percent: '0',
-        vodafone_cash_fee_percent: '0',
         logo_variant: logoVariant,
+        // Business-policy keys are admin-only on the server; staff with settings.store save the profile only
+        ...(isAdmin ? {
+          allow_negative_stock: allowNegativeStock ? '1' : '0',
+          require_open_shift_to_sell: requireOpenShiftToSell ? '1' : '0',
+          default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
+          instapay_fee_percent: '0',
+          vodafone_cash_fee_percent: '0',
+        } : {}),
         ...(isRoot ? { developer_signature: developerSignature.trim() } : {}),
       };
       await invoke('settings:save', payload);
@@ -309,49 +309,39 @@ export const SettingsView = ({
     }
   };
 
+  // Toggle auto-saves: on rejection (e.g. no permission) revert the switch and tell the user why
+  const autoSaveSetting = async (payload: Record<string, string>, revert: () => void, label: string) => {
+    try {
+      await invoke('settings:save', payload);
+    } catch (err: unknown) {
+      revert();
+      const msg = err instanceof Error ? err.message : String(err);
+      void rafiqAlert({ title: 'تعذر حفظ الإعداد', message: `${label}: ${msg}`, variant: 'error' });
+    }
+  };
+
   const handleToggleNegativeStock = async (newVal: boolean) => {
     setAllowNegativeStock(newVal);
-    try {
-      await invoke('settings:save', {
-        allow_negative_stock: newVal ? '1' : '0'
-      });
-    } catch (err) {
-      console.error('Failed to auto-save negative stock setting:', err);
-    }
+    await autoSaveSetting({ allow_negative_stock: newVal ? '1' : '0' }, () => setAllowNegativeStock(!newVal), 'السماح بالبيع بالسالب');
   };
 
   const handleToggleRequireShift = async (newVal: boolean) => {
     setRequireOpenShiftToSell(newVal);
-    try {
-      await invoke('settings:save', {
-        require_open_shift_to_sell: newVal ? '1' : '0'
-      });
-    } catch (err) {
-      console.error('Failed to auto-save require open shift setting:', err);
-    }
+    await autoSaveSetting({ require_open_shift_to_sell: newVal ? '1' : '0' }, () => setRequireOpenShiftToSell(!newVal), 'إلزام فتح وردية قبل البيع');
   };
 
   const handleToggleAutoPrint = async (newVal: boolean) => {
     setAutoPrintOnSale(newVal);
-    try {
-      localStorage.setItem('rafiq_pos_printer_auto_print', newVal ? '1' : '0');
-      await invoke('settings:save', {
-        printer_auto_print: newVal ? '1' : '0'
-      });
-    } catch (err) {
-      console.error('Failed to auto-save auto-print setting:', err);
-    }
+    localStorage.setItem('rafiq_pos_printer_auto_print', newVal ? '1' : '0');
+    await autoSaveSetting({ printer_auto_print: newVal ? '1' : '0' }, () => {
+      setAutoPrintOnSale(!newVal);
+      localStorage.setItem('rafiq_pos_printer_auto_print', newVal ? '0' : '1');
+    }, 'الطباعة التلقائية للفاتورة');
   };
 
   const handleToggleOpenDrawer = async (newVal: boolean) => {
     setOpenDrawerOnSale(newVal);
-    try {
-      await invoke('settings:save', {
-        printer_open_drawer: newVal ? '1' : '0'
-      });
-    } catch (err) {
-      console.error('Failed to auto-save open drawer setting:', err);
-    }
+    await autoSaveSetting({ printer_open_drawer: newVal ? '1' : '0' }, () => setOpenDrawerOnSale(!newVal), 'فتح الدرج تلقائياً');
   };
 
   const handleTestPrint = async () => {
@@ -587,6 +577,7 @@ export const SettingsView = ({
           storeWalletNumber={storeWalletNumber}
           setStoreWalletNumber={setStoreWalletNumber}
           isRoot={isRoot}
+          canEditStorePolicies={isAdmin}
           saveLoading={saveLoading}
           handleSave={handleSave}
           onOpenWizard={isRoot ? () => setIsWizardOpen(true) : undefined}

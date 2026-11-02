@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Smartphone, 
   Zap, 
@@ -41,6 +41,7 @@ import type {
   EpayServiceType, 
   EpayPaymentDestination
 } from '../../types/models';
+import { createAttemptKey } from '../../utils/idempotency';
 
 export type EpaySubTab = 'pos' | 'terminals' | 'history' | 'analytics';
 
@@ -105,6 +106,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
   }, [activeTabRaw, canAccessTerminals, canViewHistory, canViewAnalytics]);
 
   const [terminals, setTerminals] = useState<EpayTerminal[]>([]);
+  // A retry after a timeout reuses the key so a terminal operation or funding is never recorded twice
+  const txAttemptRef = useRef(createAttemptKey('epay'));
+  const fundAttemptRef = useRef(createAttemptKey('fund'));
   const [transactions, setTransactions] = useState<EpayTransaction[]>([]);
   const [fundings, setFundings] = useState<EpayTerminalFunding[]>([]);
   const [analytics, setAnalytics] = useState<EpayAnalyticsSummary | null>(null);
@@ -361,9 +365,11 @@ export const EpayView: React.FC<EpayViewProps> = ({
         paymentChannel: paymentDestination,
         machineDeductedPiasters: deductedBalancePiasters,
         notes: notes.trim() || undefined,
+        idempotencyKey: txAttemptRef.current.current(),
       };
 
       const result = await invoke<EpayTransaction>('epay:createTransaction', payload);
+      txAttemptRef.current.complete();
       setSuccessMsg(`تم تنفيذ عملية "${serviceName}" بنجاح! صافي ربح المحل: ${formatArabicCurrency(netProfitPiasters)}`);
 
       if (autoPrintReceipt && result) {
@@ -440,7 +446,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
         amountPiasters: fundingAmountPiasters,
         fundingSource,
         notes: fundingNotes.trim() || undefined,
+        idempotencyKey: fundAttemptRef.current.current(),
       });
+      fundAttemptRef.current.complete();
 
       setSuccessMsg(`تمت تغذية رصيد الماكينة بمبلغ ${formatArabicCurrency(fundingAmountPiasters)} بنجاح`);
       setIsFundingModalOpen(false);

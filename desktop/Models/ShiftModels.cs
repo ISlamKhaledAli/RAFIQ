@@ -132,6 +132,12 @@ namespace RafiqPOS.Models
         [JsonProperty("performedByName")]
         public string PerformedByName { get; set; }
 
+        [JsonIgnore]
+        public string IdempotencyKey { get; set; }
+
+        [JsonIgnore]
+        public string IdempotencyFingerprint { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
     }
@@ -191,6 +197,10 @@ namespace RafiqPOS.Models
 
         [JsonProperty("performedByName")]
         public string PerformedByName { get; set; }
+
+        /// <summary>Client key per drawer movement attempt; a retried request returns the recorded movement.</summary>
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
     }
 
     public class ShiftSummary

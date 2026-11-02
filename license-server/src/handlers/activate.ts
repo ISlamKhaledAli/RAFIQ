@@ -2,6 +2,8 @@ import type { Env, ActivateRequest, LicenseRecord } from '../types.ts';
 import { validateClientApiKey } from '../auth.ts';
 import { signActivationToken } from '../crypto.ts';
 
+export const LICENSE_KEY_PATTERN = /^RFQ(-[A-Z0-9]{4}){3}$/;
+
 export async function handleActivate(request: Request, env: Env): Promise<Response> {
   // 1. Verify Client API Key
   if (!validateClientApiKey(request, env)) {
@@ -43,6 +45,18 @@ export async function handleActivate(request: Request, env: Env): Promise<Respon
         success: false,
         code: 'MISSING_FIELDS',
         message: 'رمز الترخيص وبصمة الجهاز كلاهما مطلوب لإتمام التفعيل',
+      }),
+      { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
+  }
+
+  // Reject malformed keys before they are logged or stored (prevents stored XSS in the admin dashboard)
+  if (!LICENSE_KEY_PATTERN.test(licenseKey)) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        code: 'INVALID_LICENSE_KEY',
+        message: 'صيغة رمز الترخيص غير صحيحة',
       }),
       { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
     );
@@ -127,20 +141,11 @@ export async function handleActivate(request: Request, env: Env): Promise<Respon
   }
 
   // 6. Handle Device Binding
-  const legacyFingerprint = (body.legacy_fingerprint || '').trim();
   let isReactivation = false;
   if (license.status === 'active') {
-    const isSameDevice = license.machine_fingerprint === machineFingerprint || 
-                         (legacyFingerprint && license.machine_fingerprint === legacyFingerprint);
-    if (isSameDevice) {
-      // Same device requesting reactivation / reinstall / salt migration
+    // A license is bound to exactly one fingerprint; any other fingerprint is a different device (admin reset required)
+    if (license.machine_fingerprint === machineFingerprint) {
       isReactivation = true;
-      if (legacyFingerprint && license.machine_fingerprint === legacyFingerprint && license.machine_fingerprint !== machineFingerprint) {
-        await env.DB.prepare('UPDATE licenses SET machine_fingerprint = ?, updated_at = datetime(\'now\') WHERE id = ?')
-          .bind(machineFingerprint, license.id)
-          .run();
-        license.machine_fingerprint = machineFingerprint;
-      }
     } else {
       // Bound to a different device!
       await logAudit('activate', 'failed', 'DEVICE_MISMATCH');

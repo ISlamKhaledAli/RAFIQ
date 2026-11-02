@@ -23,7 +23,8 @@ import { ExpiryReturnsModal } from '../components/ExpiryReturnsModal';
 import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
 import { type PurchasesSubView, type NewPurchaseLineItem } from './purchases/types';
-import { calculateLineTotal, normalizeArabicNumerals } from '../utils/money';
+import { normalizeArabicNumerals } from '../utils/money';
+import { computePurchaseLine, purchaseLinesTotal } from './purchases/purchaseLineMath';
 
 export { type PurchasesSubView } from './purchases/types';
 
@@ -320,9 +321,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   };
 
   // Calculations for New Purchase
-  const totalCostPiasters = useMemo(() => {
-    return lineItems.reduce((sum, item) => sum + Math.round(item.quantityUnits * item.unitCostPiasters), 0);
-  }, [lineItems]);
+  const totalCostPiasters = useMemo(() => purchaseLinesTotal(lineItems), [lineItems]);
 
   const netCostPiasters = useMemo(() => {
     return Math.max(0, totalCostPiasters - discountPiasters);
@@ -371,10 +370,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
 
     try {
       const itemsPayload: Partial<PurchaseItem>[] = lineItems.map((item) => {
-        const packSize = parseInt(item.packSizeInput || '', 10) || (item.packSize || 1);
-        const cartons = parseInt(item.cartonsInput || '', 10) || (item.cartonsCount || 0);
-        const hasCartonData = cartons > 0 && packSize > 1;
-        const bonusQty = Math.round((item.bonusQuantityUnits || 0) * 1000);
+        const amounts = computePurchaseLine(item);
         const distBps = typeof item.distributorDiscountPercent === 'number' && !isNaN(item.distributorDiscountPercent)
           ? Math.round(item.distributorDiscountPercent * 100)
           : undefined;
@@ -383,10 +379,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           productId: item.productId,
           productName: item.productName,
           barcode: item.barcode,
-          quantityMilli: Math.round(item.quantityUnits * 1000),
-          bonusQuantityMilli: bonusQty > 0 ? bonusQty : 0,
-          unitCostPiasters: item.unitCostPiasters,
-          totalCostPiasters: calculateLineTotal(item.unitCostPiasters, Math.round(item.quantityUnits * 1000)),
+          quantityMilli: amounts.quantityMilli,
+          bonusQuantityMilli: amounts.bonusQuantityMilli,
+          unitCostPiasters: amounts.unitCostPiasters,
+          totalCostPiasters: amounts.lineGrossPiasters,
           previousCostPiasters: item.currentCostPiasters,
           newSellingPricePiasters: item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters : undefined,
           publicPricePiasters: (item.publicPricePiasters && item.publicPricePiasters > 0) ? item.publicPricePiasters : undefined,
@@ -396,8 +392,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           productionDate: item.productionDate?.trim() || undefined,
           unitId: item.unit,
           unitName: item.unit,
-          conversionFactor: hasCartonData ? packSize : 1,
-          packageCostPiasters: hasCartonData ? Math.round(item.unitCostPiasters * packSize) : item.unitCostPiasters,
+          conversionFactor: amounts.conversionFactor,
+          packageCostPiasters: amounts.packageCostPiasters,
         };
       });
 
@@ -410,6 +406,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           discountPiasters,
           netCostPiasters,
           paidAmountPiasters,
+          // Fully paid: the server sets paid = its own computed net, so a rounding difference can never block or create debt
+          payInFull: paymentMode === 'PAID' && customPaidAmountPiasters === null,
           remainingAmountPiasters,
           paymentStatus:
             paidAmountPiasters > netCostPiasters

@@ -33,7 +33,7 @@ namespace RafiqPOS.Services
     {
         public bool IsActive { get; set; }
         public bool IsExpired { get; set; }
-        public string Status { get; set; } // "active", "warning", "expired", "disabled", "trial", "transferred"
+        public string Status { get; set; } // "active", "warning", "expired", "disabled", "trial", "transferred", "mismatched"
         public string StatusLabel { get; set; }
         public int DaysRemaining { get; set; }
         public string ExpiresAt { get; set; }
@@ -78,6 +78,9 @@ namespace RafiqPOS.Services
             }
         }
 
+
+        private const string DEVICE_MISMATCH_STATUS = "mismatched";
+        private const string DEVICE_MISMATCH_MESSAGE = "هذا الترخيص مربوط بجهاز آخر لدى سيرفر التراخيص، لذلك تم إيقاف البيع على هذا الجهاز. يرجى التواصل مع الدعم الفني لرفيق لفك الربط أو نقل الترخيص.";
 
         public LicenseService(SettingsRepository settingsRepo, AuditLogService auditService)
         {
@@ -195,6 +198,13 @@ namespace RafiqPOS.Services
                 isExpired = true;
                 daysRemaining = 0;
                 statusLabel = "ترخيص معطل أو ملغي من الإدارة";
+            }
+            else if (status == DEVICE_MISMATCH_STATUS)
+            {
+                isActive = false;
+                isExpired = true;
+                daysRemaining = 0;
+                statusLabel = DEVICE_MISMATCH_MESSAGE;
             }
             else if (verified == null)
             {
@@ -317,8 +327,8 @@ namespace RafiqPOS.Services
             {
                 expiryStatus = info.Status == "disabled" 
                     ? "disabled" 
-                    : (info.Status == "transferred" 
-                        ? "transferred" 
+                    : (info.Status == "transferred" || info.Status == DEVICE_MISMATCH_STATUS
+                        ? info.Status
                         : (info.Status == "unlicensed" ? "unlicensed" : "expired"));
 
                 // If expired locally and has a key, trigger background online check so extensions reflect automatically
@@ -382,7 +392,17 @@ namespace RafiqPOS.Services
         public bool IsLicenseExpired()
         {
             LicenseInfo info = GetLicenseInfo();
-            return !info.IsActive || info.IsExpired || info.ClockTampered || info.Status == "expired" || info.Status == "disabled" || info.Status == "transferred";
+            return !info.IsActive || info.IsExpired || info.ClockTampered || info.Status == "expired" || info.Status == "disabled" || info.Status == "transferred" || info.Status == DEVICE_MISMATCH_STATUS;
+        }
+
+        // Message shown when commercial actions are blocked by the license state
+        public string GetBlockedActionMessage()
+        {
+            if (GetLicenseInfo().Status == DEVICE_MISMATCH_STATUS)
+            {
+                return DEVICE_MISMATCH_MESSAGE;
+            }
+            return "انتهت فترة اشتراك البرنامج أو تم إيقافه. يرجى تجديد الترخيص لاستكمال عمليات البيع والأنشطة التجارية.";
         }
 
         public void RecordKnownUtc()
@@ -441,7 +461,6 @@ namespace RafiqPOS.Services
                 {
                     license_key = cleanKey,
                     machine_fingerprint = fp,
-                    legacy_fingerprint = EncryptionService.GenerateLegacyDeviceFingerprint(),
                     device_name = machineName,
                     app_version = "1.0.0"
                 };
@@ -572,8 +591,7 @@ namespace RafiqPOS.Services
                 {
                     token = token,
                     license_key = key,
-                    machine_fingerprint = fp,
-                    legacy_fingerprint = EncryptionService.GenerateLegacyDeviceFingerprint()
+                    machine_fingerprint = fp
                 };
 
                 byte[] postBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(payload));
@@ -646,6 +664,11 @@ namespace RafiqPOS.Services
                             {
                                 _settingsRepo.Set("license_status", "expired");
                             }
+                            else if (errCode == "DEVICE_MISMATCH")
+                            {
+                                // License is bound to another machine on the server: block selling but keep key/token for support
+                                MarkDeviceMismatch();
+                            }
 
                             result.Success = false;
                             result.Code = errCode;
@@ -675,6 +698,18 @@ namespace RafiqPOS.Services
 
             result.License = GetLicenseInfo();
             return result;
+        }
+
+        private void MarkDeviceMismatch()
+        {
+            InvalidateCache();
+            // A local transfer is final; the server mismatch must not overwrite it
+            if (_settingsRepo.Get("license_status", "") == "transferred") return;
+            _settingsRepo.Set("license_status", DEVICE_MISMATCH_STATUS);
+            if (_auditService != null)
+            {
+                _auditService.Log("LICENSE_DEVICE_MISMATCH", "SYSTEM", "DEVICE_MISMATCH", "{\"reason\":\"DEVICE_MISMATCH\"}", "SYSTEM");
+            }
         }
 
         // Feature #150 / Task 150-1: Deactivate license on old machine for transfer

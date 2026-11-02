@@ -174,14 +174,14 @@ namespace RafiqPOS.Services
                     throw new InvalidOperationException("هذه الوردية مغلقة بالفعل ولا يمكن إعادة إغلاقها.");
                 }
 
-                // Calculate exact financial metrics
+                // The sealed totals must use the same [opened, closed) window that later recalculation uses
+                shift.ClosedAt = DateTime.UtcNow.ToString("o");
                 var summary = _shiftRepo.CalculateShiftMetrics(shift);
 
                 long actualCash = request.ActualCashPiasters;
                 long expectedCash = summary.ExpectedCashPiasters;
                 long difference = actualCash - expectedCash;
 
-                shift.ClosedAt = DateTime.UtcNow.ToString("o");
                 shift.Status = "closed";
                 shift.CashSalesPiasters = summary.CashSalesPiasters;
                 shift.CardSalesPiasters = summary.CardSalesPiasters;

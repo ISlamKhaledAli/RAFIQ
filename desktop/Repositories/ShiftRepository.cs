@@ -209,10 +209,10 @@ namespace RafiqPOS.Repositories
             string sql = @"
                 INSERT INTO cash_drawer_transactions (
                     id, shift_id, type, amount_piasters, reason,
-                    performed_by_id, performed_by_name, created_at
+                    performed_by_id, performed_by_name, idempotency_key, idempotency_fingerprint, created_at
                 ) VALUES (
                     @id, @shift_id, @type, @amount_piasters, @reason,
-                    @performed_by_id, @performed_by_name, @created_at
+                    @performed_by_id, @performed_by_name, @idemKey, @idemFp, @created_at
                 );
             ";
 
@@ -225,6 +225,8 @@ namespace RafiqPOS.Repositories
                 cmd.Parameters.AddWithValue("@reason", tx.Reason ?? "");
                 cmd.Parameters.AddWithValue("@performed_by_id", tx.PerformedById ?? "system");
                 cmd.Parameters.AddWithValue("@performed_by_name", tx.PerformedByName ?? "الكاشير");
+                cmd.Parameters.AddWithValue("@idemKey", (object)tx.IdempotencyKey ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@idemFp", (object)tx.IdempotencyFingerprint ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@created_at", tx.CreatedAt);
 
                 cmd.ExecuteNonQuery();
@@ -251,22 +253,43 @@ namespace RafiqPOS.Repositories
                     {
                         while (reader.Read())
                         {
-                            list.Add(new CashDrawerTransaction
-                            {
-                                Id = reader["id"].ToString(),
-                                ShiftId = reader["shift_id"].ToString(),
-                                Type = reader["type"].ToString(),
-                                AmountPiasters = Convert.ToInt64(reader["amount_piasters"]),
-                                Reason = reader["reason"].ToString(),
-                                PerformedById = reader["performed_by_id"].ToString(),
-                                PerformedByName = reader["performed_by_name"].ToString(),
-                                CreatedAt = reader["created_at"].ToString()
-                            });
+                            list.Add(MapDrawerTransaction(reader));
                         }
                     }
                 }
             }
             return list;
+        }
+
+        public CashDrawerTransaction GetDrawerTransactionById(string id)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("SELECT * FROM cash_drawer_transactions WHERE id = @id LIMIT 1;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", id);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        return reader.Read() ? MapDrawerTransaction(reader) : null;
+                    }
+                }
+            }
+        }
+
+        private static CashDrawerTransaction MapDrawerTransaction(SQLiteDataReader reader)
+        {
+            return new CashDrawerTransaction
+            {
+                Id = reader["id"].ToString(),
+                ShiftId = reader["shift_id"].ToString(),
+                Type = reader["type"].ToString(),
+                AmountPiasters = Convert.ToInt64(reader["amount_piasters"]),
+                Reason = reader["reason"].ToString(),
+                PerformedById = reader["performed_by_id"].ToString(),
+                PerformedByName = reader["performed_by_name"].ToString(),
+                CreatedAt = reader["created_at"].ToString()
+            };
         }
 
         public List<Shift> GetRecentShifts(int limit = 30)
@@ -354,7 +377,7 @@ namespace RafiqPOS.Repositories
                         ), 0) AS vodafone_cash_sales,
                         COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales
                     FROM sales s
-                    WHERE (s.shift_id = @shiftId OR (s.shift_id IS NULL AND s.created_at >= @openedAt AND (@closedAt IS NULL OR s.created_at <= @closedAt)))
+                    WHERE (s.shift_id = @shiftId OR (s.shift_id IS NULL AND s.created_at >= @openedAt AND (@closedAt IS NULL OR s.created_at < @closedAt)))
                       AND s.status != 'cancelled'
                       AND s.id NOT LIKE 'demo_%'
                       AND s.id NOT LIKE 'stress_%';
@@ -387,7 +410,7 @@ namespace RafiqPOS.Repositories
                         string retSql = @"
                             SELECT COALESCE(SUM(CASE WHEN refund_method = 'cash' THEN total_piasters ELSE 0 END), 0)
                             FROM returns
-                            WHERE (shift_id = @shiftId OR (shift_id IS NULL AND created_at >= @openedAt AND (@closedAt IS NULL OR created_at <= @closedAt)));
+                            WHERE (shift_id = @shiftId OR (shift_id IS NULL AND created_at >= @openedAt AND (@closedAt IS NULL OR created_at < @closedAt)));
                         ";
                         using (var cmd = new SQLiteCommand(retSql, conn))
                         {
@@ -415,7 +438,7 @@ namespace RafiqPOS.Repositories
                     FROM customer_ledger
                     WHERE ((type = 'payment' AND sale_id IS NULL) OR type = 'payment_cancel')
                       AND (payment_method = 'cash' OR payment_method IS NULL OR payment_method = '')
-                      AND (shift_id = @shiftId OR (shift_id IS NULL AND created_at >= @openedAt AND (@closedAt IS NULL OR created_at <= @closedAt)))
+                      AND (shift_id = @shiftId OR (shift_id IS NULL AND created_at >= @openedAt AND (@closedAt IS NULL OR created_at < @closedAt)))
                       AND customer_id NOT LIKE 'demo_%';
                 ";
                 using (var cmd = new SQLiteCommand(debtSql, conn))
@@ -434,7 +457,7 @@ namespace RafiqPOS.Repositories
                 string expSql = @"
                     SELECT COALESCE(SUM(amount_piasters), 0)
                     FROM expenses
-                    WHERE (shift_id = @shiftId OR (shift_id IS NULL AND created_at >= @openedAt AND (@closedAt IS NULL OR created_at <= @closedAt)))
+                    WHERE (shift_id = @shiftId OR (shift_id IS NULL AND created_at >= @openedAt AND (@closedAt IS NULL OR created_at < @closedAt)))
                       AND (is_cancelled = 0 OR is_cancelled IS NULL)
                       AND (source = 'drawer' OR source IS NULL OR source = '');
                 ";
@@ -487,7 +510,7 @@ namespace RafiqPOS.Repositories
             }
             if (pStart == DateTime.MinValue) pStart = DateTime.Today.AddDays(-1);
 
-            DateTime pEnd = DateTime.Now; // Open shift window ends at current local time, matching created_at localtime
+            DateTime pEnd = DateTime.Now.AddSeconds(1); // Open shift: half-open window must still include rows written this instant
             if (!string.IsNullOrEmpty(shift.ClosedAt))
             {
                 DateTime parsedEnd;

@@ -8,9 +8,8 @@ interface CashPaymentSectionProps {
   onReceivedChange: (raw: string) => void;
   receivedInputRef: React.RefObject<HTMLInputElement | null>;
   netTotalPiasters: number;
-  netPounds: number;
-  quickPresets: number[];
-  onSetPreset: (pounds: number) => void;
+  quickPresetsPiasters: number[];
+  onSetPreset: (piasters: number) => void;
   isShortPayment: boolean;
   selectedCustomer: Customer | undefined;
   shortAmountPiasters: number;
@@ -27,8 +26,7 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
   onReceivedChange,
   receivedInputRef,
   netTotalPiasters,
-  netPounds,
-  quickPresets,
+  quickPresetsPiasters,
   onSetPreset,
   isShortPayment,
   selectedCustomer,
@@ -70,7 +68,7 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <button
             type="button"
-            onClick={() => onSetPreset(netPounds)}
+            onClick={() => onSetPreset(netTotalPiasters)}
             className="py-1.5 px-3 rounded text-xs font-bold bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright hover:bg-brand hover:text-white border border-brand/30 dark:border-line-dark transition-colors cursor-pointer whitespace-nowrap active:scale-95"
             title="استلام إجمالي الفاتورة بالضبط نقداً"
           >
@@ -92,14 +90,14 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
             <span>على الحساب بالكامل (بدون كاش)</span>
           </button>
 
-          {quickPresets.filter(p => p !== netPounds).map((amt) => (
+          {quickPresetsPiasters.filter(p => p !== netTotalPiasters).map((amt) => (
             <button
               key={amt}
               type="button"
               onClick={() => onSetPreset(amt)}
               className="py-1.5 px-3 rounded text-xs font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark hover:border-brand/50 dark:hover:border-brand-bright/50 transition-colors cursor-pointer whitespace-nowrap active:scale-95"
             >
-              {amt.toFixed(2)} ج.م
+              {(amt / 100).toFixed(2)} ج.م
             </button>
           ))}
         </div>

@@ -1,6 +1,6 @@
 import type { Product, Category } from '../types/models';
-import { poundsToPiasters, normalizeArabicNumerals, normalizeArabicText } from './money';
-import { invoke } from '../bridge/ipc';
+import { poundsToPiasters, normalizeArabicNumerals, normalizeArabicText } from './money.ts';
+import { invoke } from '../bridge/ipc.ts';
 
 async function getXlsx() {
   return await import('xlsx');
@@ -12,19 +12,21 @@ export interface RawImportRow {
   name: string;
   barcode: string;
   additionalBarcodes: string[];
+  // Optional values are null when the column or the cell is absent: an "update" import then keeps the stored value
   categoryName: string;
   unit: 'piece' | 'kg';
+  unitProvided: boolean;
   variantColor?: string;
   variantSize?: string;
-  pricePounds: number;
-  costPounds: number;
+  pricePounds: number | null;
+  costPounds: number | null;
   hasInvalidPrice?: boolean;
   hasInvalidCost?: boolean;
   rawPriceText?: string;
   rawCostText?: string;
-  stockQuantity: number;
-  minStockQuantity: number;
-  taxRatePercent: number;
+  stockQuantity: number | null;
+  minStockQuantity: number | null;
+  taxRatePercent: number | null;
   internalCode: string;
   taxCategoryCode: string;
 }
@@ -40,17 +42,17 @@ export interface ValidatedImportRow {
     name: string;
     barcode: string | null;
     barcodes: string[];
-    categoryName: string;
-    unit: 'piece' | 'kg';
+    categoryName: string | null;
+    unit: 'piece' | 'kg' | null;
     variantColor?: string;
     variantSize?: string;
-    pricePiasters: number;
-    costPiasters: number;
-    stockQuantityMilli: number;
-    minStockQuantityMilli: number;
-    taxRatePercent: number;
-    internalCode: string;
-    taxCategoryCode: string;
+    pricePiasters: number | null;
+    costPiasters: number | null;
+    stockQuantityMilli: number | null;
+    minStockQuantityMilli: number | null;
+    taxRatePercent: number | null;
+    internalCode: string | null;
+    taxCategoryCode: string | null;
   };
 }
 
@@ -857,8 +859,7 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
       const rawBarcode = getCellString('barcode');
       const rawAdditionalCodes = getCellString('additionalBarcodes');
       const rowCategory = getCellString('category');
-      // اسم التابة يمثل القسم تلقائياً لكافة الأصناف بداخلها
-      const categoryName = (defaultSheetCategory || rowCategory || 'عام').trim();
+      // اسم التابة يمثل القسم تلقائياً لكافة الأصناف بداخلها؛ بدون قسم يبقى قسم الصنف القائم كما هو
       const rawUnit = getCellString('unit').toLowerCase();
       const isKg = rawUnit === 'كجم' || rawUnit === 'كيلو' || rawUnit === 'وزن' || rawUnit === 'kg' || rawUnit === 'gram' || rawUnit === 'جم';
       const rawColor = getCellString('color');
@@ -868,7 +869,10 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
       const parsedCost = parseCellNumber('cost', 0);
       const parsedStock = parseCellNumber('stock', 0);
       const parsedMinStock = parseCellNumber('minStock', 5);
-      const taxRatePercent = Math.round(parseCellNumber('tax', 0).value);
+      const parsedTax = parseCellNumber('tax', 0);
+      // An absent column or an empty cell is "not provided", never zero (a missing stock column must not wipe stock)
+      const providedNumber = (parsed: { value: number; rawText: string }): number | null =>
+        parsed.rawText === '' ? null : parsed.value;
       const internalCode = getCellString('internalCode');
       const taxCategoryCode = getCellString('taxCode');
 
@@ -901,19 +905,20 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
         name: rawName,
         barcode: normBarcode,
         additionalBarcodes: additionalCodes,
-        categoryName,
+        categoryName: defaultSheetCategory || rowCategory,
         unit: isKg ? 'kg' : 'piece',
+        unitProvided: rawUnit !== '',
         variantColor: rawColor || undefined,
         variantSize: rawSize || undefined,
-        pricePounds: parsedPrice.value,
-        costPounds: parsedCost.value,
+        pricePounds: providedNumber(parsedPrice),
+        costPounds: providedNumber(parsedCost),
         hasInvalidPrice: parsedPrice.isInvalid,
         hasInvalidCost: parsedCost.isInvalid,
         rawPriceText: parsedPrice.rawText,
         rawCostText: parsedCost.rawText,
-        stockQuantity: parsedStock.value,
-        minStockQuantity: parsedMinStock.value,
-        taxRatePercent,
+        stockQuantity: providedNumber(parsedStock),
+        minStockQuantity: providedNumber(parsedMinStock),
+        taxRatePercent: parsedTax.rawText === '' ? null : Math.round(parsedTax.value),
         internalCode,
         taxCategoryCode,
       });
@@ -939,6 +944,8 @@ export function validateImportRows(
   // Build lookup index of existing barcodes
   const dbBarcodeOwners = new Map<string, string>();
   const dbNameVariantOwners = new Map<string, string>();
+  // Carton/box barcodes: an "update" row with one of them changes only that unit's prices on the server
+  const dbPackageUnitOwners = new Map<string, { productName: string; unitName: string; factor: number }>();
 
   for (const prod of existingProducts) {
     if (prod.barcode) {
@@ -947,6 +954,16 @@ export function validateImportRows(
     if (prod.barcodes) {
       for (const b of prod.barcodes) {
         if (b) dbBarcodeOwners.set(b.toLowerCase(), prod.name);
+      }
+    }
+  }
+  for (const prod of existingProducts) {
+    for (const u of prod.units || []) {
+      const lower = u.barcode ? u.barcode.toLowerCase() : '';
+      if (!lower || dbBarcodeOwners.has(lower)) continue;
+      dbBarcodeOwners.set(lower, prod.name);
+      if (!u.isBaseUnit && u.conversionFactor !== 1) {
+        dbPackageUnitOwners.set(lower, { productName: prod.name, unitName: u.unitName, factor: u.conversionFactor });
       }
     }
     const nvKey = `${normalizeArabicText(prod.name)}||${normalizeArabicText(prod.variantColor || '')}||${normalizeArabicText(prod.variantSize || '')}`;
@@ -980,33 +997,33 @@ export function validateImportRows(
     // 2. Validate Prices
     if (row.hasInvalidPrice) {
       errors.push(`سعر البيع "${row.rawPriceText || ''}" في ${rowPrefix} غير صالح (يجب أن يكون رقماً صحيحاً أو عشرياً)`);
-    } else if (row.pricePounds < 0) {
+    } else if (row.pricePounds !== null && row.pricePounds < 0) {
       errors.push(`سعر البيع في ${rowPrefix} لا يمكن أن يكون سالباً`);
     }
 
     if (row.hasInvalidCost) {
       errors.push(`سعر التكلفة "${row.rawCostText || ''}" في ${rowPrefix} غير صالح (يجب أن يكون رقماً صحيحاً أو عشرياً)`);
-    } else if (row.costPounds < 0) {
+    } else if (row.costPounds !== null && row.costPounds < 0) {
       errors.push(`سعر التكلفة في ${rowPrefix} لا يمكن أن يكون سالباً`);
     }
 
-    const pricePiasters = poundsToPiasters(row.pricePounds);
-    const costPiasters = poundsToPiasters(row.costPounds);
+    const pricePiasters = row.pricePounds === null ? null : poundsToPiasters(row.pricePounds);
+    const costPiasters = row.costPounds === null ? null : poundsToPiasters(row.costPounds);
 
-    if (pricePiasters > 0 && costPiasters > 0 && pricePiasters < costPiasters) {
-      warnings.push(`سعر البيع (${row.pricePounds.toFixed(2)} ج.م) أقل من التكلفة (${row.costPounds.toFixed(2)} ج.م)`);
+    if (pricePiasters !== null && costPiasters !== null && pricePiasters > 0 && costPiasters > 0 && pricePiasters < costPiasters) {
+      warnings.push(`سعر البيع (${(pricePiasters / 100).toFixed(2)} ج.م) أقل من التكلفة (${(costPiasters / 100).toFixed(2)} ج.م)`);
     }
 
     // 3. Validate Stock & Min Stock
-    if (row.stockQuantity < 0) {
+    if (row.stockQuantity !== null && row.stockQuantity < 0) {
       errors.push(`الرصيد الافتتاحي في ${rowPrefix} لا يمكن أن يكون سالباً`);
     }
-    if (row.minStockQuantity < 0) {
+    if (row.minStockQuantity !== null && row.minStockQuantity < 0) {
       errors.push(`الحد الأدنى للمخزون في ${rowPrefix} لا يمكن أن يكون سالباً`);
     }
 
-    const stockMilli = Math.round(row.stockQuantity * 1000);
-    const minStockMilli = Math.round(row.minStockQuantity * 1000);
+    const stockMilli = row.stockQuantity === null ? null : Math.round(row.stockQuantity * 1000);
+    const minStockMilli = row.minStockQuantity === null ? null : Math.round(row.minStockQuantity * 1000);
 
     const cleanColor = row.variantColor?.trim() || '';
     const cleanSize = row.variantSize?.trim() || '';
@@ -1031,7 +1048,10 @@ export function validateImportRows(
         }
 
         // Check database collision
-        if (dbBarcodeOwners.has(lower)) {
+        const packageUnit = dbPackageUnitOwners.get(lower);
+        if (packageUnit) {
+          warnings.push(`الباركود (${bc}) هو باركود وحدة «${packageUnit.unitName}» (×${packageUnit.factor}) للصنف "${packageUnit.productName}": عند التحديث يتغير سعر هذه الوحدة فقط، ولا يتغير اسم الصنف أو سعر وحدته الأساسية أو رصيده (سجّل الرصيد في صف الوحدة الأساسية).`);
+        } else if (dbBarcodeOwners.has(lower)) {
           const ownerName = dbBarcodeOwners.get(lower);
           warnings.push(`الباركود (${bc}) مسجل مسبقاً في النظام للمنتج: "${ownerName}"`);
         }
@@ -1070,8 +1090,8 @@ export function validateImportRows(
         name: row.name.trim(),
         barcode: row.barcode ? row.barcode.trim() : null,
         barcodes: allRowBarcodes,
-        categoryName: row.categoryName,
-        unit: row.unit,
+        categoryName: row.categoryName.trim() || null,
+        unit: row.unitProvided ? row.unit : null,
         variantColor: cleanColor || undefined,
         variantSize: cleanSize || undefined,
         pricePiasters,
@@ -1079,8 +1099,8 @@ export function validateImportRows(
         stockQuantityMilli: stockMilli,
         minStockQuantityMilli: minStockMilli,
         taxRatePercent: row.taxRatePercent,
-        internalCode: row.internalCode.trim(),
-        taxCategoryCode: row.taxCategoryCode.trim(),
+        internalCode: row.internalCode.trim() || null,
+        taxCategoryCode: row.taxCategoryCode.trim() || null,
       },
     });
   }

@@ -568,18 +568,18 @@ namespace RafiqPOS.Services
                 // ========================================================
                 // Test 13: Variant Deletion Guard (Block deletion if prior sales exist)
                 // ========================================================
-                bool deleteSaleBlocked = false;
+                bool deleteRejected = false;
                 try
                 {
                     variantRepo.DeleteVariant(lNavyVar.VariantProductId);
                 }
-                catch (InvalidOperationException ex)
+                catch (InvalidOperationException)
                 {
-                    if (ex.Message != null && ex.Message.Contains("فواتير مبيعات"))
-                    {
-                        deleteSaleBlocked = true;
-                    }
+                    deleteRejected = true;
                 }
+                // Assert the effect, not the wording: the sold variant must still be active
+                var navyAfterDelete = prodRepo.GetById(lNavyVar.VariantProductId);
+                bool deleteSaleBlocked = deleteRejected && navyAfterDelete != null && navyAfterDelete.IsActive;
 
                 if (deleteSaleBlocked)
                 {
@@ -654,7 +654,7 @@ namespace RafiqPOS.Services
                 using (var conn = new SQLiteConnection(connStr))
                 {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT old_price_piasters, new_price_piasters FROM product_price_history WHERE product_id = @pid ORDER BY change_date DESC LIMIT 1;", conn))
+                    using (var cmd = new SQLiteCommand("SELECT old_price_piasters, new_price_piasters FROM product_price_history WHERE product_id = @pid ORDER BY created_at DESC LIMIT 1;", conn))
                     {
                         cmd.Parameters.AddWithValue("@pid", varToUpdate.VariantProductId);
                         using (var reader = cmd.ExecuteReader())

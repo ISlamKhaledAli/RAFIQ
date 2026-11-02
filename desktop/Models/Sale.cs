@@ -153,6 +153,14 @@ namespace RafiqPOS.Models
         [JsonIgnore]
         public string AuthorizedSupervisorName { get; set; }
 
+        /// <summary>Server-side seeding/benchmark sale allowed outside a shift; never settable from IPC.</summary>
+        [JsonIgnore]
+        public bool IsInternalSeed { get; set; }
+
+        /// <summary>Lines sold at a non-catalogue price under a verified supervisor PIN; audited inside the sale transaction.</summary>
+        [JsonIgnore]
+        public List<SalePriceDeviation> SupervisorPriceDeviations { get; set; }
+
         [JsonProperty("shiftId")]
         public string ShiftId { get; set; }
 
@@ -216,6 +224,21 @@ namespace RafiqPOS.Models
             OrderType = "takeaway";
             GuestsCount = 1;
         }
+    }
+
+    public class SalePriceDeviation
+    {
+        [JsonProperty("productId")]
+        public string ProductId { get; set; }
+
+        [JsonProperty("productName")]
+        public string ProductName { get; set; }
+
+        [JsonProperty("cataloguePricePiasters")]
+        public long CataloguePricePiasters { get; set; }
+
+        [JsonProperty("soldPricePiasters")]
+        public long SoldPricePiasters { get; set; }
     }
 
     public class SalePayment

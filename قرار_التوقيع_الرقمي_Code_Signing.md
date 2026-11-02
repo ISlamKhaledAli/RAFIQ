@@ -32,10 +32,12 @@
 
 ### ب) لمرحلة الإطلاق التجاري العام والتوسع للجمهور:
 1. شراء شهادة **Standard OV Code Signing** تجارية من جهة تصديق دولية معتمدة (مثل Sectigo أو DigiCert أو Certum).
-2. دمج خطوة التوقيع التلقائي داخل مسار البناء عبر `signtool.exe`:
+2. دمج خطوة التوقيع التلقائي داخل مسار البناء عبر `signtool.exe` باستخدام بصمة الشهادة في مخزن شهادات ويندوز أو مفتاح الأجهزة (Token) — بدون ملف PFX أو كلمة مرور:
    ```cmd
-   signtool sign /tr http://timestamp.digicert.com /td sha256 /fd sha256 /f "RafiqCert.pfx" /p "%CERT_PASS%" "installer\Output\RafiqPOS_Setup_v1.0.0.exe"
+   set RAFIQ_SIGN_THUMBPRINT=<SHA1 thumbprint من 40 حرفاً>
+   انشاء_ملف_التثبيت_Setup.bat
    ```
+   ملف البناء يمرر للـ Inno Setup الأمر `signtool sign /sha1 <thumbprint> /fd sha256 /tr http://timestamp.digicert.com /td sha256` فيوقّع ملف Setup وملف إلغاء التثبيت معاً، ثم يتحقق بـ `signtool verify /pa`، ويفشل البناء إذا فشل التوقيع. ملفات `*.pfx` و `*.p12` مستبعدة من Git ولا يجب وضعها في مجلد المشروع (التفاصيل في `installer/prerequisites/README.md`).
 
 ---
 

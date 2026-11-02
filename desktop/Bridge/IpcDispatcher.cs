@@ -16,6 +16,12 @@ namespace RafiqPOS.Bridge
                 return BridgeResponse.Fail(reqId, "INVALID_REQUEST", "طلب غير صالح أو فارغ");
             }
 
+            BridgeResponse corruptResponse = HandleCorruptDatabaseSession(request);
+            if (corruptResponse != null)
+            {
+                return corruptResponse;
+            }
+
             // Central server-side authorization gate (Audit F-01 / F-03 / AGENTS Rule 8)
             BridgeResponse authFailure = AuthorizeRequest(request);
             if (authFailure != null)
@@ -24,17 +30,14 @@ namespace RafiqPOS.Bridge
             }
 
             // License check: strictly blocks commercial mutations when expired or tampered (Task 173-2)
-            if (DatabaseService.License != null && DatabaseService.License.IsLicenseExpired() && IsLicenseBlockedAction(request.Action))
+            // A corrupt database cannot answer license/feature lookups; its write actions are locked below anyway
+            if (!DatabaseService.IsCorrupted && DatabaseService.License != null && DatabaseService.License.IsLicenseExpired() && IsLicenseBlockedAction(request.Action))
             {
-                return BridgeResponse.Fail(
-                    request.Id,
-                    "LICENSE_EXPIRED",
-                    "انتهت فترة اشتراك البرنامج أو تم إيقافه. يرجى تجديد الترخيص لاستكمال عمليات البيع والأنشطة التجارية."
-                );
+                return BridgeResponse.Fail(request.Id, "LICENSE_EXPIRED", DatabaseService.License.GetBlockedActionMessage());
             }
 
             // Central server-side feature gate: block mutations for disabled features (Feature #182 / Task 182-2)
-            BridgeResponse featureGateFailure = CheckFeatureGate(request);
+            BridgeResponse featureGateFailure = DatabaseService.IsCorrupted ? null : CheckFeatureGate(request);
             if (featureGateFailure != null)
             {
                 return featureGateFailure;
@@ -596,11 +599,6 @@ namespace RafiqPOS.Bridge
             { "license:generateSupportCode", REQUIRE_ADMIN },
             { "license:deactivateForTransfer", "settings.license" },
             { "updates:check", REQUIRE_ADMIN },
-            { "updates:browsePackage", REQUIRE_ADMIN },
-            { "updates:inspectPackage", REQUIRE_ADMIN },
-            { "updates:apply", REQUIRE_ADMIN },
-            { "updates:download", REQUIRE_ADMIN },
-            { "updates:restart", REQUIRE_ADMIN },
 
             // Security & Users
             { "security:setPin", REQUIRE_ADMIN },
@@ -617,7 +615,7 @@ namespace RafiqPOS.Bridge
             { "users:updatePermissions", "users.edit" },
             { "users:setDelegation", "users.delegate" },
             { "users:setPassword", "users.reset_pin" },
-            { "users:changePin", REQUIRE_ADMIN },
+            { "users:changePin", REQUIRE_SESSION },
 
             // Admin system & Test tools
             { "system:factoryReset", REQUIRE_ADMIN },
@@ -637,7 +635,6 @@ namespace RafiqPOS.Bridge
             { "security:runTests", REQUIRE_ADMIN },
             { "license:runTests", REQUIRE_ADMIN },
             { "migration:runTests", REQUIRE_ADMIN },
-            { "updates:runTests", REQUIRE_ADMIN },
             { "inventory:runTests", REQUIRE_ADMIN },
             { "customers:runTests", REQUIRE_ADMIN },
             { "excel:runExportTests", REQUIRE_ADMIN },
@@ -858,6 +855,22 @@ namespace RafiqPOS.Bridge
             { "recipes.getProductionLog", REQUIRE_SESSION }
         };
 
+        /// <summary>
+        /// منفّذ العملية في سجلات التدقيق يُؤخذ دائماً من جلسة الخادم ولا يُقبل من بيانات الطلب (منع انتحال الهوية)
+        /// </summary>
+        private static string SessionActorId()
+        {
+            UserDto user = SecurityService.CurrentUser;
+            return user != null ? user.Id : "system";
+        }
+
+        private static string SessionActorName()
+        {
+            UserDto user = SecurityService.CurrentUser;
+            if (user == null) return "النظام";
+            return !string.IsNullOrEmpty(user.DisplayName) ? user.DisplayName : user.Username;
+        }
+
         private static bool IsLicenseBlockedAction(string action)
         {
             if (string.IsNullOrEmpty(action)) return false;
@@ -918,31 +931,35 @@ namespace RafiqPOS.Bridge
             return false;
         }
 
-        private static bool IsBlockedWhenMustChangePin(string action)
+        // While a forced PIN change is pending only the PIN-change screen may talk to the backend (public actions bypass this gate)
+        private static readonly HashSet<string> MUST_CHANGE_PIN_ALLOWED_ACTIONS = new HashSet<string>(StringComparer.Ordinal)
         {
-            if (string.IsNullOrEmpty(action)) return false;
-            switch (action)
+            "security:setPin",
+            "users:changePin",
+            "security:getStatus"
+        };
+
+        // With a corrupt database no user store is loaded: answer session actions instead of crashing on null services
+        private static BridgeResponse HandleCorruptDatabaseSession(BridgeRequest request)
+        {
+            if (!DatabaseService.IsCorrupted)
             {
-                case "sales:create":
-                case "sales:hold":
-                case "returns:create":
-                case "expenses:create":
-                case "products:save":
-                case "products:delete":
-                case "products:bulkDelete":
-                case "products:clearAll":
-                case "products:importBatch":
-                case "users:create":
-                case "users:update":
-                case "users:updatePermissions":
-                case "settings:saveStoreProfile":
-                case "settings:savePrinterConfig":
-                case "settings:saveBarcodeConfig":
-                case "system:factoryReset":
-                case "backup:restore":
-                    return true;
+                return null;
+            }
+            switch (request.Action)
+            {
+                case "auth:login":
+                case "auth:getRootChallenge":
+                case "auth:loginRootChallenge":
+                case "security:resetWithRecovery":
+                    return BridgeResponse.Fail(request.Id, "DATABASE_CORRUPT",
+                        "قاعدة البيانات تالفة ولا يمكن تسجيل الدخول حالياً. يرجى استرجاع آخر نسخة احتياطية سليمة من نافذة الاسترجاع باستخدام كود استرجاع المالك.");
+                case "auth:getCurrentUser":
+                    return BridgeResponse.Ok(request.Id, null);
+                case "auth:logout":
+                    return BridgeResponse.Ok(request.Id, new { success = true });
                 default:
-                    return false;
+                    return null;
             }
         }
 
@@ -954,26 +971,31 @@ namespace RafiqPOS.Bridge
                 return null;
             }
 
-            // 2. Guided recovery: when database is corrupt nobody can log in, so restoring a backup must remain possible
+            // 2. Guided recovery: when database is corrupt nobody can log in, so the startup check and an
+            //    owner-recovery-code restore of an encrypted backup must remain possible without a session.
+            //    Migration packages are not offered here: that service is not initialised on a corrupt database.
             if (DatabaseService.IsCorrupted)
             {
-                if (request.Action == "migration:restore" || request.Action == "migration:inspect" || request.Action == "migration:browseFile")
+                if (request.Action == "database:checkIntegrity")
                 {
                     return null;
                 }
                 if (request.Action == "database:restore")
                 {
-                    // In corrupt unauthenticated state, restrict strictly to encrypted .rfbk backups
-                    if (request.Payload != null)
+                    var pObj = request.Payload as Newtonsoft.Json.Linq.JObject;
+                    string fp = pObj != null && pObj["backupFilePath"] != null ? pObj["backupFilePath"].ToString() : "";
+                    string code = pObj != null && pObj["recoveryCode"] != null ? pObj["recoveryCode"].ToString() : "";
+                    string recoveryError = DatabaseService.ValidateRecoveryBackup(fp, code);
+                    if (recoveryError != null)
                     {
-                        var pObj = request.Payload as Newtonsoft.Json.Linq.JObject;
-                        string fp = pObj != null && pObj["filePath"] != null ? pObj["filePath"].ToString() : "";
-                        if (!string.IsNullOrEmpty(fp) && (fp.EndsWith(".rfbk", StringComparison.OrdinalIgnoreCase) || fp.EndsWith(".rfk", StringComparison.OrdinalIgnoreCase)))
-                        {
-                            return null;
-                        }
+                        return BridgeResponse.Fail(request.Id, "RECOVERY_REJECTED", recoveryError);
                     }
-                    return BridgeResponse.Fail(request.Id, "FORBIDDEN", "في وضع استعادة تلف قاعدة البيانات، يُسمح فقط باستعادة ملفات النسخ الاحتياطي المشفرة (.rfbk).");
+                    return null;
+                }
+                // Nothing else may reach services that were never initialised for this database
+                if (SecurityService.CurrentUser == null)
+                {
+                    return BridgeResponse.Fail(request.Id, "AUTH_REQUIRED", "يجب تسجيل الدخول أولاً لتنفيذ هذه العملية.");
                 }
             }
 
@@ -993,7 +1015,7 @@ namespace RafiqPOS.Bridge
                 return BridgeResponse.Fail(request.Id, "AUTH_REQUIRED", "يجب تسجيل الدخول أولاً لتنفيذ هذه العملية.");
             }
 
-            if (sessionUser.MustChangePin && IsBlockedWhenMustChangePin(request.Action))
+            if (sessionUser.MustChangePin && !MUST_CHANGE_PIN_ALLOWED_ACTIONS.Contains(request.Action))
             {
                 return BridgeResponse.Fail(request.Id, "MUST_CHANGE_PIN", "يجب تغيير وتعيين رمز PIN الخاص بحسابك أولاً لحماية المتجر قبل إجراء هذه العملية.");
             }

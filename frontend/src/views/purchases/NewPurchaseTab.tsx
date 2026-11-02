@@ -30,6 +30,7 @@ import { MoneyInput } from '../../components/MoneyInput';
 import { useFeatures } from '../../context/useFeatures';
 import type { Supplier, Product, ProductUnit } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
+import { computePurchaseLine, purchaseLinesTotal } from './purchaseLineMath';
 import { normalizeArabicNumerals, formatArabicCurrency } from '../../utils/money';
 import { invoke } from '../../bridge/ipc';
 import { getStoreTerminology } from '../../utils/storeTerminology';
@@ -490,9 +491,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     setLineItems(updated);
   };
 
-  const totalCostPiasters = useMemo(() => {
-    return lineItems.reduce((sum, item) => sum + Math.round(item.quantityUnits * item.unitCostPiasters), 0);
-  }, [lineItems]);
+  const totalCostPiasters = useMemo(() => purchaseLinesTotal(lineItems), [lineItems]);
 
   const totalItemsPieces = useMemo(() => {
     return lineItems.reduce((sum, item) => sum + (item.quantityUnits || 0), 0);
@@ -739,7 +738,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             ) : (
               lineItems.map((item, idx) => {
                 const meta = getItemUnitsMeta(item);
-                const lineTotal = Math.round(item.quantityUnits * item.unitCostPiasters);
+                const lineAmounts = computePurchaseLine(item);
+                const lineTotal = lineAmounts.lineGrossPiasters;
                 const currentStockUnits = Math.max(0, item.currentStockMilli / 1000);
                 const incomingUnits = item.quantityUnits || 0;
 
@@ -1245,7 +1245,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   <>
                                     <span className="text-line dark:text-line-dark">•</span>
                                     <span className="text-paid dark:text-paid-bright font-bold">
-                                      صافي التكلفة بالبونص: {formatArabicCurrency(Math.round(((item.quantityUnits * item.unitCostPiasters) / (item.quantityUnits + ((item.bonusQuantityUnits || 0) * meta.packSize)))), true)} / {meta.baseUnitName}
+                                      صافي التكلفة بالبونص: {formatArabicCurrency(Math.round((lineAmounts.lineGrossPiasters * 1000) / (lineAmounts.quantityMilli + lineAmounts.bonusQuantityMilli)), true)} / {meta.baseUnitName}
                                     </span>
                                   </>
                                 )}

@@ -66,7 +66,54 @@ namespace RafiqPOS
         private bool _isDemoError;
         private bool _isKioskFullscreen;
 
+        // System DPI scale factor (1.0 at 96 DPI, 1.5 at 150%) — app.manifest declares the process DPI aware
+        private float _uiScale = 1f;
+        private const int SplashCardWidth = 540;
+        private const int SplashCardHeight = 350;
+
+        // Preferred compact-screen minimum (Task 159); never larger than the screen's working area
+        private const int PreferredMinWidth = 1024;
+        private const int PreferredMinHeight = 768;
+
+        // Auto backup on close must never hang the close or be killed half-way by a Windows shutdown
+        private const int CloseBackupTimeoutMs = 30000;
+
         public static MainForm Instance { get; private set; }
+
+        private static float DetectUiScale()
+        {
+            try
+            {
+                using (Graphics screenGraphics = Graphics.FromHwnd(IntPtr.Zero))
+                {
+                    float scale = screenGraphics.DpiX / 96f;
+                    if (scale < 1f) scale = 1f;
+                    if (scale > 3f) scale = 3f;
+                    return scale;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر قراءة إعداد تكبير الشاشة (DPI)، سيتم استخدام الحجم الافتراضي: " + ex.Message);
+                return 1f;
+            }
+        }
+
+        private int Scaled(int value)
+        {
+            return (int)Math.Round(value * _uiScale);
+        }
+
+        // Fills the screen's working area (above the taskbar). On 1024x768 the working area is about 1024x728, so the
+        // minimum size is clamped to it; otherwise Windows enforces MinimumSize and the bottom (payment buttons) hides behind the taskbar.
+        private void ApplyWorkingAreaBounds(Screen screen)
+        {
+            Rectangle workingArea = screen.WorkingArea;
+            this.MinimumSize = new Size(
+                Math.Min(PreferredMinWidth, workingArea.Width),
+                Math.Min(PreferredMinHeight, workingArea.Height));
+            this.Bounds = workingArea;
+        }
 
         public MainForm(bool isDemoError = false)
         {
@@ -74,7 +121,7 @@ namespace RafiqPOS
             _isDemoError = isDemoError;
             this.Text = "رفيق POS — نظام نقاط البيع وإدارة المتاجر";
             this.Size = new Size(1280, 800);
-            this.MinimumSize = new Size(1024, 768); // Support compact screens (Task 159)
+            _uiScale = DetectUiScale();
             _isSplashDarkMode = DetectSplashDarkMode();
             Color defaultCanvas = _isSplashDarkMode ? Color.FromArgb(14, 19, 18) : Color.FromArgb(243, 245, 242);
             this.BackColor = defaultCanvas;
@@ -83,7 +130,7 @@ namespace RafiqPOS
             this.StartPosition = FormStartPosition.Manual;
             this.WindowState = FormWindowState.Normal;
             this.FormBorderStyle = FormBorderStyle.None;
-            this.Bounds = Screen.PrimaryScreen.WorkingArea;
+            ApplyWorkingAreaBounds(Screen.PrimaryScreen);
             this.KeyPreview = true;
 
             // Double-buffer the main form and all child drawing to eliminate any startup flicker
@@ -160,10 +207,10 @@ namespace RafiqPOS
             _splashCard = new DoubleBufferedPanel
             {
                 BackColor = cardBg,
-                Size = new Size(540, 350),
+                Size = new Size(Scaled(SplashCardWidth), Scaled(SplashCardHeight)),
                 RightToLeft = RightToLeft.No
             };
-            using (GraphicsPath cardRegionPath = CreateRoundedRectanglePath(new Rectangle(0, 0, 540, 350), 20))
+            using (GraphicsPath cardRegionPath = CreateRoundedRectanglePath(new Rectangle(0, 0, Scaled(SplashCardWidth), Scaled(SplashCardHeight)), Scaled(20)))
             {
                 _splashCard.Region = new Region(cardRegionPath);
             }
@@ -223,7 +270,7 @@ namespace RafiqPOS
                 if (_shimmerProgress > 1f) _shimmerProgress = 0f;
                 if (_splashCard != null && !_splashCard.IsDisposed)
                 {
-                    _splashCard.Invalidate(new Rectangle(0, 170, _splashCard.Width, 75));
+                    _splashCard.Invalidate(new Rectangle(0, Scaled(170), _splashCard.Width, Scaled(75)));
                 }
             };
             _splashAnimTimer.Start();
@@ -249,23 +296,28 @@ namespace RafiqPOS
 
             bool isDark = _isSplashDarkMode;
 
+            // Draw in 96-DPI logical units and let the transform scale to the real DPI (fonts use pixel units so they are not scaled twice)
+            g.ScaleTransform(_uiScale, _uiScale);
+            int cardW = SplashCardWidth;
+            int cardH = SplashCardHeight;
+
             // 0. Card Background (#151B1A in Dark Mode, #FFFFFF in Light Mode)
             Color cardBg = isDark ? Color.FromArgb(21, 27, 26) : Color.White;
             using (SolidBrush bgBrush = new SolidBrush(cardBg))
             {
-                g.FillRectangle(bgBrush, 0, 0, _splashCard.Width, _splashCard.Height);
+                g.FillRectangle(bgBrush, 0, 0, cardW, cardH);
             }
 
             // 1. Top Accent Stripe (#5FBFA2 in Dark Mode, #006D41 in Light Mode)
             Color stripeColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
             using (SolidBrush topBrush = new SolidBrush(stripeColor))
             {
-                g.FillRectangle(topBrush, 0, 0, _splashCard.Width, 4);
+                g.FillRectangle(topBrush, 0, 0, cardW, 4);
             }
 
             // 2. Refined Card Border (#2A3532 in Dark Mode, #DCE1DC in Light Mode)
             Color borderColor = isDark ? Color.FromArgb(42, 53, 50) : Color.FromArgb(220, 225, 220);
-            using (GraphicsPath borderPath = CreateRoundedRectanglePath(new Rectangle(0, 0, _splashCard.Width - 1, _splashCard.Height - 1), 20))
+            using (GraphicsPath borderPath = CreateRoundedRectanglePath(new Rectangle(0, 0, cardW - 1, cardH - 1), 20))
             using (Pen pen = new Pen(borderColor, 1.5f))
             {
                 g.DrawPath(pen, borderPath);
@@ -279,7 +331,7 @@ namespace RafiqPOS
                 float ratio = Math.Min((float)maxW / _splashLogoImage.Width, (float)maxH / _splashLogoImage.Height);
                 int logoW = Math.Max(1, (int)(_splashLogoImage.Width * ratio));
                 int logoH = Math.Max(1, (int)(_splashLogoImage.Height * ratio));
-                int logoX = (_splashCard.Width - logoW) / 2;
+                int logoX = (cardW - logoW) / 2;
                 int logoY = 34 + (maxH - logoH) / 2;
                 g.DrawImage(_splashLogoImage, logoX, logoY, logoW, logoH);
             }
@@ -291,29 +343,29 @@ namespace RafiqPOS
 
                 // 4. App Title (Y=106, Segoe UI 21 Bold, #E6ECEA in Dark, #00372D in Light)
                 Color titleColor = isDark ? Color.FromArgb(230, 236, 234) : Color.FromArgb(0, 55, 45);
-                using (Font titleFont = new Font("Segoe UI", 21f, FontStyle.Bold))
+                using (Font titleFont = SplashFont(21f, FontStyle.Bold))
                 using (SolidBrush titleBrush = new SolidBrush(titleColor))
                 using (StringFormat sfTitle = new StringFormat())
                 {
                     sfTitle.Alignment = StringAlignment.Center;
                     sfTitle.LineAlignment = StringAlignment.Center;
                     sfTitle.FormatFlags = StringFormatFlags.DirectionRightToLeft;
-                    Rectangle titleRect = new Rectangle(10, 106, _splashCard.Width - 20, 32);
+                    Rectangle titleRect = new Rectangle(10, 106, cardW - 20, 32);
                     g.DrawString("رفيق POS", titleFont, titleBrush, titleRect, sfTitle);
                 }
 
                 // 5. Subtitle (Y=142, Segoe UI 10.5, #5FBFA2 in Dark, #006D41 in Light)
                 Color subColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
-                using (Font subFont = new Font("Segoe UI", 10.5f, FontStyle.Regular))
+                using (Font subFont = SplashFont(10.5f, FontStyle.Regular))
                 using (SolidBrush subBrush = new SolidBrush(subColor))
                 {
-                    Rectangle subRect = new Rectangle(10, 142, _splashCard.Width - 20, 22);
+                    Rectangle subRect = new Rectangle(10, 142, cardW - 20, 22);
                     g.DrawString("نظام نقاط البيع وإدارة المتاجر ومحلات التجزئة", subFont, subBrush, subRect, sf);
                 }
 
                 // 6. Circular Spinner Ring (Y=180, 40x40)
                 int spinSize = 40;
-                int spinX = (_splashCard.Width - spinSize) / 2;
+                int spinX = (cardW - spinSize) / 2;
                 int spinY = 180;
                 Rectangle spinRect = new Rectangle(spinX, spinY, spinSize, spinSize);
                 Color spinBgColor = isDark ? Color.FromArgb(40, 95, 191, 162) : Color.FromArgb(30, 0, 109, 65);
@@ -332,7 +384,7 @@ namespace RafiqPOS
                 // 7. Progress Bar Track & Smooth Animated Shimmer (Y=230, 260x4)
                 int progW = 260;
                 int progH = 4;
-                int progX = (_splashCard.Width - progW) / 2;
+                int progX = (cardW - progW) / 2;
                 int progY = 230;
                 Rectangle progTrack = new Rectangle(progX, progY, progW, progH);
                 using (GraphicsPath trackPath = CreateRoundedRectanglePath(progTrack, 2))
@@ -384,17 +436,17 @@ namespace RafiqPOS
                 // 8. Dynamic Status Label (Y=248, Segoe UI 9.5)
                 string statusText = _splashStatusText ?? "جاري تشغيل مساحة العمل والاتصال بالسجلات المحلية...";
                 Color statusColor = isDark ? Color.FromArgb(147, 161, 157) : Color.FromArgb(82, 96, 93);
-                using (Font statusFont = new Font("Segoe UI", 9.5f, FontStyle.Regular))
+                using (Font statusFont = SplashFont(9.5f, FontStyle.Regular))
                 using (SolidBrush statusBrush = new SolidBrush(statusColor))
                 {
-                    Rectangle statusRect = new Rectangle(10, 248, _splashCard.Width - 20, 22);
+                    Rectangle statusRect = new Rectangle(10, 248, cardW - 20, 22);
                     g.DrawString(statusText, statusFont, statusBrush, statusRect, sf);
                 }
 
                 // 9. Footer Badge (Y=288, 320x28, rounded capsule matching web browser badge)
                 int badgeW = 320;
                 int badgeH = 28;
-                int badgeX = (_splashCard.Width - badgeW) / 2;
+                int badgeX = (cardW - badgeW) / 2;
                 int badgeY = 288;
                 Rectangle badgeRect = new Rectangle(badgeX, badgeY, badgeW, badgeH);
                 Color badgeBgColor = isDark ? Color.FromArgb(18, 48, 42) : Color.FromArgb(234, 245, 238);
@@ -403,7 +455,7 @@ namespace RafiqPOS
                 using (GraphicsPath badgePath = CreateRoundedRectanglePath(badgeRect, 14))
                 using (SolidBrush badgeBg = new SolidBrush(badgeBgColor))
                 using (Pen badgeBorder = new Pen(badgeBorderColor, 1f))
-                using (Font footerFont = new Font("Segoe UI", 9f, FontStyle.Bold))
+                using (Font footerFont = SplashFont(9f, FontStyle.Bold))
                 using (SolidBrush footerBrush = new SolidBrush(badgeTextColor))
                 {
                     g.FillPath(badgeBg, badgePath);
@@ -411,6 +463,12 @@ namespace RafiqPOS
                     g.DrawString("نظام أوفلاين معتمد • إصدار التجزئة الاحترافي", footerFont, footerBrush, badgeRect, sf);
                 }
             }
+        }
+
+        // Pixel-unit font equal to the given point size at 96 DPI (used under the splash ScaleTransform)
+        private static Font SplashFont(float points, FontStyle style)
+        {
+            return new Font("Segoe UI", points * 96f / 72f, style, GraphicsUnit.Pixel);
         }
 
         private static GraphicsPath CreateRoundedRectanglePath(Rectangle rect, int radius)
@@ -446,12 +504,12 @@ namespace RafiqPOS
                     {
                         this.BeginInvoke(new Action(delegate
                         {
-                            _splashCard.Invalidate(new Rectangle(20, 204, 480, 24));
+                            _splashCard.Invalidate(new Rectangle(0, Scaled(240), _splashCard.Width, Scaled(36)));
                         }));
                     }
                     else
                     {
-                        _splashCard.Invalidate(new Rectangle(20, 204, 480, 24));
+                        _splashCard.Invalidate(new Rectangle(0, Scaled(240), _splashCard.Width, Scaled(36)));
                     }
                 }
                 catch { }
@@ -976,6 +1034,12 @@ namespace RafiqPOS
             btnPanel.Controls.Add(_btnClose);
 
             _errorCard.Controls.Add(btnPanel);
+
+            // Layout above is in 96-DPI pixels; scale positions/sizes to the system DPI (fonts are already DPI-scaled by Windows)
+            if (_uiScale > 1.01f)
+            {
+                _errorCard.Scale(new SizeF(_uiScale, _uiScale));
+            }
             _errorPanel.Controls.Add(_errorCard);
             this.Controls.Add(_errorPanel);
         }
@@ -983,8 +1047,8 @@ namespace RafiqPOS
         private void CenterErrorCard()
         {
             if (_errorCard == null || _errorPanel == null) return;
-            int cardW = Math.Min(760, Math.Max(600, _errorPanel.Width - 40));
-            int cardH = Math.Min(540, Math.Max(480, _errorPanel.Height - 40));
+            int cardW = Math.Min(Scaled(760), Math.Max(Scaled(600), _errorPanel.Width - 40));
+            int cardH = Math.Min(Scaled(540), Math.Max(Scaled(480), _errorPanel.Height - 40));
             _errorCard.Size = new Size(cardW, cardH);
             _errorCard.Location = new Point(
                 Math.Max(10, (_errorPanel.Width - cardW) / 2),
@@ -1013,16 +1077,16 @@ namespace RafiqPOS
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            this.Bounds = Screen.PrimaryScreen.WorkingArea;
+            ApplyWorkingAreaBounds(Screen.PrimaryScreen);
             // Force immediate layout and paint of the splash screen
             this.Refresh();
         }
 
         private void MainForm_Shown(object sender, EventArgs e)
         {
-            this.Bounds = Screen.PrimaryScreen.WorkingArea;
+            ApplyWorkingAreaBounds(Screen.PrimaryScreen);
             WindowHelper.ActivateAndBringToFront(this);
-            this.Bounds = Screen.PrimaryScreen.WorkingArea;
+            ApplyWorkingAreaBounds(Screen.PrimaryScreen);
             this.Refresh();
             Application.DoEvents();
             InitializeApplication();
@@ -1051,14 +1115,7 @@ namespace RafiqPOS
                 Logger.Info("جاري استدعاء DatabaseService.Initialize()...");
                 DatabaseService.Initialize();
                 Logger.Info("اكتملت تهيئة DatabaseService بنجاح.");
-                if (DatabaseService.License != null)
-                {
-                    DatabaseService.License.StartBackgroundPeriodicCheck();
-                }
-                if (DatabaseService.Backup != null)
-                {
-                    DatabaseService.Backup.StartBackgroundPeriodicCheck();
-                }
+                DatabaseService.StartBackgroundChecks();
             }
             catch (Exception dbEx)
             {
@@ -1075,9 +1132,11 @@ namespace RafiqPOS
 
             // 2. Locate Frontend Dist folder (Separated Check)
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string distFolder = null;
+            // Production always loads the dist folder shipped next to the exe
+            string distFolder = Path.Combine(baseDir, "dist");
 
-            // During development, always prioritize freshly built frontend/dist
+#if DEBUG
+            // Development only: prefer the freshly built frontend/dist (never in Release, where it could hijack the UI)
             string devFrontendDist = Path.GetFullPath(Path.Combine(baseDir, @"..\..\..\frontend\dist"));
             if (!Directory.Exists(devFrontendDist))
             {
@@ -1088,11 +1147,7 @@ namespace RafiqPOS
             {
                 distFolder = devFrontendDist;
             }
-            else
-            {
-                // In Production, load from local dist folder next to exe
-                distFolder = Path.Combine(baseDir, "dist");
-            }
+#endif
             Logger.Info(string.Format("مسار الواجهة distFolder: {0}", distFolder));
 
             if (!Directory.Exists(distFolder) || !File.Exists(Path.Combine(distFolder, "index.html")))
@@ -1106,6 +1161,8 @@ namespace RafiqPOS
             }
 
             // 3. Accurate OS & Runtime Detection using OsDetector
+            // Windows 7/8/8.1: bundled WebView2 Fixed Runtime 109 (last version supporting them).
+            // Windows 10/11: system Evergreen runtime; when it is missing (e.g. Windows 10 LTSC offline) fall back to the bundled Fixed 109.
             string browserExecutableFolder = null;
             string fixed109Folder = Path.Combine(baseDir, "runtimes", "fixed109");
             if (!Directory.Exists(fixed109Folder))
@@ -1115,32 +1172,51 @@ namespace RafiqPOS
             }
 
             bool isLegacyWindows = OsDetector.IsLegacyWindows();
-            bool hasFixed = Directory.Exists(fixed109Folder);
+            bool hasFixed = File.Exists(Path.Combine(fixed109Folder, "msedgewebview2.exe"));
+            string evergreenVersion = TryGetEvergreenWebView2Version();
+            string osFriendlyName = OsDetector.GetOsFriendlyName();
 
             if (isLegacyWindows)
             {
-                // Windows 7 / 8 / 8.1 require bundled Fixed Version 109
                 if (hasFixed)
                 {
                     browserExecutableFolder = fixed109Folder;
                 }
+                else if (string.IsNullOrEmpty(evergreenVersion))
+                {
+                    Logger.Error("مشغل WebView2 الثابت (Fixed 109) غير موجود في: " + fixed109Folder, null);
+                    ShowFatalError(
+                        "مشغل العرض المدمج لويندوز 7 غير موجود (WebView2 Fixed 109 Missing)",
+                        "لم يتم العثور على الملف msedgewebview2.exe في المسار:\n" + fixed109Folder + "\n\nنظام التشغيل: " + osFriendlyName,
+                        "1. أعد تشغيل ملف تثبيت رفيق الرسمي (Setup) لإصلاح التثبيت؛ فهو يحتوي على مشغل العرض المخصص لويندوز 7 و 8.\n" +
+                        "2. تأكد أن برنامج الحماية (Antivirus) لم يحذف أو يعزل ملفات المجلد runtimes\\fixed109.\n" +
+                        "3. لا يحتاج هذا المشغل إلى اتصال بالإنترنت."
+                    );
+                    return;
+                }
             }
-            else
+            else if (string.IsNullOrEmpty(evergreenVersion))
             {
-                // Windows 10 & 11: try system Evergreen, fallback to fixed if Evergreen is missing
-                try
+                if (hasFixed)
                 {
-                    string systemVer = CoreWebView2Environment.GetAvailableBrowserVersionString();
-                    if (string.IsNullOrEmpty(systemVer) && hasFixed)
-                    {
-                        browserExecutableFolder = fixed109Folder;
-                    }
+                    Logger.Warn("مشغل WebView2 Evergreen غير مثبت على النظام، سيتم استخدام المشغل المدمج Fixed 109 بدون إنترنت.");
+                    browserExecutableFolder = fixed109Folder;
                 }
-                catch
+                else
                 {
-                    if (hasFixed) browserExecutableFolder = fixed109Folder;
+                    Logger.Error("لا يوجد مشغل WebView2 على النظام ولا المشغل المدمج في: " + fixed109Folder, null);
+                    ShowFatalError(
+                        "مشغل العرض غير موجود (WebView2 Runtime Missing)",
+                        "مشغل Microsoft Edge WebView2 غير مثبت على النظام، ولم يتم العثور على المشغل المدمج في:\n" + fixed109Folder + "\n\nنظام التشغيل: " + osFriendlyName,
+                        "1. أعد تشغيل ملف تثبيت رفيق الرسمي (Setup) لإصلاح التثبيت؛ فهو يحتوي على مشغل عرض يعمل بدون إنترنت.\n" +
+                        "2. أو قم بتثبيت Microsoft Edge WebView2 Runtime على هذا الجهاز.\n" +
+                        "3. تأكد أن برنامج الحماية (Antivirus) لم يحذف ملفات المجلد runtimes\\fixed109."
+                    );
+                    return;
                 }
             }
+            Logger.Info(string.Format("مشغل العرض المختار: {0} (Evergreen={1}, Fixed109={2}, OS={3})",
+                browserExecutableFolder ?? "Evergreen", evergreenVersion ?? "غير مثبت", hasFixed ? "موجود" : "غير موجود", osFriendlyName));
 
             string baseDataFolder;
             #if DEBUG
@@ -1240,16 +1316,42 @@ namespace RafiqPOS
             catch (Exception wvEx)
             {
                 Logger.Error("خطأ استثنائي أثناء تهيئة محرك WebView2: ", wvEx);
-                string osName = OsDetector.GetOsFriendlyName();
-                string advice = isLegacyWindows
-                    ? string.Format("نظام التشغيل لديك هو: {0}.\nيتطلب النظام مشغل WebView2 Runtime إصدار 109 المخصص لويندوز 7.\nيرجى تشغيل أداة التثبيت واختيار تثبيت المشغل الأوفلاين.", osName)
-                    : string.Format("نظام التشغيل لديك هو: {0}.\nيرجى التأكد من تثبيت مشغل Microsoft Edge WebView2 Runtime على هذا الجهاز.", osName);
+                string osName = osFriendlyName;
+                string advice;
+                if (browserExecutableFolder != null)
+                {
+                    advice = string.Format("نظام التشغيل لديك هو: {0}.\nفشل تشغيل مشغل العرض المدمج (WebView2 Fixed 109) من المسار:\n{1}\n" +
+                        "1. أعد تشغيل ملف تثبيت رفيق الرسمي (Setup) لإصلاح ملفات المشغل.\n" +
+                        "2. تأكد أن برنامج الحماية (Antivirus) لا يمنع تشغيل الملف msedgewebview2.exe.\n" +
+                        "3. على ويندوز 7: تأكد من تثبيت تحديثات ويندوز 7 المرفقة (KB4490628 ثم KB4474419) ثم أعد تشغيل الجهاز.", osName, browserExecutableFolder);
+                }
+                else
+                {
+                    advice = string.Format("نظام التشغيل لديك هو: {0}.\nفشل تشغيل مشغل Microsoft Edge WebView2 المثبت على النظام (الإصدار {1}).\n" +
+                        "1. أعد تشغيل الجهاز ثم افتح البرنامج مرة أخرى.\n" +
+                        "2. أعد تشغيل ملف تثبيت رفيق الرسمي (Setup) لإصلاح التثبيت.", osName, evergreenVersion ?? "غير معروف");
+                }
 
                 ShowFatalError(
                     "تعذر تشغيل محرك العرض (WebView2 Error)",
                     wvEx.Message,
                     advice
                 );
+            }
+        }
+
+        // Returns the installed Evergreen WebView2 version, or null when none is installed (never throws)
+        private static string TryGetEvergreenWebView2Version()
+        {
+            try
+            {
+                string version = CoreWebView2Environment.GetAvailableBrowserVersionString();
+                return string.IsNullOrEmpty(version) ? null : version;
+            }
+            catch (Exception ex)
+            {
+                Logger.Info("لا يوجد مشغل WebView2 Evergreen مثبت: " + ex.Message);
+                return null;
             }
         }
 
@@ -1379,7 +1481,7 @@ namespace RafiqPOS
                 // Return to borderless WorkingArea (respecting Windows Taskbar and preventing overflow)
                 this.WindowState = FormWindowState.Normal;
                 this.FormBorderStyle = FormBorderStyle.None;
-                this.Bounds = Screen.FromControl(this).WorkingArea;
+                ApplyWorkingAreaBounds(Screen.FromControl(this));
                 _isKioskFullscreen = false;
             }
             else
@@ -1410,18 +1512,72 @@ namespace RafiqPOS
                     DatabaseService.Backup.StopBackgroundPeriodicCheck();
                 }
 
-                if (DatabaseService.SettingsRepo != null)
+                if (DatabaseService.SettingsRepo != null && !DatabaseService.IsCorrupted)
                 {
                     string autoClose = DatabaseService.SettingsRepo.Get("backup_auto_on_close", "1");
                     if (autoClose == "1" && DatabaseService.Backup != null)
                     {
-                        DatabaseService.Backup.CreateBackup(null);
+                        if (e.CloseReason == CloseReason.WindowsShutDown || e.CloseReason == CloseReason.TaskManagerClosing)
+                        {
+                            // Windows kills a slow app during shutdown; a half-written backup is worse than none (periodic backups still exist)
+                            Logger.Warn("تم تخطي النسخ الاحتياطي التلقائي عند الإغلاق لأن ويندوز يغلق البرنامج (سبب الإغلاق: " + e.CloseReason + ").");
+                        }
+                        else
+                        {
+                            RunCloseBackupWithTimeout();
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
                 Logger.Warn("فشل النسخ الاحتياطي التلقائي عند إغلاق البرنامج: " + ex.Message);
+            }
+            finally
+            {
+                // Marks a clean shutdown so the next startup can skip the slow full integrity check
+                DatabaseService.MarkCleanShutdown();
+            }
+        }
+
+        private void RunCloseBackupWithTimeout()
+        {
+            BackupService backup = DatabaseService.Backup;
+            Exception backupError = null;
+            BackupResult backupResult = null;
+            Stopwatch watch = Stopwatch.StartNew();
+            System.Threading.Thread worker = new System.Threading.Thread(delegate()
+            {
+                try
+                {
+                    backupResult = backup.CreateBackup(null);
+                }
+                catch (Exception workerEx)
+                {
+                    backupError = workerEx;
+                }
+            });
+            worker.IsBackground = true;
+            worker.Name = "RafiqCloseBackup";
+            worker.Start();
+
+            if (!worker.Join(CloseBackupTimeoutMs))
+            {
+                Logger.Warn(string.Format("النسخ الاحتياطي التلقائي عند الإغلاق تجاوز المهلة ({0} ثانية) وسيتم إغلاق البرنامج دون انتظاره؛ قد يكون ملف النسخة الأخيرة غير مكتمل وسيُستبدل بالنسخ الدوري التالي.", CloseBackupTimeoutMs / 1000));
+                return;
+            }
+
+            if (backupError != null)
+            {
+                Logger.Warn("فشل النسخ الاحتياطي التلقائي عند إغلاق البرنامج: " + backupError.Message);
+            }
+            else if (backupResult != null && !backupResult.Success)
+            {
+                Logger.Warn("لم يكتمل النسخ الاحتياطي التلقائي عند إغلاق البرنامج: " + backupResult.Message);
+            }
+            else
+            {
+                Logger.Info(string.Format("اكتمل النسخ الاحتياطي التلقائي عند الإغلاق خلال {0} مللي ثانية.", watch.ElapsedMilliseconds));
             }
         }
     }

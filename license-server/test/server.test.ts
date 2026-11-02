@@ -118,7 +118,7 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
           'X-Rafiq-Api-Key': APP_SECRET,
         },
         body: JSON.stringify({
-          license_key: 'RFQ-FAKE-NON-EXISTENT',
+          license_key: 'RFQ-FAKE-NONE-XIST',
           machine_fingerprint: 'pc-123',
         }),
       });
@@ -809,5 +809,90 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
     });
   });
   });
-});
+  describe('Security hardening: single-device binding and key format', () => {
+    async function activate(body: Record<string, unknown>) {
+      const req = new Request('http://localhost/api/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Rafiq-Api-Key': APP_SECRET },
+        body: JSON.stringify(body),
+      });
+      return server.fetch(req, env);
+    }
 
+    async function verify(body: Record<string, unknown>) {
+      const req = new Request('http://localhost/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Rafiq-Api-Key': APP_SECRET },
+        body: JSON.stringify(body),
+      });
+      return server.fetch(req, env);
+    }
+
+    async function boundFingerprint(): Promise<string | null> {
+      const row = await env.DB.prepare("SELECT machine_fingerprint FROM licenses WHERE license_key = 'RFQ-TEST-2026-DEMO'").first() as any;
+      return row ? row.machine_fingerprint : null;
+    }
+
+    it('Pirate sequence (verify then activate claiming the victim fingerprint as legacy) leaves the binding unchanged', async () => {
+      const victim = await activate({ license_key: 'RFQ-TEST-2026-DEMO', machine_fingerprint: 'victim-machine-fp-0001' });
+      assert.equal(victim.status, 200);
+      const victimToken = (await victim.json() as any).token;
+
+      const pirateVerify = await verify({
+        license_key: 'RFQ-TEST-2026-DEMO',
+        machine_fingerprint: 'pirate-machine-fp-9999',
+        legacy_fingerprint: 'victim-machine-fp-0001',
+      });
+      assert.equal(pirateVerify.status, 403);
+      assert.equal((await pirateVerify.json() as any).code, 'DEVICE_MISMATCH');
+      assert.equal(await boundFingerprint(), 'victim-machine-fp-0001');
+
+      const pirateActivate = await activate({
+        license_key: 'RFQ-TEST-2026-DEMO',
+        machine_fingerprint: 'pirate-machine-fp-9999',
+        legacy_fingerprint: 'victim-machine-fp-0001',
+        token: victimToken,
+      });
+      assert.equal(pirateActivate.status, 403);
+      assert.equal((await pirateActivate.json() as any).code, 'DEVICE_MISMATCH');
+      assert.equal(await boundFingerprint(), 'victim-machine-fp-0001');
+    });
+
+    it('Even a stolen valid token cannot move the license to another fingerprint through verify', async () => {
+      const victim = await activate({ license_key: 'RFQ-TEST-2026-DEMO', machine_fingerprint: 'victim-machine-fp-0001' });
+      const victimToken = (await victim.json() as any).token;
+
+      const res = await verify({
+        token: victimToken,
+        machine_fingerprint: 'pirate-machine-fp-9999',
+        legacy_fingerprint: 'victim-machine-fp-0001',
+      });
+      assert.equal(res.status, 403);
+      assert.equal(await boundFingerprint(), 'victim-machine-fp-0001');
+    });
+
+    it('The bound machine keeps verifying normally', async () => {
+      const victim = await activate({ license_key: 'RFQ-TEST-2026-DEMO', machine_fingerprint: 'victim-machine-fp-0001' });
+      const victimToken = (await victim.json() as any).token;
+      const res = await verify({ token: victimToken, machine_fingerprint: 'victim-machine-fp-0001' });
+      assert.equal(res.status, 200);
+      assert.equal((await res.json() as any).valid, true);
+    });
+
+    it('Rejects malformed license keys with 400 and never writes them to the audit log', async () => {
+      const malicious = 'RFQ-<img src=x onerror=alert(1)>';
+      const before = await env.DB.prepare('SELECT COUNT(*) AS c FROM activation_logs').first() as any;
+
+      const actRes = await activate({ license_key: malicious, machine_fingerprint: 'pc-fp-1234' });
+      assert.equal(actRes.status, 400);
+      assert.equal((await actRes.json() as any).code, 'INVALID_LICENSE_KEY');
+
+      const verRes = await verify({ license_key: malicious, machine_fingerprint: 'pc-fp-1234' });
+      assert.equal(verRes.status, 400);
+      assert.equal((await verRes.json() as any).code, 'INVALID_LICENSE_KEY');
+
+      const after = await env.DB.prepare('SELECT COUNT(*) AS c FROM activation_logs').first() as any;
+      assert.equal(after.c, before.c);
+    });
+  });
+});

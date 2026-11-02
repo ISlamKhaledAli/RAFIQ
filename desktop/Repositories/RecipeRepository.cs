@@ -521,59 +521,88 @@ namespace RafiqPOS.Repositories
         }
 
         /// <summary>
-        /// خصم الخامات تلقائياً عند بيع صنف مربوط برسبي (on_sale) أو إضافات مربوطة بخامات داخل نفس الترانزاكشن الذري للبيع
+        /// هل يُصرف هذا الصنف من خاماته عند البيع (رسبي نشط on_sale بخامات)؟ في هذه الحالة لا يُخصم رصيد الصنف نفسه
         /// </summary>
-        public bool DepleteRecipeForSaleItemAtomic(SQLiteConnection conn, SQLiteTransaction trans, Sale sale, SaleItem item, string nowIso)
+        public static bool IsRecipeDepletedOnSale(Recipe recipe)
         {
-            if (item == null || string.IsNullOrWhiteSpace(item.ProductId)) return false;
+            return recipe != null && recipe.IsActive
+                && string.Equals(recipe.DepletionMode, "on_sale", StringComparison.OrdinalIgnoreCase)
+                && recipe.Ingredients != null && recipe.Ingredients.Count > 0;
+        }
 
-            bool depletedRecipe = false;
-            var recipe = GetByProductIdInternal(conn, trans, item.ProductId);
-            if (recipe != null && recipe.IsActive && string.Equals(recipe.DepletionMode, "on_sale", StringComparison.OrdinalIgnoreCase) && recipe.Ingredients.Count > 0)
+        /// <summary>
+        /// معرفات الأصناف التي تُصرف من خاماتها عند البيع (نفس شرط IsRecipeDepletedOnSale) لعرضها في شاشة البيع
+        /// </summary>
+        public HashSet<string> GetOnSaleRecipeProductIds()
+        {
+            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (var conn = new SQLiteConnection(_connectionString))
             {
-                long yieldMilli = Math.Max(1L, recipe.YieldQtyMilli);
-                int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
-                long soldBaseMilli = item.QuantityMilli * factor;
+                conn.Open();
+                using (var cmd = new SQLiteCommand(@"
+                    SELECT r.product_id FROM recipes r
+                    WHERE r.is_active = 1
+                      AND LOWER(COALESCE(r.depletion_mode, 'on_sale')) = 'on_sale'
+                      AND EXISTS (SELECT 1 FROM recipe_ingredients ri WHERE ri.recipe_id = r.id);", conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        ids.Add(reader["product_id"].ToString());
+                    }
+                }
+            }
+            return ids;
+        }
 
+        public bool IsRecipeDepletedOnSale(SQLiteConnection conn, SQLiteTransaction trans, string productId)
+        {
+            return IsRecipeDepletedOnSale(GetByProductIdInternal(conn, trans, productId));
+        }
+
+        /// <summary>
+        /// الخامات المطلوبة لبند بيع (رسبي on_sale + خامات الإضافات) بوحدات الأساس، لفحص كفاية الرصيد قبل الحفظ
+        /// </summary>
+        public List<RecipeConsumptionLine> GetSaleItemConsumption(SaleItem item, out bool recipeDepleted)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                return BuildSaleItemConsumption(conn, null, item, out recipeDepleted);
+            }
+        }
+
+        private List<RecipeConsumptionLine> BuildSaleItemConsumption(SQLiteConnection conn, SQLiteTransaction trans, SaleItem item, out bool recipeDepleted)
+        {
+            var lines = new List<RecipeConsumptionLine>();
+            recipeDepleted = false;
+            if (item == null || string.IsNullOrWhiteSpace(item.ProductId)) return lines;
+
+            int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
+            long soldBaseMilli = item.QuantityMilli * factor;
+
+            var recipe = GetByProductIdInternal(conn, trans, item.ProductId);
+            if (IsRecipeDepletedOnSale(recipe))
+            {
+                recipeDepleted = true;
+                long yieldMilli = Math.Max(1L, recipe.YieldQtyMilli);
                 for (int i = 0; i < recipe.Ingredients.Count; i++)
                 {
                     var ing = recipe.Ingredients[i];
                     long effectiveIngMilli = (ing.QuantityMilli * (100L + ing.WastagePercent)) / 100L;
                     long deductMilli = (soldBaseMilli * effectiveIngMilli) / yieldMilli;
                     if (deductMilli <= 0) continue;
-
-                    using (var uIng = new SQLiteCommand("UPDATE products SET stock_quantity_milli = stock_quantity_milli - @qty, updated_at = @now WHERE id = @pid;", conn, trans))
+                    lines.Add(new RecipeConsumptionLine
                     {
-                        uIng.Parameters.AddWithValue("@qty", deductMilli);
-                        uIng.Parameters.AddWithValue("@now", nowIso);
-                        uIng.Parameters.AddWithValue("@pid", ing.IngredientProductId);
-                        uIng.ExecuteNonQuery();
-                    }
-
-                    using (var smCmd = new SQLiteCommand(@"
-                        INSERT INTO stock_movements (
-                            id, product_id, movement_type, quantity_milli,
-                            reference_id, reference_type, unit_cost_piasters, note, batch_number, created_at
-                        ) VALUES (
-                            @id, @pid, 'RECIPE_SALE_CONSUMPTION', @qty,
-                            @refId, 'SALE', @cost, @note, NULL, @now
-                        );", conn, trans))
-                    {
-                        smCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                        smCmd.Parameters.AddWithValue("@pid", ing.IngredientProductId);
-                        smCmd.Parameters.AddWithValue("@qty", -deductMilli);
-                        smCmd.Parameters.AddWithValue("@refId", sale.Id);
-                        smCmd.Parameters.AddWithValue("@cost", ing.IngredientCostPiasters);
-                        smCmd.Parameters.AddWithValue("@note", string.Format("خصم خامات رسبي للصنف ({0}) - فاتورة #{1}", item.ProductName, sale.InvoiceNumber));
-                        smCmd.Parameters.AddWithValue("@now", nowIso);
-                        smCmd.ExecuteNonQuery();
-                    }
+                        ProductId = ing.IngredientProductId,
+                        QuantityMilli = deductMilli,
+                        UnitCostPiasters = ing.IngredientCostPiasters,
+                        Note = string.Format("خصم خامات رسبي للصنف ({0})", item.ProductName)
+                    });
                 }
-                depletedRecipe = true;
             }
 
-            // Deduct linked ingredients for item modifiers if present
-            if (item.Modifiers != null && item.Modifiers.Count > 0)
+            if (item.Modifiers != null)
             {
                 for (int m = 0; m < item.Modifiers.Count; m++)
                 {
@@ -583,7 +612,6 @@ namespace RafiqPOS.Repositories
                     string linkedIngId = null;
                     long linkedQtyMilli = 0;
                     long ingCost = 0;
-
                     using (var optCmd = new SQLiteCommand(@"
                         SELECT o.linked_ingredient_id, o.linked_qty_milli, COALESCE(p.cost_piasters, o.cost_piasters, 0) AS ing_cost
                         FROM modifier_options o
@@ -602,43 +630,62 @@ namespace RafiqPOS.Repositories
                         }
                     }
 
-                    if (!string.IsNullOrWhiteSpace(linkedIngId) && linkedQtyMilli > 0)
+                    if (string.IsNullOrWhiteSpace(linkedIngId) || linkedQtyMilli <= 0) continue;
+                    // linked_qty_milli is per one sold base unit; a box of N base units consumes N times as much
+                    long totalModIngMilli = (linkedQtyMilli * soldBaseMilli) / 1000L;
+                    if (totalModIngMilli <= 0) continue;
+                    lines.Add(new RecipeConsumptionLine
                     {
-                        long totalModIngMilli = (linkedQtyMilli * item.QuantityMilli) / 1000L;
-                        if (totalModIngMilli > 0)
-                        {
-                            using (var uIng = new SQLiteCommand("UPDATE products SET stock_quantity_milli = stock_quantity_milli - @qty, updated_at = @now WHERE id = @pid;", conn, trans))
-                            {
-                                uIng.Parameters.AddWithValue("@qty", totalModIngMilli);
-                                uIng.Parameters.AddWithValue("@now", nowIso);
-                                uIng.Parameters.AddWithValue("@pid", linkedIngId);
-                                uIng.ExecuteNonQuery();
-                            }
-
-                            using (var smCmd = new SQLiteCommand(@"
-                                INSERT INTO stock_movements (
-                                    id, product_id, movement_type, quantity_milli,
-                                    reference_id, reference_type, unit_cost_piasters, note, batch_number, created_at
-                                ) VALUES (
-                                    @id, @pid, 'RECIPE_SALE_CONSUMPTION', @qty,
-                                    @refId, 'SALE', @cost, @note, NULL, @now
-                                );", conn, trans))
-                            {
-                                smCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                                smCmd.Parameters.AddWithValue("@pid", linkedIngId);
-                                smCmd.Parameters.AddWithValue("@qty", -totalModIngMilli);
-                                smCmd.Parameters.AddWithValue("@refId", sale.Id);
-                                smCmd.Parameters.AddWithValue("@cost", ingCost);
-                                smCmd.Parameters.AddWithValue("@note", string.Format("خصم خامة إضافة ({0}) - فاتورة #{1}", mod.OptionName, sale.InvoiceNumber));
-                                smCmd.Parameters.AddWithValue("@now", nowIso);
-                                smCmd.ExecuteNonQuery();
-                            }
-                        }
-                    }
+                        ProductId = linkedIngId,
+                        QuantityMilli = totalModIngMilli,
+                        UnitCostPiasters = ingCost,
+                        Note = string.Format("خصم خامة إضافة ({0})", mod.OptionName)
+                    });
                 }
             }
 
-            return depletedRecipe;
+            return lines;
+        }
+
+        /// <summary>
+        /// خصم الخامات تلقائياً عند بيع صنف مربوط برسبي (on_sale) أو إضافات مربوطة بخامات داخل نفس الترانزاكشن الذري للبيع
+        /// </summary>
+        public void DepleteRecipeForSaleItemAtomic(SQLiteConnection conn, SQLiteTransaction trans, Sale sale, SaleItem item, string nowIso)
+        {
+            bool recipeDepleted;
+            var lines = BuildSaleItemConsumption(conn, trans, item, out recipeDepleted);
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var line = lines[i];
+                using (var uIng = new SQLiteCommand("UPDATE products SET stock_quantity_milli = stock_quantity_milli - @qty, updated_at = @now WHERE id = @pid;", conn, trans))
+                {
+                    uIng.Parameters.AddWithValue("@qty", line.QuantityMilli);
+                    uIng.Parameters.AddWithValue("@now", nowIso);
+                    uIng.Parameters.AddWithValue("@pid", line.ProductId);
+                    uIng.ExecuteNonQuery();
+                }
+                // Keep batch-tracked ingredients (FEFO) equal to their stock
+                ProductBatchRepository.SyncBatchesWithStockDelta(conn, trans, line.ProductId, -line.QuantityMilli);
+
+                using (var smCmd = new SQLiteCommand(@"
+                    INSERT INTO stock_movements (
+                        id, product_id, movement_type, quantity_milli,
+                        reference_id, reference_type, unit_cost_piasters, note, batch_number, created_at
+                    ) VALUES (
+                        @id, @pid, 'RECIPE_SALE_CONSUMPTION', @qty,
+                        @refId, 'SALE', @cost, @note, NULL, @now
+                    );", conn, trans))
+                {
+                    smCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                    smCmd.Parameters.AddWithValue("@pid", line.ProductId);
+                    smCmd.Parameters.AddWithValue("@qty", -line.QuantityMilli);
+                    smCmd.Parameters.AddWithValue("@refId", sale.Id);
+                    smCmd.Parameters.AddWithValue("@cost", line.UnitCostPiasters);
+                    smCmd.Parameters.AddWithValue("@note", string.Format("{0} - فاتورة #{1}", line.Note, sale.InvoiceNumber));
+                    smCmd.Parameters.AddWithValue("@now", nowIso);
+                    smCmd.ExecuteNonQuery();
+                }
+            }
         }
 
         /// <summary>
@@ -679,6 +726,7 @@ namespace RafiqPOS.Repositories
                     uCmd.Parameters.AddWithValue("@pid", mv.Item1);
                     uCmd.ExecuteNonQuery();
                 }
+                ProductBatchRepository.SyncBatchesWithStockDelta(conn, trans, mv.Item1, mv.Item2);
 
                 using (var smCmd = new SQLiteCommand(@"
                     INSERT INTO stock_movements (
@@ -749,5 +797,13 @@ namespace RafiqPOS.Repositories
             catch { }
             return ing;
         }
+    }
+
+    public class RecipeConsumptionLine
+    {
+        public string ProductId { get; set; }
+        public long QuantityMilli { get; set; }
+        public long UnitCostPiasters { get; set; }
+        public string Note { get; set; }
     }
 }

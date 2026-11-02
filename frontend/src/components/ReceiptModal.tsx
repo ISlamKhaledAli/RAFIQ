@@ -3,7 +3,7 @@ import { Printer, X, CheckCircle, AlertTriangle, Loader2, RotateCcw } from 'luci
 import type { Sale } from '../types/models';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
-import { formatArabicCurrency } from '../utils/money';
+import { formatArabicCurrency, totalSaleDiscountPiasters } from '../utils/money';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -285,10 +285,10 @@ export function ReceiptModal({
                 <span>المجموع:</span>
                 <span className="font-mono">{formatArabicCurrency(sale.subtotalPiasters)}</span>
               </div>
-              {sale.discountPiasters > 0 && (
+              {totalSaleDiscountPiasters(sale) > 0 && (
                 <div className="flex justify-between text-red-700">
                   <span>الخصم:</span>
-                  <span className="font-mono">-{formatArabicCurrency(sale.discountPiasters)}</span>
+                  <span className="font-mono">-{formatArabicCurrency(totalSaleDiscountPiasters(sale))}</span>
                 </div>
               )}
               {sale.taxPiasters > 0 && (

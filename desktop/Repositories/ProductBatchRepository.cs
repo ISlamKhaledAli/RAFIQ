@@ -125,7 +125,7 @@ namespace RafiqPOS.Repositories
                   AND b.quantity_milli > 0
                   AND b.expiry_date IS NOT NULL
                   AND date(b.expiry_date) >= date('now', 'localtime')
-                  AND date(b.expiry_date) <= date('now', '+' || @days || ' days')
+                  AND date(b.expiry_date) <= date('now', 'localtime', '+' || @days || ' days')
                 ORDER BY b.expiry_date ASC, p.name ASC;
             ";
 
@@ -240,7 +240,7 @@ namespace RafiqPOS.Repositories
                       AND quantity_milli > 0
                       AND expiry_date IS NOT NULL
                       AND date(expiry_date) >= date('now', 'localtime')
-                      AND date(expiry_date) <= date('now', '+' || @days || ' days');
+                      AND date(expiry_date) <= date('now', 'localtime', '+' || @days || ' days');
                 ", conn))
                 {
                     cmd.Parameters.AddWithValue("@days", alertDays);
@@ -318,27 +318,96 @@ namespace RafiqPOS.Repositories
                     }
                 }
 
+                long existingCost = 0;
                 if (string.IsNullOrEmpty(existingId))
                 {
-                    using (var chk = new SQLiteCommand("SELECT id, quantity_milli FROM product_batches WHERE product_id = @pid AND batch_number = @bnum;", activeConn, activeTrans))
+                    string requestedNumber = batch.BatchNumber.Trim();
+                    string candidateNumber = requestedNumber;
+                    int suffix = 1;
+                    while (true)
                     {
-                        chk.Parameters.AddWithValue("@pid", batch.ProductId);
-                        chk.Parameters.AddWithValue("@bnum", batch.BatchNumber.Trim());
-                        using (var reader = chk.ExecuteReader())
+                        string foundId = null;
+                        string foundExpiry = null;
+                        long foundQty = 0;
+                        long foundCost = 0;
+                        using (var chk = new SQLiteCommand("SELECT id, quantity_milli, cost_price_piasters, expiry_date FROM product_batches WHERE product_id = @pid AND batch_number = @bnum;", activeConn, activeTrans))
                         {
-                            if (reader.Read())
+                            chk.Parameters.AddWithValue("@pid", batch.ProductId);
+                            chk.Parameters.AddWithValue("@bnum", candidateNumber);
+                            using (var reader = chk.ExecuteReader())
                             {
-                                existingId = reader["id"].ToString();
-                                existingQty = Convert.ToInt64(reader["quantity_milli"]);
+                                if (reader.Read())
+                                {
+                                    foundId = reader["id"].ToString();
+                                    foundQty = Convert.ToInt64(reader["quantity_milli"]);
+                                    foundCost = Convert.ToInt64(reader["cost_price_piasters"]);
+                                    foundExpiry = reader["expiry_date"] != DBNull.Value ? reader["expiry_date"].ToString() : null;
+                                }
                             }
                         }
+
+                        if (foundId == null)
+                        {
+                            break;
+                        }
+                        // A purchase merges into an existing batch only when both the batch number and the expiry match
+                        if (SameExpiryDate(foundExpiry, batch.ExpiryDate))
+                        {
+                            existingId = foundId;
+                            existingQty = foundQty;
+                            existingCost = foundCost;
+                            break;
+                        }
+                        suffix++;
+                        candidateNumber = requestedNumber + "-" + suffix;
                     }
+                    batch.BatchNumber = candidateNumber;
                 }
 
-                if (!string.IsNullOrEmpty(existingId))
+                if (!string.IsNullOrEmpty(existingId) && !isExplicitIdLookup)
                 {
                     batch.Id = existingId;
-                    if (isExplicitIdLookup && batch.QuantityMilli <= 0)
+                    long incomingQty = batch.QuantityMilli;
+                    batch.QuantityMilli = existingQty + incomingQty;
+                    if (batch.CostPricePiasters > 0 && existingQty > 0 && batch.QuantityMilli > 0)
+                    {
+                        batch.CostPricePiasters = (long)Math.Round(((decimal)existingQty * existingCost + (decimal)incomingQty * batch.CostPricePiasters) / batch.QuantityMilli, MidpointRounding.AwayFromZero);
+                    }
+                    batch.UpdatedAt = now;
+
+                    string mergeSql = @"
+                        UPDATE product_batches
+                        SET production_date = COALESCE(production_date, @prodDate),
+                            quantity_milli = @qty,
+                            cost_price_piasters = CASE WHEN @cost > 0 THEN @cost ELSE cost_price_piasters END,
+                            sell_price_piasters = COALESCE(sell_price_piasters, @sellPrice),
+                            public_price_piasters = COALESCE(public_price_piasters, @publicPrice),
+                            supplier_id = COALESCE(@suppId, supplier_id),
+                            purchase_id = COALESCE(@purId, purchase_id),
+                            status = CASE WHEN @qty > 0 THEN 'ACTIVE' ELSE 'DEPLETED' END,
+                            notes = COALESCE(@notes, notes),
+                            updated_at = @now
+                        WHERE id = @id;
+                    ";
+                    using (var cmd = new SQLiteCommand(mergeSql, activeConn, activeTrans))
+                    {
+                        cmd.Parameters.AddWithValue("@prodDate", (object)batch.ProductionDate ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@qty", batch.QuantityMilli);
+                        cmd.Parameters.AddWithValue("@cost", batch.CostPricePiasters);
+                        cmd.Parameters.AddWithValue("@sellPrice", batch.SellPricePiasters.HasValue ? (object)batch.SellPricePiasters.Value : DBNull.Value);
+                        cmd.Parameters.AddWithValue("@publicPrice", batch.PublicPricePiasters.HasValue ? (object)batch.PublicPricePiasters.Value : DBNull.Value);
+                        cmd.Parameters.AddWithValue("@suppId", (object)batch.SupplierId ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@purId", (object)batch.PurchaseId ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@notes", (object)batch.Notes ?? DBNull.Value);
+                        cmd.Parameters.AddWithValue("@now", now);
+                        cmd.Parameters.AddWithValue("@id", batch.Id);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                else if (!string.IsNullOrEmpty(existingId))
+                {
+                    batch.Id = existingId;
+                    if (batch.QuantityMilli <= 0)
                     {
                         // Metadata-only update (e.g. updating expiry date of existing batch)
                         batch.QuantityMilli = existingQty;
@@ -1000,6 +1069,95 @@ namespace RafiqPOS.Repositories
                         throw;
                     }
                 }
+            }
+        }
+
+        // An incoming batch without an expiry date carries no conflicting expiry
+        private static bool SameExpiryDate(string existingExpiry, string incomingExpiry)
+        {
+            if (string.IsNullOrWhiteSpace(incomingExpiry)) return true;
+            if (string.IsNullOrWhiteSpace(existingExpiry)) return false;
+            string a = existingExpiry.Trim();
+            string b = incomingExpiry.Trim();
+            if (a.Length > 10) a = a.Substring(0, 10);
+            if (b.Length > 10) b = b.Substring(0, 10);
+            return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// يطابق أرصدة التشغيلات مع تغيير رصيد الصنف: الزيادة تُضاف لأحدث تشغيلة صلاحية والعجز يُخصم بنظام FEFO.
+        /// </summary>
+        public static void SyncBatchesWithStockDelta(SQLiteConnection conn, SQLiteTransaction trans, string productId, long deltaMilli)
+        {
+            if (deltaMilli == 0 || string.IsNullOrEmpty(productId)) return;
+            string nowStr = DateTime.UtcNow.ToString("o");
+
+            if (deltaMilli > 0)
+            {
+                using (var upBatch = new SQLiteCommand(@"
+                    UPDATE product_batches
+                    SET quantity_milli = quantity_milli + @delta,
+                        status = 'ACTIVE',
+                        updated_at = @now
+                    WHERE id = (
+                        SELECT id FROM product_batches
+                        WHERE product_id = @pid
+                        ORDER BY CASE WHEN status = 'ACTIVE' THEN 0 ELSE 1 END ASC,
+                                 CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END ASC,
+                                 expiry_date DESC,
+                                 created_at DESC
+                        LIMIT 1
+                    );
+                ", conn, trans))
+                {
+                    upBatch.Parameters.AddWithValue("@delta", deltaMilli);
+                    upBatch.Parameters.AddWithValue("@now", nowStr);
+                    upBatch.Parameters.AddWithValue("@pid", productId);
+                    upBatch.ExecuteNonQuery();
+                }
+                return;
+            }
+
+            long toDeduct = -deltaMilli;
+            var batchList = new List<KeyValuePair<string, long>>();
+            using (var selBatches = new SQLiteCommand(@"
+                SELECT id, quantity_milli FROM product_batches
+                WHERE product_id = @pid AND quantity_milli > 0
+                ORDER BY CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END ASC,
+                         expiry_date ASC,
+                         created_at ASC;
+            ", conn, trans))
+            {
+                selBatches.Parameters.AddWithValue("@pid", productId);
+                using (var r = selBatches.ExecuteReader())
+                {
+                    while (r.Read())
+                    {
+                        batchList.Add(new KeyValuePair<string, long>(r["id"].ToString(), Convert.ToInt64(r["quantity_milli"])));
+                    }
+                }
+            }
+
+            foreach (var b in batchList)
+            {
+                if (toDeduct <= 0) break;
+                long take = Math.Min(toDeduct, b.Value);
+                long rem = b.Value - take;
+                using (var upB = new SQLiteCommand(@"
+                    UPDATE product_batches
+                    SET quantity_milli = @qty,
+                        status = @status,
+                        updated_at = @now
+                    WHERE id = @bid;
+                ", conn, trans))
+                {
+                    upB.Parameters.AddWithValue("@qty", rem);
+                    upB.Parameters.AddWithValue("@status", rem > 0 ? "ACTIVE" : "DEPLETED");
+                    upB.Parameters.AddWithValue("@now", nowStr);
+                    upB.Parameters.AddWithValue("@bid", b.Key);
+                    upB.ExecuteNonQuery();
+                }
+                toDeduct -= take;
             }
         }
 

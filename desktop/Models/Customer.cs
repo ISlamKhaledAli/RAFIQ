@@ -263,6 +263,14 @@ namespace RafiqPOS.Models
 
         [JsonProperty("message")]
         public string Message { get; set; }
+
+        [JsonProperty("rowErrors")]
+        public List<string> RowErrors { get; set; }
+
+        public CustomerImportResult()
+        {
+            this.RowErrors = new List<string>();
+        }
     }
 }
 

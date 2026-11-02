@@ -3,8 +3,9 @@ import { invoke } from '../bridge/ipc';
 import type { UserDto, LoginResult } from '../bridge/ipc';
 import { UserManagerModal } from './UserManagerModal';
 import { SupervisorPromptModal } from './SupervisorPromptModal';
-import { ShieldCheck, Keyboard, ShieldAlert, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { ShieldCheck, Keyboard, ShieldAlert } from 'lucide-react';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { ForcedPinChangeForm } from './ForcedPinChangeForm';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -34,10 +35,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   // Forced PIN change state (F-37 Security Hardening)
   const [forceChangePinUser, setForceChangePinUser] = useState<UserDto | null>(null);
-  const [newPin, setNewPin] = useState('');
-  const [newPinConfirm, setNewPinConfirm] = useState('');
-  const [changePinError, setChangePinError] = useState('');
-  const [savingNewPin, setSavingNewPin] = useState(false);
   const [oldPinEntered, setOldPinEntered] = useState('');
 
   const isLocked = lockoutSec > 0;
@@ -172,49 +169,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   };
 
-  const handleSaveForcedPin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!forceChangePinUser) return;
-    setChangePinError('');
-
-    if (newPin.length < 4 || newPin.length > 8 || !/^\d+$/.test(newPin)) {
-      setChangePinError('يجب أن يتكون الرقم السري من 4 إلى 8 أرقام فقط.');
-      return;
-    }
-
-    const sequentialPins = ['1234', '4321', '0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '0123', '9876'];
-    if (sequentialPins.includes(newPin)) {
-      setChangePinError('الرقم السري ضعيف وسهل التخمين. يرجى اختيار رقم سري أقوى (غير مكرر أو متتالي).');
-      return;
-    }
-
-    if (newPin !== newPinConfirm) {
-      setChangePinError('الرقم السري وتأكيده غير متطابقين.');
-      return;
-    }
-
-    setSavingNewPin(true);
-    try {
-      const res: any = await invoke('security:setPin', {
-        newPin,
-        currentPin: oldPinEntered || undefined,
-      });
-
-      if (res && res.success) {
-        const updatedUser: UserDto = { ...forceChangePinUser, mustChangePin: false };
-        setForceChangePinUser(null);
-        setNewPin('');
-        setNewPinConfirm('');
-        setOldPinEntered('');
-        onSuccess(updatedUser);
-      } else {
-        setChangePinError(res?.message || 'فشل حفظ الرقم السري الجديد.');
-      }
-    } catch (err: any) {
-      setChangePinError(err?.message || 'حدث خطأ أثناء حفظ الرقم السري.');
-    } finally {
-      setSavingNewPin(false);
-    }
+  const handleForcedPinChanged = (updatedUser: UserDto) => {
+    setForceChangePinUser(null);
+    setOldPinEntered('');
+    onSuccess(updatedUser);
   };
 
   const handleDismiss = () => {
@@ -300,78 +258,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
         {/* Content Body */}
         {forceChangePinUser ? (
-          <div className="p-6 bg-canvas flex flex-col gap-5">
-            <div className="p-4 rounded-xl bg-warn-soft border border-warn/20 text-warn flex items-start gap-3">
-              <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
-              <div className="text-xs leading-relaxed">
-                <span className="font-bold block text-sm mb-1 text-ink">تنبيه حماية الحساب والبيانات:</span>
-                الحساب الحالي مسجل بالرقم السري المبدئي <code className="bg-surface px-1.5 py-0.5 rounded border border-line font-mono font-bold text-ink">1234</code>. 
-                لحماية حسابك ومنع أي شخص من التلاعب بالأسعار أو الحسابات، يرجى كتابة رقم سري جديد وخاص بك (يتكون من 4 إلى 8 أرقام غير متتالية).
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveForcedPin} className="flex flex-col gap-4 max-w-md mx-auto w-full">
-              <div>
-                <label className="block text-xs font-bold text-ink mb-1.5">الرقم السري الجديد (4 إلى 8 أرقام)</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={8}
-                  value={newPin}
-                  onChange={(e) => {
-                    setNewPin(e.target.value.replace(/\D/g, ''));
-                    setChangePinError('');
-                  }}
-                  className="w-full h-11 px-3 rounded-xl border border-line bg-surface text-ink text-center text-lg font-mono tracking-widest focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-2xs"
-                  placeholder="••••"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-ink mb-1.5">تأكيد الرقم السري الجديد</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={8}
-                  value={newPinConfirm}
-                  onChange={(e) => {
-                    setNewPinConfirm(e.target.value.replace(/\D/g, ''));
-                    setChangePinError('');
-                  }}
-                  className="w-full h-11 px-3 rounded-xl border border-line bg-surface text-ink text-center text-lg font-mono tracking-widest focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-2xs"
-                  placeholder="••••"
-                />
-              </div>
-
-              {changePinError && (
-                <div className="p-3 rounded-xl bg-danger/10 border border-danger/20 text-danger text-xs font-bold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{changePinError}</span>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={savingNewPin || !newPin || !newPinConfirm}
-                className="w-full h-11 rounded-xl bg-brand hover:bg-brand-dark text-white font-bold text-sm transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2 shadow-sm"
-              >
-                {savingNewPin ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>جاري التحديث والتأمين...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>حفظ ومتابعة الدخول</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
+          <ForcedPinChangeForm
+            user={forceChangePinUser}
+            currentPin={oldPinEntered}
+            onPinChanged={handleForcedPinChanged}
+          />
         ) : (
           <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 bg-canvas">
           {/* Employee Selector Column (5 cols) */}

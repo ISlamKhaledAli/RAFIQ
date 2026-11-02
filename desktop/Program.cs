@@ -20,6 +20,22 @@ namespace RafiqPOS
             Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
             Thread.CurrentThread.CurrentUICulture = System.Globalization.CultureInfo.InvariantCulture;
 
+#if !DEBUG
+            // WebView2 environment variables override the runtime folder, profile and browser flags passed by MainForm
+            // (e.g. remote debugging); clear them for this process only. MainForm still passes the Win7 fixed runtime explicitly.
+            string[] webViewOverrides = new string[]
+            {
+                "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+                "WEBVIEW2_BROWSER_EXECUTABLE_FOLDER",
+                "WEBVIEW2_USER_DATA_FOLDER",
+                "WEBVIEW2_RELEASE_CHANNEL_PREFERENCE"
+            };
+            for (int w = 0; w < webViewOverrides.Length; w++)
+            {
+                Environment.SetEnvironmentVariable(webViewOverrides[w], null);
+            }
+#endif
+
             bool isDemoError = false;
             if (args != null)
             {
@@ -455,6 +471,10 @@ namespace RafiqPOS
                         try
                         {
                             Services.DatabaseService.Initialize();
+                            // Excel actions are permission-gated: run them inside an in-memory owner session (no PIN change persisted)
+                            var excelOwner = Services.SecurityService.MapToDto(Services.DatabaseService.UserRepo.GetByUsername("admin"));
+                            excelOwner.MustChangePin = false;
+                            Services.SecurityService.SetCurrentUserForTesting(excelOwner);
                             var sw = System.Diagnostics.Stopwatch.StartNew();
                             var resProducts = Bridge.IpcDispatcher.Dispatch(new Bridge.BridgeRequest
                             {
@@ -545,7 +565,7 @@ namespace RafiqPOS
                             string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
                             Console.WriteLine(json);
                             System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audit_test_output.json"), json);
-                            Environment.Exit(0);
+                            Environment.Exit(res.TotalTests > 0 && res.FailedCount == 0 ? 0 : 1);
                         }
                         catch (Exception ex)
                         {
@@ -563,7 +583,7 @@ namespace RafiqPOS
                             string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
                             Console.WriteLine(json);
                             System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "deep_audit_test_output.json"), json);
-                            Environment.Exit(0);
+                            Environment.Exit(res.TotalTests > 0 && res.FailedCount == 0 ? 0 : 1);
                         }
                         catch (Exception ex)
                         {
@@ -581,7 +601,7 @@ namespace RafiqPOS
                             string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
                             Console.WriteLine(json);
                             System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "chaos_test_output.json"), json);
-                            Environment.Exit(0);
+                            Environment.Exit(res.TotalTests > 0 && res.FailedCount == 0 ? 0 : 1);
                         }
                         catch (Exception ex)
                         {

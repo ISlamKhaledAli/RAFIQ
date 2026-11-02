@@ -23,6 +23,7 @@ namespace RafiqPOS.Bridge
                         limit = getAllObj["limit"].Value<int>();
                     }
                     var allProducts = DatabaseService.Products.GetAll(limit);
+                    MarkRecipeConsumption(allProducts);
                     response = BridgeResponse.Ok(request.Id, allProducts);
                     return true;
 
@@ -48,6 +49,7 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
                     var singleProd = DatabaseService.Products.GetById(getProdId);
+                    if (singleProd != null) MarkRecipeConsumption(new List<Product> { singleProd });
                     response = BridgeResponse.Ok(request.Id, singleProd);
                     return true;
 
@@ -80,6 +82,7 @@ namespace RafiqPOS.Bridge
                         smartLimit = smartObj["limit"].Value<int>();
                     }
                     var smartCatalog = DatabaseService.Products.GetSmartCatalog(smartLimit);
+                    MarkRecipeConsumption(smartCatalog);
                     var customQuickList = DatabaseService.QuickItems.GetAll();
                     response = BridgeResponse.Ok(request.Id, new {
                         products = smartCatalog,
@@ -122,6 +125,7 @@ namespace RafiqPOS.Bridge
                         query = request.Payload.ToString().Trim('"', ' ');
                     }
                     var searchResults = DatabaseService.Products.Search(query, searchLimit, searchOffset, stockStatus, categoryId);
+                    MarkRecipeConsumption(searchResults);
                     int searchTotalCount = DatabaseService.Products.GetSearchCount(query, stockStatus, categoryId);
                     int globalLowStockCount = DatabaseService.Products.GetLowStockCount();
                     int globalOutOfStockCount = DatabaseService.Products.GetOutOfStockCount();
@@ -312,6 +316,7 @@ namespace RafiqPOS.Bridge
                         response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "قائمة الأصناف المراد تعديل أسعارها فارغة");
                         return true;
                     }
+                    applyReq.UserId = SessionActorId();
                     var applyResult = DatabaseService.Products.ApplyBulkPriceAdjustment(applyReq);
                     response = BridgeResponse.Ok(request.Id, applyResult);
                     return true;
@@ -324,13 +329,9 @@ namespace RafiqPOS.Bridge
                         if (jObj != null)
                         {
                             if (jObj["batchId"] != null) revertReq.BatchId = jObj["batchId"].ToString();
-                            if (jObj["userId"] != null) revertReq.UserId = jObj["userId"].ToString();
                         }
                     }
-                    if (string.IsNullOrWhiteSpace(revertReq.UserId))
-                    {
-                        revertReq.UserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
-                    }
+                    revertReq.UserId = SessionActorId();
                     var revertResult = DatabaseService.Products.RevertBulkPriceAdjustment(revertReq);
                     response = BridgeResponse.Ok(request.Id, revertResult);
                     return true;
@@ -613,12 +614,11 @@ namespace RafiqPOS.Bridge
 
                 case "products:assignInternalBarcode":
                     string assignProdId = "";
-                    string assignUserId = "usr_admin_default";
+                    string assignUserId = SessionActorId();
                     JObject assignObj = request.Payload as JObject;
                     if (assignObj != null)
                     {
                         if (assignObj["productId"] != null) assignProdId = assignObj["productId"].ToString();
-                        if (assignObj["userId"] != null) assignUserId = assignObj["userId"].ToString();
                     }
                     else if (request.Payload != null)
                     {
@@ -643,12 +643,7 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "products:bulkGenerateInternalBarcodes":
-                    string bulkUserId = "usr_admin_default";
-                    JObject bulkBarcodeObj = request.Payload as JObject;
-                    if (bulkBarcodeObj != null && bulkBarcodeObj["userId"] != null)
-                    {
-                        bulkUserId = bulkBarcodeObj["userId"].ToString();
-                    }
+                    string bulkUserId = SessionActorId();
 
                     var bulkResult = DatabaseService.Products.BulkGenerateInternalBarcodes(bulkUserId);
                     response = BridgeResponse.Ok(request.Id, bulkResult);
@@ -674,8 +669,8 @@ namespace RafiqPOS.Bridge
                     string rebasePid = rebaseObj["productId"] != null ? rebaseObj["productId"].ToString() : null;
                     string newBaseUnit = rebaseObj["newBaseUnitName"] != null ? rebaseObj["newBaseUnitName"].ToString() : null;
                     int rebaseFactor = rebaseObj["rebaseFactor"] != null ? rebaseObj["rebaseFactor"].Value<int>() : 0;
-                    string rUserId = rebaseObj["userId"] != null ? rebaseObj["userId"].ToString() : "usr_admin_default";
-                    string rUserName = rebaseObj["userName"] != null ? rebaseObj["userName"].ToString() : "مدير النظام";
+                    string rUserId = SessionActorId();
+                    string rUserName = SessionActorName();
 
                     if (string.IsNullOrWhiteSpace(rebasePid) || string.IsNullOrWhiteSpace(newBaseUnit) || rebaseFactor < 2)
                     {
@@ -736,6 +731,21 @@ namespace RafiqPOS.Bridge
 
                 default:
                     return false;
+            }
+        }
+
+        // The POS must not block a café drink on its own stock: the server deducts its recipe ingredients instead
+        private static void MarkRecipeConsumption(List<Product> products)
+        {
+            if (products == null || products.Count == 0 || DatabaseService.RecipeRepo == null) return;
+            HashSet<string> recipeIds = DatabaseService.RecipeRepo.GetOnSaleRecipeProductIds();
+            if (recipeIds.Count == 0) return;
+            for (int i = 0; i < products.Count; i++)
+            {
+                if (products[i] != null && recipeIds.Contains(products[i].Id))
+                {
+                    products[i].ConsumesIngredientsOnSale = true;
+                }
             }
         }
     }

@@ -33,6 +33,8 @@ namespace RafiqPOS.Bridge
                     try
                     {
                         var openReq = openObj.ToObject<OpenShiftRequest>();
+                        openReq.CashierId = SessionActorId();
+                        openReq.CashierName = SessionActorName();
                         var opened = DatabaseService.Shifts.OpenShift(openReq);
                         response = BridgeResponse.Ok(request.Id, opened);
                     }
@@ -56,6 +58,8 @@ namespace RafiqPOS.Bridge
                     try
                     {
                         var closeReq = closeObj.ToObject<CloseShiftRequest>();
+                        closeReq.CashierId = SessionActorId();
+                        closeReq.CashierName = SessionActorName();
                         var closed = DatabaseService.Shifts.CloseShift(closeReq);
                         response = BridgeResponse.Ok(request.Id, closed);
                     }
@@ -103,6 +107,8 @@ namespace RafiqPOS.Bridge
                     try
                     {
                         var inReq = inObj.ToObject<CashMovementRequest>();
+                        inReq.PerformedById = SessionActorId();
+                        inReq.PerformedByName = SessionActorName();
                         var inTx = DatabaseService.CashDrawer.RecordCashIn(inReq);
                         response = BridgeResponse.Ok(request.Id, inTx);
                     }
@@ -127,6 +133,8 @@ namespace RafiqPOS.Bridge
                     try
                     {
                         var outReq = outObj.ToObject<CashMovementRequest>();
+                        outReq.PerformedById = SessionActorId();
+                        outReq.PerformedByName = SessionActorName();
                         var outTx = DatabaseService.CashDrawer.RecordCashOut(outReq);
                         response = BridgeResponse.Ok(request.Id, outTx);
                     }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { netSalesSharePercents, sortByProfit } from './profitabilityDisplay';
 import type { FC } from 'react';
 import {
   DollarSign,
@@ -78,6 +79,9 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   const [hourlyReport, setHourlyReport] = useState<HourlyIntensityReport | null>(null);
 
   const [activeSection, setActiveSection] = useState<'overview' | 'traffic' | 'categories' | 'items' | 'closings' | 'vat'>('overview');
+  // Profitability figures are net of returns and ex-VAT, so rows can be negative
+  const categoryShares = netSalesSharePercents(categories);
+  const orderedItems = sortByProfit(profitableItems, itemsDirection);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -732,7 +736,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
               <div>
                 <h2 className="text-sm font-bold text-ink dark:text-ink-dark">أداء ومبيعات الأقسام والتصنيفات</h2>
                 <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
-                  تحليل مبيعات كل قسم ومساهمته في الأرباح الإجمالية لتحديد الأقسام الأكثر ربحية
+                  صافي مبيعات كل قسم (بدون ضريبة القيمة المضافة وبعد خصم المرتجعات) ومساهمته في الأرباح
                 </p>
               </div>
               <span className="text-xs font-mono font-semibold px-2 py-1 bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
@@ -745,7 +749,10 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                 <thead>
                   <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
                     <th className="py-2.5 px-3">القسم / التصنيف</th>
-                    <th className="py-2.5 px-3">إجمالي المبيعات</th>
+                    <th className="py-2.5 px-3" title="بدون ضريبة القيمة المضافة وبعد خصم المرتجعات">
+                      <span>صافي المبيعات</span>
+                      <span className="block text-[10px] font-normal">بدون ضريبة، بعد المرتجعات</span>
+                    </th>
                     <th className="py-2.5 px-3">حصة المبيعات (%)</th>
                     <th className="py-2.5 px-3">تكلفة الشراء</th>
                     <th className="py-2.5 px-3">مجمل الربح</th>
@@ -761,32 +768,38 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                       </td>
                     </tr>
                   ) : (
-                    categories.map((cat) => (
+                    categories.map((cat, catIndex) => (
                       <tr key={cat.categoryId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                         <td className="py-2.5 px-3 font-bold text-ink dark:text-ink-dark flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-brand dark:bg-brand-bright shrink-0" />
                           <span>{cat.categoryName}</span>
                         </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-ink dark:text-ink-dark">
+                        <td className={`py-2.5 px-3 font-mono font-bold ${cat.totalSalesPiasters < 0 ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'}`}>
                           {formatArabicCurrency(cat.totalSalesPiasters)}
                         </td>
                         <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 h-2 bg-surface-2 dark:bg-surface-dark-2 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-brand dark:bg-brand-bright rounded-full"
-                                style={{ width: `${Math.min(100, cat.salesSharePercent)}%` }}
-                              />
+                          {cat.totalSalesPiasters > 0 ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-2 bg-surface-2 dark:bg-surface-dark-2 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-brand dark:bg-brand-bright rounded-full"
+                                  style={{ width: `${categoryShares[catIndex]}%` }}
+                                />
+                              </div>
+                              <span className="font-mono text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                                {categoryShares[catIndex]}%
+                              </span>
                             </div>
-                            <span className="font-mono text-[11px] text-ink-muted dark:text-ink-dark-muted">
-                              {cat.salesSharePercent}%
+                          ) : (
+                            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted" title="المرتجعات تساوي أو تتجاوز المبيعات في هذه الفترة">
+                              لا حصة
                             </span>
-                          </div>
+                          )}
                         </td>
                         <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {formatArabicCurrency(cat.totalCostPiasters)}
                         </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-paid dark:text-paid-bright">
+                        <td className={`py-2.5 px-3 font-mono font-bold ${cat.grossProfitPiasters < 0 ? 'text-danger dark:text-danger-bright' : 'text-paid dark:text-paid-bright'}`}>
                           {formatArabicCurrency(cat.grossProfitPiasters)}
                         </td>
                         <td className="py-2.5 px-3">
@@ -858,20 +871,23 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                     <th className="py-2.5 px-3">سعر البيع</th>
                     <th className="py-2.5 px-3">التكلفة</th>
                     <th className="py-2.5 px-3">الكمية المباعة</th>
-                    <th className="py-2.5 px-3">إجمالي المبيعات</th>
+                    <th className="py-2.5 px-3" title="بدون ضريبة القيمة المضافة وبعد خصم المرتجعات">
+                      <span>صافي المبيعات</span>
+                      <span className="block text-[10px] font-normal">بدون ضريبة، بعد المرتجعات</span>
+                    </th>
                     <th className="py-2.5 px-3">صافي الربح</th>
                     <th className="py-2.5 px-3">نسبة الهامش</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line dark:divide-line-dark">
-                  {profitableItems.length === 0 ? (
+                  {orderedItems.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-6 text-center text-ink-muted dark:text-ink-dark-muted">
                         لا توجد بيانات أصناف مباعة لهذه الفترة
                       </td>
                     </tr>
                   ) : (
-                    profitableItems.map((item) => (
+                    orderedItems.map((item) => (
                       <tr key={item.productId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                         <td className="py-2.5 px-3">
                           <div className="font-bold text-ink dark:text-ink-dark">{item.productName}</div>
@@ -891,7 +907,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                         <td className="py-2.5 px-3 font-mono text-ink dark:text-ink-dark">
                           {(item.quantitySoldMilli / 1000).toLocaleString('en-US')}
                         </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-ink dark:text-ink-dark">
+                        <td className={`py-2.5 px-3 font-mono font-bold ${item.totalSalesPiasters < 0 ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'}`}>
                           {formatArabicCurrency(item.totalSalesPiasters)}
                         </td>
                         <td className="py-2.5 px-3 font-mono font-bold">

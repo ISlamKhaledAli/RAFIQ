@@ -1,6 +1,7 @@
 import type { Env, LicenseRecord } from '../types.ts';
 import { validateClientApiKey } from '../auth.ts';
 import { verifyActivationToken, signActivationToken } from '../crypto.ts';
+import { LICENSE_KEY_PATTERN } from './activate.ts';
 
 export async function handleVerify(request: Request, env: Env): Promise<Response> {
   if (!validateClientApiKey(request, env)) {
@@ -10,7 +11,7 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
     );
   }
 
-  let body: { token?: string; license_key?: string; machine_fingerprint?: string; legacy_fingerprint?: string };
+  let body: { token?: string; license_key?: string; machine_fingerprint?: string };
   try {
     body = await request.json();
   } catch {
@@ -23,7 +24,6 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
   const token = (body.token || '').trim();
   const rawKey = (body.license_key || '').trim().toUpperCase();
   const machineFingerprint = (body.machine_fingerprint || '').trim();
-  const legacyFingerprint = (body.legacy_fingerprint || '').trim();
 
   let licenseKey = rawKey;
   let tokenFingerprint = '';
@@ -48,8 +48,7 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
 
     // Validate machine fingerprint binding against token payload if provided
     const tokenFpMatches = !machineFingerprint || !tokenFingerprint ||
-                           tokenFingerprint === machineFingerprint ||
-                           (legacyFingerprint && tokenFingerprint === legacyFingerprint);
+                           tokenFingerprint === machineFingerprint;
     if (!tokenFpMatches) {
       return new Response(
         JSON.stringify({
@@ -66,6 +65,13 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
   if (!licenseKey) {
     return new Response(
       JSON.stringify({ success: false, code: 'MISSING_TOKEN', message: 'توكن التفعيل أو رمز الترخيص مطلوب' }),
+      { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
+  }
+
+  if (!LICENSE_KEY_PATTERN.test(licenseKey)) {
+    return new Response(
+      JSON.stringify({ success: false, valid: false, code: 'INVALID_LICENSE_KEY', message: 'صيغة رمز الترخيص غير صحيحة' }),
       { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
     );
   }
@@ -100,12 +106,9 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
     );
   }
 
-  // Validate device binding against database
+  // Validate device binding against database: exactly the bound fingerprint, never a rebind
   const effectiveFp = machineFingerprint || tokenFingerprint;
-  const dbFpMatches = effectiveFp && (
-    license.machine_fingerprint === effectiveFp ||
-    (legacyFingerprint && license.machine_fingerprint === legacyFingerprint)
-  );
+  const dbFpMatches = Boolean(effectiveFp) && license.machine_fingerprint === effectiveFp;
 
   if (!dbFpMatches) {
     return new Response(
@@ -117,15 +120,6 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
       }),
       { status: 403, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
     );
-  }
-
-  // Seamlessly migrate legacy machine fingerprint in D1
-  if (machineFingerprint && license.machine_fingerprint && legacyFingerprint &&
-      license.machine_fingerprint === legacyFingerprint && license.machine_fingerprint !== machineFingerprint) {
-    await env.DB.prepare("UPDATE licenses SET machine_fingerprint = ?, updated_at = datetime('now') WHERE id = ?")
-      .bind(machineFingerprint, license.id)
-      .run();
-    license.machine_fingerprint = machineFingerprint;
   }
 
   if (license.status === 'disabled') {

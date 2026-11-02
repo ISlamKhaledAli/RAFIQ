@@ -49,8 +49,15 @@ namespace RafiqPOS.Services
         private const string KEY_LOCKOUT_UNTIL = "security_lockout_until";
         private const string KEY_PROTECTED_ACTIONS = "security_protected_actions";
         private const string KEY_IDLE_TIMEOUT_MINUTES = "security_idle_timeout_minutes";
+        // Separate persistent throttles so one channel can never reset or shorten another (F6/F14)
+        private const string KEY_SUPERVISOR_FAILED = "security_supervisor_failed_attempts";
+        private const string KEY_SUPERVISOR_LOCKOUT = "security_supervisor_lockout_until";
+        private const string KEY_RECOVERY_FAILED = "security_recovery_failed_attempts";
+        private const string KEY_RECOVERY_LOCKOUT = "security_recovery_lockout_until";
 
         private const int PBKDF2_ITERATIONS = 50000;
+        // Older installers seeded user PINs with 10k iterations; accepted once and re-hashed on use
+        private const int LEGACY_PBKDF2_ITERATIONS = 10000;
         private const int HASH_BYTE_SIZE = 32;
         private const int SALT_BYTE_SIZE = 16;
 
@@ -60,11 +67,9 @@ namespace RafiqPOS.Services
 
         // Current active session
         private static UserDto _currentUserSession;
+        // Session that was opened with the owner recovery code; it may set a new PIN without the forgotten one
+        private static string _recoveryLoginUserId;
 
-        // Global PIN rate limiter for supervisor verification (F-36)
-        private static int _globalPinAttempts = 0;
-        private static DateTime _globalLockoutUntil = DateTime.MinValue;
-        private static DateTime _globalWindowStart = DateTime.MinValue;
 
         public SecurityService(SettingsRepository settingsRepo, AuditLogRepository auditRepo, UserRepository userRepo = null)
         {
@@ -81,6 +86,7 @@ namespace RafiqPOS.Services
             {
                 // 1. Ensure Developer Root account exists and is ACTIVE as root, authenticated EXCLUSIVELY via 1-hour dynamic OTP (No static password)
                 EnsureRootDeveloperAccount();
+                MigratePlaintextPins();
 
                 // 2. Ensure Store Owner "admin" exists as role "admin" (صاحب المحل)
                 var ownerUser = _userRepo.GetByUsername("admin");
@@ -121,14 +127,6 @@ namespace RafiqPOS.Services
                     if (ownerUser.ParentId == "usr_root_developer" || ownerUser.ParentId == ownerUser.Id) { ownerUser.ParentId = null; oChanged = true; }
                     if (!string.IsNullOrEmpty(ownerUser.PermissionsJson)) { ownerUser.PermissionsJson = null; oChanged = true; }
                     if (!ownerUser.IsActive) { ownerUser.IsActive = true; oChanged = true; }
-                    if (string.IsNullOrEmpty(ownerUser.PinSalt) && !string.IsNullOrEmpty(ownerUser.PinCodeHash))
-                    {
-                        byte[] oSaltBytes = GenerateSalt();
-                        byte[] oHashBytes = HashWithSalt(ownerUser.PinCodeHash, oSaltBytes);
-                        ownerUser.PinSalt = Convert.ToBase64String(oSaltBytes);
-                        ownerUser.PinCodeHash = Convert.ToBase64String(oHashBytes);
-                        oChanged = true;
-                    }
                     if (oChanged) _userRepo.Update(ownerUser);
                 }
 
@@ -195,6 +193,24 @@ namespace RafiqPOS.Services
             }
             catch
             {
+            }
+        }
+
+        // One-time startup conversion of plaintext PIN seeds (e.g. migration v1 admin '1234') into salted hashes
+        private void MigratePlaintextPins()
+        {
+            var users = _userRepo.GetAll(false);
+            for (int i = 0; i < users.Count; i++)
+            {
+                User u = users[i];
+                if (u == null || u.Role == "root" || string.IsNullOrEmpty(u.PinCodeHash) || !string.IsNullOrEmpty(u.PinSalt)) continue;
+                string plainPin = u.PinCodeHash;
+                UpgradeLegacyPinHash(u, plainPin);
+                if (IsWeakPin(plainPin) && !u.MustChangePin)
+                {
+                    u.MustChangePin = true;
+                    _userRepo.Update(u);
+                }
             }
         }
 
@@ -329,6 +345,7 @@ namespace RafiqPOS.Services
                 if (refreshed != null)
                 {
                     _currentUserSession = MapToDto(refreshed);
+                    _currentUserSession.IsRecoverySession = _recoveryLoginUserId == refreshed.Id;
                 }
             }
             return _currentUserSession;
@@ -338,6 +355,7 @@ namespace RafiqPOS.Services
         {
             // Security hardening: immediately invalidate prior session so failed attempts never inherit privileges
             _currentUserSession = null;
+            _recoveryLoginUserId = null;
 
             var res = new LoginResult();
 
@@ -401,13 +419,16 @@ namespace RafiqPOS.Services
             bool matches = false;
 
             // 2. Emergency Recovery Code for Store Owner (admin)
-            if ((user.Role == "admin" || user.Role == "root") && !string.IsNullOrEmpty(pin) &&
+            // Root stays challenge-only: recovery codes are never accepted for it
+            if (user.Role == "admin" && !string.IsNullOrEmpty(pin) &&
                 (pin.Trim().StartsWith("RFQ-REC-", StringComparison.OrdinalIgnoreCase) || pin.Trim().StartsWith("RFK", StringComparison.OrdinalIgnoreCase)))
             {
                 if (VerifyRecoveryCodeInternal(pin))
                 {
                     matches = true;
                     user.MustChangePin = true;
+                    _userRepo.Update(user);
+                    _recoveryLoginUserId = user.Id;
                     LogAudit("EMERGENCY_RECOVERY_LOGIN", "SECURITY", user.Username, "تم تسجيل الدخول بنجاح باستخدام كود استرجاع الدعم الفني المعتمد");
                 }
             }
@@ -434,23 +455,17 @@ namespace RafiqPOS.Services
                 // If not matched by password, check PIN hash
                 if (!matches && !string.IsNullOrEmpty(user.PinCodeHash))
                 {
-                    if (!string.IsNullOrEmpty(user.PinSalt))
+                    bool needsUpgrade;
+                    matches = VerifyStoredPin(user.PinCodeHash, user.PinSalt, pin, out needsUpgrade);
+                    if (matches && needsUpgrade)
                     {
-                        try
+                        UpgradeLegacyPinHash(user, pin);
+                        // Factory-seeded weak PINs (admin 1234 / cashier1 0000) must be replaced before any work
+                        if (IsWeakPin(pin) && !user.MustChangePin)
                         {
-                            byte[] salt = Convert.FromBase64String(user.PinSalt);
-                            byte[] expectedHash = Convert.FromBase64String(user.PinCodeHash);
-                            byte[] actualHash = HashWithSalt(pin, salt);
-                            matches = SlowEquals(expectedHash, actualHash);
+                            user.MustChangePin = true;
+                            _userRepo.Update(user);
                         }
-                        catch
-                        {
-                        }
-                    }
-                    else
-                    {
-                        // Legacy plain or simple fallback if empty salt
-                        matches = user.PinCodeHash == pin;
                     }
                 }
             }
@@ -464,6 +479,7 @@ namespace RafiqPOS.Services
                 user.LastLoginAt = DateTime.UtcNow.ToString("o");
 
                 var dto = MapToDto(user);
+                dto.IsRecoverySession = _recoveryLoginUserId == user.Id;
                 _currentUserSession = dto;
 
                 string roleName = user.Role == "root" ? "المالك (Root)" : (user.Role == "admin" ? "مدير النظام" : user.Role);
@@ -480,15 +496,7 @@ namespace RafiqPOS.Services
             else
             {
                 int failed = user.FailedAttempts + 1;
-                int lockoutSec = 0;
-                if (failed >= 10)
-                {
-                    lockoutSec = 300; // 5 minutes
-                }
-                else if (failed >= 5)
-                {
-                    lockoutSec = 30; // 30 seconds
-                }
+                int lockoutSec = LoginLockoutSeconds(failed);
 
                 _userRepo.RecordLoginAttempt(user.Id, false, lockoutSec);
                 LogAudit("LOGIN_FAILED", "SECURITY", user.Username, string.Format("محاولة دخول خاطئة للموظف: {0} (المحاولة {1})", user.DisplayName, failed));
@@ -503,12 +511,20 @@ namespace RafiqPOS.Services
             }
         }
 
+        private static int LoginLockoutSeconds(int failedAttempts)
+        {
+            if (failedAttempts >= 10) return 300;
+            if (failedAttempts >= 5) return 30;
+            return 0;
+        }
+
         public void Logout()
         {
             if (_currentUserSession != null)
             {
                 LogAudit("USER_LOGOUT", "SECURITY", _currentUserSession.Username, string.Format("تسجيل خروج الموظف: {0}", _currentUserSession.DisplayName));
                 _currentUserSession = null;
+                _recoveryLoginUserId = null;
             }
         }
 
@@ -565,14 +581,26 @@ namespace RafiqPOS.Services
                 throw new InvalidOperationException("اسم المستخدم موجود بالفعل");
             }
 
-            User parent = null;
-            if (!string.IsNullOrEmpty(parentUserId))
+            // Parent is always the session user or (for admin/root) any account; non-admins may only nest under their own subtree
+            User caller = _currentUserSession != null ? _userRepo.GetById(_currentUserSession.Id) : null;
+            bool callerIsAdmin = caller != null && (caller.Role == "admin" || caller.Role == "root");
+            User parent = caller;
+            if (caller != null && !string.IsNullOrEmpty(parentUserId) && parentUserId != caller.Id)
             {
-                parent = _userRepo.GetById(parentUserId);
-            }
-            if (parent == null && _currentUserSession != null)
-            {
-                parent = _userRepo.GetById(_currentUserSession.Id);
+                User requestedParent = _userRepo.GetById(parentUserId);
+                if (requestedParent == null)
+                {
+                    throw new ArgumentException("المشرف المحدد للحساب الجديد غير موجود.");
+                }
+                if (requestedParent.Role == "root" && caller.Role != "root")
+                {
+                    throw new UnauthorizedAccessException("غير مصرح بإنشاء حسابات تحت حساب المطور.");
+                }
+                if (!callerIsAdmin && !IsDescendantOf(requestedParent.Id, caller.Id))
+                {
+                    throw new UnauthorizedAccessException("لا يمكن إنشاء حساب إلا تحت حسابك أو أحد الحسابات التابعة لك.");
+                }
+                parent = requestedParent;
             }
 
             if (parent == null)
@@ -611,16 +639,24 @@ namespace RafiqPOS.Services
 
                     // Filter permissions: child can only receive permissions that parent actually possesses
                     var parentPerms = GetEffectivePermissions(parent);
-                    var filtered = new Dictionary<string, bool>();
-                    if (permissions != null)
+                    if (callerIsAdmin)
                     {
-                        foreach (var kvp in permissions)
+                        var filtered = new Dictionary<string, bool>();
+                        if (permissions != null)
                         {
-                            bool parentHas = parentPerms.ContainsKey(kvp.Key) && parentPerms[kvp.Key];
-                            filtered[kvp.Key] = kvp.Value && parentHas;
+                            foreach (var kvp in permissions)
+                            {
+                                bool parentHas = parentPerms.ContainsKey(kvp.Key) && parentPerms[kvp.Key];
+                                filtered[kvp.Key] = kvp.Value && parentHas;
+                            }
                         }
+                        permissions = filtered;
                     }
-                    permissions = filtered;
+                    else
+                    {
+                        // Non-admins only ever create cashiers; persist a complete map so nothing is inherited by omission
+                        permissions = BuildBoundedPermissionMap("cashier", permissions, GetEffectivePermissions(caller), parentPerms);
+                    }
                 }
                 else
                 {
@@ -656,8 +692,7 @@ namespace RafiqPOS.Services
             }
             if (targetRole == "admin")
             {
-                bool parentIsAdminOrRoot = parent != null && (parent.Role == "admin" || parent.Role == "root");
-                if (!parentIsAdminOrRoot)
+                if (!callerIsAdmin)
                 {
                     throw new UnauthorizedAccessException("غير مصرح بإنشاء حساب برتبة مدير نظام إلا من قبل مدير نظام آخر.");
                 }
@@ -770,6 +805,15 @@ namespace RafiqPOS.Services
                 throw new InvalidOperationException("لا يمكن تعديل صلاحيات صاحب المحل إلا من خلال حساب الـ Root الأعلى.");
             }
 
+            User caller = RequireHierarchyAuthority(user);
+            if (caller.Role != "admin" && caller.Role != "root")
+            {
+                // Non-admins persist a complete map bounded by their own and the target's parent permissions
+                User targetParent = !string.IsNullOrEmpty(user.ParentId) ? _userRepo.GetById(user.ParentId) : null;
+                permissions = BuildBoundedPermissionMap(user.Role, permissions, GetEffectivePermissions(caller),
+                    targetParent != null ? GetEffectivePermissions(targetParent) : null);
+            }
+
             string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : "{}";
             user.PermissionsJson = permsJson;
             _userRepo.Update(user);
@@ -784,15 +828,88 @@ namespace RafiqPOS.Services
             var user = _userRepo.GetById(userId);
             if (user == null) throw new ArgumentException("الموظف غير موجود");
 
+            if (maxDepth < 0) maxDepth = 0;
+            // Re-saving the same delegation (e.g. the edit form after a profile update) is a harmless no-op
+            if (user.CanDelegate == canDelegate && user.MaxDepth == maxDepth) return;
+
             if (user.Role == "root")
             {
                 throw new InvalidOperationException("حساب الـ Root يملك أعلى مستوى تفويض دائماً.");
             }
 
+            User caller = RequireHierarchyAuthority(user);
+            if (caller.Role != "admin" && caller.Role != "root")
+            {
+                // Depth budget shrinks with the target's distance below the caller in the tree
+                int allowedDepth = Math.Max(0, caller.MaxDepth - GetDistanceBelow(user.Id, caller.Id));
+                if (maxDepth > allowedDepth) maxDepth = allowedDepth;
+                canDelegate = canDelegate && caller.CanDelegate && maxDepth > 0;
+            }
+
             user.CanDelegate = canDelegate;
-            user.MaxDepth = maxDepth >= 0 ? maxDepth : 0;
+            user.MaxDepth = maxDepth;
             _userRepo.Update(user);
             LogAudit("USER_DELEGATION_UPDATED", "SECURITY", user.Username, string.Format("تحديث صلاحية التفويض للحساب: {0} (يمكنه التفويض: {1}, أقصى عمق: {2})", user.DisplayName, canDelegate, maxDepth));
+        }
+
+        // Every known permission gets an explicit value: requested (or the role default when omitted) AND held by caller AND parent
+        private static Dictionary<string, bool> BuildBoundedPermissionMap(string targetRole, Dictionary<string, bool> requested,
+            Dictionary<string, bool> callerPerms, Dictionary<string, bool> parentPerms)
+        {
+            var roleDefaults = GetPermissionsForRole(targetRole);
+            var result = new Dictionary<string, bool>();
+            for (int i = 0; i < ALL_PERMISSIONS.Length; i++)
+            {
+                string key = ALL_PERMISSIONS[i];
+                bool wanted = requested != null && requested.ContainsKey(key)
+                    ? requested[key]
+                    : roleDefaults.ContainsKey(key) && roleDefaults[key];
+                bool callerHas = callerPerms.ContainsKey(key) && callerPerms[key];
+                bool parentHas = parentPerms == null || (parentPerms.ContainsKey(key) && parentPerms[key]);
+                result[key] = wanted && callerHas && parentHas;
+            }
+            return result;
+        }
+
+        // Caller must be logged in, may not edit itself, and (unless admin/root) must be an ancestor of the target
+        private User RequireHierarchyAuthority(User target)
+        {
+            User caller = _currentUserSession != null ? _userRepo.GetById(_currentUserSession.Id) : null;
+            if (caller == null || !caller.IsActive)
+            {
+                throw new UnauthorizedAccessException("يجب تسجيل الدخول بحساب نشط لتعديل صلاحيات الموظفين.");
+            }
+            if (caller.Id == target.Id)
+            {
+                throw new UnauthorizedAccessException("لا يمكن تعديل صلاحيات أو تفويض حسابك بنفسك.");
+            }
+            bool callerIsAdmin = caller.Role == "admin" || caller.Role == "root";
+            if (!callerIsAdmin && !IsDescendantOf(target.Id, caller.Id))
+            {
+                throw new UnauthorizedAccessException("غير مصرح: يمكنك تعديل الحسابات التابعة لك فقط.");
+            }
+            return caller;
+        }
+
+        private bool IsDescendantOf(string userId, string ancestorId)
+        {
+            return GetDistanceBelow(userId, ancestorId) > 0;
+        }
+
+        // Number of parent links from userId up to ancestorId (1 = direct child); 0 when not a descendant
+        private int GetDistanceBelow(string userId, string ancestorId)
+        {
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(ancestorId) || _userRepo == null) return 0;
+            var visited = new HashSet<string>();
+            int distance = 0;
+            User current = _userRepo.GetById(userId);
+            while (current != null && !string.IsNullOrEmpty(current.ParentId) && visited.Add(current.Id))
+            {
+                distance++;
+                if (current.ParentId == ancestorId) return distance;
+                current = _userRepo.GetById(current.ParentId);
+            }
+            return 0;
         }
 
         private void CascadeDeactivate(string parentId)
@@ -905,26 +1022,40 @@ namespace RafiqPOS.Services
                 throw new ArgumentException("يجب أن لا تقل كلمة المرور عن 4 أحرف أو أرقام.");
             }
 
-            bool authorized = false;
-            if (IsCurrentSessionRoot() || IsCurrentSessionAdmin())
+            User caller = _currentUserSession != null ? _userRepo.GetById(_currentUserSession.Id) : null;
+            if (caller == null)
             {
-                authorized = true;
+                throw new UnauthorizedAccessException("غير مصرح بتغيير كلمة المرور دون تسجيل الدخول.");
             }
-            else if (!string.IsNullOrEmpty(currentPasswordOrSupervisorPin))
+            if (user.Role == "root" && caller.Role != "root")
             {
-                if (VerifyUserPassword(userId, currentPasswordOrSupervisorPin))
-                {
-                    authorized = true;
-                }
-                else if (VerifySupervisorPin(currentPasswordOrSupervisorPin, "CHANGE_PASSWORD").Success)
-                {
-                    authorized = true;
-                }
+                throw new UnauthorizedAccessException("حساب المطور (Root) يُدار بالتحدي المشفر فقط ولا يمكن تغيير بياناته.");
             }
 
-            if (!authorized)
+            bool callerIsAdmin = caller.Role == "admin" || caller.Role == "root";
+            if (caller.Id == user.Id && !callerIsAdmin)
             {
-                throw new UnauthorizedAccessException("غير مصرح بتغيير كلمة المرور دون تأكيد الهوية.");
+                // Self-service change must prove the current credential and is throttled like a login
+                int remaining = GetUserRemainingLockoutSeconds(user);
+                if (remaining > 0)
+                {
+                    throw new UnauthorizedAccessException(string.Format("الحساب مقفل مؤقتاً بسبب محاولات خاطئة. يرجى الانتظار {0} ثانية.", remaining));
+                }
+                bool proven = !string.IsNullOrEmpty(currentPasswordOrSupervisorPin) &&
+                    (string.IsNullOrEmpty(user.PasswordHash)
+                        ? VerifyUserPin(user.Id, currentPasswordOrSupervisorPin)
+                        : VerifyUserPassword(user.Id, currentPasswordOrSupervisorPin));
+                if (!proven)
+                {
+                    int failed = user.FailedAttempts + 1;
+                    _userRepo.RecordLoginAttempt(user.Id, false, LoginLockoutSeconds(failed));
+                    LogAudit("PASSWORD_CHANGE_FAILED", "SECURITY", user.Username, string.Format("محاولة تغيير كلمة مرور بكلمة حالية خاطئة (المحاولة {0})", failed));
+                    throw new UnauthorizedAccessException("كلمة المرور الحالية غير صحيحة.");
+                }
+            }
+            else if (caller.Id != user.Id)
+            {
+                RequireHierarchyAuthority(user);
             }
 
             byte[] salt = GenerateSalt();
@@ -996,13 +1127,13 @@ namespace RafiqPOS.Services
             User user = _userRepo.GetById(userId);
             if (user == null) return false;
 
-            if (string.IsNullOrEmpty(user.PinCodeHash) || string.IsNullOrEmpty(user.PinSalt))
-                return false;
-
-            byte[] salt = Convert.FromBase64String(user.PinSalt);
-            byte[] expectedHash = Convert.FromBase64String(user.PinCodeHash);
-            byte[] actualHash = HashWithSalt(pin, salt);
-            return SlowEquals(expectedHash, actualHash);
+            bool needsUpgrade;
+            bool matches = VerifyStoredPin(user.PinCodeHash, user.PinSalt, pin, out needsUpgrade);
+            if (matches && needsUpgrade)
+            {
+                UpgradeLegacyPinHash(user, pin);
+            }
+            return matches;
         }
 
         public void ChangeUserPinSecure(string targetUserId, string newPin, string currentPin, string supervisorPin)
@@ -1012,18 +1143,26 @@ namespace RafiqPOS.Services
             User targetUser = _userRepo.GetById(targetUserId);
             if (targetUser == null) throw new ArgumentException("الموظف غير موجود");
 
+            if (targetUser.Role == "root" && !IsCurrentSessionRoot())
+            {
+                throw new UnauthorizedAccessException("حساب المطور (Root) يُدار بالتحدي المشفر فقط ولا يمكن تعيين رقم سري له.");
+            }
+
+            bool isSelf = _currentUserSession != null && _currentUserSession.Id == targetUserId;
+            // A session opened with the recovery code already proved ownership of the forgotten PIN
+            bool recoverySession = isSelf && _recoveryLoginUserId == targetUserId;
+
             if (targetUser.Role == "admin")
             {
                 // Changing Admin PIN strictly requires the current PIN of this admin OR supervisor approval
-                bool verified = false;
-                if (!string.IsNullOrEmpty(currentPin) && VerifyUserPin(targetUserId, currentPin))
+                bool verified = recoverySession;
+                if (!verified && !string.IsNullOrEmpty(currentPin))
                 {
-                    verified = true;
+                    verified = VerifyCurrentPinThrottled(targetUser, currentPin);
                 }
-                else if (!string.IsNullOrEmpty(supervisorPin))
+                if (!verified && !string.IsNullOrEmpty(supervisorPin))
                 {
-                    PinVerificationResult supCheck = VerifySupervisorPin(supervisorPin, "CHANGE_ADMIN_PIN");
-                    if (supCheck.Success) verified = true;
+                    verified = VerifySupervisorPin(supervisorPin, "CHANGE_ADMIN_PIN").Success;
                 }
 
                 if (!verified)
@@ -1041,12 +1180,11 @@ namespace RafiqPOS.Services
                 }
                 else if (!string.IsNullOrEmpty(supervisorPin))
                 {
-                    PinVerificationResult supCheck = VerifySupervisorPin(supervisorPin, "CHANGE_CASHIER_PIN");
-                    if (supCheck.Success) authorized = true;
+                    authorized = VerifySupervisorPin(supervisorPin, "CHANGE_CASHIER_PIN").Success;
                 }
-                else if (_currentUserSession != null && _currentUserSession.Id == targetUserId && !string.IsNullOrEmpty(currentPin) && VerifyUserPin(targetUserId, currentPin))
+                else if (isSelf && !string.IsNullOrEmpty(currentPin))
                 {
-                    authorized = true;
+                    authorized = VerifyCurrentPinThrottled(targetUser, currentPin);
                 }
 
                 if (!authorized)
@@ -1056,6 +1194,22 @@ namespace RafiqPOS.Services
             }
 
             ChangeUserPin(targetUserId, newPin);
+        }
+
+        // Current-PIN checks are throttled with the account's persistent login counter so they cannot be used to guess PINs
+        private bool VerifyCurrentPinThrottled(User user, string pin)
+        {
+            int remaining = GetUserRemainingLockoutSeconds(user);
+            if (remaining > 0)
+            {
+                throw new UnauthorizedAccessException(string.Format("الحساب مقفل مؤقتاً بسبب محاولات خاطئة. يرجى الانتظار {0} ثانية.", remaining));
+            }
+            if (VerifyUserPin(user.Id, pin)) return true;
+
+            int failed = user.FailedAttempts + 1;
+            _userRepo.RecordLoginAttempt(user.Id, false, LoginLockoutSeconds(failed));
+            LogAudit("PIN_CHANGE_FAILED", "SECURITY", user.Username, string.Format("محاولة تغيير رقم سري برقم حالي خاطئ (المحاولة {0})", failed));
+            return false;
         }
 
         public void ChangeUserPin(string userId, string newPin)
@@ -1085,6 +1239,8 @@ namespace RafiqPOS.Services
             if (_currentUserSession != null && _currentUserSession.Id == userId)
             {
                 _currentUserSession.MustChangePin = false;
+                _currentUserSession.IsRecoverySession = false;
+                _recoveryLoginUserId = null;
             }
             LogAudit("USER_PIN_CHANGED", "SECURITY", user.Username, string.Format("تم تغيير الرقم السري للموظف: {0}", user.DisplayName));
         }
@@ -1115,32 +1271,15 @@ namespace RafiqPOS.Services
                 return result;
             }
 
-            // Global rate limiting check (F-36)
-            if (_globalLockoutUntil > DateTime.UtcNow)
-            {
-                int remainingSec = (int)Math.Ceiling((_globalLockoutUntil - DateTime.UtcNow).TotalSeconds);
-                result.Success = false;
-                result.IsLocked = true;
-                result.RemainingLockoutSeconds = remainingSec;
-                result.Message = string.Format("تم تفعيل القفل الأمني العام للمشرفين بسبب تكرار المحاولات الفاشلة. يرجى الانتظار {0} ثانية.", remainingSec);
-                return result;
-            }
-
-            int remainingSeconds = GetRemainingLockoutSeconds();
+            // Persistent supervisor-approval throttle (F-36): survives restarts, independent of login/recovery counters
+            int remainingSeconds = GetRemainingLockoutSeconds(KEY_SUPERVISOR_LOCKOUT);
             if (remainingSeconds > 0)
             {
                 result.Success = false;
                 result.IsLocked = true;
                 result.RemainingLockoutSeconds = remainingSeconds;
-                result.Message = string.Format("النظام مقفل مؤقتاً لحماية البيانات. يرجى الانتظار {0} ثانية.", remainingSeconds);
+                result.Message = string.Format("تم تفعيل القفل الأمني لاعتماد المشرف بسبب تكرار المحاولات الفاشلة. يرجى الانتظار {0} ثانية.", remainingSeconds);
                 return result;
-            }
-
-            // Reset 5-minute rolling window for global attempts
-            if (_globalWindowStart == DateTime.MinValue || (DateTime.UtcNow - _globalWindowStart).TotalMinutes > 5)
-            {
-                _globalPinAttempts = 0;
-                _globalWindowStart = DateTime.UtcNow;
             }
 
             // SEC-01 FIX: Backdoor OTP bypass removed. Supervisors must use their registered credentials.
@@ -1157,99 +1296,54 @@ namespace RafiqPOS.Services
                 return VerifyPin(pin, action);
             }
 
-            // Find all active admins (only active accounts with admin or root role)
             var allUsers = _userRepo.GetAll(true);
-            var admins = new List<User>();
+            bool anyAdmin = false;
             for (int i = 0; i < allUsers.Count; i++)
             {
-                var u = allUsers[i];
-                if (u.IsActive && (u.Role == "admin" || u.Role == "root"))
+                var admin = allUsers[i];
+                if (!admin.IsActive || (admin.Role != "admin" && admin.Role != "root")) continue;
+                anyAdmin = true;
+                if (string.IsNullOrEmpty(admin.PinCodeHash)) continue;
+                // An admin whose login is locked cannot approve operations either
+                if (GetUserRemainingLockoutSeconds(admin) > 0) continue;
+
+                bool needsUpgrade;
+                if (!VerifyStoredPin(admin.PinCodeHash, admin.PinSalt, pin, out needsUpgrade)) continue;
+                if (needsUpgrade)
                 {
-                    admins.Add(u);
+                    UpgradeLegacyPinHash(admin, pin);
                 }
+
+                ResetFailureCounter(KEY_SUPERVISOR_FAILED, KEY_SUPERVISOR_LOCKOUT);
+                LogAudit("SUPERVISOR_OVERRIDE", "SECURITY", admin.Username, string.Format("موافقة مدير على العملية: {0} بواسطة {1}", action, admin.DisplayName));
+                result.Success = true;
+                result.SupervisorName = admin.DisplayName;
+                result.Message = "تمت موافقة مدير النظام بنجاح.";
+                return result;
             }
 
-            if (admins.Count == 0)
+            if (!anyAdmin)
             {
                 result.Success = false;
                 result.Message = "لا يوجد حساب مدير نظام نشط مسجل برقم سري.";
                 return result;
             }
 
-            for (int i = 0; i < admins.Count; i++)
-            {
-                var admin = admins[i];
-                if (string.IsNullOrEmpty(admin.PinCodeHash))
-                    continue;
-
-                // Check per-user lockout
-                if (GetUserRemainingLockoutSeconds(admin) > 0)
-                    continue;
-
-                bool matches = false;
-                if (!string.IsNullOrEmpty(admin.PinSalt))
-                {
-                    try
-                    {
-                        byte[] salt = Convert.FromBase64String(admin.PinSalt);
-                        byte[] expectedHash = Convert.FromBase64String(admin.PinCodeHash);
-                        byte[] actualHash = HashWithSalt(pin, salt);
-                        matches = SlowEquals(expectedHash, actualHash);
-                    }
-                    catch
-                    {
-                        matches = false;
-                    }
-                }
-                else
-                {
-                    matches = (admin.PinCodeHash == pin);
-                }
-
-                if (matches)
-                {
-                    _globalPinAttempts = 0;
-                    _userRepo.RecordLoginAttempt(admin.Id, true);
-                    LogAudit("SUPERVISOR_OVERRIDE", "SECURITY", admin.Username, string.Format("موافقة مدير على العملية: {0} بواسطة {1}", action, admin.DisplayName));
-                    result.Success = true;
-                    result.SupervisorName = admin.DisplayName;
-                    result.Message = "تمت موافقة مدير النظام بنجاح.";
-                    return result;
-                }
-            }
-
-            // Failed attempt: increment global rate limiter and apply exponential lockout
-            _globalPinAttempts++;
+            int failed = IncrementFailureCounter(KEY_SUPERVISOR_FAILED, 1);
             int lockoutSec = 0;
-            if (_globalPinAttempts >= 20)
-            {
-                _globalLockoutUntil = DateTime.UtcNow.AddMinutes(15);
-                lockoutSec = 900;
-                LogAudit("SECURITY_ALERT", "SECURITY", "SYSTEM", "محاولات تخمين PIN مشبوهة - تم تفعيل القفل العام للمشرفين لمدة 15 دقيقة");
-            }
-            else if (_globalPinAttempts >= 10)
-            {
-                lockoutSec = 1800; // 30 minutes
-            }
-            else if (_globalPinAttempts >= 5)
-            {
-                lockoutSec = 300; // 5 minutes
-            }
-            else if (_globalPinAttempts >= 3)
-            {
-                lockoutSec = 30; // 30 seconds
-            }
-
-            for (int i = 0; i < admins.Count; i++)
-            {
-                _userRepo.RecordLoginAttempt(admins[i].Id, false, lockoutSec);
-            }
+            if (failed >= 20) lockoutSec = 3600;
+            else if (failed >= 10) lockoutSec = 1800;
+            else if (failed >= 5) lockoutSec = 300;
+            else if (failed >= 3) lockoutSec = 30;
+            ExtendLockout(KEY_SUPERVISOR_LOCKOUT, lockoutSec);
+            LogAudit("SUPERVISOR_PIN_FAILED", "SECURITY", failed.ToString(), string.Format("محاولة خاطئة لاعتماد المشرف للعملية {0} (المحاولة {1})", action, failed));
 
             result.Success = false;
             result.IsLocked = lockoutSec > 0;
-            result.RemainingLockoutSeconds = lockoutSec;
+            result.RemainingLockoutSeconds = GetRemainingLockoutSeconds(KEY_SUPERVISOR_LOCKOUT);
+            result.FailedAttempts = failed;
             result.Message = lockoutSec > 0
-                ? string.Format("تم إدخال الرقم السري بشكل خاطئ عدة مرات. تم قفل التحقق لمدة {0} ثانية.", lockoutSec)
+                ? string.Format("تم إدخال الرقم السري بشكل خاطئ عدة مرات. تم قفل التحقق لمدة {0} ثانية.", result.RemainingLockoutSeconds)
                 : "الرقم السري لمدير النظام غير صحيح.";
             return result;
         }
@@ -1337,10 +1431,7 @@ namespace RafiqPOS.Services
             }
             else
             {
-                int failed = 0;
-                int.TryParse(_settingsRepo.Get(KEY_FAILED_ATTEMPTS, "0"), out failed);
-                failed++;
-                _settingsRepo.Set(KEY_FAILED_ATTEMPTS, failed.ToString());
+                int failed = IncrementFailureCounter(KEY_FAILED_ATTEMPTS, 1);
 
                 int lockoutSec = 0;
                 if (failed >= 10)
@@ -1354,8 +1445,7 @@ namespace RafiqPOS.Services
 
                 if (lockoutSec > 0)
                 {
-                    DateTime lockUntil = DateTime.UtcNow.AddSeconds(lockoutSec);
-                    _settingsRepo.Set(KEY_LOCKOUT_UNTIL, lockUntil.ToString("o"));
+                    ExtendLockout(KEY_LOCKOUT_UNTIL, lockoutSec);
                     LogAudit("PIN_LOCKOUT", "SECURITY", failed.ToString(), string.Format("تم قفل الرقم السري لمدة {0} ثانية بعد {1} محاولات خاطئة", lockoutSec, failed));
                 }
                 else
@@ -1376,36 +1466,48 @@ namespace RafiqPOS.Services
 
         public SetPinResult SetPin(string newPin, string currentPin, string recoveryCode)
         {
-            var res = new SetPinResult();
+            return SetPinCore(newPin, currentPin, recoveryCode, false);
+        }
 
+        private static string ValidateNewPinFormat(string newPin)
+        {
             if (string.IsNullOrEmpty(newPin) || newPin.Length < 4 || newPin.Length > 8)
             {
-                res.Success = false;
-                res.Message = "يجب أن يتكون الرقم السري من 4 إلى 8 أرقام.";
-                return res;
+                return "يجب أن يتكون الرقم السري من 4 إلى 8 أرقام.";
             }
 
             for (int i = 0; i < newPin.Length; i++)
             {
                 if (!char.IsDigit(newPin[i]))
                 {
-                    res.Success = false;
-                    res.Message = "يجب أن يحتوي الرقم السري على أرقام فقط.";
-                    return res;
+                    return "يجب أن يحتوي الرقم السري على أرقام فقط.";
                 }
             }
 
             if (IsWeakPin(newPin))
             {
+                return "الرقم السري ضعيف وسهل التخمين. يرجى اختيار رقم سري أقوى (غير مكرر أو متتالي).";
+            }
+            return null;
+        }
+
+        private SetPinResult SetPinCore(string newPin, string currentPin, string recoveryCode, bool identityAlreadyVerified)
+        {
+            var res = new SetPinResult();
+
+            string formatError = ValidateNewPinFormat(newPin);
+            if (formatError != null)
+            {
                 res.Success = false;
-                res.Message = "الرقم السري ضعيف وسهل التخمين. يرجى اختيار رقم سري أقوى (غير مكرر أو متتالي).";
+                res.Message = formatError;
                 return res;
             }
 
             string existingHash = _settingsRepo.Get(KEY_PIN_HASH, "");
             bool isExisting = !string.IsNullOrEmpty(existingHash);
 
-            if (isExisting)
+            bool sessionOpenedByRecovery = _currentUserSession != null && _recoveryLoginUserId == _currentUserSession.Id;
+            if (isExisting && !identityAlreadyVerified && !sessionOpenedByRecovery)
             {
                 bool authorized = false;
                 if (!string.IsNullOrEmpty(currentPin))
@@ -1481,6 +1583,7 @@ namespace RafiqPOS.Services
                 }
             }
 
+            _recoveryLoginUserId = null;
             LogAudit(isExisting ? "PIN_CHANGED" : "PIN_CREATED", "SECURITY", "OWNER", "تم تحديث الرقم السري وإنشاء رمز استرجاع جديد للطوارئ");
 
             res.Success = true;
@@ -1493,9 +1596,10 @@ namespace RafiqPOS.Services
         {
             var res = new SetPinResult();
 
-            int remainingSeconds = GetRemainingLockoutSeconds();
+            int remainingSeconds = GetRemainingLockoutSeconds(KEY_RECOVERY_LOCKOUT);
             if (remainingSeconds > 0)
             {
+                LogAudit("RECOVERY_RESET_LOCKED", "SECURITY", "OWNER", string.Format("محاولة استخدام رمز الاسترجاع أثناء القفل الأمني ({0} ثانية متبقية)", remainingSeconds));
                 res.Success = false;
                 res.Message = string.Format("النظام مقفل مؤقتاً. يرجى الانتظار {0} ثانية.", remainingSeconds);
                 return res;
@@ -1503,32 +1607,58 @@ namespace RafiqPOS.Services
 
             if (string.IsNullOrEmpty(recoveryCode))
             {
+                LogAudit("RECOVERY_RESET_FAILED", "SECURITY", "OWNER", "محاولة استرجاع بدون رمز استرجاع");
                 res.Success = false;
                 res.Message = "رمز الاسترجاع مطلوب.";
                 return res;
             }
 
-            if (!VerifyRecoveryCodeInternal(recoveryCode))
+            // Validate the new PIN first so a typo never consumes a single-use recovery token
+            string formatError = ValidateNewPinFormat(newPin);
+            if (formatError != null)
             {
-                int failed = 0;
-                int.TryParse(_settingsRepo.Get(KEY_FAILED_ATTEMPTS, "0"), out failed);
-                failed += 2;
-                _settingsRepo.Set(KEY_FAILED_ATTEMPTS, failed.ToString());
-
-                if (failed >= 5)
-                {
-                    DateTime lockUntil = DateTime.UtcNow.AddSeconds(60);
-                    _settingsRepo.Set(KEY_LOCKOUT_UNTIL, lockUntil.ToString("o"));
-                }
-
-                LogAudit("RECOVERY_CODE_FAILED", "SECURITY", failed.ToString(), "محاولة خاطئة لاستخدام رمز استرجاع الطوارئ");
-
+                LogAudit("RECOVERY_RESET_FAILED", "SECURITY", "OWNER", "محاولة استرجاع برقم سري جديد غير صالح");
                 res.Success = false;
-                res.Message = "رمز الاسترجاع غير صحيح.";
+                res.Message = formatError;
                 return res;
             }
 
-            return SetPin(newPin, null, recoveryCode);
+            if (!VerifyRecoveryCodeInternal(recoveryCode))
+            {
+                int failed = IncrementFailureCounter(KEY_RECOVERY_FAILED, 2);
+
+                int lockoutSec = 0;
+                if (failed >= 20)
+                {
+                    lockoutSec = 3600;
+                }
+                else if (failed >= 10)
+                {
+                    lockoutSec = 900;
+                }
+                else if (failed >= 5)
+                {
+                    lockoutSec = 60;
+                }
+                ExtendLockout(KEY_RECOVERY_LOCKOUT, lockoutSec);
+
+                LogAudit("RECOVERY_CODE_FAILED", "SECURITY", failed.ToString(), string.Format("محاولة خاطئة لاستخدام رمز استرجاع الطوارئ (قفل {0} ثانية)", lockoutSec));
+
+                res.Success = false;
+                res.Message = lockoutSec > 0
+                    ? string.Format("رمز الاسترجاع غير صحيح. تم قفل المحاولات لمدة {0} ثانية.", lockoutSec)
+                    : "رمز الاسترجاع غير صحيح.";
+                return res;
+            }
+
+            SetPinResult setRes = SetPinCore(newPin, null, recoveryCode, true);
+            if (setRes.Success)
+            {
+                ResetFailureCounter(KEY_RECOVERY_FAILED, KEY_RECOVERY_LOCKOUT);
+            }
+            LogAudit(setRes.Success ? "RECOVERY_RESET_SUCCESS" : "RECOVERY_RESET_FAILED", "SECURITY", "OWNER",
+                setRes.Success ? "تمت إعادة تعيين رقم المالك السري باستخدام رمز الاسترجاع" : "فشل حفظ الرقم السري الجديد بعد قبول رمز الاسترجاع");
+            return setRes;
         }
 
         public bool DisablePin(string currentPin)
@@ -1645,43 +1775,117 @@ namespace RafiqPOS.Services
 
         private int GetRemainingLockoutSeconds()
         {
-            string lockoutStr = _settingsRepo.Get(KEY_LOCKOUT_UNTIL, "");
-            if (string.IsNullOrEmpty(lockoutStr)) return 0;
+            return GetRemainingLockoutSeconds(KEY_LOCKOUT_UNTIL);
+        }
 
-            DateTime lockoutUntil;
-            if (DateTime.TryParse(lockoutStr, out lockoutUntil))
-            {
-                DateTime utcNow = DateTime.UtcNow;
-                if (lockoutUntil > utcNow)
-                {
-                    return (int)Math.Ceiling((lockoutUntil - utcNow).TotalSeconds);
-                }
-            }
-            return 0;
+        private int GetRemainingLockoutSeconds(string lockoutKey)
+        {
+            return RemainingSeconds(_settingsRepo.Get(lockoutKey, ""));
         }
 
         private int GetUserRemainingLockoutSeconds(User user)
         {
-            if (user == null || string.IsNullOrEmpty(user.LockoutUntil)) return 0;
+            return user == null ? 0 : RemainingSeconds(user.LockoutUntil);
+        }
 
+        // Lockout timestamps are stored as UTC ISO-8601; parse them as UTC regardless of the machine time zone
+        private static int RemainingSeconds(string lockoutUntilText)
+        {
             DateTime lockoutUntil;
-            if (DateTime.TryParse(user.LockoutUntil, out lockoutUntil))
-            {
-                DateTime utcNow = DateTime.UtcNow;
-                if (lockoutUntil > utcNow)
-                {
-                    return (int)Math.Ceiling((lockoutUntil - utcNow).TotalSeconds);
-                }
-            }
-            return 0;
+            if (!TryParseUtc(lockoutUntilText, out lockoutUntil)) return 0;
+            DateTime utcNow = DateTime.UtcNow;
+            return lockoutUntil > utcNow ? (int)Math.Ceiling((lockoutUntil - utcNow).TotalSeconds) : 0;
+        }
+
+        private static bool TryParseUtc(string text, out DateTime utc)
+        {
+            utc = DateTime.MinValue;
+            if (string.IsNullOrEmpty(text)) return false;
+            return DateTime.TryParse(text, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out utc);
+        }
+
+        private int IncrementFailureCounter(string failedKey, int step)
+        {
+            int failed;
+            int.TryParse(_settingsRepo.Get(failedKey, "0"), out failed);
+            failed += step;
+            _settingsRepo.Set(failedKey, failed.ToString());
+            return failed;
+        }
+
+        // Never shortens an existing lockout: the stored deadline only moves forward
+        private void ExtendLockout(string lockoutKey, int seconds)
+        {
+            if (seconds <= 0) return;
+            DateTime candidate = DateTime.UtcNow.AddSeconds(seconds);
+            DateTime existing;
+            if (TryParseUtc(_settingsRepo.Get(lockoutKey, ""), out existing) && existing >= candidate) return;
+            _settingsRepo.Set(lockoutKey, candidate.ToString("o"));
+        }
+
+        private void ResetFailureCounter(string failedKey, string lockoutKey)
+        {
+            _settingsRepo.Set(failedKey, "0");
+            _settingsRepo.Set(lockoutKey, "");
         }
 
         private static byte[] HashWithSalt(string input, byte[] salt)
         {
-            using (var deriveBytes = new Rfc2898DeriveBytes(input ?? "", salt, PBKDF2_ITERATIONS))
+            return HashWithSalt(input, salt, PBKDF2_ITERATIONS);
+        }
+
+        private static byte[] HashWithSalt(string input, byte[] salt, int iterations)
+        {
+            using (var deriveBytes = new Rfc2898DeriveBytes(input ?? "", salt, iterations))
             {
                 return deriveBytes.GetBytes(HASH_BYTE_SIZE);
             }
+        }
+
+        // Verifies a stored user PIN; the legacy 10k-iteration PBKDF2 format reports needsUpgrade
+        private static bool VerifyStoredPin(string storedHash, string storedSalt, string pin, out bool needsUpgrade)
+        {
+            needsUpgrade = false;
+            if (string.IsNullOrEmpty(storedHash) || string.IsNullOrEmpty(pin)) return false;
+
+            // Plaintext seeds are converted once at startup (MigratePlaintextPins); an unsalted value is never accepted
+            if (string.IsNullOrEmpty(storedSalt)) return false;
+
+            byte[] salt;
+            byte[] expectedHash;
+            try
+            {
+                salt = Convert.FromBase64String(storedSalt);
+                expectedHash = Convert.FromBase64String(storedHash);
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
+
+            if (SlowEquals(expectedHash, HashWithSalt(pin, salt, PBKDF2_ITERATIONS)))
+            {
+                return true;
+            }
+            if (SlowEquals(expectedHash, HashWithSalt(pin, salt, LEGACY_PBKDF2_ITERATIONS)))
+            {
+                needsUpgrade = true;
+                return true;
+            }
+            return false;
+        }
+
+        private void UpgradeLegacyPinHash(User user, string pin)
+        {
+            if (_userRepo == null || user == null) return;
+            byte[] salt = GenerateSalt();
+            string hashStr = Convert.ToBase64String(HashWithSalt(pin, salt));
+            string saltStr = Convert.ToBase64String(salt);
+            _userRepo.UpdatePin(user.Id, hashStr, saltStr, false);
+            user.PinCodeHash = hashStr;
+            user.PinSalt = saltStr;
+            LogAudit("USER_PIN_REHASHED", "SECURITY", user.Username, "تمت ترقية تشفير الرقم السري للموظف إلى المعيار الحالي");
         }
 
         private static byte[] GenerateSalt()
@@ -2152,6 +2356,7 @@ namespace RafiqPOS.Services
 
             var dto = MapToDto(rootUser);
             _currentUserSession = dto;
+            _recoveryLoginUserId = null;
 
             res.Success = true;
             res.User = dto;

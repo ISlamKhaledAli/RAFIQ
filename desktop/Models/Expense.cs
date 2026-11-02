@@ -9,6 +9,12 @@ namespace RafiqPOS.Models
         [JsonProperty("id")]
         public string Id { get; set; }
 
+        [JsonIgnore]
+        public string IdempotencyKey { get; set; }
+
+        [JsonIgnore]
+        public string IdempotencyFingerprint { get; set; }
+
         [JsonProperty("expenseNumber")]
         public long ExpenseNumber { get; set; }
 
@@ -83,6 +89,10 @@ namespace RafiqPOS.Models
 
         [JsonProperty("shiftId")]
         public string ShiftId { get; set; }
+
+        /// <summary>Client key per expense attempt; a retried request returns the already-saved expense.</summary>
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
     }
 
     public class UpdateExpenseRequest

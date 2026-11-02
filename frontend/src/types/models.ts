@@ -1,5 +1,7 @@
 export interface Product {
   id: string;
+  /** Café menu item made from an on-sale recipe: the server deducts its ingredients, never its own stock */
+  consumesIngredientsOnSale?: boolean;
   barcode: string | null;
   barcodes?: string[];
   name: string;
@@ -9,6 +11,8 @@ export interface Product {
   costPiasters: number;
   stockQuantityMilli: number;
   originalStockQuantityMilli?: number;
+  /** Required by the server when a product-card save changes the stock of an existing product */
+  stockAdjustReason?: string;
   minStockQuantityMilli?: number;
   unit: string;
   taxRatePercent: number;
@@ -367,6 +371,8 @@ export interface CustomerImportResult {
   totalOpeningDebtsPiasters: number;
   totalOpeningDebtsFormatted?: string;
   message: string;
+  /** Arabic reason per rejected row (e.g. no permission for opening balance / credit limit) */
+  rowErrors?: string[];
 }
 
 export interface TopSellingItem {

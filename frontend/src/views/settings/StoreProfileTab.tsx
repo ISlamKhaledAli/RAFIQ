@@ -43,6 +43,8 @@ interface StoreProfileTabProps {
   storeWalletNumber?: string;
   setStoreWalletNumber?: (val: string) => void;
   isRoot?: boolean;
+  /** Owner/admin only: negative-stock, open-shift and default credit limit policies */
+  canEditStorePolicies?: boolean;
   saveLoading: boolean;
   handleSave: (e: FormEvent) => void;
   onOpenWizard?: () => void;
@@ -82,6 +84,7 @@ export const StoreProfileTab = ({
   storeWalletNumber,
   setStoreWalletNumber,
   isRoot = false,
+  canEditStorePolicies = false,
   saveLoading,
   handleSave,
   onOpenWizard,
@@ -488,64 +491,67 @@ export const StoreProfileTab = ({
             </div>
           )}
 
-          {/* Feature #30: Negative Stock Policy */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
-            <div className="flex flex-col gap-0.5">
-              <span className="font-bold text-ink dark:text-ink-dark text-xs">السماح بالبيع بالسالب لما البضاعة تخلص</span>
-              <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                مفيد في أول التشغيل عشان حركة البيع والزبائن في الطابور ما تقفش لو لسه ما خلصتش جرد المحل.
-              </span>
-            </div>
-            <ToggleSwitch
-              checked={allowNegativeStock}
-              onChange={(next) => {
-                setAllowNegativeStock(next);
-                if (onToggleNegativeStock) onToggleNegativeStock(next);
-              }}
-              title={allowNegativeStock ? 'مفعّل (البيع شغال مع تنبيه بالسالب)' : 'معطّل (منع البيع لو الرصيد خلص)'}
-            />
-          </div>
-
-          {/* Feature: Require Open Shift to Sell */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
-            <div className="flex flex-col gap-0.5">
-              <span className="font-bold text-ink dark:text-ink-dark text-xs">إلزام فتح وردية واستلام الدرج لإتمام البيع</span>
-              <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                عند التفعيل: يمنع الكاشير من البيع إلا بعد فتح وردية واستلام عهدة الدرج لحماية أموال المحل ضد التلاعب. عند الإيقاف: يتيح البيع السريع المباشر في المحلات الفردية دون الحاجة لفتح وردية.
-              </span>
-            </div>
-            <ToggleSwitch
-              checked={requireOpenShiftToSell}
-              onChange={(next) => {
-                if (setRequireOpenShiftToSell) setRequireOpenShiftToSell(next);
-                if (onToggleRequireOpenShift) onToggleRequireOpenShift(next);
-              }}
-              title={requireOpenShiftToSell ? 'مفعّل (يمنع البيع إلا بعد فتح وردية)' : 'معطّل (بيع مباشر وسريع بدون وردية)'}
-            />
-          </div>
-
-          {/* Feature #110: Default Customer Credit Limit */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
-            <div className="flex flex-col gap-0.5">
-              <span className="font-bold text-ink dark:text-ink-dark text-xs">حد الشكك والتنبيه الافتراضي للزبائن الجدد</span>
-              <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                المبلغ بالجنيه لأقصى دين للزبون الجديد. أول ما حسابه يتعدى الرقم ده يظهر تنبيه للكاشير وقت البيع الآجل.
-              </span>
-            </div>
-            <div className="w-32 shrink-0 flex items-center gap-1.5">
-              <input
-                type="number"
-                min="0"
-                step="50"
-                value={defaultCustomerCreditLimitEgp}
-                onChange={(e) => setDefaultCustomerCreditLimitEgp(Number(e.target.value) || 0)}
-                className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-9 px-2 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright text-center font-bold tabular-nums font-mono"
+          {/* Store policies are admin-only on the server (IpcDispatcher settings allowlists) */}
+          {canEditStorePolicies && (
+            <>
+            {/* Feature #30: Negative Stock Policy */}
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-bold text-ink dark:text-ink-dark text-xs">السماح بالبيع بالسالب لما البضاعة تخلص</span>
+                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                  مفيد في أول التشغيل عشان حركة البيع والزبائن في الطابور ما تقفش لو لسه ما خلصتش جرد المحل.
+                </span>
+              </div>
+              <ToggleSwitch
+                checked={allowNegativeStock}
+                onChange={(next) => {
+                  setAllowNegativeStock(next);
+                  if (onToggleNegativeStock) onToggleNegativeStock(next);
+                }}
+                title={allowNegativeStock ? 'مفعّل (البيع شغال مع تنبيه بالسالب)' : 'معطّل (منع البيع لو الرصيد خلص)'}
               />
-              <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-semibold shrink-0">ج.م</span>
             </div>
-          </div>
 
+            {/* Feature: Require Open Shift to Sell */}
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-bold text-ink dark:text-ink-dark text-xs">إلزام فتح وردية واستلام الدرج لإتمام البيع</span>
+                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                  عند التفعيل: يمنع الكاشير من البيع إلا بعد فتح وردية واستلام عهدة الدرج لحماية أموال المحل ضد التلاعب. عند الإيقاف: يتيح البيع السريع المباشر في المحلات الفردية دون الحاجة لفتح وردية.
+                </span>
+              </div>
+              <ToggleSwitch
+                checked={requireOpenShiftToSell}
+                onChange={(next) => {
+                  if (setRequireOpenShiftToSell) setRequireOpenShiftToSell(next);
+                  if (onToggleRequireOpenShift) onToggleRequireOpenShift(next);
+                }}
+                title={requireOpenShiftToSell ? 'مفعّل (يمنع البيع إلا بعد فتح وردية)' : 'معطّل (بيع مباشر وسريع بدون وردية)'}
+              />
+            </div>
 
+            {/* Feature #110: Default Customer Credit Limit */}
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-bold text-ink dark:text-ink-dark text-xs">حد الشكك والتنبيه الافتراضي للزبائن الجدد</span>
+                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                  المبلغ بالجنيه لأقصى دين للزبون الجديد. أول ما حسابه يتعدى الرقم ده يظهر تنبيه للكاشير وقت البيع الآجل.
+                </span>
+              </div>
+              <div className="w-32 shrink-0 flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  step="50"
+                  value={defaultCustomerCreditLimitEgp}
+                  onChange={(e) => setDefaultCustomerCreditLimitEgp(Number(e.target.value) || 0)}
+                  className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-9 px-2 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright text-center font-bold tabular-nums font-mono"
+                />
+                <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-semibold shrink-0">ج.م</span>
+              </div>
+            </div>
+            </>
+          )}
 
           {/* Pharmacy Controlled Drugs Mandatory Fields (Story 131 / Task 188-3) */}
           {isEnabled('feature_pharmacy') && (

@@ -96,6 +96,9 @@ import { RecoveryCodeModal } from './components/RecoveryCodeModal';
 import { useFeatures } from './context/useFeatures';
 import { useAuth } from './context/useAuth';
 import { LoginScreen } from './views/LoginScreen';
+import { ForcedPinChangeForm } from './components/ForcedPinChangeForm';
+import { requiresForcedPinChange } from './utils/pinPolicy';
+import { getAllowedSettingsSubTabs } from './utils/settingsAccess';
 import { AppUpdateModal } from './components/AppUpdateModal';
 import type { AppUpdateInfo } from './bridge/ipc';
 
@@ -152,6 +155,9 @@ export default function App() {
   const { isDark, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('pos');
   const isCashier = currentUser?.role === 'cashier';
+  // Effects key on stable primitives, never on the user object, so a user refresh cannot re-trigger them.
+  const currentUserId = currentUser?.id ?? null;
+  const mustChangePinNow = requiresForcedPinChange(currentUser);
   const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
 
   const [isUniversalRefreshing, setIsUniversalRefreshing] = useState(false);
@@ -398,6 +404,13 @@ export default function App() {
     }
   }, [isLicenseReadOnlyMode]);
 
+  // Stable identity: the lock screen re-runs license:verify whenever this callback changes.
+  const handleLicenseUnlocked = useCallback(() => {
+    setIsLockScreenOpen(false);
+    setIsLicenseReadOnlyMode(false);
+    void refreshLicenseStatus();
+  }, [refreshLicenseStatus]);
+
   // Periodic License Check every 30s & on initial load (Feature #171 / Task 171-3 & Task 172-2, 172-4)
   useEffect(() => {
     let isMounted = true;
@@ -539,21 +552,6 @@ export default function App() {
     };
     void checkBackup();
 
-    const checkRecoveryCode = async () => {
-      try {
-        const res = await invoke<{ isConfirmed: boolean; recoveryCode: string }>('backup:getRecoveryStatus');
-        if (res && isMounted) {
-          setRecoveryCodeStatus(res);
-          if (!res.isConfirmed && res.recoveryCode) {
-            setIsRecoveryCodeModalOpen(true);
-          }
-        }
-      } catch {
-        // Ignore in dev
-      }
-    };
-    void checkRecoveryCode();
-
     const checkIntegrity = async () => {
       try {
         const res = await invoke<DatabaseIntegrityStatus>('database:checkIntegrity');
@@ -602,6 +600,29 @@ export default function App() {
     };
   }, [activeTab]);
 
+  // The owner recovery code can reset the owner PIN, so it is only ever requested for owner sessions
+  useEffect(() => {
+    let isMounted = true;
+    const checkRecoveryCode = async () => {
+      if (!isAdmin || mustChangePinNow) return;
+      try {
+        const res = await invoke<{ isConfirmed: boolean; recoveryCode?: string }>('backup:getRecoveryStatus');
+        if (res && isMounted) {
+          setRecoveryCodeStatus({ isConfirmed: res.isConfirmed, recoveryCode: res.recoveryCode || '' });
+          if (!res.isConfirmed && res.recoveryCode) {
+            setIsRecoveryCodeModalOpen(true);
+          }
+        }
+      } catch {
+        // Ignore in dev
+      }
+    };
+    void checkRecoveryCode();
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdmin, mustChangePinNow, currentUserId]);
+
   const loadActiveShift = useCallback(async () => {
     try {
       const active = await invoke<Shift | null>('shifts:getActive', { posRegisterId: 'default_pos' });
@@ -630,7 +651,7 @@ export default function App() {
       window.removeEventListener('rafiq:close-shift-modal', handleCloseShift);
       window.removeEventListener('rafiq:shift-updated', handleShiftUpdated as EventListener);
     };
-  }, [loadActiveShift, currentUser]);
+  }, [loadActiveShift, currentUserId]);
 
   const refreshSettings = useCallback(async () => {
     try {
@@ -675,13 +696,13 @@ export default function App() {
     // Reactive sync on auth resolution: once the session is verified in C#, fetch low stock & store profile
     if (!isLoading) {
       void refreshSettings();
-      if (currentUser) {
+      if (currentUserId) {
         void refreshLowStock();
       } else {
         setLowStockCount(0);
       }
     }
-  }, [currentUser, isLoading, refreshSettings, refreshLowStock]);
+  }, [currentUserId, isLoading, refreshSettings, refreshLowStock]);
 
   useDataSubscription(['settings', 'all'], refreshSettings);
   useDataSubscription(['products', 'all'], refreshLowStock);
@@ -926,38 +947,18 @@ export default function App() {
   }
 
   const settingsTreeItems = useMemo<SettingsTreeItem[]>(() => {
-    const items: SettingsTreeItem[] = [
-      { id: 'profile' as SettingsSubTab, label: 'بيانات المحل والفاتورة', icon: Store },
-    ];
-    if (isRoot || hasPermission('settings.features')) {
-      items.push(
-        { id: 'features' as SettingsSubTab, label: 'ميزات ونشاط المحل', icon: SlidersHorizontal },
-      );
-    }
-    items.push(
-      { id: 'printer' as SettingsSubTab, label: 'إعدادات الطابعة والورق', icon: Printer },
-    );
-    if (isRoot) {
-      items.push(
-        { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود والاسكانر', icon: Barcode },
-        { id: 'security' as SettingsSubTab, label: 'حماية وأرقام السر (PIN)', icon: KeyRound },
-      );
-    }
-    items.push(
-      { id: 'backup' as SettingsSubTab, label: 'نسخة احتياطية وحماية البيانات', icon: HardDrive },
-    );
-    if (isRoot) {
-      items.push(
-        { id: 'system' as SettingsSubTab, label: 'فحص سرعة النظام والتشخيص', icon: Activity },
-      );
-    }
-    if (isRoot) {
-      items.push(
-        { id: 'demo' as SettingsSubTab, label: 'بيانات تجريبية وتدريب', icon: FlaskConical },
-      );
-    }
-    return items;
-  }, [isRoot, hasPermission]);
+    const labels: Record<SettingsSubTab, { label: string; icon: any }> = {
+      profile: { label: 'بيانات المحل والفاتورة', icon: Store },
+      features: { label: 'ميزات ونشاط المحل', icon: SlidersHorizontal },
+      printer: { label: 'إعدادات الطابعة والورق', icon: Printer },
+      scanner: { label: 'قارئ الباركود والاسكانر', icon: Barcode },
+      security: { label: 'حماية وأرقام السر (PIN)', icon: KeyRound },
+      backup: { label: 'نسخة احتياطية وحماية البيانات', icon: HardDrive },
+      system: { label: 'فحص سرعة النظام والتشخيص', icon: Activity },
+      demo: { label: 'بيانات تجريبية وتدريب', icon: FlaskConical },
+    };
+    return getAllowedSettingsSubTabs({ isRoot, isAdmin, hasPermission }).map((id) => ({ id, ...labels[id] }));
+  }, [isRoot, isAdmin, hasPermission]);
 
   const allNavItems = [
     { id: 'pos' as TabType, label: 'الكاشير وشاشة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
@@ -1135,6 +1136,35 @@ export default function App() {
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-canvas" dir="rtl">
         <LoginScreen />
+        {corruptDbStatus && (
+          <DatabaseRecoveryModal
+            status={corruptDbStatus}
+            onRestored={() => window.location.reload()}
+          />
+        )}
+        <RafiqDialogContainer />
+      </div>
+    );
+  }
+
+  // Server blocks every action until the PIN is changed, so no screen is rendered before that
+  if (requiresForcedPinChange(currentUser)) {
+    return (
+      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-auto select-none bg-canvas flex items-center justify-center p-4" dir="rtl">
+        <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
+          <div className="h-1.5 w-full bg-brand" />
+          <div className="px-6 py-4 flex items-center justify-between gap-3 border-b border-line">
+            <h2 className="text-lg font-black text-ink">تحديث أمني إلزامي: تعيين رقم سري جديد</h2>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="text-xs font-bold text-ink-muted hover:text-ink px-3 py-1.5 rounded-lg border border-line hover:bg-surface-2 transition-colors cursor-pointer"
+            >
+              تسجيل الخروج
+            </button>
+          </div>
+          <ForcedPinChangeForm user={currentUser} onPinChanged={() => void refreshUser()} />
+        </div>
         <RafiqDialogContainer />
       </div>
     );
@@ -2211,11 +2241,7 @@ export default function App() {
       <LicenseExpiredLockScreen
         isOpen={isLockScreenOpen}
         expiryInfo={licenseExpiry}
-        onUnlocked={() => {
-          setIsLockScreenOpen(false);
-          setIsLicenseReadOnlyMode(false);
-          void refreshLicenseStatus();
-        }}
+        onUnlocked={handleLicenseUnlocked}
         onEnterReadOnlyMode={() => {
           setIsLockScreenOpen(false);
           setIsLicenseReadOnlyMode(true);

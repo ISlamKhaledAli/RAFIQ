@@ -18,7 +18,7 @@ namespace RafiqPOS.Bridge
                     // Feature #173: Block sale creation when license is expired or tampered (Task 173-2)
                     if (DatabaseService.License != null && DatabaseService.License.IsLicenseExpired())
                     {
-                        response = BridgeResponse.Fail(request.Id, "LICENSE_EXPIRED", "انتهت فترة اشتراك البرنامج أو تم إيقافه. يرجى تجديد الترخيص لاستكمال عمليات البيع.");
+                        response = BridgeResponse.Fail(request.Id, "LICENSE_EXPIRED", DatabaseService.License.GetBlockedActionMessage());
                         return true;
                     }
                     if (request.Payload == null)
@@ -255,6 +255,7 @@ namespace RafiqPOS.Bridge
                             heldToSave.SubtotalPiasters = holdPayloadObj["subtotalPiasters"].Value<long>();
                         }
                     }
+                    heldToSave.CashierId = SessionActorId();
                     var savedHeld = DatabaseService.HeldSales.HoldSale(heldToSave);
                     response = BridgeResponse.Ok(request.Id, savedHeld);
                     return true;
@@ -342,6 +343,10 @@ namespace RafiqPOS.Bridge
                         {
                             // Attribute the return to the authenticated user (Audit F-12)
                             retObjToProcess.CashierId = SecurityService.CurrentUser.Id;
+                        }
+                        if (string.IsNullOrWhiteSpace(retObjToProcess.IdempotencyKey) && retReqObj != null && retReqObj["idempotencyKey"] != null)
+                        {
+                            retObjToProcess.IdempotencyKey = retReqObj["idempotencyKey"].ToString();
                         }
 
                         var processedReturn = DatabaseService.Returns.ProcessReturn(retObjToProcess, retSupPin);

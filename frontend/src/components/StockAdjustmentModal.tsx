@@ -154,7 +154,6 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
         newStockQuantityMilli: newStockMilli,
         adjustmentType: selectedType,
         reason: reason.trim(),
-        userId: 'admin',
       });
 
       onSuccess();

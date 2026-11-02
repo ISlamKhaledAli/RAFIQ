@@ -82,14 +82,16 @@ namespace RafiqPOS.Repositories
 
                             string sql = @"
                                 INSERT INTO expenses (
-                                    id, expense_number, amount_piasters, category, notes, source, created_by, business_date, created_at, shift_id, is_cancelled
+                                    id, expense_number, amount_piasters, category, notes, source, created_by, business_date, created_at, shift_id, is_cancelled, idempotency_key, idempotency_fingerprint
                                 ) VALUES (
-                                    @id, @num, @amount, @category, @notes, @source, @createdBy, @bdate, @created_at, @shiftId, 0
+                                    @id, @num, @amount, @category, @notes, @source, @createdBy, @bdate, @created_at, @shiftId, 0, @idemKey, @idemFp
                                 );
                             ";
 
                             using (var cmd = new SQLiteCommand(sql, conn, trans))
                             {
+                                cmd.Parameters.AddWithValue("@idemKey", (object)expense.IdempotencyKey ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@idemFp", (object)expense.IdempotencyFingerprint ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@id", expense.Id);
                                 cmd.Parameters.AddWithValue("@num", expense.ExpenseNumber);
                                 cmd.Parameters.AddWithValue("@amount", expense.AmountPiasters);
@@ -137,6 +139,15 @@ namespace RafiqPOS.Repositories
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// المصروف المسجل بنفس مفتاح منع التكرار (أو null)؛ يرفض نفس المفتاح مع مصروف مختلف
+        /// </summary>
+        public Expense FindByIdempotency(string idempotencyKey, string fingerprint)
+        {
+            string existingId = Common.IdempotencyGuard.FindExisting(_connectionString, "expenses", "id", idempotencyKey, fingerprint);
+            return existingId != null ? GetById(existingId) : null;
         }
 
         public Expense GetById(string id)

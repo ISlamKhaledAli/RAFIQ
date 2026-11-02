@@ -66,6 +66,8 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.AreEqual(0, loadedProd.OriginalStockQuantityMilli);
 
             loadedProd.StockQuantityMilli = 25000;
+            // Step 3A (M5): a card stock edit is a stock adjustment and needs a documented reason
+            loadedProd.StockAdjustReason = "جرد فعلي للرف";
             ProductService.SaveProduct(loadedProd, false, false);
 
             var updatedProd = ProductService.GetById(prod.Id);
@@ -75,6 +77,7 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.IsTrue(movements.Count > 0, "يجب تسجيل حركة مخزنية في دفتر الحركات عند تعديل الرصيد من بطاقة الصنف");
             Assert.AreEqual(25000, movements[0].QuantityMilli, "كمية الحركة المسجلة يجب أن تطابق الفارق (+25000 ملي)");
             Assert.AreEqual("PRODUCT_CARD_EDIT", movements[0].ReferenceType, "نوع المرجع يجب أن يكون PRODUCT_CARD_EDIT");
+            Assert.AreEqual("ADJUSTMENT", movements[0].MovementType, "تعديل الرصيد من البطاقة يمر بمسار التسوية الجردية");
         }
     }
 }

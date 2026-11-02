@@ -898,19 +898,28 @@ namespace RafiqPOS.Services
                 };
                 unitRepo.Create(cartonUnit);
 
-                // Reassign base unit to Carton
-                unitRepo.SetBaseUnit(orangeProd.Id, cartonUnit.Id);
-
+                // Promoting a factor-24 carton to base would reinterpret 100 cans as 100 cartons: it must be refused (step 3A / L2)
+                var beforeSwitch = prodRepo.GetById(orangeProd.Id);
+                bool baseSwitchRefused = false;
+                try
+                {
+                    unitRepo.SetBaseUnit(orangeProd.Id, cartonUnit.Id);
+                }
+                catch (InvalidOperationException)
+                {
+                    baseSwitchRefused = true;
+                }
                 var freshProd = prodRepo.GetById(orangeProd.Id);
-                Assert(freshProd.Unit == "كرتونة", "مزامنة الوحدة الأساسية في جدول المنتجات إلى 'كرتونة'", result);
-                Assert(freshProd.PricePiasters == 33000, "مزامنة سعر بيع الوحدة الأساسية الجديدة في جدول المنتجات (330 ج.م)", result);
-                Assert(freshProd.CostPiasters == 22000, "مزامنة تكلفة الوحدة الأساسية الجديدة في جدول المنتجات (220 ج.م)", result);
+                Assert(baseSwitchRefused, "رفض جعل الكرتونة (معامل 24) وحدة أساسية لصنف له رصيد", result);
+                Assert(unitRepo.GetBaseUnit(orangeProd.Id).Id == baseUnit.Id, "بقاء العلبة وحدة أساسية بعد الرفض", result);
+                Assert(freshProd.StockQuantityMilli == beforeSwitch.StockQuantityMilli, "بقاء الرصيد دون تغيير بعد الرفض", result);
+                Assert(freshProd.PricePiasters == beforeSwitch.PricePiasters && freshProd.CostPiasters == beforeSwitch.CostPiasters, "بقاء سعر البيع والتكلفة دون تغيير بعد الرفض", result);
 
-                // Edit carton price via unitRepo.Update
-                cartonUnit.SellPricePiasters = 34000;
-                unitRepo.Update(cartonUnit);
+                // Editing the base unit price still syncs the product price
+                baseUnit.SellPricePiasters = 1600;
+                unitRepo.Update(baseUnit);
                 var freshProd2 = prodRepo.GetById(orangeProd.Id);
-                Assert(freshProd2.PricePiasters == 34000, "تحديث سعر المنتج الرئيسي تلقائياً عند تعديل سعر الوحدة الأساسية", result);
+                Assert(freshProd2.PricePiasters == 1600, "تحديث سعر المنتج الرئيسي تلقائياً عند تعديل سعر الوحدة الأساسية", result);
 
                 // =========================================================================
                 // SCENARIO 15: حظر الماكينات الموقوفة والرصيد غير الكافي في ماكينات الدفع والتدقيق

@@ -660,54 +660,24 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Backup current active DB to pre_restore safety folder
-                if (File.Exists(_dbPath))
-                {
-                    try
-                    {
-                        string safetyDir = Path.Combine(Path.GetDirectoryName(_dbPath), "pre_restore");
-                        if (!Directory.Exists(safetyDir)) Directory.CreateDirectory(safetyDir);
-                        string snapPath = Path.Combine(safetyDir, string.Format("pre_migration_{0}.db", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
-                        File.Copy(_dbPath, snapPath, true);
-                    }
-                    catch { }
-                }
-
-                // Clear connection pools and force cleanup
-                SQLiteConnection.ClearAllPools();
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-
-                // Delete current WAL & SHM files
-                try
-                {
-                    string walFile = _dbPath + "-wal";
-                    string shmFile = _dbPath + "-shm";
-                    if (File.Exists(walFile)) File.Delete(walFile);
-                    if (File.Exists(shmFile)) File.Delete(shmFile);
-                }
-                catch { }
-
-                // Overwrite live DB with extracted DB
-                File.Copy(extractedDbPath, _dbPath, true);
-
-                // Feature F-193: Restore prescriptions directory to base data folder if present
+                // Same hardened swap as a backup restore: WAL-inclusive safety copy, timers off, WAL/SHM checkpointed and
+                // removed together, same data folder re-initialised (applies newer migrations to an older package)
                 string extractedRxDir = Path.Combine(tempExtractDir, "prescriptions");
-                if (Directory.Exists(extractedRxDir))
+                TransactionResult swap = DatabaseService.ReplaceDatabaseFile(_dbPath, _connectionString, extractedDbPath, "pre_migration", delegate
                 {
+                    // Feature F-193: Restore prescriptions directory to base data folder if present
                     string baseDataDir = Path.GetDirectoryName(_dbPath);
-                    if (!string.IsNullOrEmpty(baseDataDir))
+                    if (Directory.Exists(extractedRxDir) && !string.IsNullOrEmpty(baseDataDir))
                     {
-                        string targetRxDir = Path.Combine(baseDataDir, "prescriptions");
-                        CopyDirectoryRecursive(extractedRxDir, targetRxDir);
+                        CopyDirectoryRecursive(extractedRxDir, Path.Combine(baseDataDir, "prescriptions"));
                     }
+                });
+                if (!swap.Success)
+                {
+                    result.Success = false;
+                    result.Message = swap.Message;
+                    return result;
                 }
-
-                // Clear pools again
-                SQLiteConnection.ClearAllPools();
-
-                // Re-initialize DatabaseService (applies any newer migrations if restoring older package)
-                DatabaseService.Initialize();
 
                 // Collect restored metrics from live connection
                 MigrationAuditMetrics restoredMetrics = GetCurrentMetrics();

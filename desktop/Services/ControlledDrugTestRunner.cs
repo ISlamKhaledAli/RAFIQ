@@ -262,15 +262,8 @@ namespace RafiqPOS.Services
                 // =========================================================================
                 // Test Case 4: Successful Dispense with Encryption & Masking (Task 188-3 & 188-4)
                 // =========================================================================
-                // Configure supervisor pin
-                byte[] saltBytes = new byte[16];
-                using (var rng = new System.Security.Cryptography.RNGCryptoServiceProvider())
-                {
-                    rng.GetBytes(saltBytes);
-                }
-                var pbkdf2 = new System.Security.Cryptography.Rfc2898DeriveBytes("5566", saltBytes, 10000);
-                byte[] hashBytes = pbkdf2.GetBytes(32);
-                userRepo.UpdatePin(adminUser.Id, Convert.ToBase64String(hashBytes), Convert.ToBase64String(saltBytes));
+                // Configure supervisor pin through the real hashing path (iteration count and format stay in sync)
+                securityService.ChangeUserPin(adminUser.Id, "5566");
 
                 var validDispense = new ControlledDrugDispense
                 {

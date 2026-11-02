@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Clock,
   ArrowDownLeft,
@@ -25,6 +25,7 @@ import type { SelectOption } from './CustomSelect';
 import { ConfirmModal } from './ConfirmModal';
 import { formatArabicCurrency } from '../utils/money';
 import type { Shift, ShiftSummary, CashDrawerTransaction } from '../types/models';
+import { createAttemptKey } from '../utils/idempotency';
 
 interface ShiftModalProps {
   isOpen: boolean;
@@ -40,6 +41,9 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
   onShiftStatusChanged,
 }) => {
   const { currentUser, isRoot, isAdmin, hasPermission } = useAuth();
+  // A retry after a timeout reuses the key so one drawer movement is never recorded twice
+  const cashInAttemptRef = useRef(createAttemptKey('cin'));
+  const cashOutAttemptRef = useRef(createAttemptKey('cout'));
   const canOpenShift = isRoot || isAdmin || hasPermission('shifts.open');
   const canCloseShift = isRoot || isAdmin || hasPermission('shifts.close');
   const canCashIn = isRoot || isAdmin || hasPermission('shifts.cash_in');
@@ -164,8 +168,6 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
     setSuccessMessage(null);
     try {
       const newShift = await invoke<Shift>('shifts:open', {
-        cashierId: currentUser?.id,
-        cashierName: currentUser?.displayName || currentUser?.username,
         posRegisterId: 'default_pos',
         openingFloatPiasters,
         notes: openShiftNotes.trim() || undefined,
@@ -207,9 +209,9 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         shiftId: activeShift?.id,
         amountPiasters: cashInAmountPiasters,
         reason: finalReason,
-        performedById: currentUser?.id,
-        performedByName: currentUser?.displayName || currentUser?.username,
+        idempotencyKey: cashInAttemptRef.current.current(),
       });
+      cashInAttemptRef.current.complete();
       setSuccessMessage(`تم تسجيل إيداع نثري في الدرج بمبلغ ${(cashInAmountPiasters / 100).toFixed(2)} ج.م بنجاح`);
       setCashInAmountPiasters(0);
       setCashInCustomReason('');
@@ -251,9 +253,9 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         shiftId: activeShift?.id,
         amountPiasters: cashOutAmountPiasters,
         reason: finalReason,
-        performedById: currentUser?.id,
-        performedByName: currentUser?.displayName || currentUser?.username,
+        idempotencyKey: cashOutAttemptRef.current.current(),
       });
+      cashOutAttemptRef.current.complete();
       setSuccessMessage(`تم تسجيل سحب نثري من الدرج بمبلغ ${(cashOutAmountPiasters / 100).toFixed(2)} ج.م بنجاح`);
       setCashOutAmountPiasters(0);
       setCashOutCustomReason('');
@@ -302,7 +304,6 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         shiftId: activeShift.id,
         actualCashPiasters,
         notes: closeShiftNotes.trim() || undefined,
-        cashierId: currentUser?.id,
       });
       setSuccessMessage(`تم إغلاق وتشميع الوردية #${currentShiftNum} بنجاح وتسليم الدرج`);
       setCloseShiftNotes('');

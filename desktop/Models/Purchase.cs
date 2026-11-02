@@ -45,6 +45,14 @@ namespace RafiqPOS.Models
         [JsonProperty("paymentSource")]
         public string PaymentSource { get; set; }
 
+        // Paid amount is set by the server to the computed net cost (no client-side rounding mismatch)
+        [JsonProperty("payInFull")]
+        public bool PayInFull { get; set; }
+
+        // Server-side only: create the supplier named SupplierName inside the purchase transaction when missing
+        [JsonIgnore]
+        public bool AutoCreateSupplier { get; set; }
+
         [JsonProperty("status")]
         public string Status { get; set; }
 

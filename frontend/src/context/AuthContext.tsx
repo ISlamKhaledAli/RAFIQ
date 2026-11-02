@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke, type UserDto, type LoginResult } from '../bridge/ipc';
 import { AuthContext } from './authContextDef';
+import { reconcileUser } from '../utils/userSnapshot';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserDto | null>(() => {
@@ -22,34 +23,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     lastActivityRef.current = Date.now();
   }, []);
 
+  const userRef = useRef<UserDto | null>(currentUser);
+
+  // Single write path: skips identical snapshots so no-op refreshes never re-render consumers.
+  const commitUser = useCallback((next: UserDto | null) => {
+    const reconciled = reconcileUser(userRef.current, next);
+    if (reconciled === userRef.current) return;
+    userRef.current = reconciled;
+    setCurrentUser(reconciled);
+    try {
+      if (typeof window !== 'undefined') {
+        if (reconciled) {
+          localStorage.setItem('rafiq_user_session', JSON.stringify(reconciled));
+        } else {
+          localStorage.removeItem('rafiq_user_session');
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const refreshUser = useCallback(async () => {
     try {
       const user = await invoke<UserDto | null>('auth:getCurrentUser');
-      if (user) {
-        setCurrentUser(user);
-        try {
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('rafiq_user_session', JSON.stringify(user));
-          }
-        } catch {
-          // ignore
-        }
-      } else {
-        setCurrentUser(null);
-        try {
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('rafiq_user_session');
-          }
-        } catch {
-          // ignore
-        }
-      }
+      commitUser(user || null);
     } catch {
       // In case of transient IPC error, keep cached user to avoid unexpected kick-out
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [commitUser]);
 
   useEffect(() => {
     refreshUser();
@@ -64,14 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = useCallback(async (username: string, secret: string): Promise<LoginResult> => {
     // 1. Immediately wipe previous session data from memory & local storage to prevent session leakage
-    setCurrentUser(null);
-    try {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('rafiq_user_session');
-      }
-    } catch {
-      // ignore
-    }
+    commitUser(null);
 
     try {
       const res = await invoke<LoginResult>('auth:login', {
@@ -82,14 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (res && res.success && res.user) {
-        setCurrentUser(res.user);
-        try {
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('rafiq_user_session', JSON.stringify(res.user));
-          }
-        } catch {
-          // ignore
-        }
+        commitUser(res.user);
         lastActivityRef.current = Date.now();
         return res;
       }
@@ -100,23 +90,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         message: err?.message || 'فشل تسجيل الدخول. يرجى التحقق من البيانات.',
       };
     }
-  }, []);
+  }, [commitUser]);
 
   const logout = useCallback(async () => {
     try {
       await invoke('auth:logout');
     } catch {
     } finally {
-      setCurrentUser(null);
-      try {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('rafiq_user_session');
-        }
-      } catch {
-        // ignore
-      }
+      commitUser(null);
     }
-  }, []);
+  }, [commitUser]);
 
   const hasPermission = useCallback((permKey: string): boolean => {
     if (!permKey) return true;
@@ -134,9 +117,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   }, [currentUser]);
 
+  const hasSession = currentUser !== null;
+
   // Idle timeout auto-lock
   useEffect(() => {
-    if (!currentUser || idleTimeoutMinutes <= 0) return;
+    if (!hasSession || idleTimeoutMinutes <= 0) return;
 
     const updateActivity = () => {
       lastActivityRef.current = Date.now();
@@ -161,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.removeEventListener('touchstart', updateActivity);
       clearInterval(intervalId);
     };
-  }, [currentUser, idleTimeoutMinutes, logout]);
+  }, [hasSession, idleTimeoutMinutes, logout]);
 
   const isRoot = currentUser?.role === 'root';
   const isAdmin = isRoot || currentUser?.role === 'admin';

@@ -238,6 +238,18 @@ export function calculateLineTotal(unitPricePiasters: number, quantityMilli: num
  * @param taxRatePercent نسبة الضريبة كنسبة مئوية (مثال: 14 لـ 14%)
  * @param priceIncludesTax هل السعر شامل الضريبة (افتراضي في مصر)
  */
+/**
+ * Total discount on a sale for display: `discountPiasters` is the invoice-level discount only,
+ * line discounts live on the items. Mirrors the server receipt (PrinterService).
+ */
+export function totalSaleDiscountPiasters(sale: {
+  discountPiasters?: number;
+  items?: ReadonlyArray<{ discountPiasters?: number }> | null;
+}): number {
+  const lineDiscounts = (sale.items || []).reduce((sum, item) => sum + (item.discountPiasters || 0), 0);
+  return (sale.discountPiasters || 0) + lineDiscounts;
+}
+
 export function calculateTaxPiasters(
   totalPiasters: number,
   taxRatePercent: number,

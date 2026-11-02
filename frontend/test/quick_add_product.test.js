@@ -5,6 +5,7 @@ import {
   poundsToPiasters,
   piastersToPounds
 } from '../src/utils/money.ts';
+import { parseCountedStockMilli } from '../src/components/quickAddStock.ts';
 
 describe('Story 50 — Feature #108: Quick Add Unregistered Product at POS (Tasks 108-1 to 108-4)', () => {
 
@@ -41,7 +42,7 @@ describe('Story 50 — Feature #108: Quick Add Unregistered Product at POS (Task
         categoryId,
         pricePiasters: poundsToPiasters(inputPriceEgp),
         costPiasters: poundsToPiasters(inputCostEgp),
-        stockQuantityMilli: 10000, // 10 pieces provisional initial stock
+        stockQuantityMilli: parseCountedStockMilli('7', unit), // counted on the shelf, never invented
         minStockQuantityMilli: 5000,
         unit,
         taxRatePercent: 0,
@@ -53,8 +54,18 @@ describe('Story 50 — Feature #108: Quick Add Unregistered Product at POS (Task
       assert.equal(payload.pricePiasters, 1250);
       assert.equal(payload.costPiasters, 900);
       assert.equal(payload.needsReview, true);
-      assert.equal(payload.stockQuantityMilli, 10000);
+      assert.equal(payload.stockQuantityMilli, 7000);
       assert.equal(piastersToPounds(payload.pricePiasters), 12.5);
+    });
+
+    it('step 3A L3: opening stock is the counted quantity (no phantom 10 pieces / 1 kg)', () => {
+      assert.equal(parseCountedStockMilli('', 'piece'), null, 'the count is required');
+      assert.equal(parseCountedStockMilli('0', 'piece'), 0, 'zero is a valid count');
+      assert.equal(parseCountedStockMilli('١٢', 'piece'), 12000, 'Arabic digits');
+      assert.equal(parseCountedStockMilli('1.5', 'piece'), null, 'pieces are whole numbers');
+      assert.equal(parseCountedStockMilli('1.250', 'kg'), 1250);
+      assert.equal(parseCountedStockMilli('-1', 'kg'), null);
+      assert.equal(parseCountedStockMilli('abc', 'kg'), null);
     });
 
     it('validates that product name cannot be blank', () => {

@@ -214,6 +214,12 @@ namespace RafiqPOS.Repositories
 
         public void UpdatePin(string userId, string pinHash, string pinSalt)
         {
+            UpdatePin(userId, pinHash, pinSalt, true);
+        }
+
+        // clearMustChangePin=false is used when re-hashing a legacy PIN without the user choosing a new one
+        public void UpdatePin(string userId, string pinHash, string pinSalt, bool clearMustChangePin)
+        {
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -221,7 +227,7 @@ namespace RafiqPOS.Repositories
                     UPDATE users 
                     SET pin_code_hash = @pinHash,
                         pin_salt = @pinSalt,
-                        must_change_pin = 0,
+                        must_change_pin = CASE WHEN @clearMustChange = 1 THEN 0 ELSE must_change_pin END,
                         failed_attempts = 0,
                         lockout_until = NULL,
                         updated_at = @updatedAt
@@ -232,6 +238,7 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@id", userId);
                     cmd.Parameters.AddWithValue("@pinHash", pinHash ?? "");
                     cmd.Parameters.AddWithValue("@pinSalt", pinSalt ?? "");
+                    cmd.Parameters.AddWithValue("@clearMustChange", clearMustChangePin ? 1 : 0);
                     cmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
                     cmd.ExecuteNonQuery();
                 }
@@ -287,7 +294,10 @@ namespace RafiqPOS.Repositories
                         sql = @"
                             UPDATE users 
                             SET failed_attempts = failed_attempts + 1,
-                                lockout_until = @lockoutUntil,
+                                lockout_until = CASE
+                                    WHEN @lockoutUntil IS NULL THEN lockout_until
+                                    WHEN lockout_until IS NOT NULL AND lockout_until > @lockoutUntil THEN lockout_until
+                                    ELSE @lockoutUntil END,
                                 updated_at = @now
                             WHERE id = @id;
                         ";

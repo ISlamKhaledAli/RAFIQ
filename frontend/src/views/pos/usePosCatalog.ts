@@ -102,6 +102,7 @@ export const usePosCatalog = ({
         categoryId: resolvedCategoryId,
         categoryName: resolvedCategoryName,
         stockQuantityMilli: p.stockQuantityMilli,
+        consumesIngredientsOnSale: p.consumesIngredientsOnSale,
         barcode: p.barcode,
         barcodes: p.barcodes,
         units: p.units,
@@ -397,6 +398,7 @@ export const usePosCatalog = ({
       units: item.units,
       defaultSaleUnitId: item.defaultSaleUnitId,
       isLooseSellable: item.isLooseSellable,
+      consumesIngredientsOnSale: item.consumesIngredientsOnSale,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

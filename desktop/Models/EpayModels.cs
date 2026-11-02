@@ -88,6 +88,10 @@ namespace RafiqPOS.Models
         [JsonProperty("id")]
         public string Id { get; set; }
 
+        /// <summary>Client key per transaction attempt; a retried request returns the recorded transaction.</summary>
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
+
         [JsonProperty("terminalId")]
         public string TerminalId { get; set; }
 

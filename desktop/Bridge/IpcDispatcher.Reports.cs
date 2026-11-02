@@ -306,6 +306,8 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
                     DailyClosingSaveRequest saveReq = savePayload.ToObject<DailyClosingSaveRequest>();
+                    saveReq.CashierId = SessionActorId();
+                    saveReq.CashierName = SessionActorName();
                     var savedClosing = DatabaseService.DailyClosing.SaveClosing(saveReq);
                     response = BridgeResponse.Ok(request.Id, savedClosing);
                     return true;
@@ -425,6 +427,7 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
                     CreateExpenseRequest expReq = expPayload.ToObject<CreateExpenseRequest>();
+                    expReq.CreatedBy = SessionActorName();
                     var createdExp = DatabaseService.Expenses.CreateExpense(expReq);
                     response = BridgeResponse.Ok(request.Id, createdExp);
                     return true;

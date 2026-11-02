@@ -427,6 +427,13 @@ namespace RafiqPOS.Bridge
                     string targetPin = chPinObj != null && chPinObj["newPin"] != null ? chPinObj["newPin"].ToString() : "";
                     string curPin = chPinObj != null && chPinObj["currentPin"] != null ? chPinObj["currentPin"].ToString() : "";
                     string chSupPin = chPinObj != null && chPinObj["supervisorPin"] != null ? chPinObj["supervisorPin"].ToString() : "";
+                    // Non-admin sessions may only change their own PIN, and only by proving the current one
+                    if (!DatabaseService.Security.IsCurrentSessionAdmin() &&
+                        (SecurityService.CurrentUser == null || SecurityService.CurrentUser.Id != targetUId || string.IsNullOrEmpty(curPin)))
+                    {
+                        response = BridgeResponse.Fail(request.Id, "FORBIDDEN", "يمكنك تغيير الرقم السري لحسابك فقط بعد إدخال الرقم السري الحالي.");
+                        return true;
+                    }
                     try
                     {
                         DatabaseService.Security.ChangeUserPinSecure(targetUId, targetPin, curPin, chSupPin);

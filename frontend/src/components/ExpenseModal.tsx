@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Receipt, 
   X, 
@@ -19,6 +19,7 @@ import { PaginationBar } from './PaginationBar';
 import { formatArabicCurrency } from '../utils/money';
 import type { Expense, ExpenseCategory } from '../types/models';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { createAttemptKey } from '../utils/idempotency';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -61,6 +62,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // A retry after a timeout reuses the key so the drawer is never charged twice for one expense
+  const expenseAttemptRef = useRef(createAttemptKey('exp'));
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [drawerBalance, setDrawerBalance] = useState<number | null>(null);
@@ -156,9 +159,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         category,
         notes: notes.trim(),
         source,
+        idempotencyKey: expenseAttemptRef.current.current(),
       });
 
       if (res) {
+        expenseAttemptRef.current.complete();
         const srcLabel = source === 'drawer' ? 'خصمه من درج الكاشير' : 'قيده على الخزينة الرئيسية';
         setSuccessMsg(`تم تسجيل المصروف بقيمة ${formatArabicCurrency(amountPiasters)} و${srcLabel} بنجاح`);
         setAmountPiasters(0);

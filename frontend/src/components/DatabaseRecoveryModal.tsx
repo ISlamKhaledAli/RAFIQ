@@ -41,7 +41,7 @@ export const DatabaseRecoveryModal = ({
   const [restoring, setRestoring] = useState(false);
   const [customFile, setCustomFile] = useState('');
   const [useCustomFile, setUseCustomFile] = useState(false);
-  const [pin, setPin] = useState('');
+  const [recoveryCode, setRecoveryCode] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -57,21 +57,6 @@ export const DatabaseRecoveryModal = ({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    // Safety: Verify PIN before destructive overwrite (Task 10-4 & Feature #52)
-    try {
-      const verifyRes: any = await invoke('security:verifyPin', { pin: pin.trim(), action: 'db_recovery' });
-      if (!verifyRes || !verifyRes.success) {
-        setErrorMessage(verifyRes?.message || 'الرقم السري لصاحب المحل غير صحيح.');
-        setRestoring(false);
-        return;
-      }
-    } catch (authErr: unknown) {
-      const msg = authErr instanceof Error ? authErr.message : String(authErr);
-      setErrorMessage(`فشل التحقق من الصلاحية: ${msg}`);
-      setRestoring(false);
-      return;
-    }
-
     try {
       const targetPath = backupPath || (useCustomFile ? customFile.trim() : status.latestValidBackupFile);
       if (!targetPath) {
@@ -80,7 +65,8 @@ export const DatabaseRecoveryModal = ({
         return;
       }
 
-      const res: any = await invoke('database:restore', { backupFilePath: targetPath });
+      // No session exists while the database is corrupt: the owner recovery code is verified server-side against the backup
+      const res: any = await invoke('database:restore', { backupFilePath: targetPath, recoveryCode: recoveryCode.trim() });
       if (res && res.success) {
         setSuccessMessage(res.message || 'تم استرجاع قاعدة البيانات بنجاح.');
         setTimeout(() => {
@@ -98,7 +84,7 @@ export const DatabaseRecoveryModal = ({
   };
 
   const canDismiss = !status.isCorrupt && Boolean(onDismiss);
-  const isDirty = Boolean(pin.trim() || customFile.trim());
+  const isDirty = Boolean(recoveryCode.trim() || customFile.trim());
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen: canDismiss && !restoring,
@@ -191,6 +177,27 @@ export const DatabaseRecoveryModal = ({
             </div>
           )}
 
+          {/* Owner recovery code: the only restore authorisation (works without a login session) */}
+          <div className="p-2.5 bg-surface border border-line rounded flex flex-col gap-1.5">
+            <label htmlFor="db-recovery-code" className="text-[11.5px] font-bold text-ink flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-brand" />
+              <span>أدخل كود استرجاع المالك (Recovery Code) لتأكيد الاسترجاع:</span>
+            </label>
+            <input
+              id="db-recovery-code"
+              type="password"
+              value={recoveryCode}
+              onChange={(e) => setRecoveryCode(e.target.value)}
+              placeholder="RFK-XXXX-XXXX-XXXX"
+              autoComplete="off"
+              className="w-full bg-surface-2 border border-line rounded h-[36px] px-3 text-[13px] font-mono text-center tracking-widest text-ink focus:outline-none focus:border-brand"
+              dir="ltr"
+            />
+            <span className="text-[10.5px] text-ink-muted">
+              الكود اللي اتسلم لصاحب المحل عند إعداد النسخ الاحتياطي، وهو اللي بيفتح النسخة المشفرة.
+            </span>
+          </div>
+
           {/* Latest Verified Backup Card */}
           {status.latestValidBackupFile ? (
             <div className="p-4 rounded-[6px] border border-brand/40 bg-brand-soft/20 flex flex-col gap-2.5">
@@ -219,25 +226,11 @@ export const DatabaseRecoveryModal = ({
                 {status.latestValidBackupFile}
               </div>
 
-              {/* Owner PIN Verification Protection (Task 10-4) */}
-              <div className="p-2.5 bg-surface border border-line rounded flex flex-col gap-1.5">
-                <label className="text-[11.5px] font-bold text-ink flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-brand" />
-                  <span>أدخل الرقم السري للمدير لتأكيد الاسترجاع:</span>
-                </label>
-                <input
-                  type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="أدخل الرقم السري"
-                  className="w-full bg-surface-2 border border-line rounded h-[36px] px-3 text-[13px] font-mono text-center tracking-widest text-ink focus:outline-none focus:border-brand"
-                />
-              </div>
 
               <button
                 type="button"
                 onClick={() => void handleRestore(status.latestValidBackupFile)}
-                disabled={restoring || !pin.trim()}
+                disabled={restoring || !recoveryCode.trim()}
                 className="mt-1 h-[42px] bg-brand hover:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted text-white rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm text-[13px]"
               >
                 {restoring ? (
@@ -282,7 +275,7 @@ export const DatabaseRecoveryModal = ({
                 <button
                   type="button"
                   onClick={() => void handleRestore(customFile)}
-                  disabled={restoring || !customFile.trim() || !pin.trim()}
+                  disabled={restoring || !customFile.trim() || !recoveryCode.trim()}
                   className="h-[36px] bg-surface-2 hover:bg-surface disabled:opacity-50 border border-line text-ink rounded font-bold flex items-center justify-center gap-1.5 transition-colors self-end px-4"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-brand" />

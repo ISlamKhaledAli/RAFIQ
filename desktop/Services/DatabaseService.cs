@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using RafiqPOS.Common;
 using RafiqPOS.Database;
@@ -42,6 +43,8 @@ namespace RafiqPOS.Services
     {
         private static string _dbPath;
         private static string _connectionString;
+        private static string _baseFolder;
+        private static bool _backgroundChecksRequested;
 
         public static string ConnectionString
         {
@@ -74,9 +77,9 @@ namespace RafiqPOS.Services
         public static UserRepository UserRepo { get; private set; }
         public static ProductService Products { get; private set; }
         public static ProductUnitService ProductUnits { get; private set; }
-        public static SaleService Sales { get; private set; }
+        public static SaleService Sales { get; internal set; }
         public static InventoryService Inventory { get; private set; }
-        public static SettingsService Settings { get; private set; }
+        public static SettingsService Settings { get; internal set; }
         public static CustomerService Customers { get; private set; }
         public static CategoryService Categories { get; private set; }
         public static QuickItemService QuickItems { get; internal set; }
@@ -84,7 +87,7 @@ namespace RafiqPOS.Services
         public static AuditLogService Audit { get; private set; }
         public static SupportService Support { get; private set; }
         public static BenchmarkService Benchmark { get; private set; }
-        public static BackupService Backup { get; private set; }
+        public static BackupService Backup { get; internal set; }
         public static ExcelService Excel { get; private set; }
         public static PrinterService Printer { get; private set; }
         public static SecurityService Security { get; internal set; }
@@ -164,6 +167,7 @@ namespace RafiqPOS.Services
                 #endif
             }
 
+            _baseFolder = baseFolder;
             string dataFolder = Path.Combine(baseFolder, "data");
             if (!Directory.Exists(dataFolder))
             {
@@ -178,7 +182,11 @@ namespace RafiqPOS.Services
             _connectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;Foreign Keys=True;Journal Mode=Wal;", _dbPath);
 
             // Fast Startup Integrity Check (Feature #124 / Task 124-1)
-            IntegrityStatus = CheckDatabaseIntegrityInternal(_connectionString, _dbPath);
+            // PRAGMA quick_check reads the whole file (slow on big stores), so it runs only after an unclean shutdown,
+            // when a WAL file was left behind, or once a week; otherwise a fast open + schema read still detects a damaged header/schema.
+            bool fullCheck = ShouldRunFullIntegrityCheck(dataFolder, _dbPath);
+            IntegrityStatus = CheckDatabaseIntegrityInternal(_connectionString, _dbPath, fullCheck);
+            MarkSessionOpen(dataFolder);
             if (IntegrityStatus.IsCorrupt)
             {
                 Logger.Error("تم اكتشاف تلف في ملف قاعدة البيانات عند بدء التشغيل! تم إيقاف عمليات الكتابة: " + IntegrityStatus.Message, null);
@@ -196,6 +204,10 @@ namespace RafiqPOS.Services
             ProductVariantRepo = new ProductVariantRepository(_connectionString);
             SaleRepo = new SaleRepository(_connectionString, CounterRepo, AuditRepo, ProductBatchRepo);
             SettingsRepo = new SettingsRepository(_connectionString);
+            if (fullCheck && IntegrityStatus.IsValid)
+            {
+                RecordFullIntegrityCheck();
+            }
             CustomerRepo = new CustomerRepository(_connectionString, AuditRepo);
             CategoryRepo = new CategoryRepository(_connectionString);
             PriceHistoryRepo = new ProductPriceHistoryRepository(_connectionString);
@@ -243,7 +255,7 @@ namespace RafiqPOS.Services
             ExpenseRepo = new ExpenseRepository(_connectionString);
             Expenses = new ExpenseService(ExpenseRepo, DailyClosing);
             Migration = new MigrationService(_connectionString, _dbPath, SettingsRepo, AuditRepo);
-            Updates = new AppUpdateService(SettingsRepo, Backup, Audit);
+            Updates = new AppUpdateService(SettingsRepo);
             BarcodeLabels = new BarcodeLabelService(Settings, Printer);
             DigitalAccounts = new DigitalAccountRepository(_connectionString, AuditRepo);
 
@@ -302,7 +314,114 @@ namespace RafiqPOS.Services
             return CheckDatabaseIntegrityInternal(_connectionString, _dbPath);
         }
 
+        private const string SessionOpenMarkerName = "session_open.marker";
+        // Stored in the database settings table (not a separate file a standard user could fake)
+        private const string LastFullIntegrityCheckKey = "integrity_last_full_check_utc";
+        private const int FullIntegrityCheckIntervalDays = 7;
+
+        private static bool ShouldRunFullIntegrityCheck(string dataFolder, string dbPath)
+        {
+            try
+            {
+                if (!File.Exists(dbPath))
+                {
+                    return true;
+                }
+                if (File.Exists(Path.Combine(dataFolder, SessionOpenMarkerName)))
+                {
+                    Logger.Warn("لم يُغلق البرنامج بشكل سليم في المرة السابقة؛ سيتم إجراء فحص السلامة الكامل لقاعدة البيانات.");
+                    return true;
+                }
+                FileInfo wal = new FileInfo(dbPath + "-wal");
+                if (wal.Exists && wal.Length > 0)
+                {
+                    Logger.Warn("تم العثور على ملف WAL غير مدمج عند بدء التشغيل؛ سيتم إجراء فحص السلامة الكامل لقاعدة البيانات.");
+                    return true;
+                }
+
+                string raw = null;
+                string readOnlyConn = string.Format("Data Source={0};Version=3;Read Only=True;BusyTimeout=2000;", dbPath);
+                using (var conn = new System.Data.SQLite.SQLiteConnection(readOnlyConn))
+                {
+                    conn.Open();
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT value FROM app_settings WHERE key = @key;", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@key", LastFullIntegrityCheckKey);
+                        object val = cmd.ExecuteScalar();
+                        if (val != null && val != DBNull.Value)
+                        {
+                            raw = val.ToString();
+                        }
+                    }
+                }
+
+                DateTime lastUtc;
+                if (string.IsNullOrEmpty(raw) ||
+                    !DateTime.TryParse(raw.Trim(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out lastUtc))
+                {
+                    return true;
+                }
+                double ageDays = (DateTime.UtcNow - lastUtc.ToUniversalTime()).TotalDays;
+                return ageDays < 0 || ageDays >= FullIntegrityCheckIntervalDays;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر قراءة حالة فحص السلامة السابق، سيتم إجراء الفحص الكامل: " + ex.Message);
+                return true;
+            }
+        }
+
+        private static void RecordFullIntegrityCheck()
+        {
+            try
+            {
+                SettingsRepo.Set(LastFullIntegrityCheckKey, DateTime.UtcNow.ToString("o"));
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر حفظ تاريخ آخر فحص سلامة كامل: " + ex.Message);
+            }
+        }
+
+        private static void MarkSessionOpen(string dataFolder)
+        {
+            try
+            {
+                File.WriteAllText(Path.Combine(dataFolder, SessionOpenMarkerName), DateTime.UtcNow.ToString("o"));
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر إنشاء علامة جلسة التشغيل: " + ex.Message);
+            }
+        }
+
+        /// <summary>Called on normal application close; the next startup then uses the fast integrity check.</summary>
+        public static void MarkCleanShutdown()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_dbPath)) return;
+                // Close pooled connections so SQLite checkpoints and removes the WAL; a WAL left at the next startup then
+                // reliably means an unclean shutdown (and triggers the full integrity check)
+                System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                string marker = Path.Combine(Path.GetDirectoryName(_dbPath), SessionOpenMarkerName);
+                if (File.Exists(marker))
+                {
+                    File.Delete(marker);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر حذف علامة جلسة التشغيل عند الإغلاق: " + ex.Message);
+            }
+        }
+
         private static DatabaseIntegrityStatus CheckDatabaseIntegrityInternal(string connStr, string dbPath)
+        {
+            return CheckDatabaseIntegrityInternal(connStr, dbPath, true);
+        }
+
+        private static DatabaseIntegrityStatus CheckDatabaseIntegrityInternal(string connStr, string dbPath, bool fullCheck)
         {
             var status = new DatabaseIntegrityStatus
             {
@@ -317,21 +436,55 @@ namespace RafiqPOS.Services
                 return status;
             }
 
+            // Opening the database may checkpoint or discard the WAL, so keep its pre-check bytes for the quarantine
+            string walSnapshot = null;
+            if (File.Exists(dbPath + "-wal"))
+            {
+                walSnapshot = Path.Combine(Path.GetTempPath(), "rafiq_wal_precheck_" + Guid.NewGuid().ToString("N") + ".db-wal");
+                try
+                {
+                    File.Copy(dbPath + "-wal", walSnapshot, true);
+                }
+                catch (IOException walEx)
+                {
+                    Logger.Warn("تعذر أخذ نسخة من ملف WAL قبل فحص السلامة: " + walEx.Message);
+                    walSnapshot = null;
+                }
+            }
+
+            try
+            {
+                return CheckAndQuarantine(connStr, dbPath, walSnapshot, status, fullCheck);
+            }
+            finally
+            {
+                if (walSnapshot != null && File.Exists(walSnapshot))
+                {
+                    try { File.Delete(walSnapshot); } catch (IOException) { }
+                }
+            }
+        }
+
+        private static DatabaseIntegrityStatus CheckAndQuarantine(string connStr, string dbPath, string walSnapshot, DatabaseIntegrityStatus status, bool fullCheck)
+        {
             try
             {
                 using (var conn = new System.Data.SQLite.SQLiteConnection(connStr))
                 {
                     conn.Open();
 
-                    // 1. Run ultra-fast non-blocking PRAGMA quick_check
-                    using (var cmd = new System.Data.SQLite.SQLiteCommand("PRAGMA quick_check;", conn))
+                    // 1. Run PRAGMA quick_check (full file scan) only when requested; startup uses it after unclean shutdown or weekly
+                    if (fullCheck)
                     {
-                        object res = cmd.ExecuteScalar();
-                        if (res == null || !res.ToString().Equals("ok", StringComparison.OrdinalIgnoreCase))
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand("PRAGMA quick_check;", conn))
                         {
-                            status.IsValid = false;
-                            status.IsCorrupt = true;
-                            status.Message = res != null ? res.ToString() : "ملف قاعدة البيانات تالف أو غير متسق.";
+                            object res = cmd.ExecuteScalar();
+                            if (res == null || !res.ToString().Equals("ok", StringComparison.OrdinalIgnoreCase))
+                            {
+                                status.IsValid = false;
+                                status.IsCorrupt = true;
+                                status.Message = res != null ? res.ToString() : "ملف قاعدة البيانات تالف أو غير متسق.";
+                            }
                         }
                     }
 
@@ -374,8 +527,14 @@ namespace RafiqPOS.Services
                     string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                     string corruptCopy = Path.Combine(quarantineDir, string.Format("corrupt_db_{0}.db", timestamp));
                     File.Copy(dbPath, corruptCopy, true);
+                    // Committed pages not yet checkpointed live only in the WAL, so it must be quarantined with the db
+                    if (walSnapshot != null)
+                    {
+                        File.Copy(walSnapshot, corruptCopy + "-wal", true);
+                    }
                     status.CorruptBackupSavedPath = corruptCopy;
                     PruneDirectoryFiles(quarantineDir, "corrupt_db_*.db", 2);
+                    PruneDirectoryFiles(quarantineDir, "corrupt_db_*.db-wal", 2);
                 }
                 catch (Exception qEx)
                 {
@@ -416,21 +575,62 @@ namespace RafiqPOS.Services
             return RestoreFromBackup(backupFilePath, null);
         }
 
+        /// <summary>The file a restore request will actually use: the given path, or the latest discovered backup.</summary>
+        public static string ResolveRestoreTarget(string backupFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(backupFilePath) && IntegrityStatus != null && !string.IsNullOrEmpty(IntegrityStatus.LatestValidBackupFile))
+            {
+                return IntegrityStatus.LatestValidBackupFile;
+            }
+            return backupFilePath;
+        }
+
+        /// <summary>
+        /// Gate for restores without a session (corrupt database): only an encrypted Rafiq backup that opens with the
+        /// owner recovery code is accepted. Returns null when allowed, otherwise the Arabic reason.
+        /// </summary>
+        public static string ValidateRecoveryBackup(string backupFilePath, string recoveryCode)
+        {
+            string target = ResolveRestoreTarget(backupFilePath);
+            if (string.IsNullOrWhiteSpace(target) || !File.Exists(target))
+            {
+                return "لم يتم العثور على ملف النسخة الاحتياطية المحددة.";
+            }
+            if (!EncryptionService.IsFileEncrypted(target))
+            {
+                return "في وضع استعادة تلف قاعدة البيانات يُسمح فقط باستعادة نسخ رفيق الاحتياطية المشفرة.";
+            }
+            if (string.IsNullOrWhiteSpace(recoveryCode))
+            {
+                return "يرجى إدخال كود استرجاع المالك (Recovery Code) لتأكيد الاسترجاع.";
+            }
+            if (!EncryptionService.CanUnlockWithRecoveryCode(target, recoveryCode))
+            {
+                return "كود استرجاع المالك غير صحيح لهذه النسخة، أو أن الملف ليس نسخة رفيق احتياطية مشفرة صالحة.";
+            }
+            return null;
+        }
+
+        /// <summary>Starts license/backup background timers now and again after every database swap.</summary>
+        public static void StartBackgroundChecks()
+        {
+            _backgroundChecksRequested = true;
+            if (License != null) License.StartBackgroundPeriodicCheck();
+            if (Backup != null) Backup.StartBackgroundPeriodicCheck();
+        }
+
+        private static void StopBackgroundChecks()
+        {
+            if (License != null) License.StopBackgroundPeriodicCheck();
+            if (Backup != null) Backup.StopBackgroundPeriodicCheck();
+        }
+
         public static TransactionResult RestoreFromBackup(string backupFilePath, string masterKey)
         {
             string tempStaging = null;
             try
             {
-                string targetBackup = backupFilePath;
-
-                if (string.IsNullOrWhiteSpace(targetBackup))
-                {
-                    // Pick latest valid backup
-                    if (IntegrityStatus != null && !string.IsNullOrEmpty(IntegrityStatus.LatestValidBackupFile))
-                    {
-                        targetBackup = IntegrityStatus.LatestValidBackupFile;
-                    }
-                }
+                string targetBackup = ResolveRestoreTarget(backupFilePath);
 
                 if (string.IsNullOrWhiteSpace(targetBackup) || !File.Exists(targetBackup))
                 {
@@ -495,74 +695,10 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Save a consistent snapshot of the current state before replacing. The SQLite online backup API
-                // includes pages still in the WAL file; a plain File.Copy would miss recent sales (Audit F-29).
-                if (File.Exists(_dbPath))
+                TransactionResult swap = ReplaceDatabaseFile(_dbPath, _connectionString, fileToRestore, "pre_restore", null);
+                if (!swap.Success)
                 {
-                    try
-                    {
-                        string safetyDir = Path.Combine(Path.GetDirectoryName(_dbPath), "pre_restore");
-                        if (!Directory.Exists(safetyDir)) Directory.CreateDirectory(safetyDir);
-                        string snapPath = Path.Combine(safetyDir, string.Format("pre_restore_{0}.db", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
-                        using (var srcConn = new System.Data.SQLite.SQLiteConnection(_connectionString))
-                        using (var dstConn = new System.Data.SQLite.SQLiteConnection(string.Format("Data Source={0};Version=3;", snapPath)))
-                        {
-                            srcConn.Open();
-                            dstConn.Open();
-                            srcConn.BackupDatabase(dstConn, "main", "main", -1, null, 0);
-                        }
-                        PruneDirectoryFiles(safetyDir, "pre_restore_*.db", 2);
-                    }
-                    catch (Exception snapEx)
-                    {
-                        Logger.Error("تعذر أخذ نسخة أمان قبل الاسترجاع", snapEx);
-                        if (!IsCorrupted)
-                        {
-                            return new TransactionResult(false, "تم إيقاف الاسترجاع: تعذر حفظ نسخة أمان من البيانات الحالية قبل استبدالها.");
-                        }
-                        // Corrupt database: the backup API may be unable to read it, so keep raw copies of the db and WAL files instead
-                        try
-                        {
-                            string rawDir = Path.Combine(Path.GetDirectoryName(_dbPath), "pre_restore");
-                            if (!Directory.Exists(rawDir)) Directory.CreateDirectory(rawDir);
-                            string stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                            File.Copy(_dbPath, Path.Combine(rawDir, "pre_restore_corrupt_" + stamp + ".db"), true);
-                            if (File.Exists(_dbPath + "-wal")) File.Copy(_dbPath + "-wal", Path.Combine(rawDir, "pre_restore_corrupt_" + stamp + ".db-wal"), true);
-                        }
-                        catch (Exception rawEx)
-                        {
-                            Logger.Error("تعذر نسخ ملفات قاعدة البيانات التالفة قبل الاسترجاع", rawEx);
-                        }
-                    }
-                }
-
-                // Close and release all open SQLite connections and memory pools
-                System.Data.SQLite.SQLiteConnection.ClearAllPools();
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-
-                // Delete WAL / SHM files if present
-                try
-                {
-                    string walFile = _dbPath + "-wal";
-                    string shmFile = _dbPath + "-shm";
-                    if (File.Exists(walFile)) File.Delete(walFile);
-                    if (File.Exists(shmFile)) File.Delete(shmFile);
-                }
-                catch { }
-
-                // Overwrite with the healthy backup file
-                File.Copy(fileToRestore, _dbPath, true);
-
-                // Clear pools again
-                System.Data.SQLite.SQLiteConnection.ClearAllPools();
-
-                // Re-initialize all systems and services
-                Initialize();
-
-                if (IsCorrupted)
-                {
-                    return new TransactionResult(false, "فشلت استعادة قاعدة البيانات: الملف المسترجع غير سليم.");
+                    return swap;
                 }
 
                 Logger.Info("تم استرجاع قاعدة البيانات بنجاح من النسخة الاحتياطية: " + targetBackup);
@@ -580,6 +716,148 @@ namespace RafiqPOS.Services
                     try { File.Delete(tempStaging); } catch { }
                 }
             }
+        }
+
+        /// <summary>
+        /// Swaps a database file for an already verified replacement (backup restore and migration package).
+        /// Safety snapshot (WAL included) first, WAL checkpointed, WAL+SHM removed together or not at all.
+        /// When dbPath is the live database the background timers are paused and the same data folder is
+        /// re-initialised. afterCopy runs once the new file is in place (may be null).
+        /// </summary>
+        public static TransactionResult ReplaceDatabaseFile(string dbPath, string connectionString, string replacementDbPath, string safetyPrefix, Action afterCopy)
+        {
+            bool isLive = !string.IsNullOrEmpty(_dbPath)
+                && string.Equals(Path.GetFullPath(dbPath), Path.GetFullPath(_dbPath), StringComparison.OrdinalIgnoreCase);
+            bool sourceCorrupt = isLive && IsCorrupted;
+
+            // The SQLite online backup API includes pages still in the WAL file; a plain File.Copy would miss recent sales (Audit F-29)
+            if (File.Exists(dbPath))
+            {
+                string safetyDir = Path.Combine(Path.GetDirectoryName(dbPath), "pre_restore");
+                string stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                try
+                {
+                    if (!Directory.Exists(safetyDir)) Directory.CreateDirectory(safetyDir);
+                    string snapPath = Path.Combine(safetyDir, string.Format("{0}_{1}.db", safetyPrefix, stamp));
+                    using (var srcConn = new System.Data.SQLite.SQLiteConnection(connectionString))
+                    using (var dstConn = new System.Data.SQLite.SQLiteConnection(string.Format("Data Source={0};Version=3;", snapPath)))
+                    {
+                        srcConn.Open();
+                        dstConn.Open();
+                        srcConn.BackupDatabase(dstConn, "main", "main", -1, null, 0);
+                    }
+                    PruneDirectoryFiles(safetyDir, safetyPrefix + "_*.db", 2);
+                }
+                catch (Exception snapEx)
+                {
+                    Logger.Error("تعذر أخذ نسخة أمان قبل استبدال قاعدة البيانات", snapEx);
+                    if (!sourceCorrupt)
+                    {
+                        return new TransactionResult(false, "تم إيقاف الاسترجاع: تعذر حفظ نسخة أمان من البيانات الحالية قبل استبدالها.");
+                    }
+                    // Corrupt database: the backup API may be unable to read it, so keep raw copies of the db and WAL files instead
+                    try
+                    {
+                        if (!Directory.Exists(safetyDir)) Directory.CreateDirectory(safetyDir);
+                        File.Copy(dbPath, Path.Combine(safetyDir, safetyPrefix + "_corrupt_" + stamp + ".db"), true);
+                        if (File.Exists(dbPath + "-wal")) File.Copy(dbPath + "-wal", Path.Combine(safetyDir, safetyPrefix + "_corrupt_" + stamp + ".db-wal"), true);
+                    }
+                    catch (Exception rawEx)
+                    {
+                        Logger.Error("تعذر نسخ ملفات قاعدة البيانات التالفة قبل الاسترجاع", rawEx);
+                    }
+                }
+            }
+
+            // Background timers would reopen the database mid-swap, so they stay off until the new file is live
+            if (isLive) StopBackgroundChecks();
+            try
+            {
+                // Fold the WAL into the main file so nothing committed depends on the files about to be removed
+                if (!sourceCorrupt && File.Exists(dbPath))
+                {
+                    using (var ckConn = new System.Data.SQLite.SQLiteConnection(connectionString))
+                    {
+                        ckConn.Open();
+                        using (var ckCmd = new System.Data.SQLite.SQLiteCommand("PRAGMA wal_checkpoint(TRUNCATE);", ckConn))
+                        using (var ckReader = ckCmd.ExecuteReader())
+                        {
+                            if (ckReader.Read() && Convert.ToInt32(ckReader[0]) != 0)
+                            {
+                                return new TransactionResult(false, "تم إيقاف الاسترجاع: قاعدة البيانات مشغولة بعملية أخرى حالياً. أعد المحاولة بعد لحظات.");
+                            }
+                        }
+                    }
+                }
+
+                System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
+                // WAL and SHM leave together or not at all: a stray WAL would be replayed over the restored file
+                string moveError = MoveAsideWalAndShm(dbPath);
+                if (moveError != null)
+                {
+                    return new TransactionResult(false, moveError);
+                }
+
+                File.Copy(replacementDbPath, dbPath, true);
+                if (afterCopy != null)
+                {
+                    afterCopy();
+                }
+
+                System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                if (isLive)
+                {
+                    Initialize(_baseFolder);
+                    if (IsCorrupted)
+                    {
+                        return new TransactionResult(false, "فشلت استعادة قاعدة البيانات: الملف المسترجع غير سليم.");
+                    }
+                }
+                return new TransactionResult(true, "تم استبدال قاعدة البيانات بنجاح.");
+            }
+            finally
+            {
+                if (isLive && _backgroundChecksRequested && !IsCorrupted)
+                {
+                    StartBackgroundChecks();
+                }
+            }
+        }
+
+        // Renames -wal and -shm out of the way (undoing on failure), then deletes the renamed copies; null on success
+        private static string MoveAsideWalAndShm(string dbPath)
+        {
+            string[] files = new string[] { dbPath + "-wal", dbPath + "-shm" };
+            var moved = new List<KeyValuePair<string, string>>();
+            try
+            {
+                foreach (string file in files)
+                {
+                    if (!File.Exists(file)) continue;
+                    string aside = file + ".swap_" + Guid.NewGuid().ToString("N");
+                    File.Move(file, aside);
+                    moved.Add(new KeyValuePair<string, string>(file, aside));
+                }
+            }
+            catch (Exception moveEx)
+            {
+                Logger.Error("تعذر إزالة ملفات WAL/SHM قبل الاسترجاع", moveEx);
+                foreach (var pair in moved)
+                {
+                    try { File.Move(pair.Value, pair.Key); }
+                    catch (Exception undoEx) { Logger.Error("تعذر إرجاع ملف " + pair.Key, undoEx); }
+                }
+                return "تم إيقاف الاسترجاع: ملفات سجل قاعدة البيانات (WAL/SHM) مستخدمة حالياً ولا يمكن إزالتها. أغلق أي نسخة أخرى من البرنامج ثم أعد المحاولة.";
+            }
+            foreach (var pair in moved)
+            {
+                try { File.Delete(pair.Value); }
+                catch (IOException delEx) { Logger.Warn("تعذر حذف نسخة WAL/SHM المنقولة: " + delEx.Message); }
+            }
+            return null;
         }
 
         public static string GetStatus()

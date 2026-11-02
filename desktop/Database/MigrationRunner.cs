@@ -7,7 +7,7 @@ namespace RafiqPOS.Database
 {
     public static partial class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 59;
+        public const int LATEST_SUPPORTED_VERSION = 61;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -471,7 +471,10 @@ namespace RafiqPOS.Database
                 }
 
                 // Self-Healing Schema Guard: Automatically repair missing columns or indexes
-                ApplyCafeHospitalityMigrations(conn, dbPath, currentVersion); EnsureSchemaHealth(conn);
+                ApplyCafeHospitalityMigrations(conn, dbPath, currentVersion);
+                ApplyIdempotencyMigrations(conn, dbPath, currentVersion);
+                EnsureSchemaHealth(conn);
+                EnsureIdempotencySchemaHealth(conn);
             }
         }
 

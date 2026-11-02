@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Users, 
   Search, 
@@ -32,6 +32,7 @@ import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
 import { RafiqTableLoading } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
+import { createAttemptKey } from '../utils/idempotency';
 
 export interface CustomersViewProps {
   isActive?: boolean;
@@ -60,6 +61,8 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
 
   // Payment modal state
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  // A retry after a timeout reuses the key so one collected amount is never booked twice
+  const paymentAttemptRef = useRef(createAttemptKey('pay'));
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [paymentAmountPiasters, setPaymentAmountPiasters] = useState(0);
   const [paymentNotes, setPaymentNotes] = useState('');
@@ -365,6 +368,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
   };
 
   const openPaymentModal = (customer: Customer) => {
+    paymentAttemptRef.current.complete();
     setSelectedCustomer(customer);
     setPaymentAmountPiasters(0);
     setPaymentNotes('');
@@ -390,8 +394,10 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         notes: customNotes || paymentNotes.trim() || (paymentMethod === 'cash' ? 'سداد نقدي للدين' : `سداد دين عبر ${paymentMethod}`),
         paymentMethod,
         digitalAccountId,
+        idempotencyKey: paymentAttemptRef.current.current(),
       });
 
+      paymentAttemptRef.current.complete();
       setIsPaymentOpen(false);
       void loadCustomers();
     } catch (err: unknown) {
@@ -551,7 +557,6 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         customerId: selectedCustomer.id,
         ledgerEntryId: cancellingEntry.id,
         reason: reasonText,
-        userName: 'الكاشير'
       });
 
       if (updatedCust) {

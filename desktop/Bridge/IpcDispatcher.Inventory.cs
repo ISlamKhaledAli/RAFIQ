@@ -54,7 +54,7 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
 
-                    string adjUser = adjObj["userId"] != null ? adjObj["userId"].ToString() : "admin";
+                    string adjUser = SessionActorId();
                     string adjType = adjObj["adjustmentType"] != null ? adjObj["adjustmentType"].ToString() : null;
 
                     StockMovement adjMovement = null;
@@ -103,7 +103,7 @@ namespace RafiqPOS.Bridge
                         string purInvoice = purObj["invoiceNumber"] != null ? purObj["invoiceNumber"].ToString() : null;
                         string purSupplier = purObj["supplierName"] != null ? purObj["supplierName"].ToString() : null;
                         bool purUpdateCost = purObj["updateProductCost"] == null || purObj["updateProductCost"].Value<bool>();
-                        string purUserId = purObj["userId"] != null ? purObj["userId"].ToString() : "admin";
+                        string purUserId = SessionActorId();
 
                         var purMovement = DatabaseService.Inventory.RecordPurchase(
                             purProdId, purUnitId, purQty, purPkgCost, purInvoice, purSupplier, purUpdateCost, purUserId);

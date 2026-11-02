@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Data.SQLite;
 using RafiqPOS.Common;
 using RafiqPOS.Database;
 using RafiqPOS.Models;
@@ -283,10 +284,9 @@ namespace RafiqPOS.Services
                 var fifoCustAfterPay = custService.RecordPayment(savedFifoCust.Id, 17000, "سداد دفعة مجمعة لتوزيعها فيفو");
                 Assert(fifoCustAfterPay.BalancePiasters == 8000, "تحديث رصيد دين العميل إلى 80 ج.م المتبقية (250 - 170)", result);
 
-                var updatedSale1 = saleRepo.GetSaleById(sale1.Id);
-                var updatedSale2 = saleRepo.GetSaleById(sale2.Id);
-                Assert(updatedSale1.PaidPiasters == 10000, "الفاتورة الأولى الأقدم تم سدادها بالكامل (100 ج.م) وفق قاعدة FIFO", result);
-                Assert(updatedSale2.PaidPiasters == 7000, "الفاتورة الثانية استلمت المبلغ المتبقي (70 ج.م من أصل 150 ج.م)", result);
+                // FIFO allocations live in debt_allocations; sales.paid_piasters keeps the amount paid at the till
+                Assert(InvoiceOutstanding(tempConnStr, sale1.Id) == 0, "الفاتورة الأولى الأقدم تم سدادها بالكامل (100 ج.م) وفق قاعدة FIFO", result);
+                Assert(InvoiceOutstanding(tempConnStr, sale2.Id) == 8000, "الفاتورة الثانية استلمت المبلغ المتبقي (70 ج.م من أصل 150 ج.م) والمتبقي 80 ج.م", result);
 
                 // TEST 12: Reverse Receipt Voucher (إلغاء سند القبض وعكس التوزيع دون المساس بالدفتر التاريخي)
                 var fifoStatement = custService.GetStatement(savedFifoCust.Id, 10);
@@ -296,10 +296,8 @@ namespace RafiqPOS.Services
                 var fifoCustReverted = custService.CancelPayment(savedFifoCust.Id, fifoPayEntry.Id, "إلغاء سند قبض بالخطأ", "مدير المراجعة");
                 Assert(fifoCustReverted.BalancePiasters == 25000, "استعادة رصيد دين العميل الأصلي 250 ج.م بعد إلغاء السند", result);
 
-                var revertedSale1 = saleRepo.GetSaleById(sale1.Id);
-                var revertedSale2 = saleRepo.GetSaleById(sale2.Id);
-                Assert(revertedSale1.PaidPiasters == 0, "عكس توزيع السداد على الفاتورة الأولى وعودتها غير مسددة (0 ج.م)", result);
-                Assert(revertedSale2.PaidPiasters == 0, "عكس توزيع السداد على الفاتورة الثانية وعودتها غير مسددة (0 ج.م)", result);
+                Assert(InvoiceOutstanding(tempConnStr, sale1.Id) == 10000, "عكس توزيع السداد على الفاتورة الأولى وعودتها غير مسددة (100 ج.م متبقية)", result);
+                Assert(InvoiceOutstanding(tempConnStr, sale2.Id) == 15000, "عكس توزيع السداد على الفاتورة الثانية وعودتها غير مسددة (150 ج.م متبقية)", result);
 
                 // TEST 13: Statement of Account Exact Equation: (Opening + Debits - Credits - Refunds) == Closing
                 var detailedStatement = custRepo.GetDetailedStatement(savedFifoCust.Id, null, null);
@@ -341,6 +339,15 @@ namespace RafiqPOS.Services
             }
 
             return result;
+        }
+
+        private static long InvoiceOutstanding(string connStr, string saleId)
+        {
+            using (var conn = new SQLiteConnection(connStr))
+            {
+                conn.Open();
+                return CustomerRepository.GetInvoiceOutstanding(conn, null, saleId);
+            }
         }
 
         private static void Assert(bool condition, string assertionName, CustomerLedgerTestResult result)

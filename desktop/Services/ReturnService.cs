@@ -24,6 +24,13 @@ namespace RafiqPOS.Services
             // Serialize with sales/cancellations so the remaining-quantity check stays valid until commit (Audit F-17)
             lock (SaleService.FinancialWriteLock)
             {
+                // A retry after a UI timeout must not refund twice; the same key with a different return is rejected (L8 / R3)
+                if (returnObj != null && Common.IdempotencyGuard.NormalizeKey(returnObj.IdempotencyKey) != null)
+                {
+                    returnObj.IdempotencyFingerprint = ReturnFingerprint(returnObj);
+                    Return existing = _returnRepo.FindByIdempotency(returnObj.IdempotencyKey, returnObj.IdempotencyFingerprint);
+                    if (existing != null) return existing;
+                }
                 return ProcessReturnCore(returnObj, supervisorPin);
             }
         }
@@ -59,6 +66,18 @@ namespace RafiqPOS.Services
                 if (vItem.UnitPricePiasters > SaleService.MAX_PRICE_PIASTERS)
                 {
                     throw new InvalidOperationException(string.Format("سعر المرتجع للصنف '{0}' يتجاوز الحد الأقصى المسموح به للنظام.", vItem.ProductName ?? vItem.ProductId));
+                }
+            }
+
+            // An invoice-linked return always belongs to the invoice's own customer; a different one is rejected
+            if (!string.IsNullOrEmpty(returnObj.SaleId))
+            {
+                var invoiceSale = _saleRepo.GetSaleById(returnObj.SaleId);
+                if (invoiceSale != null)
+                {
+                    EnsureInvoiceCustomer(returnObj.CustomerId, invoiceSale.CustomerId);
+                    returnObj.CustomerId = invoiceSale.CustomerId;
+                    returnObj.CustomerName = invoiceSale.CustomerName;
                 }
             }
 
@@ -372,9 +391,8 @@ namespace RafiqPOS.Services
                     }
                     else if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))
                     {
-                        // F-14: Credit sales can be refunded in cash up to the cash actually paid (down payment + cash debt settlements)
-                        long allocatedDebtCash = _saleRepo != null ? _saleRepo.GetAllocatedDebtCashPiasters(origSale.Id) : 0;
-                        netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters + allocatedDebtCash);
+                        // F-14: down payment only here; later cash debt settlements are added once below (BUG-08)
+                        netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
                     }
                     else if (string.Equals(origSale.PaymentMethod, "instapay", StringComparison.OrdinalIgnoreCase))
                     {
@@ -448,57 +466,61 @@ namespace RafiqPOS.Services
                             returnObj.RefundMethod));
                     }
 
-                    if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                    // A zero-value return (free line) moves stock only, so no refund channel needs paid money
+                    if (currentReturnTotal > 0)
                     {
-                        if (netCashPaidOnOrig <= 0)
+                        if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
                         {
-                            throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل (credit).");
+                            if (netCashPaidOnOrig <= 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل (credit).");
+                            }
+                            else if (currentReturnTotal > allowableCashRefund)
+                            {
+                                throw new InvalidOperationException(string.Format(
+                                    "لا يمكن صرف مرتجع نقدي من الدرج بمبلغ ({0:N2} ج.م) يتجاوز النقد المسدد فعلياً في الفاتورة الأصلية ({1:N2} ج.م). يجب اختيار الاسترداد كرصيد آجل (credit) لخصم القيمة من حساب العميل.",
+                                    currentReturnTotal / 100.0, allowableCashRefund / 100.0));
+                            }
                         }
-                        else if (currentReturnTotal > allowableCashRefund)
+                        else if (string.Equals(returnObj.RefundMethod, "card", StringComparison.OrdinalIgnoreCase))
                         {
-                            throw new InvalidOperationException(string.Format(
-                                "لا يمكن صرف مرتجع نقدي من الدرج بمبلغ ({0:N2} ج.م) يتجاوز النقد المسدد فعلياً في الفاتورة الأصلية ({1:N2} ج.م). يجب اختيار الاسترداد كرصيد آجل (credit) لخصم القيمة من حساب العميل.",
-                                currentReturnTotal / 100.0, allowableCashRefund / 100.0));
+                            if (netCardPaidOnOrig <= 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن استرداد المرتجع عبر البطاقة (card) لفاتورة بيع لم يُسدد منها بالبطاقة.");
+                            }
+                            else if (currentReturnTotal > allowableCardRefund)
+                            {
+                                throw new InvalidOperationException(string.Format(
+                                    "لا يمكن صرف مرتجع عبر البطاقة بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً بالبطاقة في الفاتورة الأصلية ({1:N2} ج.م).",
+                                    currentReturnTotal / 100.0, allowableCardRefund / 100.0));
+                            }
                         }
-                    }
-                    else if (string.Equals(returnObj.RefundMethod, "card", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (netCardPaidOnOrig <= 0)
+                        else if (string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase))
                         {
-                            throw new InvalidOperationException("لا يمكن استرداد المرتجع عبر البطاقة (card) لفاتورة بيع لم يُسدد منها بالبطاقة.");
+                            if (netInstapayPaidOnOrig <= 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن صرف مرتجع عبر إنستاباي لفاتورة بيع لم يُسدد منها عبر إنستاباي. يجب اختيار استرداد كرصيد آجل (credit).");
+                            }
+                            else if (currentReturnTotal > allowableInstapayRefund)
+                            {
+                                throw new InvalidOperationException(string.Format(
+                                    "لا يمكن صرف مرتجع عبر إنستاباي بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر إنستاباي في الفاتورة الأصلية ({1:N2} ج.م).",
+                                    currentReturnTotal / 100.0, allowableInstapayRefund / 100.0));
+                            }
                         }
-                        else if (currentReturnTotal > allowableCardRefund)
+                        else if (string.Equals(returnObj.RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(returnObj.RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase))
                         {
-                            throw new InvalidOperationException(string.Format(
-                                "لا يمكن صرف مرتجع عبر البطاقة بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً بالبطاقة في الفاتورة الأصلية ({1:N2} ج.م).",
-                                currentReturnTotal / 100.0, allowableCardRefund / 100.0));
-                        }
-                    }
-                    else if (string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (netInstapayPaidOnOrig <= 0)
-                        {
-                            throw new InvalidOperationException("لا يمكن صرف مرتجع عبر إنستاباي لفاتورة بيع لم يُسدد منها عبر إنستاباي. يجب اختيار استرداد كرصيد آجل (credit).");
-                        }
-                        else if (currentReturnTotal > allowableInstapayRefund)
-                        {
-                            throw new InvalidOperationException(string.Format(
-                                "لا يمكن صرف مرتجع عبر إنستاباي بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر إنستاباي في الفاتورة الأصلية ({1:N2} ج.م).",
-                                currentReturnTotal / 100.0, allowableInstapayRefund / 100.0));
-                        }
-                    }
-                    else if (string.Equals(returnObj.RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(returnObj.RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (netWalletPaidOnOrig <= 0)
-                        {
-                            throw new InvalidOperationException("لا يمكن صرف مرتجع عبر المحفظة الإلكترونية لفاتورة بيع لم يُسدد منها عبر المحفظة. يجب اختيار استرداد كرصيد آجل (credit).");
-                        }
-                        else if (currentReturnTotal > allowableWalletRefund)
-                        {
-                            throw new InvalidOperationException(string.Format(
-                                "لا يمكن صرف مرتجع عبر المحفظة الإلكترونية بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر المحفظة في الفاتورة الأصلية ({1:N2} ج.م).",
-                                currentReturnTotal / 100.0, allowableWalletRefund / 100.0));
+                            if (netWalletPaidOnOrig <= 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن صرف مرتجع عبر المحفظة الإلكترونية لفاتورة بيع لم يُسدد منها عبر المحفظة. يجب اختيار استرداد كرصيد آجل (credit).");
+                            }
+                            else if (currentReturnTotal > allowableWalletRefund)
+                            {
+                                throw new InvalidOperationException(string.Format(
+                                    "لا يمكن صرف مرتجع عبر المحفظة الإلكترونية بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر المحفظة في الفاتورة الأصلية ({1:N2} ج.م).",
+                                    currentReturnTotal / 100.0, allowableWalletRefund / 100.0));
+                            }
                         }
                     }
                 }
@@ -539,6 +561,34 @@ namespace RafiqPOS.Services
             }
 
             return _returnRepo.CreateReturnAtomic(returnObj);
+        }
+
+        private static string ReturnFingerprint(Return returnObj)
+        {
+            var lines = new List<string>();
+            if (returnObj.Items != null)
+            {
+                for (int i = 0; i < returnObj.Items.Count; i++)
+                {
+                    var it = returnObj.Items[i];
+                    if (it == null) continue;
+                    lines.Add(string.Format("{0}|{1}|{2}|{3}", it.SaleItemId ?? "", it.ProductId ?? "", it.QuantityMilli, it.IsDamaged ? 1 : 0));
+                }
+            }
+            lines.Sort(StringComparer.Ordinal);
+            return Common.IdempotencyGuard.Fingerprint("return", returnObj.SaleId, returnObj.RefundMethod, returnObj.IsWithoutInvoice, string.Join(";", lines.ToArray()));
+        }
+
+        /// <summary>
+        /// رفض مرتجع فاتورة يحدد عميلاً غير عميل الفاتورة (لا يُضاف رصيد لحساب عميل آخر)
+        /// </summary>
+        internal static void EnsureInvoiceCustomer(string requestedCustomerId, string invoiceCustomerId)
+        {
+            if (!string.IsNullOrWhiteSpace(requestedCustomerId)
+                && !string.Equals(requestedCustomerId.Trim(), invoiceCustomerId ?? "", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("العميل المحدد في المرتجع يختلف عن عميل الفاتورة الأصلية؛ يُسجل المرتجع دائماً على عميل الفاتورة نفسه.");
+            }
         }
 
         public List<Return> GetRecentReturns(int limit = 50)

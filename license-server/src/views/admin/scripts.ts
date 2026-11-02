@@ -11,6 +11,37 @@ export const adminScripts = `
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
     }
+    // Row buttons carry data-* attributes only; handlers are attached here instead of inline onclick with interpolated data
+    function bindRowActions(container) {
+      container.querySelectorAll('[data-admin-action]').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          runRowAction(btn, e);
+        });
+      });
+    }
+
+    function runRowAction(btn, e) {
+      const action = btn.dataset.adminAction;
+      const id = btn.dataset.id || '';
+      const name = btn.dataset.name || '';
+      if (action === 'copy') { copyKey(btn.dataset.value || ''); return; }
+      if (action === 'menu') { toggleRowMenu('menu-' + id, e); return; }
+      if (action === 'releaseToggle') { toggleReleaseStatus(id, Number(btn.dataset.status)); return; }
+      if (action === 'releaseDelete') { deleteRelease(id, name); return; }
+      closeAllRowMenus();
+      if (action === 'device') openDeviceModal(id);
+      else if (action === 'rootOtp') openRootOtpModal(id);
+      else if (action === 'recovery') generateRecoveryForLicense(id);
+      else if (action === 'clockReset') openClockResetModal(id);
+      else if (action === 'share') openShareModal(id);
+      else if (action === 'edit') openEditModal(id);
+      else if (action === 'toggleUpdates') toggleLicenseUpdates(id, name);
+      else if (action === 'extendUpdates') openExtendUpdatesModal(id, name);
+      else if (action === 'resetDevice') resetDevice(id, name);
+      else if (action === 'revoke') toggleStatus(id, name, 'revoke');
+      else if (action === 'activate') toggleStatus(id, name, 'activate');
+      else if (action === 'delete') deleteLicense(id, name);
+    }
     const DEFAULT_SECRET = '';
     
     // State
@@ -597,7 +628,7 @@ export const adminScripts = `
             isExpired = true;
             expText = '<span style="color:#dc2626; font-weight:800;">' + dateStr + ' (منتهي)</span>';
           } else if (diffMs <= 24 * 60 * 60 * 1000) {
-            expText = '<span>' + dateStr + ' <span class="countdown-badge" data-expires="' + lic.expires_at + '"><span class="pulse-dot"></span><span class="countdown-text">جارٍ الحساب...</span></span></span>';
+            expText = '<span>' + dateStr + ' <span class="countdown-badge" data-expires="' + escapeHtml(lic.expires_at) + '"><span class="pulse-dot"></span><span class="countdown-text">جارٍ الحساب...</span></span></span>';
           } else {
             expText = '<span>' + dateStr + ' <small style="color:#059669; font-weight:800;">(متبقي ' + diffDays + ' يوم)</small></span>';
           }
@@ -618,9 +649,9 @@ export const adminScripts = `
 
         // Hardware device info
         const fpDisplay = lic.machine_fingerprint 
-          ? \`<button class="btn-fp-badge" onclick="openDeviceModal('\${lic.id}')" title="معاينة بصمة الجهاز وكود الاسترجاع السحابي">
+          ? \`<button class="btn-fp-badge" data-admin-action="device" data-id="\${escapeHtml(lic.id)}" title="معاينة بصمة الجهاز وكود الاسترجاع السحابي">
                <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-               <span>\${lic.machine_fingerprint.substring(0, 14)}...</span>
+               <span>\${escapeHtml(lic.machine_fingerprint.substring(0, 14))}...</span>
              </button>\`
           : '<span style="color:var(--text-muted); font-size:11.5px; font-weight:700;">غير مربوط</span>';
 
@@ -628,87 +659,87 @@ export const adminScripts = `
           <td style="font-family:monospace; color:var(--text-muted); font-size:12px; font-weight:700;">\${rowNumber}</td>
           <td>
             <div class="key-cell">
-              <span class="key-text">\${lic.license_key}</span>
-              <button class="btn-icon-copy" onclick="copyKey('\${lic.license_key}')" title="نسخ المفتاح">
+              <span class="key-text">\${escapeHtml(lic.license_key)}</span>
+              <button class="btn-icon-copy" data-admin-action="copy" data-value="\${escapeHtml(lic.license_key)}" title="نسخ المفتاح">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 <span>نسخ</span>
               </button>
             </div>
           </td>
           <td>
-            <div style="font-weight:900; color:var(--primary); font-size:13px;">\${lic.shop_name}</div>
+            <div style="font-weight:900; color:var(--primary); font-size:13px;">\${escapeHtml(lic.shop_name)}</div>
           </td>
           <td>
-            <div style="font-family:monospace; font-size:12px; font-weight:700;">\${lic.owner_phone || '-'}</div>
+            <div style="font-family:monospace; font-size:12px; font-weight:700;">\${escapeHtml(lic.owner_phone || '-')}</div>
           </td>
           <td>
-            <span style="font-weight:800;">\${translateType(lic.license_type, lic.expires_at)}</span>
+            <span style="font-weight:800;">\${escapeHtml(translateType(lic.license_type, lic.expires_at))}</span>
           </td>
           <td>\${expText}</td>
           <td>\${statusHtml}</td>
           <td>\${fpDisplay}</td>
           <td>
             <div class="dropdown-actions">
-              <button class="btn-actions-menu" onclick="toggleRowMenu('menu-\${lic.id}', event)">
+              <button class="btn-actions-menu" data-admin-action="menu" data-id="\${escapeHtml(lic.id)}">
                 <span>الإجراءات</span>
                 <svg class="icon icon-xs" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
-              <div class="actions-dropdown-menu" id="menu-\${lic.id}">
-                <button class="actions-menu-item item-root" onclick="closeAllRowMenus(); openRootOtpModal('\${lic.id}')">
+              <div class="actions-dropdown-menu" id="menu-\${escapeHtml(lic.id)}">
+                <button class="actions-menu-item item-root" data-admin-action="rootOtp" data-id="\${escapeHtml(lic.id)}">
                   <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                   <span>رمز Root المؤقت (ساعة)</span>
                 </button>
                 \${lic.machine_fingerprint ? \`
-                  <button class="actions-menu-item item-recovery" onclick="closeAllRowMenus(); generateRecoveryForLicense('\${lic.id}')">
+                  <button class="actions-menu-item item-recovery" data-admin-action="recovery" data-id="\${escapeHtml(lic.id)}">
                     <svg class="icon icon-sm" viewBox="0 0 24 24" style="stroke:#0f766e;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                     <span>كود استرجاع كلمة السر (Recovery)</span>
                   </button>
-                  <button class="actions-menu-item" onclick="closeAllRowMenus(); openClockResetModal('\${lic.id}')">
+                  <button class="actions-menu-item" data-admin-action="clockReset" data-id="\${escapeHtml(lic.id)}">
                     <svg class="icon icon-sm" viewBox="0 0 24 24" style="stroke:#b45309;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     <span>كود فك حظر تراجع الساعة (Clock Reset)</span>
                   </button>
                 \` : ''}
                 <div class="actions-menu-divider"></div>
-                <button class="actions-menu-item" onclick="closeAllRowMenus(); openDeviceModal('\${lic.id}')">
+                <button class="actions-menu-item" data-admin-action="device" data-id="\${escapeHtml(lic.id)}">
                   <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                   <span>بيانات وبصمة الجهاز</span>
                 </button>
-                <button class="actions-menu-item" onclick="closeAllRowMenus(); openShareModal('\${lic.id}')">
+                <button class="actions-menu-item" data-admin-action="share" data-id="\${escapeHtml(lic.id)}">
                   <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                   <span>تسليم المفتاح للعميل</span>
                 </button>
-                <button class="actions-menu-item" onclick="closeAllRowMenus(); openEditModal('\${lic.id}')">
+                <button class="actions-menu-item" data-admin-action="edit" data-id="\${escapeHtml(lic.id)}">
                   <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   <span>تمديد وتعديل الصلاحية</span>
                 </button>
                 <div class="actions-menu-divider"></div>
-                <button class="actions-menu-item" onclick="closeAllRowMenus(); toggleLicenseUpdates('\${lic.id}', '\${lic.shop_name}')">
+                <button class="actions-menu-item" data-admin-action="toggleUpdates" data-id="\${escapeHtml(lic.id)}" data-name="\${escapeHtml(lic.shop_name)}">
                   <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                   <span>\${lic.can_receive_updates === 0 ? 'تفعيل استلام التحديثات' : 'إيقاف استلام التحديثات'}</span>
                 </button>
-                <button class="actions-menu-item" onclick="closeAllRowMenus(); openExtendUpdatesModal('\${lic.id}', '\${lic.shop_name}')">
+                <button class="actions-menu-item" data-admin-action="extendUpdates" data-id="\${escapeHtml(lic.id)}" data-name="\${escapeHtml(lic.shop_name)}">
                   <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
                   <span>تمديد فترة التحديثات الهوائية</span>
                 </button>
                 \${lic.machine_fingerprint ? \`
-                  <button class="actions-menu-item" onclick="closeAllRowMenus(); resetDevice('\${lic.id}', '\${lic.shop_name}')">
+                  <button class="actions-menu-item" data-admin-action="resetDevice" data-id="\${escapeHtml(lic.id)}" data-name="\${escapeHtml(lic.shop_name)}">
                     <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
                     <span>فك ربط الجهاز (Reset)</span>
                   </button>
                 \` : ''}
                 <div class="actions-menu-divider"></div>
                 \${lic.status === 'active' ? \`
-                  <button class="actions-menu-item" onclick="closeAllRowMenus(); toggleStatus('\${lic.id}', '\${lic.shop_name}', 'revoke')">
+                  <button class="actions-menu-item" data-admin-action="revoke" data-id="\${escapeHtml(lic.id)}" data-name="\${escapeHtml(lic.shop_name)}">
                     <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
                     <span>إيقاف الترخيص</span>
                   </button>
                 \` : \`
-                  <button class="actions-menu-item" onclick="closeAllRowMenus(); toggleStatus('\${lic.id}', '\${lic.shop_name}', 'activate')">
+                  <button class="actions-menu-item" data-admin-action="activate" data-id="\${escapeHtml(lic.id)}" data-name="\${escapeHtml(lic.shop_name)}">
                     <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                     <span>تفعيل الترخيص</span>
                   </button>
                 \`}
-                <button class="actions-menu-item item-danger" onclick="closeAllRowMenus(); deleteLicense('\${lic.id}', '\${lic.shop_name}')">
+                <button class="actions-menu-item item-danger" data-admin-action="delete" data-id="\${escapeHtml(lic.id)}" data-name="\${escapeHtml(lic.shop_name)}">
                   <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   <span>حذف الترخيص</span>
                 </button>
@@ -717,6 +748,7 @@ export const adminScripts = `
           </td>
         \`;
 
+        bindRowActions(tr);
         tbody.appendChild(tr);
       });
 
@@ -898,7 +930,7 @@ export const adminScripts = `
         const rowNumber = startIndex + idx + 1;
         const isSuccess = log.status === 'success';
 
-        let actionBadge = \`<span class="action-badge action-\${log.action}">\${translateAction(log.action)}</span>\`;
+        let actionBadge = \`<span class="action-badge action-\${escapeHtml(log.action)}">\${escapeHtml(translateAction(log.action))}</span>\`;
 
         const fpDisplay = log.machine_fingerprint 
           ? \`<span style="font-family:monospace; font-size:11px; color:#0f766e; font-weight:700;" title="\${escapeHtml(log.machine_fingerprint)}">\${escapeHtml(log.machine_fingerprint.substring(0, 16))}...</span>\`
@@ -910,7 +942,7 @@ export const adminScripts = `
           <td>
             <div class="key-cell">
               <code style="font-weight:900; color:var(--primary); font-family:monospace; font-size:12px;">\${escapeHtml(log.license_key)}</code>
-              <button class="btn-icon-copy" onclick="copyKey('\${log.license_key}')" title="نسخ المفتاح">
+              <button class="btn-icon-copy" data-admin-action="copy" data-value="\${escapeHtml(log.license_key)}" title="نسخ المفتاح">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 <span>نسخ</span>
               </button>
@@ -929,11 +961,12 @@ export const adminScripts = `
           </td>
           <td>\${translateReason(log.failure_reason)}</td>
           <td>
-            <code style="font-size:12px; color:var(--text); font-family:monospace; font-weight:700;">\${log.ip_address || '-'}</code>
+            <code style="font-size:12px; color:var(--text); font-family:monospace; font-weight:700;">\${escapeHtml(log.ip_address || '-')}</code>
           </td>
           <td>\${fpDisplay}</td>
         \`;
 
+        bindRowActions(tr);
         tbody.appendChild(tr);
       });
     }
@@ -1943,19 +1976,21 @@ export const adminScripts = `
           ? '<span class="pill pill-active"><span class="status-dot"></span>متاح للعملاء (نشط)</span>'
           : '<span class="pill pill-expired">متوقف (Kill Switch)</span>';
         var mandBadge = rel.is_mandatory ? '<span class="pill pill-danger" style="font-size:10px; padding:2px 6px;">إجباري</span>' : '';
-        var shaShort = rel.sha256 ? rel.sha256.substring(0, 10) + '...' : '-';
-        var copyShaBtn = rel.sha256 ? '<button class="btn-icon-copy" data-val="' + rel.sha256 + '" onclick="copyKey(this.dataset.val)" title="نسخ الهاش الكامل"><svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>' : '';
+        var shaShort = rel.sha256 ? escapeHtml(rel.sha256.substring(0, 10)) + '...' : '-';
+        var safeUrl = /^https?:\\/\\//i.test(rel.download_url || '') ? escapeHtml(rel.download_url) : '#';
+        var copyShaBtn = rel.sha256 ? '<button class="btn-icon-copy" data-admin-action="copy" data-value="' + escapeHtml(rel.sha256) + '" title="نسخ الهاش الكامل"><svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>' : '';
 
         tr.innerHTML = 
           '<td style="font-family:monospace; color:var(--text-muted); font-size:12px; font-weight:700;">' + (idx + 1) + '</td>' +
-          '<td><div style="font-family:monospace; font-size:13.5px; font-weight:900; color:var(--primary); display:flex; align-items:center; gap:6px;"><span>v' + rel.version + '</span>' + mandBadge + '</div></td>' +
-          '<td style="font-size:12px; font-weight:700; color:var(--text-muted);">' + (rel.release_date || '-') + '</td>' +
-          '<td><div style="font-weight:800; font-size:12.5px; color:var(--text-main); margin-bottom:2px;">' + (rel.title || 'تحديث رفيق') + '</div><div style="font-size:11.5px; color:var(--text-muted); max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + (rel.changelog || '-') + '</div></td>' +
-          '<td><div style="display:flex; align-items:center; gap:6px;"><a href="' + rel.download_url + '" target="_blank" style="font-size:11.5px; font-family:monospace; color:var(--primary); text-decoration:none; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + rel.download_url + '</a><button class="btn-icon-copy" data-val="' + rel.download_url + '" onclick="copyKey(this.dataset.val)" title="نسخ رابط التنزيل"><svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></td>' +
-          '<td><div style="display:flex; align-items:center; gap:4px;"><span style="font-family:monospace; font-size:11px; background:#f1f5f9; padding:3px 6px; border-radius:4px; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + (rel.sha256 || '') + '">' + shaShort + '</span>' + copyShaBtn + '</div></td>' +
+          '<td><div style="font-family:monospace; font-size:13.5px; font-weight:900; color:var(--primary); display:flex; align-items:center; gap:6px;"><span>v' + escapeHtml(rel.version) + '</span>' + mandBadge + '</div></td>' +
+          '<td style="font-size:12px; font-weight:700; color:var(--text-muted);">' + escapeHtml(rel.release_date || '-') + '</td>' +
+          '<td><div style="font-weight:800; font-size:12.5px; color:var(--text-main); margin-bottom:2px;">' + escapeHtml(rel.title || 'تحديث رفيق') + '</div><div style="font-size:11.5px; color:var(--text-muted); max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(rel.changelog || '-') + '</div></td>' +
+          '<td><div style="display:flex; align-items:center; gap:6px;"><a href="' + safeUrl + '" target="_blank" rel="noopener noreferrer" style="font-size:11.5px; font-family:monospace; color:var(--primary); text-decoration:none; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(rel.download_url) + '</a><button class="btn-icon-copy" data-admin-action="copy" data-value="' + escapeHtml(rel.download_url) + '" title="نسخ رابط التنزيل"><svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></td>' +
+          '<td><div style="display:flex; align-items:center; gap:4px;"><span style="font-family:monospace; font-size:11px; background:#f1f5f9; padding:3px 6px; border-radius:4px; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escapeHtml(rel.sha256 || '') + '">' + shaShort + '</span>' + copyShaBtn + '</div></td>' +
           '<td>' + pubBadge + '</td>' +
-          '<td><div style="display:flex; align-items:center; gap:6px;"><button class="btn-row" data-id="' + rel.id + '" data-status="' + (isPub ? 0 : 1) + '" onclick="toggleReleaseStatus(this.dataset.id, Number(this.dataset.status))" title="' + (isPub ? 'إيقاف هذا الإصدار فوراً' : 'تفعيل هذا الإصدار وإتاحته للعملاء') + '">' + (isPub ? 'إيقاف التوزيع' : 'تفعيل وتوزيع') + '</button><button class="btn-row" style="color:var(--danger); border-color:rgba(239,68,68,0.2);" data-id="' + rel.id + '" data-version="' + rel.version + '" onclick="deleteRelease(this.dataset.id, this.dataset.version)" title="حذف الإصدار">حذف</button></div></td>';
+          '<td><div style="display:flex; align-items:center; gap:6px;"><button class="btn-row" data-admin-action="releaseToggle" data-id="' + escapeHtml(rel.id) + '" data-status="' + (isPub ? 0 : 1) + '" title="' + (isPub ? 'إيقاف هذا الإصدار فوراً' : 'تفعيل هذا الإصدار وإتاحته للعملاء') + '">' + (isPub ? 'إيقاف التوزيع' : 'تفعيل وتوزيع') + '</button><button class="btn-row" style="color:var(--danger); border-color:rgba(239,68,68,0.2);" data-admin-action="releaseDelete" data-id="' + escapeHtml(rel.id) + '" data-name="' + escapeHtml(rel.version) + '" title="حذف الإصدار">حذف</button></div></td>';
 
+        bindRowActions(tr);
         tbody.appendChild(tr);
       });
     }

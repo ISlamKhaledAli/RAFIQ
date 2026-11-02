@@ -40,13 +40,13 @@ namespace RafiqPOS.Repositories
                     quantity_milli, patient_name, patient_national_id, patient_national_id_masked,
                     patient_phone, patient_address, doctor_name, doctor_license_no,
                     prescription_no, prescription_date, prescription_id, entry_type,
-                    original_dispense_id, reason, dispensed_by, approved_by, notes, created_at
+                    original_dispense_id, reason, dispensed_by, approved_by, notes, quantity_unit, created_at
                 ) VALUES (
                     @id, @saleId, @saleItemId, @productId, @batchId, @batchNumber,
                     @quantityMilli, @patientName, @patientNationalId, @patientNationalIdMasked,
                     @patientPhone, @patientAddress, @doctorName, @doctorLicenseNo,
                     @prescriptionNo, @prescriptionDate, @prescriptionId, @entryType,
-                    @originalDispenseId, @reason, @dispensedBy, @approvedBy, @notes, @createdAt
+                    @originalDispenseId, @reason, @dispensedBy, @approvedBy, @notes, 'base', @createdAt
                 );";
 
             if (externalConn != null && externalTrans != null)
@@ -298,7 +298,7 @@ namespace RafiqPOS.Repositories
 
                 // أ) الوارد قبل التاريخ
                 string sqlPurchasesBefore = @"
-                    SELECT COALESCE(SUM(pi.quantity_milli), 0)
+                    SELECT COALESCE(SUM(pi.quantity_milli + COALESCE(pi.bonus_quantity_milli, 0)), 0)
                     FROM purchase_items pi
                     JOIN purchases p ON pi.purchase_id = p.id
                     WHERE pi.product_id = @pid AND p.status = 'COMPLETED'
@@ -310,6 +310,21 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@dateFrom", !string.IsNullOrEmpty(dateFrom) ? dateFrom : "1970-01-01");
                     object res = cmd.ExecuteScalar();
                     if (res != null && res != DBNull.Value) openingBalanceMilli += Convert.ToInt64(res);
+                }
+
+                // أ-2) المرتجع للمورد قبل التاريخ (يخرج من العهدة)
+                string sqlPurchaseReturnsBefore = @"
+                    SELECT COALESCE(SUM(pri.quantity_milli), 0)
+                    FROM purchase_return_items pri
+                    JOIN purchase_returns pr ON pri.return_id = pr.id
+                    WHERE pri.product_id = @pid AND date(pr.created_at) < date(@dateFrom);";
+
+                using (var cmd = new SQLiteCommand(sqlPurchaseReturnsBefore, conn))
+                {
+                    cmd.Parameters.AddWithValue("@pid", productId);
+                    cmd.Parameters.AddWithValue("@dateFrom", !string.IsNullOrEmpty(dateFrom) ? dateFrom : "1970-01-01");
+                    object res = cmd.ExecuteScalar();
+                    if (res != null && res != DBNull.Value) openingBalanceMilli -= Convert.ToInt64(res);
                 }
 
                 // ب) المنصرف قبل التاريخ
@@ -369,7 +384,7 @@ namespace RafiqPOS.Repositories
                         NULL AS rx_no,
                         NULL AS rx_date,
                         pi.batch_number,
-                        pi.quantity_milli AS inflow_qty,
+                        pi.quantity_milli + COALESCE(pi.bonus_quantity_milli, 0) AS inflow_qty,
                         0 AS outflow_qty,
                         p.created_by_user_id AS user_id,
                         NULL AS approved_by,
@@ -406,7 +421,9 @@ namespace RafiqPOS.Repositories
                         CASE cd.entry_type WHEN 'dispense' THEN cd.quantity_milli ELSE 0 END AS outflow_qty,
                         cd.dispensed_by AS user_id,
                         cd.approved_by,
-                        cd.reason AS notes
+                        CASE WHEN cd.quantity_unit = 'legacy_sale_unit'
+                             THEN 'كمية مسجلة بوحدة البيع قبل التحديث ولم يمكن تحويلها آلياً للوحدة الصغرى - يرجى المراجعة'
+                             ELSE cd.reason END AS notes
                     FROM controlled_dispenses cd
                     LEFT JOIN sales s ON cd.sale_id = s.id
                     WHERE cd.product_id = @pid";
@@ -414,13 +431,42 @@ namespace RafiqPOS.Repositories
                 if (!string.IsNullOrEmpty(dateFrom)) sqlDispenses += " AND date(cd.created_at) >= date(@dateFrom)";
                 if (!string.IsNullOrEmpty(dateTo)) sqlDispenses += " AND date(cd.created_at) <= date(@dateTo)";
 
+                // ج) مرتجعات للمورد (منصرف من العهدة)
+                string sqlPurchaseReturns = @"
+                    SELECT 
+                        pr.created_at AS trans_date,
+                        'outflow_purchase_return' AS trans_type,
+                        'مرتجع للمورد' AS trans_type_ar,
+                        COALESCE(pr.return_number, pr.id) AS doc_ref,
+                        s.name AS party_name,
+                        NULL AS patient_nat_id,
+                        NULL AS doc_name,
+                        NULL AS doc_lic,
+                        NULL AS rx_no,
+                        NULL AS rx_date,
+                        pri.batch_number,
+                        0 AS inflow_qty,
+                        pri.quantity_milli AS outflow_qty,
+                        pr.created_by_user_id AS user_id,
+                        NULL AS approved_by,
+                        COALESCE(pri.reason, pr.notes) AS notes
+                    FROM purchase_return_items pri
+                    JOIN purchase_returns pr ON pri.return_id = pr.id
+                    LEFT JOIN suppliers s ON pr.supplier_id = s.id
+                    WHERE pri.product_id = @pid";
+
+                if (!string.IsNullOrEmpty(dateFrom)) sqlPurchaseReturns += " AND date(pr.created_at) >= date(@dateFrom)";
+                if (!string.IsNullOrEmpty(dateTo)) sqlPurchaseReturns += " AND date(pr.created_at) <= date(@dateTo)";
+
                 string unionSql = string.Format(@"
                     SELECT * FROM (
                         {0}
                         UNION ALL
                         {1}
+                        UNION ALL
+                        {2}
                     ) ALL_TRANS
-                    ORDER BY trans_date ASC;", sqlPurchases, sqlDispenses);
+                    ORDER BY trans_date ASC;", sqlPurchases, sqlDispenses, sqlPurchaseReturns);
 
                 using (var cmd = new SQLiteCommand(unionSql, conn))
                 {

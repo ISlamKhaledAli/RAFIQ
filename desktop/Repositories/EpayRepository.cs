@@ -314,7 +314,7 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public EpayTerminalFunding FundTerminal(string terminalId, long amountPiasters, string fundingSource, string notes, string createdBy)
+        public EpayTerminalFunding FundTerminal(string terminalId, long amountPiasters, string fundingSource, string notes, string createdBy, string idempotencyKey = null)
         {
             if (amountPiasters <= 0)
             {
@@ -323,6 +323,11 @@ namespace RafiqPOS.Repositories
 
             lock (SaleService.FinancialWriteLock)
             {
+                // A retry after a UI timeout returns the recorded funding; the same key with other data is rejected
+                string fundFingerprint = Common.IdempotencyGuard.Fingerprint("epay_fund", terminalId, amountPiasters, fundingSource ?? "cash_drawer");
+                var existingFunding = LoadByIdempotency("epay_terminal_fundings", idempotencyKey, fundFingerprint) as EpayTerminalFunding;
+                if (existingFunding != null) return existingFunding;
+
                 string now = DateTime.UtcNow.ToString("o");
                 string fundingId = Guid.NewGuid().ToString();
                 long prevBal = 0;
@@ -385,13 +390,16 @@ namespace RafiqPOS.Repositories
                         // 3. Insert funding record
                         string insertSql = @"
                             INSERT INTO epay_terminal_fundings (
-                                id, terminal_id, amount_piasters, funding_source, previous_balance_piasters, new_balance_piasters, notes, created_by, created_at
+                                id, terminal_id, amount_piasters, funding_source, previous_balance_piasters, new_balance_piasters, notes, created_by,
+                                idempotency_key, idempotency_fingerprint, created_at
                             ) VALUES (
-                                @id, @termId, @amt, @src, @prevBal, @newBal, @notes, @createdBy, @now
+                                @id, @termId, @amt, @src, @prevBal, @newBal, @notes, @createdBy, @idemKey, @idemFp, @now
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertSql, conn, trans))
                         {
+                            cmd.Parameters.AddWithValue("@idemKey", (object)Common.IdempotencyGuard.NormalizeKey(idempotencyKey) ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idemFp", fundFingerprint);
                             cmd.Parameters.AddWithValue("@id", fundingId);
                             cmd.Parameters.AddWithValue("@termId", terminalId);
                             cmd.Parameters.AddWithValue("@amt", amountPiasters);
@@ -583,6 +591,12 @@ namespace RafiqPOS.Repositories
 
             lock (SaleService.FinancialWriteLock)
             {
+                // A retry after a UI timeout returns the recorded transaction; the same key with other data is rejected
+                string txFingerprint = Common.IdempotencyGuard.Fingerprint("epay_tx", tx.TerminalId, tx.ServiceType, tx.BillAmountPiasters,
+                    tx.CustomerFeePiasters, tx.ProviderCommissionPiasters, tx.ReferenceNumber, tx.PaymentChannel);
+                var existingTx = LoadByIdempotency("epay_transactions", tx.IdempotencyKey, txFingerprint) as EpayTransaction;
+                if (existingTx != null) return existingTx;
+
                 if (string.IsNullOrWhiteSpace(tx.Id))
                 {
                     tx.Id = Guid.NewGuid().ToString();
@@ -701,16 +715,19 @@ namespace RafiqPOS.Repositories
                                 id, terminal_id, service_type, service_name, reference_number,
                                 customer_phone, customer_name, bill_amount_piasters, customer_fee_piasters,
                                 total_received_piasters, machine_deducted_piasters, provider_commission_piasters,
-                                net_profit_piasters, payment_channel, cashier_name, status, notes, created_at
+                                net_profit_piasters, payment_channel, cashier_name, status, notes,
+                                idempotency_key, idempotency_fingerprint, created_at
                             ) VALUES (
                                 @id, @termId, @srvType, @srvName, @refNum,
                                 @phone, @cName, @billAmt, @feeAmt,
                                 @totalRec, @machDed, @commAmt,
-                                @netProfit, @payChan, @cashier, @status, @notes, @now
+                                @netProfit, @payChan, @cashier, @status, @notes, @idemKey, @idemFp, @now
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertSql, conn, trans))
                         {
+                            cmd.Parameters.AddWithValue("@idemKey", (object)Common.IdempotencyGuard.NormalizeKey(tx.IdempotencyKey) ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idemFp", txFingerprint);
                             cmd.Parameters.AddWithValue("@id", tx.Id);
                             cmd.Parameters.AddWithValue("@termId", tx.TerminalId);
                             cmd.Parameters.AddWithValue("@srvType", tx.ServiceType ?? "other");
@@ -985,24 +1002,55 @@ namespace RafiqPOS.Repositories
                     {
                         while (reader.Read())
                         {
-                            list.Add(new EpayTerminalFunding
-                            {
-                                Id = reader["id"].ToString(),
-                                TerminalId = reader["terminal_id"].ToString(),
-                                TerminalName = HasColumn(reader, "terminal_name") && reader["terminal_name"] != DBNull.Value ? reader["terminal_name"].ToString() : "",
-                                AmountPiasters = Convert.ToInt64(reader["amount_piasters"]),
-                                FundingSource = reader["funding_source"].ToString(),
-                                PreviousBalancePiasters = Convert.ToInt64(reader["previous_balance_piasters"]),
-                                NewBalancePiasters = Convert.ToInt64(reader["new_balance_piasters"]),
-                                Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null,
-                                CreatedBy = reader["created_by"] != DBNull.Value ? reader["created_by"].ToString() : null,
-                                CreatedAt = reader["created_at"].ToString()
-                            });
+                            list.Add(MapFunding(reader));
                         }
                     }
                 }
             }
             return list;
+        }
+
+        private static EpayTerminalFunding MapFunding(SQLiteDataReader reader)
+        {
+            return new EpayTerminalFunding
+            {
+                Id = reader["id"].ToString(),
+                TerminalId = reader["terminal_id"].ToString(),
+                TerminalName = HasColumn(reader, "terminal_name") && reader["terminal_name"] != DBNull.Value ? reader["terminal_name"].ToString() : "",
+                AmountPiasters = Convert.ToInt64(reader["amount_piasters"]),
+                FundingSource = reader["funding_source"].ToString(),
+                PreviousBalancePiasters = Convert.ToInt64(reader["previous_balance_piasters"]),
+                NewBalancePiasters = Convert.ToInt64(reader["new_balance_piasters"]),
+                Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null,
+                CreatedBy = reader["created_by"] != DBNull.Value ? reader["created_by"].ToString() : null,
+                CreatedAt = reader["created_at"].ToString()
+            };
+        }
+
+        /// <summary>
+        /// إعادة نفس السجل المحفوظ بمفتاح منع التكرار (عملية أو تغذية) بدلاً من تكرار الحركة المالية
+        /// </summary>
+        private object LoadByIdempotency(string table, string idempotencyKey, string fingerprint)
+        {
+            string existingId = Common.IdempotencyGuard.FindExisting(_connectionString, table, "id", idempotencyKey, fingerprint);
+            if (existingId == null) return null;
+            string sql = table == "epay_transactions"
+                ? "SELECT * FROM epay_transactions WHERE id = @id LIMIT 1;"
+                : "SELECT f.*, m.name AS terminal_name FROM epay_terminal_fundings f LEFT JOIN epay_terminals m ON f.terminal_id = m.id WHERE f.id = @id LIMIT 1;";
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", existingId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (!reader.Read()) return null;
+                        if (table == "epay_transactions") return MapReaderToTransaction(reader);
+                        return MapFunding(reader);
+                    }
+                }
+            }
         }
 
         public EpayAnalyticsSummary GetAnalytics(string fromDate, string toDate)

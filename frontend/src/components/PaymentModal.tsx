@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Customer, SalePayment } from '../types/models';
-import { formatArabicCurrency, normalizeArabicNumerals, poundsToPiasters, piastersToPounds } from '../utils/money';
+import { formatArabicCurrency, normalizeArabicNumerals, poundsToPiasters } from '../utils/money';
 import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
 import { MoneyInput } from './MoneyInput';
 import { CustomSelect } from './CustomSelect';
@@ -20,6 +20,7 @@ import { useAuth } from '../context/useAuth';
 import { SupervisorPromptModal } from './SupervisorPromptModal';
 
 import { CashPaymentSection } from './payment/CashPaymentSection';
+import { buildCashQuickPresetsPiasters, piastersToInputText } from './payment/cashPresets';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -65,7 +66,7 @@ export const PaymentModal = ({
   onConfirmPayment,
   loading = false,
 }: PaymentModalProps) => {
-  const [receivedInput, setReceivedInput] = useState<string>(() => piastersToPounds(netTotalPiasters).toString());
+  const [receivedInput, setReceivedInput] = useState<string>(() => piastersToInputText(netTotalPiasters));
   const [receivedPiasters, setReceivedPiasters] = useState<number>(() => netTotalPiasters);
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(selectedCustomerId || null);
   const [newlyAddedCustomers, setNewlyAddedCustomers] = useState<Customer[]>([]);
@@ -192,10 +193,9 @@ export const PaymentModal = ({
     }
   };
 
-  const setPresetReceived = (amountPounds: number) => {
-    const piasters = amountPounds * 100;
+  const setPresetReceived = (piasters: number) => {
     setReceivedPiasters(piasters);
-    setReceivedInput(amountPounds.toString());
+    setReceivedInput(piastersToInputText(piasters));
     setIsFullCreditMode(false);
     receivedInputRef.current?.focus();
   };
@@ -468,13 +468,7 @@ export const PaymentModal = ({
   };
 
   // Quick cash buttons generator (Exact, next 50, next 100, 200)
-  const netPounds = piastersToPounds(netTotalPiasters);
-  const quickPresets = [
-    netPounds,
-    Math.ceil(netPounds / 50) * 50 || 50,
-    Math.ceil(netPounds / 100) * 100 || 100,
-    200,
-  ].filter((val, idx, arr) => val >= netPounds && arr.indexOf(val) === idx);
+  const quickPresetsPiasters = buildCashQuickPresetsPiasters(netTotalPiasters);
 
   if (!isOpen) return null;
 
@@ -539,10 +533,11 @@ export const PaymentModal = ({
 
                 {/* Interactive Discount Field */}
                 <div className="flex items-center gap-1 text-xs">
-                  <span className="text-danger dark:text-danger-bright font-bold shrink-0">خصم:</span>
-                  <div className="w-24">
+                  <span className="text-danger dark:text-danger-bright font-bold shrink-0">خصم الفاتورة:</span>
+                  <div className="w-24" title={onDiscountChange ? undefined : 'خصم الفاتورة يحتاج صلاحية أو اعتماد المشرف من زر الخصم'}>
                     <MoneyInput
                       valuePiasters={discountPiasters}
+                      disabled={!onDiscountChange}
                       onChangePiasters={(val) => {
                         if (onDiscountChange) onDiscountChange(val);
                       }}
@@ -648,8 +643,7 @@ export const PaymentModal = ({
             onReceivedChange={handleReceivedChange}
             receivedInputRef={receivedInputRef}
             netTotalPiasters={netTotalPiasters}
-            netPounds={netPounds}
-            quickPresets={quickPresets}
+            quickPresetsPiasters={quickPresetsPiasters}
             onSetPreset={setPresetReceived}
             isShortPayment={isShortPayment}
             selectedCustomer={selectedCustomer}

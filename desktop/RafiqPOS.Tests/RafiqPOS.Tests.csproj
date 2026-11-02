@@ -75,6 +75,20 @@
     <Compile Include="Scenarios\S9_PinBruteForceTest.cs" />
     <Compile Include="Scenarios\S10_AuditFixesVerificationTest.cs" />
     <Compile Include="Scenarios\S11_CafeRestaurantSuiteTest.cs" />
+    <Compile Include="Scenarios\S12_SecurityHardeningTest.cs" />
+    <Compile Include="Scenarios\S13_ReturnProfitSymmetryTest.cs" />
+    <Compile Include="Scenarios\S14_CorruptDatabaseRecoveryTest.cs" />
+    <Compile Include="Scenarios\S15_ProductUnitEditAtomicityTest.cs" />
+    <Compile Include="Scenarios\S16_CancelSaleClosedShiftTest.cs" />
+    <Compile Include="Scenarios\S17_SupervisorPriceOverrideTest.cs" />
+    <Compile Include="Scenarios\S18_PurchaseReturnProportionalTest.cs" />
+    <Compile Include="Scenarios\S30_Step3BFixtureBase.cs" />
+    <Compile Include="Scenarios\S30_CafeRecipeStockTest.cs" />
+    <Compile Include="Scenarios\S31_CustomerCreditTest.cs" />
+    <Compile Include="Scenarios\S32_ControlledDrugAndActorTest.cs" />
+    <Compile Include="Scenarios\S33_ReturnsClosingIdempotencyTest.cs" />
+    <Compile Include="Scenarios\S34_Step3BRound2Test.cs" />
+    <Compile Include="Scenarios\S35_MigrationUpgradeTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

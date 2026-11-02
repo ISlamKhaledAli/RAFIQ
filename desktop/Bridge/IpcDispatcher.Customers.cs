@@ -92,7 +92,8 @@ namespace RafiqPOS.Bridge
                     string payShiftId = payObj["shiftId"] != null ? payObj["shiftId"].ToString() : null;
                     string payMethod = payObj["paymentMethod"] != null ? payObj["paymentMethod"].ToString() : "cash";
                     string payDigitalAccId = payObj["digitalAccountId"] != null ? payObj["digitalAccountId"].ToString() : null;
-                    var updatedCustomerAfterPay = DatabaseService.Customers.RecordPayment(payCustId, payAmount, payNotes, payShiftId, payMethod, payDigitalAccId);
+                    string payIdemKey = payObj["idempotencyKey"] != null ? payObj["idempotencyKey"].ToString() : null;
+                    var updatedCustomerAfterPay = DatabaseService.Customers.RecordPayment(payCustId, payAmount, payNotes, payShiftId, payMethod, payDigitalAccId, payIdemKey);
                     response = BridgeResponse.Ok(request.Id, updatedCustomerAfterPay);
                     return true;
 
@@ -111,7 +112,7 @@ namespace RafiqPOS.Bridge
                     string cpCustId = cancelPayObj["customerId"].ToString();
                     string cpLedgerId = cancelPayObj["ledgerEntryId"].ToString();
                     string cpReason = cancelPayObj["reason"] != null ? cancelPayObj["reason"].ToString() : "سجلت بالخطأ";
-                    string cpUser = cancelPayObj["userName"] != null ? cancelPayObj["userName"].ToString() : "الكاشير";
+                    string cpUser = SessionActorName();
                     var custAfterCancel = DatabaseService.Customers.CancelPayment(cpCustId, cpLedgerId, cpReason, cpUser);
                     response = BridgeResponse.Ok(request.Id, custAfterCancel);
                     return true;

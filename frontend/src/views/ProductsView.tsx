@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { 
   Package, 
@@ -62,6 +62,7 @@ import { RecipeManagerModal } from '../components/RecipeManagerModal';
 import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
 import { ProductFormModal } from './products/ProductFormModal';
+import { canSaveProductUnits, unitsLoadBlockMessage, type UnitsLoadState } from './products/unitsLoadGuard';
 import { BulkMinStockModal } from './products/BulkMinStockModal';
 import { StockMovementsTab } from './products/StockMovementsTab';
 import { BatchesTab } from './products/BatchesTab';
@@ -118,7 +119,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [costPiasters, setCostPiasters] = useState(0);
   const [unit, setUnit] = useState<'piece' | 'kg'>('piece');
   const [productUnits, setProductUnits] = useState<ProductUnit[]>([]);
+  const [unitsLoadState, setUnitsLoadState] = useState<UnitsLoadState>('ready');
+  const unitsRequestRef = useRef(0);
   const [stockInput, setStockInput] = useState('10');
+  const [stockAdjustReason, setStockAdjustReason] = useState('');
   const [minStockInput, setMinStockInput] = useState('5');
   const [taxRatePercent, setTaxRatePercent] = useState(0);
   const [variantSize, setVariantSize] = useState('');
@@ -577,6 +581,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setPricePiasters(0);
     setCostPiasters(0);
     setUnit('piece');
+    unitsRequestRef.current++;
+    setUnitsLoadState('ready');
     setProductUnits([{
       unitName: 'قطعة',
       conversionFactor: 1,
@@ -588,6 +594,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       sortOrder: 0
     }]);
     setStockInput('0');
+    setStockAdjustReason('');
     setMinStockInput('0');
     setTaxRatePercent(0);
     setVariantSize('');
@@ -606,6 +613,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setSimilarWarning(null);
     setBelowCostWarning(null);
     setShowModal(true);
+  };
+
+  const loadEditingProductUnits = (productId: string) => {
+    const requestId = ++unitsRequestRef.current;
+    setUnitsLoadState('loading');
+    void invoke<ProductUnit[]>('productUnits:getByProduct', { productId }).then((units) => {
+      if (requestId !== unitsRequestRef.current) return;
+      // An empty list means the product has no unit rows yet, so the base placeholder deletes nothing
+      if (Array.isArray(units) && units.length > 0) {
+        setProductUnits(units);
+        setEditingProduct(prev => (prev && prev.id === productId ? { ...prev, units } : prev));
+      }
+      setUnitsLoadState('ready');
+    }).catch(() => {
+      if (requestId !== unitsRequestRef.current) return;
+      setUnitsLoadState('error');
+    });
   };
 
   const openEditModal = (prod: Product) => {
@@ -658,32 +682,22 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     const u = prod.unit === 'kg' ? 'kg' : 'piece';
     setUnit(u);
 
-    // Load or initialize units for this product
-    if (prod.units && prod.units.length > 1) {
-      setProductUnits(prod.units);
-    } else {
-      setProductUnits(prod.units && prod.units.length === 1 ? prod.units : [{
-        unitName: u === 'kg' ? 'كيلو' : 'قطعة',
-        conversionFactor: 1,
-        isBaseUnit: true,
-        sellPricePiasters: prod.pricePiasters,
-        costPricePiasters: prod.costPiasters,
-        barcode: prod.barcode || '',
-        isDivisible: u === 'kg',
-        sortOrder: 0
-      }]);
-      void invoke<ProductUnit[]>('productUnits:getByProduct', { productId: prod.id }).then((units) => {
-        if (units && units.length > 0) {
-          setProductUnits(units);
-          setEditingProduct(prev => prev ? { ...prev, units } : prev);
-        }
-      }).catch(() => {
-        // keep default
-      });
-    }
+    // Show what the list has, but Save stays blocked until the authoritative units are loaded
+    setProductUnits(prod.units && prod.units.length > 0 ? prod.units : [{
+      unitName: u === 'kg' ? 'كيلو' : 'قطعة',
+      conversionFactor: 1,
+      isBaseUnit: true,
+      sellPricePiasters: prod.pricePiasters,
+      costPricePiasters: prod.costPiasters,
+      barcode: prod.barcode || '',
+      isDivisible: u === 'kg',
+      sortOrder: 0
+    }]);
+    loadEditingProductUnits(prod.id);
 
     const sKg = (prod.stockQuantityMilli / 1000).toFixed(3).replace(/\.?0+$/, '');
     setStockInput(sKg || '0');
+    setStockAdjustReason('');
     const msKg = ((prod.minStockQuantityMilli ?? 5000) / 1000).toFixed(3).replace(/\.?0+$/, '');
     setMinStockInput(msKg || '5');
     setTaxRatePercent(prod.taxRatePercent || 0);
@@ -880,6 +894,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
   const handleSaveProduct = async (e?: FormEvent, forceConfirmSimilar = false, forceConfirmCost = false) => {
     if (e) e.preventDefault();
+    if (!canSaveProductUnits(Boolean(editingId), unitsLoadState)) {
+      setFormError(unitsLoadBlockMessage(unitsLoadState));
+      return;
+    }
     if (!name.trim()) {
       setFormError('اسم المنتج مطلوب');
       return;
@@ -909,6 +927,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
       const parsedStock = parseFloat(normalizeArabicNumerals(stockInput)) || 0;
       const stockQuantityMilli = Math.round(parsedStock * 1000);
+      // A stock change on an existing product is a stock adjustment: permission + documented reason (enforced by the server too)
+      const isStockAdjustment = Boolean(editingId && editingProduct && stockQuantityMilli !== editingProduct.stockQuantityMilli);
+      if (isStockAdjustment && !hasPermission('stock.adjust')) {
+        setFormError('ليس لديك صلاحية تسوية المخزون؛ لا يمكن تغيير الرصيد من بطاقة الصنف. أعد الرصيد كما كان أو اطلب من المدير.');
+        return;
+      }
+      if (isStockAdjustment && !stockAdjustReason.trim()) {
+        setFormError('اكتب سبب تعديل الرصيد (مثل: جرد فعلي، تالف، فاقد) قبل الحفظ.');
+        return;
+      }
       const parsedMinStock = parseFloat(normalizeArabicNumerals(minStockInput)) || 0;
       const minStockQuantityMilli = Math.round(parsedMinStock * 1000);
 
@@ -943,6 +971,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         costPiasters,
         stockQuantityMilli,
         originalStockQuantityMilli: editingId && editingProduct ? editingProduct.stockQuantityMilli : undefined,
+        stockAdjustReason: isStockAdjustment ? stockAdjustReason.trim() : undefined,
         minStockQuantityMilli,
         unit: effectiveProductUnit as any,
         units: synchronizedUnits,
@@ -1749,6 +1778,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         setProductUnits={setProductUnits}
         stockInput={stockInput}
         setStockInput={setStockInput}
+        stockAdjustReason={stockAdjustReason}
+        setStockAdjustReason={setStockAdjustReason}
         minStockInput={minStockInput}
         setMinStockInput={setMinStockInput}
         taxRatePercent={taxRatePercent}
@@ -1764,6 +1795,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         belowCostWarning={belowCostWarning}
         setBelowCostWarning={setBelowCostWarning}
         loading={loading}
+        unitsLoadState={editingId ? unitsLoadState : 'ready'}
+        onRetryLoadUnits={() => {
+          if (editingId) loadEditingProductUnits(editingId);
+        }}
         onSave={(e, forceSimilar, forceCost) => void handleSaveProduct(e, forceSimilar, forceCost)}
         onOpenPriceHistory={() => {
           if (editingId) {

@@ -64,8 +64,9 @@ namespace RafiqPOS.Services
                 summary.Results.Add(RunTest2_GrossProfitAccurateAfterReturnsDeduction());
                 summary.Results.Add(RunTest3_ExtremeQuantityAndPriceInputProtection());
                 summary.Results.Add(RunTest4_ExpenseUtcStandardizationAndClosingMatch());
-                summary.Results.Add(RunTest5_FinancialWriteLockConcurrencyOnClosing());
                 summary.Results.Add(RunTest6_PartialReturnPreservesSaleStatusAsPartiallyRefunded());
+                // Seals today's business day, so it must stay the last test in the suite
+                summary.Results.Add(RunTest5_FinancialWriteLockConcurrencyOnClosing());
 
                 summary.TotalTests = summary.Results.Count;
                 summary.PassedCount = 0;
@@ -455,23 +456,134 @@ namespace RafiqPOS.Services
 
             try
             {
-                // Verify lock can be acquired and SaveClosing executes safely
-                bool lockAcquired = false;
-                lock (SaleService.FinancialWriteLock)
+                string prodId = "prod_chaos_race_" + Guid.NewGuid().ToString("N").Substring(0, 6);
+                var prod = new Product
                 {
-                    lockAcquired = true;
+                    Id = prodId,
+                    Name = "صنف سباق التقفيل",
+                    Barcode = GenerateUniqueBarcode(),
+                    PricePiasters = 1000,
+                    CostPiasters = 600,
+                    StockQuantityMilli = 1000000,
+                    IsActive = true
+                };
+                DatabaseService.Products.SaveProduct(prod);
+                string bDate = DatabaseService.DailyClosing.GetCurrentBusinessDate();
+
+                const int saleThreads = 8;
+                var startGate = new System.Threading.ManualResetEvent(false);
+                var errors = new List<string>();
+                int salesSucceeded = 0;
+                int salesRejectedAsClosed = 0;
+                DailyClosing closing = null;
+                var threads = new List<System.Threading.Thread>();
+
+                for (int t = 0; t < saleThreads; t++)
+                {
+                    var saleThread = new System.Threading.Thread(delegate()
+                    {
+                        startGate.WaitOne();
+                        try
+                        {
+                            DatabaseService.Sales.ProcessSale(new Sale
+                            {
+                                TotalPiasters = 1000,
+                                PaidPiasters = 1000,
+                                PaymentMethod = "cash",
+                                Items = new List<SaleItem>
+                                {
+                                    new SaleItem { ProductId = prodId, ProductName = prod.Name, QuantityMilli = 1000, UnitPricePiasters = 1000, TotalPiasters = 1000 }
+                                }
+                            });
+                            System.Threading.Interlocked.Increment(ref salesSucceeded);
+                        }
+                        catch (InvalidOperationException ex)
+                        {
+                            if (ex.Message.Contains("إقفال")) System.Threading.Interlocked.Increment(ref salesRejectedAsClosed);
+                            else lock (errors) { errors.Add(ex.Message); }
+                        }
+                        catch (Exception ex)
+                        {
+                            lock (errors) { errors.Add(ex.GetType().Name + ": " + ex.Message); }
+                        }
+                    });
+                    threads.Add(saleThread);
+                }
+                var closingThread = new System.Threading.Thread(delegate()
+                {
+                    startGate.WaitOne();
+                    try
+                    {
+                        closing = DatabaseService.DailyClosing.SaveClosing(new DailyClosingSaveRequest
+                        {
+                            BusinessDate = bDate,
+                            ActualCashPiasters = 0,
+                            CashierName = "اختبار السباق",
+                            ConfirmSuspiciousDate = true
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        lock (errors) { errors.Add("SaveClosing: " + ex.Message); }
+                    }
+                });
+                threads.Insert(saleThreads / 2, closingThread);
+
+                foreach (var th in threads) th.Start();
+                startGate.Set();
+                foreach (var th in threads) th.Join(60000);
+
+                // The sealed Z total must equal every committed sale of the day: nothing slipped in after the seal
+                long dbDayTotal = 0;
+                using (var conn = new SQLiteConnection(DatabaseService.ConnectionString))
+                {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand(@"
+                        SELECT COALESCE(SUM(total_piasters), 0) FROM sales
+                        WHERE status != 'cancelled' AND id NOT LIKE 'demo_%' AND id NOT LIKE 'stress_%'
+                          AND date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate;", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@cutoff", BusinessDayHelper.GetCutoffHour(conn, null));
+                        cmd.Parameters.AddWithValue("@bdate", bDate);
+                        dbDayTotal = Convert.ToInt64(cmd.ExecuteScalar());
+                    }
                 }
 
-                if (lockAcquired)
+                // Whatever order the race took, a sale after the seal must be refused
+                bool lateSaleRejected = false;
+                try
+                {
+                    DatabaseService.Sales.ProcessSale(new Sale
+                    {
+                        TotalPiasters = 1000,
+                        PaidPiasters = 1000,
+                        PaymentMethod = "cash",
+                        Items = new List<SaleItem>
+                        {
+                            new SaleItem { ProductId = prodId, ProductName = prod.Name, QuantityMilli = 1000, UnitPricePiasters = 1000, TotalPiasters = 1000 }
+                        }
+                    });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    lateSaleRejected = ex.Message.Contains("إقفال");
+                }
+
+                bool allAccounted = salesSucceeded + salesRejectedAsClosed == saleThreads && lateSaleRejected;
+                bool sealedMatches = closing != null && closing.TotalSalesPiasters == dbDayTotal;
+                if (errors.Count == 0 && allAccounted && sealedMatches)
                 {
                     result.Passed = true;
-                    result.Observed = "تم تأكيد شمول عمليات التقفيل تحت القفل المالي المركزي FinancialWriteLock بنجاح.";
-                    result.Details = "حماية كاملة ضد تداخل المعاملات المالية المتزامنة في الوردية.";
+                    result.Observed = string.Format("{0} بيع قبل الإقفال، {1} بيع رُفض بعده، وإجمالي Z ({2}) يطابق قاعدة البيانات ({3}).",
+                        salesSucceeded, salesRejectedAsClosed, closing.TotalSalesPiasters, dbDayTotal);
+                    result.Details = "SaveClosing والمبيعات متسلسلة تحت FinancialWriteLock دون أي فاتورة خارج اللقطة المختومة.";
                 }
                 else
                 {
                     result.Passed = false;
-                    result.Observed = "فشل في التحقق من القفل المالي";
+                    result.Observed = string.Format("أخطاء={0} [{1}]، نجاح={2}، رفض={3}، رفض بعد الختم={4}، Z={5}، قاعدة البيانات={6}",
+                        errors.Count, string.Join(" | ", errors.ToArray()), salesSucceeded, salesRejectedAsClosed, lateSaleRejected,
+                        closing != null ? closing.TotalSalesPiasters.ToString() : "null", dbDayTotal);
                 }
             }
             catch (Exception ex)

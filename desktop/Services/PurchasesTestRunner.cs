@@ -151,6 +151,7 @@ namespace RafiqPOS.Services
                     SupplierInvoiceNumber = "INV-7001",
                     DiscountPiasters = 0,
                     PaidAmountPiasters = 210000, // 2100.00 EGP
+                    PaymentSource = "external_cash", // Owner's cash: the test opens no shift/drawer float
                     Items = new List<PurchaseItem>
                     {
                         new PurchaseItem
@@ -292,6 +293,7 @@ namespace RafiqPOS.Services
                     SupplierId = sup1.Id,
                     SupplierInvoiceNumber = "INV-CONV-12",
                     PaidAmountPiasters = 5000,
+                    PaymentSource = "external_cash",
                     Items = new List<PurchaseItem>
                     {
                         new PurchaseItem
@@ -400,7 +402,7 @@ namespace RafiqPOS.Services
                 // 5. Scenario 4: Purchase Returns (مردودات المشتريات)
                 // ==========================================
                 // Return 2 units (2,000 milli) of prod3 to supplier
-                // Return cost = 2 * 6667 = 13,334 piasters
+                // Return value is pro-rated from the line total: 80,000 * 2 / 12 = 13,333 piasters (no per-unit rounding gain)
                 var retDoc = DatabaseService.Purchases.CreatePurchaseReturn(new PurchaseReturn
                 {
                     SupplierId = sup1.Id,
@@ -420,7 +422,7 @@ namespace RafiqPOS.Services
                 });
 
                 assert(retDoc != null && retDoc.ReturnNumber > 0, "إنشاء مرتجع مشتريات وتوليد رقم تسلسلي للمرتجع");
-                assert(retDoc.TotalCostPiasters == 13334, "قيمة المرتجع صحيحة بالمليم (2 * 6667 = 13,334 قرش)");
+                assert(retDoc.TotalCostPiasters == 13333, "قيمة المرتجع محسوبة بالتناسب من إجمالي سطر الشراء (80,000 × 2 ÷ 12 = 13,333 قرش)");
 
                 // Check stock decreased
                 var prod3AfterRet = DatabaseService.Products.GetById(prod3.Id);
@@ -428,12 +430,12 @@ namespace RafiqPOS.Services
 
                 // Check supplier balance decreased
                 var sup1BalAfterRet = DatabaseService.Suppliers.GetById(sup1.Id).BalancePiasters;
-                assert(sup1BalAfterRet == sup1BalAfterBonus - 13334, "تخفيض مديونية المورد بقيمة المرتجع (خصم 13,334 قرش)");
+                assert(sup1BalAfterRet == sup1BalAfterBonus - 13333, "تخفيض مديونية المورد بقيمة المرتجع (خصم 13,333 قرش)");
 
                 // Check transactions ledger has return entry
                 var sup1TxsAfterRet = DatabaseService.Suppliers.GetTransactions(sup1.Id);
                 assert(sup1TxsAfterRet[0].TransactionType == "PURCHASE_RETURN", "تسجيل حركة PURCHASE_RETURN في كشف حساب المورد");
-                assert(sup1TxsAfterRet[0].AmountPiasters == -13334, "مبلغ المرتجع مسجل بالسالب في دفتر المورد لتخفيض دينيته");
+                assert(sup1TxsAfterRet[0].AmountPiasters == -13333, "مبلغ المرتجع مسجل بالسالب في دفتر المورد لتخفيض دينيته");
 
                 // Check protection: cannot return more than available stock
                 bool threwOverReturn = false;

@@ -9,6 +9,7 @@ export interface CartItem extends SaleItem {
   isControlled?: boolean;
   controlledSchedule?: string | null;
   controlledDispense?: ControlledDrugDispense;
+  consumesIngredientsOnSale?: boolean;
 }
 
 export interface SmartCatalogItem {
@@ -38,6 +39,7 @@ export interface SmartCatalogItem {
   isExpired?: boolean;
   defaultSaleUnitId?: string | null;
   isLooseSellable?: boolean;
+  consumesIngredientsOnSale?: boolean;
   isControlled?: boolean;
   controlledSchedule?: string | null;
 }

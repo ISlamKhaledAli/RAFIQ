@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   RotateCcw, 
   X, 
@@ -19,6 +19,7 @@ import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { useAuth } from '../context/useAuth';
+import { createAttemptKey } from '../utils/idempotency';
 
 interface ReturnModalProps {
   isOpen: boolean;
@@ -74,6 +75,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [completedReturn, setCompletedReturn] = useState<Return | null>(null);
+  // A retry after a timeout reuses the key so the server never refunds the same return twice
+  const returnAttemptRef = useRef(createAttemptKey('ret'));
   const [drawerBalance, setDrawerBalance] = useState<number | null>(null);
 
   // Without-invoice product search state
@@ -161,6 +164,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      returnAttemptRef.current.complete();
       if (initialSale) {
         setMode('withInvoice');
         setInvoiceQuery(initialSale.invoiceNumber ? String(initialSale.invoiceNumber) : '');
@@ -315,6 +319,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         reason: reason.trim() || 'مرتجع أصناف',
         refundMethod: effectiveRefundMethod,
         supervisorPin: supervisorPin.trim() || undefined,
+        idempotencyKey: returnAttemptRef.current.current(),
         items: activeReturnItems.map((item) => ({
           saleItemId: item.saleItemId,
           productId: item.productId,
@@ -329,6 +334,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
       const result = await invoke<Return>('returns:create', payload);
       if (result && result.id) {
+        returnAttemptRef.current.complete();
         setCompletedReturn(result);
         if (onReturnCompleted) onReturnCompleted(result);
         // Automatically attempt receipt print

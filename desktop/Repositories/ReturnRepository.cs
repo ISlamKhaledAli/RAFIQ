@@ -64,14 +64,10 @@ namespace RafiqPOS.Repositories
                                         returnObj.SaleId = saleReader["id"].ToString();
                                         saleStatus = saleReader["status"] != DBNull.Value ? saleReader["status"].ToString() : null;
                                         saleFinalTotal = saleReader["total_piasters"] != DBNull.Value ? Convert.ToInt64(saleReader["total_piasters"]) : 0;
-                                        if (string.IsNullOrEmpty(returnObj.CustomerId) && saleReader["customer_id"] != DBNull.Value)
-                                        {
-                                            returnObj.CustomerId = saleReader["customer_id"].ToString();
-                                        }
-                                        if (string.IsNullOrEmpty(returnObj.CustomerName) && saleReader["customer_name"] != DBNull.Value)
-                                        {
-                                            returnObj.CustomerName = saleReader["customer_name"].ToString();
-                                        }
+                                        string invoiceCustomerId = saleReader["customer_id"] != DBNull.Value ? saleReader["customer_id"].ToString() : null;
+                                        RafiqPOS.Services.ReturnService.EnsureInvoiceCustomer(returnObj.CustomerId, invoiceCustomerId);
+                                        returnObj.CustomerId = invoiceCustomerId;
+                                        returnObj.CustomerName = saleReader["customer_name"] != DBNull.Value ? saleReader["customer_name"].ToString() : null;
                                     }
                                 }
                             }
@@ -91,14 +87,10 @@ namespace RafiqPOS.Repositories
                                         }
                                         saleStatus = invReader["status"] != DBNull.Value ? invReader["status"].ToString() : null;
                                         saleFinalTotal = invReader["total_piasters"] != DBNull.Value ? Convert.ToInt64(invReader["total_piasters"]) : 0;
-                                        if (string.IsNullOrEmpty(returnObj.CustomerId) && invReader["customer_id"] != DBNull.Value)
-                                        {
-                                            returnObj.CustomerId = invReader["customer_id"].ToString();
-                                        }
-                                        if (string.IsNullOrEmpty(returnObj.CustomerName) && invReader["customer_name"] != DBNull.Value)
-                                        {
-                                            returnObj.CustomerName = invReader["customer_name"].ToString();
-                                        }
+                                        string invoiceCustomerId = invReader["customer_id"] != DBNull.Value ? invReader["customer_id"].ToString() : null;
+                                        RafiqPOS.Services.ReturnService.EnsureInvoiceCustomer(returnObj.CustomerId, invoiceCustomerId);
+                                        returnObj.CustomerId = invoiceCustomerId;
+                                        returnObj.CustomerName = invReader["customer_name"] != DBNull.Value ? invReader["customer_name"].ToString() : null;
                                     }
                                 }
                             }
@@ -148,7 +140,8 @@ namespace RafiqPOS.Repositories
                             calculatedTotal += it.TotalPiasters;
                         }
 
-                        if (calculatedTotal <= 0)
+                        // A fully discounted (free) invoice line may be returned at zero value: stock only, no money (L7)
+                        if (calculatedTotal <= 0 && (string.IsNullOrEmpty(returnObj.SaleId) || returnObj.IsWithoutInvoice))
                         {
                             throw new InvalidOperationException("إجمالي قيمة المرتجع يجب أن يكون أكبر من الصفر");
                         }
@@ -191,10 +184,10 @@ namespace RafiqPOS.Repositories
                         string insertReturnSql = @"
                             INSERT INTO returns (
                                 id, return_number, sale_id, invoice_number, customer_id, customer_name,
-                                cashier_id, total_piasters, refund_method, reason, is_without_invoice, shift_id, created_at
+                                cashier_id, total_piasters, refund_method, reason, is_without_invoice, shift_id, idempotency_key, idempotency_fingerprint, created_at
                             ) VALUES (
                                 @id, @returnNumber, @saleId, @invoiceNumber, @customerId, @customerName,
-                                @cashierId, @total, @refundMethod, @reason, @isWithoutInvoice, @shiftId, @createdAt
+                                @cashierId, @total, @refundMethod, @reason, @isWithoutInvoice, @shiftId, @idemKey, @idemFp, @createdAt
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertReturnSql, conn, trans))
@@ -211,6 +204,8 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@reason", (object)returnObj.Reason ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@isWithoutInvoice", returnObj.IsWithoutInvoice ? 1 : 0);
                             cmd.Parameters.AddWithValue("@shiftId", (object)returnObj.ShiftId ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idemKey", (object)Common.IdempotencyGuard.NormalizeKey(returnObj.IdempotencyKey) ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idemFp", (object)returnObj.IdempotencyFingerprint ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@createdAt", returnObj.CreatedAt);
                             cmd.ExecuteNonQuery();
                         }
@@ -321,7 +316,12 @@ namespace RafiqPOS.Repositories
                             }
                             long baseQtyMilli = item.QuantityMilli * factor;
 
-                            if (prodExistsInDb)
+                            // Recipe-made menu items never left stock (their ingredients did), so nothing returns to stock
+                            bool lineStockDeducted = prodExistsInDb && (!string.IsNullOrEmpty(returnObj.SaleId)
+                                ? SaleRepository.WasSaleLineStockDeducted(conn, trans, returnObj.SaleId, item.SaleItemId, item.ProductId)
+                                : DatabaseService.RecipeRepo == null || !DatabaseService.RecipeRepo.IsRecipeDepletedOnSale(conn, trans, item.ProductId));
+
+                            if (lineStockDeducted)
                             {
                                 if (!item.IsDamaged)
                                 {
@@ -646,8 +646,8 @@ namespace RafiqPOS.Repositories
                         }
 
                         // 4. If credit / customer_balance refund, reduce customer debt in customers and customer_ledger
-                        if (string.Equals(returnObj.RefundMethod, "credit", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(returnObj.RefundMethod, "customer_balance", StringComparison.OrdinalIgnoreCase))
+                        if (returnObj.TotalPiasters > 0 && (string.Equals(returnObj.RefundMethod, "credit", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(returnObj.RefundMethod, "customer_balance", StringComparison.OrdinalIgnoreCase)))
                         {
                             if (string.IsNullOrWhiteSpace(returnObj.CustomerId))
                             {
@@ -725,9 +725,9 @@ namespace RafiqPOS.Repositories
                         }
 
                         // 4.B If refund was issued via digital wallet / InstaPay, deduct balance from digital_accounts and log transaction
-                        if (string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase) ||
+                        if (returnObj.TotalPiasters > 0 && (string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase) ||
                             string.Equals(returnObj.RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(returnObj.RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase))
+                            string.Equals(returnObj.RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase)))
                         {
                             string dType = string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase) ? "instapay" : "wallet";
                             string targetAccId = null;
@@ -925,6 +925,15 @@ namespace RafiqPOS.Repositories
                 }
             }
             return list;
+        }
+
+        /// <summary>
+        /// المرتجع المسجل بنفس مفتاح منع التكرار (أو null)؛ يرفض نفس المفتاح مع بيانات مرتجع مختلفة
+        /// </summary>
+        public Return FindByIdempotency(string idempotencyKey, string fingerprint)
+        {
+            string existingId = Common.IdempotencyGuard.FindExisting(_connectionString, "returns", "id", idempotencyKey, fingerprint);
+            return existingId != null ? GetReturnById(existingId) : null;
         }
 
         public Return GetReturnById(string id)

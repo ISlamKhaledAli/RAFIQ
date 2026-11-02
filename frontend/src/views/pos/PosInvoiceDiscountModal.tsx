@@ -12,6 +12,8 @@ interface PosInvoiceDiscountModalProps {
   onClose: () => void;
   subtotalPiasters: number;
   currentUserRole: string;
+  /** Holder of pos.discount_invoice; without it every invoice discount needs a supervisor PIN (enforced server-side). */
+  canDiscountInvoice: boolean;
   maxDiscountPercentCashier: number;
   maxDiscountAmountCashierPiasters: number;
   onApplyDiscount: (piasters: number, supervisorApproved: boolean) => void;
@@ -23,6 +25,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
   onClose,
   subtotalPiasters,
   currentUserRole,
+  canDiscountInvoice,
   maxDiscountPercentCashier,
   maxDiscountAmountCashierPiasters,
   onApplyDiscount,
@@ -52,13 +55,15 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
       const calculatedPiasters = calculateDiscountAmount(subtotalPiasters, invoiceDiscountType, num);
       const discountPct = subtotalPiasters > 0 ? (calculatedPiasters / subtotalPiasters) * 100 : 0;
 
-      const requiresSupervisor =
+      const requiresSupervisor = !canDiscountInvoice || (
         currentUserRole === 'cashier' &&
-        (discountPct > maxDiscountPercentCashier || calculatedPiasters > maxDiscountAmountCashierPiasters);
+        (discountPct > maxDiscountPercentCashier || calculatedPiasters > maxDiscountAmountCashierPiasters));
 
       if (calculatedPiasters > 0 && requiresSupervisor) {
         onRequestSupervisor(
-          `خصم على الفاتورة يتجاوز حد الكاشير: ${(calculatedPiasters / 100).toFixed(2)} ج.م (${discountPct.toFixed(1)}%)`,
+          canDiscountInvoice
+            ? `خصم على الفاتورة يتجاوز حد الكاشير: ${(calculatedPiasters / 100).toFixed(2)} ج.م (${discountPct.toFixed(1)}%)`
+            : `خصم على الفاتورة بدون صلاحية خصم الفاتورة: ${(calculatedPiasters / 100).toFixed(2)} ج.م (${discountPct.toFixed(1)}%)`,
           () => {
             onApplyDiscount(calculatedPiasters, true);
           }
@@ -73,8 +78,8 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
   const parsed = parseFloat(normalizeArabicNumerals(discountInputEgp.trim())) || 0;
   const piastersVal = calculateDiscountAmount(subtotalPiasters, invoiceDiscountType, parsed);
   const discountPct = subtotalPiasters > 0 ? (piastersVal / subtotalPiasters) * 100 : 0;
-  const reqSup = currentUserRole === 'cashier' &&
-    (discountPct > maxDiscountPercentCashier || piastersVal > maxDiscountAmountCashierPiasters);
+  const reqSup = !canDiscountInvoice || (currentUserRole === 'cashier' &&
+    (discountPct > maxDiscountPercentCashier || piastersVal > maxDiscountAmountCashierPiasters));
   const previewNet = Math.max(0, subtotalPiasters - piastersVal);
 
   return (
@@ -202,7 +207,11 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
             <div className="mb-3 p-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg text-warn dark:text-warn-bright text-xs flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
-                <span>الخصم يتجاوز صلاحية الكاشير (أقصى حد {maxDiscountPercentCashier}% أو {formatArabicCurrency(maxDiscountAmountCashierPiasters)})</span>
+                <span>
+                  {canDiscountInvoice
+                    ? `الخصم يتجاوز صلاحية الكاشير (أقصى حد ${maxDiscountPercentCashier}% أو ${formatArabicCurrency(maxDiscountAmountCashierPiasters)})`
+                    : 'حسابك لا يملك صلاحية خصم على إجمالي الفاتورة'}
+                </span>
               </span>
               <span className="font-bold whitespace-nowrap mr-2">مطلوب موافقة المشرف</span>
             </div>

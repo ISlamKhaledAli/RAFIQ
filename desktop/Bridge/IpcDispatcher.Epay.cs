@@ -149,7 +149,8 @@ namespace RafiqPOS.Bridge
                         long amountPiasters = payloadObj["amountPiasters"] != null ? (long)payloadObj["amountPiasters"] : 0;
                         string fundingSource = payloadObj["fundingSource"] != null ? (string)payloadObj["fundingSource"] : "cash_drawer";
                         string notes = payloadObj["notes"] != null ? (string)payloadObj["notes"] : null;
-                        string createdBy = payloadObj["createdBy"] != null ? (string)payloadObj["createdBy"] : null;
+                        string createdBy = SessionActorName();
+                        string fundIdempotencyKey = payloadObj["idempotencyKey"] != null ? (string)payloadObj["idempotencyKey"] : null;
 
                         if (string.IsNullOrWhiteSpace(terminalId))
                         {
@@ -164,7 +165,7 @@ namespace RafiqPOS.Bridge
 
                         lock (SaleService.FinancialWriteLock)
                         {
-                            var funding = repo.FundTerminal(terminalId, amountPiasters, fundingSource, notes, createdBy);
+                            var funding = repo.FundTerminal(terminalId, amountPiasters, fundingSource, notes, createdBy, fundIdempotencyKey);
                             response = BridgeResponse.Ok(request.Id, funding);
                         }
                         return true;
@@ -222,6 +223,7 @@ namespace RafiqPOS.Bridge
                             response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "بيانات العملية غير صالحة");
                             return true;
                         }
+                        tx.CashierName = SessionActorName();
                         if (string.IsNullOrWhiteSpace(tx.TerminalId))
                         {
                             response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "يجب اختيار الماكينة المنفذة للعملية");
@@ -270,7 +272,7 @@ namespace RafiqPOS.Bridge
                         JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
                         string txId = payloadObj["transactionId"] != null ? (string)payloadObj["transactionId"] : null;
                         string reason = payloadObj["reason"] != null ? (string)payloadObj["reason"] : null;
-                        string cancelledBy = payloadObj["cancelledBy"] != null ? (string)payloadObj["cancelledBy"] : null;
+                        string cancelledBy = SessionActorName();
 
                         if (string.IsNullOrWhiteSpace(txId))
                         {

@@ -37,6 +37,8 @@ export interface UserDto {
   createdAt?: string;
   lastLoginAt?: string;
   mustChangePin?: boolean;
+  /** Session opened with the owner recovery code (server-side flag). */
+  isRecoverySession?: boolean;
 }
 
 export interface LoginResult {
@@ -59,20 +61,7 @@ export interface AppUpdateInfo {
   isMandatory?: boolean;
   fileSizeBytes?: number;
   errorMessage?: string;
-  packagePath?: string;
-  packageFileName?: string;
-  isOfflinePackage?: boolean;
-  checksumValid?: boolean;
   isEligible?: boolean;
-}
-
-export interface AppUpdateResult {
-  success: boolean;
-  code: string;
-  message: string;
-  backupPath?: string;
-  rollbackTriggered?: boolean;
-  filesStagedCount?: number;
 }
 
 export interface FullStoreExportResult {
@@ -104,7 +93,7 @@ declare global {
   }
 }
 
-import { emitDataChanged } from '../utils/eventBus.ts';
+import { emitDataChanged, type RafiqDataTopic } from '../utils/eventBus.ts';
 import { DEFAULT_REGISTRY } from '../context/featureTypes.ts';
 
 const pendingRequests = new Map<string, {
@@ -114,7 +103,8 @@ const pendingRequests = new Map<string, {
   timer: any;
 }>();
 
-function dispatchAutoTopicsForAction(action: string) {
+/** Data-changed topics a successful action invalidates; read-only actions must map to none. */
+export function getAutoTopicsForAction(action: string): RafiqDataTopic[] {
   // CRITICAL SENIOR SAFEGUARD:
   // Never dispatch data changes for read/query actions (get, list, search, check, preview, summary, print, calculate, export, test).
   // Doing so causes infinite loop cycles where views fetching data re-trigger event listeners endlessly.
@@ -131,7 +121,7 @@ function dispatchAutoTopicsForAction(action: string) {
     action.includes(':runTests') ||
     action.includes(':isFirstRunNeeded');
 
-  if (isQuery) return;
+  if (isQuery) return [];
 
   if (
     action.startsWith('sales:create') || 
@@ -139,7 +129,7 @@ function dispatchAutoTopicsForAction(action: string) {
     action.startsWith('returns:create') || 
     action.startsWith('sales:return')
   ) {
-    emitDataChanged(['sales', 'products', 'customers', 'dashboard']);
+    return ['sales', 'products', 'customers', 'dashboard'];
   } else if (
     action.startsWith('products:save') || 
     action.startsWith('products:delete') || 
@@ -155,12 +145,12 @@ function dispatchAutoTopicsForAction(action: string) {
     action.startsWith('packaging:saveLevels') ||
     action.startsWith('excel:importProducts')
   ) {
-    emitDataChanged(['products', 'dashboard']);
+    return ['products', 'dashboard'];
   } else if (
     action.startsWith('categories:save') || 
     action.startsWith('categories:delete')
   ) {
-    emitDataChanged(['categories', 'products']);
+    return ['categories', 'products'];
   } else if (
     action.startsWith('customers:save') || 
     action.startsWith('customers:delete') || 
@@ -169,29 +159,29 @@ function dispatchAutoTopicsForAction(action: string) {
     action.startsWith('customers:cancelPayment') || 
     action.startsWith('excel:importCustomers')
   ) {
-    emitDataChanged(['customers', 'dashboard']);
+    return ['customers', 'dashboard'];
   } else if (
     action.startsWith('purchases:create') || 
     action.startsWith('purchases:delete')
   ) {
-    emitDataChanged(['purchases', 'products', 'suppliers', 'dashboard']);
+    return ['purchases', 'products', 'suppliers', 'dashboard'];
   } else if (
     action.startsWith('suppliers:save') || 
     action.startsWith('suppliers:recordPayment') || 
     action.startsWith('suppliers:archive') || 
     action.startsWith('suppliers:restore')
   ) {
-    emitDataChanged(['suppliers', 'purchases']);
+    return ['suppliers', 'purchases'];
   } else if (
     action.startsWith('settings:save') ||
     action.startsWith('templates:apply') ||
     action.startsWith('templates:seedProducts')
   ) {
-    emitDataChanged(['settings', 'all']);
+    return ['settings', 'all'];
   } else if (
     action.startsWith('closing:save')
   ) {
-    emitDataChanged(['dashboard', 'sales']);
+    return ['dashboard', 'sales'];
   } else if (
     action.startsWith('sales:hold') ||
     action.startsWith('sales:recallHeld') ||
@@ -199,20 +189,20 @@ function dispatchAutoTopicsForAction(action: string) {
     action.startsWith('heldSales:save') || 
     action.startsWith('heldSales:delete')
   ) {
-    emitDataChanged(['held_sales', 'dashboard']);
+    return ['held_sales', 'dashboard'];
   } else if (
     action.startsWith('epay:create') ||
     action.startsWith('epay:fund') ||
     action.startsWith('epay:save')
   ) {
-    emitDataChanged(['epay', 'dashboard']);
+    return ['epay', 'dashboard'];
   } else if (
     action.startsWith('wallets:process') ||
     action.startsWith('wallets:fund') ||
     action.startsWith('wallets:save') ||
     action.startsWith('wallets:delete')
   ) {
-    emitDataChanged(['wallets', 'dashboard']);
+    return ['wallets', 'dashboard'];
   } else if (
     action.startsWith('batch:save') ||
     action.startsWith('batch:adjust') ||
@@ -220,15 +210,21 @@ function dispatchAutoTopicsForAction(action: string) {
     action.startsWith('variants:save') ||
     action.startsWith('variants:delete')
   ) {
-    emitDataChanged(['products', 'dashboard']);
+    return ['products', 'dashboard'];
   } else if (
     action.startsWith('demo:seed') || 
     action.startsWith('demo:clear') || 
     action.startsWith('system:restore') || 
     action.startsWith('system:vacuum')
   ) {
-    emitDataChanged(['all']);
+    return ['all'];
   }
+  return [];
+}
+
+function dispatchAutoTopicsForAction(action: string) {
+  const topics = getAutoTopicsForAction(action);
+  if (topics.length > 0) emitDataChanged(topics);
 }
 
 function sanitizeBridgeError(rawMessage?: string): string {

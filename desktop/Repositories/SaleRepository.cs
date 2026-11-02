@@ -259,23 +259,15 @@ namespace RafiqPOS.Repositories
                                 {
                                     itemBatchNum = b.BatchNumber;
                                     itemExpDate = b.ExpiryDate;
-                                    if (!string.IsNullOrEmpty(b.ExpiryDate))
+                                    if (IsExpiryBeforeLocalToday(b.ExpiryDate))
                                     {
-                                        DateTime exp;
-                                        if (DateTime.TryParse(b.ExpiryDate, out exp) && exp.Date < DateTime.UtcNow.Date)
-                                        {
-                                            isItemExpired = true;
-                                        }
+                                        isItemExpired = true;
                                     }
                                 }
                             }
                             else if (!string.IsNullOrEmpty(item.ExpiryDate))
                             {
-                                DateTime exp;
-                                if (DateTime.TryParse(item.ExpiryDate, out exp) && exp.Date < DateTime.UtcNow.Date)
-                                {
-                                    isItemExpired = true;
-                                }
+                                isItemExpired = IsExpiryBeforeLocalToday(item.ExpiryDate);
                             }
                             else if (_batchRepo != null && _batchRepo.HasOnlyExpiredStock(item.ProductId, conn, trans))
                             {
@@ -309,19 +301,24 @@ namespace RafiqPOS.Repositories
                             int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
                             long baseQtyDeductionMilli = item.QuantityMilli * factor;
 
+                            // Menu items made from an on-sale recipe consume their ingredients instead of their own stock (Story 143)
+                            bool recipeDepletedLine = prodExistsInDb && DatabaseService.RecipeRepo != null
+                                && DatabaseService.RecipeRepo.IsRecipeDepletedOnSale(conn, trans, item.ProductId);
+                            bool lineStockDeducted = prodExistsInDb && !recipeDepletedLine;
+
                             string insertItemSql = @"
                                 INSERT INTO sale_items (
                                     id, sale_id, product_id, product_name, barcode,
                                     quantity_milli, unit_price_piasters, unit_cost_piasters,
                                     discount_piasters, total_piasters, tax_piasters, tax_rate_percent, unit,
                                     unit_id, unit_name, conversion_factor,
-                                    batch_number, batch_id, expiry_date
+                                    batch_number, batch_id, expiry_date, stock_deducted
                                 ) VALUES (
                                     @id, @saleId, @productId, @productName, @barcode,
                                     @quantityMilli, @unitPrice, @unitCost,
                                     @discount, @total, @tax, @taxRate, @unit,
                                     @unitId, @unitName, @conversionFactor,
-                                    @bNum, @bId, @bExp
+                                    @bNum, @bId, @bExp, @stockDeducted
                                 );
                             ";
                             using (var cmd = new SQLiteCommand(insertItemSql, conn, trans))
@@ -345,10 +342,11 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@bNum", (object)item.BatchNumber ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@bId", (object)item.BatchId ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@bExp", (object)item.ExpiryDate ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@stockDeducted", lineStockDeducted ? 1 : 0);
                                 cmd.ExecuteNonQuery();
                             }
 
-                            if (prodExistsInDb)
+                            if (lineStockDeducted)
                             {
                                 // Deduct Stock Quantity atomically by base units (Feature #161 / Task 161-6)
                                 string updateStockSql = @"
@@ -920,7 +918,8 @@ namespace RafiqPOS.Repositories
                                 totalItemDiscounts += sale.Items[itIdx].DiscountPiasters;
                             }
                         }
-                        long totalAllDiscounts = Math.Max(sale.DiscountPiasters, totalItemDiscounts);
+                        // sale.DiscountPiasters is the invoice-level discount only; line discounts are added on top
+                        long totalAllDiscounts = sale.DiscountPiasters + totalItemDiscounts;
 
                         string detailsJson = string.Format(
                             "{{\"invoiceNumber\":{0},\"totalPiasters\":{1},\"itemCount\":{2},\"paymentMethod\":\"{3}\",\"discountPiasters\":{4}}}",
@@ -1038,6 +1037,25 @@ namespace RafiqPOS.Repositories
                         if (string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase) && DatabaseService.DeliveryRepo != null)
                         {
                             DatabaseService.DeliveryRepo.CreateDeliveryOrderAtomic(conn, trans, sale, sale.DeliveryInfo, sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                        }
+
+                        // 11. Supervisor-approved catalogue price deviations are audited with the sale they belong to
+                        if (sale.SupervisorPriceDeviations != null && sale.SupervisorPriceDeviations.Count > 0 && _auditRepo != null)
+                        {
+                            _auditRepo.Log(conn, trans, new AuditLog
+                            {
+                                UserId = sale.CashierId ?? "cashier",
+                                Action = "SALE_PRICE_OVERRIDE_APPROVED",
+                                EntityType = "SALE",
+                                EntityId = sale.Id,
+                                DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                                {
+                                    saleId = sale.Id,
+                                    invoiceNumber = sale.InvoiceNumber,
+                                    supervisor = sale.AuthorizedSupervisorName ?? "",
+                                    lines = sale.SupervisorPriceDeviations
+                                })
+                            });
                         }
 
                         // Commit entire atomic transaction
@@ -1554,6 +1572,47 @@ namespace RafiqPOS.Repositories
             return payments;
         }
 
+        /// <summary>
+        /// منتهي الصلاحية إذا كان تاريخه قبل اليوم المحلي (نفس قاعدة SQL: date(expiry_date) &lt; date('now','localtime'))
+        /// </summary>
+        private static bool IsExpiryBeforeLocalToday(string expiryDate)
+        {
+            if (string.IsNullOrWhiteSpace(expiryDate)) return false;
+            DateTime exp;
+            return DateTime.TryParse(expiryDate, out exp) && exp.Date < DateTime.Now.Date;
+        }
+
+        /// <summary>
+        /// هل خصم سطر البيع رصيد صنفه؟ (الأصناف المصنعة برسبي on_sale تُخصم خاماتها فقط فلا يعاد رصيدها عند الإلغاء أو المرتجع)
+        /// </summary>
+        public static bool WasSaleLineStockDeducted(SQLiteConnection conn, SQLiteTransaction trans, string saleId, string saleItemId, string productId)
+        {
+            if (!string.IsNullOrEmpty(saleItemId))
+            {
+                using (var flagCmd = new SQLiteCommand("SELECT stock_deducted FROM sale_items WHERE id = @siId LIMIT 1;", conn, trans))
+                {
+                    flagCmd.Parameters.AddWithValue("@siId", saleItemId);
+                    object flag = flagCmd.ExecuteScalar();
+                    if (flag != null && flag != DBNull.Value)
+                    {
+                        return Convert.ToInt64(flag) == 1;
+                    }
+                }
+            }
+
+            // Legacy lines (before the flag existed): decide from the sale's stock movements
+            using (var cmd = new SQLiteCommand(@"
+                SELECT CASE
+                    WHEN EXISTS (SELECT 1 FROM stock_movements WHERE reference_id = @sid AND movement_type = 'SALE' AND product_id = @pid) THEN 1
+                    WHEN EXISTS (SELECT 1 FROM stock_movements WHERE reference_id = @sid AND movement_type = 'RECIPE_SALE_CONSUMPTION') THEN 0
+                    ELSE 1 END;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@sid", saleId);
+                cmd.Parameters.AddWithValue("@pid", productId);
+                return Convert.ToInt64(cmd.ExecuteScalar()) == 1;
+            }
+        }
+
         public Sale CancelSaleAtomic(string saleId, string reason, string userId)
         {
             if (string.IsNullOrWhiteSpace(saleId)) throw new ArgumentNullException("saleId");
@@ -1636,6 +1695,25 @@ namespace RafiqPOS.Repositories
                             if (Convert.ToInt64(closedCmd.ExecuteScalar()) > 0)
                             {
                                 throw new InvalidOperationException("لا يمكن إلغاء فاتورة بعد إقفال يومية تاريخها. يرجى استخدام المرتجع بدلاً من الإلغاء.");
+                            }
+                        }
+
+                        // Owner rule: a sealed shift's totals must not change; refunds for it go through returns in the current shift
+                        using (var shiftCmd = new SQLiteCommand(@"
+                            SELECT COALESCE(
+                                (SELECT sh.status FROM shifts sh WHERE sh.id = s.shift_id),
+                                (SELECT sh.status FROM shifts sh
+                                 WHERE s.shift_id IS NULL AND sh.opened_at <= s.created_at
+                                   AND (sh.closed_at IS NULL OR sh.closed_at > s.created_at)
+                                 ORDER BY sh.opened_at DESC LIMIT 1))
+                            FROM sales s WHERE s.id = @sid;", conn, trans))
+                        {
+                            shiftCmd.Parameters.AddWithValue("@sid", sale.Id);
+                            object shiftStatus = shiftCmd.ExecuteScalar();
+                            if (shiftStatus != null && shiftStatus != DBNull.Value
+                                && !string.Equals(shiftStatus.ToString(), "open", StringComparison.OrdinalIgnoreCase))
+                            {
+                                throw new InvalidOperationException(string.Format("لا يمكن إلغاء الفاتورة رقم #{0} لأنها تتبع وردية مغلقة. يرجى استخدام المرتجع بدلاً من الإلغاء ليُسجَّل المبلغ المسترد على الوردية الحالية.", sale.InvoiceNumber));
                             }
                         }
 
@@ -1742,7 +1820,7 @@ namespace RafiqPOS.Repositories
                             }
 
                             long unreturnedMilli = Math.Max(0L, item.QuantityMilli - alreadyReturnedMilli);
-                            long restoreQtyMilli = unreturnedMilli * factor;
+                            long restoreQtyMilli = WasSaleLineStockDeducted(conn, trans, sale.Id, item.Id, item.ProductId) ? unreturnedMilli * factor : 0;
 
                             if (restoreQtyMilli > 0)
                             {

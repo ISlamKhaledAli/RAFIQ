@@ -19,6 +19,11 @@ namespace RafiqPOS.Repositories
             _counters = counters ?? new CounterRepository(connectionString);
         }
 
+        internal string ConnectionString
+        {
+            get { return _connectionString; }
+        }
+
         public Product GetById(string id)
         {
             using (var conn = new SQLiteConnection(_connectionString))
@@ -82,6 +87,8 @@ namespace RafiqPOS.Repositories
                     LEFT JOIN product_pharma_info pi ON p.id = pi.product_id
                     LEFT JOIN pharma_dosage_forms df ON pi.dosage_form_id = df.id
                     WHERE p.is_active = 1 AND (p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode)
+                    ORDER BY CASE WHEN p.barcode = @barcode THEN 0 WHEN pb.barcode = @barcode THEN 1 ELSE 2 END ASC,
+                             p.created_at ASC, p.id ASC
                     LIMIT 1;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -104,6 +111,12 @@ namespace RafiqPOS.Repositories
 
         public Product GetOwnerOfBarcode(string barcode)
         {
+            return GetOwnerOfBarcode(barcode, null);
+        }
+
+        // Owner of a product, extra or unit barcode other than excludeProductId (archived products included)
+        public Product GetOwnerOfBarcode(string barcode, string excludeProductId)
+        {
             if (string.IsNullOrWhiteSpace(barcode)) return null;
 
             using (var conn = new SQLiteConnection(_connectionString))
@@ -119,12 +132,15 @@ namespace RafiqPOS.Repositories
                     LEFT JOIN storage_locations sl ON p.location_id = sl.id
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
                     LEFT JOIN product_units pu ON p.id = pu.product_id
-                    WHERE p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode
+                    WHERE (p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode)
+                      AND (@exclude IS NULL OR p.id != @exclude)
+                    ORDER BY p.is_active DESC, p.created_at ASC, p.id ASC
                     LIMIT 1;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@barcode", barcode.Trim());
+                    cmd.Parameters.AddWithValue("@exclude", string.IsNullOrWhiteSpace(excludeProductId) ? (object)DBNull.Value : excludeProductId);
                     using (var reader = cmd.ExecuteReader())
                     {
                         if (reader.Read())
@@ -366,17 +382,17 @@ namespace RafiqPOS.Repositories
                             ELSE 0 
                         END AS has_variants_computed,
                         COALESCE(
-                            (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '' AND date(pb.expiry_date) >= date('now')),
+                            (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '' AND date(pb.expiry_date) >= date('now', 'localtime')),
                             (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '')
                         ) AS nearest_expiry_date,
                         CASE 
-                            WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND date(pb.expiry_date) < date('now'))
-                             AND NOT EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now'))) 
+                            WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND date(pb.expiry_date) < date('now', 'localtime'))
+                             AND NOT EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now', 'localtime'))) 
                             THEN 1 
                             ELSE 0 
                         END AS is_expired,
                         COALESCE(
-                            (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now')) ORDER BY CASE WHEN pb.expiry_date IS NULL OR pb.expiry_date = '' THEN 1 ELSE 0 END ASC, pb.expiry_date ASC, pb.created_at ASC LIMIT 1),
+                            (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now', 'localtime')) ORDER BY CASE WHEN pb.expiry_date IS NULL OR pb.expiry_date = '' THEN 1 ELSE 0 END ASC, pb.expiry_date ASC, pb.created_at ASC LIMIT 1),
                             (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' ORDER BY pb.created_at DESC LIMIT 1)
                         ) AS suggested_batch_number,
                         CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id) THEN 1 ELSE 0 END AS has_batches
@@ -631,17 +647,17 @@ namespace RafiqPOS.Repositories
                         END AS has_variants_computed,
                         (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count,
                         COALESCE(
-                            (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '' AND date(pb.expiry_date) >= date('now')),
+                            (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '' AND date(pb.expiry_date) >= date('now', 'localtime')),
                             (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '')
                         ) AS nearest_expiry_date,
                         CASE 
-                            WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND date(pb.expiry_date) < date('now'))
-                             AND NOT EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now'))) 
+                            WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND date(pb.expiry_date) < date('now', 'localtime'))
+                             AND NOT EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now', 'localtime'))) 
                             THEN 1 
                             ELSE 0 
                         END AS is_expired,
                         COALESCE(
-                            (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now')) ORDER BY CASE WHEN pb.expiry_date IS NULL OR pb.expiry_date = '' THEN 1 ELSE 0 END ASC, pb.expiry_date ASC, pb.created_at ASC LIMIT 1),
+                            (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now', 'localtime')) ORDER BY CASE WHEN pb.expiry_date IS NULL OR pb.expiry_date = '' THEN 1 ELSE 0 END ASC, pb.expiry_date ASC, pb.created_at ASC LIMIT 1),
                             (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' ORDER BY pb.created_at DESC LIMIT 1)
                         ) AS suggested_batch_number,
                         COALESCE(sl.name, '') AS location_name,
@@ -700,6 +716,12 @@ namespace RafiqPOS.Repositories
         }
 
         public void Upsert(Product product)
+        {
+            Upsert(product, null);
+        }
+
+        // stockLedgerStep runs inside the save transaction so a stock change and its ledger row commit together
+        public void Upsert(Product product, Action<SQLiteConnection, SQLiteTransaction> stockLedgerStep)
         {
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -799,77 +821,7 @@ namespace RafiqPOS.Repositories
                         // Synchronize product_batches if stock changed on existing product
                         if (productExisted && oldStockMilli != product.StockQuantityMilli)
                         {
-                            long deltaMilli = product.StockQuantityMilli - oldStockMilli;
-                            string nowStr = DateTime.UtcNow.ToString("o");
-                            if (deltaMilli > 0)
-                            {
-                                using (var upBatch = new SQLiteCommand(@"
-                                    UPDATE product_batches
-                                    SET quantity_milli = quantity_milli + @delta,
-                                        status = 'ACTIVE',
-                                        updated_at = @now
-                                    WHERE id = (
-                                        SELECT id FROM product_batches
-                                        WHERE product_id = @pid
-                                        ORDER BY CASE WHEN status = 'ACTIVE' THEN 0 ELSE 1 END ASC,
-                                                 CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END ASC,
-                                                 expiry_date DESC,
-                                                 created_at DESC
-                                        LIMIT 1
-                                    );
-                                ", conn, trans))
-                                {
-                                    upBatch.Parameters.AddWithValue("@delta", deltaMilli);
-                                    upBatch.Parameters.AddWithValue("@now", nowStr);
-                                    upBatch.Parameters.AddWithValue("@pid", product.Id);
-                                    upBatch.ExecuteNonQuery();
-                                }
-                            }
-                            else if (deltaMilli < 0)
-                            {
-                                long toDeduct = -deltaMilli;
-                                var batchList = new List<KeyValuePair<string, long>>();
-                                using (var selBatches = new SQLiteCommand(@"
-                                    SELECT id, quantity_milli FROM product_batches
-                                    WHERE product_id = @pid AND quantity_milli > 0
-                                    ORDER BY CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END ASC,
-                                             expiry_date ASC,
-                                             created_at ASC;
-                                ", conn, trans))
-                                {
-                                    selBatches.Parameters.AddWithValue("@pid", product.Id);
-                                    using (var r = selBatches.ExecuteReader())
-                                    {
-                                        while (r.Read())
-                                        {
-                                            batchList.Add(new KeyValuePair<string, long>(r["id"].ToString(), Convert.ToInt64(r["quantity_milli"])));
-                                        }
-                                    }
-                                }
-
-                                foreach (var b in batchList)
-                                {
-                                    if (toDeduct <= 0) break;
-                                    long take = Math.Min(toDeduct, b.Value);
-                                    long rem = b.Value - take;
-                                    string status = rem > 0 ? "ACTIVE" : "DEPLETED";
-                                    using (var upB = new SQLiteCommand(@"
-                                        UPDATE product_batches
-                                        SET quantity_milli = @qty,
-                                            status = @status,
-                                            updated_at = @now
-                                        WHERE id = @bid;
-                                    ", conn, trans))
-                                    {
-                                        upB.Parameters.AddWithValue("@qty", rem);
-                                        upB.Parameters.AddWithValue("@status", status);
-                                        upB.Parameters.AddWithValue("@now", nowStr);
-                                        upB.Parameters.AddWithValue("@bid", b.Key);
-                                        upB.ExecuteNonQuery();
-                                    }
-                                    toDeduct -= take;
-                                }
-                            }
+                            ProductBatchRepository.SyncBatchesWithStockDelta(conn, trans, product.Id, product.StockQuantityMilli - oldStockMilli);
                         }
 
                         // Synchronize product_barcodes table
@@ -918,81 +870,56 @@ namespace RafiqPOS.Repositories
                             // Ignore if product_barcodes is not ready
                         }
 
-                        // Synchronize product_units table
-                        try
+                        // Synchronize product_units table; guard failures must abort the whole save
+                        if (product.Units != null && product.Units.Count > 0)
                         {
-                            if (product.Units != null && product.Units.Count > 0)
+                            try
                             {
-                                string upsertUnitSql = @"
-                                    INSERT INTO product_units (
-                                        id, product_id, unit_name, conversion_factor, is_base_unit,
-                                        sell_price_piasters, cost_price_piasters, barcode, is_divisible,
-                                        sort_order, created_at, updated_at
-                                    ) VALUES (
-                                        @id, @productId, @unitName, @conversionFactor, @isBaseUnit,
-                                        @sellPrice, @costPrice, @barcode, @isDivisible,
-                                        @sortOrder, @createdAt, @updatedAt
-                                    )
-                                    ON CONFLICT(id) DO UPDATE SET
-                                        unit_name = excluded.unit_name,
-                                        conversion_factor = excluded.conversion_factor,
-                                        is_base_unit = excluded.is_base_unit,
-                                        sell_price_piasters = excluded.sell_price_piasters,
-                                        cost_price_piasters = excluded.cost_price_piasters,
-                                        barcode = excluded.barcode,
-                                        is_divisible = excluded.is_divisible,
-                                        sort_order = excluded.sort_order,
-                                        updated_at = excluded.updated_at;
-                                ";
+                                var seenUnitNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                                 foreach (var u in product.Units)
                                 {
-                                    if (string.IsNullOrWhiteSpace(u.Id)) u.Id = Guid.NewGuid().ToString("N");
-                                    u.ProductId = product.Id;
-
-                                    // Guard: Prevent changing conversion factor if unit has sales in sale_items
-                                    using (var checkFactorCmd = new SQLiteCommand("SELECT conversion_factor, unit_name FROM product_units WHERE id = @id LIMIT 1;", conn, trans))
+                                    string candidate = u.UnitName != null ? u.UnitName.Trim() : "قطعة";
+                                    if (!seenUnitNames.Add(candidate))
                                     {
-                                        checkFactorCmd.Parameters.AddWithValue("@id", u.Id);
-                                        using (var r = checkFactorCmd.ExecuteReader())
-                                        {
-                                            if (r.Read())
-                                            {
-                                                int existingFactor = Convert.ToInt32(r["conversion_factor"]);
-                                                int targetFactor = u.IsBaseUnit ? 1 : (u.ConversionFactor <= 0 ? 1 : u.ConversionFactor);
-                                                if (existingFactor != targetFactor)
-                                                {
-                                                    using (var salesCheckCmd = new SQLiteCommand("SELECT COUNT(*) FROM sale_items WHERE unit_id = @uid LIMIT 1;", conn, trans))
-                                                    {
-                                                        salesCheckCmd.Parameters.AddWithValue("@uid", u.Id);
-                                                        long salesCount = Convert.ToInt64(salesCheckCmd.ExecuteScalar());
-                                                        if (salesCount > 0)
-                                                        {
-                                                            throw new InvalidOperationException(string.Format("لا يمكن تعديل معامل التحويل للوحدة ({0}) من {1} إلى {2} لوجود مبيعات وفواتير مسجلة بها سابقاً لضمان سلامة السجل التاريخي وتقارير الجرد.", r["unit_name"].ToString(), existingFactor, targetFactor));
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    using (var uCmd = new SQLiteCommand(upsertUnitSql, conn, trans))
-                                    {
-                                        uCmd.Parameters.AddWithValue("@id", u.Id);
-                                        uCmd.Parameters.AddWithValue("@productId", product.Id);
-                                        uCmd.Parameters.AddWithValue("@unitName", u.UnitName != null ? u.UnitName.Trim() : "قطعة");
-                                        uCmd.Parameters.AddWithValue("@conversionFactor", u.ConversionFactor <= 0 ? 1 : u.ConversionFactor);
-                                        uCmd.Parameters.AddWithValue("@isBaseUnit", u.IsBaseUnit ? 1 : 0);
-                                        uCmd.Parameters.AddWithValue("@sellPrice", u.SellPricePiasters);
-                                        uCmd.Parameters.AddWithValue("@costPrice", u.CostPricePiasters);
-                                        uCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(u.Barcode) ? (object)DBNull.Value : u.Barcode.Trim());
-                                        uCmd.Parameters.AddWithValue("@isDivisible", u.IsDivisible ? 1 : 0);
-                                        uCmd.Parameters.AddWithValue("@sortOrder", u.SortOrder);
-                                        uCmd.Parameters.AddWithValue("@createdAt", u.CreatedAt ?? DateTime.UtcNow.ToString("o"));
-                                        uCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
-                                        uCmd.ExecuteNonQuery();
+                                        throw new InvalidOperationException(string.Format("اسم الوحدة ({0}) مكرر لنفس الصنف. يرجى جعل كل وحدة باسم مختلف.", candidate));
                                     }
                                 }
 
+                                // Units sent without a known id (e.g. the screen's placeholder base unit, or a unit removed and
+                                // re-added) are the existing row with the same name: UNIQUE(product_id, unit_name)
+                                foreach (var u in product.Units)
+                                {
+                                    string unitName = u.UnitName != null ? u.UnitName.Trim() : "قطعة";
+                                    bool knownId = false;
+                                    if (!string.IsNullOrWhiteSpace(u.Id))
+                                    {
+                                        using (var idCmd = new SQLiteCommand("SELECT COUNT(*) FROM product_units WHERE id = @id AND product_id = @pid;", conn, trans))
+                                        {
+                                            idCmd.Parameters.AddWithValue("@id", u.Id);
+                                            idCmd.Parameters.AddWithValue("@pid", product.Id);
+                                            knownId = Convert.ToInt64(idCmd.ExecuteScalar()) > 0;
+                                        }
+                                    }
+                                    if (!knownId)
+                                    {
+                                        // Same name first; a base unit without a known id is the product's existing base unit
+                                        using (var nameCmd = new SQLiteCommand(@"
+                                            SELECT id FROM product_units
+                                            WHERE product_id = @pid AND (unit_name = @name OR (@isBase = 1 AND is_base_unit = 1))
+                                            ORDER BY CASE WHEN unit_name = @name THEN 0 ELSE 1 END
+                                            LIMIT 1;", conn, trans))
+                                        {
+                                            nameCmd.Parameters.AddWithValue("@pid", product.Id);
+                                            nameCmd.Parameters.AddWithValue("@name", unitName);
+                                            nameCmd.Parameters.AddWithValue("@isBase", u.IsBaseUnit ? 1 : 0);
+                                            object existingId = nameCmd.ExecuteScalar();
+                                            // An unknown id must never upsert over another product's unit row
+                                            u.Id = existingId != null && existingId != DBNull.Value ? existingId.ToString() : Guid.NewGuid().ToString("N");
+                                        }
+                                    }
+                                }
+
+                                // Stale units go first so a re-added name never collides with the row it replaces
                                 var keptIds = new List<string>();
                                 foreach (var u in product.Units)
                                 {
@@ -1042,87 +969,161 @@ namespace RafiqPOS.Repositories
                                         delCmd.ExecuteNonQuery();
                                     }
                                 }
-                            }
-                            else
-                            {
-                                string checkUnitSql = "SELECT COUNT(*) FROM product_units WHERE product_id = @pid AND is_base_unit = 1;";
-                                using (var cCmd = new SQLiteCommand(checkUnitSql, conn, trans))
-                                {
-                                    cCmd.Parameters.AddWithValue("@pid", product.Id);
-                                    long count = Convert.ToInt64(cCmd.ExecuteScalar());
-                                    if (count == 0)
-                                    {
-                                        string uName = !string.IsNullOrWhiteSpace(product.Unit) ? product.Unit.Trim() : "قطعة";
-                                        bool isDiv = uName.Equals("kg", StringComparison.OrdinalIgnoreCase) ||
-                                                     uName.Equals("كيلو", StringComparison.OrdinalIgnoreCase) ||
-                                                     uName.Equals("كجم", StringComparison.OrdinalIgnoreCase);
 
-                                        string insUnitSql = @"
-                                            INSERT OR IGNORE INTO product_units (
-                                                id, product_id, unit_name, conversion_factor, is_base_unit,
-                                                sell_price_piasters, cost_price_piasters, barcode, is_divisible,
-                                                sort_order, created_at, updated_at
-                                            ) VALUES (
-                                                @id, @productId, @unitName, 1, 1,
-                                                @sellPrice, @costPrice, @barcode, @isDivisible,
-                                                0, @createdAt, @updatedAt
-                                            );
-                                        ";
-                                        using (var insCmd = new SQLiteCommand(insUnitSql, conn, trans))
+                                string upsertUnitSql = @"
+                                    INSERT INTO product_units (
+                                        id, product_id, unit_name, conversion_factor, is_base_unit,
+                                        sell_price_piasters, cost_price_piasters, barcode, is_divisible,
+                                        sort_order, created_at, updated_at
+                                    ) VALUES (
+                                        @id, @productId, @unitName, @conversionFactor, @isBaseUnit,
+                                        @sellPrice, @costPrice, @barcode, @isDivisible,
+                                        @sortOrder, @createdAt, @updatedAt
+                                    )
+                                    ON CONFLICT(id) DO UPDATE SET
+                                        unit_name = excluded.unit_name,
+                                        conversion_factor = excluded.conversion_factor,
+                                        is_base_unit = excluded.is_base_unit,
+                                        sell_price_piasters = excluded.sell_price_piasters,
+                                        cost_price_piasters = excluded.cost_price_piasters,
+                                        barcode = excluded.barcode,
+                                        is_divisible = excluded.is_divisible,
+                                        sort_order = excluded.sort_order,
+                                        updated_at = excluded.updated_at;
+                                ";
+                                foreach (var u in product.Units)
+                                {
+                                    u.ProductId = product.Id;
+
+                                    // Guard: Prevent changing conversion factor if unit has sales in sale_items
+                                    using (var checkFactorCmd = new SQLiteCommand("SELECT conversion_factor, unit_name FROM product_units WHERE id = @id LIMIT 1;", conn, trans))
+                                    {
+                                        checkFactorCmd.Parameters.AddWithValue("@id", u.Id);
+                                        using (var r = checkFactorCmd.ExecuteReader())
                                         {
-                                            insCmd.Parameters.AddWithValue("@id", "punit_" + product.Id);
-                                            insCmd.Parameters.AddWithValue("@productId", product.Id);
-                                            insCmd.Parameters.AddWithValue("@unitName", uName);
-                                            insCmd.Parameters.AddWithValue("@sellPrice", product.PricePiasters);
-                                            insCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
-                                            insCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(product.Barcode) ? (object)DBNull.Value : product.Barcode.Trim());
-                                            insCmd.Parameters.AddWithValue("@isDivisible", isDiv ? 1 : 0);
-                                            insCmd.Parameters.AddWithValue("@createdAt", DateTime.UtcNow.ToString("o"));
-                                            insCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
-                                            insCmd.ExecuteNonQuery();
+                                            if (r.Read())
+                                            {
+                                                int existingFactor = Convert.ToInt32(r["conversion_factor"]);
+                                                int targetFactor = u.IsBaseUnit ? 1 : (u.ConversionFactor <= 0 ? 1 : u.ConversionFactor);
+                                                if (existingFactor != targetFactor)
+                                                {
+                                                    using (var salesCheckCmd = new SQLiteCommand("SELECT COUNT(*) FROM sale_items WHERE unit_id = @uid LIMIT 1;", conn, trans))
+                                                    {
+                                                        salesCheckCmd.Parameters.AddWithValue("@uid", u.Id);
+                                                        long salesCount = Convert.ToInt64(salesCheckCmd.ExecuteScalar());
+                                                        if (salesCount > 0)
+                                                        {
+                                                            throw new InvalidOperationException(string.Format("لا يمكن تعديل معامل التحويل للوحدة ({0}) من {1} إلى {2} لوجود مبيعات وفواتير مسجلة بها سابقاً لضمان سلامة السجل التاريخي وتقارير الجرد.", r["unit_name"].ToString(), existingFactor, targetFactor));
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
-                                    else
-                                    {
-                                        string updateBaseUnitSql = @"
-                                            UPDATE product_units
-                                            SET sell_price_piasters = @sellPrice,
-                                                cost_price_piasters = @costPrice,
-                                                barcode = CASE WHEN @barcode IS NOT NULL THEN @barcode ELSE barcode END,
-                                                updated_at = @updatedAt
-                                            WHERE product_id = @productId AND is_base_unit = 1;
-                                        ";
-                                        using (var uBaseCmd = new SQLiteCommand(updateBaseUnitSql, conn, trans))
-                                        {
-                                            uBaseCmd.Parameters.AddWithValue("@productId", product.Id);
-                                            uBaseCmd.Parameters.AddWithValue("@sellPrice", product.PricePiasters);
-                                            uBaseCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
-                                            uBaseCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(product.Barcode) ? (object)DBNull.Value : product.Barcode.Trim());
-                                            uBaseCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
-                                            uBaseCmd.ExecuteNonQuery();
-                                        }
 
-                                        // F-30: Synchronize non-base unit cost with product cost
-                                        string updateNonBaseUnitsSql = @"
-                                            UPDATE product_units
-                                            SET cost_price_piasters = CAST(ROUND(@costPrice * conversion_factor) AS INTEGER),
-                                                updated_at = @updatedAt
-                                            WHERE product_id = @productId AND is_base_unit = 0;
-                                        ";
-                                        using (var uNonBaseCmd = new SQLiteCommand(updateNonBaseUnitsSql, conn, trans))
-                                        {
-                                            uNonBaseCmd.Parameters.AddWithValue("@productId", product.Id);
-                                            uNonBaseCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
-                                            uNonBaseCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
-                                            uNonBaseCmd.ExecuteNonQuery();
-                                        }
+                                    using (var uCmd = new SQLiteCommand(upsertUnitSql, conn, trans))
+                                    {
+                                        uCmd.Parameters.AddWithValue("@id", u.Id);
+                                        uCmd.Parameters.AddWithValue("@productId", product.Id);
+                                        uCmd.Parameters.AddWithValue("@unitName", u.UnitName != null ? u.UnitName.Trim() : "قطعة");
+                                        uCmd.Parameters.AddWithValue("@conversionFactor", u.ConversionFactor <= 0 ? 1 : u.ConversionFactor);
+                                        uCmd.Parameters.AddWithValue("@isBaseUnit", u.IsBaseUnit ? 1 : 0);
+                                        uCmd.Parameters.AddWithValue("@sellPrice", u.SellPricePiasters);
+                                        uCmd.Parameters.AddWithValue("@costPrice", u.CostPricePiasters);
+                                        uCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(u.Barcode) ? (object)DBNull.Value : u.Barcode.Trim());
+                                        uCmd.Parameters.AddWithValue("@isDivisible", u.IsDivisible ? 1 : 0);
+                                        uCmd.Parameters.AddWithValue("@sortOrder", u.SortOrder);
+                                        uCmd.Parameters.AddWithValue("@createdAt", u.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                                        uCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                                        uCmd.ExecuteNonQuery();
+                                    }
+                                }
+
+                            }
+                            catch (SQLiteException unitEx)
+                            {
+                                if ((unitEx.ResultCode & (SQLiteErrorCode)0xFF) == SQLiteErrorCode.Constraint)
+                                {
+                                    throw new InvalidOperationException("تعذر حفظ وحدات الصنف: يوجد اسم وحدة أو باركود مكرر لنفس الصنف. يرجى جعل كل وحدة باسم وباركود مختلفين.", unitEx);
+                                }
+                                throw;
+                            }
+                        }
+                        else
+                        {
+                            string checkUnitSql = "SELECT COUNT(*) FROM product_units WHERE product_id = @pid AND is_base_unit = 1;";
+                            using (var cCmd = new SQLiteCommand(checkUnitSql, conn, trans))
+                            {
+                                cCmd.Parameters.AddWithValue("@pid", product.Id);
+                                long count = Convert.ToInt64(cCmd.ExecuteScalar());
+                                if (count == 0)
+                                {
+                                    string uName = !string.IsNullOrWhiteSpace(product.Unit) ? product.Unit.Trim() : "قطعة";
+                                    bool isDiv = uName.Equals("kg", StringComparison.OrdinalIgnoreCase) ||
+                                                 uName.Equals("كيلو", StringComparison.OrdinalIgnoreCase) ||
+                                                 uName.Equals("كجم", StringComparison.OrdinalIgnoreCase);
+
+                                    string insUnitSql = @"
+                                        INSERT OR IGNORE INTO product_units (
+                                            id, product_id, unit_name, conversion_factor, is_base_unit,
+                                            sell_price_piasters, cost_price_piasters, barcode, is_divisible,
+                                            sort_order, created_at, updated_at
+                                        ) VALUES (
+                                            @id, @productId, @unitName, 1, 1,
+                                            @sellPrice, @costPrice, @barcode, @isDivisible,
+                                            0, @createdAt, @updatedAt
+                                        );
+                                    ";
+                                    using (var insCmd = new SQLiteCommand(insUnitSql, conn, trans))
+                                    {
+                                        insCmd.Parameters.AddWithValue("@id", "punit_" + product.Id);
+                                        insCmd.Parameters.AddWithValue("@productId", product.Id);
+                                        insCmd.Parameters.AddWithValue("@unitName", uName);
+                                        insCmd.Parameters.AddWithValue("@sellPrice", product.PricePiasters);
+                                        insCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
+                                        insCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(product.Barcode) ? (object)DBNull.Value : product.Barcode.Trim());
+                                        insCmd.Parameters.AddWithValue("@isDivisible", isDiv ? 1 : 0);
+                                        insCmd.Parameters.AddWithValue("@createdAt", DateTime.UtcNow.ToString("o"));
+                                        insCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                                        insCmd.ExecuteNonQuery();
+                                    }
+                                }
+                                else
+                                {
+                                    string updateBaseUnitSql = @"
+                                        UPDATE product_units
+                                        SET sell_price_piasters = @sellPrice,
+                                            cost_price_piasters = @costPrice,
+                                            barcode = CASE WHEN @barcode IS NOT NULL THEN @barcode ELSE barcode END,
+                                            updated_at = @updatedAt
+                                        WHERE product_id = @productId AND is_base_unit = 1;
+                                    ";
+                                    using (var uBaseCmd = new SQLiteCommand(updateBaseUnitSql, conn, trans))
+                                    {
+                                        uBaseCmd.Parameters.AddWithValue("@productId", product.Id);
+                                        uBaseCmd.Parameters.AddWithValue("@sellPrice", product.PricePiasters);
+                                        uBaseCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
+                                        uBaseCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(product.Barcode) ? (object)DBNull.Value : product.Barcode.Trim());
+                                        uBaseCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                                        uBaseCmd.ExecuteNonQuery();
+                                    }
+
+                                    // F-30: Synchronize non-base unit cost with product cost
+                                    string updateNonBaseUnitsSql = @"
+                                        UPDATE product_units
+                                        SET cost_price_piasters = CAST(ROUND(@costPrice * conversion_factor) AS INTEGER),
+                                            updated_at = @updatedAt
+                                        WHERE product_id = @productId AND is_base_unit = 0;
+                                    ";
+                                    using (var uNonBaseCmd = new SQLiteCommand(updateNonBaseUnitsSql, conn, trans))
+                                    {
+                                        uNonBaseCmd.Parameters.AddWithValue("@productId", product.Id);
+                                        uNonBaseCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
+                                        uNonBaseCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                                        uNonBaseCmd.ExecuteNonQuery();
                                     }
                                 }
                             }
-                        }
-                        catch
-                        {
-                            // Ignore if product_units is not ready
                         }
 
                         // Synchronize product_variants table and parent product stock if this product is a variant
@@ -1161,6 +1162,11 @@ namespace RafiqPOS.Repositories
                             }
                         }
                         catch { }
+
+                        if (stockLedgerStep != null)
+                        {
+                            stockLedgerStep(conn, trans);
+                        }
 
                         trans.Commit();
                     }

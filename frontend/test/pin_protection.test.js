@@ -77,9 +77,11 @@ describe('Story 58: Sensitive Screens PIN Code Protection (Feature #52)', () => 
     assert.ok(settingsViewContent.includes('PinSettingsModal'), 'SettingsView must integrate PinSettingsModal');
     assert.ok(settingsViewContent.includes("subTab === 'security'"), 'SettingsView must include security subtab');
 
-    // Check integration in DatabaseRecoveryModal (no longer hardcoded '1234')
+    // DatabaseRecoveryModal runs without a login session (corrupt database): it must send the owner recovery code
+    // to database:restore for server-side verification instead of a session-bound PIN check
     const dbModalContent = fs.readFileSync(dbRecoveryModalPath, 'utf8');
-    assert.ok(dbModalContent.includes("security:verifyPin"), 'DatabaseRecoveryModal must call security:verifyPin');
+    assert.ok(!dbModalContent.includes("security:verifyPin"), 'DatabaseRecoveryModal must not depend on a session PIN check');
+    assert.ok(/invoke\('database:restore',\s*\{\s*backupFilePath:\s*targetPath,\s*recoveryCode:/.test(dbModalContent), 'DatabaseRecoveryModal must send recoveryCode with database:restore');
     assert.ok(!dbModalContent.includes("pin.trim() !== '1234'"), 'DatabaseRecoveryModal must not have hardcoded 1234 PIN check');
   });
 

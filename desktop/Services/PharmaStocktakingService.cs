@@ -254,116 +254,64 @@ namespace RafiqPOS.Services
             string generalReason = !string.IsNullOrWhiteSpace(request.AuditReason) ? request.AuditReason.Trim() : "تسوية جرد صيدلي دوري";
             int adjustedCount = 0;
 
-            using (var conn = new SQLiteConnection(_connectionString))
+            var inventory = new InventoryService(_connectionString, new StockMovementRepository(_connectionString), _productRepo, _auditRepo);
+
+            lock (SaleService.FinancialWriteLock)
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                using (var conn = new SQLiteConnection(_connectionString))
                 {
-                    try
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
                     {
-                        for (int i = 0; i < request.Items.Count; i++)
+                        try
                         {
-                            var item = request.Items[i];
-                            if (item.CountedQuantityMilli < 0)
+                            for (int i = 0; i < request.Items.Count; i++)
                             {
-                                throw new ArgumentException("لا يمكن إدخال كمية جرد سالبة للصنف: " + item.ProductId);
-                            }
-
-                            string itemReason = !string.IsNullOrWhiteSpace(item.Reason) ? item.Reason.Trim() : generalReason;
-
-                            if (!string.IsNullOrEmpty(item.BatchId))
-                            {
-                                // Adjust specific batch atomically
-                                _batchRepo.AdjustBatchStock(item.BatchId, item.CountedQuantityMilli, itemReason, actorId, conn, trans);
-                                adjustedCount++;
-                            }
-                            else if (!string.IsNullOrEmpty(item.ProductId))
-                            {
-                                // Product level stock adjustment
-                                long currentStock = 0;
-                                long costPiasters = 0;
-                                using (var cmd = new SQLiteCommand("SELECT stock_quantity_milli, cost_piasters FROM products WHERE id = @pid;", conn, trans))
+                                var item = request.Items[i];
+                                if (item.CountedQuantityMilli < 0)
                                 {
-                                    cmd.Parameters.AddWithValue("@pid", item.ProductId);
-                                    using (var reader = cmd.ExecuteReader())
-                                    {
-                                        if (reader.Read())
-                                        {
-                                            currentStock = Convert.ToInt64(reader["stock_quantity_milli"]);
-                                            costPiasters = Convert.ToInt64(reader["cost_piasters"]);
-                                        }
-                                        else
-                                        {
-                                            throw new InvalidOperationException("المنتج المحدد غير موجود: " + item.ProductId);
-                                        }
-                                    }
+                                    throw new ArgumentException("لا يمكن إدخال كمية جرد سالبة للصنف: " + item.ProductId);
                                 }
 
-                                long delta = item.CountedQuantityMilli - currentStock;
-                                if (delta != 0)
+                                string itemReason = !string.IsNullOrWhiteSpace(item.Reason) ? item.Reason.Trim() : generalReason;
+
+                                if (!string.IsNullOrEmpty(item.BatchId))
                                 {
-                                    string now = DateTime.UtcNow.ToString("o");
-
-                                    // Update product stock
-                                    using (var cmd = new SQLiteCommand("UPDATE products SET stock_quantity_milli = @qty, updated_at = @now WHERE id = @pid;", conn, trans))
-                                    {
-                                        cmd.Parameters.AddWithValue("@qty", item.CountedQuantityMilli);
-                                        cmd.Parameters.AddWithValue("@now", now);
-                                        cmd.Parameters.AddWithValue("@pid", item.ProductId);
-                                        cmd.ExecuteNonQuery();
-                                    }
-
-                                    // Record stock movement
-                                    using (var cmd = new SQLiteCommand(@"
-                                        INSERT INTO stock_movements (
-                                            id, product_id, movement_type, quantity_milli, 
-                                            stock_before_milli, stock_after_milli, 
-                                            cost_price_piasters, reference_id, reference_type, 
-                                            reason, user_id, created_at
-                                        ) VALUES (
-                                            @id, @pid, 'ADJUSTMENT', @delta, 
-                                            @before, @after, 
-                                            @cost, @refId, 'INVENTORY_AUDIT', 
-                                            @reason, @user, @created
-                                        );", conn, trans))
-                                    {
-                                        cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                                        cmd.Parameters.AddWithValue("@pid", item.ProductId);
-                                        cmd.Parameters.AddWithValue("@delta", delta);
-                                        cmd.Parameters.AddWithValue("@before", currentStock);
-                                        cmd.Parameters.AddWithValue("@after", item.CountedQuantityMilli);
-                                        cmd.Parameters.AddWithValue("@cost", costPiasters);
-                                        cmd.Parameters.AddWithValue("@refId", "AUDIT_" + DateTime.UtcNow.ToString("yyyyMMddHHmmss"));
-                                        cmd.Parameters.AddWithValue("@reason", itemReason);
-                                        cmd.Parameters.AddWithValue("@user", actorId);
-                                        cmd.Parameters.AddWithValue("@created", now);
-                                        cmd.ExecuteNonQuery();
-                                    }
-
+                                    // Adjust specific batch atomically
+                                    _batchRepo.AdjustBatchStock(item.BatchId, item.CountedQuantityMilli, itemReason, actorId, conn, trans);
                                     adjustedCount++;
                                 }
+                                else if (!string.IsNullOrEmpty(item.ProductId))
+                                {
+                                    // Product level count: same ledger path as manual adjustments (movement + variants + FEFO batch sync)
+                                    StockMovement movement = inventory.AdjustStockInTransaction(conn, trans, item.ProductId, item.CountedQuantityMilli, itemReason, actorId, null, "INVENTORY_AUDIT");
+                                    if (movement != null)
+                                    {
+                                        adjustedCount++;
+                                    }
+                                }
                             }
-                        }
 
-                        // Log audit
-                        if (_auditRepo != null)
-                        {
-                            _auditRepo.Log(conn, trans, new AuditLog
+                            // Log audit
+                            if (_auditRepo != null)
                             {
-                                UserId = actorId,
-                                Action = "pharma_stocktaking_settle",
-                                EntityType = "inventory",
-                                EntityId = request.LocationId ?? "all_locations",
-                                DetailsJson = string.Format("{{\"adjustedCount\":{0},\"reason\":\"{1}\",\"timestamp\":\"{2}\"}}", adjustedCount, generalReason, DateTime.UtcNow.ToString("o"))
-                            });
-                        }
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    UserId = actorId,
+                                    Action = "pharma_stocktaking_settle",
+                                    EntityType = "inventory",
+                                    EntityId = request.LocationId ?? "all_locations",
+                                    DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { adjustedCount = adjustedCount, reason = generalReason, timestamp = DateTime.UtcNow.ToString("o") })
+                                });
+                            }
 
-                        trans.Commit();
-                    }
-                    catch
-                    {
-                        trans.Rollback();
-                        throw;
+                            trans.Commit();
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
                     }
                 }
             }

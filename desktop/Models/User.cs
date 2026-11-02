@@ -119,6 +119,10 @@ namespace RafiqPOS.Models
 
         [JsonProperty("mustChangePin")]
         public bool MustChangePin { get; set; }
+
+        // True only for the live session opened with the owner recovery code (it may set a new PIN without the old one)
+        [JsonProperty("isRecoverySession")]
+        public bool IsRecoverySession { get; set; }
     }
 
     public class LoginResult

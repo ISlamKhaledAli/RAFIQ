@@ -51,18 +51,9 @@ namespace RafiqPOS.Services
                 var userRepo = new UserRepository(tempConnStr);
                 var securityService = new SecurityService(settingsRepo, auditRepo, userRepo);
                 DatabaseService.Security = securityService;
-                var adminUser = new User
-                {
-                    Id = "usr_admin_batch",
-                    Username = "admin",
-                    DisplayName = "مدير النظام",
-                    Role = "admin",
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow.ToString("o"),
-                    UpdatedAt = DateTime.UtcNow.ToString("o")
-                };
-                userRepo.Insert(adminUser);
-                securityService.ChangeUserPin(adminUser.Id, "1234");
+                // Migrations seed the owner account; a second 'admin' would violate the unique username
+                var adminUser = userRepo.GetByUsername("admin");
+                securityService.ChangeUserPin(adminUser.Id, "7418");
 
                 // TEST 1: Create a product
                 var supplier = supplierRepo.Save(new Supplier
@@ -361,7 +352,7 @@ namespace RafiqPOS.Services
                     Id = "sale_allowed_expired_bypass",
                     InvoiceNumber = 3,
                     CashierId = "cashier_1",
-                    SupervisorPin = "1234",
+                    SupervisorPin = "7418",
                     SubtotalPiasters = 3500,
                     TotalPiasters = 3500,
                     PaidPiasters = 3500,
@@ -384,6 +375,11 @@ namespace RafiqPOS.Services
                         }
                     }
                 };
+                // Mirror SaleService: the PIN is verified before the write transaction and the repository trusts the flag
+                var bypassAuth = securityService.VerifySupervisorPin(validBypassSale.SupervisorPin, "SALE_APPROVAL");
+                Assert(bypassAuth != null && bypassAuth.Success, "التحقق من PIN المشرف قبل تخطي الصلاحية", result);
+                validBypassSale.IsSupervisorAuthorized = true;
+                validBypassSale.AuthorizedSupervisorName = bypassAuth.SupervisorName;
                 saleRepo.CreateSaleAtomic(validBypassSale);
 
                 // Verify audit log has the documented supervisor override
@@ -531,6 +527,7 @@ namespace RafiqPOS.Services
                         {
                             Id = "ritem_1",
                             ProductId = prodMultiBatch.Id,
+                            ProductName = prodMultiBatch.Name,
                             QuantityMilli = 1000, // 1 unit returned
                             UnitPricePiasters = 4000,
                             TotalPiasters = 4000

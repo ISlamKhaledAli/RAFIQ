@@ -61,7 +61,7 @@ namespace RafiqPOS.Bridge
                     {
                         Purchase purchaseToCreate = null;
                         string costingMethod = "WEIGHTED_AVERAGE";
-                        string userId = null;
+                        string userId;
 
                         JObject payloadObj = request.Payload as JObject;
                         if (payloadObj != null && payloadObj["purchase"] != null)
@@ -71,14 +71,15 @@ namespace RafiqPOS.Bridge
                             {
                                 costingMethod = payloadObj["costingMethod"].ToString();
                             }
-                            if (payloadObj["userId"] != null)
-                            {
-                                userId = payloadObj["userId"].ToString();
-                            }
                         }
                         else
                         {
                             purchaseToCreate = JsonConvert.DeserializeObject<Purchase>(request.Payload.ToString());
+                        }
+                        userId = SessionActorId();
+                        if (purchaseToCreate != null)
+                        {
+                            purchaseToCreate.CreatedByUserId = userId;
                         }
 
                         var createdPurchase = DatabaseService.Purchases.CreatePurchase(purchaseToCreate, costingMethod, userId);
@@ -99,20 +100,20 @@ namespace RafiqPOS.Bridge
                     try
                     {
                         PurchaseReturn returnToCreate = null;
-                        string retUserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : null;
+                        string retUserId = SessionActorId();
 
                         JObject payloadObj = request.Payload as JObject;
                         if (payloadObj != null && payloadObj["returnDoc"] != null)
                         {
                             returnToCreate = payloadObj["returnDoc"].ToObject<PurchaseReturn>();
-                            if (payloadObj["userId"] != null)
-                            {
-                                retUserId = payloadObj["userId"].ToString();
-                            }
                         }
                         else
                         {
                             returnToCreate = JsonConvert.DeserializeObject<PurchaseReturn>(request.Payload.ToString());
+                        }
+                        if (returnToCreate != null)
+                        {
+                            returnToCreate.CreatedByUserId = retUserId;
                         }
 
                         var createdReturn = DatabaseService.Purchases.CreatePurchaseReturn(returnToCreate, retUserId);

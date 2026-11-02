@@ -13,6 +13,7 @@ import { CustomSelect } from '../../components/CustomSelect';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { CertifiedHardwareModal } from '../../components/CertifiedHardwareModal';
 import { invoke } from '../../bridge/ipc';
+import { rafiqAlert } from '../../utils/dialogService';
 import { useFeatures } from '../../context/useFeatures';
 import type { KotRoutingConfig, CategoryKotRoute } from '../../types/cafe';
 
@@ -109,8 +110,12 @@ export const PrinterSettingsTab = ({
           default_label_paper_size: labelPaperSize,
         },
       });
-    } catch {
-      // non-blocking
+    } catch (err: unknown) {
+      void rafiqAlert({
+        title: 'فشل حفظ طابعة الملصقات',
+        message: err instanceof Error ? err.message : String(err),
+        variant: 'error',
+      });
     }
     if (showKotPrinter) {
       try {
@@ -122,8 +127,12 @@ export const PrinterSettingsTab = ({
           singlePrinterCutBetweenStations: true,
           categoryRoutes: kotCategoryRoutes,
         });
-      } catch {
-        // non-blocking
+      } catch (err: unknown) {
+        void rafiqAlert({
+          title: 'فشل حفظ توجيه طابعات المطبخ',
+          message: err instanceof Error ? err.message : String(err),
+          variant: 'error',
+        });
       }
     }
     await onSavePrinterSettings();

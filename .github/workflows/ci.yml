@@ -5,46 +5,108 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Actions are pinned to full commit SHAs (tag in the trailing comment) for supply-chain safety.
 jobs:
-  build-and-test:
+  # ---------------------------------------------------------------------------------------------
+  # Fast feedback: React UI (lint, type-check + build, unit tests)
+  # ---------------------------------------------------------------------------------------------
+  frontend:
+    name: Frontend (lint, build, test)
     runs-on: windows-latest
-
+    timeout-minutes: 20
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        # Do not leave the GITHUB_TOKEN in .git/config for later steps (npm/nuget/msbuild run third-party code)
+        persist-credentials: false
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: 22
         cache: 'npm'
-        cache-dependency-path: frontend/package.json
-
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
-
-    - name: Setup NuGet
-      uses: NuGet/setup-nuget@v2
+        cache-dependency-path: frontend/package-lock.json
 
     - name: Frontend Dependencies & Linting
+      working-directory: frontend
       run: |
-        cd frontend
         npm ci
         npm run lint
         npm run build
 
     - name: Frontend Test Suite
-      run: |
-        cd frontend
-        npm test
+      working-directory: frontend
+      run: npm test
+
+  # ---------------------------------------------------------------------------------------------
+  # License server (Cloudflare Worker) tests
+  # ---------------------------------------------------------------------------------------------
+  license-server:
+    name: License server tests
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        # Do not leave the GITHUB_TOKEN in .git/config for later steps (npm/nuget/msbuild run third-party code)
+        persist-credentials: false
+
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: 22
+        cache: 'npm'
+        cache-dependency-path: license-server/package-lock.json
 
     - name: License Server Tests
+      working-directory: license-server
       run: |
-        cd license-server
         npm ci
         npm test
 
+  # ---------------------------------------------------------------------------------------------
+  # C# host: Release + Debug x86 builds (the shipping configurations)
+  # ---------------------------------------------------------------------------------------------
+  desktop-build:
+    name: Desktop build (Release + Debug x86)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        # Do not leave the GITHUB_TOKEN in .git/config for later steps (npm/nuget/msbuild run third-party code)
+        persist-credentials: false
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2.0.0
+
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@d105a947828025cd7a980103c35ba2bfae586d0f # v2.0.2
+      with:
+        # Pinned NuGet CLI version (reproducible restores)
+        nuget-version: '6.11.1'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: desktop/packages
+        key: nuget-${{ runner.os }}-${{ hashFiles('desktop/packages.config', 'desktop/RafiqPOS.Tests/packages.config') }}
+
+    # Restore integrity note: packages.config has no lock file / content hashes. Versions are pinned exactly in
+    # packages.config and nuget.org packages carry repository signatures that the NuGet CLI validates on restore;
+    # the cache key changes whenever either packages.config changes.
     - name: Restore NuGet Packages for C# Host
       run: |
         nuget restore desktop/RafiqPOS.csproj -PackagesDirectory desktop/packages
@@ -58,3 +120,123 @@ jobs:
       run: |
         msbuild desktop/RafiqPOS.csproj /p:Configuration=Debug /p:Platform=x86 /v:m
 
+  # ---------------------------------------------------------------------------------------------
+  # C# business-logic gate: NUnit scenarios + in-app self-test runners (Debug x86 only)
+  # Runs in parallel with desktop-build (it compiles its own Debug build), so a failure here
+  # blocks the PR without waiting on the Release build.
+  # ---------------------------------------------------------------------------------------------
+  desktop-tests:
+    name: Desktop tests (NUnit + self-test suites)
+    runs-on: windows-latest
+    timeout-minutes: 150
+    env:
+      TEST_RESULTS_DIR: ${{ github.workspace }}\test-results
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        # Do not leave the GITHUB_TOKEN in .git/config for later steps (npm/nuget/msbuild run third-party code)
+        persist-credentials: false
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2.0.0
+
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@d105a947828025cd7a980103c35ba2bfae586d0f # v2.0.2
+      with:
+        # Pinned NuGet CLI version (reproducible restores)
+        nuget-version: '6.11.1'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: desktop/packages
+        key: nuget-${{ runner.os }}-${{ hashFiles('desktop/packages.config', 'desktop/RafiqPOS.Tests/packages.config') }}
+
+    - name: Restore NuGet Packages (host + tests)
+      run: |
+        nuget restore desktop/RafiqPOS.csproj -PackagesDirectory desktop/packages
+        nuget restore desktop/RafiqPOS.Tests/RafiqPOS.Tests.csproj -PackagesDirectory desktop/packages
+
+    # Builds desktop/RafiqPOS.csproj (ProjectReference) into desktop/bin/Debug and the tests into
+    # desktop/RafiqPOS.Tests/bin/Debug (outside a .sln, MSBuild builds the referenced project with
+    # its own defaults, Debug|x86, which is the configuration the self-test flags need). Both import the Stub.System.Data.SQLite targets, which copy
+    # x86/SQLite.Interop.dll and x64/SQLite.Interop.dll next to each output.
+    - name: Build NUnit project + C# Host (Debug x86)
+      id: build
+      run: |
+        msbuild desktop/RafiqPOS.Tests/RafiqPOS.Tests.csproj /p:Configuration=Debug /p:Platform=x86 /v:m
+
+    - name: Verify build outputs
+      run: |
+        $required = @(
+          'desktop/bin/Debug/RafiqPOS.exe',
+          'desktop/bin/Debug/x86/SQLite.Interop.dll',
+          'desktop/RafiqPOS.Tests/bin/Debug/RafiqPOS.Tests.dll',
+          'desktop/RafiqPOS.Tests/bin/Debug/RafiqPOS.exe',
+          'desktop/RafiqPOS.Tests/bin/Debug/x86/SQLite.Interop.dll',
+          'desktop/packages/NUnit.ConsoleRunner.3.16.3/tools/nunit3-console.exe'
+        )
+        $missing = @($required | Where-Object { -not (Test-Path -LiteralPath $_) })
+        if ($missing.Count -gt 0) { Write-Host "::error::Missing build outputs: $($missing -join ', ')"; exit 1 }
+        Write-Host 'All expected build outputs are present.'
+
+    - name: Run NUnit tests (x86)
+      timeout-minutes: 30
+      run: |
+        New-Item -ItemType Directory -Force -Path $env:TEST_RESULTS_DIR | Out-Null
+        & desktop/packages/NUnit.ConsoleRunner.3.16.3/tools/nunit3-console.exe `
+          desktop/RafiqPOS.Tests/bin/Debug/RafiqPOS.Tests.dll `
+          --x86 `
+          --labels=Before `
+          --work="$env:TEST_RESULTS_DIR" `
+          "--result=$env:TEST_RESULTS_DIR\TestResult.xml;format=nunit3"
+        # nunit3-console: 0 = all passed, >0 = number of failed tests, <0 = runner/load error.
+        $code = $LASTEXITCODE
+        if ($code -ne 0) { Write-Host "::error title=NUnit::nunit3-console exited with $code" }
+        exit $code
+
+    # Blocking suites. Each one runs from a fresh copy of desktop/bin/Debug (clean data\, logs\),
+    # with a per-suite timeout; any non-zero exit code or timeout fails this step.
+    - name: Run in-app self-test suites (blocking)
+      # Run even if NUnit failed (report everything), but only if the Debug build succeeded.
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+      timeout-minutes: 120
+      run: >-
+        ./.github/workflows/scripts/Invoke-RafiqSelfTests.ps1
+        -Title 'Self-test suites (blocking)'
+        -AppDir desktop/bin/Debug
+        -WorkRoot "$env:RUNNER_TEMP\rafiq-selftests"
+        -ArtifactDir "$env:TEST_RESULTS_DIR\selftests"
+        -TimeoutMinutes 15
+        -Suites 'license,update,export,variant,internal-barcode,batch,shift,bulk-price,data-quality,sales-completion,controlled-drug,inventory,purchases,baseline,shift-audit,customer,location,pharma,insurance,unit,excel,migration,reports,audit,deep-audit,chaos,senior-stress,master-edge,domain-stress,comprehensive,ruthless-audit,forensic-audit'
+
+    # NON-BLOCKING: printer and barcode-label suites touch Windows printing/GDI. Hosted runners have
+    # no physical printer, so results may depend on the image rather than on our code. Failures are
+    # reported (annotation + summary + artifact) but do not fail the workflow. Promote them into the
+    # blocking list above once they are proven stable on windows-latest.
+    - name: Run printer/label self-tests (non-blocking)
+      # Run even if NUnit failed (report everything), but only if the Debug build succeeded.
+      if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+      continue-on-error: true
+      timeout-minutes: 20
+      run: >-
+        ./.github/workflows/scripts/Invoke-RafiqSelfTests.ps1
+        -Title 'Printer/label self-tests (non-blocking)'
+        -AppDir desktop/bin/Debug
+        -WorkRoot "$env:RUNNER_TEMP\rafiq-selftests"
+        -ArtifactDir "$env:TEST_RESULTS_DIR\selftests-nonblocking"
+        -TimeoutMinutes 8
+        -Suites 'printer,label'
+
+    - name: Upload test results and logs
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: desktop-test-results
+        path: |
+          test-results/
+          desktop/bin/Debug/logs/
+          desktop/RafiqPOS.Tests/bin/Debug/logs/
+        if-no-files-found: warn
+        retention-days: 14

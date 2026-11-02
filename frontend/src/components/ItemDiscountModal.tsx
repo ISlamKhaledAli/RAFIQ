@@ -9,6 +9,8 @@ interface ItemDiscountModalProps {
   item: SaleItem | null;
   itemIndex: number | null;
   userRole?: string;
+  /** Holder of pos.discount_line; without it every line discount needs a supervisor PIN (enforced server-side). */
+  canDiscountLine?: boolean;
   maxPercentWithoutPin?: number;
   maxAmountWithoutPinPiasters?: number;
   onClose: () => void;
@@ -21,6 +23,7 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
   item,
   itemIndex,
   userRole = 'cashier',
+  canDiscountLine = true,
   maxPercentWithoutPin = 10,
   maxAmountWithoutPinPiasters = 5000,
   onClose,
@@ -57,17 +60,19 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
     ? (calculatedDiscountPiasters / grossPiasters) * 100
     : 0;
 
-  const requiresSupervisor =
+  const requiresSupervisor = !canDiscountLine || (
     userRole === 'cashier' &&
     (discountPercentCalculated > maxPercentWithoutPin ||
-      calculatedDiscountPiasters > maxAmountWithoutPinPiasters);
+      calculatedDiscountPiasters > maxAmountWithoutPinPiasters));
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
     if (calculatedDiscountPiasters > 0 && requiresSupervisor) {
       onRequestSupervisor(
-        `خصم على صنف (${item.productName}) يتجاوز الحد المسموح: ${(calculatedDiscountPiasters / 100).toFixed(2)} ج.م (${discountPercentCalculated.toFixed(1)}%)`,
+        canDiscountLine
+          ? `خصم على صنف (${item.productName}) يتجاوز الحد المسموح: ${(calculatedDiscountPiasters / 100).toFixed(2)} ج.م (${discountPercentCalculated.toFixed(1)}%)`
+          : `خصم على صنف (${item.productName}) بدون صلاحية خصم الأصناف: ${(calculatedDiscountPiasters / 100).toFixed(2)} ج.م`,
         () => {
           onApply(itemIndex, calculatedDiscountPiasters, true);
           onClose();
@@ -215,7 +220,7 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
             <div className="mb-3 p-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg text-warn dark:text-warn-bright text-xs flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
-                <span>يتطلب موافقة المشرف (أعلى من {maxPercentWithoutPin}%)</span>
+                <span>{canDiscountLine ? `يتطلب موافقة المشرف (أعلى من ${maxPercentWithoutPin}%)` : 'حسابك لا يملك صلاحية خصم الأصناف'}</span>
               </span>
               <span className="font-bold whitespace-nowrap mr-2">مطلوب PIN</span>
             </div>

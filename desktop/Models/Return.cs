@@ -90,6 +90,13 @@ namespace RafiqPOS.Models
         [JsonProperty("shiftId")]
         public string ShiftId { get; set; }
 
+        /// <summary>Client key per return attempt; a retried request returns the already-saved return.</summary>
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
+
+        [JsonIgnore]
+        public string IdempotencyFingerprint { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

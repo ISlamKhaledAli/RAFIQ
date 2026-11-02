@@ -196,7 +196,11 @@ export const ExcelImportModal = ({
       const added = res.createdCount ?? res.importedCount ?? 0;
       const updated = res.updatedCount ?? 0;
       const skipped = res.skippedCount ?? 0;
-      const summary = `تمت العملية بنجاح: تم إضافة (${added}) صنف جديد، وتحديث (${updated})، وتخطي (${skipped}) صنف مكرر.`;
+      const rowNotes = res.errors ?? [];
+      const notesText = rowNotes.length > 0
+        ? ` ملاحظات (${rowNotes.length}): ${rowNotes.slice(0, 3).join(' | ')}${rowNotes.length > 3 ? ' ...' : ''}`
+        : '';
+      const summary = `تمت العملية بنجاح: تم إضافة (${added}) صنف جديد، وتحديث (${updated})، وتخطي (${skipped}) صنف.${notesText}`;
 
       onSuccess(summary);
       onClose();
@@ -612,7 +616,9 @@ export const ExcelImportModal = ({
                                 {formatArabicCurrency(row.payload.costPiasters)}
                               </td>
                               <td className="py-2 px-3 text-center font-mono">
-                                {row.data.unit === 'kg' ? (row.payload.stockQuantityMilli / 1000).toFixed(3) : (row.payload.stockQuantityMilli / 1000)}
+                                {row.payload.stockQuantityMilli === null
+                                  ? <span className="text-ink-muted" title="لا يوجد عمود أو قيمة للرصيد؛ لن يتغير رصيد الصنف القائم">—</span>
+                                  : row.data.unit === 'kg' ? (row.payload.stockQuantityMilli / 1000).toFixed(3) : (row.payload.stockQuantityMilli / 1000)}
                               </td>
                               <td className="py-2 px-3 text-[10.5px]">
                                 {row.errors.length > 0 ? (

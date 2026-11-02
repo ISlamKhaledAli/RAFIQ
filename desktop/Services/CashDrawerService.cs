@@ -40,6 +40,14 @@ namespace RafiqPOS.Services
 
             lock (SaleService.FinancialWriteLock)
             {
+                // A retry after a UI timeout returns the recorded movement; the same key with other data is rejected
+                string requestFingerprint = IdempotencyGuard.Fingerprint("cash_in", request.AmountPiasters, request.Reason);
+                string existingTxId = IdempotencyGuard.FindExisting(_connectionString, "cash_drawer_transactions", "id", request.IdempotencyKey, requestFingerprint);
+                if (existingTxId != null)
+                {
+                    return _shiftRepo.GetDrawerTransactionById(existingTxId);
+                }
+
                 Shift activeShift = null;
                 if (!string.IsNullOrEmpty(request.ShiftId))
                 {
@@ -75,6 +83,8 @@ namespace RafiqPOS.Services
                     Reason = string.IsNullOrEmpty(request.Reason) ? "تغذية نقدية للدرج" : request.Reason.Trim(),
                     PerformedById = userId,
                     PerformedByName = userName,
+                    IdempotencyKey = IdempotencyGuard.NormalizeKey(request.IdempotencyKey),
+                    IdempotencyFingerprint = requestFingerprint,
                     CreatedAt = DateTime.UtcNow.ToString("o")
                 };
 
@@ -134,6 +144,14 @@ namespace RafiqPOS.Services
 
             lock (SaleService.FinancialWriteLock)
             {
+                // A retry after a UI timeout returns the recorded movement; the same key with other data is rejected
+                string requestFingerprint = IdempotencyGuard.Fingerprint("cash_out", request.AmountPiasters, request.Reason);
+                string existingTxId = IdempotencyGuard.FindExisting(_connectionString, "cash_drawer_transactions", "id", request.IdempotencyKey, requestFingerprint);
+                if (existingTxId != null)
+                {
+                    return _shiftRepo.GetDrawerTransactionById(existingTxId);
+                }
+
                 Shift activeShift = null;
                 if (!string.IsNullOrEmpty(request.ShiftId))
                 {
@@ -180,6 +198,8 @@ namespace RafiqPOS.Services
                     Reason = string.IsNullOrEmpty(request.Reason) ? "سحب نثري من الدرج" : request.Reason.Trim(),
                     PerformedById = userId,
                     PerformedByName = userName,
+                    IdempotencyKey = IdempotencyGuard.NormalizeKey(request.IdempotencyKey),
+                    IdempotencyFingerprint = requestFingerprint,
                     CreatedAt = DateTime.UtcNow.ToString("o")
                 };
 

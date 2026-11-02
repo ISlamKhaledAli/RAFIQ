@@ -1,4 +1,4 @@
-; =====================================================================
+﻿; =====================================================================
 ; رفيق POS — اسكربت برنامج التثبيت الرسمي (Inno Setup 6)
 ; متوافق من Windows 7 SP1 (32 و 64 بت) حتى Windows 11
 ; =====================================================================
@@ -9,6 +9,37 @@
 #define MyAppPublisher "ISlam Khaled Ali"
 #define MyAppCopyright "Copyright © 2026 ISlam Khaled Ali. All rights reserved."
 #define MyAppExeName "RafiqPOS.exe"
+
+; ---------------------------------------------------------------------
+; المتطلبات المدمجة داخل ملف التثبيت (تعمل بدون إنترنت) — راجع installer\prerequisites\README.md
+; يتحقق ملف البناء (انشاء_ملف_التثبيت_Setup.bat) من بصمات SHA256 قبل الوصول لهنا.
+; ---------------------------------------------------------------------
+#if Ver < EncodeVer(6,7,4)
+  #error Inno Setup 6.7.4+ required (security fixes incl. RedirectionGuard). See installer\prerequisites\README.md
+#endif
+
+#define DotNetInstaller "ndp48-x86-x64-allos-enu.exe"
+#define ReleaseDir "..\desktop\bin\Release"
+; مجلد المتطلبات: ملف البناء يمرر مجلد Staging تم التحقق من بصماته وتواقيعه للتو (/DPrereqDir=...)
+#ifndef PrereqDir
+  #define PrereqDir AddBackslash(SourcePath) + "prerequisites"
+#endif
+
+#if !FileExists(AddBackslash(PrereqDir) + DotNetInstaller)
+  #error Missing ndp48-x86-x64-allos-enu.exe in PrereqDir (.NET Framework 4.8 offline installer). See installer\prerequisites\README.md
+#endif
+#if !FileExists(AddBackslash(SourcePath) + ReleaseDir + "\runtimes\fixed109\msedgewebview2.exe")
+  #error Missing desktop\bin\Release\runtimes\fixed109\msedgewebview2.exe (WebView2 Fixed Runtime 109 x86). Build with the Setup .bat script.
+#endif
+#if !FileExists(AddBackslash(SourcePath) + ReleaseDir + "\dist\index.html")
+  #error Missing desktop\bin\Release\dist\index.html (frontend build). Build with the Setup .bat script.
+#endif
+#if !FileExists(AddBackslash(PrereqDir) + "MicrosoftEdgeWebview2Setup.exe")
+  #error Missing MicrosoftEdgeWebview2Setup.exe in PrereqDir
+#endif
+#if !FileExists(AddBackslash(AddBackslash(SourcePath) + ReleaseDir) + MyAppExeName)
+  #error Missing desktop\bin\Release\RafiqPOS.exe (C# Release build). Build with the Setup .bat script.
+#endif
 
 [Setup]
 ; الهوية الأساسية للبرنامج
@@ -39,6 +70,12 @@ CloseApplications=yes
 RestartApplications=no
 PrivilegesRequired=admin
 AlwaysShowDirOnReadyPage=yes
+#ifdef SignEnabled
+; التوقيع الرقمي: ملف البناء يعرّف أداة "rafiqsign" عبر ISCC /S (بصمة شهادة من مخزن الشهادات /sha1، بدون كلمة مرور)
+; Inno يوقّع ملف Setup وملف إلغاء التثبيت معاً
+SignTool=rafiqsign
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "arabic"; MessagesFile: "compiler:Languages\Arabic.isl"
@@ -66,18 +103,33 @@ english.FinishedLabel=Rafiq POS has been successfully installed and is ready for
 Name: "desktopicon"; Description: "إنشاء اختصار لبرنامج رفيق على سطح المكتب"; GroupDescription: "خيارات إضافية:"
 
 [Dirs]
-; إعطاء صلاحيات الكتابة الكاملة لجميع المستخدمين في مجلد البيانات
-Name: "{commonappdata}\RafiqPOS"; Permissions: users-full
-Name: "{commonappdata}\RafiqPOS\data"; Permissions: users-full
-Name: "{commonappdata}\RafiqPOS\data\webview_profile"; Permissions: users-full
-Name: "{commonappdata}\RafiqPOS\updates"; Permissions: users-full
-Name: "{app}"; Permissions: users-full
+; البرنامج نفسه في Program Files للقراءة فقط للمستخدمين العاديين (لا صلاحيات كتابة على {app})
+; صلاحية "تعديل" فقط (بدون تحكم كامل) على المجلدات التي يكتب فيها البرنامج أثناء التشغيل بحساب مستخدم عادي
+Name: "{commonappdata}\RafiqPOS"
+; التحديثات تُثبت فقط بملف Setup الرسمي (بصلاحيات المسؤول)، لذلك لا يوجد مجلد تحديثات قابل للكتابة
+Name: "{commonappdata}\RafiqPOS\data"; Permissions: users-modify
+; webview_profile يرث صلاحية "تعديل" من data (لا نضبط صلاحيات على مجلد داخل شجرة قابلة للكتابة)
+Name: "{commonappdata}\RafiqPOS\data\webview_profile"
+Name: "{commonappdata}\RafiqPOS\logs"; Permissions: users-modify
+Name: "{commonappdata}\RafiqPOS\backups"; Permissions: users-modify
+
+[InstallDelete]
+; إزالة مجلد التحديثات القديم القابل للكتابة من الإصدارات السابقة (لم يعد مستخدماً)
+Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\updates"
 
 [Files]
-Source: "..\desktop\bin\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.xml,*_test_output.json,data\*,rollback_backup\*,update_staging\*,نسخة_تلقائية_*\*,*.db,*.db-wal,*.db-shm"
+; ملفات البرنامج + الواجهة (dist). مجلد مشغل العرض fixed109 يُنسخ بسطر مستقل بالأسفل بدون استثناءات حتى لا يُحذف منه أي ملف
+Source: "{#ReleaseDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.xml,*_test_output.json,data\*,rollback_backup\*,update_staging\*,نسخة_تلقائية_*\*,*.db,*.db-wal,*.db-shm,\runtimes\fixed109\*"
 
-; مثبت WebView2 أونلاين الحديث (فقط لويندوز 10 وويندوز 11 إذا لم يكن متوفراً)
-Source: "prerequisites\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: IsWindows10OrLater and not IsWebView2Installed
+; مشغل العرض WebView2 Fixed Runtime 109 (x86) — إلزامي لويندوز 7/8/8.1، واحتياطي بدون إنترنت لويندوز 10/11 إذا لم يكن Evergreen مثبتاً
+; (البرنامج 32 بت x86 لذلك نسخة x86 تعمل على أنظمة 32 و 64 بت)
+Source: "{#ReleaseDir}\runtimes\fixed109\*"; DestDir: "{app}\runtimes\fixed109"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+; .NET Framework 4.8 أوفلاين: لا يُنسخ للجهاز، يُستخرج مؤقتاً ويُشغّل من PrepareToInstall فقط إذا لم يكن مثبتاً
+Source: "{#PrereqDir}\{#DotNetInstaller}"; DestDir: "{tmp}"; Flags: dontcopy
+
+; مثبت WebView2 Evergreen (يحتاج إنترنت) — اختياري من صفحة الإنهاء فقط؛ البرنامج يعمل بدونه عبر fixed109
+Source: "{#PrereqDir}\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Check: IsWindows10OrLater and not IsWebView2Installed
 
 ; قاعدة البيانات: تُنشأ تلقائياً عند أول تشغيل عبر DatabaseService و MigrationRunner في {commonappdata}\RafiqPOS\data
 ; حماية البيانات من الحذف أو الاستبدال عند إلغاء التثبيت أو الترقية: Flags: onlyifdoesntexist uninsneveruninstall
@@ -89,10 +141,21 @@ Name: "{group}\إلغاء التثبيت"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-; 1. تثبيت WebView2 على ويندوز 10 وويندوز 11 أونلاين إذا لزم الأمر
-Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "جاري تهيئة مشغّل العرض (WebView2 Runtime)..."; Check: IsWindows10OrLater and not IsWebView2Installed
+; 0. صلاحيات مجلدات الكتابة (بعد أن قفل PrepareToInstall جذر {commonappdata}\RafiqPOS وأزال أي روابط Junction/Symlink):
+;    "تعديل" قابل للوراثة على المجلد العلوي فقط — بدون /T (لا نمر على شجرة يتحكم فيها المستخدم)، و /L حتى لا يُتبع أي رابط
+;    المجلد {app} أُعيد ضبطه في CurStepChanged(ssInstall) ليرث صلاحيات Program Files (قراءة فقط للمستخدمين)
+Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\RafiqPOS\data"" /grant *S-1-5-32-545:(OI)(CI)M /C /L /Q"; Flags: runhidden waituntilterminated; StatusMsg: "جاري تأمين صلاحيات مجلدات البيانات..."; Check: IsSafeDataDir('data')
+Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\RafiqPOS\logs"" /grant *S-1-5-32-545:(OI)(CI)M /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsSafeDataDir('logs')
+Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\RafiqPOS\backups"" /grant *S-1-5-32-545:(OI)(CI)M /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsSafeDataDir('backups')
+; 1. صلاحيات القراءة والتشغيل لعمليات WebView2 المعزولة (Sandbox) على مجلد المشغل الثابت (توصية مايكروسوفت للـ Fixed Runtime)
+;    S-1-15-2-1 = ALL APPLICATION PACKAGES (ويندوز 8 فأحدث)، S-1-15-2-2 = ALL RESTRICTED APPLICATION PACKAGES (ويندوز 10 فأحدث)
+Filename: "{sys}\icacls.exe"; Parameters: """{app}\runtimes\fixed109"" /grant *S-1-15-2-1:(OI)(CI)(RX) /T /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsWindows8OrLater
+Filename: "{sys}\icacls.exe"; Parameters: """{app}\runtimes\fixed109"" /grant *S-1-15-2-2:(OI)(CI)(RX) /T /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsWindows10OrLater
 
-; تشغيل البرنامج بعد انتهاء التثبيت (لويندوز 7 مدمج به مشغل fixed109 تلقائياً بدون الحاجة لتثبيت أي برامج خارجية)
+; 2. اختياري (يحتاج إنترنت): تثبيت WebView2 Evergreen الأحدث على ويندوز 10/11 غير المحتوي عليه. غير محدد افتراضياً؛ البرنامج يعمل بدونه عبر fixed109
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; Description: "تثبيت أحدث نسخة من مشغل العرض WebView2 (يتطلب اتصال إنترنت — اختياري)"; StatusMsg: "جاري تثبيت مشغّل العرض (WebView2 Runtime)..."; Flags: postinstall unchecked skipifsilent waituntilterminated; Check: IsWindows10OrLater and not IsWebView2Installed and not DotNetRestartPending
+
+; تشغيل البرنامج بعد انتهاء التثبيت (لا يُعرض إذا كانت إعادة تشغيل الجهاز مطلوبة بعد تثبيت .NET 4.8)
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent; Check: IsAppReadyToLaunch
 
 [Code]
@@ -126,6 +189,15 @@ const
   HWND_NOTOPMOST = -2;
   TOP_FLAGS = 67; // SWP_NOSIZE (1) or SWP_NOMOVE (2) or SWP_SHOWWINDOW (64)
   ASFW_ANY = $FFFFFFFF;
+  DOTNET48_RELEASE = 528040; // أقل قيمة Release لـ .NET Framework 4.8 (البرنامج مبني عليه)
+  ATTR_DIRECTORY = $10;
+  ATTR_REPARSE_POINT = $400;   // Junction / Symlink / Mount point
+  MAX_TREE_DEPTH = 40;
+
+var
+  DotNetRestartRequired: Boolean; // تم تثبيت .NET 4.8 ويلزم إعادة تشغيل الجهاز قبل تشغيل رفيق
+  PreservedCount: Integer;
+  PreserveDirPath: String;
 
 // إجراء لتنشيط نافذة المثبت وجعلها في المقدمة فوراً وكسر قيود Focus Stealing لنظام ويندوز
 procedure ForceWizardToForeground();
@@ -237,6 +309,24 @@ begin
   Result := (Version.Major >= 10);
 end;
 
+// التحقق مما إذا كان النظام ويندوز 8 أو أحدث (6.2+)
+function IsWindows8OrLater(): Boolean;
+var
+  Version: TWindowsVersion;
+begin
+  GetWindowsVersionEx(Version);
+  Result := (Version.Major > 6) or ((Version.Major = 6) and (Version.Minor >= 2));
+end;
+
+// التحقق مما إذا كان النظام ويندوز 7 تحديداً (6.1)
+function IsWindows7(): Boolean;
+var
+  Version: TWindowsVersion;
+begin
+  GetWindowsVersionEx(Version);
+  Result := (Version.Major = 6) and (Version.Minor = 1);
+end;
+
 // التحقق مما إذا كان النظام ويندوز 7 أو 8 (Legacy)
 function IsLegacyWindows(): Boolean;
 var
@@ -255,18 +345,462 @@ begin
   Result := (Version.Major = 6) and (Version.Minor = 1) and (Version.ServicePackMajor < 1);
 end;
 
-// التحقق من وجود دوت نت فريموورك متوافق (.NET 4.6.2 أو أعلى)
-function IsDotNetCompatible(): Boolean;
+// التحقق من وجود .NET Framework 4.8 أو أحدث (Release >= 528040). البرنامج مبني على 4.8 ولا يعمل على 4.6/4.7
+function IsDotNet48Installed(): Boolean;
 var
   Release: Cardinal;
 begin
   Result := False;
   if RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full', 'Release', Release) then
+    Result := (Release >= DOTNET48_RELEASE);
+end;
+
+function DotNetRestartPending(): Boolean;
+begin
+  Result := DotNetRestartRequired;
+end;
+
+// Inno Setup يعرض خيار "إعادة تشغيل الجهاز الآن" في صفحة الإنهاء عندما تُرجع هذه الدالة True
+function NeedRestart(): Boolean;
+begin
+  Result := DotNetRestartRequired;
+end;
+
+// هل تحديث ويندوز (KB) مثبت؟ يقرأ سجل خدمة المكونات (CBS). قد يعطي نتيجة سالبة خاطئة إذا حُذف التحديث بعد استبداله بتحديث أحدث،
+// لذلك يُستخدم للتحذير فقط وليس لمنع التثبيت.
+function HasWindowsUpdatePackage(const KB: String): Boolean;
+var
+  Names: TArrayOfString;
+  RootKey: Integer;
+  I: Integer;
+  Prefix: String;
+begin
+  Result := False;
+  if IsWin64 then
+    RootKey := HKLM64
+  else
+    RootKey := HKLM;
+  Prefix := Lowercase('Package_for_' + KB);
+  if RegGetSubkeyNames(RootKey, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\Packages', Names) then
   begin
-    // 394802 = .NET 4.6.2, 461808 = .NET 4.7.2, 528040 = .NET 4.8
-    if Release >= 394802 then
-      Result := True;
+    for I := 0 to GetArrayLength(Names) - 1 do
+    begin
+      if Pos(Prefix, Lowercase(Names[I])) = 1 then
+      begin
+        Result := True;
+        Exit;
+      end;
+    end;
   end;
+end;
+
+// قائمة متطلبات ويندوز 7 الناقصة لتثبيت .NET 4.8 (فارغة إذا كان كل شيء موجوداً)
+function Win7MissingUpdatesText(): String;
+begin
+  Result := '';
+  if not HasWindowsUpdatePackage('KB4490628') then
+    Result := Result + '• KB4490628 (تحديث مكدس الخدمة SSU) — يُثبت أولاً' + #13#10;
+  if not HasWindowsUpdatePackage('KB4474419') then
+    Result := Result + '• KB4474419 (دعم التوقيع الرقمي SHA-2) — يُثبت ثانياً' + #13#10;
+  if not FileExists(ExpandConstant('{sys}\D3DCompiler_47.dll')) then
+    Result := Result + '• KB4019990 (مكتبة D3DCompiler_47 المطلوبة لـ .NET 4.8)' + #13#10;
+end;
+
+// تثبيت .NET Framework 4.8 المرفق بدون إنترنت. يُرجع نصاً فارغاً عند النجاح أو رسالة خطأ عربية دقيقة توقف التثبيت.
+function InstallDotNet48(): String;
+var
+  ResultCode: Integer;
+  InstallerPath: String;
+  ProgressPage: TOutputProgressWizardPage;
+begin
+  Result := '';
+  ProgressPage := CreateOutputProgressPage('تثبيت متطلبات التشغيل', 'جاري تثبيت Microsoft .NET Framework 4.8 (بدون إنترنت)...');
+  ProgressPage.SetText('جاري تثبيت .NET Framework 4.8 — قد يستغرق ذلك من 5 إلى 15 دقيقة على الأجهزة القديمة.', 'يرجى عدم إغلاق المعالج أو إطفاء الجهاز. Installing .NET Framework 4.8, please wait...');
+  ProgressPage.SetProgress(0, 0);
+  ProgressPage.Show;
+  try
+    ExtractTemporaryFile('{#DotNetInstaller}');
+    InstallerPath := ExpandConstant('{tmp}\{#DotNetInstaller}');
+    Log('Installing .NET Framework 4.8: ' + InstallerPath + ' /q /norestart');
+    if not Exec(InstallerPath, '/q /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    begin
+      Result := 'تعذر تشغيل مثبت .NET Framework 4.8 المرفق (' + SysErrorMessage(ResultCode) + ').' + #13#10 +
+                'قد يكون برنامج الحماية (Antivirus) منع تشغيله. أوقف الحماية مؤقتاً ثم أعد تشغيل ملف التثبيت.' + #13#10 +
+                'Could not start the bundled .NET Framework 4.8 installer.';
+      Exit;
+    end;
+    Log('.NET Framework 4.8 installer exit code: ' + IntToStr(ResultCode));
+  finally
+    ProgressPage.Hide;
+  end;
+
+  case ResultCode of
+    0:
+      begin
+        if not IsDotNet48Installed() then
+        begin
+          // بعض الأجهزة لا تحدّث قيمة Release قبل إعادة التشغيل
+          DotNetRestartRequired := True;
+          Log('.NET 4.8 reported success but Release key not updated yet; restart required.');
+        end;
+      end;
+    1641, 3010:
+      begin
+        DotNetRestartRequired := True;
+        SuppressibleMsgBox('تم تثبيت Microsoft .NET Framework 4.8 بنجاح، لكن يلزم إعادة تشغيل الجهاز لإكماله.' + #13#10#13#10 +
+               'سيكمل المعالج تثبيت رفيق الآن، وفي الصفحة الأخيرة اختر «نعم، أعد تشغيل الكمبيوتر الآن».' + #13#10 +
+               'لا تشغّل البرنامج قبل إعادة التشغيل.' + #13#10#13#10 +
+               '.NET Framework 4.8 was installed; a restart is required before running Rafiq POS.',
+               mbInformation, MB_OK, IDOK);
+      end;
+    1602:
+      Result := 'تم إلغاء تثبيت .NET Framework 4.8، ولا يمكن تشغيل رفيق بدونه (رمز 1602).' + #13#10 +
+                'أعد تشغيل ملف التثبيت واتركه يكمل حتى النهاية.' + #13#10 +
+                '.NET Framework 4.8 installation was cancelled (1602).';
+    5100:
+      Result := 'جهازك لا يستوفي متطلبات .NET Framework 4.8 (رمز 5100).' + #13#10 +
+                'على ويندوز 7: شغّل أولاً «تحديثات_ويندوز7_الجاهزة\تثبيت_التحديثات_تلقائيا.bat» كمسؤول' + #13#10 +
+                '(KB4490628 ثم KB4474419 ثم KB4019990)، أعد تشغيل الجهاز، ثم شغّل ملف تثبيت رفيق مجدداً.' + #13#10 +
+                'ملاحظة: .NET 4.8 لا يدعم Windows 8.0 (يلزم 8.1).' + #13#10 +
+                '.NET Framework 4.8 requirements not met (5100). Install the Windows 7 updates first.';
+  else
+    begin
+      Result := 'فشل تثبيت .NET Framework 4.8 (رمز الخطأ ' + IntToStr(ResultCode) + ').' + #13#10 +
+                'على ويندوز 7: تأكد من تثبيت تحديثات ويندوز 7 المرفقة ثم أعد تشغيل الجهاز وحاول مجدداً.' + #13#10 +
+                'إذا ظهرت مشكلة شهادة (Certificate/Trust) على جهاز بدون إنترنت راجع installer\prerequisites\README.md.' + #13#10 +
+                'سجل التثبيت التفصيلي موجود في مجلد %TEMP% باسم يبدأ بـ "Microsoft .NET Framework 4.8 Setup".' + #13#10 +
+                '.NET Framework 4.8 setup failed with exit code ' + IntToStr(ResultCode) + '.';
+    end;
+  end;
+end;
+
+// =====================================================================
+// حماية مجلدات البيانات من هجمات الروابط (Junction / Symlink) — C1 / C4
+// المستخدم العادي (كاشير) قد يزرع رابطاً مكان مجلد يكتب فيه المثبت بصلاحيات المسؤول،
+// فيمنح المثبت صلاحيات أو يحذف ملفات في مجلد آخر. لذلك: نكتشف الروابط ونزيلها (الرابط فقط، وليس الهدف)
+// ثم نقفل جذر {commonappdata}\RafiqPOS قبل أي منح صلاحيات.
+// =====================================================================
+
+function GetEntryAttributes(const Path: String; var Attr: DWORD): Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := False;
+  Attr := 0;
+  if FindFirst(RemoveBackslashUnlessRoot(Path), FindRec) then
+  begin
+    try
+      Attr := FindRec.Attributes;
+      Result := True;
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+function PathEntryExists(const Path: String): Boolean;
+var
+  Attr: DWORD;
+begin
+  Result := GetEntryAttributes(Path, Attr);
+end;
+
+function IsReparsePoint(const Path: String): Boolean;
+var
+  Attr: DWORD;
+begin
+  Result := GetEntryAttributes(Path, Attr) and ((Attr and ATTR_REPARSE_POINT) <> 0);
+end;
+
+// يحذف الرابط نفسه فقط (RemoveDirectory/DeleteFile على رابط لا يلمس الهدف)
+function RemoveLinkOnly(const Path: String): Boolean;
+var
+  Attr: DWORD;
+begin
+  Result := True;
+  if not GetEntryAttributes(Path, Attr) then Exit;
+  if (Attr and ATTR_REPARSE_POINT) = 0 then Exit;
+  Log('SECURITY: removing reparse point (link only): ' + Path);
+  if (Attr and ATTR_DIRECTORY) <> 0 then
+    RemoveDir(Path)
+  else
+    DeleteFile(Path);
+  Result := not PathEntryExists(Path);
+  if not Result then
+    Log('SECURITY: could not remove reparse point: ' + Path);
+end;
+
+// يزيل كل الروابط داخل الشجرة دون الدخول فيها. يرجع False إذا بقي رابط لم يمكن حذفه.
+function RemoveLinksInTree(const Dir: String; Depth: Integer): Boolean;
+var
+  FindRec: TFindRec;
+  Item: String;
+begin
+  Result := True;
+  if Depth > MAX_TREE_DEPTH then Exit;
+  if FindFirst(AddBackslash(Dir) + '*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+        begin
+          Item := AddBackslash(Dir) + FindRec.Name;
+          if (FindRec.Attributes and ATTR_REPARSE_POINT) <> 0 then
+          begin
+            if not RemoveLinkOnly(Item) then
+              Result := False;
+          end
+          else if (FindRec.Attributes and ATTR_DIRECTORY) <> 0 then
+          begin
+            if not RemoveLinksInTree(Item, Depth + 1) then
+              Result := False;
+          end;
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+function RunIcacls(const Params: String): Integer;
+var
+  ResultCode: Integer;
+begin
+  if not Exec(ExpandConstant('{sys}\icacls.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    ResultCode := -1;
+  Log('icacls ' + Params + ' -> ' + IntToStr(ResultCode));
+  Result := ResultCode;
+end;
+
+function LinkAttackMessage(const Path: String): String;
+begin
+  Result := 'تم اكتشاف رابط (Junction/Symlink) غير مسموح به في مجلد بيانات رفيق ولم يمكن إزالته:' + #13#10 + Path + #13#10 + #13#10 +
+            'لحماية الجهاز تم إيقاف التثبيت. احذف هذا الرابط يدوياً بحساب المسؤول ثم أعد تشغيل ملف التثبيت.' + #13#10 +
+            'An unexpected link (junction/symlink) was found in the Rafiq data folder and could not be removed: ' + Path + #13#10 +
+            'Setup stopped for security. Remove it as an administrator and run Setup again.';
+end;
+
+// يتأكد أن جذر البيانات ومجلداته ليست روابط، ثم يقفل الجذر: النظام والمسؤولون تحكم كامل، المستخدمون قراءة فقط.
+// بعد القفل لا يستطيع المستخدم العادي إنشاء أو استبدال أي عنصر مباشرة داخل الجذر.
+function SecureDataRoot(): String;
+var
+  Root: String;
+  Names: TArrayOfString;
+  I: Integer;
+begin
+  Result := '';
+  Root := ExpandConstant('{commonappdata}\RafiqPOS');
+
+  if not RemoveLinkOnly(Root) then
+  begin
+    Result := LinkAttackMessage(Root);
+    Exit;
+  end;
+  if not DirExists(Root) then
+    if not CreateDir(Root) then
+    begin
+      Result := 'تعذر إنشاء مجلد بيانات رفيق: ' + Root + #13#10 + 'Could not create the data folder: ' + Root;
+      Exit;
+    end;
+
+  // ملكية المسؤولين أولاً (مستخدم أنشأ المجلد قبل التثبيت قد يمنع المسؤولين من تعديل صلاحياته)
+  RunIcacls('"' + Root + '" /setowner *S-1-5-32-544 /C /L /Q');
+  if RunIcacls('"' + Root + '" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /C /L /Q') <> 0 then
+  begin
+    Result := 'تعذر تأمين صلاحيات مجلد بيانات رفيق (icacls):' + #13#10 + Root + #13#10 +
+              'Could not lock the permissions of the Rafiq data folder.';
+    Exit;
+  end;
+
+  // بعد القفل: افحص الجذر مرة أخرى ثم أزل أي روابط داخل الشجرة كلها (data, webview_profile, logs, backups, updates القديم ...)
+  if IsReparsePoint(Root) then
+  begin
+    Result := LinkAttackMessage(Root);
+    Exit;
+  end;
+  SetArrayLength(Names, 5);
+  Names[0] := 'data';
+  Names[1] := 'data\webview_profile';
+  Names[2] := 'logs';
+  Names[3] := 'backups';
+  Names[4] := 'updates';
+  for I := 0 to GetArrayLength(Names) - 1 do
+  begin
+    if not RemoveLinkOnly(AddBackslash(Root) + Names[I]) then
+    begin
+      Result := LinkAttackMessage(AddBackslash(Root) + Names[I]);
+      Exit;
+    end;
+  end;
+  if not RemoveLinksInTree(Root, 0) then
+  begin
+    Result := LinkAttackMessage(Root + '\...');
+    Exit;
+  end;
+  // ملكية المسؤولين على مجلدات الكتابة العليا فقط (بدون /T)
+  for I := 0 to 3 do
+    if DirExists(AddBackslash(Root) + Names[I]) then
+      RunIcacls('"' + AddBackslash(Root) + Names[I] + '" /setowner *S-1-5-32-544 /C /L /Q');
+end;
+
+// يُستخدم في [Run]: لا تمنح صلاحيات على مجلد إلا إذا كان مجلداً حقيقياً (وليس رابطاً) داخل الجذر
+function IsSafeDataDir(const SubDir: String): Boolean;
+var
+  Path: String;
+  Attr: DWORD;
+begin
+  Path := ExpandConstant('{commonappdata}\RafiqPOS\') + SubDir;
+  Result := GetEntryAttributes(Path, Attr) and ((Attr and ATTR_DIRECTORY) <> 0) and ((Attr and ATTR_REPARSE_POINT) = 0) and
+            (not IsReparsePoint(ExpandConstant('{commonappdata}\RafiqPOS')));
+  if not Result then
+    Log('SECURITY: skipping permission grant on unsafe or missing folder: ' + Path);
+end;
+
+// ---------------------------------------------------------------------
+// C4: الترقية فوق نسخة قديمة كانت تمنح المستخدمين "تحكم كامل" على {app}
+// ---------------------------------------------------------------------
+function IsDataLikeFile(const FileName: String): Boolean;
+var
+  Ext: String;
+begin
+  Ext := Lowercase(ExtractFileExt(FileName));
+  Result := (Ext = '.db') or (Ext = '.db-wal') or (Ext = '.db-shm') or (Ext = '.sqlite') or (Ext = '.bak');
+end;
+
+// ملفات قواعد بيانات قديمة داخل {app} (مثل نسخ أمان التحديث القديمة) تُنقل ولا تُحذف
+procedure PreserveDataFile(const Path: String);
+var
+  Attempt: Integer;
+  Candidate, Dest: String;
+begin
+  if PreserveDirPath = '' then
+  begin
+    for Attempt := 0 to 4 do
+    begin
+      Candidate := ExpandConstant('{commonappdata}\RafiqPOS\backups\legacy_app_folder_') +
+                   GetDateTimeString('yyyymmdd_hhnnss', #0, #0) + '_' + IntToStr(Random(100000));
+      // يجب ألا يكون موجوداً مسبقاً (حتى لا نكتب داخل رابط زرعه مستخدم)
+      if (not PathEntryExists(Candidate)) and CreateDir(Candidate) and (not IsReparsePoint(Candidate)) then
+      begin
+        PreserveDirPath := Candidate;
+        Break;
+      end;
+    end;
+    if PreserveDirPath = '' then
+    begin
+      Log('Could not create a fresh preservation folder; leaving data file in place: ' + Path);
+      Exit;
+    end;
+  end;
+  PreservedCount := PreservedCount + 1;
+  Dest := AddBackslash(PreserveDirPath) + IntToStr(PreservedCount) + '_' + ExtractFileName(Path);
+  if not RenameFile(Path, Dest) then
+  begin
+    if FileCopy(Path, Dest, True) then
+      DeleteFile(Path);
+  end;
+  Log('Preserved legacy data file: ' + Path + ' -> ' + Dest);
+end;
+
+// يحذف محتوى مجلد داخل {app} بدون اتباع أي رابط (الرابط يُحذف هو فقط)
+procedure DeleteTreeNoFollow(const Dir: String; Depth: Integer);
+var
+  FindRec: TFindRec;
+  Item: String;
+begin
+  if Depth > MAX_TREE_DEPTH then Exit;
+  if FindFirst(AddBackslash(Dir) + '*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+        begin
+          Item := AddBackslash(Dir) + FindRec.Name;
+          if (FindRec.Attributes and ATTR_REPARSE_POINT) <> 0 then
+            RemoveLinkOnly(Item)
+          else if (FindRec.Attributes and ATTR_DIRECTORY) <> 0 then
+          begin
+            DeleteTreeNoFollow(Item, Depth + 1);
+            if not RemoveDir(Item) then
+              Log('Could not remove folder: ' + Item);
+          end
+          else if IsDataLikeFile(FindRec.Name) then
+            PreserveDataFile(Item)
+          else if not DeleteFile(Item) then
+            Log('Could not delete file: ' + Item);
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+// يعمل في ssInstall (بعد إغلاق البرنامج المفتوح وقبل نسخ الملفات):
+// 1) إزالة الروابط من {app}  2) ملكية المسؤولين + إعادة الصلاحيات للوراثة من Program Files (/T /L)
+// 3) حذف كل ما في {app} عدا ملفات إلغاء التثبيت؛ المثبت يعيد نسخ كل ملفات البرنامج مباشرة بعد ذلك.
+// البيانات الحقيقية في ProgramData ولا تُلمس. الخطوة لا تعمل إلا على مجلد اسمه RafiqPOS ومثبت فيه رفيق مسبقاً.
+procedure HardenAndCleanAppDir();
+var
+  AppDir, Name: String;
+  FindRec: TFindRec;
+begin
+  AppDir := RemoveBackslashUnlessRoot(ExpandConstant('{app}'));
+  if not DirExists(AppDir) then Exit;
+  if (CompareText(ExtractFileName(AppDir), 'RafiqPOS') <> 0) or
+     not (FileExists(AddBackslash(AppDir) + 'unins000.dat') or FileExists(AddBackslash(AppDir) + '{#MyAppExeName}')) then
+  begin
+    Log('Upgrade cleanup skipped: ' + AppDir + ' is not a previous Rafiq POS installation folder.');
+    Exit;
+  end;
+  if IsReparsePoint(AppDir) then
+  begin
+    Log('SECURITY: application folder is a reparse point, cleanup skipped: ' + AppDir);
+    Exit;
+  end;
+
+  RemoveLinksInTree(AppDir, 0);
+  RunIcacls('"' + AppDir + '" /setowner *S-1-5-32-544 /T /C /L /Q');
+  RunIcacls('"' + AppDir + '" /reset /T /C /L /Q');
+  // أُعيد الفحص بعد سحب صلاحيات الكتابة (يغلق نافذة السباق قبل التنظيف)
+  RemoveLinksInTree(AppDir, 0);
+
+  if FindFirst(AddBackslash(AppDir) + '*', FindRec) then
+  begin
+    try
+      repeat
+        Name := FindRec.Name;
+        if (Name <> '.') and (Name <> '..') and (CompareText(Copy(Name, 1, 5), 'unins') <> 0) then
+        begin
+          if (FindRec.Attributes and ATTR_REPARSE_POINT) <> 0 then
+            RemoveLinkOnly(AddBackslash(AppDir) + Name)
+          else if (FindRec.Attributes and ATTR_DIRECTORY) <> 0 then
+          begin
+            DeleteTreeNoFollow(AddBackslash(AppDir) + Name, 1);
+            RemoveDir(AddBackslash(AppDir) + Name);
+          end
+          else if IsDataLikeFile(Name) then
+            PreserveDataFile(AddBackslash(AppDir) + Name)
+          else
+            DeleteFile(AddBackslash(AppDir) + Name);
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+  Log('Upgrade cleanup of the application folder finished: ' + AppDir);
+end;
+
+// يعمل قبل نسخ الملفات: تثبيت .NET 4.8 إذا لزم، ثم تأمين مجلد البيانات. إرجاع نص غير فارغ يوقف التثبيت ويعرض الرسالة.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  if not IsDotNet48Installed() then
+    Result := InstallDotNet48();
+  if Result = '' then
+    Result := SecureDataRoot();
 end;
 
 // التحقق من وجود مشغّل WebView2 Runtime في النظام
@@ -284,18 +818,20 @@ begin
   end;
 end;
 
-// التحقق من إمكانية تشغيل البرنامج (لويندوز 7 جاهز دائماً بفضل النسخة المدمجة fixed109)
+// التحقق من إمكانية تشغيل البرنامج: لا إعادة تشغيل معلقة لـ .NET، ومشغل العرض متوفر (المدمج fixed109 أو Evergreen)
 function IsAppReadyToLaunch(): Boolean;
 begin
-  if IsLegacyWindows() then
-    Result := True
+  if DotNetRestartRequired or not IsDotNet48Installed() then
+    Result := False
   else
-    Result := IsWebView2Installed();
+    Result := FileExists(ExpandConstant('{app}\runtimes\fixed109\msedgewebview2.exe')) or
+              ((not IsLegacyWindows()) and IsWebView2Installed());
 end;
 
 function InitializeSetup(): Boolean;
 var
   Msg: String;
+  Missing: String;
 begin
   Result := True;
 
@@ -313,31 +849,43 @@ begin
     Exit;
   end;
 
-  // 2. فحص دوت نت فريموورك المتوافق (.NET 4.6.2 / 4.8)
-  if not IsDotNetCompatible() then
+  // 2. .NET Framework 4.8: يُثبت تلقائياً من النسخة المرفقة (PrepareToInstall). على ويندوز 7 ننبه مسبقاً إذا كانت تحديثاته المطلوبة ناقصة
+  if (not IsDotNet48Installed()) and IsWindows7() then
   begin
-    Msg := 'متطلب تشغيل ناقص (.NET Framework):' + #13#10 + #13#10 +
-           'يتطلب تشغيل رفيق POS وجود حزمة Microsoft .NET Framework (الإصدار 4.6.2 أو 4.8).' + #13#10#13#10 +
-           'خطوات الحل بالعربي:' + #13#10 +
-           '1. قم بتثبيت حزمة .NET Framework 4.8 المرفقة بدون إنترنت (تجدها في مجلد تحديثات النظام).' + #13#10 +
-           '2. إذا كنت تستخدم Windows 7، تأكد من تثبيت تحديثي SHA-2 (KB4474419) قبلها.' + #13#10 +
-           '3. بعد انتهاء التثبيت، شغّل مثبت رفيق مرة أخرى.';
-    MsgBox(Msg, mbError, MB_OK);
-    Result := False;
-    Exit;
+    Missing := Win7MissingUpdatesText();
+    if Missing <> '' then
+    begin
+      Msg := 'تنبيه قبل تثبيت .NET Framework 4.8 على ويندوز 7:' + #13#10 + #13#10 +
+             'لم يتم العثور على التحديثات التالية (مطلوبة لتثبيت .NET 4.8 بدون أخطاء):' + #13#10 + Missing + #13#10 +
+             'الحل الموصى به:' + #13#10 +
+             '1. اضغط «لا» لإيقاف التثبيت الآن.' + #13#10 +
+             '2. شغّل «تحديثات_ويندوز7_الجاهزة\تثبيت_التحديثات_تلقائيا.bat» كمسؤول ثم أعد تشغيل الجهاز.' + #13#10 +
+             '3. شغّل ملف تثبيت رفيق مرة أخرى.' + #13#10 + #13#10 +
+             'إذا كنت متأكداً أن تحديثات أحدث تشملها مثبتة بالفعل اضغط «نعم» للمتابعة.' + #13#10 +
+             'Windows 7 updates required by .NET Framework 4.8 seem missing. Continue anyway?';
+      if SuppressibleMsgBox(Msg, mbConfirmation, MB_YESNO, IDYES) = IDNO then
+      begin
+        Result := False;
+        Exit;
+      end;
+    end;
   end;
 
   // 3. توجيه وإرشاد استباقي لمستخدمي ويندوز 7 بخصوص تحديثات الأمان
   if IsLegacyWindows() then
   begin
     // رسالة تنبيهية إرشادية بدون حجب التثبيت
-    Log('Windows 7/8 environment detected. Verifying prerequisites and Fixed Runtime 109 deployment.');
+    Log('Windows 7/8 environment detected. The bundled WebView2 Fixed Runtime 109 will be used.');
   end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssDone then
+  if CurStep = ssInstall then
+  begin
+    HardenAndCleanAppDir();
+  end
+  else if CurStep = ssDone then
   begin
     AllowSetForegroundWindow(ASFW_ANY);
   end;

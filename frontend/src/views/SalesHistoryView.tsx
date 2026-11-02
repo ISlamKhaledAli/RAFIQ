@@ -22,7 +22,7 @@ import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { openHelpCenter } from '../utils/helpService';
 import type { Sale, Return } from '../types/models';
-import { formatArabicCurrency } from '../utils/money';
+import { formatArabicCurrency, totalSaleDiscountPiasters } from '../utils/money';
 import { VoidInvoiceModal } from '../components/VoidInvoiceModal';
 import { ReturnModal } from '../components/ReturnModal';
 import { CustomDatePicker } from '../components/CustomDatePicker';
@@ -663,7 +663,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
                   {/* Discount */}
                   <span className="col-span-2 text-center font-mono text-ink-muted dark:text-ink-dark-muted text-xs tabular-nums">
-                    {sale.discountPiasters > 0 ? formatArabicCurrency(sale.discountPiasters) : '—'}
+                    {totalSaleDiscountPiasters(sale) > 0 ? formatArabicCurrency(totalSaleDiscountPiasters(sale)) : '—'}
                   </span>
 
                   {/* Total Piasters */}
@@ -987,10 +987,10 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   <span>إجمالي الأصناف قبل الخصم:</span>
                   <span className="text-ink dark:text-ink-dark font-mono font-bold tabular-nums">{formatArabicCurrency(selectedSale.subtotalPiasters)}</span>
                 </div>
-                {selectedSale.discountPiasters > 0 && (
+                {totalSaleDiscountPiasters(selectedSale) > 0 && (
                   <div className="flex justify-between text-danger font-semibold">
                     <span>الخصم:</span>
-                    <span className="font-mono tabular-nums">−{formatArabicCurrency(selectedSale.discountPiasters)}</span>
+                    <span className="font-mono tabular-nums">−{formatArabicCurrency(totalSaleDiscountPiasters(selectedSale))}</span>
                   </div>
                 )}
                 {selectedSale.taxPiasters > 0 && (

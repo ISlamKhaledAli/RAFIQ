@@ -398,10 +398,14 @@ namespace RafiqPOS.Services
                 // =========================================================================
                 // 12. SENIOR TREASURY AUDITOR: SCENARIO 1 - MIDNIGHT CROSSOVER (10 PM to 4 AM)
                 // =========================================================================
-                DateTime localD1 = new DateTime(2026, 11, 1, 22, 30, 0, DateTimeKind.Local);
-                DateTime localD2 = new DateTime(2026, 11, 2, 1, 30, 0, DateTimeKind.Local);
-                DateTime localD3 = new DateTime(2026, 11, 2, 3, 30, 0, DateTimeKind.Local);
-                DateTime localD4 = new DateTime(2026, 11, 2, 4, 0, 0, DateTimeKind.Local);
+                // Mid-January of last year: never today's business day and never a DST transition night
+                DateTime nightDay = new DateTime(DateTime.Today.Year - 1, 1, 15, 0, 0, 0, DateTimeKind.Local);
+                string nightDay1 = nightDay.ToString("yyyy-MM-dd");
+                string nightDay2 = nightDay.AddDays(1).ToString("yyyy-MM-dd");
+                DateTime localD1 = nightDay.AddHours(22).AddMinutes(30);
+                DateTime localD2 = nightDay.AddDays(1).AddHours(1).AddMinutes(30);
+                DateTime localD3 = nightDay.AddDays(1).AddHours(3).AddMinutes(30);
+                DateTime localD4 = nightDay.AddDays(1).AddHours(4);
 
                 string tOpen = localD1.AddMinutes(-30).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
                 string tD1 = localD1.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
@@ -415,7 +419,7 @@ namespace RafiqPOS.Services
                     CashierId = "cashier_night",
                     CashierName = "سارة أحمد",
                     PosRegisterId = "pos_lane_1",
-                    BusinessDate = "2026-11-01",
+                    BusinessDate = nightDay1,
                     OpenedAt = tOpen,
                     Status = "open",
                     OpeningFloatPiasters = 50000,
@@ -436,7 +440,7 @@ namespace RafiqPOS.Services
                 }
 
                 // 3 Invoices spanning midnight:
-                // Invoice 1: 10:30 PM (2026-11-01) = 3000 piasters
+                // Invoice 1: 10:30 PM (اليوم الأول) = 3000 piasters
                 var saleNight1 = new Sale
                 {
                     ShiftId = nightShift.Id,
@@ -452,7 +456,7 @@ namespace RafiqPOS.Services
                 };
                 saleRepo.CreateSaleAtomic(saleNight1);
 
-                // Invoice 2: 1:30 AM (2026-11-02) = 4000 piasters
+                // Invoice 2: 1:30 AM (اليوم الثاني) = 4000 piasters
                 var saleNight2 = new Sale
                 {
                     ShiftId = nightShift.Id,
@@ -468,7 +472,7 @@ namespace RafiqPOS.Services
                 };
                 saleRepo.CreateSaleAtomic(saleNight2);
 
-                // Invoice 3: 3:30 AM (2026-11-02) = 5000 piasters
+                // Invoice 3: 3:30 AM (اليوم الثاني) = 5000 piasters
                 var saleNight3 = new Sale
                 {
                     ShiftId = nightShift.Id,
@@ -492,29 +496,29 @@ namespace RafiqPOS.Services
                 Assert(nightMetrics.ExpectedCashPiasters == (50000 + 12000), "النقد المتوقع في الدرج عند إغلاق الشفت (عهدة + مبيعات) = 62000 قرش", result);
 
                 // Test Daily Closing Separation under Cutoff = 0 (Midnight):
-                // Day 2026-11-01 contains the 22:30 invoice (3000 piasters)
-                var previewDay18 = closingService.GetClosingPreview("2026-11-01");
-                Assert(previewDay18.TotalSalesPiasters == 3000, "يوم 2026-11-01 يحسب فقط فاتورة ما قبل منتصف الليل (3000 قرش)", result);
+                // Day اليوم الأول contains the 22:30 invoice (3000 piasters)
+                var previewDay18 = closingService.GetClosingPreview(nightDay1);
+                Assert(previewDay18.TotalSalesPiasters == 3000, "يوم اليوم الأول يحسب فقط فاتورة ما قبل منتصف الليل (3000 قرش)", result);
 
-                // Day 2026-11-02 contains the 01:30 and 03:30 invoices (9000 piasters)
-                var previewDay19 = closingService.GetClosingPreview("2026-11-02");
-                Assert(previewDay19.TotalSalesPiasters == 9000, "يوم 2026-11-02 يحسب فواتير ما بعد منتصف الليل (9000 قرش)", result);
+                // Day اليوم الثاني contains the 01:30 and 03:30 invoices (9000 piasters)
+                var previewDay19 = closingService.GetClosingPreview(nightDay2);
+                Assert(previewDay19.TotalSalesPiasters == 9000, "يوم اليوم الثاني يحسب فواتير ما بعد منتصف الليل (9000 قرش)", result);
                 Assert(previewDay18.TotalSalesPiasters + previewDay19.TotalSalesPiasters == 12000, "مجموع إيرادات اليومين يعادل إجمالي مبيعات الشفت بالضبط (12000 قرش دون فقدان أي قرش)", result);
 
                 // Test Cutoff Hour = 4 (Night-Shift Store Policy)
                 settingsRepo.Set("business_day_cutoff_hour", "4");
-                var previewLate18 = closingService.GetClosingPreview("2026-11-01");
-                Assert(previewLate18.TotalSalesPiasters == 12000, "بتفعيل سياسة الإغلاق عند 4 صباحاً: جميع فواتير الشفت (12000 قرش) ترحل لنفس اليوم المحاسبي 2026-11-01", result);
+                var previewLate18 = closingService.GetClosingPreview(nightDay1);
+                Assert(previewLate18.TotalSalesPiasters == 12000, "بتفعيل سياسة الإغلاق عند 4 صباحاً: جميع فواتير الشفت (12000 قرش) ترحل لنفس اليوم المحاسبي اليوم الأول", result);
                 settingsRepo.Set("business_day_cutoff_hour", "0");
 
                 // =========================================================================
                 // 13. SENIOR TREASURY AUDITOR: SCENARIO 2 & 3 - CASH VARIANCE & Z-REPORT
                 // =========================================================================
-                // Close 2026-11-01 officially with Shortage of 200 piasters (عجز 2 جنيه)
+                // Close اليوم الأول officially with Shortage of 200 piasters (عجز 2 جنيه)
                 long expectedCash18 = previewDay18.ExpectedCashPiasters;
                 var closing18 = closingService.SaveClosing(new DailyClosingSaveRequest
                 {
-                    BusinessDate = "2026-11-01",
+                    BusinessDate = nightDay1,
                     ActualCashPiasters = expectedCash18 - 200,
                     CashierId = "cashier_night",
                     CashierName = "سارة أحمد",
@@ -522,16 +526,16 @@ namespace RafiqPOS.Services
                     ConfirmSuspiciousDate = true
                 });
 
-                Assert(closing18 != null && closing18.ClosingNumber > 0, "تم توليد رقم إقفال رسمي Z-Report لليوم 2026-11-01", result);
+                Assert(closing18 != null && closing18.ClosingNumber > 0, "تم توليد رقم إقفال رسمي Z-Report لليوم اليوم الأول", result);
                 Assert(closing18.DifferencePiasters == -200, "تسجيل عجز النقدية (-200 قرش) وترحيله في حساب تسويات المتجر", result);
                 Assert(closing18.ExpectedCashPiasters == expectedCash18, string.Format("النقد المتوقع لليوم مطابق لمبيعات اليوم النقدية والعهدة الافتتاحية ({0} قرش)", expectedCash18), result);
                 Assert(closing18.ActualCashPiasters == expectedCash18 - 200, string.Format("النقد الفعلي المسجل مطابق للمعدود يدوياً ({0} قرش)", expectedCash18 - 200), result);
 
-                // Close 2026-11-02 with Surplus of 500 piasters (فائض 5 جنيه)
+                // Close اليوم الثاني with Surplus of 500 piasters (فائض 5 جنيه)
                 long expectedCash19 = previewDay19.ExpectedCashPiasters;
                 var closing19 = closingService.SaveClosing(new DailyClosingSaveRequest
                 {
-                    BusinessDate = "2026-11-02",
+                    BusinessDate = nightDay2,
                     ActualCashPiasters = expectedCash19 + 500,
                     CashierId = "cashier_night",
                     CashierName = "سارة أحمد",
@@ -539,7 +543,7 @@ namespace RafiqPOS.Services
                     ConfirmSuspiciousDate = true
                 });
 
-                Assert(closing19 != null && closing19.ClosingNumber > 0, "تم توليد رقم إقفال رسمي Z-Report لليوم 2026-11-02", result);
+                Assert(closing19 != null && closing19.ClosingNumber > 0, "تم توليد رقم إقفال رسمي Z-Report لليوم اليوم الثاني", result);
                 Assert(closing19.DifferencePiasters == 500, "تسجيل فائض النقدية (+500 قرش) وترحيله في حساب تسويات المتجر", result);
                 Assert(closing19.TotalSalesPiasters == 9000, "مطابقة إجمالي مبيعات Z-Report لليوم الثاني (9000 قرش)", result);
                 Assert(closing19.InvoicesCount == 2, "مطابقة عدد فواتير Z-Report لليوم الثاني (2 فواتير)", result);
@@ -552,7 +556,7 @@ namespace RafiqPOS.Services
                 // =========================================================================
                 // 14. SENIOR TREASURY AUDITOR: SCENARIO 4 - POST-CLOSING FREEZE (التجميد بعد الإغلاق)
                 // =========================================================================
-                // Test 4.1: Attempting to insert a backdated sale on a closed business day (2026-11-01) -> MUST FAIL
+                // Test 4.1: Attempting to insert a backdated sale on a closed business day (اليوم الأول) -> MUST FAIL
                 bool retroSaleBlocked = false;
                 try
                 {
@@ -574,7 +578,7 @@ namespace RafiqPOS.Services
                 {
                     retroSaleBlocked = ex.Message.Contains("إقفالها") || ex.Message.Contains("مقفلة");
                 }
-                Assert(retroSaleBlocked, "منع تسجيل فاتورة مبيعات بأثر رجعي في يوم عمل مقفل نهائياً (2026-11-01)", result);
+                Assert(retroSaleBlocked, "منع تسجيل فاتورة مبيعات بأثر رجعي في يوم عمل مقفل نهائياً (اليوم الأول)", result);
 
                 // Test 4.2: Attempting to cancel an invoice belonging to a closed day -> MUST FAIL
                 bool cancelClosedBlocked = false;
@@ -596,7 +600,7 @@ namespace RafiqPOS.Services
                     {
                         AmountPiasters = 1000,
                         Category = "نثريات",
-                        BusinessDate = "2026-11-01",
+                        BusinessDate = nightDay1,
                         Notes = "محاولة تسجيل مصروف في يوم مقفل"
                     });
                 }
@@ -613,7 +617,7 @@ namespace RafiqPOS.Services
                     using (var conn = new SQLiteConnection(tempConnStr))
                     {
                         conn.Open();
-                        using (var clCmd = new SQLiteCommand("SELECT COUNT(*) FROM daily_closings WHERE business_date = '2026-11-01';", conn))
+                        using (var clCmd = new SQLiteCommand("SELECT COUNT(*) FROM daily_closings WHERE business_date = '" + nightDay1 + "';", conn))
                         {
                             if (Convert.ToInt64(clCmd.ExecuteScalar()) > 0)
                             {

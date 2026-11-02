@@ -24,20 +24,21 @@ namespace RafiqPOS.Models
         [JsonProperty("unit")]
         public string Unit { get; set; }
 
+        // Optional fields: null means the column/cell was absent in the sheet, so an update keeps the stored value
         [JsonProperty("pricePiasters")]
-        public long PricePiasters { get; set; }
+        public long? PricePiasters { get; set; }
 
         [JsonProperty("costPiasters")]
-        public long CostPiasters { get; set; }
+        public long? CostPiasters { get; set; }
 
         [JsonProperty("stockQuantityMilli")]
-        public long StockQuantityMilli { get; set; }
+        public long? StockQuantityMilli { get; set; }
 
         [JsonProperty("minStockQuantityMilli")]
-        public long MinStockQuantityMilli { get; set; }
+        public long? MinStockQuantityMilli { get; set; }
 
         [JsonProperty("taxRatePercent")]
-        public int TaxRatePercent { get; set; }
+        public int? TaxRatePercent { get; set; }
 
         [JsonProperty("internalCode")]
         public string InternalCode { get; set; }
@@ -54,8 +55,6 @@ namespace RafiqPOS.Models
         public BatchImportItem()
         {
             Barcodes = new List<string>();
-            Unit = "piece";
-            MinStockQuantityMilli = 5000;
         }
     }
 

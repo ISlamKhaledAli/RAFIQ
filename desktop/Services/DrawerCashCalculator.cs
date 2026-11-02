@@ -1,5 +1,6 @@
 using System;
 using System.Data.SQLite;
+using System.Globalization;
 
 namespace RafiqPOS.Services
 {
@@ -67,8 +68,11 @@ namespace RafiqPOS.Services
 
             DateTime localStart = periodStart.Kind == DateTimeKind.Utc ? periodStart.ToLocalTime() : periodStart;
             DateTime localEnd = periodEnd.Kind == DateTimeKind.Utc ? periodEnd.ToLocalTime() : periodEnd;
-            string startStr = localStart.ToString("yyyy-MM-dd HH:mm:ss");
-            string endStr = localEnd.ToString("yyyy-MM-dd HH:mm:ss");
+            // Shift windows are half-open [opened, closed) at millisecond precision so a handover-second row counts in exactly one shift
+            bool halfOpen = !string.IsNullOrEmpty(shiftId);
+            string boundFormat = halfOpen ? "yyyy-MM-dd HH:mm:ss.fff" : "yyyy-MM-dd HH:mm:ss";
+            string startStr = localStart.ToString(boundFormat, CultureInfo.InvariantCulture);
+            string endStr = localEnd.ToString(boundFormat, CultureInfo.InvariantCulture);
 
             // 1. عهدة بداية الوردية (Opening Float)
             if (!string.IsNullOrEmpty(shiftId))
@@ -84,13 +88,20 @@ namespace RafiqPOS.Services
             }
             else
             {
+                // Owner rule: later shifts' floats are a handover of cash already in the drawer, so only the day's first float is new money
                 using (var cmd = conn.CreateCommand())
                 {
                     cmd.Transaction = trans;
+                    // A shift belongs to the business day it was opened for (a night shift may start before the cutoff)
+                    string dayFilter = ColumnExists(conn, trans, "shifts", "business_date")
+                        ? "business_date = date(@start)"
+                        : Window("opened_at", halfOpen);
                     cmd.CommandText = @"
-                        SELECT COALESCE(SUM(opening_float_piasters), 0)
+                        SELECT COALESCE(opening_float_piasters, 0)
                         FROM shifts
-                        WHERE datetime(opened_at, 'localtime') >= @start AND datetime(opened_at, 'localtime') <= @end;";
+                        WHERE " + dayFilter + @"
+                        ORDER BY opened_at ASC
+                        LIMIT 1;";
                     cmd.Parameters.AddWithValue("@start", startStr);
                     cmd.Parameters.AddWithValue("@end", endStr);
                     object val = cmd.ExecuteScalar();
@@ -126,8 +137,8 @@ namespace RafiqPOS.Services
                       AND s.id NOT LIKE 'demo_%'
                       AND s.id NOT LIKE 'stress_%'
                       AND (
-                          (@shiftId IS NOT NULL AND (s.shift_id = @shiftId OR (s.shift_id IS NULL AND datetime(s.created_at, 'localtime') >= @start AND datetime(s.created_at, 'localtime') <= @end)))
-                          OR (@shiftId IS NULL AND datetime(s.created_at, 'localtime') >= @start AND datetime(s.created_at, 'localtime') <= @end)
+                          (@shiftId IS NOT NULL AND (s.shift_id = @shiftId OR (s.shift_id IS NULL AND " + Window("s.created_at", halfOpen) + @")))
+                          OR (@shiftId IS NULL AND " + Window("s.created_at", halfOpen) + @")
                       );";
                 cmd.Parameters.AddWithValue("@shiftId", (object)shiftId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@start", startStr);
@@ -147,8 +158,8 @@ namespace RafiqPOS.Services
                         FROM returns
                         WHERE refund_method = 'cash'
                           AND (
-                              (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)))
-                              OR (@shiftId IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)
+                              (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND " + Window("created_at", halfOpen) + @")))
+                              OR (@shiftId IS NULL AND " + Window("created_at", halfOpen) + @")
                           );";
                     cmd.Parameters.AddWithValue("@shiftId", (object)shiftId ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@start", startStr);
@@ -176,8 +187,8 @@ namespace RafiqPOS.Services
                         WHERE ((type = 'payment' AND sale_id IS NULL) OR type = 'payment_cancel')
                           AND (payment_method = 'cash' OR payment_method IS NULL OR payment_method = '')
                           AND (
-                              (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)))
-                              OR (@shiftId IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)
+                              (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND " + Window("created_at", halfOpen) + @")))
+                              OR (@shiftId IS NULL AND " + Window("created_at", halfOpen) + @")
                           )
                           AND customer_id NOT LIKE 'demo_%';";
                     cmd.Parameters.AddWithValue("@shiftId", (object)shiftId ?? DBNull.Value);
@@ -201,16 +212,16 @@ namespace RafiqPOS.Services
                             WHERE (is_cancelled = 0 OR is_cancelled IS NULL)
                               AND (source = 'drawer' OR source IS NULL OR source = '')
                               AND (
-                                  (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)))
-                                  OR (@shiftId IS NULL AND (business_date = date(@start) OR (datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)))
+                                  (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND " + Window("created_at", halfOpen) + @")))
+                                  OR (@shiftId IS NULL AND (business_date = date(@start) OR (" + Window("created_at", halfOpen) + @")))
                               );"
                         : @"SELECT COALESCE(SUM(amount_piasters), 0)
                             FROM expenses
                             WHERE (is_cancelled = 0 OR is_cancelled IS NULL)
                               AND (source = 'drawer' OR source IS NULL OR source = '')
                               AND (
-                                  (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)))
-                                  OR (@shiftId IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)
+                                  (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND " + Window("created_at", halfOpen) + @")))
+                                  OR (@shiftId IS NULL AND " + Window("created_at", halfOpen) + @")
                               );";
                     cmd.Parameters.AddWithValue("@shiftId", (object)shiftId ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@start", startStr);
@@ -233,7 +244,7 @@ namespace RafiqPOS.Services
                         FROM cash_drawer_transactions
                         WHERE (
                             (@shiftId IS NOT NULL AND shift_id = @shiftId)
-                            OR (@shiftId IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)
+                            OR (@shiftId IS NULL AND " + Window("created_at", halfOpen) + @")
                         );";
                     cmd.Parameters.AddWithValue("@shiftId", (object)shiftId ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@start", startStr);
@@ -264,7 +275,7 @@ namespace RafiqPOS.Services
                                 ELSE 0 END), 0) AS drawer_cash
                         FROM epay_transactions
                         WHERE status = 'completed'
-                          AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end;";
+                          AND " + Window("created_at", halfOpen) + @";";
                     cmd.Parameters.AddWithValue("@start", startStr);
                     cmd.Parameters.AddWithValue("@end", endStr);
                     object val = cmd.ExecuteScalar();
@@ -285,7 +296,7 @@ namespace RafiqPOS.Services
                         SELECT COALESCE(SUM(amount_piasters), 0)
                         FROM epay_terminal_fundings
                         WHERE funding_source = 'cash_drawer'
-                          AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end;";
+                          AND " + Window("created_at", halfOpen) + @";";
                     cmd.Parameters.AddWithValue("@start", startStr);
                     cmd.Parameters.AddWithValue("@end", endStr);
                     object val = cmd.ExecuteScalar();
@@ -310,7 +321,7 @@ namespace RafiqPOS.Services
                         FROM digital_transactions
                         WHERE payment_destination = 'cash_drawer'
                           AND status = 'completed'
-                          AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end;";
+                          AND " + Window("created_at", halfOpen) + @";";
                     cmd.Parameters.AddWithValue("@start", startStr);
                     cmd.Parameters.AddWithValue("@end", endStr);
                     object val = cmd.ExecuteScalar();
@@ -328,7 +339,7 @@ namespace RafiqPOS.Services
                         SELECT COALESCE(SUM(amount_piasters), 0)
                         FROM digital_account_fundings
                         WHERE funding_source = 'cash_drawer'
-                          AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end;";
+                          AND " + Window("created_at", halfOpen) + @";";
                     cmd.Parameters.AddWithValue("@start", startStr);
                     cmd.Parameters.AddWithValue("@end", endStr);
                     object val = cmd.ExecuteScalar();
@@ -348,11 +359,11 @@ namespace RafiqPOS.Services
                             FROM purchases
                             WHERE status != 'cancelled'
                               AND (payment_source = 'cash_drawer' OR payment_source IS NULL OR payment_source = '')
-                              AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end;"
+                              AND " + Window("created_at", halfOpen) + @";"
                         : @"SELECT COALESCE(SUM(paid_amount_piasters), 0)
                             FROM purchases
                             WHERE status != 'cancelled'
-                              AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end;";
+                              AND " + Window("created_at", halfOpen) + @";";
                     cmd.Parameters.AddWithValue("@start", startStr);
                     cmd.Parameters.AddWithValue("@end", endStr);
                     object val = cmd.ExecuteScalar();
@@ -378,7 +389,7 @@ namespace RafiqPOS.Services
                             FROM supplier_transactions
                             WHERE (transaction_type = 'PAYMENT' OR transaction_type = 'PAYMENT_CANCEL')
                               AND (payment_source = 'cash_drawer' OR payment_source IS NULL OR payment_source = '')
-                              AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end;"
+                              AND " + Window("created_at", halfOpen) + @";"
                         : @"SELECT COALESCE(SUM(
                                 CASE 
                                     WHEN transaction_type = 'PAYMENT' THEN ABS(amount_piasters)
@@ -388,7 +399,7 @@ namespace RafiqPOS.Services
                             ), 0)
                             FROM supplier_transactions
                             WHERE (transaction_type = 'PAYMENT' OR transaction_type = 'PAYMENT_CANCEL')
-                              AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end;";
+                              AND " + Window("created_at", halfOpen) + @";";
                     cmd.Parameters.AddWithValue("@start", startStr);
                     cmd.Parameters.AddWithValue("@end", endStr);
                     object val = cmd.ExecuteScalar();
@@ -414,6 +425,19 @@ namespace RafiqPOS.Services
 
             // F-08: لا تصفير للرصيد السالب (Zero Math.Max(0, ...)) لضمان كشف العجز الحقيقي
             return result;
+        }
+
+        private static string Window(string column, bool halfOpen)
+        {
+            if (halfOpen)
+            {
+                return string.Format(
+                    "strftime('%Y-%m-%d %H:%M:%f', {0}, 'localtime') >= @start AND strftime('%Y-%m-%d %H:%M:%f', {0}, 'localtime') < @end",
+                    column);
+            }
+            return string.Format(
+                "datetime({0}, 'localtime') >= @start AND datetime({0}, 'localtime') <= @end",
+                column);
         }
 
         private static bool TableExists(SQLiteConnection conn, SQLiteTransaction trans, string tableName)

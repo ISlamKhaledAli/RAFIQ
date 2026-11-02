@@ -114,7 +114,7 @@ namespace RafiqPOS.Bridge
                         string batchId = adjObj != null && adjObj["batchId"] != null ? adjObj["batchId"].ToString() : null;
                         long newQtyMilli = adjObj != null && adjObj["newQuantityMilli"] != null ? adjObj["newQuantityMilli"].Value<long>() : 0;
                         string reason = adjObj != null && adjObj["reason"] != null ? adjObj["reason"].ToString() : "تسوية يدوية";
-                        string userId = adjObj != null && adjObj["userId"] != null ? adjObj["userId"].ToString() : "admin";
+                        string userId = SessionActorId();
 
                         DatabaseService.ProductBatches.AdjustBatchStock(batchId, newQtyMilli, reason, userId);
                         response = BridgeResponse.Ok(request.Id, true);
@@ -136,7 +136,7 @@ namespace RafiqPOS.Bridge
                         JObject dispObj = request.Payload as JObject;
                         string batchId = dispObj != null && dispObj["batchId"] != null ? dispObj["batchId"].ToString() : null;
                         string reason = dispObj != null && dispObj["reason"] != null ? dispObj["reason"].ToString() : "إتلاف منتهي الصلاحية";
-                        string userId = dispObj != null && dispObj["userId"] != null ? dispObj["userId"].ToString() : "admin";
+                        string userId = SessionActorId();
 
                         DatabaseService.ProductBatches.DisposeExpiredBatch(batchId, reason, userId);
                         response = BridgeResponse.Ok(request.Id, true);

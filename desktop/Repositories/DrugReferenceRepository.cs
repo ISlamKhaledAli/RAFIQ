@@ -414,7 +414,7 @@ namespace RafiqPOS.Repositories
         public List<ExpiryReturnableBatch> GetExpiryReturnableBatches(string supplierId = null, int? customWindowDays = null)
         {
             var list = new List<ExpiryReturnableBatch>();
-            DateTime today = DateTime.UtcNow.Date;
+            DateTime today = DateTime.Now.Date; // expiry dates are local calendar dates (same as date('now', 'localtime') in SQL)
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -524,7 +524,7 @@ namespace RafiqPOS.Repositories
         public List<ExpiryReturnableBatch> GetExpiredBatches()
         {
             var list = new List<ExpiryReturnableBatch>();
-            DateTime today = DateTime.UtcNow.Date;
+            DateTime today = DateTime.Now.Date; // expiry dates are local calendar dates (same as date('now', 'localtime') in SQL)
 
             using (var conn = new SQLiteConnection(_connectionString))
             {

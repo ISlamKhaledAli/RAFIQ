@@ -20,7 +20,7 @@ import { rafiqAlert } from '../utils/dialogService';
 export interface LicenseExpiryDetails {
   isActive: boolean;
   isExpired: boolean;
-  status: string; // 'active' | 'warning' | 'expired' | 'disabled'
+  status: string; // 'active' | 'warning' | 'expired' | 'disabled' | 'transferred' | 'mismatched'
   statusLabel: string;
   daysRemaining: number;
   expiresAt: string;
@@ -241,7 +241,8 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
 
 
   const isClockIssue = Boolean(expiryInfo?.clockTampered);
-  const isUnlicensed = expiryInfo?.status === 'unlicensed' || (!expiryInfo?.isActive && !expiryInfo?.expiresAt);
+  const isDeviceMismatch = expiryInfo?.status === 'mismatched';
+  const isUnlicensed = !isDeviceMismatch && (expiryInfo?.status === 'unlicensed' || (!expiryInfo?.isActive && !expiryInfo?.expiresAt));
 
   return (
     <div 
@@ -272,6 +273,11 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
                 <Clock className="w-3.5 h-3.5 text-warn dark:text-warn-bright animate-pulse" />
                 تنبيه أمان: عدم دقة ساعة وتاريخ النظام
               </span>
+            ) : isDeviceMismatch ? (
+              <span className="inline-flex items-center gap-1.5 text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 px-3.5 py-1 rounded-full text-xs font-bold shadow-xs">
+                <Lock className="w-3.5 h-3.5 text-danger dark:text-danger-bright" />
+                تنبيه: الترخيص مربوط بجهاز آخر
+              </span>
             ) : isUnlicensed ? (
               <span className="inline-flex items-center gap-1.5 text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 px-3.5 py-1 rounded-full text-xs font-bold shadow-xs">
                 <KeyRound className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
@@ -288,6 +294,8 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-ink-dark mb-1.5">
             {isClockIssue
               ? 'يرجى تصحيح ساعة وتاريخ النظام'
+              : isDeviceMismatch
+              ? 'تم إيقاف البيع: الترخيص مربوط بجهاز آخر'
               : isUnlicensed
               ? 'تفعيل نسخة رفيق POS'
               : 'انتهت فترة اشتراك رفيق POS'}
@@ -296,6 +304,8 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
           <p className="text-xs sm:text-sm text-slate-500 dark:text-ink-muted-dark max-w-md leading-relaxed">
             {isClockIssue
               ? (expiryInfo?.clockTamperMessage || 'تم رصد تراجع في ساعة وتاريخ الجهاز مقارنة بآخر سجل نشاط. يرجى تصحيح التاريخ والوقت للمتابعة.')
+              : isDeviceMismatch
+              ? (expiryInfo?.statusLabel || 'هذا الترخيص مربوط بجهاز آخر. يرجى التواصل مع الدعم الفني لرفيق لفك الربط أو نقل الترخيص.')
               : isUnlicensed
               ? 'يرجى إدخال رمز الترخيص أو كود الفترة التجريبية الممنوح من إدارة رفيق، أو تزويد الدعم الفني ببصمة جهازك للمتابعة.'
               : 'توقفت عمليات البيع مؤقتاً لانتهاء المدة المحددة من إدارة النظام. يمكنك إدخال كود التجديد فوراً أو التحقق من السيرفر.'}

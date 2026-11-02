@@ -57,8 +57,14 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "backup:getRecoveryStatus":
-                    string curCode = DatabaseService.Backup != null ? DatabaseService.Backup.GetOrCreateRecoveryCode() : "";
                     bool isConfirmed = DatabaseService.Settings != null && DatabaseService.Settings.Get("owner_recovery_code_confirmed", "0") == "1";
+                    // The plaintext owner recovery code resets the owner PIN, so only admin/root sessions may ever see it
+                    if (DatabaseService.Security == null || !DatabaseService.Security.IsCurrentSessionAdmin())
+                    {
+                        response = BridgeResponse.Ok(request.Id, new { isConfirmed = isConfirmed });
+                        return true;
+                    }
+                    string curCode = DatabaseService.Backup != null ? DatabaseService.Backup.GetOrCreateRecoveryCode() : "";
                     response = BridgeResponse.Ok(request.Id, new
                     {
                         isConfirmed = isConfirmed,
@@ -103,7 +109,8 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "database:checkIntegrity":
-                    var dbIntegrity = DatabaseService.CheckDatabaseIntegrity();
+                    // A corrupt startup already quarantined the file; re-checking would only pile up quarantine copies
+                    var dbIntegrity = DatabaseService.IsCorrupted ? DatabaseService.IntegrityStatus : DatabaseService.CheckDatabaseIntegrity();
                     response = BridgeResponse.Ok(request.Id, dbIntegrity);
                     return true;
 
@@ -131,6 +138,17 @@ namespace RafiqPOS.Bridge
                             {
                                 restoreMasterKey = rObj["password"].ToString();
                             }
+                        }
+                    }
+                    // The owner recovery code is the restore authorisation: mandatory without a session (corrupt database)
+                    // and, whenever supplied, it must really open the chosen backup
+                    if (DatabaseService.IsCorrupted || !string.IsNullOrWhiteSpace(restoreMasterKey))
+                    {
+                        string recoveryError = DatabaseService.ValidateRecoveryBackup(restoreFilePath, restoreMasterKey);
+                        if (recoveryError != null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "RECOVERY_REJECTED", recoveryError);
+                            return true;
                         }
                     }
                     var restoreResult = DatabaseService.RestoreFromBackup(restoreFilePath, restoreMasterKey);
@@ -385,98 +403,6 @@ namespace RafiqPOS.Bridge
                     }
                     var updateInfo = DatabaseService.Updates.CheckForUpdates(manifestOrUrl);
                     response = BridgeResponse.Ok(request.Id, updateInfo);
-                    return true;
-
-                case "updates:apply":
-                    string pkgPath = null;
-                    string expectedSha = null;
-                    bool simFail = false;
-                    if (request.Payload != null)
-                    {
-                        var pObj = request.Payload as JObject;
-                        if (pObj != null)
-                        {
-                            if (pObj["packagePath"] != null) pkgPath = pObj["packagePath"].ToString();
-                            if (pObj["expectedSha256"] != null) expectedSha = pObj["expectedSha256"].ToString();
-                            if (pObj["simulateFailure"] != null) simFail = pObj["simulateFailure"].Value<bool>();
-                        }
-                    }
-                    var updateApplyRes = DatabaseService.Updates.ApplyUpdate(pkgPath, expectedSha, simFail);
-                    response = BridgeResponse.Ok(request.Id, updateApplyRes);
-                    return true;
-
-                case "updates:download":
-                    string dlUrl = null;
-                    string dlSha = null;
-                    if (request.Payload != null)
-                    {
-                        var pObj = request.Payload as JObject;
-                        if (pObj != null)
-                        {
-                            if (pObj["downloadUrl"] != null) dlUrl = pObj["downloadUrl"].ToString();
-                            if (pObj["expectedSha256"] != null) dlSha = pObj["expectedSha256"].ToString();
-                        }
-                    }
-                    var dlRes = DatabaseService.Updates.DownloadUpdate(dlUrl, dlSha);
-                    response = BridgeResponse.Ok(request.Id, dlRes);
-                    return true;
-
-                case "updates:restart":
-                    string errLaunch = null;
-                    bool okLaunch = DatabaseService.Updates.LaunchRestartUpdater(out errLaunch);
-                    if (okLaunch)
-                    {
-                        response = BridgeResponse.Ok(request.Id, new { success = true, message = "جارٍ إعادة تشغيل وتحديث النظام..." });
-                        var exitThread = new System.Threading.Thread(delegate()
-                        {
-                            System.Threading.Thread.Sleep(500);
-                            System.Windows.Forms.Application.Exit();
-                        });
-                        exitThread.Start();
-                    }
-                    else
-                    {
-                        response = BridgeResponse.Fail(request.Id, "FAILED", errLaunch ?? "تعذر إطلاق عملية التحديث");
-                    }
-                    return true;
-
-                case "updates:browsePackage":
-                    string selectedPkg = null;
-                    var updatePkgThread = new System.Threading.Thread(delegate()
-                    {
-                        using (var ofd = new System.Windows.Forms.OpenFileDialog())
-                        {
-                            ofd.Filter = "حزم تحديث رفيق (*.pkg;*.zip;*.rafiqupdate)|*.pkg;*.zip;*.rafiqupdate|جميع الملفات (*.*)|*.*";
-                            ofd.Title = "اختر حزمة تحديث رفيق من الفلاشة أو المجلد المحلي";
-                            if (ofd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                            {
-                                selectedPkg = ofd.FileName;
-                            }
-                        }
-                    });
-                    updatePkgThread.SetApartmentState(System.Threading.ApartmentState.STA);
-                    updatePkgThread.Start();
-                    updatePkgThread.Join();
-                    response = BridgeResponse.Ok(request.Id, new { selectedPath = selectedPkg, cancelled = string.IsNullOrEmpty(selectedPkg) });
-                    return true;
-
-                case "updates:inspectPackage":
-                    string updateInspectPath = null;
-                    if (request.Payload != null)
-                    {
-                        var pObj = request.Payload as JObject;
-                        if (pObj != null && pObj["packagePath"] != null)
-                        {
-                            updateInspectPath = pObj["packagePath"].ToString();
-                        }
-                    }
-                    var offlineInspectInfo = DatabaseService.Updates.InspectOfflinePackage(updateInspectPath);
-                    response = BridgeResponse.Ok(request.Id, offlineInspectInfo);
-                    return true;
-
-                case "updates:runTests":
-                    var updateTestRes = AppUpdateTestRunner.RunAllTests();
-                    response = BridgeResponse.Ok(request.Id, updateTestRes);
                     return true;
 
                 default:

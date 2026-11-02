@@ -30,6 +30,12 @@ namespace RafiqPOS.Services
 
             lock (SaleService.FinancialWriteLock)
             {
+                // A retry after a UI timeout returns the already-saved expense instead of paying it twice;
+                // the same key with a different expense is rejected (L8 / R3)
+                string requestFingerprint = Common.IdempotencyGuard.Fingerprint("expense", request.AmountPiasters, request.Category, request.Source);
+                Expense existing = _expenseRepo.FindByIdempotency(request.IdempotencyKey, requestFingerprint);
+                if (existing != null) return existing;
+
                 string businessDate = string.IsNullOrEmpty(request.BusinessDate)
                     ? (_dailyClosingService != null ? _dailyClosingService.GetCurrentBusinessDate() : DateTime.Now.ToString("yyyy-MM-dd"))
                     : request.BusinessDate;
@@ -85,6 +91,8 @@ namespace RafiqPOS.Services
                     CreatedBy = string.IsNullOrEmpty(request.CreatedBy) ? "الكاشير" : request.CreatedBy.Trim(),
                     BusinessDate = businessDate,
                     ShiftId = shiftId,
+                    IdempotencyKey = Common.IdempotencyGuard.NormalizeKey(request.IdempotencyKey),
+                    IdempotencyFingerprint = requestFingerprint,
                     CreatedAt = DateTime.UtcNow.ToString("o")
                 };
 

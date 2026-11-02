@@ -164,6 +164,7 @@ namespace RafiqPOS.Services
                 var sale = DatabaseService.Sales.ProcessSale(new Sale
                 {
                     Id = "stress_base_sale",
+                    IsInternalSeed = true,
                     InvoiceNumber = 1,
                     PaymentMethod = "cash",
                     SubtotalPiasters = 5000,

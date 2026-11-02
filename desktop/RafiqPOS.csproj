@@ -88,6 +88,7 @@
     <Compile Include="Bridge\IpcDispatcher.Backup.cs" />
     <Compile Include="Bridge\IpcDispatcher.Excel.cs" />
     <Compile Include="Bridge\IpcDispatcher.System.cs" />
+    <Compile Include="Common\IdempotencyGuard.cs" />
     <Compile Include="Common\Money.cs" />
     <Compile Include="Common\LicenseConfig.cs" />
     <Compile Include="Common\LicenseTokenVerifier.cs" />
@@ -195,6 +196,7 @@
     <Compile Include="Services\DailyClosingService.cs" />
     <Compile Include="Services\BusinessDayHelper.cs" />
     <Compile Include="Services\DrawerCashCalculator.cs" />
+    <Compile Include="Services\ReturnProfitSql.cs" />
     <Compile Include="Services\ExpenseService.cs" />
     <Compile Include="Services\ReportsAndClosingTestRunner.cs" />
     <Compile Include="Services\LicenseService.cs" />
@@ -274,6 +276,7 @@
     <Compile Include="Repositories\DrugInteractionRepository.cs" />
     <Compile Include="Services\DrugInteractionService.cs" />
     <Compile Include="Database\MigrationRunner.Cafe.cs" />
+    <Compile Include="Database\MigrationRunner.Idempotency.cs" />
     <Compile Include="Models\CafeModels.cs" />
     <Compile Include="Repositories\TableRepository.cs" />
     <Compile Include="Services\TableManagementService.cs" />

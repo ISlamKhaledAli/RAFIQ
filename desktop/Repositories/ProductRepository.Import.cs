@@ -47,6 +47,12 @@ namespace RafiqPOS.Repositories
 
         public BatchImportResult ImportBatchAtomic(List<BatchImportItem> items, string duplicateStrategy, string userId = "usr_admin_default")
         {
+            return ImportBatchAtomic(items, duplicateStrategy, userId, true);
+        }
+
+        // canAdjustExistingStock=false (no stock.adjust permission): rows that carry stock for an existing product are rejected
+        public BatchImportResult ImportBatchAtomic(List<BatchImportItem> items, string duplicateStrategy, string userId, bool canAdjustExistingStock)
+        {
             var result = new BatchImportResult();
             if (items == null || items.Count == 0) return result;
 
@@ -81,18 +87,54 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // 2. Preload existing barcodes map (barcode.ToLower() -> product_id)
+                        // 2. Preload existing barcodes map (barcode -> product_id): main, extra, then unit (carton/box) barcodes
                         var existingBarcodeMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                        using (var bcCmd = new SQLiteCommand("SELECT barcode, id FROM products WHERE barcode IS NOT NULL UNION SELECT barcode, product_id FROM product_barcodes WHERE barcode IS NOT NULL;", conn, trans))
+                        string[] barcodeSources =
                         {
+                            "SELECT barcode, id FROM products WHERE barcode IS NOT NULL AND barcode != '' ORDER BY created_at, id;",
+                            "SELECT barcode, product_id FROM product_barcodes WHERE barcode IS NOT NULL AND barcode != '' ORDER BY created_at, product_id;",
+                            "SELECT barcode, product_id FROM product_units WHERE barcode IS NOT NULL AND barcode != '' ORDER BY created_at, product_id;"
+                        };
+                        var productLevelBarcodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        for (int sourceIndex = 0; sourceIndex < barcodeSources.Length; sourceIndex++)
+                        {
+                            string barcodeSql = barcodeSources[sourceIndex];
+                            using (var bcCmd = new SQLiteCommand(barcodeSql, conn, trans))
                             using (var bcReader = bcCmd.ExecuteReader())
                             {
                                 while (bcReader.Read())
                                 {
-                                    string bc = bcReader["barcode"].ToString().Trim();
-                                    string pid = bcReader[1].ToString();
-                                    existingBarcodeMap[bc] = pid;
+                                    string bc = bcReader[0].ToString().Trim();
+                                    if (bc.Length > 0 && !existingBarcodeMap.ContainsKey(bc))
+                                    {
+                                        existingBarcodeMap[bc] = bcReader[1].ToString();
+                                        if (sourceIndex < 2) productLevelBarcodes.Add(bc);
+                                    }
                                 }
+                            }
+                        }
+
+                        // 2b. Package-unit barcodes (carton/box, factor != 1): a row scanned with one of them describes the unit, not the product
+                        var packageUnitBarcodes = new Dictionary<string, ImportUnitMatch>(StringComparer.OrdinalIgnoreCase);
+                        using (var puCmd = new SQLiteCommand(@"
+                            SELECT pu.id, pu.product_id, pu.unit_name, pu.conversion_factor, pu.barcode, p.name AS product_name
+                            FROM product_units pu JOIN products p ON p.id = pu.product_id
+                            WHERE pu.is_base_unit = 0 AND pu.conversion_factor != 1 AND pu.barcode IS NOT NULL AND pu.barcode != ''
+                            ORDER BY pu.created_at, pu.id;", conn, trans))
+                        using (var puReader = puCmd.ExecuteReader())
+                        {
+                            while (puReader.Read())
+                            {
+                                string bc = puReader["barcode"].ToString().Trim();
+                                if (bc.Length == 0 || productLevelBarcodes.Contains(bc) || packageUnitBarcodes.ContainsKey(bc)) continue;
+                                packageUnitBarcodes[bc] = new ImportUnitMatch
+                                {
+                                    UnitId = puReader["id"].ToString(),
+                                    ProductId = puReader["product_id"].ToString(),
+                                    UnitName = puReader["unit_name"].ToString(),
+                                    ConversionFactor = Convert.ToInt64(puReader["conversion_factor"]),
+                                    ProductName = puReader["product_name"].ToString()
+                                };
                             }
                         }
 
@@ -144,21 +186,21 @@ namespace RafiqPOS.Repositories
                             );
                         ";
 
+                        // Only columns present in the sheet are written (NULL keeps the stored value); stock goes through the ledger path
                         string updateProdSql = @"
                             UPDATE products SET
                                 name = @name,
                                 normalized_name = @normName,
-                                category_id = @categoryId,
-                                price_piasters = @price,
-                                cost_piasters = @cost,
-                                stock_quantity_milli = @stock,
-                                min_stock_quantity_milli = @minStock,
-                                unit = @unit,
-                                tax_rate_percent = @tax,
-                                internal_code = @internalCode,
-                                tax_category_code = @taxCategoryCode,
-                                variant_color = @color,
-                                variant_size = @size,
+                                category_id = COALESCE(@categoryId, category_id),
+                                price_piasters = COALESCE(@price, price_piasters),
+                                cost_piasters = COALESCE(@cost, cost_piasters),
+                                min_stock_quantity_milli = COALESCE(@minStock, min_stock_quantity_milli),
+                                unit = COALESCE(@unit, unit),
+                                tax_rate_percent = COALESCE(@tax, tax_rate_percent),
+                                internal_code = COALESCE(@internalCode, internal_code),
+                                tax_category_code = COALESCE(@taxCategoryCode, tax_category_code),
+                                variant_color = COALESCE(@color, variant_color),
+                                variant_size = COALESCE(@size, variant_size),
                                 is_active = 1,
                                 updated_at = @now
                             WHERE id = @pid;
@@ -188,8 +230,8 @@ namespace RafiqPOS.Repositories
 
                         string updUnitSql = @"
                             UPDATE product_units
-                            SET sell_price_piasters = @price,
-                                cost_price_piasters = @cost,
+                            SET sell_price_piasters = COALESCE(@price, sell_price_piasters),
+                                cost_price_piasters = COALESCE(@cost, cost_price_piasters),
                                 updated_at = @now
                             WHERE product_id = @pid AND is_base_unit = 1;
                         ";
@@ -201,7 +243,6 @@ namespace RafiqPOS.Repositories
                         using (var updUnitCmd = new SQLiteCommand(updUnitSql, conn, trans))
                         using (var insBcCmd = new SQLiteCommand("INSERT OR IGNORE INTO product_barcodes (id, product_id, barcode, created_at) VALUES (@pbid, @pid, @bc, @now);", conn, trans))
                         using (var insCatCmd = new SQLiteCommand("INSERT INTO categories (id, name, display_order, is_active, created_at, updated_at) VALUES (@cid, @cname, 0, 1, @cdate, @cdate);", conn, trans))
-                        using (var getOldCmd = new SQLiteCommand("SELECT stock_quantity_milli FROM products WHERE id = @pid LIMIT 1;", conn, trans))
                         {
                             // Initialize parameters
                             insProdCmd.Parameters.Add("@id", System.Data.DbType.String);
@@ -227,7 +268,6 @@ namespace RafiqPOS.Repositories
                             updProdCmd.Parameters.Add("@categoryId", System.Data.DbType.String);
                             updProdCmd.Parameters.Add("@price", System.Data.DbType.Int64);
                             updProdCmd.Parameters.Add("@cost", System.Data.DbType.Int64);
-                            updProdCmd.Parameters.Add("@stock", System.Data.DbType.Int64);
                             updProdCmd.Parameters.Add("@minStock", System.Data.DbType.Int64);
                             updProdCmd.Parameters.Add("@unit", System.Data.DbType.String);
                             updProdCmd.Parameters.Add("@tax", System.Data.DbType.Double);
@@ -269,7 +309,31 @@ namespace RafiqPOS.Repositories
                             insCatCmd.Parameters.Add("@cname", System.Data.DbType.String);
                             insCatCmd.Parameters.Add("@cdate", System.Data.DbType.String);
 
-                            getOldCmd.Parameters.Add("@pid", System.Data.DbType.String);
+                            var inventory = new Services.InventoryService(_connectionString, new StockMovementRepository(_connectionString), this, _auditRepo);
+
+                            Func<string, string> resolveCategory = delegate(string catName)
+                            {
+                                string normCatName = ArabicTextNormalizer.Normalize(catName);
+                                if (categoryMap.ContainsKey(catName))
+                                {
+                                    return categoryMap[catName];
+                                }
+                                if (!string.IsNullOrEmpty(normCatName) && normalizedCategoryMap.ContainsKey(normCatName))
+                                {
+                                    return normalizedCategoryMap[normCatName];
+                                }
+                                string newCategoryId = "cat_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+                                insCatCmd.Parameters["@cid"].Value = newCategoryId;
+                                insCatCmd.Parameters["@cname"].Value = catName;
+                                insCatCmd.Parameters["@cdate"].Value = now;
+                                insCatCmd.ExecuteNonQuery();
+                                categoryMap[catName] = newCategoryId;
+                                if (!string.IsNullOrEmpty(normCatName))
+                                {
+                                    normalizedCategoryMap[normCatName] = newCategoryId;
+                                }
+                                return newCategoryId;
+                            };
 
                             foreach (var item in items)
                             {
@@ -279,38 +343,18 @@ namespace RafiqPOS.Repositories
                                 }
 
                                 // Financial sanity: clamp negative prices/costs to zero
-                                if (item.PricePiasters < 0) item.PricePiasters = 0;
-                                if (item.CostPiasters < 0) item.CostPiasters = 0;
-
-                                // Resolve category with Arabic normalization to prevent duplicate categories
-                                string categoryId = item.CategoryId;
-                                if (string.IsNullOrWhiteSpace(categoryId))
+                                if (item.PricePiasters.HasValue && item.PricePiasters.Value < 0) item.PricePiasters = 0;
+                                if (item.CostPiasters.HasValue && item.CostPiasters.Value < 0) item.CostPiasters = 0;
+                                if (item.StockQuantityMilli.HasValue && item.StockQuantityMilli.Value < 0)
                                 {
-                                    string catName = !string.IsNullOrWhiteSpace(item.CategoryName) ? item.CategoryName.Trim() : "عام";
-                                    string normCatName = ArabicTextNormalizer.Normalize(catName);
+                                    throw new ArgumentException(string.Format("رصيد الصنف '{0}' في ملف الاستيراد لا يمكن أن يكون سالباً.", item.Name.Trim()));
+                                }
 
-                                    if (categoryMap.ContainsKey(catName))
-                                    {
-                                        categoryId = categoryMap[catName];
-                                    }
-                                    else if (!string.IsNullOrEmpty(normCatName) && normalizedCategoryMap.ContainsKey(normCatName))
-                                    {
-                                        categoryId = normalizedCategoryMap[normCatName];
-                                    }
-                                    else
-                                    {
-                                        categoryId = "cat_" + Guid.NewGuid().ToString("N").Substring(0, 8);
-                                        insCatCmd.Parameters["@cid"].Value = categoryId;
-                                        insCatCmd.Parameters["@cname"].Value = catName;
-                                        insCatCmd.Parameters["@cdate"].Value = now;
-                                        insCatCmd.ExecuteNonQuery();
-
-                                        categoryMap[catName] = categoryId;
-                                        if (!string.IsNullOrEmpty(normCatName))
-                                        {
-                                            normalizedCategoryMap[normCatName] = categoryId;
-                                        }
-                                    }
+                                // Category is resolved only when the sheet provides one (Arabic normalization prevents duplicates)
+                                string categoryId = !string.IsNullOrWhiteSpace(item.CategoryId) ? item.CategoryId : null;
+                                if (categoryId == null && !string.IsNullOrWhiteSpace(item.CategoryName))
+                                {
+                                    categoryId = resolveCategory(item.CategoryName.Trim());
                                 }
 
                                 string cleanColor = !string.IsNullOrWhiteSpace(item.VariantColor) ? item.VariantColor.Trim() : "";
@@ -321,10 +365,11 @@ namespace RafiqPOS.Repositories
                                 // Check duplicate barcode or duplicate (name + color + size)
                                 string primaryBarcode = !string.IsNullOrWhiteSpace(item.Barcode) ? item.Barcode.Trim() : null;
                                 string existingProductId = null;
+                                string matchedBarcode = null;
 
                                 if (primaryBarcode != null && existingBarcodeMap.ContainsKey(primaryBarcode))
                                 {
-                                    existingProductId = existingBarcodeMap[primaryBarcode];
+                                    matchedBarcode = primaryBarcode;
                                 }
                                 else if (item.Barcodes != null)
                                 {
@@ -332,10 +377,22 @@ namespace RafiqPOS.Repositories
                                     {
                                         if (!string.IsNullOrWhiteSpace(b) && existingBarcodeMap.ContainsKey(b.Trim()))
                                         {
-                                            existingProductId = existingBarcodeMap[b.Trim()];
+                                            matchedBarcode = b.Trim();
                                             break;
                                         }
                                     }
+                                }
+                                if (matchedBarcode != null)
+                                {
+                                    existingProductId = existingBarcodeMap[matchedBarcode];
+                                }
+
+                                ImportUnitMatch unitMatch;
+                                if (matchedBarcode != null && packageUnitBarcodes.TryGetValue(matchedBarcode, out unitMatch))
+                                {
+                                    // Never rename, reprice or restock the base product from a carton/box row
+                                    ApplyPackageUnitRow(conn, trans, result, strat, item, unitMatch, matchedBarcode, inactiveProductIds.Contains(unitMatch.ProductId), now);
+                                    continue;
                                 }
 
                                 // If not matched by barcode, check if exact name and variant match already exists
@@ -348,76 +405,21 @@ namespace RafiqPOS.Repositories
                                 {
                                     bool isArchived = inactiveProductIds.Contains(existingProductId);
 
+                                    // An absolute stock figure for an existing product is a stock adjustment (same permission as the product card)
+                                    if (item.StockQuantityMilli.HasValue && !canAdjustExistingStock && (isArchived || strat == "update"))
+                                    {
+                                        result.Errors.Add(string.Format("تم رفض صف الصنف '{0}': يحتوي على رصيد لصنف مسجل، وتعديل الرصيد يتطلب صلاحية «تسوية المخزون». احذف عمود الرصيد أو اطلب من المدير.", item.Name.Trim()));
+                                        result.SkippedCount++;
+                                        continue;
+                                    }
+
                                     if (isArchived)
                                     {
-                                        // Product was previously deleted (is_active = 0).
-                                        // Reactivate and restore it with imported data!
-                                        long oldStock = 0;
-                                        getOldCmd.Parameters["@pid"].Value = existingProductId;
-                                        var oldVal = getOldCmd.ExecuteScalar();
-                                        if (oldVal != null && oldVal != DBNull.Value)
-                                        {
-                                            oldStock = Convert.ToInt64(oldVal);
-                                        }
-
-                                        // Update existing product and set is_active = 1
-                                        updProdCmd.Parameters["@pid"].Value = existingProductId;
-                                        updProdCmd.Parameters["@name"].Value = item.Name.Trim();
-                                        updProdCmd.Parameters["@normName"].Value = itemNormName;
-                                        updProdCmd.Parameters["@categoryId"].Value = (object)categoryId ?? DBNull.Value;
-                                        updProdCmd.Parameters["@price"].Value = item.PricePiasters;
-                                        updProdCmd.Parameters["@cost"].Value = item.CostPiasters;
-                                        updProdCmd.Parameters["@stock"].Value = item.StockQuantityMilli;
-                                        updProdCmd.Parameters["@minStock"].Value = item.MinStockQuantityMilli;
-                                        updProdCmd.Parameters["@unit"].Value = item.Unit ?? "piece";
-                                        updProdCmd.Parameters["@tax"].Value = item.TaxRatePercent;
-                                        updProdCmd.Parameters["@internalCode"].Value = (object)item.InternalCode ?? "";
-                                        updProdCmd.Parameters["@taxCategoryCode"].Value = (object)item.TaxCategoryCode ?? "";
-                                        updProdCmd.Parameters["@color"].Value = !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value;
-                                        updProdCmd.Parameters["@size"].Value = !string.IsNullOrEmpty(cleanSize) ? (object)cleanSize : DBNull.Value;
-                                        updProdCmd.Parameters["@now"].Value = now;
+                                        // Product was previously deleted (is_active = 0): reactivate it with the imported data
+                                        BindImportUpdate(updProdCmd, item, existingProductId, itemNormName, categoryId, cleanColor, cleanSize, now);
                                         updProdCmd.ExecuteNonQuery();
-
-                                        if (item.StockQuantityMilli != 0)
-                                        {
-                                            insSmCmd.Parameters["@smId"].Value = Guid.NewGuid().ToString();
-                                            insSmCmd.Parameters["@smPid"].Value = existingProductId;
-                                            insSmCmd.Parameters["@smType"].Value = "INITIAL";
-                                            insSmCmd.Parameters["@smQty"].Value = item.StockQuantityMilli;
-                                            insSmCmd.Parameters["@smRefType"].Value = "RESTORE_IMPORT";
-                                            insSmCmd.Parameters["@smCost"].Value = item.CostPiasters;
-                                            insSmCmd.Parameters["@smNote"].Value = "استعادة وتنشيط الصنف من ملف الإكسل";
-                                            insSmCmd.Parameters["@now"].Value = now;
-                                            insSmCmd.ExecuteNonQuery();
-                                        }
-
-                                        // Synchronize base unit in product_units
-                                        try
-                                        {
-                                            updUnitCmd.Parameters["@pid"].Value = existingProductId;
-                                            updUnitCmd.Parameters["@price"].Value = item.PricePiasters;
-                                            updUnitCmd.Parameters["@cost"].Value = item.CostPiasters;
-                                            updUnitCmd.Parameters["@now"].Value = now;
-                                            int rows = updUnitCmd.ExecuteNonQuery();
-                                            if (rows == 0)
-                                            {
-                                                string uName = !string.IsNullOrWhiteSpace(item.Unit) ? item.Unit.Trim() : "قطعة";
-                                                bool isDiv = uName.Equals("kg", StringComparison.OrdinalIgnoreCase) ||
-                                                             uName.Equals("كيلو", StringComparison.OrdinalIgnoreCase) ||
-                                                             uName.Equals("كجم", StringComparison.OrdinalIgnoreCase);
-
-                                                insUnitCmd.Parameters["@id"].Value = "punit_" + existingProductId;
-                                                insUnitCmd.Parameters["@productId"].Value = existingProductId;
-                                                insUnitCmd.Parameters["@unitName"].Value = uName;
-                                                insUnitCmd.Parameters["@sellPrice"].Value = item.PricePiasters;
-                                                insUnitCmd.Parameters["@costPrice"].Value = item.CostPiasters;
-                                                insUnitCmd.Parameters["@barcode"].Value = string.IsNullOrWhiteSpace(primaryBarcode) ? (object)DBNull.Value : primaryBarcode;
-                                                insUnitCmd.Parameters["@isDivisible"].Value = isDiv ? 1 : 0;
-                                                insUnitCmd.Parameters["@now"].Value = now;
-                                                insUnitCmd.ExecuteNonQuery();
-                                            }
-                                        }
-                                        catch { }
+                                        ApplyImportedStock(conn, trans, inventory, result, existingProductId, item, userId, "RESTORE_IMPORT", "استعادة وتنشيط الصنف من ملف الإكسل");
+                                        SyncImportedBaseUnit(updUnitCmd, insUnitCmd, existingProductId, item, primaryBarcode, now);
 
                                         // Insert additional barcodes if provided
                                         if (item.Barcodes != null && item.Barcodes.Count > 0)
@@ -429,6 +431,11 @@ namespace RafiqPOS.Repositories
                                                     string trimmedB = b.Trim();
                                                     if (!string.Equals(trimmedB, primaryBarcode, StringComparison.OrdinalIgnoreCase))
                                                     {
+                                                        string owner;
+                                                        if (existingBarcodeMap.TryGetValue(trimmedB, out owner) && !string.Equals(owner, existingProductId, StringComparison.OrdinalIgnoreCase))
+                                                        {
+                                                            throw new InvalidOperationException(string.Format("الباركود '{0}' للصنف '{1}' مسجل لصنف آخر في النظام. صحح الملف ثم أعد الاستيراد.", trimmedB, item.Name.Trim()));
+                                                        }
                                                         insBcCmd.Parameters["@pbid"].Value = "pbc_" + Guid.NewGuid().ToString("N");
                                                         insBcCmd.Parameters["@pid"].Value = existingProductId;
                                                         insBcCmd.Parameters["@bc"].Value = trimmedB;
@@ -455,56 +462,15 @@ namespace RafiqPOS.Repositories
                                     }
                                     else if (strat == "update")
                                     {
-                                        long oldStock = 0;
-                                        getOldCmd.Parameters["@pid"].Value = existingProductId;
-                                        var oldVal = getOldCmd.ExecuteScalar();
-                                        if (oldVal != null && oldVal != DBNull.Value)
-                                        {
-                                            oldStock = Convert.ToInt64(oldVal);
-                                        }
-                                        long deltaStock = item.StockQuantityMilli - oldStock;
-
-                                        // Update existing product including variant_color and variant_size
-                                        updProdCmd.Parameters["@pid"].Value = existingProductId;
-                                        updProdCmd.Parameters["@name"].Value = item.Name.Trim();
-                                        updProdCmd.Parameters["@normName"].Value = itemNormName;
-                                        updProdCmd.Parameters["@categoryId"].Value = (object)categoryId ?? DBNull.Value;
-                                        updProdCmd.Parameters["@price"].Value = item.PricePiasters;
-                                        updProdCmd.Parameters["@cost"].Value = item.CostPiasters;
-                                        updProdCmd.Parameters["@stock"].Value = item.StockQuantityMilli;
-                                        updProdCmd.Parameters["@minStock"].Value = item.MinStockQuantityMilli;
-                                        updProdCmd.Parameters["@unit"].Value = item.Unit ?? "piece";
-                                        updProdCmd.Parameters["@tax"].Value = item.TaxRatePercent;
-                                        updProdCmd.Parameters["@internalCode"].Value = (object)item.InternalCode ?? "";
-                                        updProdCmd.Parameters["@taxCategoryCode"].Value = (object)item.TaxCategoryCode ?? "";
-                                        updProdCmd.Parameters["@color"].Value = !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value;
-                                        updProdCmd.Parameters["@size"].Value = !string.IsNullOrEmpty(cleanSize) ? (object)cleanSize : DBNull.Value;
-                                        updProdCmd.Parameters["@now"].Value = now;
+                                        BindImportUpdate(updProdCmd, item, existingProductId, itemNormName, categoryId, cleanColor, cleanSize, now);
                                         updProdCmd.ExecuteNonQuery();
+                                        ApplyImportedStock(conn, trans, inventory, result, existingProductId, item, userId, "IMPORT_UPDATE", "تسوية رصيد ناتجة عن تحديث ملف إكسل");
 
-                                        if (deltaStock != 0)
-                                        {
-                                            insSmCmd.Parameters["@smId"].Value = Guid.NewGuid().ToString();
-                                            insSmCmd.Parameters["@smPid"].Value = existingProductId;
-                                            insSmCmd.Parameters["@smType"].Value = "ADJUSTMENT";
-                                            insSmCmd.Parameters["@smQty"].Value = deltaStock;
-                                            insSmCmd.Parameters["@smRefType"].Value = "IMPORT_UPDATE";
-                                            insSmCmd.Parameters["@smCost"].Value = item.CostPiasters;
-                                            insSmCmd.Parameters["@smNote"].Value = "تسوية رصيد ناتجة عن تحديث ملف إكسل";
-                                            insSmCmd.Parameters["@now"].Value = now;
-                                            insSmCmd.ExecuteNonQuery();
-                                        }
-
-                                        // Synchronize base unit in product_units
-                                        try
-                                        {
-                                            updUnitCmd.Parameters["@pid"].Value = existingProductId;
-                                            updUnitCmd.Parameters["@price"].Value = item.PricePiasters;
-                                            updUnitCmd.Parameters["@cost"].Value = item.CostPiasters;
-                                            updUnitCmd.Parameters["@now"].Value = now;
-                                            updUnitCmd.ExecuteNonQuery();
-                                        }
-                                        catch { }
+                                        updUnitCmd.Parameters["@pid"].Value = existingProductId;
+                                        updUnitCmd.Parameters["@price"].Value = item.PricePiasters.HasValue ? (object)item.PricePiasters.Value : DBNull.Value;
+                                        updUnitCmd.Parameters["@cost"].Value = item.CostPiasters.HasValue ? (object)item.CostPiasters.Value : DBNull.Value;
+                                        updUnitCmd.Parameters["@now"].Value = now;
+                                        updUnitCmd.ExecuteNonQuery();
 
                                         result.UpdatedCount++;
                                         continue;
@@ -518,6 +484,9 @@ namespace RafiqPOS.Repositories
 
                                 // Fresh Insert
                                 string newId = Guid.NewGuid().ToString();
+                                long newPrice = item.PricePiasters.HasValue ? item.PricePiasters.Value : 0;
+                                long newCost = item.CostPiasters.HasValue ? item.CostPiasters.Value : 0;
+                                long newStock = item.StockQuantityMilli.HasValue ? item.StockQuantityMilli.Value : 0;
                                 if (string.IsNullOrWhiteSpace(primaryBarcode))
                                 {
                                     uint hash = (uint)newId.GetHashCode();
@@ -533,13 +502,13 @@ namespace RafiqPOS.Repositories
                                 insProdCmd.Parameters["@internalCode"].Value = (object)item.InternalCode ?? "";
                                 insProdCmd.Parameters["@name"].Value = item.Name.Trim();
                                 insProdCmd.Parameters["@normName"].Value = itemNormName;
-                                insProdCmd.Parameters["@categoryId"].Value = (object)categoryId ?? DBNull.Value;
-                                insProdCmd.Parameters["@price"].Value = item.PricePiasters;
-                                insProdCmd.Parameters["@cost"].Value = item.CostPiasters;
-                                insProdCmd.Parameters["@stock"].Value = item.StockQuantityMilli;
-                                insProdCmd.Parameters["@minStock"].Value = item.MinStockQuantityMilli;
-                                insProdCmd.Parameters["@unit"].Value = item.Unit ?? "piece";
-                                insProdCmd.Parameters["@tax"].Value = item.TaxRatePercent;
+                                insProdCmd.Parameters["@categoryId"].Value = categoryId ?? resolveCategory("عام");
+                                insProdCmd.Parameters["@price"].Value = newPrice;
+                                insProdCmd.Parameters["@cost"].Value = newCost;
+                                insProdCmd.Parameters["@stock"].Value = newStock;
+                                insProdCmd.Parameters["@minStock"].Value = item.MinStockQuantityMilli.HasValue ? item.MinStockQuantityMilli.Value : DefaultImportMinStockMilli;
+                                insProdCmd.Parameters["@unit"].Value = !string.IsNullOrWhiteSpace(item.Unit) ? item.Unit.Trim() : "piece";
+                                insProdCmd.Parameters["@tax"].Value = item.TaxRatePercent.HasValue ? item.TaxRatePercent.Value : 0;
                                 insProdCmd.Parameters["@taxCategoryCode"].Value = (object)item.TaxCategoryCode ?? "";
                                 insProdCmd.Parameters["@color"].Value = !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value;
                                 insProdCmd.Parameters["@size"].Value = !string.IsNullOrEmpty(cleanSize) ? (object)cleanSize : DBNull.Value;
@@ -582,8 +551,8 @@ namespace RafiqPOS.Repositories
                                     insUnitCmd.Parameters["@id"].Value = "punit_" + newId;
                                     insUnitCmd.Parameters["@productId"].Value = newId;
                                     insUnitCmd.Parameters["@unitName"].Value = uName;
-                                    insUnitCmd.Parameters["@sellPrice"].Value = item.PricePiasters;
-                                    insUnitCmd.Parameters["@costPrice"].Value = item.CostPiasters;
+                                    insUnitCmd.Parameters["@sellPrice"].Value = newPrice;
+                                    insUnitCmd.Parameters["@costPrice"].Value = newCost;
                                     insUnitCmd.Parameters["@barcode"].Value = string.IsNullOrWhiteSpace(primaryBarcode) ? (object)DBNull.Value : primaryBarcode;
                                     insUnitCmd.Parameters["@isDivisible"].Value = isDiv ? 1 : 0;
                                     insUnitCmd.Parameters["@now"].Value = now;
@@ -592,14 +561,14 @@ namespace RafiqPOS.Repositories
                                 catch { }
 
                                 // Record Initial Stock Movement (Task 21-5 & Feature #35)
-                                if (item.StockQuantityMilli != 0)
+                                if (newStock != 0)
                                 {
                                     insSmCmd.Parameters["@smId"].Value = Guid.NewGuid().ToString();
                                     insSmCmd.Parameters["@smPid"].Value = newId;
                                     insSmCmd.Parameters["@smType"].Value = "INITIAL";
-                                    insSmCmd.Parameters["@smQty"].Value = item.StockQuantityMilli;
+                                    insSmCmd.Parameters["@smQty"].Value = newStock;
                                     insSmCmd.Parameters["@smRefType"].Value = "INITIAL_IMPORT";
-                                    insSmCmd.Parameters["@smCost"].Value = item.CostPiasters;
+                                    insSmCmd.Parameters["@smCost"].Value = newCost;
                                     insSmCmd.Parameters["@smNote"].Value = "رصيد افتتاحي مسجل من استيراد إكسل";
                                     insSmCmd.Parameters["@now"].Value = now;
                                     insSmCmd.ExecuteNonQuery();
@@ -659,6 +628,132 @@ namespace RafiqPOS.Repositories
                     }
                 }
             }
+        }
+
+        private const long DefaultImportMinStockMilli = 5000;
+
+        private class ImportUnitMatch
+        {
+            public string UnitId;
+            public string ProductId;
+            public string UnitName;
+            public long ConversionFactor;
+            public string ProductName;
+        }
+
+        // A row whose barcode is a package unit's: update only that unit's prices; its stock is never applied because
+        // a count of cartons says nothing about loose pieces of the same product
+        private static void ApplyPackageUnitRow(SQLiteConnection conn, SQLiteTransaction trans, BatchImportResult result, string strategy, BatchImportItem item, ImportUnitMatch unit, string barcode, bool productArchived, string now)
+        {
+            string rowLabel = string.Format("الصف '{0}' (باركود {1})", item.Name.Trim(), barcode);
+            if (strategy == "error")
+            {
+                throw new InvalidOperationException(string.Format("{0} هو باركود وحدة «{1}» للصنف '{2}' المسجل مسبقاً.", rowLabel, unit.UnitName, unit.ProductName));
+            }
+            if (strategy != "update")
+            {
+                result.SkippedCount++;
+                return;
+            }
+            if (productArchived)
+            {
+                result.Errors.Add(string.Format("{0}: باركود وحدة «{1}» لصنف مؤرشف '{2}'؛ استعد الصنف بصف الوحدة الأساسية.", rowLabel, unit.UnitName, unit.ProductName));
+                result.SkippedCount++;
+                return;
+            }
+
+            bool hasPrices = item.PricePiasters.HasValue || item.CostPiasters.HasValue;
+            if (hasPrices)
+            {
+                using (var cmd = new SQLiteCommand(@"
+                    UPDATE product_units
+                    SET sell_price_piasters = COALESCE(@price, sell_price_piasters),
+                        cost_price_piasters = COALESCE(@cost, cost_price_piasters),
+                        updated_at = @now
+                    WHERE id = @uid;", conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@price", item.PricePiasters.HasValue ? (object)item.PricePiasters.Value : DBNull.Value);
+                    cmd.Parameters.AddWithValue("@cost", item.CostPiasters.HasValue ? (object)item.CostPiasters.Value : DBNull.Value);
+                    cmd.Parameters.AddWithValue("@now", now);
+                    cmd.Parameters.AddWithValue("@uid", unit.UnitId);
+                    cmd.ExecuteNonQuery();
+                }
+                result.UpdatedCount++;
+            }
+            else
+            {
+                result.SkippedCount++;
+            }
+
+            if (item.StockQuantityMilli.HasValue)
+            {
+                result.Errors.Add(string.Format("{0}: باركود وحدة «{1}» (×{2}) للصنف '{3}'؛ {4}لم يُطبَّق الرصيد. سجّل رصيد الصنف في صف الوحدة الأساسية.",
+                    rowLabel, unit.UnitName, unit.ConversionFactor, unit.ProductName, hasPrices ? "حُدِّث سعر الوحدة فقط و" : ""));
+            }
+        }
+
+        private static object OptionalText(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? (object)DBNull.Value : value.Trim();
+        }
+
+        private static void BindImportUpdate(SQLiteCommand cmd, BatchImportItem item, string productId, string normName, string categoryId, string color, string size, string now)
+        {
+            cmd.Parameters["@pid"].Value = productId;
+            cmd.Parameters["@name"].Value = item.Name.Trim();
+            cmd.Parameters["@normName"].Value = normName;
+            cmd.Parameters["@categoryId"].Value = OptionalText(categoryId);
+            cmd.Parameters["@price"].Value = item.PricePiasters.HasValue ? (object)item.PricePiasters.Value : DBNull.Value;
+            cmd.Parameters["@cost"].Value = item.CostPiasters.HasValue ? (object)item.CostPiasters.Value : DBNull.Value;
+            cmd.Parameters["@minStock"].Value = item.MinStockQuantityMilli.HasValue ? (object)item.MinStockQuantityMilli.Value : DBNull.Value;
+            cmd.Parameters["@unit"].Value = OptionalText(item.Unit);
+            cmd.Parameters["@tax"].Value = item.TaxRatePercent.HasValue ? (object)item.TaxRatePercent.Value : DBNull.Value;
+            cmd.Parameters["@internalCode"].Value = OptionalText(item.InternalCode);
+            cmd.Parameters["@taxCategoryCode"].Value = OptionalText(item.TaxCategoryCode);
+            cmd.Parameters["@color"].Value = OptionalText(color);
+            cmd.Parameters["@size"].Value = OptionalText(size);
+            cmd.Parameters["@now"].Value = now;
+        }
+
+        // An imported stock figure is an absolute count: recorded as an adjustment (ledger + variants + FEFO batch sync)
+        private static void ApplyImportedStock(SQLiteConnection conn, SQLiteTransaction trans, Services.InventoryService inventory, BatchImportResult result, string productId, BatchImportItem item, string userId, string referenceType, string reason)
+        {
+            if (!item.StockQuantityMilli.HasValue) return;
+
+            using (var cmd = new SQLiteCommand("SELECT COALESCE(has_variants, 0) FROM products WHERE id = @pid;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@pid", productId);
+                if (Convert.ToInt32(cmd.ExecuteScalar()) == 1)
+                {
+                    result.Errors.Add(string.Format("تم تجاهل رصيد الصنف '{0}' لأنه صنف أب رصيده مجموع متغيراته؛ عدّل رصيد كل متغير على حدة.", item.Name.Trim()));
+                    return;
+                }
+            }
+
+            inventory.AdjustStockInTransaction(conn, trans, productId, item.StockQuantityMilli.Value, reason, string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId, null, referenceType);
+        }
+
+        private static void SyncImportedBaseUnit(SQLiteCommand updUnitCmd, SQLiteCommand insUnitCmd, string productId, BatchImportItem item, string primaryBarcode, string now)
+        {
+            updUnitCmd.Parameters["@pid"].Value = productId;
+            updUnitCmd.Parameters["@price"].Value = item.PricePiasters.HasValue ? (object)item.PricePiasters.Value : DBNull.Value;
+            updUnitCmd.Parameters["@cost"].Value = item.CostPiasters.HasValue ? (object)item.CostPiasters.Value : DBNull.Value;
+            updUnitCmd.Parameters["@now"].Value = now;
+            if (updUnitCmd.ExecuteNonQuery() > 0) return;
+
+            string uName = !string.IsNullOrWhiteSpace(item.Unit) ? item.Unit.Trim() : "قطعة";
+            bool isDiv = uName.Equals("kg", StringComparison.OrdinalIgnoreCase) ||
+                         uName.Equals("كيلو", StringComparison.OrdinalIgnoreCase) ||
+                         uName.Equals("كجم", StringComparison.OrdinalIgnoreCase);
+            insUnitCmd.Parameters["@id"].Value = "punit_" + productId;
+            insUnitCmd.Parameters["@productId"].Value = productId;
+            insUnitCmd.Parameters["@unitName"].Value = uName;
+            insUnitCmd.Parameters["@sellPrice"].Value = item.PricePiasters.HasValue ? item.PricePiasters.Value : 0;
+            insUnitCmd.Parameters["@costPrice"].Value = item.CostPiasters.HasValue ? item.CostPiasters.Value : 0;
+            insUnitCmd.Parameters["@barcode"].Value = string.IsNullOrWhiteSpace(primaryBarcode) ? (object)DBNull.Value : primaryBarcode;
+            insUnitCmd.Parameters["@isDivisible"].Value = isDiv ? 1 : 0;
+            insUnitCmd.Parameters["@now"].Value = now;
+            insUnitCmd.ExecuteNonQuery();
         }
     }
 }

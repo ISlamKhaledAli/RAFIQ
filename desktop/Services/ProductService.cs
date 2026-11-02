@@ -53,6 +53,27 @@ namespace RafiqPOS.Services
             _movementRepo = movementRepo;
         }
 
+        private InventoryService CreateInventoryService()
+        {
+            string cs = _repo.ConnectionString;
+            return new InventoryService(cs, _movementRepo ?? new StockMovementRepository(cs), _repo, _auditRepo);
+        }
+
+        // Server-side gate for stock edits; calls without a signed-in session (internal jobs/tests) are trusted
+        private static bool CanAdjustStock()
+        {
+            if (SecurityService.CurrentUser == null) return true;
+            return DatabaseService.Security != null && DatabaseService.Security.HasPermission("stock.adjust");
+        }
+
+        private static void EnsureCanAdjustStock()
+        {
+            if (!CanAdjustStock())
+            {
+                throw new UnauthorizedAccessException("ليس لديك صلاحية تسوية المخزون. تعديل الرصيد من بطاقة الصنف يتطلب صلاحية «تسوية المخزون».");
+            }
+        }
+
         public static long CalculateProfitPiasters(long pricePiasters, long costPiasters)
         {
             return pricePiasters - costPiasters;
@@ -187,17 +208,35 @@ namespace RafiqPOS.Services
                 product.Barcodes = cleanedBarcodes;
             }
 
+            // Unit (carton/box) barcodes are scanned at the POS too, so they must not belong to another product
+            if (product.Units != null)
+            {
+                var seenUnitCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var u in product.Units)
+                {
+                    if (u == null || string.IsNullOrWhiteSpace(u.Barcode)) continue;
+                    string unitCode = u.Barcode.Trim();
+                    if (!seenUnitCodes.Add(unitCode))
+                    {
+                        throw new InvalidOperationException("الباركود '" + unitCode + "' مكرر على أكثر من وحدة لنفس الصنف");
+                    }
+                    if (!seenInProduct.Contains(unitCode))
+                    {
+                        codesToCheck.Add(unitCode);
+                    }
+                }
+            }
+
             foreach (var code in codesToCheck)
             {
-                var existingOwner = _repo.GetOwnerOfBarcode(code);
-                if (existingOwner != null && existingOwner.Id != product.Id)
+                var existingOwner = _repo.GetOwnerOfBarcode(code, product.Id);
+                if (existingOwner != null)
                 {
                     throw new InvalidOperationException("الباركود '" + code + "' مسجل بالفعل لمنتج آخر: " + existingOwner.Name);
                 }
             }
 
             Product existing = null;
-            long stockDeltaMilli = 0;
 
             lock (SaleService.FinancialWriteLock)
             {
@@ -210,25 +249,59 @@ namespace RafiqPOS.Services
                     product.Id = Guid.NewGuid().ToString();
                 }
 
+                Action<System.Data.SQLite.SQLiteConnection, System.Data.SQLite.SQLiteTransaction> stockLedgerStep = null;
+                string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+
                 if (existing != null)
                 {
                     // Invariant (Scenario S4): Editing product metadata must never overwrite live in-flight stock deduction or addition.
                     // Live inventory is managed exclusively via Sales, Purchases, Returns, and AdjustStock.
                     bool stockUnchangedFromSnapshot = product.OriginalStockQuantityMilli.HasValue
                         && product.StockQuantityMilli == product.OriginalStockQuantityMilli.Value;
+                    long requestedStockMilli = product.StockQuantityMilli;
 
-                    if (existing.HasVariants || stockUnchangedFromSnapshot)
+                    if (!existing.HasVariants && !stockUnchangedFromSnapshot && requestedStockMilli != existing.StockQuantityMilli)
                     {
-                        product.StockQuantityMilli = existing.StockQuantityMilli;
+                        // A stock edit on the product card is a stock adjustment: same permission, reason and ledger path
+                        EnsureCanAdjustStock();
+                        if (string.IsNullOrWhiteSpace(product.StockAdjustReason))
+                        {
+                            throw new ArgumentException("سبب تعديل الرصيد إجباري عند تغيير رصيد الصنف من بطاقة الصنف");
+                        }
+                        if (requestedStockMilli < 0)
+                        {
+                            throw new ArgumentException("الرصيد الفعلي بعد التسوية لا يمكن أن يكون سالباً");
+                        }
+                        string reason = product.StockAdjustReason.Trim();
+                        string productId = product.Id;
+                        InventoryService inventory = CreateInventoryService();
+                        stockLedgerStep = delegate(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans)
+                        {
+                            inventory.AdjustStockInTransaction(conn, trans, productId, requestedStockMilli, reason, actorId, null, "PRODUCT_CARD_EDIT");
+                        };
                     }
-                    else if (product.StockQuantityMilli != existing.StockQuantityMilli)
-                    {
-                        stockDeltaMilli = product.StockQuantityMilli - existing.StockQuantityMilli;
-                    }
+                    // The save itself keeps the live stock; only the adjustment step may change it
+                    product.StockQuantityMilli = existing.StockQuantityMilli;
                 }
                 else if (product.StockQuantityMilli != 0)
                 {
-                    stockDeltaMilli = product.StockQuantityMilli;
+                    StockMovement initial = new StockMovement
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        ProductId = product.Id,
+                        MovementType = "INITIAL",
+                        QuantityMilli = product.StockQuantityMilli,
+                        ReferenceId = product.Id,
+                        ReferenceType = "INITIAL_CREATION",
+                        UnitCostPiasters = product.CostPiasters,
+                        Note = "رصيد افتتاحي عند تعريف الصنف",
+                        CreatedAt = DateTime.UtcNow.ToString("o")
+                    };
+                    StockMovementRepository movementRepo = _movementRepo ?? new StockMovementRepository(_repo.ConnectionString);
+                    stockLedgerStep = delegate(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans)
+                    {
+                        movementRepo.Add(initial, conn, trans);
+                    };
                 }
 
                 if (string.IsNullOrWhiteSpace(product.CreatedAt))
@@ -239,8 +312,14 @@ namespace RafiqPOS.Services
                 product.UpdatedAt = DateTime.UtcNow.ToString("o");
                 product.IsActive = true;
 
-                _repo.Upsert(product);
+                _repo.Upsert(product, stockLedgerStep);
+                if (existing != null && stockLedgerStep != null)
+                {
+                    var saved = _repo.GetById(product.Id);
+                    if (saved != null) product.StockQuantityMilli = saved.StockQuantityMilli;
+                }
                 product.OriginalStockQuantityMilli = product.StockQuantityMilli;
+                product.StockAdjustReason = null;
             }
 
             // Audit logging for sensitive changes (Feature #7)
@@ -273,17 +352,6 @@ namespace RafiqPOS.Services
                                 DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldCost\":{1},\"newCost\":{2}}}", product.Name, existing.CostPiasters, product.CostPiasters)
                             });
                         }
-                        if (existing.StockQuantityMilli != product.StockQuantityMilli)
-                        {
-                            _auditRepo.Log(new AuditLog
-                            {
-                                UserId = actorId,
-                                Action = "stock_update",
-                                EntityType = "product",
-                                EntityId = product.Id,
-                                DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldStock\":{1},\"newStock\":{2}}}", product.Name, existing.StockQuantityMilli, product.StockQuantityMilli)
-                            });
-                        }
                     }
                     else
                     {
@@ -300,49 +368,6 @@ namespace RafiqPOS.Services
                 catch
                 {
                     // Audit failure should not break product flow if non-critical
-                }
-            }
-
-            // Stock movements ledger recording (Feature #35 / Tasks 35-1 & 35-2)
-            if (_movementRepo != null && stockDeltaMilli != 0)
-            {
-                try
-                {
-                    if (existing == null)
-                    {
-                        _movementRepo.Add(new StockMovement
-                        {
-                            Id = Guid.NewGuid().ToString(),
-                            ProductId = product.Id,
-                            MovementType = "INITIAL",
-                            QuantityMilli = product.StockQuantityMilli,
-                            ReferenceId = product.Id,
-                            ReferenceType = "INITIAL_CREATION",
-                            UnitCostPiasters = product.CostPiasters,
-                            Note = "رصيد افتتاحي عند تعريف الصنف",
-                            CreatedAt = DateTime.UtcNow.ToString("o")
-                        });
-                    }
-                    else
-                    {
-                        _movementRepo.Add(new StockMovement
-                        {
-                            Id = Guid.NewGuid().ToString(),
-                            ProductId = product.Id,
-                            MovementType = "INVENTORY_ADJUSTMENT",
-                            QuantityMilli = stockDeltaMilli,
-                            ReferenceId = product.Id,
-                            ReferenceType = "PRODUCT_CARD_EDIT",
-                            UnitCostPiasters = product.CostPiasters,
-                            Note = string.Format("تعديل رصيد المخزون من بطاقة الصنف (السابق: {0:0.###}، الجديد: {1:0.###})",
-                                existing.StockQuantityMilli / 1000.0, product.StockQuantityMilli / 1000.0),
-                            CreatedAt = DateTime.UtcNow.ToString("o")
-                        });
-                    }
-                }
-                catch (Exception smEx)
-                {
-                    Logger.Warn("تعذر تسجيل حركة المخزون للصنف: " + smEx.Message);
                 }
             }
 
@@ -498,7 +523,7 @@ namespace RafiqPOS.Services
 
             lock (SaleService.FinancialWriteLock)
             {
-                return _repo.ImportBatchAtomic(request.Items, request.DuplicateStrategy, userId);
+                return _repo.ImportBatchAtomic(request.Items, request.DuplicateStrategy, userId, CanAdjustStock());
             }
         }
 

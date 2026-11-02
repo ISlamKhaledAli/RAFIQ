@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Globalization;
 using RafiqPOS.Models;
 
 namespace RafiqPOS.Repositories
@@ -301,7 +302,7 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public Customer RecordPayment(string customerId, long amountPiasters, string notes, string shiftId = null, string paymentMethod = "cash", string digitalAccountId = null)
+        public Customer RecordPayment(string customerId, long amountPiasters, string notes, string shiftId = null, string paymentMethod = "cash", string digitalAccountId = null, string idempotencyKey = null)
         {
             if (string.IsNullOrWhiteSpace(customerId)) throw new ArgumentException("معرف العميل مطلوب");
             if (amountPiasters <= 0) throw new ArgumentException("مبلغ السداد يجب أن يكون أكبر من الصفر");
@@ -317,6 +318,17 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        // A retry after a UI timeout returns the already-recorded payment instead of a second one;
+                        // the same key with different payment data is rejected (L8 / R3)
+                        string requestFingerprint = Common.IdempotencyGuard.Fingerprint("customer_payment", customerId, amountPiasters,
+                            string.IsNullOrWhiteSpace(paymentMethod) ? "cash" : paymentMethod, digitalAccountId);
+                        string paidCustomer = Common.IdempotencyGuard.FindExisting(conn, trans, "customer_ledger", "customer_id", idempotencyKey, requestFingerprint);
+                        if (paidCustomer != null)
+                        {
+                            trans.Commit();
+                            return GetById(paidCustomer);
+                        }
+
                         long currentBalance = 0;
                         string customerName = "";
                         bool isArchived = false;
@@ -373,10 +385,10 @@ namespace RafiqPOS.Repositories
                         string fetchSalesSql = @"
                             SELECT s.id, s.invoice_number, s.total_piasters, s.paid_piasters, COALESCE(s.service_fee_piasters, 0) AS service_fee_piasters,
                                    s.total_piasters - (s.paid_piasters - COALESCE(s.service_fee_piasters, 0)) -
-                                   COALESCE((SELECT SUM(da.amount_piasters) FROM debt_allocations da WHERE da.sale_id = s.id AND da.type = 'payment'), 0) +
+                                   COALESCE((SELECT SUM(da.amount_piasters) FROM debt_allocations da WHERE da.sale_id = s.id AND da.type = 'payment'), 0) -
                                    COALESCE((SELECT SUM(da.amount_piasters) FROM debt_allocations da WHERE da.sale_id = s.id AND da.type = 'refund'), 0) AS unpaid_piasters
                             FROM sales s
-                            WHERE s.customer_id = @cid AND s.status = 'completed'
+                            WHERE s.customer_id = @cid AND s.status IN ('completed', 'partially_refunded', 'refunded')
                             ORDER BY s.created_at ASC, s.invoice_number ASC;
                         ";
                         using (var sCmd = new SQLiteCommand(fetchSalesSql, conn, trans))
@@ -497,7 +509,7 @@ namespace RafiqPOS.Repositories
 
                         // F-07: Process non-cash digital payment if paid via wallet or instapay
                         string pm = string.IsNullOrWhiteSpace(paymentMethod) ? "cash" : paymentMethod.ToLowerInvariant();
-                        if (pm == "wallet" || pm == "instapay" || pm == "vodafone_cash" || pm == "card" || !string.IsNullOrEmpty(digitalAccountId))
+                        if (IsDigitalPaymentMethod(pm, digitalAccountId))
                         {
                             if (string.IsNullOrEmpty(digitalAccountId))
                             {
@@ -568,8 +580,8 @@ namespace RafiqPOS.Repositories
 
                         // Insert ledger entry
                         string ledgerSql = @"
-                            INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, shift_id, payment_method, digital_account_id, created_at)
-                            VALUES (@lid, @cid, 'payment', NULL, @amt, @after, @notes, @shiftId, @pm, @daId, @cat);
+                            INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, shift_id, payment_method, digital_account_id, idempotency_key, idempotency_fingerprint, created_at)
+                            VALUES (@lid, @cid, 'payment', NULL, @amt, @after, @notes, @shiftId, @pm, @daId, @idemKey, @idemFp, @cat);
                         ";
                         using (var cmd = new SQLiteCommand(ledgerSql, conn, trans))
                         {
@@ -581,6 +593,8 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@shiftId", (object)shiftId ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@pm", pm);
                             cmd.Parameters.AddWithValue("@daId", (object)digitalAccountId ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idemKey", (object)Common.IdempotencyGuard.NormalizeKey(idempotencyKey) ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idemFp", requestFingerprint);
                             cmd.Parameters.AddWithValue("@cat", now);
                             cmd.ExecuteNonQuery();
                         }
@@ -696,56 +710,60 @@ namespace RafiqPOS.Repositories
                             throw new InvalidOperationException("لا يمكن إلغاء دفعة نقدية لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                         }
 
-                        bool isDigitalPayment = origPaymentMethod == "wallet" || origPaymentMethod == "instapay" || origPaymentMethod == "vodafone_cash";
-                        if (isDigitalPayment && !string.IsNullOrEmpty(origDigitalAccountId))
+                        // Same predicate as RecordPayment: digital (incl. card) payments never touched the drawer
+                        bool isDigitalPayment = IsDigitalPaymentMethod(origPaymentMethod, origDigitalAccountId);
+                        if (isDigitalPayment)
                         {
-                            long accBal = 0;
-                            string accName = "المحفظة / الحساب الإلكتروني";
-                            using (var accCmd = new SQLiteCommand("SELECT name, balance_piasters FROM digital_accounts WHERE id = @id LIMIT 1;", conn, trans))
+                            if (!string.IsNullOrEmpty(origDigitalAccountId))
                             {
-                                accCmd.Parameters.AddWithValue("@id", origDigitalAccountId);
-                                using (var aRdr = accCmd.ExecuteReader())
+                                long accBal = 0;
+                                string accName = "المحفظة / الحساب الإلكتروني";
+                                using (var accCmd = new SQLiteCommand("SELECT name, balance_piasters FROM digital_accounts WHERE id = @id LIMIT 1;", conn, trans))
                                 {
-                                    if (aRdr.Read())
+                                    accCmd.Parameters.AddWithValue("@id", origDigitalAccountId);
+                                    using (var aRdr = accCmd.ExecuteReader())
                                     {
-                                        accName = aRdr["name"] != DBNull.Value ? aRdr["name"].ToString() : "المحفظة";
-                                        accBal = Convert.ToInt64(aRdr["balance_piasters"]);
+                                        if (aRdr.Read())
+                                        {
+                                            accName = aRdr["name"] != DBNull.Value ? aRdr["name"].ToString() : "المحفظة";
+                                            accBal = Convert.ToInt64(aRdr["balance_piasters"]);
+                                        }
                                     }
                                 }
-                            }
 
-                            if (accBal < paymentAmount)
-                            {
-                                throw new InvalidOperationException(string.Format("رصيد {0} الحالي ({1:N2} ج.م) غير كافٍ لإلغاء هذه الدفعة الإلكترونية واستردادها ({2:N2} ج.م).", accName, accBal / 100.0, paymentAmount / 100.0));
-                            }
+                                if (accBal < paymentAmount)
+                                {
+                                    throw new InvalidOperationException(string.Format("رصيد {0} الحالي ({1:N2} ج.م) غير كافٍ لإلغاء هذه الدفعة الإلكترونية واستردادها ({2:N2} ج.م).", accName, accBal / 100.0, paymentAmount / 100.0));
+                                }
 
-                            using (var uAccCmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = balance_piasters - @amt, updated_at = @now WHERE id = @id;", conn, trans))
-                            {
-                                uAccCmd.Parameters.AddWithValue("@amt", paymentAmount);
-                                uAccCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
-                                uAccCmd.Parameters.AddWithValue("@id", origDigitalAccountId);
-                                uAccCmd.ExecuteNonQuery();
-                            }
+                                using (var uAccCmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = balance_piasters - @amt, updated_at = @now WHERE id = @id;", conn, trans))
+                                {
+                                    uAccCmd.Parameters.AddWithValue("@amt", paymentAmount);
+                                    uAccCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                    uAccCmd.Parameters.AddWithValue("@id", origDigitalAccountId);
+                                    uAccCmd.ExecuteNonQuery();
+                                }
 
-                            string revDtxId = "dtx_rev_" + Guid.NewGuid().ToString("N").Substring(0, 12);
-                            using (var insDtxCmd = new SQLiteCommand(@"
-                                INSERT INTO digital_transactions (
-                                    id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
-                                    customer_name, cashier_name, payment_destination, status, notes, created_at
-                                ) VALUES (
-                                    @id, @accId, 'payment_cancellation', @amt, 0, @amt,
-                                    @cName, @cashier, 'wallet', 'completed', @notes, @now
-                                );
-                            ", conn, trans))
-                            {
-                                insDtxCmd.Parameters.AddWithValue("@id", revDtxId);
-                                insDtxCmd.Parameters.AddWithValue("@accId", origDigitalAccountId);
-                                insDtxCmd.Parameters.AddWithValue("@amt", -paymentAmount);
-                                insDtxCmd.Parameters.AddWithValue("@cName", "");
-                                insDtxCmd.Parameters.AddWithValue("@cashier", string.IsNullOrWhiteSpace(userName) ? "الكاشير" : userName.Trim());
-                                insDtxCmd.Parameters.AddWithValue("@notes", "إلغاء دفعة إلكترونية: " + ledgerEntryId);
-                                insDtxCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
-                                insDtxCmd.ExecuteNonQuery();
+                                string revDtxId = "dtx_rev_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                                using (var insDtxCmd = new SQLiteCommand(@"
+                                    INSERT INTO digital_transactions (
+                                        id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
+                                        customer_name, cashier_name, payment_destination, status, notes, created_at
+                                    ) VALUES (
+                                        @id, @accId, 'payment_cancellation', @amt, 0, @amt,
+                                        @cName, @cashier, 'wallet', 'completed', @notes, @now
+                                    );
+                                ", conn, trans))
+                                {
+                                    insDtxCmd.Parameters.AddWithValue("@id", revDtxId);
+                                    insDtxCmd.Parameters.AddWithValue("@accId", origDigitalAccountId);
+                                    insDtxCmd.Parameters.AddWithValue("@amt", -paymentAmount);
+                                    insDtxCmd.Parameters.AddWithValue("@cName", "");
+                                    insDtxCmd.Parameters.AddWithValue("@cashier", string.IsNullOrWhiteSpace(userName) ? "الكاشير" : userName.Trim());
+                                    insDtxCmd.Parameters.AddWithValue("@notes", "إلغاء دفعة إلكترونية: " + ledgerEntryId);
+                                    insDtxCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                    insDtxCmd.ExecuteNonQuery();
+                                }
                             }
                         }
                         else
@@ -873,6 +891,15 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        /// <summary>
+        /// سداد إلكتروني (محفظة/إنستاباي/فودافون كاش/بطاقة أو حساب رقمي محدد) لا يمر على درج النقدية
+        /// </summary>
+        private static bool IsDigitalPaymentMethod(string paymentMethod, string digitalAccountId)
+        {
+            string pm = string.IsNullOrWhiteSpace(paymentMethod) ? "cash" : paymentMethod.Trim().ToLowerInvariant();
+            return pm == "wallet" || pm == "instapay" || pm == "vodafone_cash" || pm == "card" || !string.IsNullOrEmpty(digitalAccountId);
+        }
+
         private static string CurrentAuditUserId()
         {
             var sessionUser = RafiqPOS.Services.SecurityService.CurrentUser;
@@ -969,6 +996,20 @@ namespace RafiqPOS.Repositories
             return list;
         }
 
+        /// <summary>
+        /// تاريخ يوم العمل المحلي (مع ساعة الإغلاق) لطابع زمني مخزن بتوقيت UTC، بنفس قاعدة التقارير
+        /// </summary>
+        private static string ToBusinessDateString(string createdAt, int cutoffHour)
+        {
+            if (string.IsNullOrWhiteSpace(createdAt)) return "";
+            DateTime parsed;
+            if (!DateTime.TryParse(createdAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out parsed))
+            {
+                return createdAt.Length >= 10 ? createdAt.Substring(0, 10) : "";
+            }
+            return Common.TimeGuard.GetBusinessDate(parsed.ToLocalTime(), cutoffHour).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+
         public CustomerStatementReport GetDetailedStatement(string customerId, string startDate, string endDate)
         {
             var report = new CustomerStatementReport();
@@ -986,6 +1027,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                int cutoffHour = Services.BusinessDayHelper.GetCutoffHour(conn, null);
                 string sql = "SELECT * FROM customer_ledger WHERE customer_id = @cid ORDER BY created_at ASC;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -1011,7 +1053,7 @@ namespace RafiqPOS.Repositories
                             };
 
                             string entryType = (entry.Type ?? "").ToLowerInvariant();
-                            string entryDate = entry.CreatedAt != null && entry.CreatedAt.Length >= 10 ? entry.CreatedAt.Substring(0, 10) : "";
+                            string entryDate = ToBusinessDateString(entry.CreatedAt, cutoffHour);
                             long effect = GetLedgerBalanceEffect(entry.Type, entry.AmountPiasters, entry.BalanceAfterPiasters);
 
                             // Opening balance entry is ALWAYS an opening balance, not a new period transaction
@@ -1174,6 +1216,24 @@ namespace RafiqPOS.Repositories
             return GetById(customerId);
         }
 
+        /// <summary>
+        /// الحد الائتماني الافتراضي من إعدادات المتجر (default_customer_credit_limit_egp)، و1000 ج.م إن لم يُضبط بعد
+        /// </summary>
+        private static long GetDefaultCreditLimitPiasters(SQLiteConnection conn, SQLiteTransaction trans)
+        {
+            const long fallbackPiasters = 100000;
+            using (var cmd = new SQLiteCommand("SELECT value FROM app_settings WHERE key = 'default_customer_credit_limit_egp' LIMIT 1;", conn, trans))
+            {
+                object val = cmd.ExecuteScalar();
+                Common.Money parsed;
+                if (val != null && val != DBNull.Value && Common.Money.TryParsePounds(val.ToString(), out parsed) && parsed.Piasters >= 0)
+                {
+                    return parsed.Piasters;
+                }
+            }
+            return fallbackPiasters;
+        }
+
         public CustomerImportResult BatchImportCustomers(List<CustomerImportRow> rows)
         {
             var result = new CustomerImportResult();
@@ -1191,6 +1251,11 @@ namespace RafiqPOS.Repositories
                     try
                     {
                         string now = DateTime.UtcNow.ToString("o");
+
+                        // Same permission rules as SaveCustomer, applied per row (opening balance / explicit credit limit)
+                        bool canSetOpeningBalance = HasCustomerPermission("customers.opening_balance");
+                        bool canSetCreditLimit = HasCustomerPermission("customers.credit_limit");
+                        long defaultCreditLimitPiasters = GetDefaultCreditLimitPiasters(conn, trans);
 
                         // 1. Preload existing phones to eliminate N+1 queries during bulk import
                         var existingPhones = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1244,6 +1309,19 @@ namespace RafiqPOS.Repositories
                                     continue;
                                 }
 
+                                if (row.InitialBalancePiasters != 0 && !canSetOpeningBalance)
+                                {
+                                    result.SkippedCount++;
+                                    result.RowErrors.Add(string.Format("السطر {0} ({1}): ليس لديك صلاحية تحديد رصيد افتتاحي للعميل؛ لم يتم استيراده.", row.RowIndex, row.Name.Trim()));
+                                    continue;
+                                }
+                                if (row.CreditLimitPiasters > 0 && !canSetCreditLimit)
+                                {
+                                    result.SkippedCount++;
+                                    result.RowErrors.Add(string.Format("السطر {0} ({1}): ليس لديك صلاحية تحديد الحد الائتماني للعميل؛ لم يتم استيراده.", row.RowIndex, row.Name.Trim()));
+                                    continue;
+                                }
+
                                 string cleanPhone = (row.Phone ?? "").Trim().Replace(" ", "").Replace("-", "");
 
                                 // Check phone uniqueness using in-memory set (instant O(1))
@@ -1263,7 +1341,7 @@ namespace RafiqPOS.Repositories
                                 insCmd.Parameters["@name"].Value = row.Name.Trim();
                                 insCmd.Parameters["@phone"].Value = cleanPhone;
                                 insCmd.Parameters["@balance"].Value = row.InitialBalancePiasters;
-                                insCmd.Parameters["@limit"].Value = row.CreditLimitPiasters > 0 ? row.CreditLimitPiasters : 100000;
+                                insCmd.Parameters["@limit"].Value = row.CreditLimitPiasters > 0 ? row.CreditLimitPiasters : defaultCreditLimitPiasters;
                                 insCmd.Parameters["@created_at"].Value = now;
                                 insCmd.ExecuteNonQuery();
 
@@ -1294,6 +1372,10 @@ namespace RafiqPOS.Repositories
                         trans.Commit();
                         result.Message = string.Format("تم استيراد {0} عميل بنجاح بإجمالي ديون افتتاحية {1}.",
                             result.ImportedCount, Common.Money.FormatPiasters(result.TotalOpeningDebtsPiasters));
+                        if (result.RowErrors.Count > 0)
+                        {
+                            result.Message += string.Format(" تم رفض {0} سطر لعدم وجود صلاحية.", result.RowErrors.Count);
+                        }
                         return result;
                     }
                     catch
@@ -1436,12 +1518,12 @@ namespace RafiqPOS.Repositories
             {
                 cmd.Transaction = trans;
                 cmd.CommandText = @"
-                    SELECT s.total_piasters - (s.paid_piasters - COALESCE(s.service_fee_piasters, 0)) -
+                    SELECT MAX(0, s.total_piasters - (s.paid_piasters - COALESCE(s.service_fee_piasters, 0)) -
                         COALESCE((SELECT SUM(da.amount_piasters) FROM debt_allocations da
-                                  WHERE da.sale_id = s.id AND da.type = 'payment'), 0) +
+                                  WHERE da.sale_id = s.id AND da.type = 'payment'), 0) -
                         COALESCE((SELECT SUM(da.amount_piasters) FROM debt_allocations da
-                                  WHERE da.sale_id = s.id AND da.type = 'refund'), 0)
-                    FROM sales s WHERE s.id = @sid";
+                                  WHERE da.sale_id = s.id AND da.type = 'refund'), 0))
+                    FROM sales s WHERE s.id = @sid AND s.status != 'cancelled'";
                 cmd.Parameters.AddWithValue("@sid", saleId);
                 object result = cmd.ExecuteScalar();
                 if (result == null || result == DBNull.Value) return 0;

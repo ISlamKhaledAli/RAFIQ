@@ -136,7 +136,8 @@ namespace RafiqPOS.Services
             // Scenario 1: Financial Operation Guard - Require open active shift
             if (DatabaseService.Shifts != null)
             {
-                bool isTestSale = sale.Id != null && (sale.Id.StartsWith("demo_") || sale.Id.StartsWith("stress_"));
+                // Only server-side seeding may sell outside a shift; a client sale id prefix is never trusted (L6)
+                bool isTestSale = sale.IsInternalSeed;
                 bool requireShift = true;
                 if (DatabaseService.Settings != null)
                 {
@@ -224,6 +225,25 @@ namespace RafiqPOS.Services
                 }
             }
 
+            // Discount permissions are enforced server-side; a verified supervisor PIN substitutes for the missing permission
+            if (SecurityService.CurrentUser != null && DatabaseService.Security != null && !sale.IsSupervisorAuthorized)
+            {
+                string discountUserId = SecurityService.CurrentUser.Id;
+                if (sale.DiscountPiasters > 0 && !DatabaseService.Security.HasPermission(discountUserId, "pos.discount_invoice"))
+                {
+                    throw new InvalidOperationException("ليس لديك صلاحية خصم على إجمالي الفاتورة. يرجى طلب اعتماد المشرف.");
+                }
+                bool hasLineDiscount = false;
+                for (int dIdx = 0; dIdx < sale.Items.Count; dIdx++)
+                {
+                    if (sale.Items[dIdx].DiscountPiasters > 0) { hasLineDiscount = true; break; }
+                }
+                if (hasLineDiscount && !DatabaseService.Security.HasPermission(discountUserId, "pos.discount_line"))
+                {
+                    throw new InvalidOperationException("ليس لديك صلاحية خصم على الأصناف. يرجى طلب اعتماد المشرف.");
+                }
+            }
+
             sale.Id = Guid.NewGuid().ToString();
             sale.CreatedAt = DateTime.UtcNow.ToString("o");
 
@@ -252,6 +272,8 @@ namespace RafiqPOS.Services
             bool enforcePriceAuthority = SecurityService.CurrentUser != null
                 && DatabaseService.Security != null
                 && !DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.price_override");
+            // Owner rule: a verified supervisor PIN approves catalogue-price deviations, each one is audited with the sale
+            sale.SupervisorPriceDeviations = new List<SalePriceDeviation>();
 
             foreach (var item in sale.Items)
             {
@@ -507,14 +529,37 @@ namespace RafiqPOS.Services
                     {
                         if (!IsCataloguePrice(item, product, matchedUnit))
                         {
-                            throw new InvalidOperationException(string.Format("سعر الصنف '{0}' يختلف عن سعر الكتالوج ويتطلب صلاحية تعديل السعر.", product.Name));
+                            if (!sale.IsSupervisorAuthorized)
+                            {
+                                throw new InvalidOperationException(string.Format("سعر الصنف '{0}' يختلف عن سعر الكتالوج ويتطلب صلاحية تعديل السعر.", product.Name));
+                            }
+                            long cataloguePrice = matchedUnit != null && matchedUnit.SellPricePiasters > 0
+                                ? matchedUnit.SellPricePiasters
+                                : product.PricePiasters * (item.ConversionFactor > 0 ? item.ConversionFactor : 1);
+                            sale.SupervisorPriceDeviations.Add(new SalePriceDeviation
+                            {
+                                ProductId = product.Id,
+                                ProductName = product.Name,
+                                CataloguePricePiasters = cataloguePrice,
+                                SoldPricePiasters = item.UnitPricePiasters
+                            });
                         }
                     }
                     else if (quickItem != null)
                     {
                         if (!quickItem.IsOpenPrice && item.UnitPricePiasters != quickItem.PricePiasters)
                         {
-                            throw new InvalidOperationException(string.Format("سعر الصنف السريع '{0}' محدد بـ {1:0.00} ج.م وتعديله يتطلب صلاحية تعديل السعر.", quickItem.Name, quickItem.PricePiasters / 100.0));
+                            if (!sale.IsSupervisorAuthorized)
+                            {
+                                throw new InvalidOperationException(string.Format("سعر الصنف السريع '{0}' محدد بـ {1:0.00} ج.م وتعديله يتطلب صلاحية تعديل السعر.", quickItem.Name, quickItem.PricePiasters / 100.0));
+                            }
+                            sale.SupervisorPriceDeviations.Add(new SalePriceDeviation
+                            {
+                                ProductId = quickItem.Id,
+                                ProductName = quickItem.Name,
+                                CataloguePricePiasters = quickItem.PricePiasters,
+                                SoldPricePiasters = item.UnitPricePiasters
+                            });
                         }
                     }
                     else
@@ -537,34 +582,56 @@ namespace RafiqPOS.Services
                 subtotal = subtotal.Add(lineGross);
             }
 
+            // Story 143: on-sale recipe items consume their ingredients (and modifier ingredients) instead of their own stock
+            var ingredientUsedBy = new Dictionary<string, string>();
+            if (DatabaseService.RecipeRepo != null)
+            {
+                for (int rIdx = 0; rIdx < sale.Items.Count; rIdx++)
+                {
+                    var rItem = sale.Items[rIdx];
+                    bool recipeDepleted;
+                    var consumption = DatabaseService.RecipeRepo.GetSaleItemConsumption(rItem, out recipeDepleted);
+                    if (recipeDepleted && productTotalDemandMilli.ContainsKey(rItem.ProductId))
+                    {
+                        long ownDemand = rItem.QuantityMilli * (rItem.ConversionFactor > 0 ? rItem.ConversionFactor : 1);
+                        productTotalDemandMilli[rItem.ProductId] = productTotalDemandMilli[rItem.ProductId] - ownDemand;
+                    }
+                    for (int cIdx = 0; cIdx < consumption.Count; cIdx++)
+                    {
+                        var line = consumption[cIdx];
+                        if (!resolvedProducts.ContainsKey(line.ProductId))
+                        {
+                            Product ingredient = _productRepo.GetById(line.ProductId);
+                            if (ingredient == null) continue;
+                            resolvedProducts[line.ProductId] = ingredient;
+                        }
+                        productTotalDemandMilli[line.ProductId] = (productTotalDemandMilli.ContainsKey(line.ProductId) ? productTotalDemandMilli[line.ProductId] : 0) + line.QuantityMilli;
+                        if (!ingredientUsedBy.ContainsKey(line.ProductId))
+                        {
+                            ingredientUsedBy[line.ProductId] = !string.IsNullOrWhiteSpace(rItem.ProductName) ? rItem.ProductName : rItem.ProductId;
+                        }
+                    }
+                }
+            }
+
             // Task 30-2: Negative stock handling, evaluated on the total resolved base-unit demand per product
             // across all lines (prevents duplicate-line bypass - TEST-4)
             foreach (var demand in productTotalDemandMilli)
             {
+                if (demand.Value <= 0) continue;
                 Product demandProduct = resolvedProducts[demand.Key];
                 if (demandProduct.StockQuantityMilli < demand.Value)
                 {
-                    bool hasOnSaleRecipe = false;
-                    if (DatabaseService.RecipeRepo != null)
-                    {
-                        try
-                        {
-                            var rcp = DatabaseService.RecipeRepo.GetByProductId(demandProduct.Id);
-                            if (rcp != null && rcp.IsActive && string.Equals(rcp.DepletionMode, "on_sale", StringComparison.OrdinalIgnoreCase))
-                            {
-                                hasOnSaleRecipe = true;
-                            }
-                        }
-                        catch { }
-                    }
-                    if (hasOnSaleRecipe)
-                    {
-                        continue;
-                    }
                     if (!allowNegative)
                     {
                         double currentQty = demandProduct.StockQuantityMilli / 1000.0;
                         string unitLabel = !string.IsNullOrWhiteSpace(demandProduct.Unit) ? demandProduct.Unit : "قطعة";
+                        if (ingredientUsedBy.ContainsKey(demand.Key))
+                        {
+                            throw new InvalidOperationException(string.Format(
+                                "لا يمكن إتمام البيع: خامة '{0}' اللازمة لتحضير '{1}' غير كافية في المخزن (المطلوب: {2:0.###} {4}، المتاح: {3:0.###} {4}). أضف رصيداً للخامة من شاشة الأصناف أو فعّل «السماح بالبيع بالسالب» من الإعدادات.",
+                                demandProduct.Name, ingredientUsedBy[demand.Key], demand.Value / 1000.0, currentQty, unitLabel));
+                        }
                         throw new InvalidOperationException(string.Format("لا يمكن إتمام البيع: رصيد الصنف '{0}' في المخزن غير كافٍ (الرصيد المتاح حالياً: {1:0.###} {2}). يمكنك إضافة كمية للصنف من شاشة الأصناف أو تفعيل «السماح بالبيع بالسالب» من الإعدادات.", demandProduct.Name, currentQty, unitLabel));
                     }
                     sale.NegativeStockWarnings.Add(string.Format("تنبيه: رصيد الصنف '{0}' قبل البيع كان ({1:0.###}) وأصبح بالسالب.", demandProduct.Name, demandProduct.StockQuantityMilli / 1000.0));
@@ -602,7 +669,9 @@ namespace RafiqPOS.Services
                             requiresApproval = !DatabaseService.Security.HasPermission(sale.CashierId, "pharma.controlled.dispense");
                         }
 
-                        // Validate each controlled line has a matching dispense entry
+                        // Each controlled line consumes its own dispense entry (the UI sends one per cart line, in cart order)
+                        bool[] dispenseUsed = new bool[sale.ControlledDispenses.Count];
+                        var lineDispenses = new List<ControlledDrugDispense>();
                         for (int clIdx = 0; clIdx < controlledLines.Count; clIdx++)
                         {
                             var cLine = controlledLines[clIdx];
@@ -611,9 +680,10 @@ namespace RafiqPOS.Services
                             for (int cdIdx = 0; cdIdx < sale.ControlledDispenses.Count; cdIdx++)
                             {
                                 var d = sale.ControlledDispenses[cdIdx];
-                                if (d != null && string.Equals(d.ProductId, cLine.ProductId, StringComparison.OrdinalIgnoreCase))
+                                if (!dispenseUsed[cdIdx] && d != null && string.Equals(d.ProductId, cLine.ProductId, StringComparison.OrdinalIgnoreCase))
                                 {
                                     matchingDispense = d;
+                                    dispenseUsed[cdIdx] = true;
                                     break;
                                 }
                             }
@@ -623,11 +693,14 @@ namespace RafiqPOS.Services
                                 throw new InvalidOperationException(string.Format("لم يتم تسجيل بيانات صرف دواء الجدول للصنف '{0}'.", cLine.ProductName ?? cLine.ProductId));
                             }
 
+                            // The register is kept in base units (tablets), like stock and the return contra-entries
                             matchingDispense.ProductId = cLine.ProductId;
                             matchingDispense.ProductName = cLine.ProductName;
-                            matchingDispense.QuantityMilli = cLine.QuantityMilli;
+                            matchingDispense.SaleItemId = cLine.Id;
+                            matchingDispense.QuantityMilli = cLine.QuantityMilli * (cLine.ConversionFactor > 0 ? cLine.ConversionFactor : 1);
                             matchingDispense.BatchId = cLine.BatchId;
                             matchingDispense.BatchNumber = cLine.BatchNumber;
+                            lineDispenses.Add(matchingDispense);
 
                             if (DatabaseService.ControlledDrugs != null)
                             {
@@ -638,6 +711,8 @@ namespace RafiqPOS.Services
                                     sale.SupervisorPin);
                             }
                         }
+                        // Only entries backed by a sold line reach the register
+                        sale.ControlledDispenses = lineDispenses;
                     }
                 }
             }

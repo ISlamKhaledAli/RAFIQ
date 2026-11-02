@@ -776,12 +776,14 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         supervisorPin: supervisorPin || undefined,
       });
 
-      // 2. Update delegation rights
-      if (selectedUser.role !== 'root') {
+      // 2. Update delegation rights only when they changed; nobody may change their own delegation
+      const nextMaxDepth = canDelegate ? maxDepth : 0;
+      const delegationChanged = Boolean(selectedUser.canDelegate) !== canDelegate || (selectedUser.maxDepth || 0) !== nextMaxDepth;
+      if (selectedUser.role !== 'root' && selectedUser.id !== currentUser?.id && delegationChanged) {
         await invoke('users:setDelegation', {
           userId: selectedUser.id,
           canDelegate,
-          maxDepth: canDelegate ? maxDepth : 0,
+          maxDepth: nextMaxDepth,
         });
       }
 

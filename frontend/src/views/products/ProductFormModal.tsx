@@ -35,6 +35,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { unitsLoadBlockMessage, type UnitsLoadState } from './unitsLoadGuard';
 import type { Category, Product, ProductUnit, StorageLocation } from '../../types/models';
 import type {
   ProductPharmaInfo,
@@ -84,6 +85,8 @@ export interface ProductFormModalProps {
   setProductUnits: (v: ProductUnit[]) => void;
   stockInput: string;
   setStockInput: (v: string) => void;
+  stockAdjustReason: string;
+  setStockAdjustReason: (v: string) => void;
   minStockInput: string;
   setMinStockInput: (v: string) => void;
   taxRatePercent: number;
@@ -99,6 +102,9 @@ export interface ProductFormModalProps {
   belowCostWarning: BelowCostWarningData | null;
   setBelowCostWarning: (v: BelowCostWarningData | null) => void;
   loading: boolean;
+  /** Units of an existing product must finish loading before Save (the server replaces the units list). */
+  unitsLoadState: UnitsLoadState;
+  onRetryLoadUnits: () => void;
   onSave: (e?: FormEvent, forceConfirmSimilar?: boolean, forceConfirmCost?: boolean) => void;
   onOpenPriceHistory: () => void;
   onGenerateInternalBarcode: () => void;
@@ -173,6 +179,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   setProductUnits,
   stockInput,
   setStockInput,
+  stockAdjustReason,
+  setStockAdjustReason,
   minStockInput,
   setMinStockInput,
   taxRatePercent,
@@ -188,6 +196,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   belowCostWarning,
   setBelowCostWarning,
   loading,
+  unitsLoadState,
+  onRetryLoadUnits,
   onSave,
   onOpenPriceHistory,
   onGenerateInternalBarcode,
@@ -2018,6 +2028,21 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
                   </div>
 
+                  {editingId && editingProduct && Math.round((parseFloat(normalizeArabicNumerals(stockInput)) || 0) * 1000) !== editingProduct.stockQuantityMilli && (
+                    <div className="flex flex-col gap-1 bg-warn-soft dark:bg-warn-dark-soft px-3 py-2 rounded-lg border border-warn-border dark:border-warn-bright/30">
+                      <label className="text-[11px] font-extrabold text-warn dark:text-warn-bright">
+                        تعديل الرصيد يُسجَّل كتسوية جردية — سبب التعديل (إجباري):
+                      </label>
+                      <input
+                        type="text"
+                        value={stockAdjustReason}
+                        onChange={(e) => setStockAdjustReason(e.target.value)}
+                        placeholder="مثلاً: جرد فعلي للرف، تالف، فاقد"
+                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[30px] px-2 text-[12px] text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                      />
+                    </div>
+                  )}
+
                   {/* Stock Alert & Breakdown Row */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {/* Min Stock Reorder Alert Input */}
@@ -2500,7 +2525,24 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           {/* Footer Actions (Docked at bottom) */}
           <div className="h-[52px] bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-between gap-2 shrink-0">
             <div className="flex-1 min-w-0 pl-2">
-              {formError && (
+              {unitsLoadState === 'loading' ? (
+                <div className="text-ink-muted dark:text-ink-dark-muted text-[11.5px] font-bold flex items-center gap-1.5">
+                  <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                  <span className="truncate">{unitsLoadBlockMessage('loading')}</span>
+                </div>
+              ) : unitsLoadState === 'error' ? (
+                <div className="text-danger dark:text-danger-bright text-[11.5px] font-bold flex items-center gap-1.5" title={unitsLoadBlockMessage('error')}>
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span className="truncate">تعذر تحميل وحدات الصنف، الحفظ متوقف</span>
+                  <button
+                    type="button"
+                    onClick={onRetryLoadUnits}
+                    className="shrink-0 px-2 py-0.5 rounded border border-danger/40 dark:border-danger-bright/40 hover:bg-danger-soft dark:hover:bg-danger-dark-soft cursor-pointer"
+                  >
+                    إعادة المحاولة
+                  </button>
+                </div>
+              ) : formError && (
                 <div className="text-danger dark:text-danger-bright text-[11.5px] font-bold truncate flex items-center gap-1.5" title={formError}>
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span className="truncate">{formError}</span>
@@ -2519,8 +2561,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
               <button
                 type="submit"
-                disabled={loading}
-                className="h-[36px] px-5 bg-brand hover:bg-brand-hover dark:hover:bg-emerald-700 text-white rounded-lg text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                disabled={loading || unitsLoadState !== 'ready'}
+                className="h-[36px] px-5 bg-brand hover:bg-brand-hover dark:hover:bg-emerald-700 text-white rounded-lg text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Check className="w-4 h-4" />
                 <span>

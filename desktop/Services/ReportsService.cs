@@ -81,7 +81,7 @@ namespace RafiqPOS.Services
                         ), 0) AS card_sales,
                         COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales,
                         COALESCE(SUM(s.tax_piasters), 0) AS total_tax,
-                        COALESCE(SUM(s.discount_piasters), 0) AS total_discount,
+                        COALESCE(SUM(s.discount_piasters + (SELECT COALESCE(SUM(si.discount_piasters), 0) FROM sale_items si WHERE si.sale_id = s.id)), 0) AS total_discount,
                         COUNT(*) AS inv_count
                     FROM sales s
                     WHERE " + sDateClause + @" 
@@ -299,32 +299,21 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Deduct returned gross profit & damaged return losses from gross profit
+                // Deduct the ex-VAT profit of returned items (symmetric with sales profit) and the VAT they carried
                 using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
                 {
                     if (checkRetCmd.ExecuteScalar() != null)
                     {
-                        string retProfitSql = @"
-                            SELECT COALESCE(SUM(
-                                CASE 
-                                    WHEN ri.is_damaged = 1 THEN ri.total_piasters
-                                    ELSE (ri.total_piasters - (ri.quantity_milli * COALESCE(si.unit_cost_piasters, p.cost_piasters, 0) / 1000))
-                                END
-                            ), 0) AS returned_profit
-                            FROM return_items ri
-                            JOIN returns r ON ri.return_id = r.id
-                            LEFT JOIN sale_items si ON ri.sale_item_id = si.id
-                            LEFT JOIN products p ON ri.product_id = p.id
-                            WHERE " + rDateClause + @";
-                        ";
-                        using (var retProfCmd = new SQLiteCommand(retProfitSql, conn))
+                        using (var retProfCmd = new SQLiteCommand(ReturnProfitSql.BuildTotals(rDateClause), conn))
+                        using (var retReader = retProfCmd.ExecuteReader())
                         {
-                            object retProfRes = retProfCmd.ExecuteScalar();
-                            if (retProfRes != null && retProfRes != DBNull.Value)
+                            if (retReader.Read())
                             {
-                                long returnedProfit = Convert.ToInt64(retProfRes);
-                                summary.TodayProfitsPiasters = summary.TodayProfitsPiasters - returnedProfit;
+                                summary.TodayProfitsPiasters = summary.TodayProfitsPiasters - Convert.ToInt64(retReader["returned_profit"]);
                                 summary.TodaySalesGrossProfitPiasters = summary.TodayProfitsPiasters;
+                                long returnedTax = Convert.ToInt64(retReader["returned_tax"]);
+                                summary.TodayNetSalesExcludingTaxPiasters = Math.Max(0,
+                                    (summary.TodaySalesPiasters - summary.TodayReturnsPiasters) - (summary.TodayTaxPiasters - returnedTax));
                             }
                         }
                     }
@@ -650,7 +639,7 @@ namespace RafiqPOS.Services
                         ), 0) AS card_sales,
                         COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales,
                         COALESCE(SUM(s.tax_piasters), 0) AS total_tax,
-                        COALESCE(SUM(s.discount_piasters), 0) AS total_discount,
+                        COALESCE(SUM(s.discount_piasters + (SELECT COALESCE(SUM(si.discount_piasters), 0) FROM sale_items si WHERE si.sale_id = s.id)), 0) AS total_discount,
                         COUNT(*) AS inv_count
                     FROM sales s
                     WHERE {0}
@@ -779,37 +768,27 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Deduct returned gross profit & damaged losses from gross profit in this period
+                // Deduct the ex-VAT profit of returned items (symmetric with sales profit) and the VAT they carried
                 using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
                 {
                     if (checkRetCmd.ExecuteScalar() != null)
                     {
                         string retDateClause = dateFilterClause.Replace("created_at", "r.created_at");
-                        string retProfitSql = string.Format(@"
-                            SELECT COALESCE(SUM(
-                                CASE 
-                                    WHEN ri.is_damaged = 1 THEN ri.total_piasters
-                                    ELSE (ri.total_piasters - (ri.quantity_milli * COALESCE(si.unit_cost_piasters, p.cost_piasters, 0) / 1000))
-                                END
-                            ), 0) AS returned_profit
-                            FROM return_items ri
-                            JOIN returns r ON ri.return_id = r.id
-                            LEFT JOIN sale_items si ON ri.sale_item_id = si.id
-                            LEFT JOIN products p ON ri.product_id = p.id
-                            WHERE {0};
-                        ", retDateClause);
-                        using (var retProfCmd = new SQLiteCommand(retProfitSql, conn))
+                        using (var retProfCmd = new SQLiteCommand(ReturnProfitSql.BuildTotals(retDateClause), conn))
                         {
                             if (period == "custom")
                             {
                                 retProfCmd.Parameters.AddWithValue("@from", customFromDate);
                                 retProfCmd.Parameters.AddWithValue("@to", customToDate);
                             }
-                            object retProfRes = retProfCmd.ExecuteScalar();
-                            if (retProfRes != null && retProfRes != DBNull.Value)
+                            using (var retReader = retProfCmd.ExecuteReader())
                             {
-                                long returnedProfit = Convert.ToInt64(retProfRes);
-                                report.GrossProfitPiasters = report.GrossProfitPiasters - returnedProfit;
+                                if (retReader.Read())
+                                {
+                                    report.GrossProfitPiasters = report.GrossProfitPiasters - Convert.ToInt64(retReader["returned_profit"]);
+                                    long returnedTax = Convert.ToInt64(retReader["returned_tax"]);
+                                    report.NetSalesExcludingTaxPiasters = Math.Max(0, report.NetSalesPiasters - (report.TotalTaxPiasters - returnedTax));
+                                }
                             }
                         }
                     }
@@ -981,19 +960,9 @@ namespace RafiqPOS.Services
                     if (checkRetCmd.ExecuteScalar() != null)
                     {
                         string retDateClause = dateClause.Replace("s.created_at", "r.created_at");
-                        string retVatSql = string.Format(@"
-                            SELECT COALESCE(SUM(
-                                CASE 
-                                    WHEN COALESCE(si.tax_piasters, 0) > 0 AND COALESCE(si.quantity_milli, 0) > 0
-                                    THEN (ri.quantity_milli * si.tax_piasters) / si.quantity_milli
-                                    ELSE 0 
-                                END
-                            ), 0) AS returns_tax
-                            FROM return_items ri
-                            JOIN returns r ON ri.return_id = r.id
-                            LEFT JOIN sale_items si ON ri.sale_item_id = si.id
-                            WHERE {0};
-                        ", retDateClause);
+                        // Same VAT rule as the profit reports, including returns without an invoice line
+                        string retVatSql = "SELECT COALESCE(SUM(" + ReturnProfitSql.ReturnedTaxExpr + "), 0) AS returns_tax"
+                            + ReturnProfitSql.FromClause + " WHERE " + retDateClause + ";";
 
                         using (var cmd = new SQLiteCommand(retVatSql, conn))
                         {
@@ -2107,24 +2076,41 @@ namespace RafiqPOS.Services
             {
                 conn.Open();
 
+                // Returns in the period are netted per category (ex-VAT revenue, recovered cost of undamaged goods)
+                string retDateClause = dateClause.Replace("s.created_at", "r.created_at");
                 string sql = string.Format(@"
                     SELECT 
                         COALESCE(c.id, 'uncategorized') AS category_id,
                         COALESCE(c.name, 'بدون قسم / عام') AS category_name,
-                        COALESCE(SUM(si.total_piasters), 0) AS total_sales,
-                        COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS total_cost,
-                        COALESCE(SUM(si.quantity_milli) / 1000, 0) AS items_qty
-                    FROM sale_items si
-                    INNER JOIN sales s ON si.sale_id = s.id
-                    LEFT JOIN products p ON si.product_id = p.id
+                        COALESCE(SUM(x.revenue), 0) AS total_sales,
+                        COALESCE(SUM(x.cost), 0) AS total_cost,
+                        COALESCE(SUM(x.qty_milli) / 1000, 0) AS items_qty
+                    FROM (
+                        SELECT si.product_id, si.quantity_milli AS qty_milli,
+                               (si.total_piasters - COALESCE(si.tax_piasters, 0)) AS revenue,
+                               ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000) AS cost
+                        FROM sale_items si
+                        INNER JOIN sales s ON si.sale_id = s.id
+                        LEFT JOIN products p ON si.product_id = p.id
+                        WHERE s.status != 'cancelled'
+                          AND s.id NOT LIKE 'demo_%'
+                          AND s.id NOT LIKE 'stress_%'
+                          AND {0}
+                        UNION ALL
+                        SELECT ri.product_id, -ri.quantity_milli,
+                               -{1},
+                               -{2}
+                        {3}
+                        WHERE {4}
+                    ) x
+                    LEFT JOIN products p ON x.product_id = p.id
                     LEFT JOIN categories c ON p.category_id = c.id
-                    WHERE s.status != 'cancelled'
-                      AND s.id NOT LIKE 'demo_%'
-                      AND s.id NOT LIKE 'stress_%'
-                      AND {0}
                     GROUP BY c.id, c.name
                     ORDER BY total_sales DESC;
-                ", dateClause);
+                ", dateClause,
+                    ReturnProfitSql.ReturnedNetRevenueExpr,
+                    ReturnProfitSql.CostRecovered(ReturnProfitSql.ReturnedCatalogCostExpr),
+                    ReturnProfitSql.FromClause, retDateClause);
 
                 long grandTotalSales = 0;
 
@@ -2156,65 +2142,6 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Deduct returns per category in this period
-                try
-                {
-                    using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
-                    {
-                        if (checkRetCmd.ExecuteScalar() != null)
-                        {
-                            string retDateClause = dateClause.Replace("s.created_at", "r.created_at");
-                            string retSql = string.Format(@"
-                                SELECT 
-                                    COALESCE(c.id, 'uncategorized') AS category_id,
-                                    COALESCE(SUM(ri.total_piasters), 0) AS ret_sales,
-                                    COALESCE(SUM((ri.quantity_milli * COALESCE(NULLIF(ri.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS ret_cost,
-                                    COALESCE(SUM(ri.quantity_milli) / 1000, 0) AS ret_qty
-                                FROM return_items ri
-                                JOIN returns r ON ri.return_id = r.id
-                                LEFT JOIN products p ON ri.product_id = p.id
-                                LEFT JOIN categories c ON p.category_id = c.id
-                                WHERE {0}
-                                GROUP BY c.id;
-                            ", retDateClause);
-                            using (var retCmd = new SQLiteCommand(retSql, conn))
-                            {
-                                BindCustomDates(retCmd, period, customFrom, customTo);
-                                using (var retReader = retCmd.ExecuteReader())
-                                {
-                                    var retMap = new Dictionary<string, long[]>();
-                                    while (retReader.Read())
-                                    {
-                                        string cId = retReader["category_id"].ToString();
-                                        long rSales = Convert.ToInt64(retReader["ret_sales"]);
-                                        long rCost = Convert.ToInt64(retReader["ret_cost"]);
-                                        long rQty = Convert.ToInt64(retReader["ret_qty"]);
-                                        retMap[cId] = new long[] { rSales, rCost, rQty };
-                                    }
-
-                                    grandTotalSales = 0;
-                                    for (int i = 0; i < list.Count; i++)
-                                    {
-                                        if (retMap.ContainsKey(list[i].CategoryId))
-                                        {
-                                            long[] rVals = retMap[list[i].CategoryId];
-                                            list[i].TotalSalesPiasters = Math.Max(0, list[i].TotalSalesPiasters - rVals[0]);
-                                            list[i].TotalCostPiasters = Math.Max(0, list[i].TotalCostPiasters - rVals[1]);
-                                            list[i].GrossProfitPiasters = Math.Max(0, list[i].TotalSalesPiasters - list[i].TotalCostPiasters);
-                                            list[i].ItemsSoldQty = Math.Max(0, list[i].ItemsSoldQty - (int)rVals[2]);
-                                            list[i].ProfitMarginPercent = list[i].TotalSalesPiasters > 0 
-                                                ? Math.Round(((double)list[i].GrossProfitPiasters * 100.0) / list[i].TotalSalesPiasters, 1) 
-                                                : 0.0;
-                                        }
-                                        grandTotalSales += list[i].TotalSalesPiasters;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch { }
-
                 if (grandTotalSales > 0)
                 {
                     for (int i = 0; i < list.Count; i++)
@@ -2238,29 +2165,46 @@ namespace RafiqPOS.Services
             {
                 conn.Open();
 
+                // Returns in the period are netted per item before ranking (ex-VAT revenue, recovered cost of undamaged goods)
+                string retDateClause = dateClause.Replace("s.created_at", "r.created_at");
                 string sql = string.Format(@"
                     SELECT 
-                        si.product_id,
-                        si.product_name,
+                        x.product_id,
+                        MAX(x.product_name) AS product_name,
                         COALESCE(p.barcode, '') AS barcode,
                         COALESCE(c.name, 'عام') AS category_name,
                         COALESCE(NULLIF(p.cost_piasters, 0), 0) AS unit_cost,
                         COALESCE(p.price_piasters, 0) AS unit_price,
-                        COALESCE(SUM(si.quantity_milli), 0) AS qty_milli,
-                        COALESCE(SUM(si.total_piasters), 0) AS total_sales,
-                        COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS total_cost
-                    FROM sale_items si
-                    INNER JOIN sales s ON si.sale_id = s.id
-                    LEFT JOIN products p ON si.product_id = p.id
+                        COALESCE(SUM(x.qty_milli), 0) AS qty_milli,
+                        COALESCE(SUM(x.revenue), 0) AS total_sales,
+                        COALESCE(SUM(x.cost), 0) AS total_cost
+                    FROM (
+                        SELECT si.product_id, si.product_name, si.quantity_milli AS qty_milli,
+                               (si.total_piasters - COALESCE(si.tax_piasters, 0)) AS revenue,
+                               ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000) AS cost
+                        FROM sale_items si
+                        INNER JOIN sales s ON si.sale_id = s.id
+                        LEFT JOIN products p ON si.product_id = p.id
+                        WHERE s.status != 'cancelled'
+                          AND s.id NOT LIKE 'demo_%'
+                          AND s.id NOT LIKE 'stress_%'
+                          AND {0}
+                        UNION ALL
+                        SELECT ri.product_id, ri.product_name, -ri.quantity_milli,
+                               -{3},
+                               -{4}
+                        {5}
+                        WHERE {6}
+                    ) x
+                    LEFT JOIN products p ON x.product_id = p.id
                     LEFT JOIN categories c ON p.category_id = c.id
-                    WHERE s.status != 'cancelled'
-                      AND s.id NOT LIKE 'demo_%'
-                      AND s.id NOT LIKE 'stress_%'
-                      AND {0}
-                    GROUP BY si.product_id, si.product_name
+                    GROUP BY x.product_id
                     ORDER BY (total_sales - total_cost) {1}
                     LIMIT {2};
-                ", dateClause, orderDirection, fetchLimit);
+                ", dateClause, orderDirection, fetchLimit,
+                    ReturnProfitSql.ReturnedNetRevenueExpr,
+                    ReturnProfitSql.CostRecovered(ReturnProfitSql.ReturnedCatalogCostExpr),
+                    ReturnProfitSql.FromClause, retDateClause);
 
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -2294,63 +2238,6 @@ namespace RafiqPOS.Services
                         }
                     }
                 }
-
-                // Deduct returns per item in this period
-                try
-                {
-                    using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
-                    {
-                        if (checkRetCmd.ExecuteScalar() != null)
-                        {
-                            string retDateClause = dateClause.Replace("s.created_at", "r.created_at");
-                            string retItemSql = string.Format(@"
-                                SELECT 
-                                    ri.product_id,
-                                    COALESCE(SUM(ri.total_piasters), 0) AS ret_sales,
-                                    COALESCE(SUM((ri.quantity_milli * COALESCE(NULLIF(ri.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS ret_cost,
-                                    COALESCE(SUM(ri.quantity_milli), 0) AS ret_qty_milli
-                                FROM return_items ri
-                                JOIN returns r ON ri.return_id = r.id
-                                LEFT JOIN products p ON ri.product_id = p.id
-                                WHERE {0}
-                                GROUP BY ri.product_id;
-                            ", retDateClause);
-                            using (var retCmd = new SQLiteCommand(retItemSql, conn))
-                            {
-                                BindCustomDates(retCmd, period, customFrom, customTo);
-                                using (var retReader = retCmd.ExecuteReader())
-                                {
-                                    var retMap = new Dictionary<string, long[]>();
-                                    while (retReader.Read())
-                                    {
-                                        string pId = retReader["product_id"].ToString();
-                                        long rSales = Convert.ToInt64(retReader["ret_sales"]);
-                                        long rCost = Convert.ToInt64(retReader["ret_cost"]);
-                                        long rQty = Convert.ToInt64(retReader["ret_qty_milli"]);
-                                        retMap[pId] = new long[] { rSales, rCost, rQty };
-                                    }
-
-                                    for (int i = 0; i < list.Count; i++)
-                                    {
-                                        if (retMap.ContainsKey(list[i].ProductId))
-                                        {
-                                            long[] rVals = retMap[list[i].ProductId];
-                                            list[i].TotalSalesPiasters = Math.Max(0, list[i].TotalSalesPiasters - rVals[0]);
-                                            list[i].TotalCostPiasters = Math.Max(0, list[i].TotalCostPiasters - rVals[1]);
-                                            list[i].GrossProfitPiasters = Math.Max(0, list[i].TotalSalesPiasters - list[i].TotalCostPiasters);
-                                            list[i].QuantitySoldMilli = Math.Max(0, list[i].QuantitySoldMilli - rVals[2]);
-                                            list[i].MarginPercent = list[i].TotalSalesPiasters > 0 
-                                                ? Math.Round(((double)list[i].GrossProfitPiasters * 100.0) / list[i].TotalSalesPiasters, 1) 
-                                                : 0.0;
-                                            list[i].IsNegativeMargin = list[i].GrossProfitPiasters < 0;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch { }
             }
 
             return list;
@@ -2444,9 +2331,9 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Current profit
+                // Current profit: ex-VAT sales profit minus the ex-VAT profit of returns in the same window
                 string curProfSql = string.Format(@"
-                    SELECT COALESCE(SUM(si.total_piasters - ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000)), 0) AS profit
+                    SELECT COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000)), 0) AS profit
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
                     LEFT JOIN products p ON si.product_id = p.id
@@ -2458,10 +2345,15 @@ namespace RafiqPOS.Services
                     object res = cmd.ExecuteScalar();
                     if (res != null && res != DBNull.Value) report.Profit.Current = Convert.ToInt64(res);
                 }
+                using (var cmd = new SQLiteCommand(ReturnProfitSql.BuildTotals(curClause.Replace("created_at", "r.created_at"), ReturnProfitSql.ReturnedCatalogCostExpr), conn))
+                {
+                    object res = cmd.ExecuteScalar();
+                    if (res != null && res != DBNull.Value) report.Profit.Current -= Convert.ToInt64(res);
+                }
 
-                // Previous profit
+                // Previous profit: ex-VAT sales profit minus the ex-VAT profit of returns in the same window
                 string prevProfSql = string.Format(@"
-                    SELECT COALESCE(SUM(si.total_piasters - ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000)), 0) AS profit
+                    SELECT COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000)), 0) AS profit
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
                     LEFT JOIN products p ON si.product_id = p.id
@@ -2472,6 +2364,11 @@ namespace RafiqPOS.Services
                 {
                     object res = cmd.ExecuteScalar();
                     if (res != null && res != DBNull.Value) report.Profit.Previous = Convert.ToInt64(res);
+                }
+                using (var cmd = new SQLiteCommand(ReturnProfitSql.BuildTotals(prevClause.Replace("created_at", "r.created_at"), ReturnProfitSql.ReturnedCatalogCostExpr), conn))
+                {
+                    object res = cmd.ExecuteScalar();
+                    if (res != null && res != DBNull.Value) report.Profit.Previous -= Convert.ToInt64(res);
                 }
             }
 
@@ -3612,7 +3509,7 @@ namespace RafiqPOS.Services
                       AND p.is_active = 1
                     ORDER BY pb.expiry_date ASC;";
 
-                DateTime today = DateTime.UtcNow.Date;
+                DateTime today = DateTime.Now.Date; // expiry dates are local calendar dates (same as date('now', 'localtime') in SQL)
 
                 using (var cmd = new SQLiteCommand(batchSql, conn))
                 using (var reader = cmd.ExecuteReader())

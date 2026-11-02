@@ -154,83 +154,18 @@ namespace RafiqPOS.Services
         /// </summary>
         public StockMovement AdjustStock(string productId, long newStockQuantityMilli, string reason, string userId = null, string adjustmentType = null)
         {
-            if (string.IsNullOrWhiteSpace(productId))
-            {
-                throw new ArgumentException("معرف المنتج مطلوب للتسوية الجردية", "productId");
-            }
+            ValidateAdjustmentInput(productId, reason);
             if (newStockQuantityMilli < 0)
             {
                 throw new ArgumentException("الرصيد الفعلي بعد التسوية لا يمكن أن يكون سالباً", "newStockQuantityMilli");
             }
-            if (string.IsNullOrWhiteSpace(reason))
-            {
-                throw new ArgumentException("سبب التسوية الجردية إجباري لتوثيق العملية في السجل", "reason");
-            }
 
             lock (SaleService.FinancialWriteLock)
             {
-                var product = _productRepo.GetById(productId);
-                if (product == null)
+                return RunInTransaction(delegate(SQLiteConnection conn, SQLiteTransaction trans)
                 {
-                    throw new InvalidOperationException("المنتج غير موجود: " + productId);
-                }
-                if (product.HasVariants)
-                {
-                    throw new InvalidOperationException("لا يمكن إجراء تسوية جردية مباشرة على منتج أب له متغيرات. يرجى تسوية رصيد كل متغير (لون/مقاس) على حدة للحفاظ على مصفوفة الأصناف.");
-                }
-
-                long currentStock = product.StockQuantityMilli;
-                long delta = newStockQuantityMilli - currentStock;
-
-                if (delta == 0)
-                {
-                    return null; // No change needed
-                }
-
-                string cleanReason = reason.Trim();
-                string cleanAdjType = string.IsNullOrWhiteSpace(adjustmentType) 
-                    ? (delta > 0 ? "SURPLUS" : "SHORTAGE") 
-                    : adjustmentType.Trim().ToUpperInvariant();
-
-                string fullNote = string.Format("تسوية جردية [{0}]: من {1} إلى {2} (فارق: {3}{4}) - السبب: {5}",
-                    cleanAdjType,
-                    (currentStock / 1000.0).ToString("0.###"),
-                    (newStockQuantityMilli / 1000.0).ToString("0.###"),
-                    delta > 0 ? "+" : "",
-                    (delta / 1000.0).ToString("0.###"),
-                    cleanReason
-                );
-
-                StockMovement m = RecordStockChange(
-                    productId: product.Id,
-                    movementType: "ADJUSTMENT",
-                    quantityDeltaMilli: delta,
-                    unitCostPiasters: product.CostPiasters,
-                    referenceId: Guid.NewGuid().ToString(),
-                    referenceType: "MANUAL_ADJUSTMENT",
-                    note: fullNote,
-                    batchNumber: cleanAdjType
-                );
-
-                // Audit Log (ACID compliant, Task 37-2)
-                if (_auditRepo != null)
-                {
-                    try
-                    {
-                        _auditRepo.Log(new AuditLog
-                        {
-                            Action = "stock_adjustment",
-                            EntityType = "product",
-                            EntityId = product.Id,
-                            UserId = userId,
-                            DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldStockMilli\":{1},\"newStockMilli\":{2},\"deltaMilli\":{3},\"adjustmentType\":\"{4}\",\"reason\":\"{5}\"}}",
-                                product.Name, currentStock, newStockQuantityMilli, delta, cleanAdjType, cleanReason)
-                        });
-                    }
-                    catch { }
-                }
-
-                return m;
+                    return AdjustStockInTransaction(conn, trans, productId, newStockQuantityMilli, reason, userId, adjustmentType, "MANUAL_ADJUSTMENT");
+                });
             }
         }
 
@@ -239,34 +174,173 @@ namespace RafiqPOS.Services
         /// </summary>
         public StockMovement AdjustStockByDelta(string productId, long quantityDeltaMilli, string reason, string userId = null, string adjustmentType = null)
         {
-            if (string.IsNullOrWhiteSpace(productId))
-            {
-                throw new ArgumentException("معرف المنتج مطلوب للتسوية الجردية", "productId");
-            }
+            ValidateAdjustmentInput(productId, reason);
             if (quantityDeltaMilli == 0)
             {
                 return null;
             }
 
-            var product = _productRepo.GetById(productId);
-            if (product == null)
+            lock (SaleService.FinancialWriteLock)
             {
-                throw new InvalidOperationException("المنتج غير موجود: " + productId);
+                return RunInTransaction(delegate(SQLiteConnection conn, SQLiteTransaction trans)
+                {
+                    // The current stock is read inside the lock and transaction so a concurrent sale cannot shift the delta
+                    long currentStock = ReadProductStock(conn, trans, productId);
+                    long targetStock = currentStock + quantityDeltaMilli;
+                    if (targetStock < 0)
+                    {
+                        throw new ArgumentException(string.Format("لا يمكن خصم {0} لأن الرصيد المتاح {1} فقط (الرصيد الناتج سالب)",
+                            Math.Abs(quantityDeltaMilli / 1000.0).ToString("0.###"),
+                            (currentStock / 1000.0).ToString("0.###")), "quantityDeltaMilli");
+                    }
+                    return AdjustStockInTransaction(conn, trans, productId, targetStock, reason, userId, adjustmentType, "MANUAL_ADJUSTMENT");
+                });
+            }
+        }
+
+        /// <summary>
+        /// تسوية رصيد صنف إلى رصيد مطلق داخل معاملة قائمة: حركة ADJUSTMENT + تحديث الرصيد والمتغيرات + مطابقة التشغيلات + سجل التدقيق.
+        /// يجب استدعاؤها والقفل المالي محجوز.
+        /// </summary>
+        public StockMovement AdjustStockInTransaction(SQLiteConnection conn, SQLiteTransaction trans, string productId, long newStockQuantityMilli, string reason, string userId, string adjustmentType, string referenceType)
+        {
+            ValidateAdjustmentInput(productId, reason);
+            if (newStockQuantityMilli < 0)
+            {
+                throw new ArgumentException("الرصيد الفعلي بعد التسوية لا يمكن أن يكون سالباً", "newStockQuantityMilli");
             }
 
-            long targetStock = product.StockQuantityMilli + quantityDeltaMilli;
-            if (targetStock < 0)
+            string productName;
+            long currentStock;
+            long costPiasters;
+            bool hasVariants;
+            using (var cmd = new SQLiteCommand("SELECT name, stock_quantity_milli, cost_piasters, COALESCE(has_variants, 0) AS has_variants FROM products WHERE id = @pid;", conn, trans))
             {
-                throw new ArgumentException(string.Format("لا يمكن خصم {0} لأن الرصيد المتاح {1} فقط (الرصيد الناتج سالب)", 
-                    Math.Abs(quantityDeltaMilli / 1000.0).ToString("0.###"), 
-                    (product.StockQuantityMilli / 1000.0).ToString("0.###")), "quantityDeltaMilli");
+                cmd.Parameters.AddWithValue("@pid", productId.Trim());
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        throw new InvalidOperationException("المنتج غير موجود: " + productId);
+                    }
+                    productName = reader["name"].ToString();
+                    currentStock = Convert.ToInt64(reader["stock_quantity_milli"]);
+                    costPiasters = Convert.ToInt64(reader["cost_piasters"]);
+                    hasVariants = Convert.ToInt32(reader["has_variants"]) == 1;
+                }
+            }
+            if (hasVariants)
+            {
+                throw new InvalidOperationException("لا يمكن إجراء تسوية جردية مباشرة على منتج أب له متغيرات. يرجى تسوية رصيد كل متغير (لون/مقاس) على حدة للحفاظ على مصفوفة الأصناف.");
             }
 
-            return AdjustStock(productId, targetStock, reason, userId, adjustmentType);
+            long delta = newStockQuantityMilli - currentStock;
+            if (delta == 0)
+            {
+                return null;
+            }
+
+            string cleanReason = reason.Trim();
+            string cleanAdjType = string.IsNullOrWhiteSpace(adjustmentType)
+                ? (delta > 0 ? "SURPLUS" : "SHORTAGE")
+                : adjustmentType.Trim().ToUpperInvariant();
+
+            string fullNote = string.Format("تسوية جردية [{0}]: من {1} إلى {2} (فارق: {3}{4}) - السبب: {5}",
+                cleanAdjType,
+                (currentStock / 1000.0).ToString("0.###"),
+                (newStockQuantityMilli / 1000.0).ToString("0.###"),
+                delta > 0 ? "+" : "",
+                (delta / 1000.0).ToString("0.###"),
+                cleanReason);
+
+            StockMovement m = RecordStockChange(
+                productId: productId.Trim(),
+                movementType: "ADJUSTMENT",
+                quantityDeltaMilli: delta,
+                unitCostPiasters: costPiasters,
+                referenceId: Guid.NewGuid().ToString(),
+                referenceType: string.IsNullOrWhiteSpace(referenceType) ? "MANUAL_ADJUSTMENT" : referenceType,
+                note: fullNote,
+                batchNumber: cleanAdjType,
+                conn: conn,
+                trans: trans);
+
+            ProductBatchRepository.SyncBatchesWithStockDelta(conn, trans, productId.Trim(), delta);
+
+            if (_auditRepo != null)
+            {
+                _auditRepo.Log(conn, trans, new AuditLog
+                {
+                    Action = "stock_adjustment",
+                    EntityType = "product",
+                    EntityId = productId.Trim(),
+                    UserId = userId,
+                    DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                    {
+                        productName = productName,
+                        oldStockMilli = currentStock,
+                        newStockMilli = newStockQuantityMilli,
+                        deltaMilli = delta,
+                        adjustmentType = cleanAdjType,
+                        reason = cleanReason
+                    })
+                });
+            }
+
+            return m;
+        }
+
+        private static void ValidateAdjustmentInput(string productId, string reason)
+        {
+            if (string.IsNullOrWhiteSpace(productId))
+            {
+                throw new ArgumentException("معرف المنتج مطلوب للتسوية الجردية", "productId");
+            }
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new ArgumentException("سبب التسوية الجردية إجباري لتوثيق العملية في السجل", "reason");
+            }
+        }
+
+        private static long ReadProductStock(SQLiteConnection conn, SQLiteTransaction trans, string productId)
+        {
+            using (var cmd = new SQLiteCommand("SELECT stock_quantity_milli FROM products WHERE id = @pid;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@pid", productId.Trim());
+                object res = cmd.ExecuteScalar();
+                if (res == null || res == DBNull.Value)
+                {
+                    throw new InvalidOperationException("المنتج غير موجود: " + productId);
+                }
+                return Convert.ToInt64(res);
+            }
+        }
+
+        private delegate StockMovement TransactionStep(SQLiteConnection conn, SQLiteTransaction trans);
+
+        private StockMovement RunInTransaction(TransactionStep step)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        StockMovement result = step(conn, trans);
+                        trans.Commit();
+                        return result;
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
         }
 
 
-        /// <summary>
         /// <summary>
         /// F-31: إلغاء مسار الشراء الموازي المنفصل وتوحيده عبر دورة المشتريات المركزية CreatePurchase
         /// تضمن تحديث الحسابات، الأرصدة، وسجل المشتريات، وتسجيل الباتشات والتكلفة المرجحة بدقة.
@@ -315,57 +389,26 @@ namespace RafiqPOS.Services
                 unitName = unit.UnitName;
             }
 
-            long baseQuantityDeltaMilli = (long)Math.Round(purchaseQuantity * factor * 1000);
-            long baseCostPiasters = factor > 0 ? (long)Math.Round((decimal)packageCostPiasters / factor, 0, MidpointRounding.AwayFromZero) : packageCostPiasters;
-            long totalCostPiasters = (long)Math.Round(purchaseQuantity * packageCostPiasters);
-
-            string supplierId = null;
-            if (!string.IsNullOrWhiteSpace(supplierName))
+            long baseQuantityDeltaMilli = (long)Math.Round((decimal)purchaseQuantity * factor * 1000m, MidpointRounding.AwayFromZero);
+            if (baseQuantityDeltaMilli <= 0)
             {
-                using (var conn = new SQLiteConnection(_connectionString))
-                {
-                    conn.Open();
-                    using (var findCmd = new SQLiteCommand("SELECT id FROM suppliers WHERE name = @name AND is_active = 1 LIMIT 1;", conn))
-                    {
-                        findCmd.Parameters.AddWithValue("@name", supplierName.Trim());
-                        object sObj = findCmd.ExecuteScalar();
-                        if (sObj != null && sObj != DBNull.Value)
-                        {
-                            supplierId = sObj.ToString();
-                        }
-                    }
-                    if (string.IsNullOrEmpty(supplierId))
-                    {
-                        supplierId = Guid.NewGuid().ToString();
-                        using (var insCmd = new SQLiteCommand(@"
-                            INSERT INTO suppliers (id, name, phone, address, balance_piasters, is_active, created_at, updated_at)
-                            VALUES (@id, @name, '', '', 0, 1, datetime('now'), datetime('now'));
-                        ", conn))
-                        {
-                            insCmd.Parameters.AddWithValue("@id", supplierId);
-                            insCmd.Parameters.AddWithValue("@name", supplierName.Trim());
-                            insCmd.ExecuteNonQuery();
-                        }
-                    }
-                }
+                throw new ArgumentException("كمية الشراء يجب أن تكون أكبر من صفر", "purchaseQuantity");
             }
+            long baseCostPiasters = (long)Math.Round((decimal)packageCostPiasters / factor, 0, MidpointRounding.AwayFromZero);
 
             string cleanInvoice = string.IsNullOrWhiteSpace(invoiceNumber) ? null : invoiceNumber.Trim();
             string nowIso = DateTime.UtcNow.ToString("o");
 
+            // Totals, net and the paid amount are computed by CreatePurchase; the supplier is resolved inside its transaction
             var purchase = new Purchase
             {
                 Id = Guid.NewGuid().ToString(),
-                SupplierId = supplierId,
                 SupplierName = !string.IsNullOrWhiteSpace(supplierName) ? supplierName.Trim() : null,
+                AutoCreateSupplier = !string.IsNullOrWhiteSpace(supplierName),
                 SupplierInvoiceNumber = cleanInvoice,
                 InvoiceDate = nowIso,
-                TotalCostPiasters = totalCostPiasters,
                 DiscountPiasters = 0,
-                NetCostPiasters = totalCostPiasters,
-                PaidAmountPiasters = totalCostPiasters,
-                RemainingAmountPiasters = 0,
-                PaymentStatus = "PAID",
+                PayInFull = true,
                 PaymentSource = "external_cash",
                 Status = "COMPLETED",
                 Notes = string.Format("تسجيل استلام بضاعة سريع: {0} {1}", purchaseQuantity.ToString("0.###"), unitName),
@@ -382,7 +425,6 @@ namespace RafiqPOS.Services
                         BonusQuantityMilli = 0,
                         UnitCostPiasters = baseCostPiasters,
                         DiscountPiasters = 0,
-                        TotalCostPiasters = totalCostPiasters,
                         PreviousCostPiasters = product.CostPiasters,
                         NewSellingPricePiasters = null,
                         UnitId = unit != null ? unit.Id : null,
@@ -425,6 +467,25 @@ namespace RafiqPOS.Services
             return _movementRepo.CheckDiscrepancies();
         }
 
+        private static Dictionary<string, long> ReadStandaloneStock(SQLiteConnection conn, SQLiteTransaction trans, string productId)
+        {
+            var map = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            string sql = "SELECT id, stock_quantity_milli FROM products WHERE (has_variants = 0 OR has_variants IS NULL)"
+                + (string.IsNullOrWhiteSpace(productId) ? ";" : " AND id = @pid;");
+            using (var cmd = new SQLiteCommand(sql, conn, trans))
+            {
+                if (!string.IsNullOrWhiteSpace(productId)) cmd.Parameters.AddWithValue("@pid", productId.Trim());
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        map[reader["id"].ToString()] = Convert.ToInt64(reader["stock_quantity_milli"]);
+                    }
+                }
+            }
+            return map;
+        }
+
         /// <summary>
         /// Task 34-3: أداة «إعادة حساب المخزون من الحركات» لإصلاح أي عدم اتساق
         /// </summary>
@@ -432,7 +493,34 @@ namespace RafiqPOS.Services
         {
             lock (SaleService.FinancialWriteLock)
             {
-                int updatedCount = _movementRepo.RecalculateStockFromMovements(productId);
+                int updatedCount;
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            Dictionary<string, long> before = ReadStandaloneStock(conn, trans, productId);
+                            updatedCount = _movementRepo.RecalculateStockFromMovements(productId, conn, trans);
+                            Dictionary<string, long> after = ReadStandaloneStock(conn, trans, productId);
+                            foreach (var entry in after)
+                            {
+                                long oldStock;
+                                if (before.TryGetValue(entry.Key, out oldStock) && oldStock != entry.Value)
+                                {
+                                    ProductBatchRepository.SyncBatchesWithStockDelta(conn, trans, entry.Key, entry.Value - oldStock);
+                                }
+                            }
+                            trans.Commit();
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
+                    }
+                }
 
                 if (_auditRepo != null)
                 {
