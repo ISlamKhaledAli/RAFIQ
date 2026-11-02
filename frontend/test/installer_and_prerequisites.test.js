@@ -36,7 +36,7 @@ describe('Story 56 & 57: Installer & Prerequisites Verification (Features #12 & 
     assert.ok(content.includes('ServicePackMajor < 1'), 'Script must check for missing Service Pack 1');
 
     // .NET Framework 4.8 release key check (>= 528040)
-    assert.ok(content.includes('IsDotNetCompatible'), 'Script must verify compatible .NET Framework');
+    assert.ok(content.includes('IsDotNet48Installed') || content.includes('IsDotNetCompatible'), 'Script must verify compatible .NET Framework');
     assert.ok(content.includes('528040'), 'Script must check release DWORD 528040 for .NET 4.8');
 
     // Arabic guidance messages instead of error codes

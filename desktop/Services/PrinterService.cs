@@ -287,7 +287,12 @@ namespace RafiqPOS.Services
                 string address = store.ContainsKey("store_address") ? store["store_address"] : "";
                 string taxNumber = store.ContainsKey("tax_number") ? store["tax_number"] : "";
                 string header = store.ContainsKey("receipt_header") ? store["receipt_header"] : "أهلاً بكم في متجرنا";
-                string footer = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.";
+                string storeType = store.ContainsKey("store_type") ? store["store_type"] : (_settings != null ? _settings.Get("store_type", "supermarket") : "supermarket");
+                string defaultFooter = GetDefaultFooterForStoreType(storeType);
+                string configuredFooter = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "";
+                string footer = (!string.IsNullOrWhiteSpace(configuredFooter) && configuredFooter != "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.")
+                    ? configuredFooter
+                    : defaultFooter;
 
                 using (var doc = new PrintDocument())
                 {
@@ -295,6 +300,9 @@ namespace RafiqPOS.Services
                     {
                         doc.PrinterSettings.PrinterName = targetPrinter;
                     }
+
+                    doc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
+                    doc.OriginAtMargins = false;
 
                     if (!doc.PrinterSettings.IsValid)
                     {
@@ -487,7 +495,12 @@ namespace RafiqPOS.Services
             string address = store.ContainsKey("store_address") ? store["store_address"] : "";
             string taxNumber = store.ContainsKey("tax_number") ? store["tax_number"] : "";
             string header = store.ContainsKey("receipt_header") ? store["receipt_header"] : "أهلاً بكم في متجرنا";
-            string footer = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.";
+            string storeType = store.ContainsKey("store_type") ? store["store_type"] : (_settings != null ? _settings.Get("store_type", "supermarket") : "supermarket");
+            string defaultFooter = GetDefaultFooterForStoreType(storeType);
+            string configuredFooter = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "";
+            string footer = (!string.IsNullOrWhiteSpace(configuredFooter) && configuredFooter != "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.")
+                ? configuredFooter
+                : defaultFooter;
 
             var bmpTemp = new Bitmap(pixelWidth, pixelHeight);
             float finalY;
@@ -608,6 +621,106 @@ namespace RafiqPOS.Services
             return null;
         }
 
+                public static string GetDefaultFooterForStoreType(string storeType)
+        {
+            storeType = (storeType ?? "").Trim().ToLowerInvariant();
+            if (storeType == "pharmacy")
+            {
+                return "شكراً لزيارتكم ونتمنى لكم الشفاء العاجل! الأدوية غير المفتوحة تستبدل خلال 14 يوماً بالإيصال. أدوية الثلاجة والأمبولات المعقمة لا ترد حفاظاً على الصحة العامة.";
+            }
+            if (storeType == "clothing_apparel" || storeType == "clothing" || storeType == "clothing_shoes")
+            {
+                return "شكراً لاختياركم متجرنا! الاستبدال والاسترجاع خلال 14 يوماً بالإيصال مع بقاء تكت المصنع وبنفس الحالة الأصلية. الملابس الداخلية وسواريهات الحفلات لا ترد ولا تستبدل.";
+            }
+            if (storeType == "phones_electronics" || storeType == "electronics")
+            {
+                return "شكراً لثقتكم بنا! الضمان ساري بوجود الفاتورة والعلبة الأصلية ولا يشمل الكسر أو الحريق وسوء الاستخدام ودخول السوائل. الاسترجاع خلال 14 يوماً ضد عيوب الصناعة.";
+            }
+            if (storeType == "produce_butchery" || storeType == "butchery" || storeType == "produce")
+            {
+                return "شكراً لتعاملكم معنا! لحومنا وخضرواتنا طازجة ومذبوحة وفقاً للشريعة الإسلامية. يُرجى فحص الطلب واستلامه طازجاً، والرجوع بالإيصال لأي ملاحظة.";
+            }
+            if (storeType == "cafe_restaurant" || storeType == "cafe" || storeType == "restaurant")
+            {
+                return "أهلاً وسهلاً بكم دائماً! نسعد بخدمتكم ونتمنى أن تكون تجربتكم نالت كامل رضاكم. لأي ملاحظات أو اقتراحات يسعدنا تواصلكم.";
+            }
+            if (storeType == "spices_roastery" || storeType == "roastery")
+            {
+                return "شكراً لزيارتكم! بن وتوابل ومكسرات طازجة ومحمصة يومياً بأعلى جودة. الاستبدال للبضائع المغلفة خلال 14 يوماً بالإيصال.";
+            }
+            if (storeType == "dairy_bakery" || storeType == "bakery")
+            {
+                return "شكراً لاختياركم مخبزنا! منتجاتنا مخبوزة وطازجة يومياً بأجود المكونات الطبيعية. يسعدنا دائماً تكرار زيارتكم.";
+            }
+            if (storeType == "stationery_gifts" || storeType == "toys_kids")
+            {
+                return "شكراً لزيارتكم! يسعدنا تقديم أجود الأدوات والهدايا. الاستبدال والاسترجاع خلال 14 يوماً مع بقاء الغلاف الأصلي للمنتج.";
+            }
+            return "شكراً لتسوقكم معنا! البضاعة الجافة تستبدل خلال 14 يوماً بالإيصال وبحالتها الأصلية. المواد الغذائية الطازجة والمجمدة خلال 24 ساعة.";
+        }
+
+        public static string FormatReceiptUnit(string unitName, string unit, long quantityMilli)
+        {
+            string raw = (!string.IsNullOrWhiteSpace(unitName) ? unitName : unit ?? "").Trim().ToLowerInvariant();
+            if (raw == "piece" || raw == "pc" || raw == "pcs" || raw == "item" || raw == "unit" || raw == "قطعة")
+            {
+                return "ق";
+            }
+            if (raw == "kg" || raw == "kilo" || raw == "kilogram")
+            {
+                return "كجم";
+            }
+            if (raw == "g" || raw == "gm" || raw == "gram")
+            {
+                return "جم";
+            }
+            if (raw == "l" || raw == "liter" || raw == "litre")
+            {
+                return "لتر";
+            }
+            if (raw == "m" || raw == "meter")
+            {
+                return "متر";
+            }
+            if (raw == "box" || raw == "carton")
+            {
+                return "علبة";
+            }
+            if (raw == "strip")
+            {
+                return "شريط";
+            }
+            if (raw == "bottle")
+            {
+                return "زجاجة";
+            }
+            if (raw == "capsule")
+            {
+                return "كبسولة";
+            }
+            if (raw == "tablet")
+            {
+                return "قرص";
+            }
+            if (raw == "sachet")
+            {
+                return "كيس";
+            }
+            if (raw == "ampoule")
+            {
+                return "أمبول";
+            }
+            if (raw == "vial")
+            {
+                return "فيال";
+            }
+            if (!string.IsNullOrWhiteSpace(unitName))
+            {
+                return unitName;
+            }
+            return (string.Equals(unit, "kg", StringComparison.OrdinalIgnoreCase) || quantityMilli % 1000 != 0) ? "كجم" : "ق";
+        }
+
         private float RenderReceiptPage(
             Graphics g,
             Sale sale,
@@ -680,7 +793,7 @@ namespace RafiqPOS.Services
                     LineAlignment = StringAlignment.Center
                 };
 
-                float y = 8;
+                float y = 4;
 
                 // 0. رسم شعار المتجر إذا وجد
                 using (var logo = TryLoadStoreLogo())
@@ -782,11 +895,46 @@ namespace RafiqPOS.Services
                     y += 20;
                 }
 
-                // 2.b شارة نوع الطلب ورقم النداء ومعلومات الصالة (الكافيهات والمطاعم)
-                bool hasHospitalityMeta = (sale.OrderCallNumber > 0) ||
-                    string.Equals(sale.OrderType, "dine_in", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase) ||
-                    !string.IsNullOrWhiteSpace(sale.TableName);
+                // 2.b هوية وتخصيص نوع المتجر (عزل صارم لمنع تداخل الأنشطة التجارية)
+                string rawStoreType = _settings != null ? _settings.Get("store_type", "supermarket") : "supermarket";
+                string storeType = (rawStoreType ?? "").Trim().ToLowerInvariant();
+
+                bool isHospitality = storeType == "cafe_restaurant" || storeType == "cafe" || storeType == "restaurant";
+                bool isPharmacy = storeType == "pharmacy";
+                bool isClothing = storeType == "clothing_apparel" || storeType == "clothing" || storeType == "clothing_shoes";
+                bool isElectronics = storeType == "phones_electronics" || storeType == "electronics";
+                bool isProduceOrButchery = storeType == "produce_butchery" || storeType == "butchery" || storeType == "produce";
+                bool isRoastery = storeType == "spices_roastery" || storeType == "roastery";
+                bool isBakery = storeType == "dairy_bakery" || storeType == "bakery";
+                bool isStationeryOrToys = storeType == "stationery_gifts" || storeType == "toys_kids";
+                bool isSupermarketOrGrocery = storeType == "supermarket" || storeType == "general_grocery" || storeType == "grocery" || string.IsNullOrEmpty(storeType);
+
+                // بيانات الروشتة والتأمين الطبي للصيدليات
+                if (isPharmacy)
+                {
+                    if (sale.Prescription != null && !string.IsNullOrWhiteSpace(sale.Prescription.DoctorName))
+                    {
+                        g.DrawString("الطبيب: د. " + sale.Prescription.DoctorName, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
+                        y += 15;
+                    }
+                    if (sale.InsuranceClaim != null && !string.IsNullOrWhiteSpace(sale.InsuranceClaim.CompanyName))
+                    {
+                        string insInfo = "تأمين طبي: " + sale.InsuranceClaim.CompanyName;
+                        if (!string.IsNullOrWhiteSpace(sale.InsuranceClaim.PatientName))
+                        {
+                            insInfo += " - المريض: " + sale.InsuranceClaim.PatientName;
+                        }
+                        g.DrawString(insInfo, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
+                        y += 15;
+                    }
+                }
+
+                // بيانات الصالة والطلب للكافيهات والمطاعم (محظورة تماماً على باقي الأنشطة)
+                bool isDineIn = string.Equals(sale.OrderType, "dine_in", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrWhiteSpace(sale.TableName);
+                bool isDelivery = string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase) || sale.DeliveryFeePiasters > 0 || sale.DeliveryInfo != null;
+                bool isTakeaway = string.Equals(sale.OrderType, "takeaway", StringComparison.OrdinalIgnoreCase);
+
+                bool hasHospitalityMeta = isDineIn || isDelivery || (isHospitality && (isTakeaway || sale.OrderCallNumber > 0));
 
                 if (hasHospitalityMeta)
                 {
@@ -794,13 +942,13 @@ namespace RafiqPOS.Services
                     y += 3;
 
                     string orderTypeBadge = "تيك أواي (سفري)";
-                    if (string.Equals(sale.OrderType, "dine_in", StringComparison.OrdinalIgnoreCase))
+                    if (isDineIn)
                     {
                         orderTypeBadge = !string.IsNullOrWhiteSpace(sale.TableName)
                             ? ("صالة - طاولة: " + sale.TableName)
                             : "طلب صالة (Dine-In)";
                     }
-                    else if (string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
+                    else if (isDelivery)
                     {
                         orderTypeBadge = "دليفري - توصيل طلبات";
                     }
@@ -831,9 +979,11 @@ namespace RafiqPOS.Services
                     }
                 }
 
+                // بيانات المشتري (المريض في الصيدليات / العميل في باقي الأنشطة)
                 if (!string.IsNullOrWhiteSpace(sale.CustomerName))
                 {
-                    string custStr = "العميل: " + sale.CustomerName;
+                    string custPrefix = isPharmacy ? "المريض: " : "العميل: ";
+                    string custStr = custPrefix + sale.CustomerName;
                     if (!string.IsNullOrWhiteSpace(sale.CustomerPhone))
                     {
                         custStr += " (" + sale.CustomerPhone + ")";
@@ -846,13 +996,21 @@ namespace RafiqPOS.Services
                 g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
                 y += 3;
 
-                float colItemW = isCompact ? contentWidth * 0.44f : contentWidth * 0.48f;
-                float colQtyW = isCompact ? contentWidth * 0.28f : contentWidth * 0.26f;
-                float colTotW = isCompact ? contentWidth * 0.28f : contentWidth * 0.26f;
+                float colTotW = isCompact ? 50f : 68f;
+                float colQtyW = isCompact ? 72f : 96f;
+                float colItemW = contentWidth - colTotW - colQtyW - 10f;
 
-                g.DrawString("الصنف", fontBold, Brushes.Black, new RectangleF(contentWidth - colItemW - 5, y, colItemW, 16), rtlFormat);
-                g.DrawString("الكمية × السعر", fontBold, Brushes.Black, new RectangleF(colTotW + 5, y, colQtyW, 16), centerFormat);
-                g.DrawString("الإجمالي", fontBold, Brushes.Black, new RectangleF(5, y, colTotW - 5, 16), leftFormat);
+                using (var headerCenterFormat = new StringFormat
+                {
+                    FormatFlags = StringFormatFlags.DirectionRightToLeft | StringFormatFlags.NoWrap,
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                })
+                {
+                    g.DrawString("الصنف", fontBold, Brushes.Black, new RectangleF(contentWidth - colItemW - 5, y, colItemW, 17), rtlFormat);
+                    g.DrawString("الكمية × السعر", fontBold, Brushes.Black, new RectangleF(colTotW + 5, y, colQtyW, 17), headerCenterFormat);
+                    g.DrawString("الإجمالي", fontBold, Brushes.Black, new RectangleF(5, y, colTotW - 5, 17), leftFormat);
+                }
                 y += 18;
                 g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
                 y += 5;
@@ -862,9 +1020,7 @@ namespace RafiqPOS.Services
                 {
                     foreach (var item in sale.Items)
                     {
-                        string unitLabel = !string.IsNullOrEmpty(item.UnitName)
-                            ? item.UnitName
-                            : (string.Equals(item.Unit, "kg", StringComparison.OrdinalIgnoreCase) || item.QuantityMilli % 1000 != 0 ? "كجم" : "ق");
+                        string unitLabel = FormatReceiptUnit(item.UnitName, item.Unit, item.QuantityMilli);
 
                         string qtyNum;
                         if (string.Equals(item.Unit, "kg", StringComparison.OrdinalIgnoreCase))
@@ -879,7 +1035,7 @@ namespace RafiqPOS.Services
                         {
                             qtyNum = (item.QuantityMilli / 1000).ToString();
                         }
-                        string qtyStr = qtyNum + " " + unitLabel;
+                        string qtyStr = !string.IsNullOrEmpty(unitLabel) ? (qtyNum + " " + unitLabel) : qtyNum;
 
                         string rateStr = (item.UnitPricePiasters / 100.0).ToString("0.00");
                         string totalStr = (item.TotalPiasters / 100.0).ToString("0.00");
@@ -888,13 +1044,47 @@ namespace RafiqPOS.Services
                         g.DrawString(item.ProductName ?? "صنف", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 17), rtlFormat);
                         y += 16;
 
-                        // السطر 2: الكمية × السعر وإجمالي الصنف
-                        g.DrawString(qtyStr + " × " + rateStr, fontSmall, Brushes.Black, new RectangleF(contentWidth * 0.32f, y, contentWidth * 0.63f, 15), rtlFormat);
-                        g.DrawString(totalStr, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth * 0.32f, 15), leftFormat);
+                        // السطر 2: تفاصيل الكمية وإجمالي الصنف (منع تكرار السعر عند شراء صنف واحد)
+                        bool isSingle = (item.QuantityMilli == 1000) && !string.Equals(item.Unit, "kg", StringComparison.OrdinalIgnoreCase);
+
+                        string lineDetail;
+                        if (isSingle)
+                        {
+                            // صنف مفرد (كمية = 1): لا نكرر السعر مرتين (1 ق × 550.00 وبجانبها 550.00)، بل نكتفي بذكر الكمية والإجمالي
+                            lineDetail = "الكمية: 1 " + unitLabel;
+                            if (item.DiscountPiasters > 0)
+                            {
+                                lineDetail += string.Format(" (خصم -{0:0.00})", item.DiscountPiasters / 100.0);
+                            }
+                        }
+                        else
+                        {
+                            // أصناف متعددة أو بالوزن: نكتب الكمية × سعر الوحدة لتوضيح تفاصيل الحسبة
+                            lineDetail = qtyStr + " × " + rateStr;
+                            if (item.DiscountPiasters > 0)
+                            {
+                                lineDetail += string.Format(" (خصم -{0:0.00})", item.DiscountPiasters / 100.0);
+                            }
+                        }
+
+                        g.DrawString(lineDetail, fontSmall, Brushes.Black, new RectangleF(contentWidth * 0.30f, y, contentWidth * 0.65f, 15), rtlFormat);
+                        g.DrawString(totalStr, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth * 0.30f, 15), leftFormat);
                         y += 17;
 
-                        // الإضافات والملاحظات الخاصة بالصنف
-                        if (item.Modifiers != null && item.Modifiers.Count > 0)
+                        // تشغيلة وصلاحية الأدوية (للصيدليات فقط)
+                        if (isPharmacy && (!string.IsNullOrWhiteSpace(item.BatchNumber) || !string.IsNullOrWhiteSpace(item.ExpiryDate)))
+                        {
+                            string bInfo = "  تشغيلة: " + (!string.IsNullOrWhiteSpace(item.BatchNumber) ? item.BatchNumber : "---");
+                            if (!string.IsNullOrWhiteSpace(item.ExpiryDate))
+                            {
+                                bInfo += " | انتهاء: " + item.ExpiryDate;
+                            }
+                            g.DrawString(bInfo, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 15, 14), rtlFormat);
+                            y += 14;
+                        }
+
+                        // إضافات وتعديلات المطبخ (للكافيهات والمطاعم فقط)
+                        if (isHospitality && item.Modifiers != null && item.Modifiers.Count > 0)
                         {
                             for (int mi = 0; mi < item.Modifiers.Count; mi++)
                             {
@@ -910,11 +1100,55 @@ namespace RafiqPOS.Services
                             }
                         }
 
+                        // ملاحظات مخصصة بحسب هوية المحل
                         if (!string.IsNullOrWhiteSpace(item.Notes))
                         {
-                            g.DrawString("  * ملاحظة: " + item.Notes, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 15, 14), rtlFormat);
+                            string notePrefix = "  * ملاحظة: ";
+                            if (isPharmacy) notePrefix = "  * الجرعة/الإرشادات: ";
+                            else if (isClothing) notePrefix = "  * المقاس/اللون: ";
+                            else if (isElectronics) notePrefix = "  * السيريال/الضمان: ";
+                            else if (isRoastery) notePrefix = "  * التحميص/الطحن: ";
+                            else if (isProduceOrButchery) notePrefix = "  * التقطيع/الطلب: ";
+
+                            g.DrawString(notePrefix + item.Notes, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 15, 14), rtlFormat);
                             y += 14;
                         }
+                    }
+                }
+
+                // 4.b ملخص كميات وأوزان مخصص بحسب النشاط
+                if (sale.Items != null && sale.Items.Count > 0)
+                {
+                    if (isClothing || isStationeryOrToys)
+                    {
+                        long totalPieces = 0;
+                        for (int itmIdx = 0; itmIdx < sale.Items.Count; itmIdx++)
+                        {
+                            totalPieces += Math.Max(1, sale.Items[itmIdx].QuantityMilli / 1000);
+                        }
+                        g.DrawString(string.Format("إجمالي عدد القطع: {0} قطعة", totalPieces), fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rtlFormat);
+                        y += 15;
+                    }
+                    else if (isProduceOrButchery)
+                    {
+                        double totalKg = 0;
+                        for (int itmIdx = 0; itmIdx < sale.Items.Count; itmIdx++)
+                        {
+                            if (string.Equals(sale.Items[itmIdx].Unit, "kg", StringComparison.OrdinalIgnoreCase) || sale.Items[itmIdx].QuantityMilli % 1000 != 0)
+                            {
+                                totalKg += (sale.Items[itmIdx].QuantityMilli / 1000.0);
+                            }
+                        }
+                        if (totalKg > 0)
+                        {
+                            g.DrawString(string.Format("إجمالي وزن الأصناف الموزونة: {0:0.000} كجم", totalKg), fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rtlFormat);
+                            y += 15;
+                        }
+                    }
+                    else if (isSupermarketOrGrocery)
+                    {
+                        g.DrawString(string.Format("عدد البنود: {0} أصناف", sale.Items.Count), fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rtlFormat);
+                        y += 15;
                     }
                 }
 
@@ -987,9 +1221,21 @@ namespace RafiqPOS.Services
                 else if (sale.PaymentMethod == "card") methodArabic = "بطاقة بنكية / فيزا";
                 else if (sale.PaymentMethod == "multi") methodArabic = "دفع مقسّم / متعدد";
 
-                g.DrawString("طريقة السداد: " + methodArabic, fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
-                g.DrawString((totalPaid / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
-                y += 17;
+                if (changeDue > 0)
+                {
+                    g.DrawString("المدفوع (" + methodArabic + "):", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 15), rtlFormat);
+                    g.DrawString((totalPaid / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 15), leftFormat);
+                    y += 17;
+
+                    g.DrawString("المبلغ المتبقي (الباقي):", fontBold, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 17), rtlFormat);
+                    g.DrawString((changeDue / 100.0).ToString("0.00") + " ج.م", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 17), leftFormat);
+                    y += 18;
+                }
+                else
+                {
+                    g.DrawString("طريقة السداد: " + methodArabic, fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rtlFormat);
+                    y += 17;
+                }
 
                 if (sale.PaymentMethod == "multi" && sale.Payments != null && sale.Payments.Count > 1)
                 {
@@ -1009,35 +1255,103 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                if (changeDue > 0)
+                // 6.a شريط توفير العميل (للسوبر ماركت والبقالة فقط)
+                if (isSupermarketOrGrocery && receiptDiscountPiasters > 0)
                 {
-                    g.DrawString("المبلغ المتبقي (الباقي):", fontBold, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 17), rtlFormat);
-                    g.DrawString((changeDue / 100.0).ToString("0.00") + " ج.م", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 17), leftFormat);
-                    y += 18;
+                    y += 2;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    y += 4;
+                    g.DrawString(string.Format("إجمالي التوفير في هذه الفاتورة: {0:0.00} ج.م", receiptDiscountPiasters / 100.0), fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
+                    y += 17;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    y += 4;
                 }
 
-                // تنبيه سلسلة التبريد والأدوية المحفوظة بالثلاجة (Task 185-4)
-                bool hasColdChain = sale.HasColdChainItems;
-                if (!hasColdChain && sale.Items != null)
+                // 6.b تنبيه سلسلة التبريد والأدوية المحفوظة بالثلاجة (للصيدليات فقط وممنوع ظهوره لغيرها)
+                if (isPharmacy)
                 {
-                    for (int cIdx = 0; cIdx < sale.Items.Count; cIdx++)
+                    bool hasColdChain = sale.HasColdChainItems;
+                    if (!hasColdChain && sale.Items != null)
                     {
-                        if (sale.Items[cIdx] != null && sale.Items[cIdx].IsColdChain)
+                        for (int cIdx = 0; cIdx < sale.Items.Count; cIdx++)
                         {
-                            hasColdChain = true;
-                            break;
+                            if (sale.Items[cIdx] != null && sale.Items[cIdx].IsColdChain)
+                            {
+                                hasColdChain = true;
+                                break;
+                            }
                         }
+                    }
+
+                    if (hasColdChain)
+                    {
+                        y += 4;
+                        g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                        y += 4;
+                        g.DrawString("* تنبيه طبي: يحفظ في الثلاجة (2-8 مئوية) *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, isCompact ? 16 : 18), centerFormat);
+                        y += isCompact ? 17 : 19;
+                        g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                        y += 4;
                     }
                 }
 
-                if (hasColdChain)
+                // 6.c شارة ضمان الأجهزة الإلكترونية (لمحلات الموبايل والإلكترونيات فقط)
+                if (isElectronics)
                 {
                     y += 4;
-                    g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
                     y += 4;
-                    g.DrawString("* تنبيه طبي: يحفظ في الثلاجة (2-8 مئوية) *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, isCompact ? 16 : 18), centerFormat);
-                    y += isCompact ? 17 : 19;
-                    g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                    g.DrawString("* ضمان الأجهزة الإلكترونية ساري بالفاتورة الأصلية *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
+                    y += 18;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    y += 4;
+                }
+
+                // 6.d شارة الذبح الإسلامي وجودة اللحوم (لمحلات الجزارة واللحوم والخضار فقط)
+                if (isProduceOrButchery)
+                {
+                    y += 4;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    y += 4;
+                    g.DrawString("* لحوم وخضروات طازجة مذبوحة وفقاً للشريعة الإسلامية *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
+                    y += 18;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    y += 4;
+                }
+
+                // 6.e شارة استبدال الملابس بتكت المصنع (لمحلات الملابس والأزياء فقط)
+                if (isClothing)
+                {
+                    y += 4;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    y += 4;
+                    g.DrawString("* الاستبدال والاسترجاع خلال 14 يوماً بتكت المصنع *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
+                    y += 18;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    y += 4;
+                }
+
+                // 6.f شارة جودة المحامص والعطارة (لمحلات العطارة والبن والمكسرات فقط)
+                if (isRoastery)
+                {
+                    y += 4;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    y += 4;
+                    g.DrawString("* بن ومكسرات وتوابل طازجة عالية الجودة *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
+                    y += 18;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    y += 4;
+                }
+
+                // 6.g شارة طزاجة المخبوزات والحلويات (للمخابز والحلواني والألبان فقط)
+                if (isBakery)
+                {
+                    y += 4;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                    y += 4;
+                    g.DrawString("* مخبوزات وحلويات طازجة يومياً خالية من المواد الحافظة *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
+                    y += 18;
+                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
                     y += 4;
                 }
 
@@ -1125,6 +1439,9 @@ namespace RafiqPOS.Services
                 y += 4;
                 g.DrawString(devSig, fontSmall, Brushes.Black, new RectangleF(2, y, contentWidth - 4, isCompact ? 28 : 18), centerFormat);
                 y += isCompact ? 30 : 20;
+
+                // مسافة أمان سفلية متوازنة لتعادل المسافة الفيزيائية بين رأس الطباعة وسكين القطع
+                y += isCompact ? 22 : 28;
 
                 return y;
             }

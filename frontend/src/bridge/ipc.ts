@@ -3093,6 +3093,16 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       return { success: true, recoveryCode: code };
     }
 
+    case 'backup:verify': {
+      return {
+        success: true,
+        isVerified: true,
+        productsCount: 299,
+        salesCount: 0,
+        message: 'تم فحص النسخة الاحتياطية بنجاح: بنية B-Tree سليمة ومشفرة بأمان (تحتوي على 299 صنف و 0 فاتورة).'
+      };
+    }
+
     case 'products:getSmartCatalog':
       return {
         products: [

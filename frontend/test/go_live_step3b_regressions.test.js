@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { createAttemptKey, newIdempotencyKey } from '../src/utils/idempotency.ts';
 import { enforcesOwnStock } from '../src/views/pos/stockGuard.ts';
 
-const SRC = new URL('../src/', import.meta.url).pathname;
+import { fileURLToPath } from 'node:url';
+const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 const readSrc = (rel) => readFileSync(join(SRC, rel), 'utf8');
 
 describe('Go-live 3B / L8: retry-safe money actions', () => {

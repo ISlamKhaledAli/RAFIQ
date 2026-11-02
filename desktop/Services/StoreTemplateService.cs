@@ -345,9 +345,7 @@ namespace RafiqPOS.Services
 
         public int SeedProductsForTemplate(string templateId, Dictionary<string, string> categoryNameToId = null)
         {
-            // Zero Automatic Mock Injection Policy:
-            // Catalogs are externalized as rich Excel sheets for voluntary merchant import.
-            return 0;
+            return SeedProductsForTemplateInternal(templateId, categoryNameToId);
         }
 
         private int SeedProductsForTemplateInternal(string templateId, Dictionary<string, string> categoryNameToId = null)

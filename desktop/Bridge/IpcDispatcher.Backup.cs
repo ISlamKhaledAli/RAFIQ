@@ -176,14 +176,17 @@ namespace RafiqPOS.Bridge
                             verifyFilePath = request.Payload.ToString().Trim('"', ' ');
                         }
                     }
-                    bool isVerified = DatabaseService.Backup.VerifyBackupIntegrity(verifyFilePath);
+                    long pCount = 0;
+                    long sCount = 0;
+                    string vMsg = "";
+                    bool isVerified = DatabaseService.Backup.VerifyBackupDetailed(verifyFilePath, false, out pCount, out sCount, out vMsg);
                     response = BridgeResponse.Ok(request.Id, new
                     {
                         success = isVerified,
                         isVerified = isVerified,
-                        message = isVerified
-                            ? "تم فحص النسخة الاحتياطية بنجاح: بنية B-Tree سليمة وتطابق أعداد الأصناف والفواتير مع قاعدة البيانات الأصلية."
-                            : "فشل فحص النسخة الاحتياطية: الملف تالف أو لا يطابق سجلات النظام."
+                        productsCount = pCount,
+                        salesCount = sCount,
+                        message = vMsg
                     });
                     return true;
 

@@ -1357,7 +1357,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         supervisorPin: paymentData.supervisorPin || supervisorPinRef.current || undefined,
         controlledDispenses: controlledDispenses.length > 0 ? (controlledDispenses as ControlledDrugDispense[]) : undefined,
         insuranceClaim: activeInsuranceClaim || undefined,
-        orderType: showCafeMode ? orderType : 'takeaway',
+        orderType: showCafeMode ? orderType : 'retail',
         tableId: showCafeMode && orderType === 'dine_in' && activeTable ? activeTable.id : null,
         tableName: showCafeMode && orderType === 'dine_in' && activeTable ? activeTable.name : null,
         guestsCount: showCafeMode && orderType === 'dine_in' && activeTable ? (activeTable.guestsCount || 1) : 1,
@@ -1373,17 +1373,23 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         setNextExpectedInvoiceNumber(completedSale.invoiceNumber + 1);
       }
       setLastCompletedSale(completedSale);
-      setIsReceiptOpen(true);
 
+      // Fast Retail Auto-Print Flow: By default in supermarkets and retail POS,
+      // silent background print is triggered immediately without any blocking preview modal.
       try {
-        const autoPrint = localStorage.getItem('rafiq_pos_printer_auto_print');
-        if (autoPrint === '1' && window.chrome?.webview) {
+        const autoPrintSetting = localStorage.getItem('rafiq_pos_printer_auto_print');
+        const isAutoPrint = autoPrintSetting !== '0';
+
+        if (isAutoPrint && window.chrome?.webview) {
           void invoke('printer:printReceipt', { sale: completedSale }).catch((printErr) => {
             console.warn('Auto print error:', printErr);
           });
+          setIsReceiptOpen(false);
+        } else {
+          setIsReceiptOpen(true);
         }
       } catch {
-        // Non-blocking
+        setIsReceiptOpen(true);
       }
 
       if (completedSale.negativeStockWarnings && completedSale.negativeStockWarnings.length > 0) {

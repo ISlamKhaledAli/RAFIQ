@@ -15,6 +15,55 @@ interface ReceiptModalProps {
   receiptFooter?: string;
 }
 
+function formatReceiptUnit(unitName?: string, unit?: string, quantityMilli?: number): string {
+  const raw = (unitName || unit || '').trim().toLowerCase();
+  if (['piece', 'pc', 'pcs', 'item', 'unit', 'قطعة'].includes(raw)) return 'ق';
+  if (['kg', 'kilo', 'kilogram'].includes(raw)) return 'كجم';
+  if (['g', 'gm', 'gram'].includes(raw)) return 'جم';
+  if (['l', 'liter', 'litre'].includes(raw)) return 'لتر';
+  if (['m', 'meter'].includes(raw)) return 'متر';
+  if (['box', 'carton'].includes(raw)) return 'علبة';
+  if (['strip'].includes(raw)) return 'شريط';
+  if (['bottle'].includes(raw)) return 'زجاجة';
+  if (['capsule'].includes(raw)) return 'كبسولة';
+  if (['tablet'].includes(raw)) return 'قرص';
+  if (['sachet'].includes(raw)) return 'كيس';
+  if (['ampoule'].includes(raw)) return 'أمبول';
+  if (['vial'].includes(raw)) return 'فيال';
+  if (unitName && unitName.trim()) return unitName;
+  if (unit === 'kg' || (quantityMilli !== undefined && quantityMilli % 1000 !== 0)) return 'كجم';
+  return 'ق';
+}
+
+function getDefaultFooterForStoreType(storeType?: string): string {
+  const t = (storeType || '').trim().toLowerCase();
+  if (t === 'pharmacy') {
+    return 'شكراً لزيارتكم ونتمنى لكم الشفاء العاجل! الأدوية غير المفتوحة تستبدل خلال 14 يوماً بالإيصال. أدوية الثلاجة والأمبولات المعقمة لا ترد حفاظاً على الصحة العامة.';
+  }
+  if (t === 'clothing_apparel' || t === 'clothing' || t === 'clothing_shoes') {
+    return 'شكراً لاختياركم متجرنا! الاستبدال والاسترجاع خلال 14 يوماً بالإيصال مع بقاء تكت المصنع وبنفس الحالة الأصلية. الملابس الداخلية وسواريهات الحفلات لا ترد ولا تستبدل.';
+  }
+  if (t === 'phones_electronics' || t === 'electronics') {
+    return 'شكراً لثقتكم بنا! الضمان ساري بوجود الفاتورة والعلبة الأصلية ولا يشمل الكسر أو الحريق وسوء الاستخدام ودخول السوائل. الاسترجاع خلال 14 يوماً ضد عيوب الصناعة.';
+  }
+  if (t === 'produce_butchery' || t === 'butchery' || t === 'meat_poultry' || t === 'fruits_vegetables') {
+    return 'شكراً لثقتكم باختيار لحومنا وخضرواتنا الطازجة! تخضع منتجاتنا لأعلى معايير الفحص والذبح الشرعي. يرجى حفظ المشتريات مبردة فوراً.';
+  }
+  if (t === 'cafe_restaurant' || t === 'cafe' || t === 'restaurant') {
+    return 'صحة وهنا! شكراً لتشريفكم ونسعد دائماً بخدمتكم. يسعدنا سماع ملاحظاتكم لتطوير جودتنا دوماً.';
+  }
+  if (t === 'spices_roastery' || t === 'roastery' || t === 'nuts') {
+    return 'شكراً لاختياركم أجود أنواع التوابل والمكسرات المحمصة طازجة! يرجى حفظ المنتجات في مكان جاف ومحكم الغلق للحفاظ على النكهة.';
+  }
+  if (t === 'dairy_bakery' || t === 'bakery' || t === 'pastry') {
+    return 'بالهناء والشفاء! مخبوزات وألبان طازجة يومياً خالية من المواد الحافظة. يرجى استهلاك المنتجات خلال فترة الصلاحية المدونة.';
+  }
+  if (t === 'stationery_gifts' || t === 'toys_kids') {
+    return 'شكراً لزيارتكم ونسعد بإسعاد أطفالكم! الاستبدال خلال 14 يوماً بحالة المصنع والعلبة الأصلية كاملة الملحقات.';
+  }
+  return 'شكراً لزيارتكم! البضاعة المباعة تستبدل خلال 14 يوماً بالإيصال بحالتها الأصلية وفقاً لقانون حماية المستهلك.';
+}
+
 export function ReceiptModal({
   isOpen,
   onClose,
@@ -55,12 +104,30 @@ export function ReceiptModal({
     return () => { active = false; };
   }, [isOpen]);
 
+  const rawStoreType = liveSettings.store_type || 'supermarket';
+  const storeType = rawStoreType.trim().toLowerCase();
+
+  const isHospitality = ['cafe_restaurant', 'cafe', 'restaurant'].includes(storeType);
+  const isPharmacy = storeType === 'pharmacy';
+  const isClothing = ['clothing_apparel', 'clothing', 'clothing_shoes'].includes(storeType);
+  const isElectronics = ['phones_electronics', 'electronics'].includes(storeType);
+  const isProduceOrButchery = ['produce_butchery', 'butchery', 'meat_poultry', 'fruits_vegetables'].includes(storeType);
+  const isRoastery = ['spices_roastery', 'roastery', 'nuts'].includes(storeType);
+  const isBakery = ['dairy_bakery', 'bakery', 'pastry'].includes(storeType);
+  const isStationeryOrToys = ['stationery_gifts', 'toys_kids'].includes(storeType);
+  const isSupermarketOrGrocery = ['supermarket', 'general_grocery', 'grocery'].includes(storeType) || !storeType;
+
+  const defaultFooter = getDefaultFooterForStoreType(storeType);
+  const configuredFooter = liveSettings.receipt_footer || receiptFooter;
+  const activeFooter = (configuredFooter && configuredFooter !== 'شكراً لتعاملكم معنا! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.' && configuredFooter !== 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.')
+    ? configuredFooter
+    : defaultFooter;
+
   const activeStoreName = liveSettings.store_name || storeName;
   const activePhone = liveSettings.store_phone || storePhone;
   const activeAddress = liveSettings.store_address || storeAddress;
   const activeTaxNumber = liveSettings.tax_number || '';
   const activeHeader = liveSettings.receipt_header || '';
-  const activeFooter = liveSettings.receipt_footer || receiptFooter;
   const activeCashier = liveSettings.cashier_name || 'كاشير (1)';
   const showReceiptLogo = liveSettings.show_receipt_logo !== '0';
   const activeLogoUrl = 
@@ -78,45 +145,40 @@ export function ReceiptModal({
     setPrintStatus(null);
 
     try {
-      if (window.chrome?.webview) {
-        // Native Desktop C# PrintDocument via Win32 Spooler / ESC-POS
-        const res = await invoke<{ success: boolean; message: string; printerUsed?: string }>('printer:printReceipt', {
-          sale,
-          paperWidth
+      const res = await invoke<{ ok: boolean; message?: string; printerName?: string }>('printer:printReceipt', {
+        saleId: sale.id,
+      });
+
+      if (res && res.ok) {
+        setPrintStatus({
+          ok: true,
+          msg: `تم إرسال الفاتورة بنجاح إلى الطابعة (${res.printerName || 'الافتراضية'})`,
         });
-        if (res.success) {
-          setPrintStatus({ ok: true, msg: res.message || 'تم إرسال الإيصال للطابعة وقص الورق بنجاح' });
-        } else {
-          setPrintStatus({ 
-            ok: false, 
-            msg: res.message || 'تعذر الاتصال بالطابعة أو نفاد الورق. تحقق من الكابل والورق.' 
-          });
-        }
       } else {
-        // Browser fallback / mock mode
-        await invoke('printer:printReceipt', { sale, paperWidth });
-        setPrintStatus({ ok: true, msg: 'تمت الطباعة التجريبية (وضع المتصفح)' });
-        window.print();
+        const errMsg = res?.message || 'تعذر إرسال أمر الطباعة للطابعة الحرارية. يرجى مراجعة التوصيل والكابل.';
+        setPrintStatus({
+          ok: false,
+          msg: errMsg,
+        });
       }
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      setPrintStatus({ 
-        ok: false, 
-        msg: `تعذر الاتصال بالطابعة: ${errMsg}. الفاتورة محفوظة بأمان.` 
+      setPrintStatus({
+        ok: false,
+        msg: (err as Error)?.message || 'حدث خطأ غير متوقع أثناء التواصل مع خدمة الطباعة.',
       });
     } finally {
       setIsPrinting(false);
     }
-  }, [sale, isPrinting, paperWidth]);
+  }, [sale, isPrinting]);
 
-  // Keyboard shortcut listener (F9 to print, Escape to close)
+  // Keyboard shortcut: F9 prints, Escape closes
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F9') {
         e.preventDefault();
-        void handlePrint();
+        handlePrint();
       } else if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
@@ -124,9 +186,7 @@ export function ReceiptModal({
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handlePrint, onClose]);
 
   if (!isOpen || !sale) return null;
@@ -141,8 +201,31 @@ export function ReceiptModal({
 
   const changePiasters = Math.max(0, sale.paidPiasters - sale.totalPiasters);
   const remainingPiasters = Math.max(0, sale.totalPiasters - sale.paidPiasters);
-
   const is57mm = paperWidth === '57mm';
+
+  // Hospitality detection
+  const isDineIn = (sale.orderType || '').toLowerCase() === 'dine_in' || !!sale.tableName;
+  const isDelivery = (sale.orderType || '').toLowerCase() === 'delivery' || (sale.deliveryFeePiasters || 0) > 0 || !!sale.deliveryInfo;
+  const isTakeaway = (sale.orderType || '').toLowerCase() === 'takeaway';
+  const hasHospitalityMeta = isDineIn || isDelivery || (isHospitality && (isTakeaway || (sale.orderCallNumber || 0) > 0));
+
+  // Pharmacy cold-chain items check
+  const hasColdChain = isPharmacy && (sale.hasColdChainItems || sale.items?.some((it) => it.isColdChain));
+
+  // Total discounts
+  const totalDiscount = totalSaleDiscountPiasters(sale);
+
+  // Summary counts
+  let totalPieces = 0;
+  let totalKg = 0;
+  if (sale.items && sale.items.length > 0) {
+    for (const item of sale.items) {
+      totalPieces += Math.max(1, Math.floor(item.quantityMilli / 1000));
+      if (item.unit === 'kg' || item.quantityMilli % 1000 !== 0) {
+        totalKg += (item.quantityMilli / 1000);
+      }
+    }
+  }
 
   return (
     <div 
@@ -206,7 +289,7 @@ export function ReceiptModal({
           </div>
         )}
 
-        {/* Scrollable Receipt Body (Proportionate 80mm: 302px vs 57mm: 220px) */}
+        {/* Scrollable Receipt Body */}
         <div className="overflow-y-auto p-4 bg-canvas flex justify-center">
           <div 
             id="printable-receipt"
@@ -239,6 +322,32 @@ export function ReceiptModal({
             {/* Dotted Divider */}
             <div className="border-t border-dotted border-black my-2"></div>
 
+            {/* Pharmacy insurance claim info */}
+            {isPharmacy && sale.insuranceClaim && (
+              <div className="text-[10px] font-sans text-gray-800 pb-1 mb-1 border-b border-dotted border-gray-300">
+                <div>تأمين طبي: {sale.insuranceClaim.companyName || sale.insuranceClaim.contractName || 'جهة التأمين'}</div>
+                {sale.insuranceClaim.memberNo && <div>رقم العضوية: {sale.insuranceClaim.memberNo}</div>}
+                {sale.insuranceClaim.approvalNo && <div>رقم الموافقة: {sale.insuranceClaim.approvalNo}</div>}
+              </div>
+            )}
+
+            {/* Hospitality Banner (strictly isolated) */}
+            {hasHospitalityMeta && (
+              <div className="border border-black rounded p-1 mb-2 text-center font-sans bg-gray-50">
+                <div className="font-bold text-[12px]">
+                  {sale.orderCallNumber ? `نداء #${String(sale.orderCallNumber).padStart(3, '0')} | ` : ''}
+                  {isDineIn ? (sale.tableName ? `صالة - طاولة: ${sale.tableName}` : 'طلب صالة') : isDelivery ? 'دليفري - توصيل طلبات' : 'تيك أواي (سفري)'}
+                </div>
+                {(sale.waiterName || (sale.guestsCount && sale.guestsCount > 0)) && (
+                  <div className="text-[9.5px] text-gray-700 mt-0.5">
+                    {sale.waiterName ? `الكابتن: ${sale.waiterName}` : ''}
+                    {sale.waiterName && sale.guestsCount ? ' | ' : ''}
+                    {sale.guestsCount ? `عدد الضيوف: ${sale.guestsCount}` : ''}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Invoice Meta */}
             <div className="flex justify-between text-[10px] font-sans">
               <span>فاتورة رقم: #{sale.invoiceNumber || '---'}</span>
@@ -248,47 +357,127 @@ export function ReceiptModal({
               <span>الكاشير: {activeCashier}</span>
               <span>الوقت: {formattedTime}</span>
             </div>
-            {sale.customerId && (
+            {sale.customerName && (
               <div className="text-[10px] text-right font-sans text-gray-800 font-semibold mt-0.5">
-                نوع الفاتورة: {sale.paymentMethod === 'credit' ? 'آجل (على الحساب)' : 'نقدي'}
+                {isPharmacy ? 'المريض: ' : 'العميل: '} {sale.customerName} {sale.customerPhone ? `(${sale.customerPhone})` : ''}
               </div>
             )}
 
             {/* Dotted Divider */}
             <div className="border-t border-dotted border-black my-2"></div>
 
+            {/* Table Header */}
+            <div className="flex justify-between items-center text-[10.5px] font-bold border-b border-black pb-1 mb-1.5 font-sans">
+              <span className="w-1/2 text-right">الصنف</span>
+              <span className="w-1/4 text-center">الكمية × السعر</span>
+              <span className="w-1/4 text-left">الإجمالي</span>
+            </div>
+
             {/* Items Table */}
             <div className="space-y-1.5 font-sans">
-              {sale.items.map((item, idx) => (
-                <div key={idx} className={is57mm ? 'text-[10px]' : 'text-[11px]'}>
-                  <div className="font-semibold text-right text-black">{item.productName}</div>
-                  <div className="flex justify-between items-baseline font-mono text-[10px]">
-                    <span>
-                      {item.unitName
-                        ? `${item.quantityMilli % 1000 !== 0 ? (item.quantityMilli / 1000).toFixed(3) : item.quantityMilli / 1000} ${item.unitName}`
-                        : (item.unit === 'kg' || item.quantityMilli % 1000 !== 0
-                          ? `${(item.quantityMilli / 1000).toFixed(3)} كجم`
-                          : `${item.quantityMilli / 1000} ق`)} × {formatArabicCurrency(item.unitPricePiasters, false)}
-                    </span>
-                    <span className="font-bold text-black">{formatArabicCurrency(item.totalPiasters)}</span>
+              {sale.items.map((item, idx) => {
+                const uLabel = formatReceiptUnit(item.unitName, item.unit, item.quantityMilli);
+                const isSingle = (item.quantityMilli === 1000) && (item.unit !== 'kg');
+                const qtyVal = item.quantityMilli % 1000 !== 0 ? (item.quantityMilli / 1000).toFixed(3) : (item.quantityMilli / 1000).toString();
+                
+                let notePrefix = '* ملاحظة: ';
+                if (isPharmacy) notePrefix = '* الجرعة/الإرشادات: ';
+                else if (isClothing) notePrefix = '* المقاس/اللون: ';
+                else if (isElectronics) notePrefix = '* السيريال/الضمان: ';
+                else if (isRoastery) notePrefix = '* التحميص/الطحن: ';
+                else if (isProduceOrButchery) notePrefix = '* التقطيع/الطلب: ';
+
+                return (
+                  <div key={idx} className={is57mm ? 'text-[10px]' : 'text-[11px]'}>
+                    <div className="font-semibold text-right text-black">{item.productName}</div>
+                    
+                    <div className="flex justify-between items-baseline text-[10px]">
+                      <span className="font-mono text-gray-700">
+                        {isSingle ? (
+                          <span>الكمية: 1 {uLabel}</span>
+                        ) : (
+                          <span dir="ltr">{qtyVal} {uLabel} × {formatArabicCurrency(item.unitPricePiasters, false)}</span>
+                        )}
+                        {item.discountPiasters > 0 && (
+                          <span className="text-red-700 mr-1"> (خصم -{(item.discountPiasters / 100).toFixed(2)})</span>
+                        )}
+                      </span>
+                      <span className="font-bold text-black font-mono">{formatArabicCurrency(item.totalPiasters)}</span>
+                    </div>
+
+                    {/* Pharmacy batch and expiry */}
+                    {isPharmacy && (item.batchNumber || item.expiryDate) && (
+                      <div className="text-[9px] text-gray-600 mt-0.5">
+                        تشغيلة: {item.batchNumber || '---'} {item.expiryDate ? ` | انتهاء: ${item.expiryDate}` : ''}
+                      </div>
+                    )}
+
+                    {/* Hospitality kitchen modifiers */}
+                    {isHospitality && item.modifiers && item.modifiers.length > 0 && (
+                      <div className="text-[9px] text-gray-600 space-y-0.5 mt-0.5 pr-1">
+                        {item.modifiers.map((m, mi) => (
+                          <div key={mi}>+ {m.optionName}{m.extraPricePiasters > 0 ? ` (+${(m.extraPricePiasters / 100).toFixed(2)})` : ''}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Domain-tailored item notes */}
+                    {item.notes && (
+                      <div className="text-[9px] text-gray-600 mt-0.5 italic">
+                        {notePrefix}{item.notes}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
+            {/* Summary Badges per Store Domain */}
+            {(isClothing || isStationeryOrToys) && totalPieces > 0 && (
+              <div className="border-t border-dashed border-gray-400 mt-2 pt-1 text-[10px] font-semibold text-gray-800">
+                إجمالي عدد القطع: {totalPieces} قطعة
+              </div>
+            )}
+
+            {isProduceOrButchery && totalKg > 0 && (
+              <div className="border-t border-dashed border-gray-400 mt-2 pt-1 text-[10px] font-semibold text-gray-800">
+                إجمالي وزن الأصناف الموزونة: {totalKg.toFixed(3)} كجم
+              </div>
+            )}
+
+            {isSupermarketOrGrocery && sale.items && sale.items.length > 0 && (
+              <div className="border-t border-dashed border-gray-400 mt-2 pt-1 text-[10px] font-semibold text-gray-800">
+                عدد البنود: {sale.items.length} أصناف
+              </div>
+            )}
 
             {/* Solid Divider */}
             <div className="border-t border-black my-2"></div>
 
             {/* Totals */}
             <div className="space-y-1 font-sans">
-              <div className="flex justify-between">
-                <span>المجموع:</span>
-                <span className="font-mono">{formatArabicCurrency(sale.subtotalPiasters)}</span>
-              </div>
-              {totalSaleDiscountPiasters(sale) > 0 && (
+              {(totalDiscount > 0 || sale.taxPiasters > 0 || (sale.serviceChargePiasters || 0) > 0 || (sale.deliveryFeePiasters || 0) > 0) && (
+                <div className="flex justify-between">
+                  <span>المجموع الفرعي:</span>
+                  <span className="font-mono">{formatArabicCurrency(sale.subtotalPiasters)}</span>
+                </div>
+              )}
+              {totalDiscount > 0 && (
                 <div className="flex justify-between text-red-700">
-                  <span>الخصم:</span>
-                  <span className="font-mono">-{formatArabicCurrency(totalSaleDiscountPiasters(sale))}</span>
+                  <span>قيمة الخصم:</span>
+                  <span className="font-mono">-{formatArabicCurrency(totalDiscount)}</span>
+                </div>
+              )}
+              {(sale.serviceChargePiasters || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span>رسوم الخدمة / الصالة:</span>
+                  <span className="font-mono">{formatArabicCurrency(sale.serviceChargePiasters || 0)}</span>
+                </div>
+              )}
+              {(sale.deliveryFeePiasters || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span>رسوم التوصيل (دليفري):</span>
+                  <span className="font-mono">{formatArabicCurrency(sale.deliveryFeePiasters || 0)}</span>
                 </div>
               )}
               {sale.taxPiasters > 0 && (
@@ -303,29 +492,41 @@ export function ReceiptModal({
                 <span className="font-mono font-bold">{formatArabicCurrency(sale.totalPiasters)}</span>
               </div>
 
-              <div className="flex justify-between pt-0.5">
-                <span>المدفوع ({
-                  sale.paymentMethod === 'credit' 
-                    ? 'آجل' 
-                    : sale.paymentMethod === 'instapay'
-                    ? 'انستاباي'
-                    : sale.paymentMethod === 'vodafone_cash'
-                    ? 'محفظة كاش'
-                    : 'نقداً'
-                }):</span>
-                <span className="font-mono font-bold">{formatArabicCurrency(sale.paidPiasters)}</span>
-              </div>
-
-              {sale.notes && (
-                <div className="text-[10px] text-gray-700 font-sans pt-1 text-center">
-                  {sale.notes}
-                </div>
-              )}
-
-              {changePiasters > 0 && (
-                <div className="flex justify-between font-bold text-emerald-800">
-                  <span>الباقي للعميل:</span>
-                  <span className="font-mono font-bold">{formatArabicCurrency(changePiasters)}</span>
+              {changePiasters > 0 ? (
+                <>
+                  <div className="flex justify-between pt-0.5">
+                    <span>المدفوع ({
+                      sale.paymentMethod === 'credit' 
+                        ? 'آجل' 
+                        : sale.paymentMethod === 'instapay'
+                        ? 'انستاباي'
+                        : sale.paymentMethod === 'vodafone_cash'
+                        ? 'محفظة كاش'
+                        : sale.paymentMethod === 'card'
+                        ? 'بطاقة بنكية'
+                        : 'نقداً'
+                    }):</span>
+                    <span className="font-mono font-bold">{formatArabicCurrency(sale.paidPiasters)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-emerald-800">
+                    <span>الباقي للمشتري:</span>
+                    <span className="font-mono font-bold">{formatArabicCurrency(changePiasters)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between pt-0.5 text-gray-800">
+                  <span>طريقة السداد:</span>
+                  <span className="font-semibold">{
+                    sale.paymentMethod === 'credit' 
+                      ? 'آجل (على الحساب)' 
+                      : sale.paymentMethod === 'instapay'
+                      ? 'انستاباي (InstaPay)'
+                      : sale.paymentMethod === 'vodafone_cash'
+                      ? 'محفظة كاش'
+                      : sale.paymentMethod === 'card'
+                      ? 'بطاقة بنكية / فيزا'
+                      : 'نقداً'
+                  }</span>
                 </div>
               )}
 
@@ -335,26 +536,92 @@ export function ReceiptModal({
                   <span className="font-mono font-bold">{formatArabicCurrency(remainingPiasters)}</span>
                 </div>
               )}
+
+              {sale.notes && (
+                <div className="text-[10px] text-gray-700 font-sans pt-1 text-center">
+                  {sale.notes}
+                </div>
+              )}
             </div>
 
             {/* Dotted Divider */}
             <div className="border-t border-dotted border-black my-2.5"></div>
 
-            {/* Cold Chain Medical Alert (Task 185-4) */}
-            {(sale.hasColdChainItems || sale.items?.some((it) => it.isColdChain)) && (
+            {/* Domain-specific Banners */}
+            {isSupermarketOrGrocery && totalDiscount > 0 && (
+              <div className="border border-dashed border-emerald-700 bg-emerald-50 text-emerald-900 py-1 my-1.5 text-center font-bold text-[10.5px] font-sans">
+                * وفرت معنا اليوم: {formatArabicCurrency(totalDiscount)} *
+              </div>
+            )}
+
+            {hasColdChain && (
               <div className="border-t-2 border-b-2 border-black py-1 my-2 text-center font-bold text-[11px] text-black font-sans">
                 * تنبيه طبي: يحفظ في الثلاجة (2-8 مئوية) *
               </div>
             )}
 
+            {isElectronics && (
+              <div className="border border-dashed border-black py-1 my-1.5 text-center font-bold text-[10px] text-black font-sans">
+                * ضمان الأجهزة الإلكترونية ساري بالفاتورة الأصلية *
+              </div>
+            )}
+
+            {isProduceOrButchery && (
+              <div className="border border-dashed border-black py-1 my-1.5 text-center font-bold text-[10px] text-black font-sans">
+                * لحوم وخضروات طازجة مذبوحة وفقاً للشريعة الإسلامية *
+              </div>
+            )}
+
+            {isClothing && (
+              <div className="border border-dashed border-black py-1 my-1.5 text-center font-bold text-[10px] text-black font-sans">
+                * الاستبدال والاسترجاع خلال 14 يوماً بتكت المصنع *
+              </div>
+            )}
+
+            {isRoastery && (
+              <div className="border border-dashed border-black py-1 my-1.5 text-center font-bold text-[10px] text-black font-sans">
+                * بن ومكسرات وتوابل طازجة عالية الجودة *
+              </div>
+            )}
+
+            {isBakery && (
+              <div className="border border-dashed border-black py-1 my-1.5 text-center font-bold text-[10px] text-black font-sans">
+                * مخبوزات وحلويات طازجة يومياً خالية من المواد الحافظة *
+              </div>
+            )}
+
+            {/* Rider Delivery Slip if order is delivery */}
+            {isDelivery && (
+              <div className="border-t-2 border-black pt-2 mt-2 font-sans text-center">
+                <div className="font-bold text-[11px] mb-1">=== قسيمة توصيل الطيار (DELIVERY) ===</div>
+                <div className="text-[10px] text-right space-y-0.5 text-gray-800">
+                  <div>العميل: {sale.deliveryInfo?.customerName || sale.customerName || 'عميل دليفري'}</div>
+                  {(sale.deliveryInfo?.customerPhone || sale.customerPhone) && (
+                    <div>الهاتف: {sale.deliveryInfo?.customerPhone || sale.customerPhone}</div>
+                  )}
+                  {sale.deliveryInfo?.deliveryAddress && (
+                    <div>العنوان: {sale.deliveryInfo.deliveryAddress}</div>
+                  )}
+                  {sale.deliveryInfo?.landmark && (
+                    <div>علامة مميزة: {sale.deliveryInfo.landmark}</div>
+                  )}
+                  {sale.deliveryInfo?.notes && (
+                    <div>ملاحظات: {sale.deliveryInfo.notes}</div>
+                  )}
+                </div>
+                <div className="font-bold text-[11px] mt-1.5 py-1 bg-gray-100 border border-gray-300">
+                  المطلوب تحصيله من العميل: {formatArabicCurrency(sale.totalPiasters)}
+                </div>
+              </div>
+            )}
+
             {/* Footer and Code 128 Barcode Simulation */}
-            <div className="text-center space-y-1.5">
-              <div className="text-[10px] text-gray-700 font-sans">{activeFooter}</div>
+            <div className="text-center space-y-1.5 mt-2">
+              <div className="text-[10px] text-gray-700 font-sans leading-relaxed">{activeFooter}</div>
               
               {/* Authentic Barcode Visual Strip */}
               <div className="pt-1 flex flex-col items-center">
                 <div className="flex items-end justify-center h-8 gap-[1.5px] px-2 py-0.5 bg-white">
-                  {/* Visual SVG bar sequence resembling Code 128 */}
                   {[2,1,3,1,2,1,1,3,2,1,2,2,1,1,3,1,2,1,1,2,3,1,1,2,2,1,3,1,2,1].map((w, i) => (
                     <div 
                       key={i} 

@@ -69,7 +69,7 @@ namespace RafiqPOS.Common
         // GS V 66 0 (قص جزئي قياسي يترك نقطة واحدة لمنع سقوط الإيصال)
         private static readonly byte[] PAPER_CUT_SEQUENCE = new byte[]
         {
-            0x1B, 0x64, 0x03,
+            0x1B, 0x64, 0x04,
             0x1D, 0x56, 0x42, 0x00
         };
 

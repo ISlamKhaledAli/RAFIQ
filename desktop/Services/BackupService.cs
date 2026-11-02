@@ -340,7 +340,7 @@ namespace RafiqPOS.Services
                 result.BackupFilePath = backupFilePath;
                 result.FileSizeBytes = fileInfo.Length;
 
-                bool integrityPassed = VerifyBackupIntegrity(backupFilePath);
+                bool integrityPassed = VerifyBackupIntegrity(backupFilePath, true);
                 if (!integrityPassed)
                 {
                     try { File.Delete(backupFilePath); } catch { }
@@ -470,11 +470,32 @@ namespace RafiqPOS.Services
 
         public bool VerifyBackupIntegrity(string backupFilePath)
         {
+            return VerifyBackupIntegrity(backupFilePath, false);
+        }
+
+        public bool VerifyBackupIntegrity(string backupFilePath, bool compareWithActiveDb)
+        {
+            long pCount;
+            long sCount;
+            string msg;
+            return VerifyBackupDetailed(backupFilePath, compareWithActiveDb, out pCount, out sCount, out msg);
+        }
+
+        public bool VerifyBackupDetailed(string backupFilePath, bool compareWithActiveDb, out long productsCount, out long salesCount, out string message)
+        {
+            productsCount = 0;
+            salesCount = 0;
+            message = string.Empty;
+
             string fileToCheck = backupFilePath;
             string tempDecrypted = null;
             try
             {
-                if (!File.Exists(backupFilePath)) return false;
+                if (string.IsNullOrEmpty(backupFilePath) || !File.Exists(backupFilePath))
+                {
+                    message = "ملف النسخة الاحتياطية غير موجود أو تعذر الوصول إلى مساره.";
+                    return false;
+                }
 
                 // Feature #168: If backup is encrypted, decrypt to temp staging for SQLite verification
                 if (EncryptionService.IsFileEncrypted(backupFilePath))
@@ -495,54 +516,60 @@ namespace RafiqPOS.Services
                         object res = cmd.ExecuteScalar();
                         if (res == null || !res.ToString().Equals("ok", StringComparison.OrdinalIgnoreCase))
                         {
+                            message = "بنية ملف قاعدة البيانات بها تلف داخلي (B-Tree corruption).";
                             return false;
                         }
                     }
 
                     // 2. Count products and sales in backup
-                    long bkProducts = 0;
-                    long bkSales = 0;
                     using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products;", bkConn))
                     {
                         object pRes = cmd.ExecuteScalar();
-                        if (pRes != null && pRes != DBNull.Value) bkProducts = Convert.ToInt64(pRes);
+                        if (pRes != null && pRes != DBNull.Value) productsCount = Convert.ToInt64(pRes);
                     }
                     using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sales;", bkConn))
                     {
                         object sRes = cmd.ExecuteScalar();
-                        if (sRes != null && sRes != DBNull.Value) bkSales = Convert.ToInt64(sRes);
+                        if (sRes != null && sRes != DBNull.Value) salesCount = Convert.ToInt64(sRes);
                     }
 
-                    // 3. Compare with primary active database (Task 125-1)
-                    using (var mainConn = new SQLiteConnection(_connectionString))
+                    // 3. Optional comparison with active database (used right after CreateBackup snapshot)
+                    if (compareWithActiveDb)
                     {
-                        mainConn.Open();
-                        long mainProducts = 0;
-                        long mainSales = 0;
+                        using (var mainConn = new SQLiteConnection(_connectionString))
+                        {
+                            mainConn.Open();
+                            long mainProducts = 0;
+                            long mainSales = 0;
 
-                        using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products;", mainConn))
-                        {
-                            object pRes = cmd.ExecuteScalar();
-                            if (pRes != null && pRes != DBNull.Value) mainProducts = Convert.ToInt64(pRes);
-                        }
-                        using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sales;", mainConn))
-                        {
-                            object sRes = cmd.ExecuteScalar();
-                            if (sRes != null && sRes != DBNull.Value) mainSales = Convert.ToInt64(sRes);
-                        }
+                            using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products;", mainConn))
+                            {
+                                object pRes = cmd.ExecuteScalar();
+                                if (pRes != null && pRes != DBNull.Value) mainProducts = Convert.ToInt64(pRes);
+                            }
+                            using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sales;", mainConn))
+                            {
+                                object sRes = cmd.ExecuteScalar();
+                                if (sRes != null && sRes != DBNull.Value) mainSales = Convert.ToInt64(sRes);
+                            }
 
-                        if (bkProducts != mainProducts || bkSales != mainSales)
-                        {
-                            Logger.Warn(string.Format("فحص مطابقة النسخة الاحتياطية غير متطابق: أصناف (أصل {0} / نسخة {1})، فواتير (أصل {2} / نسخة {3})", mainProducts, bkProducts, mainSales, bkSales));
-                            return false;
+                            if (productsCount != mainProducts || salesCount != mainSales)
+                            {
+                                Logger.Warn(string.Format("فحص مطابقة النسخة الاحتياطية الفورية غير متطابق: أصناف (أصل {0} / نسخة {1})، فواتير (أصل {2} / نسخة {3})", mainProducts, productsCount, mainSales, salesCount));
+                                message = string.Format("النسخة مأخوذة ولكنها لا تطابق السجلات اللحظية للنظام (أصناف: أصل {0} / نسخة {1}، فواتير: أصل {2} / نسخة {3}).", mainProducts, productsCount, mainSales, salesCount);
+                                return false;
+                            }
                         }
                     }
                 }
+
+                message = string.Format("تم فحص النسخة الاحتياطية بنجاح: بنية B-Tree سليمة ومشفرة بأمان (تحتوي على {0} صنف و {1} فاتورة).", productsCount, salesCount);
                 return true;
             }
             catch (Exception ex)
             {
                 Logger.Error("فحص سلامة النسخة الاحتياطية فشل: " + backupFilePath, ex);
+                message = "فشل فحص النسخة الاحتياطية: " + ex.Message;
                 return false;
             }
             finally

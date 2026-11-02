@@ -20,7 +20,8 @@ import { netSalesSharePercents, sortByProfit } from '../src/views/analytics/prof
 import { buildCashQuickPresetsPiasters, piastersToInputText } from '../src/components/payment/cashPresets.ts';
 import { poundsToPiasters } from '../src/utils/money.ts';
 
-const SRC = new URL('../src/', import.meta.url).pathname;
+import { fileURLToPath } from 'node:url';
+const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 const readSrc = (rel) => readFileSync(join(SRC, rel), 'utf8');
 
 const cashierUser = () => ({
