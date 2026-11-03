@@ -116,6 +116,8 @@ namespace RafiqPOS.Services
                 cmd.CommandText = @"
                     SELECT COALESCE(SUM(
                         CASE 
+                            WHEN EXISTS (SELECT 1 FROM delivery_orders cod WHERE cod.sale_id = s.id
+                                AND cod.cash_handover_tracked = 1 AND cod.total_to_collect_piasters > 0) THEN 0
                             -- Task 189-5: Corporate insurance claims are corporate receivables; only the patient's cash co-payment from payments table enters the drawer
                             WHEN s.payment_method = 'insurance' THEN MAX(0, (
                                 SELECT COALESCE(SUM(p.amount_piasters), 0) 

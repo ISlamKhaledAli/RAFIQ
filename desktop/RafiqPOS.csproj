@@ -84,6 +84,7 @@
     <Compile Include="Bridge\IpcDispatcher.Printing.cs" />
     <Compile Include="Bridge\IpcDispatcher.Auth.cs" />
     <Compile Include="Bridge\IpcDispatcher.Templates.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Catalogue.cs" />
     <Compile Include="Bridge\IpcDispatcher.Reports.cs" />
     <Compile Include="Bridge\IpcDispatcher.Backup.cs" />
     <Compile Include="Bridge\IpcDispatcher.Excel.cs" />
@@ -101,6 +102,7 @@
     <Compile Include="Common\FeatureRegistry.cs" />
     <Compile Include="Common\CompoundStockHelper.cs" />
     <Compile Include="Common\RawPrinterHelper.cs" />
+    <Compile Include="Common\DrawerSafetyPolicy.cs" />
     <Compile Include="Database\MigrationRunner.cs" />
     <Compile Include="Models\Product.cs" />
     <Compile Include="Models\ProductUnit.cs" />
@@ -121,12 +123,15 @@
     <Compile Include="Models\StockMovement.cs" />
     <Compile Include="Models\QuickItem.cs" />
     <Compile Include="Models\StoreTemplate.cs" />
+    <Compile Include="Models\CatalogueReference.cs" />
     <Compile Include="Models\User.cs" />
+    <Compile Include="Models\RequestAdmission.cs" />
     <Compile Include="Models\HeldSale.cs" />
     <Compile Include="Models\Return.cs" />
     <Compile Include="Models\ProductBatch.cs" />
     <Compile Include="Models\SaleItemBatchAllocation.cs" />
     <Compile Include="Repositories\ProductRepository.cs" />
+    <Compile Include="Repositories\ProductRepository.Catalogue.cs" />
     <Compile Include="Repositories\ProductRepository.Rebase.cs" />
     <Compile Include="Repositories\ProductRepository.Import.cs" />
     <Compile Include="Repositories\ProductRepository.BulkPricing.cs" />
@@ -149,6 +154,7 @@
     <Compile Include="Repositories\ReturnRepository.cs" />
     <Compile Include="Services\DatabaseService.cs" />
     <Compile Include="Services\ProductService.cs" />
+    <Compile Include="Services\ProductWritePolicy.cs" />
     <Compile Include="Services\ProductUnitService.cs" />
     <Compile Include="Services\ProductUnitTestRunner.cs" />
     <Compile Include="Services\ProductBatchService.cs" />
@@ -182,6 +188,7 @@
     <Compile Include="Services\PrinterHardwareTestRunner.cs" />
     <Compile Include="Services\SecurityService.cs" />
     <Compile Include="Services\StoreTemplateService.cs" />
+    <Compile Include="Services\CatalogueReferenceService.cs" />
     <Compile Include="Services\StoreCatalogSeeder.cs" />
     <Compile Include="Services\DemoDataService.cs" />
     <Compile Include="Services\ReadinessService.cs" />

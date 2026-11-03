@@ -92,6 +92,9 @@ namespace RafiqPOS.Models
         [JsonProperty("idempotencyKey")]
         public string IdempotencyKey { get; set; }
 
+        [JsonProperty("idempotencyFingerprint")]
+        public string IdempotencyFingerprint { get; set; }
+
         [JsonProperty("terminalId")]
         public string TerminalId { get; set; }
 
@@ -187,6 +190,12 @@ namespace RafiqPOS.Models
 
     public class EpayTerminalFunding
     {
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
+
+        [JsonProperty("idempotencyFingerprint")]
+        public string IdempotencyFingerprint { get; set; }
+
         [JsonProperty("id")]
         public string Id { get; set; }
 

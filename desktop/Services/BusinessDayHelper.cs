@@ -1,5 +1,6 @@
 using System;
 using System.Data.SQLite;
+using System.Globalization;
 
 namespace RafiqPOS.Services
 {
@@ -8,6 +9,57 @@ namespace RafiqPOS.Services
     /// </summary>
     public static class BusinessDayHelper
     {
+        public static void EnsureOriginalPeriodOpen(SQLiteConnection conn, SQLiteTransaction trans, string createdAt)
+        {
+            DateTimeOffset original;
+            string timestamp = (createdAt ?? "").Trim();
+            bool hasOffset = timestamp.EndsWith("Z", StringComparison.OrdinalIgnoreCase) ||
+                (timestamp.Length >= 6 && (timestamp[timestamp.Length - 6] == '+' || timestamp[timestamp.Length - 6] == '-') &&
+                timestamp[timestamp.Length - 3] == ':');
+            if (!hasOffset || !DateTimeOffset.TryParse(timestamp, CultureInfo.InvariantCulture, DateTimeStyles.None, out original))
+                throw new InvalidOperationException("تاريخ العملية الأصلي غير محدد زمنياً؛ لا يمكن تعديل فترة مالية غير مؤكدة.");
+
+            DateTime local = original.LocalDateTime;
+            DateTime businessDate = local.AddHours(-GetCutoffHour(conn, trans)).Date;
+            DateTime current = GetCurrentBusinessDate(conn, trans);
+            if (IsBusinessDayClosed(conn, trans, businessDate))
+                throw new InvalidOperationException("لا يمكن إلغاء عملية تنتمي إلى يوم مالي مغلق؛ لن تتغير القيود التاريخية.");
+            // Legacy wallet rows have no shift id, so an older or overlapping closed shift is unsafe to rewrite.
+            if (businessDate != current || original.UtcDateTime > DateTime.UtcNow)
+                throw new InvalidOperationException("لا يمكن إلغاء عملية من فترة مالية سابقة أو غير مؤكدة.");
+
+            bool originalShiftKnown = false;
+            using (var cmd = new SQLiteCommand(@"SELECT status, business_date, closed_at FROM shifts
+                WHERE julianday(opened_at) <= julianday(@at)
+                  AND (closed_at IS NULL OR julianday(@at) <= julianday(closed_at));", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@at", original.UtcDateTime.ToString("o"));
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        originalShiftKnown = true;
+                        if (!string.Equals(reader["status"].ToString(), "open", StringComparison.OrdinalIgnoreCase) ||
+                            reader["closed_at"] != DBNull.Value ||
+                            !string.Equals(reader["business_date"].ToString(), current.ToString("yyyy-MM-dd"), StringComparison.Ordinal))
+                            throw new InvalidOperationException("لا يمكن إلغاء عملية تنتمي إلى وردية مغلقة أو فترة مالية غير مؤكدة.");
+                    }
+                }
+                if (!originalShiftKnown)
+                {
+                    using (var closingCmd = new SQLiteCommand(@"SELECT COUNT(*) FROM daily_closings
+                        WHERE julianday(closed_at) >= julianday(@at) OR julianday(closed_at) IS NULL;", conn, trans))
+                    {
+                        closingCmd.Parameters.AddWithValue("@at", original.UtcDateTime.ToString("o"));
+                        if (Convert.ToInt64(closingCmd.ExecuteScalar()) > 0)
+                            throw new InvalidOperationException("تعذر إثبات الفترة الأصلية بعد إغلاق مالي؛ لا يمكن تعديل القيود التاريخية.");
+                    }
+                }
+            }
+            if (IsBusinessDayClosed(conn, trans, current))
+                throw new InvalidOperationException("لا يمكن تعديل يوم مالي مغلق.");
+        }
+
         public static int GetCutoffHour(SQLiteConnection conn, SQLiteTransaction trans)
         {
             using (var cmd = conn.CreateCommand())

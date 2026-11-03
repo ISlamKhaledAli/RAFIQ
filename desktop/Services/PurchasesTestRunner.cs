@@ -46,7 +46,9 @@ namespace RafiqPOS.Services
                 DatabaseService.Initialize(testDir);
 
                 // Setup test products
-                var prod1 = DatabaseService.Products.SaveProduct(new Product
+                Product prod1;
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                prod1 = DatabaseService.Products.SaveProduct(new Product
                 {
                     Name = "زيت عباد الشمس 1 لتر - اختبار مشتريات",
                     Barcode = "9900112233",
@@ -59,7 +61,9 @@ namespace RafiqPOS.Services
                     IsActive = true
                 });
 
-                var prod2 = DatabaseService.Products.SaveProduct(new Product
+                Product prod2;
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                prod2 = DatabaseService.Products.SaveProduct(new Product
                 {
                     Name = "سكر أبيض ناعم 1 كجم - اختبار مشتريات",
                     Barcode = "9900112244",
@@ -349,7 +353,9 @@ namespace RafiqPOS.Services
                 // ==========================================
                 // 4. Scenario 3: Supplier Bonuses & Discounts Real Effective Cost
                 // ==========================================
-                var prod3 = DatabaseService.Products.SaveProduct(new Product
+                Product prod3;
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                prod3 = DatabaseService.Products.SaveProduct(new Product
                 {
                     Name = "شاي أسود ناعم 250 جم - اختبار بونص وخصم",
                     Barcode = "9900112255",

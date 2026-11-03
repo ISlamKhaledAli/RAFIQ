@@ -64,26 +64,15 @@ namespace RafiqPOS.Services
             var adminUser = DatabaseService.UserRepo != null 
                 ? (DatabaseService.UserRepo.GetByUsername("admin") ?? DatabaseService.UserRepo.GetById("usr_admin_default")) 
                 : null;
-            if (adminUser != null)
+            if (adminUser == null)
             {
-                var dto = SecurityService.MapToDto(adminUser); dto.MustChangePin = false; dto.Permissions = SecurityService.GetAllPermissionsDictionary(true); SecurityService.SetCurrentUserForTesting(dto);
+                result.Message = "حساب مدير الاختبار غير موجود.";
+                return result;
             }
-            else
-            {
-                var testPerms = new System.Collections.Generic.Dictionary<string, bool>();
-                testPerms.Add("reports.sales", true);
-                testPerms.Add("settings.license", true);
-                SecurityService.SetCurrentUserForTesting(new UserDto
-                {
-                    Id = "usr_admin_default",
-                    Username = "admin",
-                    DisplayName = "مدير النظام التجريبي",
-                    Role = "admin",
-                    IsActive = true,
-                    MustChangePin = false,
-                    Permissions = SecurityService.GetAllPermissionsDictionary(true)
-                });
-            }
+            bool originalMustChangePin = adminUser.MustChangePin;
+            adminUser.MustChangePin = false;
+            DatabaseService.UserRepo.Update(adminUser);
+            SecurityService.SetCurrentUserForTesting(SecurityService.MapToDto(adminUser));
 
             try
             {
@@ -148,6 +137,7 @@ namespace RafiqPOS.Services
                         })
                     };
 
+                    fakeMutationReq.Admission = SecurityService.CaptureRequestAdmission();
                     var blockResponse = IpcDispatcher.Dispatch(fakeMutationReq);
                     if (blockResponse.Success || blockResponse.Error == null || blockResponse.Error.Code != "LICENSE_EXPIRED")
                     {
@@ -169,6 +159,7 @@ namespace RafiqPOS.Services
                     Action = "reports:getTodaySummary",
                     Payload = null
                 };
+                readRequest.Admission = SecurityService.CaptureRequestAdmission();
                 var readResponse = IpcDispatcher.Dispatch(readRequest);
                 if (!readResponse.Success)
                 {
@@ -183,6 +174,7 @@ namespace RafiqPOS.Services
                     Action = "license:getInfo",
                     Payload = null
                 };
+                licInfoRequest.Admission = SecurityService.CaptureRequestAdmission();
                 var licInfoResponse = IpcDispatcher.Dispatch(licInfoRequest);
                 if (!licInfoResponse.Success)
                 {
@@ -196,6 +188,7 @@ namespace RafiqPOS.Services
                     Action = "products:list",
                     Payload = null
                 };
+                prodListRequest.Admission = SecurityService.CaptureRequestAdmission();
                 var prodListResponse = IpcDispatcher.Dispatch(prodListRequest);
                 if (!prodListResponse.Success)
                 {
@@ -358,6 +351,7 @@ namespace RafiqPOS.Services
                         cashReceivedPiasters = 1000
                     })
                 };
+                fakeSaleReqOld.Admission = SecurityService.CaptureRequestAdmission();
                 var blockedSaleOnOld = IpcDispatcher.Dispatch(fakeSaleReqOld);
                 if (blockedSaleOnOld.Success || blockedSaleOnOld.Error == null || blockedSaleOnOld.Error.Code != "LICENSE_EXPIRED")
                 {
@@ -387,6 +381,8 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("last_known_utc", origLastKnown);
                 settingsRepo.Set("transfer_release_code", origRel);
                 settingsRepo.Set("consumed_offline_codes", origConsumed);
+                adminUser.MustChangePin = originalMustChangePin;
+                DatabaseService.UserRepo.Update(adminUser);
                 SecurityService.SetCurrentUserForTesting(origUser);
                 LicenseService.InvalidateCache();
             }

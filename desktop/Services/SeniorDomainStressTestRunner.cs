@@ -749,6 +749,7 @@ namespace RafiqPOS.Services
                 Id = "REQ-UNAUTH",
                 Action = "suppliers:save"
             };
+            unauthReq.Admission = SecurityService.CaptureRequestAdmission();
             var unauthRes = IpcDispatcher.Dispatch(unauthReq);
             Assert(!unauthRes.Success && unauthRes.Error != null && unauthRes.Error.Code == "AUTH_REQUIRED", "منع تنفيذ طلبات الـ IPC المحمية بدون تسجيل دخول (AUTH_REQUIRED)", result);
 
@@ -766,6 +767,7 @@ namespace RafiqPOS.Services
             var cashierForbiddenSup = IpcDispatcher.Dispatch(new BridgeRequest
             {
                 Id = "REQ-FORBIDDEN-SUP",
+                Admission = SecurityService.CaptureRequestAdmission(),
                 Action = "suppliers:save"
             });
             Assert(!cashierForbiddenSup.Success && cashierForbiddenSup.Error != null && cashierForbiddenSup.Error.Code == "FORBIDDEN", "حظر الكاشير من حفظ مورد عبر الـ IPC وإرجاع خطأ FORBIDDEN", result);
@@ -773,6 +775,7 @@ namespace RafiqPOS.Services
             var cashierForbiddenAdj = IpcDispatcher.Dispatch(new BridgeRequest
             {
                 Id = "REQ-FORBIDDEN-ADJ",
+                Admission = SecurityService.CaptureRequestAdmission(),
                 Action = "inventory:adjustStock"
             });
             Assert(!cashierForbiddenAdj.Success && cashierForbiddenAdj.Error != null && cashierForbiddenAdj.Error.Code == "FORBIDDEN", "حظر الكاشير من تسوية المخزون inventory:adjustStock عبر الـ IPC", result);
@@ -780,6 +783,7 @@ namespace RafiqPOS.Services
             var cashierForbiddenReset = IpcDispatcher.Dispatch(new BridgeRequest
             {
                 Id = "REQ-FORBIDDEN-RESET",
+                Admission = SecurityService.CaptureRequestAdmission(),
                 Action = "system:factoryReset"
             });
             Assert(!cashierForbiddenReset.Success && cashierForbiddenReset.Error != null && cashierForbiddenReset.Error.Code == "FORBIDDEN", "حظر الكاشير من استعادة ضبط المصنع system:factoryReset", result);
@@ -798,6 +802,7 @@ namespace RafiqPOS.Services
             var adminSupRes = IpcDispatcher.Dispatch(new BridgeRequest
             {
                 Id = "REQ-ADMIN-SUP",
+                Admission = SecurityService.CaptureRequestAdmission(),
                 Action = "suppliers:save",
                 Payload = Newtonsoft.Json.Linq.JObject.FromObject(new { name = "مورد تجريبي أدمن" })
             });

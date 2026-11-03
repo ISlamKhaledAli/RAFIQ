@@ -345,7 +345,7 @@ namespace RafiqPOS.Services
 
         public int SeedProductsForTemplate(string templateId, Dictionary<string, string> categoryNameToId = null)
         {
-            return SeedProductsForTemplateInternal(templateId, categoryNameToId);
+            throw new InvalidOperationException("LEGACY_CATALOGUE_DISABLED: استخدم مراجعة المراجع مع تأكيد العبوة والأسعار الفعلية.");
         }
 
         private int SeedProductsForTemplateInternal(string templateId, Dictionary<string, string> categoryNameToId = null)

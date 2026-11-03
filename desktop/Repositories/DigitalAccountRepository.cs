@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.SQLite;
 using RafiqPOS.Models;
 using RafiqPOS.Services;
+using Newtonsoft.Json.Linq;
 
 namespace RafiqPOS.Repositories
 {
@@ -15,6 +16,116 @@ namespace RafiqPOS.Repositories
         {
             this._connectionString = connectionString;
             this._auditRepo = auditRepo;
+        }
+
+        public static string NormalizeFundingSource(string source)
+        {
+            string value = string.IsNullOrWhiteSpace(source) ? "cash_drawer" : source.Trim().ToLowerInvariant();
+            if (value == "external_cash") value = "external";
+            if (value != "cash_drawer" && value != "bank_transfer" && value != "external")
+                throw new ArgumentException("مصدر تغذية الرصيد غير صالح");
+            return value;
+        }
+
+        public static string NormalizePaymentDestination(string destination)
+        {
+            string value = string.IsNullOrWhiteSpace(destination) ? "cash_drawer" : destination.Trim().ToLowerInvariant();
+            if (value != "cash_drawer" && value != "terminal_till" && value != "safe" && value != "external")
+                throw new ArgumentException("وجهة الدفع غير صالحة");
+            return value;
+        }
+
+        internal static string RequestFingerprint(params object[] parts)
+        {
+            // Hex preserves exact request text through the shared guard's case-insensitive normalization.
+            string payload = Newtonsoft.Json.JsonConvert.SerializeObject(parts);
+            return Common.IdempotencyGuard.Fingerprint(BitConverter.ToString(System.Text.Encoding.UTF8.GetBytes(payload)));
+        }
+
+        private static string FundingFingerprint(string accountId, long amount, string source, string notes, string actorId)
+        {
+            if (string.IsNullOrWhiteSpace(accountId) || amount <= 0) throw new ArgumentException("الحساب ومبلغ التغذية الأصلي مطلوبان");
+            return RequestFingerprint("wallet_fund", accountId, amount, NormalizeFundingSource(source), notes, actorId);
+        }
+
+        public FinancialAttemptResult ResolveAttempt(string operation, JObject payload, string actorId, bool abandon)
+        {
+            string permission = operation == "wallets:fundAccount" ? "wallets.fund" : "wallets.transact";
+            return Common.IdempotencyGuard.WithFinancialOperation(permission, delegate { return ResolveAttemptCore(operation, payload, actorId, abandon); });
+        }
+
+        private FinancialAttemptResult ResolveAttemptCore(string operation, JObject payload, string actorId, bool abandon)
+        {
+            Common.IdempotencyGuard.VerifyFinancialAttemptActor(actorId);
+            if (payload == null) throw new ArgumentException("الطلب الأصلي مطلوب");
+            bool funding = operation == "wallets:fundAccount";
+            if (!funding && operation != "wallets:processTransaction") throw new ArgumentException("عملية محفظة غير صالحة");
+            string key;
+            string fingerprint;
+            if (funding)
+            {
+                key = (string)payload["idempotencyKey"];
+                string source = NormalizeFundingSource((string)payload["fundingSource"]);
+                if (payload["source"] != null)
+                {
+                    string legacy = NormalizeFundingSource((string)payload["source"]);
+                    if (payload["fundingSource"] != null && legacy != source) throw new ArgumentException("مصدر التغذية متناقض");
+                    source = legacy;
+                }
+                fingerprint = FundingFingerprint((string)payload["accountId"], (long?)payload["amountPiasters"] ?? 0,
+                    source, (string)payload["notes"], actorId);
+            }
+            else
+            {
+                var tx = payload.ToObject<DigitalTransaction>();
+                fingerprint = PrepareTransactionFingerprint(tx);
+                key = tx.IdempotencyKey;
+            }
+            return Common.IdempotencyGuard.ResolveFinancialAttempt(_connectionString, operation, key, fingerprint, actorId, abandon,
+                delegate(SQLiteConnection conn, SQLiteTransaction trans, string id)
+                {
+                    return funding ? (object)GetFundingById(conn, trans, id) : GetTransactionById(conn, trans, id);
+                }, _auditRepo);
+        }
+
+        public DigitalTransaction GetTransactionById(string id)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                return GetTransactionById(conn, null, id);
+            }
+        }
+
+        private static DigitalTransaction GetTransactionById(SQLiteConnection conn, SQLiteTransaction trans, string id)
+        {
+            using (var cmd = new SQLiteCommand(@"SELECT t.*, a.name AS account_name, a.type AS account_type
+                FROM digital_transactions t LEFT JOIN digital_accounts a ON t.account_id = a.id WHERE t.id = @id LIMIT 1;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@id", id);
+                using (var reader = cmd.ExecuteReader())
+                    return reader.Read() ? MapTransaction(reader) : null;
+            }
+        }
+
+        public DigitalAccountFunding GetFundingById(string id)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                return GetFundingById(conn, null, id);
+            }
+        }
+
+        private static DigitalAccountFunding GetFundingById(SQLiteConnection conn, SQLiteTransaction trans, string id)
+        {
+            using (var cmd = new SQLiteCommand(@"SELECT f.*, a.name AS account_name FROM digital_account_fundings f
+                LEFT JOIN digital_accounts a ON f.account_id = a.id WHERE f.id = @id LIMIT 1;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@id", id);
+                using (var reader = cmd.ExecuteReader())
+                    return reader.Read() ? MapFunding(reader) : null;
+            }
         }
 
         public List<DigitalAccount> GetAllAccounts(bool includeInactive = false)
@@ -144,6 +255,11 @@ namespace RafiqPOS.Repositories
 
         public DigitalAccount SaveAccount(DigitalAccount account)
         {
+            return Common.IdempotencyGuard.WithFinancialOperation("wallets.accounts_manage", delegate { return SaveAccountCore(account); });
+        }
+
+        private DigitalAccount SaveAccountCore(DigitalAccount account)
+        {
             if (account == null) throw new ArgumentNullException("account");
             if (string.IsNullOrWhiteSpace(account.Name)) throw new ArgumentException("اسم الحساب أو المحفظة مطلوب");
 
@@ -228,7 +344,7 @@ namespace RafiqPOS.Repositories
                             {
                                 _auditRepo.Log(conn, trans, new AuditLog
                                 {
-                                    UserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "system",
+                                    UserId = Common.IdempotencyGuard.FinancialActorId("system"),
                                     Action = "create",
                                     EntityType = "digital_account",
                                     EntityId = account.Id,
@@ -283,7 +399,7 @@ namespace RafiqPOS.Repositories
                             {
                                 _auditRepo.Log(conn, trans, new AuditLog
                                 {
-                                    UserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "system",
+                                    UserId = Common.IdempotencyGuard.FinancialActorId("system"),
                                     Action = "edit",
                                     EntityType = "digital_account",
                                     EntityId = account.Id,
@@ -307,6 +423,11 @@ namespace RafiqPOS.Repositories
         }
 
         public void DeleteAccount(string id)
+        {
+            Common.IdempotencyGuard.WithFinancialOperation<object>("wallets.accounts_manage", delegate { DeleteAccountCore(id); return null; });
+        }
+
+        private void DeleteAccountCore(string id)
         {
             if (string.IsNullOrEmpty(id)) return;
             using (var conn = new SQLiteConnection(_connectionString))
@@ -406,7 +527,7 @@ namespace RafiqPOS.Repositories
                                 string now = DateTime.UtcNow.ToString("o");
                                 _auditRepo.Log(conn, trans, new AuditLog
                                 {
-                                    UserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "system",
+                                    UserId = Common.IdempotencyGuard.FinancialActorId("system"),
                                     Action = count > 0 ? "archive" : "delete",
                                     EntityType = "digital_account",
                                     EntityId = id,
@@ -427,10 +548,20 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public DigitalAccountFunding FundAccount(string accountId, long amountPiasters, string fundingSource, string notes, string createdBy)
+        public DigitalAccountFunding FundAccount(string accountId, long amountPiasters, string fundingSource, string notes, string createdBy, string idempotencyKey = null)
+        {
+            return Common.IdempotencyGuard.WithFinancialOperation("wallets.fund",
+                delegate { return FundAccountCore(accountId, amountPiasters, fundingSource, notes, createdBy, idempotencyKey); });
+        }
+
+        private DigitalAccountFunding FundAccountCore(string accountId, long amountPiasters, string fundingSource, string notes, string createdBy, string idempotencyKey)
         {
             if (string.IsNullOrEmpty(accountId)) throw new ArgumentException("معرف الحساب مطلوب");
             if (amountPiasters <= 0) throw new ArgumentException("مبلغ التغذية يجب أن يكون أكبر من الصفر");
+            fundingSource = NormalizeFundingSource(fundingSource);
+            idempotencyKey = Common.IdempotencyGuard.NormalizeKey(idempotencyKey);
+            createdBy = Common.IdempotencyGuard.FinancialActorId(createdBy);
+            string fingerprint = FundingFingerprint(accountId, amountPiasters, fundingSource, notes, createdBy);
 
             lock (SaleService.FinancialWriteLock)
             {
@@ -441,6 +572,14 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        Common.IdempotencyGuard.EnsureFinancialAttemptNotCancelled(conn, trans, "wallets:fundAccount", idempotencyKey, fingerprint, createdBy);
+                        string existingId = Common.IdempotencyGuard.FindExisting(conn, trans, "digital_account_fundings", "id", idempotencyKey, fingerprint);
+                        if (existingId != null)
+                        {
+                            var existing = GetFundingById(conn, trans, existingId);
+                            trans.Commit();
+                            return existing;
+                        }
                         if (string.Equals(fundingSource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
                             var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
@@ -449,13 +588,10 @@ namespace RafiqPOS.Repositories
                                 throw new InvalidOperationException("لا يمكن تغذية الحساب من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                             }
 
-                            if (DatabaseService.DailyClosing != null)
+                            long available = DrawerCashCalculator.CalculateForBusinessDate(conn, trans, currentBDate).ExpectedCashPiasters;
+                            if (available < amountPiasters)
                             {
-                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
-                                if (liveBal != null && liveBal.AvailableCashPiasters < amountPiasters)
-                                {
-                                    throw new InvalidOperationException(string.Format("رصيد نقدية درج الكاشير المتاح حالياً ({0:N2} ج.م) غير كافٍ لتغذية المحفظة بمبلغ ({1:N2} ج.م). يرجى تغذية الدرج أولاً أو اختيار مصدر تمويل آخر (مثل: كاش خارجي / صاحب المحل).", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
-                                }
+                                throw new InvalidOperationException("رصيد نقدية درج الكاشير غير كافٍ لتغذية المحفظة. اختر مصدر تمويل آخر أو قم بتغذية الدرج أولاً.");
                             }
                         }
 
@@ -476,7 +612,7 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        long newBal = prevBal + amountPiasters;
+                        long newBal = checked(prevBal + amountPiasters);
                         string now = DateTime.UtcNow.ToString("o");
 
                         string updateBalSql = "UPDATE digital_accounts SET balance_piasters = @newBal, updated_at = @now WHERE id = @id;";
@@ -494,20 +630,22 @@ namespace RafiqPOS.Repositories
                             AccountId = accountId,
                             AccountName = accName,
                             AmountPiasters = amountPiasters,
-                            FundingSource = !string.IsNullOrWhiteSpace(fundingSource) ? fundingSource : "cash_drawer",
+                            FundingSource = fundingSource,
                             PreviousBalancePiasters = prevBal,
                             NewBalancePiasters = newBal,
                             Notes = notes,
                             CreatedBy = createdBy,
-                            CreatedAt = now
+                            CreatedAt = now,
+                            IdempotencyKey = idempotencyKey,
+                            IdempotencyFingerprint = fingerprint
                         };
 
                         string insertFundingSql = @"
                             INSERT INTO digital_account_fundings (
                                 id, account_id, amount_piasters, funding_source, previous_balance_piasters,
-                                new_balance_piasters, notes, created_by, created_at
+                                new_balance_piasters, notes, created_by, created_at, idempotency_key, idempotency_fingerprint
                             ) VALUES (
-                                @id, @accId, @amount, @source, @prevBal, @newBal, @notes, @createdBy, @now
+                                @id, @accId, @amount, @source, @prevBal, @newBal, @notes, @createdBy, @now, @idemKey, @idemFp
                             );";
                         using (var cmd = new SQLiteCommand(insertFundingSql, conn, trans))
                         {
@@ -519,6 +657,8 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@newBal", funding.NewBalancePiasters);
                             cmd.Parameters.AddWithValue("@notes", (object)funding.Notes ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@createdBy", (object)funding.CreatedBy ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idemKey", (object)idempotencyKey ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idemFp", fingerprint);
                             cmd.Parameters.AddWithValue("@now", now);
                             cmd.ExecuteNonQuery();
                         }
@@ -562,13 +702,33 @@ namespace RafiqPOS.Repositories
         /// - Cash In: adds AmountPiasters to wallet balance.
         /// - ProfitPiasters is variable as entered by cashier and stored as net shop profit.
         /// </summary>
-        public DigitalTransaction ProcessTransaction(DigitalTransaction tx)
+        private static string PrepareTransactionFingerprint(DigitalTransaction tx)
         {
             if (tx == null) throw new ArgumentNullException("tx");
             if (string.IsNullOrEmpty(tx.AccountId)) throw new ArgumentException("يرجى اختيار حساب المحفظة أو إنستاباي");
             if (tx.AmountPiasters <= 0) throw new ArgumentException("يرجى إدخال مبلغ العملية");
-            if (tx.ProfitPiasters < 0) tx.ProfitPiasters = 0;
+            if (tx.ProfitPiasters < 0) throw new ArgumentException("ربح العملية لا يمكن أن يكون سالباً");
+            tx.TxType = (tx.TxType ?? "").Trim().ToLowerInvariant();
+            if (tx.TxType != "cash_in" && tx.TxType != "cash_out") throw new ArgumentException("نوع العملية غير صالح");
+            tx.PaymentDestination = NormalizePaymentDestination(tx.PaymentDestination);
+            tx.TotalCollectedPiasters = tx.TxType == "cash_out" ? checked(tx.AmountPiasters + tx.ProfitPiasters) : tx.ProfitPiasters;
+            tx.IdempotencyKey = Common.IdempotencyGuard.NormalizeKey(tx.IdempotencyKey);
+            string actorId = Common.IdempotencyGuard.FinancialActorId(tx.CashierName);
+            tx.CashierName = Common.IdempotencyGuard.FinancialActorName(tx.CashierName);
+            string fingerprint = RequestFingerprint("wallet_tx", tx.AccountId, tx.TxType, tx.AmountPiasters,
+                tx.ProfitPiasters, tx.PaymentDestination, tx.CustomerPhone, tx.CustomerName, tx.ReferenceNumber, tx.SaleId, tx.Notes, actorId);
+            tx.IdempotencyFingerprint = fingerprint;
+            return fingerprint;
+        }
 
+        public DigitalTransaction ProcessTransaction(DigitalTransaction tx)
+        {
+            return Common.IdempotencyGuard.WithFinancialOperation("wallets.transact", delegate { return ProcessTransactionCore(tx); });
+        }
+
+        private DigitalTransaction ProcessTransactionCore(DigitalTransaction tx)
+        {
+            string fingerprint = PrepareTransactionFingerprint(tx);
             lock (SaleService.FinancialWriteLock)
             {
                 using (var conn = new SQLiteConnection(_connectionString))
@@ -578,6 +738,15 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        string actorId = Common.IdempotencyGuard.FinancialActorId(tx.CashierName);
+                        Common.IdempotencyGuard.EnsureFinancialAttemptNotCancelled(conn, trans, "wallets:processTransaction", tx.IdempotencyKey, fingerprint, actorId);
+                        string existingId = Common.IdempotencyGuard.FindExisting(conn, trans, "digital_transactions", "id", tx.IdempotencyKey, fingerprint);
+                        if (existingId != null)
+                        {
+                            var existing = GetTransactionById(conn, trans, existingId);
+                            trans.Commit();
+                            return existing;
+                        }
                         long currentBal = 0;
                         string accName = null;
                         string accType = null;
@@ -638,7 +807,7 @@ namespace RafiqPOS.Repositories
                                     object dRes = dCmd.ExecuteScalar();
                                     if (dRes != null && dRes != DBNull.Value) todayCashOut = Convert.ToInt64(dRes);
                                 }
-                                if (todayCashOut + tx.AmountPiasters > dailyLimit)
+                                if (checked(todayCashOut + tx.AmountPiasters) > dailyLimit)
                                 {
                                     long remainingToday = Math.Max(0, dailyLimit - todayCashOut);
                                     throw new InvalidOperationException(string.Format("لا يمكن تنفيذ العملية: إجمالي التحويلات الصادرة اليوم لهذا الحساب ({0:N2} ج.م) سيتجاوز الحد اليومي المحدد ({1:N2} ج.م). المتبقي المتاح اليوم: {2:N2} ج.م والمطلوب: {3:N2} ج.م",
@@ -657,7 +826,7 @@ namespace RafiqPOS.Repositories
                                     object mRes = mCmd.ExecuteScalar();
                                     if (mRes != null && mRes != DBNull.Value) monthCashOut = Convert.ToInt64(mRes);
                                 }
-                                if (monthCashOut + tx.AmountPiasters > monthlyLimit)
+                                if (checked(monthCashOut + tx.AmountPiasters) > monthlyLimit)
                                 {
                                     long remainingMonth = Math.Max(0, monthlyLimit - monthCashOut);
                                     throw new InvalidOperationException(string.Format("لا يمكن تنفيذ العملية: إجمالي التحويلات الصادرة لهذا الشهر ({0:N2} ج.م) سيتجاوز الحد الشهري المحدد ({1:N2} ج.م). المتبقي المتاح لهذا الشهر: {2:N2} ج.م والمطلوب: {3:N2} ج.م",
@@ -692,15 +861,13 @@ namespace RafiqPOS.Repositories
                             if (string.Equals(tx.PaymentDestination, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                             {
                                 long netDrawerOutflow = tx.AmountPiasters - tx.ProfitPiasters;
-                                if (netDrawerOutflow > 0 && RafiqPOS.Services.DatabaseService.DailyClosing != null)
+                                if (netDrawerOutflow > 0)
                                 {
                                     DateTime currentBDate = RafiqPOS.Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
-                                    var liveBal = RafiqPOS.Services.DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
-                                    if (liveBal != null && liveBal.AvailableCashPiasters < netDrawerOutflow)
+                                    long available = DrawerCashCalculator.CalculateForBusinessDate(conn, trans, currentBDate).ExpectedCashPiasters;
+                                    if (available < netDrawerOutflow)
                                     {
-                                        throw new InvalidOperationException(string.Format(
-                                            "رصيد النقدية المتاح بالدرج ({0:N2} ج.م) غير كافٍ لتسليم العميل نقدية الإيداع ({1:N2} ج.م). يرجى تغذية الدرج بالسيولة أولاً.",
-                                            liveBal.AvailableCashPiasters / 100.0, netDrawerOutflow / 100.0));
+                                        throw new InvalidOperationException("رصيد نقدية الدرج غير كافٍ لتسليم العميل نقدية الإيداع. يرجى تغذية الدرج أولاً.");
                                     }
                                 }
                             }
@@ -710,11 +877,12 @@ namespace RafiqPOS.Repositories
                             throw new InvalidOperationException("نوع العملية غير صالح");
                         }
 
+                        long newBalance = checked(currentBal + balanceDelta);
                         string now = DateTime.UtcNow.ToString("o");
-                        string updateBalSql = "UPDATE digital_accounts SET balance_piasters = balance_piasters + @delta, updated_at = @now WHERE id = @id;";
+                        string updateBalSql = "UPDATE digital_accounts SET balance_piasters = @balance, updated_at = @now WHERE id = @id;";
                         using (var cmd = new SQLiteCommand(updateBalSql, conn, trans))
                         {
-                            cmd.Parameters.AddWithValue("@delta", balanceDelta);
+                            cmd.Parameters.AddWithValue("@balance", newBalance);
                             cmd.Parameters.AddWithValue("@now", now);
                             cmd.Parameters.AddWithValue("@id", tx.AccountId);
                             cmd.ExecuteNonQuery();
@@ -733,11 +901,11 @@ namespace RafiqPOS.Repositories
                             INSERT INTO digital_transactions (
                                 id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
                                 customer_phone, customer_name, reference_number, sale_id, cashier_name,
-                                payment_destination, status, notes, created_at
+                                payment_destination, status, notes, created_at, idempotency_key, idempotency_fingerprint
                             ) VALUES (
                                 @id, @accId, @txType, @amount, @profit, @totalCollected,
                                 @phone, @custName, @refNum, @saleId, @cashier,
-                                @dest, @status, @notes, @now
+                                @dest, @status, @notes, @now, @idemKey, @idemFp
                             );";
                         using (var cmd = new SQLiteCommand(insertTxSql, conn, trans))
                         {
@@ -754,6 +922,8 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@cashier", (object)tx.CashierName ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@dest", tx.PaymentDestination ?? "cash_drawer");
                             cmd.Parameters.AddWithValue("@status", "completed");
+                            cmd.Parameters.AddWithValue("@idemKey", (object)tx.IdempotencyKey ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idemFp", fingerprint);
                             cmd.Parameters.AddWithValue("@notes", (object)tx.Notes ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@now", now);
                             cmd.ExecuteNonQuery();
@@ -778,6 +948,15 @@ namespace RafiqPOS.Repositories
         /// Satisfies: "وتربط الي في الصوره بيهم لما حد يشتري من هنا ويدفع بيهم فلوسي الي حاطتها تزيد"
         /// </summary>
         public bool CreditSaleToAccount(string saleId, string method, long amountPiasters, string customerName, string cashierName, string specificAccountId = null)
+        {
+            return Common.IdempotencyGuard.WithFinancialOperation<bool>(null, delegate
+            {
+                return CreditSaleToAccountCore(saleId, method, amountPiasters, customerName,
+                    Common.IdempotencyGuard.FinancialActorName(cashierName), specificAccountId);
+            });
+        }
+
+        private bool CreditSaleToAccountCore(string saleId, string method, long amountPiasters, string customerName, string cashierName, string specificAccountId)
         {
             if (string.IsNullOrEmpty(saleId) || amountPiasters <= 0) return false;
 
@@ -1076,6 +1255,8 @@ namespace RafiqPOS.Repositories
         {
             return new DigitalTransaction
             {
+                IdempotencyKey = r["idempotency_key"] != DBNull.Value ? r["idempotency_key"].ToString() : null,
+                IdempotencyFingerprint = r["idempotency_fingerprint"] != DBNull.Value ? r["idempotency_fingerprint"].ToString() : null,
                 Id = r["id"].ToString(),
                 AccountId = r["account_id"].ToString(),
                 AccountName = r["account_name"] != DBNull.Value ? r["account_name"].ToString() : null,
@@ -1100,6 +1281,8 @@ namespace RafiqPOS.Repositories
         {
             return new DigitalAccountFunding
             {
+                IdempotencyKey = r["idempotency_key"] != DBNull.Value ? r["idempotency_key"].ToString() : null,
+                IdempotencyFingerprint = r["idempotency_fingerprint"] != DBNull.Value ? r["idempotency_fingerprint"].ToString() : null,
                 Id = r["id"].ToString(),
                 AccountId = r["account_id"].ToString(),
                 AccountName = r["account_name"] != DBNull.Value ? r["account_name"].ToString() : null,
@@ -1114,6 +1297,12 @@ namespace RafiqPOS.Repositories
         }
 
         public DigitalAccount AdjustBalance(string accountId, long newBalancePiasters, string reason, string userId)
+        {
+            return Common.IdempotencyGuard.WithFinancialOperation("wallets.balance_adjust",
+                delegate { return AdjustBalanceCore(accountId, newBalancePiasters, reason, Common.IdempotencyGuard.FinancialActorId(userId)); });
+        }
+
+        private DigitalAccount AdjustBalanceCore(string accountId, long newBalancePiasters, string reason, string userId)
         {
             if (string.IsNullOrWhiteSpace(accountId)) throw new ArgumentException("معرف الحساب مطلوب");
             if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("سبب تسوية الرصيد مطلوب");
@@ -1213,8 +1402,17 @@ namespace RafiqPOS.Repositories
 
         public DigitalTransaction CancelTransaction(string transactionId, string reason, string cancelledBy)
         {
+            return Common.IdempotencyGuard.WithFinancialOperation("wallets.cancel",
+                delegate { return CancelTransactionCore(transactionId, reason, cancelledBy); });
+        }
+
+        private DigitalTransaction CancelTransactionCore(string transactionId, string reason, string cancelledBy)
+        {
             if (string.IsNullOrWhiteSpace(transactionId))
                 throw new ArgumentException("معرف المعاملة مطلوب لإلغائها");
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("سبب الإلغاء مطلوب");
+            cancelledBy = Common.IdempotencyGuard.FinancialActorId(cancelledBy);
+            if (string.IsNullOrWhiteSpace(cancelledBy)) throw new ArgumentException("المستخدم المسؤول عن الإلغاء مطلوب");
 
             string now = DateTime.UtcNow.ToString("o");
 
@@ -1227,12 +1425,6 @@ namespace RafiqPOS.Repositories
                     {
                         try
                         {
-                            DateTime currentBDate = RafiqPOS.Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
-                            if (RafiqPOS.Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
-                            {
-                                throw new InvalidOperationException("لا يمكن إلغاء معاملة في يوم مالي مغلق ومقفل نهائياً.");
-                            }
-
                             DigitalTransaction tx = null;
                             string getTxSql = @"
                                 SELECT t.*, a.name AS account_name, a.type AS account_type
@@ -1254,8 +1446,10 @@ namespace RafiqPOS.Repositories
 
                             if (string.Equals(tx.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
                             {
-                                throw new InvalidOperationException("هذه العملية ملغاة بالفعل مسبقاً");
+                                trans.Commit();
+                                return tx;
                             }
+                            BusinessDayHelper.EnsureOriginalPeriodOpen(conn, trans, tx.CreatedAt);
                             if (string.Equals(tx.TxType, "pos_sale", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(tx.TxType, "pos_return", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(tx.TxType, "sale_credit", StringComparison.OrdinalIgnoreCase))
@@ -1299,15 +1493,21 @@ namespace RafiqPOS.Repositories
                             {
                                 throw new InvalidOperationException("نوع العملية لا يقبل الإلغاء المباشر");
                             }
+                            long newBalance = checked(accBal + reversalDelta);
+                            long originalCashInflow = tx.TxType == "cash_out" ?
+                                checked(tx.AmountPiasters + tx.ProfitPiasters) : tx.ProfitPiasters - tx.AmountPiasters;
+                            if (tx.PaymentDestination == "cash_drawer" && originalCashInflow > 0 &&
+                                DrawerCashCalculator.CalculateForBusinessDate(conn, trans, BusinessDayHelper.GetCurrentBusinessDate(conn, trans)).ExpectedCashPiasters < originalCashInflow)
+                                throw new InvalidOperationException("نقدية الدرج غير كافية لإلغاء العملية وإعادة المبلغ للعميل.");
 
                             string updateBalSql = @"
                                 UPDATE digital_accounts 
-                                SET balance_piasters = balance_piasters + @delta,
+                                SET balance_piasters = @balance,
                                     updated_at = @now
                                 WHERE id = @id;";
                             using (var cmd = new SQLiteCommand(updateBalSql, conn, trans))
                             {
-                                cmd.Parameters.AddWithValue("@delta", reversalDelta);
+                                cmd.Parameters.AddWithValue("@balance", newBalance);
                                 cmd.Parameters.AddWithValue("@now", now);
                                 cmd.Parameters.AddWithValue("@id", tx.AccountId);
                                 cmd.ExecuteNonQuery();
@@ -1333,12 +1533,14 @@ namespace RafiqPOS.Repositories
                                 _auditRepo.Log(conn, trans, new AuditLog
                                 {
                                     Id = "aud_" + Guid.NewGuid().ToString("N"),
-                                    UserId = !string.IsNullOrEmpty(cancelledBy) ? cancelledBy : "admin",
+                                    UserId = cancelledBy,
                                     Action = "wallet_transaction_cancel",
                                     EntityType = "digital_transaction",
                                     EntityId = tx.Id,
-                                    DetailsJson = string.Format("{{\"txId\":\"{0}\",\"accountId\":\"{1}\",\"amount\":{2},\"reason\":\"{3}\"}}",
-                                        tx.Id, tx.AccountId, tx.AmountPiasters, (reason ?? "").Replace("\"", "\\\"")),
+                                    DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                                    {
+                                        txId = tx.Id, accountId = tx.AccountId, amount = tx.AmountPiasters, reason = reason, userId = cancelledBy
+                                    }),
                                     CreatedAt = now
                                 });
                             }

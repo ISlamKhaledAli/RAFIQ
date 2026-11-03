@@ -56,7 +56,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                pService.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    pService.SaveProduct(prod);
 
                 var loadedProd = pRepo.GetById(prod.Id);
                 Assert(loadedProd != null && loadedProd.StockQuantityMilli == 50000, "الصنف تم حفظه برصيد افتتاحي 50 قطعة (50000 ملي)", result);

@@ -22,10 +22,29 @@ namespace RafiqPOS.Bridge
 
         private static bool TryDispatchEpay(BridgeRequest request, out BridgeResponse response)
         {
+            if (request == null || request.Action == null || !request.Action.StartsWith("epay:", StringComparison.Ordinal))
+            {
+                response = null;
+                return false;
+            }
+            BridgeResponse result = null;
+            bool handled = Common.IdempotencyGuard.WithFinancialOperation<bool>(null,
+                delegate { return TryDispatchEpayCore(request, out result); });
+            response = result;
+            return handled;
+        }
+
+        private static bool TryDispatchEpayCore(BridgeRequest request, out BridgeResponse response)
+        {
             response = null;
 
             switch (request.Action)
             {
+                case "epay:reconcileAttempt":
+                case "epay:abandonAttempt":
+                    response = ResolveFinancialAttemptRequest(request, false);
+                    return true;
+
                 case "epay:getTerminals":
                     {
                         var repo = GetEpayRepo();
@@ -124,8 +143,7 @@ namespace RafiqPOS.Bridge
                             return true;
                         }
 
-                        var sessionUser = SecurityService.CurrentUser;
-                        string userId = sessionUser != null ? sessionUser.Id : "admin";
+                        string userId = Common.IdempotencyGuard.FinancialActorId("admin");
 
                         lock (SaleService.FinancialWriteLock)
                         {
@@ -149,8 +167,18 @@ namespace RafiqPOS.Bridge
                         long amountPiasters = payloadObj["amountPiasters"] != null ? (long)payloadObj["amountPiasters"] : 0;
                         string fundingSource = payloadObj["fundingSource"] != null ? (string)payloadObj["fundingSource"] : "cash_drawer";
                         string notes = payloadObj["notes"] != null ? (string)payloadObj["notes"] : null;
-                        string createdBy = SessionActorName();
+                        if (Common.IdempotencyGuard.FinancialActorId(null) == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "UNAUTHORIZED", "يجب تسجيل الدخول لتغذية رصيد الماكينة.");
+                            return true;
+                        }
+                        string createdBy = Common.IdempotencyGuard.FinancialActorId(null);
                         string fundIdempotencyKey = payloadObj["idempotencyKey"] != null ? (string)payloadObj["idempotencyKey"] : null;
+                        if (string.IsNullOrWhiteSpace(fundIdempotencyKey))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "معرّف محاولة التغذية مطلوب لمنع تكرارها.");
+                            return true;
+                        }
 
                         if (string.IsNullOrWhiteSpace(terminalId))
                         {
@@ -223,7 +251,17 @@ namespace RafiqPOS.Bridge
                             response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "بيانات العملية غير صالحة");
                             return true;
                         }
-                        tx.CashierName = SessionActorName();
+                        if (Common.IdempotencyGuard.FinancialActorId(null) == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "UNAUTHORIZED", "يجب تسجيل الدخول قبل تنفيذ العملية.");
+                            return true;
+                        }
+                        if (string.IsNullOrWhiteSpace(tx.IdempotencyKey))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "معرّف محاولة العملية مطلوب لمنع تكرارها.");
+                            return true;
+                        }
+                        tx.CashierName = Common.IdempotencyGuard.FinancialActorName(null);
                         if (string.IsNullOrWhiteSpace(tx.TerminalId))
                         {
                             response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "يجب اختيار الماكينة المنفذة للعملية");
@@ -272,7 +310,12 @@ namespace RafiqPOS.Bridge
                         JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
                         string txId = payloadObj["transactionId"] != null ? (string)payloadObj["transactionId"] : null;
                         string reason = payloadObj["reason"] != null ? (string)payloadObj["reason"] : null;
-                        string cancelledBy = SessionActorName();
+                        if (Common.IdempotencyGuard.FinancialActorId(null) == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "UNAUTHORIZED", "يجب تسجيل الدخول لإلغاء العملية.");
+                            return true;
+                        }
+                        string cancelledBy = Common.IdempotencyGuard.FinancialActorId(null);
 
                         if (string.IsNullOrWhiteSpace(txId))
                         {

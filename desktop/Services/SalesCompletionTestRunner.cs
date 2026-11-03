@@ -72,7 +72,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 50000, // 50 units
                     Unit = "piece"
                 };
-                prod1 = prodService.SaveProduct(prod1, true, true);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    prod1 = prodService.SaveProduct(prod1, true, true);
 
                 var prod2 = new Product
                 {
@@ -83,7 +84,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 30000, // 30 units
                     Unit = "piece"
                 };
-                prod2 = prodService.SaveProduct(prod2, true, true);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    prod2 = prodService.SaveProduct(prod2, true, true);
 
                 // Create test customer
                 var cust = new Customer

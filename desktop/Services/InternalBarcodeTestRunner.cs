@@ -100,7 +100,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(testProd);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(testProd);
 
                 int missingInitial = productService.GetMissingBarcodeCount();
                 Assert(missingInitial >= 1, "يوجد صنف واحد على الأقل بدون باركود في البداية", result);
@@ -154,9 +155,12 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(b1);
-                productService.SaveProduct(b2);
-                productService.SaveProduct(b3);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                {
+                    productService.SaveProduct(b1);
+                    productService.SaveProduct(b2);
+                    productService.SaveProduct(b3);
+                }
 
                 int missingBeforeBulk = productService.GetMissingBarcodeCount();
                 Assert(missingBeforeBulk >= 3, "تم تسجيل 3 أصناف بدون باركود قبل التوليد الجماعي", result);

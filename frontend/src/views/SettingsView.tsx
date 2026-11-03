@@ -102,8 +102,6 @@ export const SettingsView = ({
   const [selectedPrinter, setSelectedPrinter] = useState<string>('');
   const [paperWidth, setPaperWidth] = useState<'80mm' | '57mm' | 'a4'>('80mm');
   const [autoPrintOnSale, setAutoPrintOnSale] = useState<boolean>(true);
-  const [openDrawerOnSale, setOpenDrawerOnSale] = useState<boolean>(false);
-  const [drawerPulseMs, setDrawerPulseMs] = useState<string>('30');
   const [printersLoading, setPrintersLoading] = useState<boolean>(false);
   const [testPrinting, setTestPrinting] = useState<boolean>(false);
   const [printerSaveSuccess, setPrinterSaveSuccess] = useState<boolean>(false);
@@ -185,8 +183,6 @@ export const SettingsView = ({
           if (settings.default_printer_name) setSelectedPrinter(settings.default_printer_name);
           if (settings.receipt_paper_width) setPaperWidth(settings.receipt_paper_width as '80mm' | '57mm' | 'a4');
           if (settings.printer_auto_print !== undefined) setAutoPrintOnSale(settings.printer_auto_print === '1');
-          if (settings.printer_open_drawer !== undefined) setOpenDrawerOnSale(settings.printer_open_drawer === '1');
-          if (settings.drawer_pulse_ms) setDrawerPulseMs(settings.drawer_pulse_ms);
           if (settings.logo_variant === 'modern' || settings.logo_variant === 'classic') {
             setLogoVariant(settings.logo_variant);
             try {
@@ -295,8 +291,7 @@ export const SettingsView = ({
         default_printer_name: selectedPrinter,
         receipt_paper_width: paperWidth,
         printer_auto_print: autoPrintOnSale ? '1' : '0',
-        printer_open_drawer: openDrawerOnSale ? '1' : '0',
-        drawer_pulse_ms: drawerPulseMs,
+        printer_open_drawer: '0',
       });
       setPrinterSaveSuccess(true);
       setTimeout(() => setPrinterSaveSuccess(false), 3500);
@@ -340,17 +335,6 @@ export const SettingsView = ({
       setAutoPrintOnSale(!newVal);
       localStorage.setItem('rafiq_pos_printer_auto_print', newVal ? '0' : '1');
     }, 'الطباعة التلقائية للفاتورة');
-  };
-
-  const handleToggleOpenDrawer = async (newVal: boolean) => {
-    setOpenDrawerOnSale(newVal);
-    await autoSaveSetting({ printer_open_drawer: newVal ? '1' : '0' }, () => setOpenDrawerOnSale(!newVal), 'فتح الدرج تلقائياً');
-  };
-
-  const handleChangeDrawerPulse = async (newVal: string) => {
-    const prev = drawerPulseMs;
-    setDrawerPulseMs(newVal);
-    await autoSaveSetting({ drawer_pulse_ms: newVal }, () => setDrawerPulseMs(prev), 'قوة ونبضة فتح الدرج');
   };
 
   const handleTestPrint = async () => {
@@ -458,7 +442,7 @@ export const SettingsView = ({
     },
     printer: {
       title: 'إعدادات طابعة الفواتير والدرج',
-      subtitle: 'اختيار طابعة الكاشير الحرارية، مقاس البكرة (80مم / 57مم)، وفتح درج النقدية تلقائياً',
+      subtitle: 'اختيار طابعة الكاشير الحرارية، مقاس البكرة (80مم / 57مم)، وإعدادات الطباعة الورقية وسلامة الدرج',
       icon: Printer,
     },
     system: {
@@ -531,12 +515,6 @@ export const SettingsView = ({
           autoPrintOnSale={autoPrintOnSale}
           setAutoPrintOnSale={setAutoPrintOnSale}
           onToggleAutoPrint={handleToggleAutoPrint}
-          openDrawerOnSale={openDrawerOnSale}
-          setOpenDrawerOnSale={setOpenDrawerOnSale}
-          onToggleOpenDrawer={handleToggleOpenDrawer}
-          drawerPulseMs={drawerPulseMs}
-          setDrawerPulseMs={setDrawerPulseMs}
-          onChangeDrawerPulse={handleChangeDrawerPulse}
           printersLoading={printersLoading}
           testPrinting={testPrinting}
           printerSaveSuccess={printerSaveSuccess}

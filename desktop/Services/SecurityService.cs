@@ -67,6 +67,8 @@ namespace RafiqPOS.Services
 
         // Current active session
         private static UserDto _currentUserSession;
+        private static readonly object SessionGate = new object();
+        private static long _sessionGeneration;
         // Session that was opened with the owner recovery code; it may set a new PIN without the forgotten one
         private static string _recoveryLoginUserId;
 
@@ -127,7 +129,11 @@ namespace RafiqPOS.Services
                     if (ownerUser.ParentId == "usr_root_developer" || ownerUser.ParentId == ownerUser.Id) { ownerUser.ParentId = null; oChanged = true; }
                     if (!string.IsNullOrEmpty(ownerUser.PermissionsJson)) { ownerUser.PermissionsJson = null; oChanged = true; }
                     if (!ownerUser.IsActive) { ownerUser.IsActive = true; oChanged = true; }
-                    if (oChanged) _userRepo.Update(ownerUser);
+                    if (oChanged)
+                    {
+                        _userRepo.Update(ownerUser);
+                        InvalidateActorAdmissions(ownerUser.Id);
+                    }
                 }
 
                 // 3. Ensure Cashier 1 exists and is linked under admin, and clean any stale unauthorized permissions
@@ -186,7 +192,11 @@ namespace RafiqPOS.Services
                                 {
                                 }
                             }
-                            if (uChanged) _userRepo.Update(u);
+                            if (uChanged)
+                            {
+                                _userRepo.Update(u);
+                                InvalidateActorAdmissions(u.Id);
+                            }
                         }
                     }
                 }
@@ -210,6 +220,7 @@ namespace RafiqPOS.Services
                 {
                     u.MustChangePin = true;
                     _userRepo.Update(u);
+                    InvalidateActorAdmissions(u.Id);
                 }
             }
         }
@@ -266,8 +277,7 @@ namespace RafiqPOS.Services
             }
 
             // 5. Reset in-memory session immediately
-            _currentUserSession = null;
-            _recoveryLoginUserId = null;
+            ReplaceSession(null, null);
         }
 
         private User EnsureRootDeveloperAccount()
@@ -319,6 +329,7 @@ namespace RafiqPOS.Services
                     if (needUpdate)
                     {
                         _userRepo.Update(devUser);
+                        InvalidateActorAdmissions(devUser.Id);
                     }
                 }
                 return devUser;
@@ -340,12 +351,112 @@ namespace RafiqPOS.Services
 
         public static UserDto CurrentUser
         {
-            get { return _currentUserSession; }
+            get { lock (SessionGate) { return _currentUserSession; } }
         }
 
         public static void SetCurrentUserForTesting(UserDto user)
         {
-            _currentUserSession = user;
+            ReplaceSession(user, null);
+        }
+
+        private static long ReplaceSession(UserDto user, string recoveryUserId)
+        {
+            lock (SessionGate)
+            {
+                _sessionGeneration = checked(_sessionGeneration + 1);
+                _currentUserSession = user;
+                _recoveryLoginUserId = recoveryUserId;
+                return _sessionGeneration;
+            }
+        }
+
+        internal static RequestAdmission CaptureRequestAdmission()
+        {
+            SecurityService security = DatabaseService.Security;
+            return CaptureRequestAdmission(delegate(string id)
+            {
+                return security != null && security._userRepo != null ? security._userRepo.GetById(id) : null;
+            });
+        }
+
+        internal static RequestAdmission CaptureRequestAdmission(Func<string, User> loadUser)
+        {
+            long generation;
+            string actorId;
+            lock (SessionGate)
+            {
+                generation = _sessionGeneration;
+                actorId = _currentUserSession != null ? _currentUserSession.Id : null;
+            }
+            User actor = !string.IsNullOrEmpty(actorId) ? loadUser(actorId) : null;
+            RequestAdmission admission = new RequestAdmission(
+                string.IsNullOrEmpty(actorId) || (actor != null && actor.IsActive && actor.Id == actorId),
+                generation, actor, actor != null ? GetEffectivePermissions(actor) : null);
+            return IsAdmissionCurrent(admission) ? admission : new RequestAdmission(false, generation, null, null);
+        }
+
+        internal static bool IsAdmissionCurrent(RequestAdmission admission)
+        {
+            if (admission == null || !admission.IsValid) return false;
+            lock (SessionGate)
+            {
+                string actorId = _currentUserSession != null ? _currentUserSession.Id : null;
+                return admission.Generation == _sessionGeneration &&
+                    string.Equals(admission.ActorId, actorId, StringComparison.Ordinal);
+            }
+        }
+
+        internal static bool TryRefreshSession(long generation, string actorId, User refreshed)
+        {
+            UserDto dto = refreshed != null && refreshed.IsActive ? MapToDto(refreshed) : null;
+            lock (SessionGate)
+            {
+                if (_sessionGeneration != generation || _currentUserSession == null ||
+                    _currentUserSession.Id != actorId || (refreshed != null && refreshed.Id != actorId)) return false;
+                if (dto == null)
+                {
+                    ReplaceSession(null, null);
+                    return true;
+                }
+                bool changed = _currentUserSession.Role != dto.Role ||
+                    _currentUserSession.MustChangePin != dto.MustChangePin ||
+                    !SamePermissions(_currentUserSession.Permissions, dto.Permissions);
+                if (changed) _sessionGeneration = checked(_sessionGeneration + 1);
+                dto.IsRecoverySession = _recoveryLoginUserId == actorId;
+                _currentUserSession = dto;
+                return true;
+            }
+        }
+
+        private static bool SamePermissions(Dictionary<string, bool> left, Dictionary<string, bool> right)
+        {
+            if (left == null || right == null) return left == right;
+            if (left.Count != right.Count) return false;
+            foreach (var item in left)
+            {
+                bool value;
+                if (!right.TryGetValue(item.Key, out value) || value != item.Value) return false;
+            }
+            return true;
+        }
+
+        private static void InvalidateActorAdmissions(string actorId)
+        {
+            lock (SessionGate)
+            {
+                if (_currentUserSession != null && _currentUserSession.Id == actorId)
+                    _sessionGeneration = checked(_sessionGeneration + 1);
+            }
+        }
+
+        private static bool TryPublishLogin(long generation, UserDto user, string recoveryUserId)
+        {
+            lock (SessionGate)
+            {
+                if (_sessionGeneration != generation) return false;
+                ReplaceSession(user, recoveryUserId);
+                return true;
+            }
         }
 
         public PinStatusResult GetStatus()
@@ -395,23 +506,23 @@ namespace RafiqPOS.Services
 
         public UserDto GetCurrentSessionUser()
         {
-            if (_currentUserSession != null && _userRepo != null)
+            long generation;
+            string actorId;
+            lock (SessionGate)
             {
-                var refreshed = _userRepo.GetById(_currentUserSession.Id);
-                if (refreshed != null)
-                {
-                    _currentUserSession = MapToDto(refreshed);
-                    _currentUserSession.IsRecoverySession = _recoveryLoginUserId == refreshed.Id;
-                }
+                generation = _sessionGeneration;
+                actorId = _currentUserSession != null ? _currentUserSession.Id : null;
             }
-            return _currentUserSession;
+            if (actorId != null && _userRepo != null)
+                TryRefreshSession(generation, actorId, _userRepo.GetById(actorId));
+            return CurrentUser;
         }
 
         public LoginResult Login(string usernameOrId, string pin)
         {
             // Security hardening: immediately invalidate prior session so failed attempts never inherit privileges
-            _currentUserSession = null;
-            _recoveryLoginUserId = null;
+            long loginGeneration = ReplaceSession(null, null);
+            string recoveryUserId = null;
 
             var res = new LoginResult();
 
@@ -484,7 +595,7 @@ namespace RafiqPOS.Services
                     matches = true;
                     user.MustChangePin = true;
                     _userRepo.Update(user);
-                    _recoveryLoginUserId = user.Id;
+                    recoveryUserId = user.Id;
                     LogAudit("EMERGENCY_RECOVERY_LOGIN", "SECURITY", user.Username, "تم تسجيل الدخول بنجاح باستخدام كود استرجاع الدعم الفني المعتمد");
                 }
             }
@@ -535,11 +646,16 @@ namespace RafiqPOS.Services
                 user.LastLoginAt = DateTime.UtcNow.ToString("o");
 
                 var dto = MapToDto(user);
-                dto.IsRecoverySession = _recoveryLoginUserId == user.Id;
-                _currentUserSession = dto;
+                dto.IsRecoverySession = recoveryUserId == user.Id;
+                if (!TryPublishLogin(loginGeneration, dto, recoveryUserId))
+                {
+                    res.Success = false;
+                    res.Message = "تغيرت جلسة المستخدم. يرجى تسجيل الدخول مجدداً.";
+                    return res;
+                }
 
                 string roleName = user.Role == "root" ? "المالك (Root)" : (user.Role == "admin" ? "مدير النظام" : user.Role);
-                LogAudit("USER_LOGIN", "SECURITY", user.Username, string.Format("تسجيل دخول الموظف: {0} ({1})", user.DisplayName, roleName));
+                LogAudit("USER_LOGIN", "SECURITY", user.Username, string.Format("تسجيل دخول الموظف: {0} ({1})", user.DisplayName, roleName), dto.Id);
 
                 res.Success = true;
                 res.User = dto;
@@ -576,12 +692,14 @@ namespace RafiqPOS.Services
 
         public void Logout()
         {
-            if (_currentUserSession != null)
+            UserDto previous;
+            lock (SessionGate)
             {
-                LogAudit("USER_LOGOUT", "SECURITY", _currentUserSession.Username, string.Format("تسجيل خروج الموظف: {0}", _currentUserSession.DisplayName));
-                _currentUserSession = null;
-                _recoveryLoginUserId = null;
+                previous = _currentUserSession;
+                ReplaceSession(null, null);
             }
+            if (previous != null)
+                LogAudit("USER_LOGOUT", "SECURITY", previous.Username, string.Format("تسجيل خروج الموظف: {0}", previous.DisplayName), previous.Id);
         }
 
         public List<UserDto> GetActiveUsers()
@@ -837,6 +955,7 @@ namespace RafiqPOS.Services
             user.IsActive = isActive;
 
             _userRepo.Update(user);
+            InvalidateActorAdmissions(user.Id);
             LogAudit("USER_UPDATED", "SECURITY", user.Username, string.Format("تم تحديث بيانات الموظف: {0} ({1}) - الحالة: {2}", user.DisplayName, user.Role, isActive ? "نشط" : "معطّل"));
 
             if (wasActive && !isActive)
@@ -873,6 +992,7 @@ namespace RafiqPOS.Services
             string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : "{}";
             user.PermissionsJson = permsJson;
             _userRepo.Update(user);
+            InvalidateActorAdmissions(user.Id);
             LogAudit("USER_PERMISSIONS_UPDATED", "SECURITY", user.Username, string.Format("تم تحديث صلاحيات الحساب: {0}", user.DisplayName));
 
             CascadeRevokePermissions(user.Id, permissions);
@@ -978,6 +1098,7 @@ namespace RafiqPOS.Services
                 if (child.IsActive)
                 {
                     _userRepo.SetStatus(child.Id, false);
+                    InvalidateActorAdmissions(child.Id);
                     LogAudit("CASCADE_DEACTIVATE", "SECURITY", child.Username, string.Format("تعطيل تلقائي للحساب {0} لتعطيل حسابه الأعلى", child.DisplayName));
                     CascadeDeactivate(child.Id);
                 }
@@ -1013,6 +1134,7 @@ namespace RafiqPOS.Services
                             {
                                 child.PermissionsJson = JsonConvert.SerializeObject(childPerms);
                                 _userRepo.Update(child);
+                                InvalidateActorAdmissions(child.Id);
                                 CascadeRevokePermissions(child.Id, childPerms);
                             }
                         }
@@ -1117,6 +1239,7 @@ namespace RafiqPOS.Services
             byte[] salt = GenerateSalt();
             byte[] hash = HashWithSalt(newPassword, salt);
             _userRepo.UpdatePassword(userId, Convert.ToBase64String(hash), Convert.ToBase64String(salt));
+            InvalidateActorAdmissions(userId);
             LogAudit("PASSWORD_CHANGED", "SECURITY", user.Username, string.Format("تم تغيير كلمة المرور للموظف: {0}", user.DisplayName));
         }
 
@@ -1292,11 +1415,15 @@ namespace RafiqPOS.Services
             byte[] hash = HashWithSalt(newPin, salt);
 
             _userRepo.UpdatePin(userId, Convert.ToBase64String(hash), Convert.ToBase64String(salt));
-            if (_currentUserSession != null && _currentUserSession.Id == userId)
+            lock (SessionGate)
             {
-                _currentUserSession.MustChangePin = false;
-                _currentUserSession.IsRecoverySession = false;
-                _recoveryLoginUserId = null;
+                InvalidateActorAdmissions(userId);
+                if (_currentUserSession != null && _currentUserSession.Id == userId)
+                {
+                    _currentUserSession.MustChangePin = false;
+                    _currentUserSession.IsRecoverySession = false;
+                    _recoveryLoginUserId = null;
+                }
             }
             LogAudit("USER_PIN_CHANGED", "SECURITY", user.Username, string.Format("تم تغيير الرقم السري للموظف: {0}", user.DisplayName));
         }
@@ -1632,9 +1759,11 @@ namespace RafiqPOS.Services
                 if (admin != null)
                 {
                     _userRepo.UpdatePin(admin.Id, Convert.ToBase64String(pinHash), Convert.ToBase64String(pinSalt));
-                    if (_currentUserSession != null && (_currentUserSession.Id == admin.Id || _currentUserSession.Role == "admin"))
+                    lock (SessionGate)
                     {
-                        _currentUserSession.MustChangePin = false;
+                        InvalidateActorAdmissions(admin.Id);
+                        if (_currentUserSession != null && _currentUserSession.Id == admin.Id)
+                            _currentUserSession.MustChangePin = false;
                     }
                 }
             }
@@ -1939,6 +2068,7 @@ namespace RafiqPOS.Services
             string hashStr = Convert.ToBase64String(HashWithSalt(pin, salt));
             string saltStr = Convert.ToBase64String(salt);
             _userRepo.UpdatePin(user.Id, hashStr, saltStr, false);
+            InvalidateActorAdmissions(user.Id);
             user.PinCodeHash = hashStr;
             user.PinSalt = saltStr;
             LogAudit("USER_PIN_REHASHED", "SECURITY", user.Username, "تمت ترقية تشفير الرقم السري للموظف إلى المعيار الحالي");
@@ -2338,13 +2468,15 @@ namespace RafiqPOS.Services
             return p;
         }
 
-        private void LogAudit(string action, string entityType, string entityId, string details)
+        private void LogAudit(string action, string entityType, string entityId, string details, string admittedActorId = null)
         {
             try
             {
                 if (_auditRepo != null)
                 {
-                    string actorId = _currentUserSession != null ? _currentUserSession.Id : "system";
+                    ProductWritePolicy.Operation operation = ProductWritePolicy.CurrentOperation;
+                    string actorId = admittedActorId ?? (operation != null ? operation.ActorId :
+                        (_currentUserSession != null ? _currentUserSession.Id : "system"));
                     _auditRepo.Log(new AuditLog
                     {
                         UserId = actorId,
@@ -2375,6 +2507,7 @@ namespace RafiqPOS.Services
         /// </summary>
         public LoginResult LoginWithRootChallenge(string responseToken)
         {
+            long loginGeneration = ReplaceSession(null, null);
             var res = new LoginResult();
             string deviceFp = EncryptionService.GenerateDeviceFingerprint();
             string error;
@@ -2411,8 +2544,12 @@ namespace RafiqPOS.Services
             }
 
             var dto = MapToDto(rootUser);
-            _currentUserSession = dto;
-            _recoveryLoginUserId = null;
+            if (!TryPublishLogin(loginGeneration, dto, null))
+            {
+                res.Success = false;
+                res.Message = "تغيرت جلسة المستخدم. يرجى تسجيل الدخول مجدداً.";
+                return res;
+            }
 
             res.Success = true;
             res.User = dto;
@@ -2420,7 +2557,7 @@ namespace RafiqPOS.Services
             res.RemainingLockoutSeconds = 0;
             res.MustChangePin = false;
             res.Message = "تم تسجيل الدخول بصلاحيات مطور النظام (Root) بنجاح.";
-            LogAudit("ROOT_CHALLENGE_LOGIN_SUCCESS", "SECURITY", rootUser.Username, "تسجيل دخول حساب المطور (Root) بنجاح عبر بروتوكول التحدي والاستجابة");
+            LogAudit("ROOT_CHALLENGE_LOGIN_SUCCESS", "SECURITY", rootUser.Username, "تسجيل دخول حساب المطور (Root) بنجاح عبر بروتوكول التحدي والاستجابة", dto.Id);
             return res;
         }
     }

@@ -4,6 +4,8 @@
  * تدعم الألوان والمقاسات والباركودات والأكواد الداخلية لجميع الأنشطة
  */
 
+throw new Error('LEGACY_CATALOGUE_DISABLED: quarantined unverified catalogues must not overwrite production templates. Use tools/catalogue/cli.mjs.');
+
 const fs = require('fs');
 const path = require('path');
 const xlsx = require(path.resolve(__dirname, '..', 'frontend', 'node_modules', 'xlsx'));

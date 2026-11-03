@@ -262,6 +262,11 @@ namespace RafiqPOS.Services
 
         public bool OpenDrawerManual(string reason = null, string userId = null)
         {
+            return OpenDrawerManualResult(reason, userId).Success;
+        }
+
+        public PrintResult OpenDrawerManualResult(string reason = null, string userId = null)
+        {
             lock (SaleService.FinancialWriteLock)
             {
                 var activeShift = _shiftService.GetActiveShift();
@@ -276,43 +281,40 @@ namespace RafiqPOS.Services
                 string effectiveReason = string.IsNullOrEmpty(reason) ? "فتح يدوي لدرج النقدية" : reason.Trim();
                 string nowIso = DateTime.UtcNow.ToString("o");
 
-                // Record critical audit log for manual drawer opening
+                PrintResult result = new PrintResult
+                {
+                    Success = false,
+                    Message = DrawerSafetyPolicy.BlockReason,
+                    DrawerStatus = "blocked",
+                    WarningCode = DrawerSafetyPolicy.WarningCode,
+                    WarningMessage = DrawerSafetyPolicy.BlockReason,
+                    PrinterUsed = ""
+                };
+
                 if (_auditRepo != null)
                 {
                     _auditRepo.Log(new AuditLog
                     {
-                        Id = "aud_" + Guid.NewGuid().ToString("N"),
+                        Id = Guid.NewGuid().ToString(),
                         UserId = actorId,
                         Action = "drawer_manual_open",
                         EntityType = "cash_drawer",
                         EntityId = activeShift != null ? activeShift.Id : "drawer",
-                        DetailsJson = string.Format(
-                            "{{\"reason\":\"{0}\",\"shiftId\":\"{1}\",\"cashierName\":\"{2}\",\"timestamp\":\"{3}\"}}",
-                            effectiveReason.Replace("\"", "\\\""),
-                            activeShift != null ? activeShift.Id : "",
-                            actorName.Replace("\"", "\\\""),
-                            nowIso
-                        ),
+                        DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                        {
+                            reason = effectiveReason,
+                            shiftId = activeShift != null ? activeShift.Id : "",
+                            cashierName = actorName,
+                            timestamp = nowIso,
+                            drawerStatus = result.DrawerStatus,
+                            success = result.Success
+                        }),
                         CreatedAt = nowIso
                     });
                 }
 
-                Logger.Info(string.Format("تم تسجيل فتح يدوي لدرج النقدية بواسطة: {0} ({1}) - السبب: {2}", actorName, actorId, effectiveReason));
-
-                // إرسال نبضة الهاردوير لفتح الدرج المادي عبر الطابعة المحددة
-                try
-                {
-                    if (DatabaseService.Printer != null)
-                    {
-                        DatabaseService.Printer.KickDrawer();
-                    }
-                }
-                catch (Exception exKick)
-                {
-                    Logger.Warn("فشل إرسال نبضة فتح درج النقدية المادي: " + exKick.Message);
-                }
-
-                return true;
+                Logger.Warn(string.Format("تم منع محاولة فتح الدرج بواسطة: {0} ({1}) - {2}", actorName, actorId, result.Message));
+                return result;
             }
         }
     }

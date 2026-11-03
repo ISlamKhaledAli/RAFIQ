@@ -180,8 +180,8 @@ namespace RafiqPOS.Bridge
                     {
                         opReason = opObj["reason"].ToString();
                     }
-                    bool opSuccess = DatabaseService.CashDrawer.OpenDrawerManual(opReason);
-                    response = BridgeResponse.Ok(request.Id, new { success = opSuccess });
+                    var opResult = DatabaseService.CashDrawer.OpenDrawerManualResult(opReason);
+                    response = BridgeResponse.Ok(request.Id, opResult);
                     return true;
             }
 

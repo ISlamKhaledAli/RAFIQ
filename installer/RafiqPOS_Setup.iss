@@ -158,18 +158,8 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 ; تشغيل البرنامج بعد انتهاء التثبيت (لا يُعرض إذا كانت إعادة تشغيل الجهاز مطلوبة بعد تثبيت .NET 4.8)
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent; Check: IsAppReadyToLaunch
 
-[UninstallRun]
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im RafiqPOS.exe"; Flags: runhidden; RunOnceId: "KillRafiq"
-Filename: "{sys}\taskkill.exe"; Parameters: "/f /im msedgewebview2.exe"; Flags: runhidden; RunOnceId: "KillWebView" 
-
-[UninstallDelete]
-Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\data"
-Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\webview_profile"
-Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\backups"
-Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\logs"
-Type: filesandordirs; Name: "{commonappdata}\RafiqPOS"
-Type: filesandordirs; Name: "{userappdata}\RafiqPOS"
-Type: filesandordirs; Name: "{localappdata}\RafiqPOS"
+; Uninstall removes program files only. Financial records, backups and recovery
+; profiles are retained; destructive maintenance belongs to the protected app.
 
 [Code]
 // واجهات Win32 لإجبار نافذة التثبيت على الظهور في المقدمة وأخذ التركيز بعد تخطي رسالة UAC
@@ -905,45 +895,19 @@ begin
 end;
 
 function InitializeUninstall(): Boolean;
-var
-  ErrorCode: Integer;
 begin
-  // إيقاف تشغيل رفيق ومشغل الويب فوراً لفك أي قفل على ملفات قاعدة البيانات والمتصفح
-  ShellExec('open', 'taskkill.exe', '/f /im RafiqPOS.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
-  ShellExec('open', 'taskkill.exe', '/f /im msedgewebview2.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
-  Result := True;
+  Result := not CheckForMutexes('Global\RafiqPOS_SingleInstance_AppMutex');
+  if not Result then
+  begin
+    if not UninstallSilent then
+      MsgBox('يرجى إنهاء الفاتورة وإغلاق رفيق يدوياً قبل إزالة البرنامج. لن يتم إيقافه بالقوة ولن تُحذف بيانات المحل.', mbError, MB_OK);
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-var
-  CommonDir, UserDir, LocalDir: String;
-  ErrorCode: Integer;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    // إغلاق أي عمليات عالقة
-    ShellExec('open', 'taskkill.exe', '/f /im RafiqPOS.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
-    ShellExec('open', 'taskkill.exe', '/f /im msedgewebview2.exe', '', SW_HIDE, ewWaitUntilTerminated, ErrorCode);
-
-    // 1. تنظيف بيانات البرنامج المشتركة (قاعدة البيانات، كلمات المرور، الإعدادات، البروفايل)
-    CommonDir := ExpandConstant('{commonappdata}\RafiqPOS');
-    if DirExists(CommonDir) then
-    begin
-      DelTree(CommonDir, True, True, True);
-    end;
-
-    // 2. تنظيف بيانات المستخدم (التقارير المصدرة والملفات المؤقتة)
-    UserDir := ExpandConstant('{userappdata}\RafiqPOS');
-    if DirExists(UserDir) then
-    begin
-      DelTree(UserDir, True, True, True);
-    end;
-
-    // 3. تنظيف الملفات المؤقتة المحلية
-    LocalDir := ExpandConstant('{localappdata}\RafiqPOS');
-    if DirExists(LocalDir) then
-    begin
-      DelTree(LocalDir, True, True, True);
-    end;
+    Log('Financial data, backups, logs and browser recovery profiles were retained.');
   end;
 end;

@@ -111,7 +111,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 100000, // 100 units
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 var sale = new Sale
                 {
@@ -701,7 +702,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 50000,
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Make a credit sale of 20.00 EGP (Paid = 0) against this customer
                 var sale = new Sale
@@ -781,7 +783,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 10000,
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Case 1: Negative discount on purchase invoice
                 bool negDiscountRejected = false;
@@ -913,7 +916,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 50000,
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Sale 1: Total 100 EGP, Paid 130 EGP cash. 30 EGP kept under account ("تحت الحساب")
                 var sale1 = new Sale
@@ -961,7 +965,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 50000,
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod2);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod2);
 
                 // Sale 2: Customer buys 20 EGP (2000 piasters) from their advance credit
                 var sale2 = new Sale

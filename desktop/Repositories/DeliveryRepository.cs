@@ -245,8 +245,9 @@ namespace RafiqPOS.Repositories
             string dispatchedAt = !string.IsNullOrWhiteSpace(riderId) ? nowIso : null;
 
             long toCollect = string.Equals(sale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase)
-                ? sale.TotalPiasters
+                ? checked(sale.PaidPiasters - sale.ChangePiasters)
                 : 0L;
+            if (toCollect < 0) throw new InvalidOperationException("قيمة النقد المطلوب تحصيله من طلب الدليفري غير صالحة.");
 
             string sql = @"
                 INSERT INTO delivery_orders (
@@ -254,14 +255,14 @@ namespace RafiqPOS.Repositories
                     customer_name, customer_phone, delivery_address, landmark,
                     zone_id, zone_name, delivery_fee_piasters, rider_id, rider_name,
                     status, payment_method, total_to_collect_piasters,
-                    is_settled, settled_at, settled_by_user_id,
+                    is_settled, settled_at, settled_by_user_id, cash_handover_tracked,
                     dispatched_at, delivered_at, notes, created_at, updated_at
                 ) VALUES (
                     @id, @saleId, @invNum, @callNum, @custId,
                     @custName, @custPhone, @addr, @landmark,
                     @zoneId, @zoneName, @fee, @riderId, @riderName,
                     @status, @payMethod, @toCollect,
-                    0, NULL, NULL,
+                    0, NULL, NULL, 1,
                     @dispatchedAt, NULL, @notes, @now, @now
                 );
             ";
@@ -491,6 +492,7 @@ namespace RafiqPOS.Repositories
                 FROM delivery_orders o
                 LEFT JOIN delivery_zones z ON o.zone_id = z.id
                 WHERE o.rider_id = @rid AND o.is_settled = 0 AND o.status != 'returned'
+                  AND EXISTS (SELECT 1 FROM sales s WHERE s.id = o.sale_id AND s.status != 'cancelled')
                 ORDER BY o.created_at ASC;
             ";
             using (var cmd = new SQLiteCommand(sql, conn, trans))
@@ -506,22 +508,24 @@ namespace RafiqPOS.Repositories
 
                         summary.Orders.Add(ord);
                         summary.UnsettledOrdersCount++;
-                        summary.TotalCashToCollectPiasters += ord.TotalToCollectPiasters;
-                        summary.TotalDeliveryFeesPiasters += ord.DeliveryFeePiasters;
-                        summary.RiderCommissionPiasters += orderComm;
+                        if (ord.TotalToCollectPiasters < 0 || orderComm < 0)
+                            throw new InvalidOperationException("قيمة التحصيل أو عمولة التوصيل غير صالحة.");
+                        summary.TotalCashToCollectPiasters = checked(summary.TotalCashToCollectPiasters + ord.TotalToCollectPiasters);
+                        summary.TotalDeliveryFeesPiasters = checked(summary.TotalDeliveryFeesPiasters + ord.DeliveryFeePiasters);
+                        summary.RiderCommissionPiasters = checked(summary.RiderCommissionPiasters + orderComm);
                     }
                 }
             }
 
-            summary.NetDrawerDepositPiasters = Math.Max(0L, summary.TotalCashToCollectPiasters - summary.RiderCommissionPiasters);
+            summary.NetDrawerDepositPiasters = checked(summary.TotalCashToCollectPiasters - summary.RiderCommissionPiasters);
             return summary;
         }
 
         public RiderSettlementSummary SettleRider(string riderId, string userId, bool recordCommissionExpense)
         {
             if (string.IsNullOrWhiteSpace(riderId)) throw new ArgumentNullException("riderId");
-            string nowIso = DateTime.UtcNow.ToString("o");
-
+            lock (RafiqPOS.Services.SaleService.FinancialWriteLock)
+            using (var operation = RafiqPOS.Services.SaleService.BeginFinancialOperation())
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -529,10 +533,68 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        string nowIso = DateTime.UtcNow.ToString("o");
+                        var legacyActor = operation == null ? RafiqPOS.Services.SecurityService.CurrentUser : null;
+                        if (operation != null) userId = operation.ActorId;
+                        else if (legacyActor != null) userId = legacyActor.Id;
+                        string actorName = operation != null ? operation.ActorName
+                            : (legacyActor != null ? legacyActor.DisplayName : (userId ?? "system"));
                         var summary = BuildRiderSummaryInternal(conn, trans, riderId);
                         if (summary.UnsettledOrdersCount == 0)
                         {
                             throw new InvalidOperationException("لا توجد طلبات غير مصفاة لهذا الطيار حالياً.");
+                        }
+
+                        using (var legacy = new SQLiteCommand(@"
+                            SELECT COUNT(*) FROM delivery_orders o
+                            WHERE o.rider_id = @rid AND o.is_settled = 0 AND o.status != 'returned'
+                              AND COALESCE(o.cash_handover_tracked, 0) != 1
+                              AND EXISTS (SELECT 1 FROM sales s WHERE s.id = o.sale_id AND s.status != 'cancelled');", conn, trans))
+                        {
+                            legacy.Parameters.AddWithValue("@rid", riderId);
+                            if (Convert.ToInt64(legacy.ExecuteScalar()) > 0)
+                                throw new InvalidOperationException("DELIVERY_HANDOVER_RECONCILIATION_REQUIRED: توجد طلبات قديمة سبق احتساب نقديتها بطريقة سابقة. يلزم مطابقة عهدة الطيار والدرج محاسبياً قبل تسويتها؛ لن تُعدّل الفترات المغلقة.");
+                        }
+                        if (!recordCommissionExpense && summary.RiderCommissionPiasters > 0)
+                            throw new InvalidOperationException("عمولة الطيار تُسجل كمصروف من الدرج عند التسوية ولا يمكن تخطي قيدها.");
+
+                        RafiqPOS.Services.BusinessDayHelper.EnsureOriginalPeriodOpen(conn, trans, nowIso);
+                        DateTime businessDate = RafiqPOS.Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                        string shiftId = null;
+                        using (var shiftCmd = new SQLiteCommand(@"
+                            SELECT id FROM shifts WHERE status = 'open' AND closed_at IS NULL AND business_date = @day
+                            ORDER BY opened_at DESC LIMIT 1;", conn, trans))
+                        {
+                            shiftCmd.Parameters.AddWithValue("@day", businessDate.ToString("yyyy-MM-dd"));
+                            object shift = shiftCmd.ExecuteScalar();
+                            if (shift != null && shift != DBNull.Value) shiftId = shift.ToString();
+                        }
+                        if (shiftId == null)
+                            throw new InvalidOperationException("يلزم فتح وردية حالية لاستلام نقدية الطيار وصرف عمولته.");
+                        if (summary.NetDrawerDepositPiasters < 0)
+                        {
+                            var drawer = RafiqPOS.Services.DrawerCashCalculator.CalculateForBusinessDate(conn, trans, businessDate);
+                            if (drawer.ExpectedCashPiasters < -summary.NetDrawerDepositPiasters)
+                                throw new InvalidOperationException("نقدية الدرج مع تحصيل الطيار لا تكفي لصرف عمولة التوصيل.");
+                        }
+
+                        foreach (var order in summary.Orders)
+                        {
+                            if (order.TotalToCollectPiasters == 0) continue;
+                            using (var cashCmd = new SQLiteCommand(@"
+                                INSERT INTO cash_drawer_transactions
+                                    (id, shift_id, type, amount_piasters, reason, performed_by_id, performed_by_name, created_at)
+                                VALUES (@id, @shift, 'cash_in', @amount, @reason, @by, @name, @now);", conn, trans))
+                            {
+                                cashCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                cashCmd.Parameters.AddWithValue("@shift", shiftId);
+                                cashCmd.Parameters.AddWithValue("@amount", order.TotalToCollectPiasters);
+                                cashCmd.Parameters.AddWithValue("@reason", "تحصيل طلب دليفري " + order.Id + " - الطيار " + summary.RiderName);
+                                cashCmd.Parameters.AddWithValue("@by", string.IsNullOrEmpty(userId) ? "usr_admin_default" : userId);
+                                cashCmd.Parameters.AddWithValue("@name", actorName);
+                                cashCmd.Parameters.AddWithValue("@now", nowIso);
+                                cashCmd.ExecuteNonQuery();
+                            }
                         }
 
                         using (var uCmd = new SQLiteCommand(@"
@@ -543,12 +605,14 @@ namespace RafiqPOS.Repositories
                                 settled_at = @now,
                                 settled_by_user_id = @uid,
                                 updated_at = @now
-                            WHERE rider_id = @rid AND is_settled = 0 AND status != 'returned';", conn, trans))
+                            WHERE rider_id = @rid AND is_settled = 0 AND status != 'returned' AND cash_handover_tracked = 1
+                              AND EXISTS (SELECT 1 FROM sales s WHERE s.id = delivery_orders.sale_id AND s.status != 'cancelled');", conn, trans))
                         {
                             uCmd.Parameters.AddWithValue("@now", nowIso);
                             uCmd.Parameters.AddWithValue("@uid", string.IsNullOrEmpty(userId) ? "usr_admin_default" : userId);
                             uCmd.Parameters.AddWithValue("@rid", riderId);
-                            uCmd.ExecuteNonQuery();
+                            if (uCmd.ExecuteNonQuery() != summary.UnsettledOrdersCount)
+                                throw new InvalidOperationException("تغيرت طلبات الطيار أثناء التسوية. لم يتم تسجيل أي تحصيل.");
                         }
 
                         using (var rUpd = new SQLiteCommand("UPDATE delivery_riders SET status = 'available', updated_at = @now WHERE id = @rid;", conn, trans))
@@ -560,11 +624,11 @@ namespace RafiqPOS.Repositories
 
                         if (recordCommissionExpense && summary.RiderCommissionPiasters > 0)
                         {
-                            string expId = "exp_" + Guid.NewGuid().ToString("N").Substring(0, 12);
-                            string bDate = DateTime.Now.ToString("yyyy-MM-dd");
+                            string expId = Guid.NewGuid().ToString();
+                            string bDate = businessDate.ToString("yyyy-MM-dd");
                             using (var expCmd = new SQLiteCommand(@"
                                 INSERT INTO expenses (id, expense_number, category, amount_piasters, notes, source, created_by, business_date, created_at)
-                                VALUES (@id, COALESCE((SELECT MAX(expense_number) FROM expenses), 0) + 1, 'عمولات توصيل وطيارين', @amt, @desc, 'cash', @uid, @bdate, @now);
+                                VALUES (@id, COALESCE((SELECT MAX(expense_number) FROM expenses), 0) + 1, 'عمولات توصيل وطيارين', @amt, @desc, 'drawer', @uid, @bdate, @now);
                             ", conn, trans))
                             {
                                 expCmd.Parameters.AddWithValue("@id", expId);
@@ -600,6 +664,38 @@ namespace RafiqPOS.Repositories
                         throw;
                     }
                 }
+            }
+        }
+
+        internal static void EnsureSaleReversalAllowed(SQLiteConnection conn, SQLiteTransaction trans, string saleId, bool isReturn)
+        {
+            using (var cmd = new SQLiteCommand(@"
+                SELECT is_settled, total_to_collect_piasters, cash_handover_tracked
+                FROM delivery_orders WHERE sale_id = @sid;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@sid", saleId);
+                using (var reader = cmd.ExecuteReader())
+                    while (reader.Read())
+                    {
+                        bool settled = Convert.ToInt64(reader["is_settled"]) == 1;
+                        bool tracked = reader["cash_handover_tracked"] != DBNull.Value && Convert.ToInt64(reader["cash_handover_tracked"]) == 1;
+                        if (!isReturn && settled)
+                            throw new InvalidOperationException("لا يمكن إلغاء فاتورة دليفري تم تسليم عهدتها. استخدم مرتجعاً موثقاً في الوردية الحالية دون تغيير التحصيل التاريخي.");
+                        if (isReturn && tracked && !settled && Convert.ToInt64(reader["total_to_collect_piasters"]) > 0)
+                            throw new InvalidOperationException("لم تُستلم نقدية طلب الدليفري من الطيار بعد. لا يمكن صرف مرتجع قبل مطابقة التحصيل؛ يمكن إلغاء الفاتورة كاملة ما دامت فترتها مفتوحة.");
+                    }
+            }
+        }
+
+        internal static void CancelPendingSaleOrder(SQLiteConnection conn, SQLiteTransaction trans, string saleId)
+        {
+            using (var cmd = new SQLiteCommand(@"
+                UPDATE delivery_orders SET status = 'returned', updated_at = @now
+                WHERE sale_id = @sid AND is_settled = 0;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@sid", saleId);
+                cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                cmd.ExecuteNonQuery();
             }
         }
 

@@ -10,6 +10,25 @@ namespace RafiqPOS.Bridge
     {
         public static BridgeResponse Dispatch(BridgeRequest request)
         {
+            if (request == null)
+                return BridgeResponse.Fail("", "INVALID_REQUEST", "طلب غير صالح أو فارغ");
+            IDisposable scope;
+            try
+            {
+                scope = ProductWritePolicy.EnterRequest(request.Admission);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return BridgeResponse.Fail(request.Id ?? "", "AUTH_REQUIRED", "جلسة الطلب مفقودة أو تغيرت. يرجى إعادة المحاولة.");
+            }
+            using (scope)
+            {
+                return DispatchAdmitted(request);
+            }
+        }
+
+        private static BridgeResponse DispatchAdmitted(BridgeRequest request)
+        {
             if (request == null || string.IsNullOrWhiteSpace(request.Action))
             {
                 string reqId = (request != null && request.Id != null) ? request.Id : "";
@@ -45,6 +64,8 @@ namespace RafiqPOS.Bridge
 
             // Lock write operations immediately if database is corrupt (Task 124-1)
             if (DatabaseService.IsCorrupted && (
+                request.Action == "catalogue:apply" ||
+                request.Action == "sales:abandonCheckout" ||
                 request.Action == "returns:create" ||
                 request.Action == "customers:cancelPayment" ||
                 request.Action == "customers:recalculateBalance" ||
@@ -55,10 +76,12 @@ namespace RafiqPOS.Bridge
                 request.Action == "expenses:createCategory" ||
                 request.Action == "epay:createTransaction" ||
                 request.Action == "epay:fundTerminal" ||
+                request.Action == "epay:abandonAttempt" ||
                 request.Action == "epay:saveTerminal" ||
                 request.Action == "epay:adjustBalance" ||
                 request.Action == "wallets:processTransaction" ||
                 request.Action == "wallets:fundAccount" ||
+                request.Action == "wallets:abandonAttempt" ||
                 request.Action == "wallets:saveAccount" ||
                 request.Action == "wallets:createAccount" ||
                 request.Action == "wallets:updateAccount" ||
@@ -147,6 +170,8 @@ namespace RafiqPOS.Bridge
                 lockTaken = true;
 
                 BridgeResponse response;
+                if (TryDispatchCatalogue(request, out response)) return response;
+                if (TryRejectCatalogueMerchantImport(request, out response)) return response;
                 if (TryDispatchProducts(request, out response)) return response;
                 if (TryDispatchBatches(request, out response)) return response;
                 if (TryDispatchVariants(request, out response)) return response;
@@ -295,12 +320,15 @@ namespace RafiqPOS.Bridge
             { "products:getSmartCatalog", "products.view" },
             { "products:search", "products.view" },
             { "products:getMissingBarcodeCount", "products.view" },
-            { "products:save", "products.edit" },
+            { "products:save", REQUIRE_SESSION },
             { "products:delete", "products.archive" },
             { "products:bulkDelete", "products.archive" },
             { "products:clearAll", "products.clear_all" },
             { "products:bulkUpdateMinStock", "products.edit" },
             { "products:importBatch", "products.import" },
+            { "catalogue:getReference", "products.import" },
+            { "catalogue:preview", "products.import" },
+            { "catalogue:apply", "products.import" },
             { "products:previewBulkPriceAdjustment", "products.edit_price" },
             { "products:applyBulkPriceAdjustment", "products.edit_price" },
             { "products:revertBulkPriceAdjustment", "products.edit_price" },
@@ -512,6 +540,8 @@ namespace RafiqPOS.Bridge
             { "epay:createTransaction", "epay.transact" },
             { "epay:cancelTransaction", "epay.cancel" },
             { "epay:fundTerminal", "epay.fund" },
+            { "epay:reconcileAttempt", REQUIRE_SESSION },
+            { "epay:abandonAttempt", REQUIRE_SESSION },
             { "epay:saveTerminal", "epay.terminals_manage" },
             { "epay:deleteTerminal", "epay.terminals_manage" },
             { "epay:adjustBalance", "epay.balance_adjust" },
@@ -523,6 +553,8 @@ namespace RafiqPOS.Bridge
             { "wallets:getAccounts", "wallets.access" },
             { "wallets:processTransaction", "wallets.transact" },
             { "wallets:fundAccount", "wallets.fund" },
+            { "wallets:reconcileAttempt", REQUIRE_SESSION },
+            { "wallets:abandonAttempt", REQUIRE_SESSION },
             { "wallets:saveAccount", "wallets.accounts_manage" },
             { "wallets:createAccount", "wallets.accounts_manage" },
             { "wallets:updateAccount", "wallets.accounts_manage" },
@@ -563,6 +595,7 @@ namespace RafiqPOS.Bridge
             { "printer:testLabel", "settings.printer" },
             { "printer:printReceipt", "pos.reprint" },
             { "printer:kickDrawer", "shifts.cash_in" },
+            { "printer:getDrawerSafety", "settings.printer" },
             { "printer:cutPaper", "settings.printer" },
 
             // Audit
@@ -736,6 +769,8 @@ namespace RafiqPOS.Bridge
             // Batch & Sales extras
             { "batch:getAllocations", "stock.view" },
             { "sales:getByIdempotencyKey", REQUIRE_SESSION },
+            { "sales:reconcileCheckout", "pos.sell" },
+            { "sales:abandonCheckout", "pos.sell" },
 
             // Patient aliases
             { "patients.getProfile", "patients.view" },
@@ -860,15 +895,14 @@ namespace RafiqPOS.Bridge
         /// </summary>
         private static string SessionActorId()
         {
-            UserDto user = SecurityService.CurrentUser;
-            return user != null ? user.Id : "system";
+            RequestAdmission admission = ProductWritePolicy.CurrentAdmission;
+            return admission != null && admission.IsAuthenticated ? admission.ActorId : "system";
         }
 
         private static string SessionActorName()
         {
-            UserDto user = SecurityService.CurrentUser;
-            if (user == null) return "النظام";
-            return !string.IsNullOrEmpty(user.DisplayName) ? user.DisplayName : user.Username;
+            RequestAdmission admission = ProductWritePolicy.CurrentAdmission;
+            return admission != null && admission.IsAuthenticated ? admission.ActorName : "النظام";
         }
 
         private static bool IsLicenseBlockedAction(string action)
@@ -899,14 +933,14 @@ namespace RafiqPOS.Bridge
             if (action == "customers:save" || action == "customers:recordPayment" || action == "customers:cancelPayment" ||
                 action == "customers:archive" || action == "customers:recalculateBalance" ||
                 action == "suppliers:save" || action == "suppliers:recordPayment" || action == "suppliers:archive" || action == "suppliers:delete" ||
-                action == "epay:createTransaction" || action == "epay:fundTerminal" || action == "epay:saveTerminal" || action == "epay:adjustBalance" ||
-                action == "wallets:processTransaction" || action == "wallets:fundAccount" || action == "wallets:saveAccount" || action == "wallets:adjustBalance" || action == "wallets:cancelTransaction" ||
+                action == "epay:createTransaction" || action == "epay:fundTerminal" || action == "epay:saveTerminal" || action == "epay:adjustBalance" || action == "epay:abandonAttempt" ||
+                action == "wallets:processTransaction" || action == "wallets:fundAccount" || action == "wallets:saveAccount" || action == "wallets:adjustBalance" || action == "wallets:cancelTransaction" || action == "wallets:abandonAttempt" ||
                 action == "closing:save" || action == "shifts:open" || action == "shifts:close" ||
                 action == "shifts:cashIn" || action == "shifts:cashOut" || action == "drawer:cashIn" || action == "drawer:cashOut")
                 return true;
 
             // Catalog modifications
-            if (action == "products:save" || action == "products:delete" ||
+            if (action == "catalogue:apply" || action == "products:save" || action == "products:delete" ||
                 action == "products:bulkDelete" || action == "products:clearAll" ||
                 action == "products:bulkUpdateMinStock" || action == "products:applyBulkPriceAdjustment" ||
                 action == "products:revertBulkPriceAdjustment" ||
@@ -993,7 +1027,7 @@ namespace RafiqPOS.Bridge
                     return null;
                 }
                 // Nothing else may reach services that were never initialised for this database
-                if (SecurityService.CurrentUser == null)
+                if (!request.Admission.IsAuthenticated)
                 {
                     return BridgeResponse.Fail(request.Id, "AUTH_REQUIRED", "يجب تسجيل الدخول أولاً لتنفيذ هذه العملية.");
                 }
@@ -1009,8 +1043,8 @@ namespace RafiqPOS.Bridge
             }
 
             // 4. Session authentication: all other actions strictly require an active user session
-            UserDto sessionUser = SecurityService.CurrentUser;
-            if (sessionUser == null || DatabaseService.Security == null)
+            RequestAdmission sessionUser = request.Admission;
+            if (!sessionUser.IsAuthenticated || DatabaseService.Security == null)
             {
                 return BridgeResponse.Fail(request.Id, "AUTH_REQUIRED", "يجب تسجيل الدخول أولاً لتنفيذ هذه العملية.");
             }
@@ -1036,23 +1070,23 @@ namespace RafiqPOS.Bridge
             }
             else if (requiredPermission == REQUIRE_ADMIN)
             {
-                allowed = DatabaseService.Security.IsCurrentSessionAdmin();
+                allowed = sessionUser.IsAdmin;
             }
             else if (requiredPermission == REQUIRE_ANY_SETTINGS)
             {
-                allowed = DatabaseService.Security.HasPermission(sessionUser.Id, "settings.store")
-                    || DatabaseService.Security.HasPermission(sessionUser.Id, "settings.printer")
-                    || DatabaseService.Security.HasPermission(sessionUser.Id, "settings.barcode");
+                allowed = sessionUser.HasPermission("settings.store")
+                    || sessionUser.HasPermission("settings.printer")
+                    || sessionUser.HasPermission("settings.barcode");
             }
             else if (requiredPermission == REQUIRE_INSURANCE_VIEW)
             {
-                allowed = DatabaseService.Security.HasPermission(sessionUser.Id, "insurance.manage_contracts")
-                    || DatabaseService.Security.HasPermission(sessionUser.Id, "insurance.sell")
-                    || DatabaseService.Security.HasPermission(sessionUser.Id, "insurance.claims.manage");
+                allowed = sessionUser.HasPermission("insurance.manage_contracts")
+                    || sessionUser.HasPermission("insurance.sell")
+                    || sessionUser.HasPermission("insurance.claims.manage");
             }
             else
             {
-                allowed = DatabaseService.Security.HasPermission(sessionUser.Id, requiredPermission);
+                allowed = sessionUser.HasPermission(requiredPermission);
             }
 
             if (!allowed)

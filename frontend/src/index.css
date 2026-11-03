@@ -59,7 +59,8 @@
   input::placeholder, textarea::placeholder {
     font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif !important;
     letter-spacing: 0 !important;
-    opacity: 0.55;
+    opacity: 1;
+    color: theme('colors.ink.muted');
   }
 
   /* Branded Retail Select Dropdown */
@@ -326,8 +327,21 @@ html.dark .text-\[\#0F172A\]:not([class*="dark:text-"]) {
 
 html.dark input::placeholder,
 html.dark textarea::placeholder {
-  opacity: 0.50;
+  opacity: 1;
   color: #93A19D !important;
+}
+
+.pos-cart-panel {
+  container-type: inline-size;
+}
+
+@container (max-width: 560px) {
+  .pos-cart-panel .pos-roomy-only {
+    display: none;
+  }
+  .pos-cart-panel .pos-compact-price {
+    display: flex;
+  }
 }
 
 html.dark tbody tr.cursor-pointer:hover,
@@ -468,4 +482,3 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     margin: 0 auto !important;
   }
 }
-

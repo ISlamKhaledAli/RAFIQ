@@ -120,7 +120,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 100000,
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Sale of 1000 EGP: 2 units. Customer pays 100 EGP cash, 900 EGP on credit.
                 var sale = new Sale
@@ -236,7 +237,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 100000,
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Sell 2 units: Total 400 EGP (Cost 240 EGP, Profit = 160 EGP = 16,000 piasters)
                 var sale = new Sale
@@ -330,7 +332,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 50000000000L, // Large stock
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Simulate scanning 13-digit barcode into quantity box: 6223001234567 milli
                 var badSale = new Sale
@@ -467,7 +470,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 1000000,
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
                 string bDate = DatabaseService.DailyClosing.GetCurrentBusinessDate();
 
                 const int saleThreads = 8;
@@ -619,7 +623,8 @@ namespace RafiqPOS.Services
                     StockQuantityMilli = 50000,
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Sell 2 units (2000 milli)
                 var sale = new Sale

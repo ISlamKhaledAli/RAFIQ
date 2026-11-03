@@ -124,9 +124,9 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
         <div className="h-8 sm:h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center px-2 sm:px-3 text-xs font-bold text-ink-muted dark:text-ink-dark-muted select-none shrink-0 w-full gap-1 sm:gap-1.5 lg:gap-2">
           <div className="w-5 shrink-0 text-center font-mono">#</div>
           <div className="flex-1 min-w-0 text-right font-bold pr-1 truncate">اسم الصنف / الباركود</div>
-          <div className="w-14 sm:w-16 lg:w-20 shrink-0 text-center font-bold">السعر</div>
+          <div className="pos-roomy-only w-14 sm:w-16 lg:w-20 shrink-0 text-center font-bold">السعر</div>
           <div className="w-20 sm:w-24 lg:w-26 shrink-0 text-center font-bold">العدد / الوزن</div>
-          <div className="w-8 sm:w-10 shrink-0 text-center font-bold">خصم</div>
+          <div className="pos-roomy-only w-8 sm:w-10 shrink-0 text-center font-bold">خصم</div>
           <div className="w-14 sm:w-16 lg:w-20 shrink-0 text-left tabular-nums font-bold">الإجمالي</div>
           <div className="w-6 sm:w-7 shrink-0 text-center font-bold">مسح</div>
         </div>
@@ -300,6 +300,19 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                     )}
                   </div>
 
+                  <div className="pos-compact-price hidden flex-wrap items-center gap-2 text-[10px]">
+                    <span className="font-mono text-ink dark:text-ink-dark break-all" title={formatArabicCurrency(item.unitPricePiasters)}>
+                      السعر: {formatArabicCurrency(item.unitPricePiasters)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onOpenItemDiscount(index)}
+                      className="rounded border border-line dark:border-line-dark px-1.5 py-0.5 text-ink dark:text-ink-dark font-bold"
+                    >
+                      {item.discountPiasters > 0 ? `خصم ${formatArabicCurrency(item.discountPiasters)}` : 'خصم'}
+                    </button>
+                  </div>
+
                   {/* Hospitality Modifiers & Notes Chips */}
                   {((item.modifiers && item.modifiers.length > 0) || item.notes) && (
                     <div className="flex flex-wrap items-center gap-1 pt-0.5">
@@ -385,7 +398,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                 </div>
 
                 {/* Unit Price (Read-only from inventory) */}
-                <div className="w-14 sm:w-16 lg:w-20 shrink-0 text-center tabular-nums font-mono text-ink dark:text-ink-dark text-xs sm:text-[13px] font-bold">
+                <div className="pos-roomy-only w-14 sm:w-16 lg:w-20 shrink-0 text-center tabular-nums font-mono text-ink dark:text-ink-dark text-xs sm:text-[13px] font-bold break-all">
                   <span>{formatArabicCurrency(item.unitPricePiasters, false)}</span>
                   <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted hidden sm:inline mr-0.5 font-normal">ج.م</span>
                 </div>
@@ -449,7 +462,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                 </div>
 
                 {/* Item Discount Button */}
-                <div className="w-8 sm:w-10 shrink-0 text-center">
+                <div className="pos-roomy-only w-8 sm:w-10 shrink-0 text-center">
                   <button
                     type="button"
                     onClick={() => onOpenItemDiscount(index)}
@@ -467,7 +480,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
 
                 {/* Line Total */}
                 <div className="w-14 sm:w-16 lg:w-20 shrink-0 text-left tabular-nums font-mono font-bold text-paid dark:text-brand-bright text-xs flex flex-col items-end justify-center">
-                  <span className="font-extrabold">{formatArabicCurrency(item.totalPiasters, false)}</span>
+                  <span className="font-extrabold break-all">{formatArabicCurrency(item.totalPiasters, false)}</span>
                   {item.discountPiasters > 0 && (
                     <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted line-through font-normal">
                       {formatArabicCurrency(Math.round((item.unitPricePiasters * item.quantityMilli) / 1000), false)}

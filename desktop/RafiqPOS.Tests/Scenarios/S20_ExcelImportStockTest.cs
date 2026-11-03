@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using NUnit.Framework;
 using RafiqPOS.Models;
 using RafiqPOS.Repositories;
+using RafiqPOS.Services;
 
 namespace RafiqPOS.Tests.Scenarios
 {
@@ -37,12 +38,15 @@ namespace RafiqPOS.Tests.Scenarios
         {
             string payload = "{\"items\":[" + itemJson + "],\"duplicateStrategy\":\"" + strategy + "\"}";
             var request = JsonConvert.DeserializeObject<BatchImportRequest>(payload);
-            return ProductService.ImportBatch(request, "usr_admin_default");
+            using (AdmitProductRequest("usr_admin_default"))
+                return ProductService.ImportBatch(request, "usr_admin_default");
         }
 
         private Product CreateKgProductWithBatch(string barcode)
         {
-            var prod = ProductService.SaveProduct(new Product
+            Product prod;
+            using (ProductWritePolicy.EnterTrustedFixtureOperation())
+            prod = ProductService.SaveProduct(new Product
             {
                 Name = "جبنة رومي بالوزن",
                 Barcode = barcode,

@@ -41,7 +41,8 @@ namespace RafiqPOS.Tests.Scenarios
             {
                 Id = Guid.NewGuid().ToString("N"),
                 Action = action,
-                Payload = payload != null ? JObject.FromObject(payload) : null
+                Payload = payload != null ? JObject.FromObject(payload) : null,
+                Admission = SecurityService.CaptureRequestAdmission()
             });
         }
 

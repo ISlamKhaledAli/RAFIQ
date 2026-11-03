@@ -29,13 +29,49 @@ namespace RafiqPOS.Repositories
 
         public Sale CreateSaleAtomic(Sale sale)
         {
+            if (sale == null) throw new ArgumentNullException("sale");
+            sale.IdempotencyKey = RafiqPOS.Common.IdempotencyGuard.NormalizeKey(sale.IdempotencyKey);
+            lock (SaleService.FinancialWriteLock)
+            using (var operation = SaleService.BeginFinancialOperation())
             using (var conn = new SQLiteConnection(_connectionString))
             {
+                if (operation != null)
+                {
+                    sale.CashierId = operation.ActorId;
+                    sale.CashierName = operation.ActorName;
+                }
+                if (!string.IsNullOrEmpty(sale.IdempotencyKey) && string.IsNullOrEmpty(sale.IdempotencyFingerprint))
+                    sale.IdempotencyFingerprint = SaleService.CheckoutFingerprint(sale);
                 conn.Open();
                 using (var trans = conn.BeginTransaction())
                 {
                     try
                     {
+                        if (!string.IsNullOrEmpty(sale.IdempotencyKey))
+                        {
+                            EnsureCheckoutNotAbandoned(conn, trans, sale.IdempotencyKey, sale.IdempotencyFingerprint);
+                            using (var cmd = new SQLiteCommand("SELECT id, idempotency_fingerprint FROM sales WHERE idempotency_key = @key LIMIT 1;", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@key", sale.IdempotencyKey);
+                                string existingId = null;
+                                using (var reader = cmd.ExecuteReader())
+                                {
+                                    if (reader.Read())
+                                    {
+                                        SaleService.EnsureCheckoutReplayMatches(
+                                            reader["idempotency_fingerprint"] == DBNull.Value ? null : reader["idempotency_fingerprint"].ToString(),
+                                            sale.IdempotencyFingerprint);
+                                        existingId = reader["id"].ToString();
+                                    }
+                                }
+                                if (existingId != null)
+                                {
+                                    trans.Commit();
+                                    return GetSaleById(existingId);
+                                }
+                            }
+                        }
+
                         if (string.IsNullOrEmpty(sale.Id))
                         {
                             sale.Id = Guid.NewGuid().ToString();
@@ -87,21 +123,6 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // 0.5. Persistent Idempotency Check (Audit F-09): Prevent duplicate sale and stock deduction on retries
-                        if (!string.IsNullOrWhiteSpace(sale.IdempotencyKey))
-                        {
-                            using (var checkIdemCmd = new SQLiteCommand("SELECT id FROM sales WHERE idempotency_key = @idemKey LIMIT 1;", conn, trans))
-                            {
-                                checkIdemCmd.Parameters.AddWithValue("@idemKey", sale.IdempotencyKey);
-                                object existingId = checkIdemCmd.ExecuteScalar();
-                                if (existingId != null && existingId != DBNull.Value)
-                                {
-                                    trans.Rollback();
-                                    return GetSaleById(existingId.ToString());
-                                }
-                            }
-                        }
-
                         // 1. Calculate next sequential daily invoice number (Task 107-1 & 107-2: Atomic sequence counter)
                         int nextInvoiceNumber = (int)_counters.GetNextInvoiceNumber(conn, trans);
                         sale.InvoiceNumber = nextInvoiceNumber;
@@ -135,12 +156,12 @@ namespace RafiqPOS.Repositories
                             INSERT INTO sales (
                                 id, invoice_number, cashier_id, customer_id, subtotal_piasters,
                                 discount_piasters, tax_piasters, total_piasters, paid_piasters,
-                                change_piasters, payment_method, status, notes, created_at, service_fee_piasters, shift_id, idempotency_key,
+                                change_piasters, payment_method, status, notes, created_at, service_fee_piasters, shift_id, idempotency_key, idempotency_fingerprint,
                                 order_type, order_call_number, table_id, table_name, guests_count, waiter_name, service_charge_piasters, delivery_fee_piasters
                             ) VALUES (
                                 @id, @invoiceNumber, @cashierId, @customerId, @subtotal,
                                 @discount, @tax, @total, @paid,
-                                @change, @paymentMethod, @status, @notes, @createdAt, @serviceFee, @shiftId, @idempotencyKey,
+                                @change, @paymentMethod, @status, @notes, @createdAt, @serviceFee, @shiftId, @idempotencyKey, @idempotencyFingerprint,
                                 @orderType, @orderCallNumber, @tableId, @tableName, @guestsCount, @waiterName, @serviceCharge, @deliveryFee
                             );
                         ";
@@ -163,6 +184,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@serviceFee", sale.ServiceFeePiasters);
                             cmd.Parameters.AddWithValue("@shiftId", (object)sale.ShiftId ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@idempotencyKey", (object)sale.IdempotencyKey ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idempotencyFingerprint", (object)sale.IdempotencyFingerprint ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@orderType", string.IsNullOrWhiteSpace(sale.OrderType) ? "takeaway" : sale.OrderType);
                             cmd.Parameters.AddWithValue("@orderCallNumber", sale.OrderCallNumber);
                             cmd.Parameters.AddWithValue("@tableId", (object)sale.TableId ?? DBNull.Value);
@@ -601,7 +623,7 @@ namespace RafiqPOS.Repositories
                                     cmd.Parameters.AddWithValue("@saleId", sale.Id);
                                     cmd.Parameters.AddWithValue("@amount", p.AmountPiasters);
                                     cmd.Parameters.AddWithValue("@method", p.Method ?? "cash");
-                                    cmd.Parameters.AddWithValue("@createdAt", p.CreatedAt ?? sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                                    cmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt);
                                     cmd.ExecuteNonQuery();
                                 }
                             }
@@ -744,8 +766,13 @@ namespace RafiqPOS.Repositories
                                     bool isAuthorized = false;
                                     string supervisorName = null;
 
-                                    var currentUser = SecurityService.CurrentUser;
-                                    if (currentUser != null)
+                                    var currentUser = operation == null ? SecurityService.CurrentUser : null;
+                                    if (operation != null)
+                                    {
+                                        isAuthorized = operation.HasPermission("customers.credit_limit_override");
+                                        if (isAuthorized) supervisorName = operation.ActorName;
+                                    }
+                                    else if (currentUser != null)
                                     {
                                         if (currentUser.Role == "root" || currentUser.Role == "admin")
                                         {
@@ -1137,6 +1164,10 @@ namespace RafiqPOS.Repositories
                 {
                     sale.IdempotencyKey = reader[i] != DBNull.Value ? reader[i].ToString() : null;
                 }
+                else if (string.Equals(col, "idempotency_fingerprint", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.IdempotencyFingerprint = reader[i] != DBNull.Value ? reader[i].ToString() : null;
+                }
                 else if (string.Equals(col, "order_type", StringComparison.OrdinalIgnoreCase))
                 {
                     sale.OrderType = reader[i] != DBNull.Value ? reader[i].ToString() : "takeaway";
@@ -1349,7 +1380,7 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT si.*, COALESCE(p.unit, 'piece') AS unit,
+                    SELECT si.*, COALESCE(si.unit, si.unit_name, p.unit, 'piece') AS invoice_unit,
                            COALESCE(p.is_cold_chain, 0) AS is_cold_chain,
                            loc.type AS loc_type
                     FROM sale_items si
@@ -1386,7 +1417,7 @@ namespace RafiqPOS.Repositories
                                 TotalPiasters = Convert.ToInt64(reader["total_piasters"]),
                                 TaxPiasters = Convert.ToInt64(reader["tax_piasters"]),
                                 TaxRatePercent = reader["tax_rate_percent"] != DBNull.Value ? Convert.ToInt32(reader["tax_rate_percent"]) : 0,
-                                Unit = reader["unit"] != DBNull.Value ? reader["unit"].ToString() : "piece",
+                                Unit = reader["invoice_unit"].ToString(),
                                 UnitId = reader["unit_id"] != DBNull.Value ? reader["unit_id"].ToString() : null,
                                 UnitName = reader["unit_name"] != DBNull.Value ? reader["unit_name"].ToString() : null,
                                 ConversionFactor = reader["conversion_factor"] != DBNull.Value ? Convert.ToInt32(reader["conversion_factor"]) : 1,
@@ -1505,6 +1536,98 @@ namespace RafiqPOS.Repositories
             return !string.IsNullOrEmpty(saleId) ? GetSaleById(saleId) : null;
         }
 
+        private static bool CheckoutWasAbandoned(SQLiteConnection conn, SQLiteTransaction trans, string key, string fingerprint)
+        {
+            using (var cmd = new SQLiteCommand("SELECT request_fingerprint FROM sale_checkout_cancellations WHERE idempotency_key = @key LIMIT 1;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@key", key);
+                object stored = cmd.ExecuteScalar();
+                if (stored == null) return false;
+                SaleService.EnsureCheckoutReplayMatches(stored == DBNull.Value ? null : stored.ToString(), fingerprint);
+                return true;
+            }
+        }
+
+        private static void EnsureCheckoutNotAbandoned(SQLiteConnection conn, SQLiteTransaction trans, string key, string fingerprint)
+        {
+            if (CheckoutWasAbandoned(conn, trans, key, fingerprint))
+                throw new InvalidOperationException("SALE_CHECKOUT_ABANDONED: تم إلغاء محاولة البيع بشكل نهائي دون إلغاء فاتورة. لن يُقبل أي طلب متأخر بهذا المفتاح؛ استخدم محاولة جديدة بعد مطابقة حالة السلة.");
+        }
+
+        internal void EnsureCheckoutNotAbandoned(string key, string fingerprint)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                EnsureCheckoutNotAbandoned(conn, null, key, fingerprint);
+            }
+        }
+
+        internal Sale AbandonCheckoutAtomic(string key, string fingerprint)
+        {
+            lock (SaleService.FinancialWriteLock)
+            using (var operation = SaleService.BeginFinancialOperation())
+            {
+                var legacyActor = operation == null ? SecurityService.CurrentUser : null;
+                string actorId = operation != null ? operation.ActorId : (legacyActor != null ? legacyActor.Id : null);
+                if (string.IsNullOrWhiteSpace(actorId))
+                    throw new UnauthorizedAccessException("يجب تسجيل الدخول لإلغاء محاولة البيع.");
+                string saleId = null;
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            using (var cmd = new SQLiteCommand("SELECT id, idempotency_fingerprint FROM sales WHERE idempotency_key = @key LIMIT 1;", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@key", key);
+                                using (var reader = cmd.ExecuteReader())
+                                    if (reader.Read())
+                                    {
+                                        SaleService.EnsureCheckoutReplayMatches(
+                                            reader["idempotency_fingerprint"] == DBNull.Value ? null : reader["idempotency_fingerprint"].ToString(), fingerprint);
+                                        saleId = reader["id"].ToString();
+                                    }
+                            }
+                            if (saleId == null && !CheckoutWasAbandoned(conn, trans, key, fingerprint))
+                            {
+                                string id = Guid.NewGuid().ToString();
+                                string now = DateTime.UtcNow.ToString("o");
+                                using (var cmd = new SQLiteCommand(@"
+                                    INSERT INTO sale_checkout_cancellations
+                                        (id, idempotency_key, request_fingerprint, actor_id, cancelled_at)
+                                    VALUES (@id, @key, @fingerprint, @actor, @now);", conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@id", id);
+                                    cmd.Parameters.AddWithValue("@key", key);
+                                    cmd.Parameters.AddWithValue("@fingerprint", fingerprint);
+                                    cmd.Parameters.AddWithValue("@actor", actorId);
+                                    cmd.Parameters.AddWithValue("@now", now);
+                                    cmd.ExecuteNonQuery();
+                                }
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    Id = Guid.NewGuid().ToString(), UserId = actorId,
+                                    Action = "SALE_CHECKOUT_ABANDONED", EntityType = "SALE_CHECKOUT_ATTEMPT",
+                                    EntityId = id, CreatedAt = now,
+                                    DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { idempotencyKey = key })
+                                });
+                            }
+                            trans.Commit();
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
+                    }
+                }
+                return saleId == null ? null : GetSaleById(saleId);
+            }
+        }
+
         /// <summary>
         /// Task 107-3: البحث عن فاتورة بالرقم المتسلسل المقروء
         /// </summary>
@@ -1616,8 +1739,11 @@ namespace RafiqPOS.Repositories
         public Sale CancelSaleAtomic(string saleId, string reason, string userId)
         {
             if (string.IsNullOrWhiteSpace(saleId)) throw new ArgumentNullException("saleId");
+            lock (SaleService.FinancialWriteLock)
+            using (var operation = SaleService.BeginFinancialOperation())
             using (var conn = new SQLiteConnection(_connectionString))
             {
+                if (operation != null) userId = operation.ActorId;
                 conn.Open();
                 using (var trans = conn.BeginTransaction())
                 {
@@ -1661,6 +1787,12 @@ namespace RafiqPOS.Repositories
                         {
                             throw new InvalidOperationException("هذه الفاتورة تم إلغاؤها مسبقاً");
                         }
+
+                        InsuranceRepository.EnsureSaleReversalAllowed(conn, trans, sale.Id, false);
+                        DeliveryRepository.EnsureSaleReversalAllowed(conn, trans, sale.Id, false);
+                        BusinessDayHelper.EnsureOriginalPeriodOpen(conn, trans, sale.CreatedAt);
+                        InsuranceRepository.VoidPendingSaleClaims(conn, trans, sale.Id, reason, DateTime.UtcNow.ToString("o"));
+                        DeliveryRepository.CancelPendingSaleOrder(conn, trans, sale.Id);
 
                         // Business rule (Q3): a sale with existing returns cannot be cancelled; the remaining
                         // items must be processed through the return workflow to keep stock, batches,

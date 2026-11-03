@@ -787,6 +787,11 @@ namespace RafiqPOS.Repositories
         // stockLedgerStep runs inside the save transaction so a stock change and its ledger row commit together
         public void Upsert(Product product, Action<SQLiteConnection, SQLiteTransaction> stockLedgerStep)
         {
+            Upsert(product, stockLedgerStep, true, true);
+        }
+
+        public void Upsert(Product product, Action<SQLiteConnection, SQLiteTransaction> stockLedgerStep, bool synchronizeUnitPrices, bool synchronizeUnitCosts)
+        {
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -1156,17 +1161,23 @@ namespace RafiqPOS.Repositories
                                 {
                                     string updateBaseUnitSql = @"
                                         UPDATE product_units
-                                        SET sell_price_piasters = @sellPrice,
-                                            cost_price_piasters = @costPrice,
+                                        SET sell_price_piasters = CASE WHEN @syncPrice = 1 THEN @sellPrice ELSE sell_price_piasters END,
+                                            cost_price_piasters = CASE WHEN @syncCost = 1 THEN @costPrice ELSE cost_price_piasters END,
                                             barcode = CASE WHEN @barcode IS NOT NULL THEN @barcode ELSE barcode END,
                                             updated_at = @updatedAt
-                                        WHERE product_id = @productId AND is_base_unit = 1;
+                                        WHERE product_id = @productId AND is_base_unit = 1 AND (
+                                            (@syncPrice = 1 AND sell_price_piasters != @sellPrice) OR
+                                            (@syncCost = 1 AND cost_price_piasters != @costPrice) OR
+                                            (@barcode IS NOT NULL AND COALESCE(barcode, '') != @barcode)
+                                        );
                                     ";
                                     using (var uBaseCmd = new SQLiteCommand(updateBaseUnitSql, conn, trans))
                                     {
                                         uBaseCmd.Parameters.AddWithValue("@productId", product.Id);
                                         uBaseCmd.Parameters.AddWithValue("@sellPrice", product.PricePiasters);
                                         uBaseCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
+                                        uBaseCmd.Parameters.AddWithValue("@syncPrice", synchronizeUnitPrices ? 1 : 0);
+                                        uBaseCmd.Parameters.AddWithValue("@syncCost", synchronizeUnitCosts ? 1 : 0);
                                         uBaseCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(product.Barcode) ? (object)DBNull.Value : product.Barcode.Trim());
                                         uBaseCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
                                         uBaseCmd.ExecuteNonQuery();
@@ -1179,12 +1190,15 @@ namespace RafiqPOS.Repositories
                                             updated_at = @updatedAt
                                         WHERE product_id = @productId AND is_base_unit = 0;
                                     ";
-                                    using (var uNonBaseCmd = new SQLiteCommand(updateNonBaseUnitsSql, conn, trans))
+                                    if (synchronizeUnitCosts)
                                     {
-                                        uNonBaseCmd.Parameters.AddWithValue("@productId", product.Id);
-                                        uNonBaseCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
-                                        uNonBaseCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
-                                        uNonBaseCmd.ExecuteNonQuery();
+                                        using (var uNonBaseCmd = new SQLiteCommand(updateNonBaseUnitsSql, conn, trans))
+                                        {
+                                            uNonBaseCmd.Parameters.AddWithValue("@productId", product.Id);
+                                            uNonBaseCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
+                                            uNonBaseCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                                            uNonBaseCmd.ExecuteNonQuery();
+                                        }
                                     }
                                 }
                             }

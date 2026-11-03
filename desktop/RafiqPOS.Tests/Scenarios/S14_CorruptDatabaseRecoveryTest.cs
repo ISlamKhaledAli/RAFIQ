@@ -42,7 +42,9 @@ namespace RafiqPOS.Tests.Scenarios
             // 1. متجر سليم فيه مبيعات + نسخة احتياطية مشفرة
             DatabaseService.Initialize(_baseFolder);
             Assert.IsFalse(DatabaseService.IsCorrupted);
-            var product = DatabaseService.Products.SaveProduct(new Product
+            Product product;
+            using (ProductWritePolicy.EnterTrustedFixtureOperation())
+            product = DatabaseService.Products.SaveProduct(new Product
             {
                 Name = "صنف قبل التلف",
                 Barcode = "BAR_RECOVERY_1",
@@ -137,7 +139,9 @@ namespace RafiqPOS.Tests.Scenarios
         public void Healthy_Restore_Checkpoints_Wal_Keeps_Safety_Copy_And_Reinitialises_Same_Folder()
         {
             DatabaseService.Initialize(_baseFolder);
-            var product = DatabaseService.Products.SaveProduct(new Product
+            Product product;
+            using (ProductWritePolicy.EnterTrustedFixtureOperation())
+            product = DatabaseService.Products.SaveProduct(new Product
             {
                 Name = "صنف استرجاع سليم",
                 Barcode = "BAR_RESTORE_OK",
@@ -193,7 +197,8 @@ namespace RafiqPOS.Tests.Scenarios
             {
                 Id = Guid.NewGuid().ToString("N"),
                 Action = action,
-                Payload = payload != null ? JObject.FromObject(payload) : null
+                Payload = payload != null ? JObject.FromObject(payload) : null,
+                Admission = SecurityService.CaptureRequestAdmission()
             });
         }
 

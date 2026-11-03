@@ -23,7 +23,9 @@ namespace RafiqPOS.Services
         {
             // Serialize with sales/cancellations so the remaining-quantity check stays valid until commit (Audit F-17)
             lock (SaleService.FinancialWriteLock)
+            using (var operation = SaleService.BeginFinancialOperation())
             {
+                if (operation != null && returnObj != null) returnObj.CashierId = operation.ActorId;
                 // A retry after a UI timeout must not refund twice; the same key with a different return is rejected (L8 / R3)
                 if (returnObj != null && Common.IdempotencyGuard.NormalizeKey(returnObj.IdempotencyKey) != null)
                 {
@@ -38,6 +40,9 @@ namespace RafiqPOS.Services
         private Return ProcessReturnCore(Return returnObj, string supervisorPin)
         {
             if (returnObj == null) throw new ArgumentNullException("returnObj");
+            var operation = ProductWritePolicy.CurrentAdmission != null ? ProductWritePolicy.CurrentOperation : null;
+            var legacyActor = operation == null ? SecurityService.CurrentUser : null;
+            string actorId = operation != null ? operation.ActorId : (legacyActor != null ? legacyActor.Id : null);
             if (returnObj.Items == null || returnObj.Items.Count == 0)
             {
                 throw new InvalidOperationException("لا يمكن حفظ مرتجع بدون أصناف");
@@ -137,11 +142,13 @@ namespace RafiqPOS.Services
             // 1. If return is without invoice, require permission and supervisor PIN (F-10)
             if (returnObj.IsWithoutInvoice || string.IsNullOrEmpty(returnObj.SaleId))
             {
+                if (operation != null && DatabaseService.Security == null)
+                    throw new InvalidOperationException("نظام الصلاحيات غير مهيأ للتحقق من اعتماد المرتجع بدون فاتورة.");
                 if (DatabaseService.Security != null)
                 {
                     var pinStatus = DatabaseService.Security.GetStatus();
                     bool pinGloballyEnabled = (pinStatus != null && pinStatus.IsEnabled);
-                    bool userLacksPermission = SecurityService.CurrentUser != null && !DatabaseService.Security.HasPermission("returns.without_invoice");
+                    bool userLacksPermission = actorId != null && !SaleService.HasFinancialPermission(actorId, "returns.without_invoice");
 
                     if (pinGloballyEnabled || userLacksPermission)
                     {
@@ -242,6 +249,8 @@ namespace RafiqPOS.Services
                                     break;
                                 }
                             }
+                            if (origItem == null)
+                                throw new InvalidOperationException("بند المرتجع المحدد لا يخص الفاتورة الأصلية.");
                         }
 
                         if (origItem == null && !string.IsNullOrEmpty(it.Unit))
@@ -250,8 +259,9 @@ namespace RafiqPOS.Services
                             {
                                 if (origSale.Items[j].ProductId == it.ProductId && string.Equals(origSale.Items[j].Unit, it.Unit, StringComparison.OrdinalIgnoreCase))
                                 {
+                                    if (origItem != null)
+                                        throw new InvalidOperationException("يوجد أكثر من بند مطابق. يجب تحديد بند الفاتورة الأصلي للمرتجع.");
                                     origItem = origSale.Items[j];
-                                    break;
                                 }
                             }
                         }
@@ -262,8 +272,9 @@ namespace RafiqPOS.Services
                             {
                                 if (origSale.Items[j].ProductId == it.ProductId)
                                 {
+                                    if (origItem != null)
+                                        throw new InvalidOperationException("يوجد أكثر من بند مطابق. يجب تحديد بند الفاتورة الأصلي للمرتجع.");
                                     origItem = origSale.Items[j];
-                                    break;
                                 }
                             }
                         }
@@ -272,6 +283,8 @@ namespace RafiqPOS.Services
                         {
                             throw new InvalidOperationException(string.Format("الصنف '{0}' غير موجود في الفاتورة الأصلية #{1}.", it.ProductName, origSale.InvoiceNumber));
                         }
+
+                        BindInvoiceLine(it, origItem);
 
                         long alreadyReturned = 0;
                         if (!string.IsNullOrEmpty(origItem.Id) && returnedQtyBySaleItem.ContainsKey(origItem.Id))
@@ -330,18 +343,6 @@ namespace RafiqPOS.Services
                         it.TotalPiasters = (it.UnitPricePiasters == effectiveUnitPrice) ? proportionalTotal : Math.Min(priceBasedTotal, proportionalTotal);
                         refundedTotalSoFar[origKey] = (refundedTotalSoFar.ContainsKey(origKey) ? refundedTotalSoFar[origKey] : 0) + it.TotalPiasters;
 
-                        if (it.ConversionFactor <= 0)
-                        {
-                            it.ConversionFactor = origItem.ConversionFactor > 0 ? origItem.ConversionFactor : 1;
-                        }
-                        if (string.IsNullOrEmpty(it.Unit))
-                        {
-                            it.Unit = origItem.Unit;
-                        }
-                        if (string.IsNullOrEmpty(it.SaleItemId))
-                        {
-                            it.SaleItemId = origItem.Id;
-                        }
                     }
 
                     // Enforce financial ceiling for refunds on credit sales (Senior QA Invariant)
@@ -561,6 +562,22 @@ namespace RafiqPOS.Services
             }
 
             return _returnRepo.CreateReturnAtomic(returnObj);
+        }
+
+        internal static void BindInvoiceLine(ReturnItem item, SaleItem original)
+        {
+            int factor = original.ConversionFactor > 0 ? original.ConversionFactor : 1;
+            if (!string.Equals(item.ProductId, original.ProductId, StringComparison.Ordinal)
+                || (!string.IsNullOrEmpty(item.SaleItemId) && !string.Equals(item.SaleItemId, original.Id, StringComparison.Ordinal))
+                || (!string.IsNullOrEmpty(item.Unit) && !string.Equals(item.Unit, original.Unit, StringComparison.OrdinalIgnoreCase))
+                || item.ConversionFactor < 0
+                || (item.ConversionFactor > 0 && item.ConversionFactor != factor))
+                throw new InvalidOperationException("هوية صنف المرتجع أو وحدته أو معامل تحويله لا تطابق بند الفاتورة الأصلية.");
+            item.SaleItemId = original.Id;
+            item.ProductId = original.ProductId;
+            item.ProductName = original.ProductName;
+            item.Unit = original.Unit;
+            item.ConversionFactor = factor;
         }
 
         private static string ReturnFingerprint(Return returnObj)

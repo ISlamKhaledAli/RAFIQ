@@ -79,6 +79,11 @@ namespace RafiqPOS.Services
 
                 if (adminUser != null)
                 {
+                    if (adminUser.MustChangePin)
+                    {
+                        DatabaseService.Security.ChangeUserPin(adminUser.Id, "7418");
+                        adminUser = SecurityService.MapToDto(DatabaseService.UserRepo.GetById(adminUser.Id));
+                    }
                     SecurityService.SetCurrentUserForTesting(adminUser);
                     if (DatabaseService.Shifts != null)
                     {
@@ -153,7 +158,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 var cartonUnit = new ProductUnit
                 {
@@ -167,7 +173,8 @@ namespace RafiqPOS.Services
                     Barcode = GenerateUniqueBarcode(),
                     IsDivisible = false
                 };
-                DatabaseService.ProductUnits.CreateUnit(cartonUnit);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.ProductUnits.CreateUnit(cartonUnit);
 
                 // Sell 1 carton
                 var sale = new Sale
@@ -264,7 +271,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 var cartonUnit = new ProductUnit
                 {
@@ -278,7 +286,8 @@ namespace RafiqPOS.Services
                     Barcode = GenerateUniqueBarcode(),
                     IsDivisible = false
                 };
-                DatabaseService.ProductUnits.CreateUnit(cartonUnit);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.ProductUnits.CreateUnit(cartonUnit);
 
                 // Sell 1 carton
                 var sale = new Sale
@@ -364,7 +373,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(parent);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(parent);
 
                 // Create 2 variant products M and L
                 string varMId = "var_m_" + Guid.NewGuid().ToString("N");
@@ -394,8 +404,11 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(varM, true);
-                DatabaseService.Products.SaveProduct(varL, true);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                {
+                    DatabaseService.Products.SaveProduct(varM, true);
+                    DatabaseService.Products.SaveProduct(varL, true);
+                }
 
                 // Register in product_variants table
                 using (var conn = new SQLiteConnection(DatabaseService.ConnectionString))
@@ -497,7 +510,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Insert Batch B1 with 10 units
                 string batchId = "batch_b1_" + Guid.NewGuid().ToString("N");
@@ -597,7 +611,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Create sale with 2 separate lines of 4 units each (total 8 units)
                 var sale = new Sale
@@ -682,7 +697,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // 1. Sell 2 units (stock should become 8)
                 var sale = new Sale
@@ -791,7 +807,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Sell with invoice discount 20 LE (2000 piasters) -> Net total 80 LE (8000 piasters)
                 var sale = new Sale
@@ -879,7 +896,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 var cartonUnit = new ProductUnit
                 {
@@ -893,7 +911,8 @@ namespace RafiqPOS.Services
                     Barcode = GenerateUniqueBarcode(),
                     IsDivisible = false
                 };
-                DatabaseService.ProductUnits.CreateUnit(cartonUnit);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.ProductUnits.CreateUnit(cartonUnit);
 
                 // Sell 1 carton (line 1) + 3 pieces (line 2)
                 var sale = new Sale
@@ -1002,7 +1021,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Line item discount: 10 LE (1000 piasters)
                 // Invoice discount: 5 LE (500 piasters)
@@ -1076,7 +1096,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 var cartonUnit = new ProductUnit
                 {
@@ -1090,7 +1111,8 @@ namespace RafiqPOS.Services
                     Barcode = GenerateUniqueBarcode(),
                     IsDivisible = false
                 };
-                DatabaseService.ProductUnits.CreateUnit(cartonUnit);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.ProductUnits.CreateUnit(cartonUnit);
 
                 // Sell 1 carton
                 var sale = new Sale
@@ -1179,7 +1201,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Sell 100 LE, customer pays 150 LE (15000 piasters) -> 50 LE overpayment credited
                 var sale = new Sale
@@ -1258,7 +1281,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Create sale item explicitly setting TaxRatePercent = 0
                 var sale = new Sale
@@ -1326,7 +1350,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Sell 2 units (stock 8)
                 var sale = new Sale
@@ -1372,6 +1397,7 @@ namespace RafiqPOS.Services
                     Payload = returnPayload
                 };
 
+                bridgeReq.Admission = SecurityService.CaptureRequestAdmission();
                 BridgeResponse resp = IpcDispatcher.Dispatch(bridgeReq);
 
                 long stockAfterReturnAttempt = DatabaseService.ProductRepo.GetById(prodId).StockQuantityMilli;
@@ -1427,7 +1453,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Send returns:create with saleId = "fake-123" and isWithoutInvoice = false, NO supervisor PIN
                 var returnPayload = new JObject();
@@ -1453,6 +1480,7 @@ namespace RafiqPOS.Services
                     Payload = returnPayload
                 };
 
+                bridgeReq.Admission = SecurityService.CaptureRequestAdmission();
                 BridgeResponse resp = IpcDispatcher.Dispatch(bridgeReq);
 
                 if (resp != null && !resp.Success)
@@ -1502,7 +1530,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 var sale = new Sale
                 {
@@ -1544,6 +1573,7 @@ namespace RafiqPOS.Services
                     Payload = returnPayload
                 };
 
+                bridgeReq.Admission = SecurityService.CaptureRequestAdmission();
                 BridgeResponse resp = IpcDispatcher.Dispatch(bridgeReq);
 
                 long savedReturnTotal = 0;
@@ -1610,7 +1640,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 // Send sales:create with paidPiasters: 10000, but payments: [{method: 'cash', amountPiasters: 5000}]
                 var salePayload = new JObject();
@@ -1641,6 +1672,7 @@ namespace RafiqPOS.Services
                     Payload = salePayload
                 };
 
+                bridgeReq.Admission = SecurityService.CaptureRequestAdmission();
                 BridgeResponse resp = IpcDispatcher.Dispatch(bridgeReq);
 
                 if (resp != null && !resp.Success)

@@ -76,7 +76,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                prod = prodService.SaveProduct(prod, true, true);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    prod = prodService.SaveProduct(prod, true, true);
 
                 // =========================================================================
                 // SCENARIO 1: Attempting financial transaction BEFORE opening a shift

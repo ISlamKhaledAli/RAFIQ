@@ -75,7 +75,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(prod);
                 Assert(productRepo.GetById(prod.Id) != null, "تم إنشاء المنتج التجريبي بنجاح", result);
 
                 // TEST 2: Add Batches via Purchase
@@ -295,7 +296,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(expiredProd);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(expiredProd);
 
                 var expiredBatchOnly = new ProductBatch
                 {
@@ -430,7 +432,8 @@ namespace RafiqPOS.Services
                     Unit = "علبة",
                     IsActive = true
                 };
-                productService.SaveProduct(prodMultiBatch);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(prodMultiBatch);
 
                 // Batch 1 (old price: 40 EGP sell price, cost 25 EGP, expires earlier)
                 var batchOld = new ProductBatch

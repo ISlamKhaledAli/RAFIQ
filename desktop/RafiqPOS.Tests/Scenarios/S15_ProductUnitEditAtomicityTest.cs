@@ -19,6 +19,7 @@ namespace RafiqPOS.Tests.Scenarios
             _unitService = new ProductUnitService(ConnectionString);
             _product = CreateTestProduct("عصير وحدات", 2500, 1800, 120000);
             _unitService.EnsureDefaultBaseUnit(_product);
+            using (ProductWritePolicy.EnterTrustedFixtureOperation())
             _carton = _unitService.CreateUnit(new ProductUnit
             {
                 ProductId = _product.Id,
@@ -64,7 +65,9 @@ namespace RafiqPOS.Tests.Scenarios
             edited.Name = "اسم يجب ألا يُحفظ";
             edited.Units.Find(delegate (ProductUnit u) { return u.Id == _carton.Id; }).ConversionFactor = 24;
 
-            var ex = Assert.Throws<InvalidOperationException>(delegate { ProductService.SaveProduct(edited, true, true); });
+            InvalidOperationException ex;
+            using (AdmitProductRequest("usr_admin_default"))
+                ex = Assert.Throws<InvalidOperationException>(delegate { ProductService.SaveProduct(edited, true, true); });
             StringAssert.Contains("معامل التحويل", ex.Message);
 
             Assert.AreEqual("عصير وحدات", ProductRepo.GetById(_product.Id).Name, "تعديل الاسم تراجع مع رفض الوحدة");
@@ -78,7 +81,9 @@ namespace RafiqPOS.Tests.Scenarios
             edited.PricePiasters = 2700;
             edited.Units.RemoveAll(delegate (ProductUnit u) { return u.Id == _carton.Id; });
 
-            var ex = Assert.Throws<InvalidOperationException>(delegate { ProductService.SaveProduct(edited, true, true); });
+            InvalidOperationException ex;
+            using (AdmitProductRequest("usr_admin_default"))
+                ex = Assert.Throws<InvalidOperationException>(delegate { ProductService.SaveProduct(edited, true, true); });
             StringAssert.Contains("لا يمكن حذف الوحدة", ex.Message);
 
             Assert.AreEqual(2500, ProductRepo.GetById(_product.Id).PricePiasters, "تعديل السعر تراجع مع رفض حذف الوحدة");
@@ -88,6 +93,7 @@ namespace RafiqPOS.Tests.Scenarios
         [Test]
         public void Removing_And_ReAdding_Same_Unit_Name_Saves_Instead_Of_Unique_Failure()
         {
+            using (ProductWritePolicy.EnterTrustedFixtureOperation())
             _unitService.CreateUnit(new ProductUnit
             {
                 ProductId = _product.Id,
@@ -103,7 +109,8 @@ namespace RafiqPOS.Tests.Scenarios
             edited.Units.RemoveAll(delegate (ProductUnit u) { return u.UnitName == "دستة 6"; });
             edited.Units.Add(new ProductUnit { UnitName = "دستة 6", ConversionFactor = 6, SellPricePiasters = 14500, CostPricePiasters = 10800, SortOrder = 2 });
 
-            ProductService.SaveProduct(edited, true, true);
+            using (AdmitProductRequest("usr_admin_default"))
+                ProductService.SaveProduct(edited, true, true);
 
             Assert.AreEqual(2600, ProductRepo.GetById(_product.Id).PricePiasters, "الحفظ تم بالكامل");
             var dozens = _unitService.GetUnitsForProduct(_product.Id).FindAll(delegate (ProductUnit u) { return u.UnitName == "دستة 6"; });
@@ -119,7 +126,8 @@ namespace RafiqPOS.Tests.Scenarios
             edited.Units.RemoveAll(delegate (ProductUnit u) { return u.IsBaseUnit; });
             edited.Units.Insert(0, new ProductUnit { UnitName = "قطعة", ConversionFactor = 1, IsBaseUnit = true, SellPricePiasters = 2700, CostPricePiasters = 1800 });
 
-            ProductService.SaveProduct(edited, true, true);
+            using (AdmitProductRequest("usr_admin_default"))
+                ProductService.SaveProduct(edited, true, true);
 
             var units = _unitService.GetUnitsForProduct(_product.Id);
             Assert.AreEqual(1, units.FindAll(delegate (ProductUnit u) { return u.IsBaseUnit; }).Count, "وحدة أساسية واحدة فقط");
@@ -133,7 +141,9 @@ namespace RafiqPOS.Tests.Scenarios
             var edited = ProductRepo.GetById(_product.Id);
             edited.Units.Add(new ProductUnit { UnitName = _carton.UnitName, ConversionFactor = 12, SellPricePiasters = 28000 });
 
-            var ex = Assert.Throws<InvalidOperationException>(delegate { ProductService.SaveProduct(edited, true, true); });
+            InvalidOperationException ex;
+            using (AdmitProductRequest("usr_admin_default"))
+                ex = Assert.Throws<InvalidOperationException>(delegate { ProductService.SaveProduct(edited, true, true); });
             StringAssert.Contains("مكرر", ex.Message);
             StringAssert.DoesNotContain("UNIQUE", ex.Message);
         }

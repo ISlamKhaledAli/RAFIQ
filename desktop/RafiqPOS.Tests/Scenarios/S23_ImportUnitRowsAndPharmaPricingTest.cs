@@ -41,7 +41,9 @@ namespace RafiqPOS.Tests.Scenarios
         private BatchImportResult Import(string itemJson, string strategy)
         {
             var request = JsonConvert.DeserializeObject<BatchImportRequest>("{\"items\":[" + itemJson + "],\"duplicateStrategy\":\"" + strategy + "\"}");
-            return ProductService.ImportBatch(request, "usr_admin_default");
+            string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+            using (AdmitProductRequest(actorId))
+                return ProductService.ImportBatch(request, actorId);
         }
 
         private static string Row(string barcode, string name, string price, string cost, string stock)

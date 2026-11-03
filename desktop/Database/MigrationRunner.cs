@@ -7,13 +7,34 @@ namespace RafiqPOS.Database
 {
     public static partial class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 61;
+        public const int LATEST_SUPPORTED_VERSION = 62;
+        private static readonly object MigrationBatchLock = new object();
 
         public static void ApplyMigrations(string connectionString, string dbPath)
+        {
+            lock (MigrationBatchLock)
+            {
+                _migrationBatchBackupTaken = false;
+                ApplyMigrationBatch(connectionString, dbPath);
+            }
+        }
+
+        private static void ApplyMigrationBatch(string connectionString, string dbPath)
         {
             using (var conn = new SQLiteConnection(connectionString))
             {
                 conn.Open();
+
+                int existingVersion = ReadExistingSchemaVersion(conn);
+                if (existingVersion > LATEST_SUPPORTED_VERSION)
+                {
+                    throw new InvalidOperationException(string.Format("إصدار هيكل قاعدة البيانات ({0}) أحدث من الإصدار المدعوم في هذا البرنامج ({1}). يرجى تحديث برنامج رفيق أولاً لتفادي تلف البيانات.", existingVersion, LATEST_SUPPORTED_VERSION));
+                }
+                if (existingVersion < LATEST_SUPPORTED_VERSION &&
+                    !BackupDatabaseBeforeMigration(dbPath, LATEST_SUPPORTED_VERSION))
+                {
+                    throw new InvalidOperationException("تعذر إنشاء نسخة أمان قبل ترحيل قاعدة البيانات. تم إيقاف الترحيل لحماية بياناتك. تواصل مع الدعم الفني.");
+                }
 
                 // 1. Enable WAL mode and foreign keys
                 using (var cmd = new SQLiteCommand("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;", conn))
@@ -475,6 +496,18 @@ namespace RafiqPOS.Database
                 ApplyIdempotencyMigrations(conn, dbPath, currentVersion);
                 EnsureSchemaHealth(conn);
                 EnsureIdempotencySchemaHealth(conn);
+            }
+        }
+
+        private static int ReadExistingSchemaVersion(SQLiteConnection conn)
+        {
+            using (var cmd = new SQLiteCommand("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations';", conn))
+            {
+                if (cmd.ExecuteScalar() == null) return 0;
+            }
+            using (var cmd = new SQLiteCommand("SELECT COALESCE(MAX(version), 0) FROM schema_migrations;", conn))
+            {
+                return Convert.ToInt32(cmd.ExecuteScalar());
             }
         }
 
@@ -2407,7 +2440,7 @@ namespace RafiqPOS.Database
                 }
                 catch { }
 
-                string timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+                string timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + "_" + Guid.NewGuid().ToString("N");
                 string backupFile = Path.Combine(backupDir, string.Format("pre_v{0}_{1}.db", targetVersion, timestamp));
 
                 using (var backupConn = new SQLiteConnection("Data Source=" + backupFile + ";Version=3;"))
@@ -8292,5 +8325,4 @@ private static void ApplyMigration55(SQLiteConnection conn)
         }
     }
 }
-
 

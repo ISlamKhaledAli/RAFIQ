@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { FormEvent } from 'react';
+import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { extractProducts, type Product, type ProductBatch, type Sale, type Customer, type QuickItem, type SalePayment, type ProductUnit, type HeldSale, type Category, type DigitalAccount, type Shift } from '../types/models';
@@ -69,7 +69,7 @@ import { ControlledDrugDispenseModal } from './pos/ControlledDrugDispenseModal';
 import type { ControlledDrugDispense, DrugReferenceItem, CartInteractionCheckResult } from '../types/pharma';
 import { InsurancePrescriptionModal } from './pos/InsurancePrescriptionModal';
 import type { InsuranceClaimLine } from '../types/insurance';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Printer, RotateCcw, X } from 'lucide-react';
 import { PosChronicDispenseModal } from './pos/PosChronicDispenseModal';
 import { ClinicalAllergyAlertModal } from './pos/ClinicalAllergyAlertModal';
 import type { AllergyCheckResult } from '../types/patient';
@@ -88,6 +88,16 @@ import type {
   DeliveryOrderCreateInfo,
 } from '../types/cafe';
 import { enforcesOwnStock } from './pos/stockGuard';
+import { copyCartForUpdate } from './pos/cartUpdates';
+import { readPrintResult, receiptPrintRequest } from '../utils/printing';
+import { newIdempotencyKey } from '../utils/idempotency';
+import { rafiqConfirm } from '../utils/dialogService';
+import {
+  captureCheckoutAttempt, readCheckoutAttempt, saveCheckoutAttempt, clearCheckoutAttempt,
+  editableCheckoutCart, readSavedCheckout, readAbandonCheckout,
+  type CheckoutAttempt, type SavedCheckout,
+} from './pos/checkoutAttempt';
+import { assertNoPendingFinancialAttempt } from '../utils/financialAttempt';
 
 export interface PosViewProps {
   isActive?: boolean;
@@ -95,8 +105,34 @@ export interface PosViewProps {
   onNavigateToWallets?: (subTab?: 'accounts' | 'transact') => void;
 }
 
+interface ReceiptNotice {
+  saleId: string;
+  invoiceNumber: number | null;
+  message: string;
+  status: 'failed' | 'unknown' | 'blocked';
+}
+
+function loadCheckoutJournal(): { attempt: CheckoutAttempt | null; error: string | null } {
+  try {
+    return { attempt: readCheckoutAttempt(localStorage), error: null };
+  } catch (error: unknown) {
+    return {
+      attempt: null,
+      error: `تعذر قراءة سجل محاولة الحفظ؛ لم يتم حذفه. ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
 export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToEpay, onNavigateToWallets }) => {
-  const { hasPermission, isAdmin } = useAuth();
+  const { currentUser, hasPermission, isAdmin } = useAuth();
+  const [initialCheckout] = useState(loadCheckoutJournal);
+  const [pendingCheckout, setPendingCheckout] = useState(initialCheckout.attempt);
+  const pendingCheckoutRef = useRef(initialCheckout.attempt);
+  const checkoutOutcomeKnownRef = useRef(initialCheckout.error === null && initialCheckout.attempt === null);
+  const [checkoutJournalError, setCheckoutJournalError] = useState(initialCheckout.error);
+  const [checkoutActionMessage, setCheckoutActionMessage] = useState('');
+  const [checkoutRecoveryBusy, setCheckoutRecoveryBusy] = useState(false);
+  const checkoutFrozen = pendingCheckout !== null || checkoutJournalError !== null;
   // Mirrors the server-side discount permission checks in SaleService
   const canDiscountInvoice = isAdmin || hasPermission('pos.discount_invoice');
   const canDiscountLine = isAdmin || hasPermission('pos.discount_line');
@@ -113,9 +149,17 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const showItemModifiers = showCafeMode && isEnabled('feature_item_modifiers');
   const showDeliveryManagement = showCafeMode && isEnabled('feature_delivery_management');
 
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCartValue] = useState<CartItem[]>(() =>
+    initialCheckout.attempt ? editableCheckoutCart(initialCheckout.attempt) : []);
+  const setCart: Dispatch<SetStateAction<CartItem[]>> = useCallback((update) => {
+    if (pendingCheckoutRef.current) {
+      setCheckoutActionMessage('السلة محمية حتى حسم محاولة الحفظ السابقة؛ لم يتم تعديل أصنافها.');
+      return;
+    }
+    setCartValue(update);
+  }, []);
   const [barcodeQuery, setBarcodeQuery] = useState('');
-  const [discountPiasters, setDiscountPiasters] = useState(0);
+  const [discountPiasters, setDiscountPiasters] = useState(initialCheckout.attempt?.payload.discountPiasters || 0);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [quickItems, setQuickItems] = useState<QuickItem[]>([]);
@@ -127,7 +171,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<number | null>(null);
   const [nextExpectedInvoiceNumber, setNextExpectedInvoiceNumber] = useState<number | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(initialCheckout.attempt?.payload.customerId || '');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit'>('cash');
   const [digitalAccounts, setDigitalAccounts] = useState<DigitalAccount[]>([]);
   const [storeInstapayAddress, setStoreInstapayAddress] = useState('');
@@ -136,6 +180,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [digitalPaymentMethod, setDigitalPaymentMethod] = useState<'instapay' | 'vodafone_cash'>('instapay');
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedSale, setLastCompletedSale] = useState<Sale | null>(null);
+  const [receiptNotices, setReceiptNotices] = useState<ReceiptNotice[]>([]);
+  const [printingSaleIds, setPrintingSaleIds] = useState<string[]>([]);
+  const printingSaleIdsRef = useRef(new Set<string>());
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -171,6 +218,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     customerId?: string | null;
     savedAt: number;
   } | null>(() => {
+    if (initialCheckout.attempt || initialCheckout.error) return null;
     try {
       const stored = localStorage.getItem('rafiq_pos_cart_draft');
       if (stored) {
@@ -204,7 +252,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     item: CartItem;
     index: number;
   } | null>(null);
-  const [activeInsuranceClaim, setActiveInsuranceClaim] = useState<InsuranceClaimLine | null>(null);
+  const [activeInsuranceClaim, setActiveInsuranceClaim] = useState<InsuranceClaimLine | null>(initialCheckout.attempt?.payload.insuranceClaim || null);
   const [isInsuranceModalOpen, setIsInsuranceModalOpen] = useState(false);
   const [isChronicDispenseOpen, setIsChronicDispenseOpen] = useState(false);
   const [allergyCheckResult, setAllergyCheckResult] = useState<AllergyCheckResult | null>(null);
@@ -222,14 +270,17 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [isDdiManagerOpen, setIsDdiManagerOpen] = useState(false);
 
   // Cafe & Restaurant Hospitality POS Suite State (Milestone 14 / Stories 139-143)
-  const [orderType, setOrderType] = useState<OrderMode>('takeaway');
+  const [orderType, setOrderType] = useState<OrderMode>(() => {
+    const stored = initialCheckout.attempt?.payload.orderType;
+    return stored === 'dine_in' || stored === 'delivery' || stored === 'takeaway' ? stored : 'takeaway';
+  });
   const [activeTable, setActiveTable] = useState<RestaurantTable | null>(null);
   const [occupiedTablesCount, setOccupiedTablesCount] = useState<number>(0);
   const [isFloorModalOpen, setIsFloorModalOpen] = useState(false);
   const [tableSaving, setTableSaving] = useState(false);
   const [kotPrinting, setKotPrinting] = useState(false);
   const [serviceChargePercent, setServiceChargePercent] = useState<number>(0);
-  const [deliveryInfo, setDeliveryInfo] = useState<DeliveryOrderCreateInfo | null>(null);
+  const [deliveryInfo, setDeliveryInfo] = useState<DeliveryOrderCreateInfo | null>(initialCheckout.attempt?.payload.deliveryInfo || null);
   const [activeDeliveryOrdersCount, setActiveDeliveryOrdersCount] = useState<number>(0);
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [deliveryModalTab, setDeliveryModalTab] = useState<'order_setup' | 'active_orders' | 'rider_settlement' | 'zones_riders'>('order_setup');
@@ -249,13 +300,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   // Synchronous Mutex & Checkout Idempotency (Anti-Spam / Anti-Race F12 Guard)
   const isCheckingOutRef = useRef(false);
   const supervisorPinRef = useRef<string | null>(null);
-  const cartSessionIdRef = useRef<string>('cart_initial_session');
+  const cartSessionIdRef = useRef<string>(newIdempotencyKey('sale'));
   const addProductToCartRef = useRef<(prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit, isExpiredBypassed?: boolean) => boolean>(() => false);
 
   const resetCartSession = useCallback(() => {
-    cartSessionIdRef.current = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `cart_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    cartSessionIdRef.current = pendingCheckoutRef.current?.payload.idempotencyKey || newIdempotencyKey('sale');
     supervisorPinRef.current = null;
     isCheckingOutRef.current = false;
   }, []);
@@ -479,7 +528,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       );
 
       if (idx >= 0) {
-        const updated = [...prev];
+        const updated = copyCartForUpdate(prev);
         const item = updated[idx];
         const updatedQty = customWeightMilli !== undefined ? (item.quantityMilli + customWeightMilli) : (item.quantityMilli + 1000);
         item.quantityMilli = updatedQty;
@@ -555,7 +604,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
 
     return true;
-  }, [cart, allowNegativeStock, showStatus, isEnabled, showItemModifiers]);
+  }, [cart, allowNegativeStock, showStatus, isEnabled, showItemModifiers, setCart]);
 
   useEffect(() => {
     addProductToCartRef.current = addProductToCart;
@@ -563,7 +612,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
   const changeCartItemUnit = useCallback((index: number, newUnitId: string) => {
     setCart((prev) => {
-      const updated = [...prev];
+      const updated = copyCartForUpdate(prev);
       const item = updated[index];
       if (!item || !item.productUnits) return prev;
       const targetUnit = item.productUnits.find(u => u.id === newUnitId);
@@ -619,7 +668,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
       return updated;
     });
-  }, [allowNegativeStock, showStatus]);
+  }, [allowNegativeStock, showStatus, setCart]);
 
   // Feature #183 / Task 183-5: Cycle unit of cart line with shortcut '/'
   const cycleCartItemUnit = useCallback((targetIndex?: number) => {
@@ -649,7 +698,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   // Task 24-2: Apply discount on specific item
   const handleApplyItemDiscount = useCallback((index: number, itemDiscountPiasters: number, _supervisorApproved = false) => {
     setCart((prev) => {
-      const updated = [...prev];
+      const updated = copyCartForUpdate(prev);
       const it = updated[index];
       if (!it) return prev;
       it.discountPiasters = itemDiscountPiasters;
@@ -665,7 +714,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         : 'تم إلغاء خصم الصنف',
       'success'
     );
-  }, [showStatus]);
+  }, [showStatus, setCart]);
 
   // Task 24-2: Apply invoice discount (F-01 & C3: No item mutation, clean single source of truth)
   const handleApplyInvoiceDiscount = useCallback((totalPiastersToDiscount: number, _supervisorApproved = false) => {
@@ -758,7 +807,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     if (!modifierModalState) return;
     const { cartIndex, basePricePiasters } = modifierModalState;
     setCart((prev) => {
-      const updated = [...prev];
+      const updated = copyCartForUpdate(prev);
       const item = updated[cartIndex];
       if (!item) return prev;
       const modsSum = modifiers.reduce((s, m) => s + (m.extraPricePiasters || 0), 0);
@@ -777,7 +826,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     });
     setModifierModalState(null);
     barcodeInputRef.current?.focus();
-  }, [modifierModalState]);
+  }, [modifierModalState, setCart]);
 
   const handleSelectTableFromModal = useCallback((table: RestaurantTable, parsedCart: CartItem[]) => {
     setOrderType('dine_in');
@@ -787,7 +836,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     resetCartSession();
     void loadCafeStats();
     showStatus(`تم تحديد طاولة: ${table.name} (${table.guestsCount || 1} ضيوف)`, 'success');
-  }, [resetCartSession, loadCafeStats, showStatus]);
+  }, [resetCartSession, loadCafeStats, showStatus, setCart]);
 
   const handleLoadSplitCartForCheckout = useCallback((sourceTable: RestaurantTable, splitItems: CartItem[]) => {
     setOrderType('dine_in');
@@ -797,7 +846,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     resetCartSession();
     void loadCafeStats();
     showStatus(`تم تحميل الأصناف المفصولة من طاولة (${sourceTable.name}) للمحاسبة المباشرة`, 'success');
-  }, [resetCartSession, loadCafeStats, showStatus]);
+  }, [resetCartSession, loadCafeStats, showStatus, setCart]);
 
   const handleSaveTableOrder = useCallback(async () => {
     if (!activeTable) {
@@ -892,7 +941,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     } finally {
       setKotPrinting(false);
     }
-  }, [cart, activeTable, orderType, subtotalPiasters, discountPiasters, serviceChargePiasters, netTotalPiasters, nextExpectedInvoiceNumber, showStatus]);
+  }, [cart, activeTable, orderType, subtotalPiasters, discountPiasters, serviceChargePiasters, netTotalPiasters, nextExpectedInvoiceNumber, showStatus, setCart]);
 
   const loadHeldSalesCount = useCallback(async () => {
     try {
@@ -944,7 +993,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setLoading(false);
       barcodeInputRef.current?.focus();
     }
-  }, [cart, subtotalPiasters, discountPiasters, selectedCustomerId, customers, netTotalPiasters, loadHeldSalesCount, resetCartSession, showStatus]);
+  }, [cart, subtotalPiasters, discountPiasters, selectedCustomerId, customers, netTotalPiasters, loadHeldSalesCount, resetCartSession, showStatus, setCart]);
 
   // Supervisor approvals belong to the original cart session, so a recalled invoice discount is re-approved here
   const applyRecalledInvoiceDiscount = useCallback((items: CartItem[], heldInvoiceDiscount: number) => {
@@ -997,7 +1046,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     applyRecalledInvoiceDiscount(itemsToRestore, heldInvoiceDiscount);
     showStatus(`تم استرجاع الفاتورة المعلقة بنجاح (${itemsToRestore.length} صنف)`, 'success');
     barcodeInputRef.current?.focus();
-  }, [catalogProducts, isEnabled, loadHeldSalesCount, resetCartSession, showStatus, applyRecalledInvoiceDiscount]);
+  }, [catalogProducts, isEnabled, loadHeldSalesCount, resetCartSession, showStatus, applyRecalledInvoiceDiscount, setCart]);
 
   const updateRecalledToCurrentPrices = useCallback((review: NonNullable<typeof heldPriceReview>, message: string) => {
     const repriced = applyCurrentPrices(review.items, review.changes);
@@ -1005,7 +1054,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     applyRecalledInvoiceDiscount(repriced, review.invoiceDiscountPiasters);
     showStatus(message, 'warning');
     barcodeInputRef.current?.focus();
-  }, [applyRecalledInvoiceDiscount, showStatus]);
+  }, [applyRecalledInvoiceDiscount, showStatus, setCart]);
 
   const keepRequiresApproval = heldPriceReview !== null &&
     keepHeldPricesRequiresApproval(heldPriceReview.changes, canOverridePrice);
@@ -1261,6 +1310,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
   // Feature #132: Auto-save draft on cart change
   useEffect(() => {
+    if (pendingCheckoutRef.current) return;
     try {
       if (cart.length > 0) {
         const draft = {
@@ -1315,6 +1365,114 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setIsPaymentModalOpen(true);
   }, [cart, currentShift, requireOpenShiftToSell, showStatus, isDdiActive, ddiResult, isDdiOverridden]);
 
+  const submitReceipt = useCallback(async (sale: { id?: string; invoiceNumber?: number }, isCopy: boolean) => {
+    const saleId = sale.id;
+    if (!saleId) {
+      showStatus('تعذر طباعة الإيصال: لم يرجع معرّف الفاتورة المحفوظة. راجع سجل المبيعات ولا تُعد تسجيل البيع.', 'error');
+      return;
+    }
+    if (printingSaleIdsRef.current.has(saleId)) return;
+    printingSaleIdsRef.current.add(saleId);
+    setPrintingSaleIds([...printingSaleIdsRef.current]);
+    let notice: ReceiptNotice | null = null;
+    try {
+      const result = readPrintResult(await invoke<unknown>('printer:printReceipt', receiptPrintRequest(saleId, isCopy)));
+      if (!result.success || result.warningMessage) {
+        notice = {
+          saleId,
+          invoiceNumber: sale.invoiceNumber || null,
+          message: result.warningMessage || result.message,
+          status: result.success ? 'blocked' : 'failed',
+        };
+      }
+    } catch (error: unknown) {
+      notice = {
+        saleId,
+        invoiceNumber: sale.invoiceNumber || null,
+        message: `لم يمكن تأكيد إرسال الإيصال. لا تُعد تسجيل البيع؛ إعادة المحاولة تطبع نسخة فقط. ${error instanceof Error ? error.message : String(error)}`,
+        status: 'unknown',
+      };
+    } finally {
+      const outcome = notice;
+      setReceiptNotices((previous) => {
+        const remaining = previous.filter((item) => item.saleId !== saleId);
+        return outcome ? [...remaining, outcome] : remaining;
+      });
+      printingSaleIdsRef.current.delete(saleId);
+      setPrintingSaleIds([...printingSaleIdsRef.current]);
+    }
+  }, [showStatus]);
+
+  const finishSavedCheckout = useCallback((completedSale: SavedCheckout, attempt: CheckoutAttempt, recovered: boolean) => {
+    checkoutOutcomeKnownRef.current = true;
+    try {
+      const currentJournal = readCheckoutAttempt(localStorage);
+      if (currentJournal && currentJournal.payload.idempotencyKey !== attempt.payload.idempotencyKey) {
+        throw new Error('سجل المحاولة يخص عملية أخرى؛ لم يتم حذفه.');
+      }
+      localStorage.removeItem('rafiq_pos_cart_draft');
+      clearCheckoutAttempt(localStorage, attempt.payload.idempotencyKey);
+      setCheckoutJournalError(null);
+    } catch (error: unknown) {
+      setCheckoutJournalError(`الفاتورة #${completedSale.invoiceNumber || completedSale.id} محفوظة، لكن تعذر تنظيف مسودة الحفظ. لا تبدأ بيعاً جديداً قبل مراجعة السجل. ${error instanceof Error ? error.message : String(error)}`);
+    }
+    pendingCheckoutRef.current = null;
+    setPendingCheckout(null);
+    setCheckoutActionMessage('');
+    setLastInvoiceNumber(completedSale.invoiceNumber || null);
+    if (completedSale.invoiceNumber) setNextExpectedInvoiceNumber(completedSale.invoiceNumber + 1);
+    setLastCompletedSale(completedSale);
+    try {
+      if (localStorage.getItem('rafiq_pos_printer_auto_print') !== '0' && window.chrome?.webview) {
+        void submitReceipt(completedSale, recovered);
+        setIsReceiptOpen(false);
+      } else {
+        setIsReceiptOpen(true);
+      }
+    } catch (error: unknown) {
+      setIsReceiptOpen(true);
+      setReceiptNotices((previous) => [...previous.filter((item) => item.saleId !== completedSale.id), {
+        saleId: completedSale.id,
+        invoiceNumber: completedSale.invoiceNumber || null,
+        message: `الفاتورة محفوظة؛ تعذر بدء الطباعة التلقائية. ${error instanceof Error ? error.message : String(error)}`,
+        status: 'failed',
+      }]);
+    }
+    if (completedSale.status !== 'completed') {
+      showStatus(`تم العثور على الفاتورة #${completedSale.invoiceNumber || ''} وحالتها ${completedSale.status}؛ راجع سجل المبيعات قبل أي تصحيح.`, 'warning');
+    } else if (completedSale.negativeStockWarnings?.length) {
+      showStatus(`تم حفظ الفاتورة #${completedSale.invoiceNumber || ''}. ${completedSale.negativeStockWarnings[0]}`, 'warning');
+    } else {
+      showStatus(`تم ${recovered ? 'استرجاع الفاتورة المحفوظة' : 'حفظ الفاتورة'} #${completedSale.invoiceNumber || ''} بدون تسجيل بيع إضافي.`, 'success');
+    }
+    if (!recovered && isEnabled('feature_patient_profiles') && completedSale.customerId) {
+      void invoke('patients:recordDispense', {
+        customerId: completedSale.customerId,
+        productIds: completedSale.items.map((item) => item.productId),
+      }).catch((error: unknown) => {
+        showStatus(`الفاتورة محفوظة، لكن تعذر تحديث سجل الصرف الدوائي. ${error instanceof Error ? error.message : String(error)}`, 'warning');
+      });
+    }
+    setCartValue([]);
+    setDraftPrompt(null);
+    setUndoItem(null);
+    setDiscountPiasters(0);
+    setSelectedCustomerId('');
+    setPaymentMethod('cash');
+    setActiveInsuranceClaim(null);
+    setAllergyCheckResult(null);
+    setIsAllergyModalOpen(false);
+    setDdiResult(null);
+    setIsDdiOverridden(false);
+    setIsDdiModalOpen(false);
+    setActiveTable(null);
+    setDeliveryInfo(null);
+    resetCartSession();
+    void loadSmartCatalog();
+    void loadHeldSalesCount();
+    void loadCafeStats();
+  }, [submitReceipt, showStatus, isEnabled, resetCartSession, loadSmartCatalog, loadHeldSalesCount, loadCafeStats]);
+
   const handleConfirmPayment = useCallback(async (paymentData: {
     paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash' | 'insurance';
     paidPiasters: number;
@@ -1326,6 +1484,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     supervisorPin?: string;
   }) => {
     if (isCheckingOutRef.current) return;
+    if (pendingCheckoutRef.current || checkoutJournalError) {
+      setCheckoutActionMessage('يجب حسم محاولة الحفظ السابقة قبل تغيير الدفع أو إرسال فاتورة جديدة.');
+      return;
+    }
+    if (!currentUser) {
+      showStatus('يجب تسجيل الدخول قبل حفظ الفاتورة.', 'error');
+      return;
+    }
     if (requireOpenShiftToSell && !currentShift) {
       showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
       setIsShiftModalOpen(true);
@@ -1335,10 +1501,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setIsPaymentModalOpen(false);
     setLoading(true);
     try {
-      const shiftId = currentShift ? (currentShift.id || (currentShift as unknown as { Id?: string }).Id) : undefined;
-      const controlledDispenses = cart
-        .filter(i => i.isControlled && i.controlledDispense)
-        .map(i => i.controlledDispense);
+      assertNoPendingFinancialAttempt(localStorage);
+      const shiftId = currentShift?.id;
+      const controlledDispenses = cart.flatMap((item) =>
+        item.isControlled && item.controlledDispense ? [item.controlledDispense] : []);
 
       const salePayload: Partial<Sale> & { idempotencyKey?: string; supervisorPin?: string; controlledDispenses?: ControlledDrugDispense[]; insuranceClaim?: InsuranceClaimLine } = {
         subtotalPiasters,
@@ -1356,7 +1522,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         changePiasters: paymentData.changeDuePiasters,
         idempotencyKey: cartSessionIdRef.current,
         supervisorPin: paymentData.supervisorPin || supervisorPinRef.current || undefined,
-        controlledDispenses: controlledDispenses.length > 0 ? (controlledDispenses as ControlledDrugDispense[]) : undefined,
+        controlledDispenses: controlledDispenses.length > 0 ? controlledDispenses : undefined,
         insuranceClaim: activeInsuranceClaim || undefined,
         orderType: showCafeMode ? orderType : 'retail',
         tableId: showCafeMode && orderType === 'dine_in' && activeTable ? activeTable.id : null,
@@ -1368,86 +1534,33 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         deliveryInfo: showCafeMode && orderType === 'delivery' ? deliveryInfo : null,
       };
 
-      const completedSale = await invoke<Sale>('sales:create', salePayload);
-      setLastInvoiceNumber(completedSale.invoiceNumber || null);
-      if (completedSale.invoiceNumber) {
-        setNextExpectedInvoiceNumber(completedSale.invoiceNumber + 1);
-      }
-      setLastCompletedSale(completedSale);
-
-      // Fast Retail Auto-Print Flow: By default in supermarkets and retail POS,
-      // silent background print is triggered immediately without any blocking preview modal.
+      const attempt = captureCheckoutAttempt({ ...salePayload }, currentUser.id);
       try {
-        const autoPrintSetting = localStorage.getItem('rafiq_pos_printer_auto_print');
-        const isAutoPrint = autoPrintSetting !== '0';
-
-        if (isAutoPrint && window.chrome?.webview) {
-          void invoke('printer:printReceipt', { sale: completedSale }).catch((printErr) => {
-            console.warn('Auto print error:', printErr);
-          });
-          setIsReceiptOpen(false);
-        } else {
-          setIsReceiptOpen(true);
-        }
-      } catch {
-        setIsReceiptOpen(true);
+        saveCheckoutAttempt(localStorage, attempt);
+      } catch (error: unknown) {
+        setCheckoutJournalError(`لم يتم إرسال طلب البيع لأن حفظ سجل المحاولة تعذر. ${error instanceof Error ? error.message : String(error)}`);
+        return;
       }
-
-      if (completedSale.negativeStockWarnings && completedSale.negativeStockWarnings.length > 0) {
-        showStatus(`تم حفظ الفاتورة #${completedSale.invoiceNumber || ''} بنجاح! [${completedSale.negativeStockWarnings[0]}]`, 'warning');
-      } else {
-        showStatus(`تم حفظ الفاتورة #${completedSale.invoiceNumber || ''} بنجاح!`, 'success');
-      }
-
-      if (isEnabled('feature_patient_profiles') && selectedCustomerId) {
-        const soldProductIds = cart.map((item) => item.productId).filter(Boolean);
-        if (soldProductIds.length > 0) {
-          void invoke('patients:recordDispense', {
-            customerId: selectedCustomerId,
-            productIds: soldProductIds,
-          }).catch(() => {
-            // Non-blocking
-          });
-        }
-      }
-
-      setCart([]);
-      setDiscountPiasters(0);
-      setSelectedCustomerId('');
-      setPaymentMethod('cash');
-      setActiveInsuranceClaim(null);
-      setAllergyCheckResult(null);
-      setIsAllergyModalOpen(false);
-      setDdiResult(null);
-      setIsDdiOverridden(false);
-      setIsDdiModalOpen(false);
-      setActiveTable(null);
-      setDeliveryInfo(null);
-      resetCartSession();
-      void loadSmartCatalog();
-      void loadHeldSalesCount();
-      void loadCafeStats();
-      try {
-        localStorage.removeItem('rafiq_pos_cart_draft');
-      } catch {
-        // ignore
-      }
+      supervisorPinRef.current = paymentData.supervisorPin || supervisorPinRef.current;
+      pendingCheckoutRef.current = attempt;
+      checkoutOutcomeKnownRef.current = false;
+      setPendingCheckout(attempt);
+      setCheckoutActionMessage('');
+      const response = await invoke<unknown>('sales:create', {
+        ...attempt.payload, supervisorPin: supervisorPinRef.current || undefined,
+      });
+      finishSavedCheckout(readSavedCheckout(response, attempt.payload.idempotencyKey), attempt, false);
     } catch (err: unknown) {
       const rawMsg = err instanceof Error ? err.message : String(err);
       console.error('POS Checkout Error:', err);
-      let friendlyMsg = rawMsg;
-      if (rawMsg.includes('SQL') || rawMsg.includes('SQLite') || rawMsg.includes('table') || rawMsg.includes('column') || rawMsg.includes('INTERNAL_ERROR')) {
-        friendlyMsg = 'تعذر حفظ الفاتورة في قاعدة البيانات، يرجى إعادة المحاولة.';
-      }
-      if (friendlyMsg.includes('لا يمكن إتمام البيع') || friendlyMsg.includes('رصيد الصنف') || friendlyMsg.includes('غير كافٍ') || friendlyMsg.includes('غير قابلة للتجزئة') || friendlyMsg.includes('المشرف')) {
-        showStatus(friendlyMsg, 'error');
-      } else {
-        showStatus(`تعذر إتمام الفاتورة: ${friendlyMsg}`, 'error');
-      }
+      setCheckoutActionMessage(rawMsg);
+      showStatus(pendingCheckoutRef.current
+        ? `لم يمكن حسم محاولة الحفظ؛ السلة محمية. استخدم التحقق أو الإيقاف الآمن بدلاً من بيع جديد. ${rawMsg}`
+        : rawMsg, 'error');
     } finally {
       setLoading(false);
       isCheckingOutRef.current = false;
-      barcodeInputRef.current?.focus();
+      if (!pendingCheckoutRef.current) barcodeInputRef.current?.focus();
     }
   }, [
     subtotalPiasters, 
@@ -1458,13 +1571,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     selectedCustomerId, 
     activeInsuranceClaim,
     showStatus,
-    loadSmartCatalog,
-    loadHeldSalesCount,
-    loadCafeStats,
-    resetCartSession,
+    finishSavedCheckout,
+    currentUser,
+    checkoutJournalError,
     currentShift,
     requireOpenShiftToSell,
-    isEnabled,
     showCafeMode,
     orderType,
     activeTable,
@@ -1472,6 +1583,97 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     deliveryFeePiasters,
     deliveryInfo,
   ]);
+
+  const handleCheckoutRecovery = useCallback(async (mode: 'check' | 'retry' | 'abandon') => {
+    if (isCheckingOutRef.current || checkoutRecoveryBusy) return;
+    const attempt = pendingCheckoutRef.current;
+    if (!attempt) return;
+    if (!currentUser || currentUser.id !== attempt.actorId) {
+      setCheckoutActionMessage('يجب تسجيل الدخول بنفس حساب الكاشير الذي بدأ هذه المحاولة قبل حسمها.');
+      return;
+    }
+    if (mode === 'abandon') {
+      const confirmed = await rafiqConfirm({
+        title: 'إيقاف محاولة الحفظ والرجوع للتعديل',
+        message: 'سيتم التحقق من الخادم أولاً. إذا كانت الفاتورة محفوظة فستُسترجع بدون إلغائها. وإن لم تُحفظ فسيُمنع وصول أي طلب متأخر بنفس المحاولة قبل فتح السلة للتعديل.',
+        confirmText: 'التحقق والإيقاف الآمن',
+        cancelText: 'إبقاء السلة محمية',
+        variant: 'warning',
+      });
+      if (!confirmed || pendingCheckoutRef.current !== attempt || isCheckingOutRef.current) return;
+    }
+    isCheckingOutRef.current = true;
+    setCheckoutRecoveryBusy(true);
+    setLoading(true);
+    setCheckoutActionMessage('');
+    try {
+      if (mode === 'abandon') {
+        const outcome = readAbandonCheckout(
+          await invoke<unknown>('sales:abandonCheckout', attempt.payload), attempt.payload.idempotencyKey,
+        );
+        if (outcome.sale) {
+          finishSavedCheckout(outcome.sale, attempt, true);
+        } else if (outcome.abandoned) {
+          const restoredCart = editableCheckoutCart(attempt);
+          clearCheckoutAttempt(localStorage, attempt.payload.idempotencyKey);
+          pendingCheckoutRef.current = null;
+          checkoutOutcomeKnownRef.current = true;
+          setPendingCheckout(null);
+          setCheckoutJournalError(null);
+          setCartValue(restoredCart);
+          setDraftPrompt(null);
+          setUndoItem(null);
+          setDiscountPiasters(attempt.payload.discountPiasters);
+          setSelectedCustomerId(attempt.payload.customerId || '');
+          setPaymentMethod(attempt.payload.paymentMethod === 'credit' ? 'credit' : 'cash');
+          setActiveInsuranceClaim(attempt.payload.insuranceClaim || null);
+          setDeliveryInfo(attempt.payload.deliveryInfo || null);
+          const modeToRestore = attempt.payload.orderType;
+          setOrderType(modeToRestore === 'delivery' || modeToRestore === 'dine_in' ? modeToRestore : 'takeaway');
+          if (modeToRestore === 'dine_in' && attempt.payload.tableId && activeTable?.id !== attempt.payload.tableId) {
+            setIsFloorModalOpen(true);
+          }
+          resetCartSession();
+          showStatus('تم إيقاف محاولة الحفظ بأمان واستعادة السلة. راجع طريقة الدفع والتأمين أو التوصيل واعتماد المشرف قبل حفظ محاولة جديدة.', 'warning');
+        }
+      } else {
+        if (mode === 'retry') assertNoPendingFinancialAttempt(localStorage);
+        const response = await invoke<unknown>(
+          mode === 'check' ? 'sales:reconcileCheckout' : 'sales:create',
+          { ...attempt.payload, supervisorPin: mode === 'retry' ? supervisorPinRef.current || undefined : undefined },
+        );
+        if (mode === 'check' && response == null) {
+          setCheckoutActionMessage('لم تُرصد فاتورة محفوظة بعد. هذه ليست موافقة على بدء بيع جديد؛ قد يكون الطلب الأصلي قيد التنفيذ. أعد التحقق أو استخدم الإيقاف الآمن.');
+        } else {
+          finishSavedCheckout(readSavedCheckout(response, attempt.payload.idempotencyKey), attempt, true);
+        }
+      }
+    } catch (error: unknown) {
+      setCheckoutActionMessage(`لم يتم فك حماية السلة. ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      isCheckingOutRef.current = false;
+      setCheckoutRecoveryBusy(false);
+      setLoading(false);
+      if (!pendingCheckoutRef.current) barcodeInputRef.current?.focus();
+    }
+  }, [checkoutRecoveryBusy, currentUser, finishSavedCheckout, activeTable, resetCartSession, showStatus]);
+
+  const reloadCheckoutJournal = () => {
+    const state = loadCheckoutJournal();
+    if (state.error) {
+      setCheckoutJournalError(state.error);
+    } else if (state.attempt) {
+      pendingCheckoutRef.current = state.attempt;
+      checkoutOutcomeKnownRef.current = false;
+      setPendingCheckout(state.attempt);
+      setCheckoutJournalError(null);
+      setCartValue(editableCheckoutCart(state.attempt));
+    } else if (checkoutOutcomeKnownRef.current) {
+      setCheckoutJournalError(null);
+    } else {
+      setCheckoutJournalError('السجل الذي تعذرت قراءته غير موجود الآن. راجع الفواتير مع المسؤول؛ لا يمكن افتراض أن محاولة الحفظ لم تُنفذ.');
+    }
+  };
 
   const setDirectQuantity = useCallback((index: number, newQtyPieces: number) => {
     if (newQtyPieces <= 0) {
@@ -1510,7 +1712,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const newTotalPiasters = calculateLineTotal(item.unitPricePiasters, newQuantityMilli, item.discountPiasters);
       const newTaxPiasters = calculateTaxPiasters(newTotalPiasters, item.taxRatePercent || 0, true);
 
-      const updated = [...prev];
+      const updated = copyCartForUpdate(prev);
       updated[index] = {
         ...item,
         quantityMilli: newQuantityMilli,
@@ -1519,7 +1721,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       };
       return updated;
     });
-  }, [allowNegativeStock, showStatus]);
+  }, [allowNegativeStock, showStatus, setCart]);
 
   useEffect(() => {
     barcodeInputRef.current?.focus();
@@ -1838,7 +2040,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const idx = weightModalProduct.editingCartIndex;
       setCart((prev) => {
         if (!prev[idx]) return prev;
-        const updated = [...prev];
+        const updated = copyCartForUpdate(prev);
         const item = updated[idx];
         item.quantityMilli = weightMilli;
         item.totalPiasters = calculateLineTotal(item.unitPricePiasters, weightMilli, item.discountPiasters);
@@ -1983,7 +2185,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const newTotalPiasters = calculateLineTotal(item.unitPricePiasters, newQuantityMilli, item.discountPiasters);
       const newTaxPiasters = calculateTaxPiasters(newTotalPiasters, item.taxRatePercent || 0, true);
 
-      const updated = [...prev];
+      const updated = copyCartForUpdate(prev);
       updated[index] = {
         ...item,
         quantityMilli: newQuantityMilli,
@@ -1992,7 +2194,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       };
       return updated;
     });
-  }, [allowNegativeStock, showStatus]);
+  }, [allowNegativeStock, showStatus, setCart]);
 
   const removeItem = useCallback((index: number) => {
     setCart((prev) => {
@@ -2003,7 +2205,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       return prev.filter((_, i) => i !== index);
     });
     barcodeInputRef.current?.focus();
-  }, []);
+  }, [setCart]);
 
   const handleDismissUndo = useCallback(() => {
     setUndoItem(null);
@@ -2012,20 +2214,20 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const handleUndoRemove = useCallback(() => {
     if (!undoItem) return;
     setCart((prev) => {
-      const updated = [...prev];
+      const updated = copyCartForUpdate(prev);
       const targetIndex = Math.min(undoItem.index, updated.length);
       updated.splice(targetIndex, 0, undoItem.item);
       return updated;
     });
     showStatus(`تم استرجاع الصنف: ${undoItem.item.productName}`, 'success');
     setUndoItem(null);
-  }, [undoItem, showStatus]);
+  }, [undoItem, showStatus, setCart]);
 
   const handleSelectBatchForCartItem = useCallback((selectedBatch: ProductBatch) => {
     if (!batchPickerState) return;
     const { cartIndex } = batchPickerState;
     setCart((prev) => {
-      const updated = [...prev];
+      const updated = copyCartForUpdate(prev);
       const item = updated[cartIndex];
       if (!item) return prev;
 
@@ -2049,7 +2251,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       'success'
     );
     setBatchPickerState(null);
-  }, [batchPickerState, showStatus]);
+  }, [batchPickerState, showStatus, setCart]);
 
   // Story 133 / Feature #190: 1-Click Chronic Medication Dispense
   const handleLoadChronicMedsToCart = useCallback(
@@ -2098,7 +2300,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setIsChronicDispenseOpen(false);
       barcodeInputRef.current?.focus();
     },
-    [showStatus]
+    [showStatus, setCart]
   );
 
   // Story 133 / Feature #190: Clinical Allergy Checking
@@ -2151,7 +2353,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       };
     });
     showStatus('تمت إزالة الصنف المتعارض من السلة بنجاح', 'success');
-  }, [showStatus]);
+  }, [showStatus, setCart]);
 
   const handleRemoveAllAllergyConflicts = useCallback(() => {
     if (!allergyCheckResult) return;
@@ -2160,7 +2362,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setAllergyCheckResult(null);
     setIsAllergyModalOpen(false);
     showStatus('تمت إزالة جميع الأصناف المتعارضة مع الحساسية من السلة', 'success');
-  }, [allergyCheckResult, showStatus]);
+  }, [allergyCheckResult, showStatus, setCart]);
 
   // Story 137 / Feature #194: Real-time Drug-Drug Interactions (DDI) cart checking
   useEffect(() => {
@@ -2206,7 +2408,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const handleRemoveDdiConflictProduct = useCallback((productId: string) => {
     setCart((prev) => prev.filter((item) => item.productId !== productId));
     showStatus('تمت إزالة الصنف المتعارض من السلة بنجاح', 'success');
-  }, [showStatus]);
+  }, [showStatus, setCart]);
 
   const handleSupervisorDdiOverride = useCallback(
     async (pin: string, reason: string, conflictProductIds: string[]) => {
@@ -2300,7 +2502,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const idx = prev.findIndex((it) => it.productId === originalProductId);
       if (idx === -1) return prev;
       const original = prev[idx];
-      const updated = [...prev];
+      const updated = copyCartForUpdate(prev);
       const unitPrice = replacementProduct.pricePiasters;
       const total = calculateLineTotal(unitPrice, original.quantityMilli, 0);
       const tax = calculateTaxPiasters(total, replacementProduct.taxRatePercent || 0, true);
@@ -2319,9 +2521,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       return updated;
     });
     showStatus(`تم استبدال الصنف بالبديل: ${replacementProduct.name}`, 'success');
-  }, [showStatus]);
+  }, [showStatus, setCart]);
 
   const isAnyModalOpen = Boolean(
+    checkoutFrozen ||
     isPaymentModalOpen ||
     isDigitalPaymentModalOpen ||
     isReceiptOpen ||
@@ -2404,11 +2607,97 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
   return (
     <div className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark overflow-hidden">
+      {checkoutFrozen && (
+        <div role="alert" className="shrink-0 max-h-52 overflow-y-auto p-3 border-b border-warn/40 dark:border-warn-bright/40 bg-warn-soft dark:bg-warn-dark-soft text-ink dark:text-ink-dark text-xs flex flex-col gap-2">
+          <div className="flex items-center gap-2 font-bold">
+            <ShieldAlert className="w-5 h-5 shrink-0 text-warn dark:text-warn-bright" />
+            {loading ? 'جاري حسم محاولة حفظ الفاتورة' : 'السلة محمية: توجد محاولة حفظ لم تُحسم'}
+          </div>
+          {checkoutJournalError && <p className="m-0 break-words">{checkoutJournalError}</p>}
+          {pendingCheckout && (
+            <>
+              <p className="m-0">
+                {pendingCheckout.payload.items.length} صنف — {formatArabicCurrency(pendingCheckout.payload.totalPiasters)}.
+                لا تغيّر الأصناف أو الدفع ولا تبدأ بيعاً جديداً قبل التحقق أو وصول إقرار الإيقاف الآمن.
+              </p>
+              {currentUser?.id !== pendingCheckout.actorId && (
+                <p className="m-0 font-bold text-danger dark:text-danger-bright">يلزم تسجيل الدخول بنفس حساب الكاشير صاحب المحاولة.</p>
+              )}
+              <details>
+                <summary className="cursor-pointer">عرض الطلب الأصلي المحفوظ بدون بيانات اعتماد المشرف</summary>
+                <ul className="m-0 pt-1 space-y-1">
+                  {pendingCheckout.payload.items.map((item, index) => (
+                    <li key={`${item.productId}-${index}`}>
+                      {item.productName} — {item.quantityMilli / 1000} {item.unitName || item.unit || 'قطعة'} — {formatArabicCurrency(item.totalPiasters)}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ['check', 'التحقق من الفاتورة المحفوظة'],
+                  ['retry', 'إعادة إرسال الطلب الأصلي'],
+                  ['abandon', 'إيقاف المحاولة والرجوع للتعديل'],
+                ] as const).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    disabled={loading || checkoutRecoveryBusy || currentUser?.id !== pendingCheckout.actorId}
+                    onClick={() => void handleCheckoutRecovery(mode)}
+                    className="rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark px-3 py-1.5 font-bold disabled:opacity-50"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {checkoutActionMessage && <p className="m-0 break-words font-semibold">{checkoutActionMessage}</p>}
+          {checkoutJournalError && !pendingCheckout && (
+            <button type="button" onClick={reloadCheckoutJournal} className="self-start px-3 py-1.5 border border-line dark:border-line-dark rounded-lg bg-surface dark:bg-surface-dark font-bold">
+              إعادة قراءة سجل الحفظ
+            </button>
+          )}
+        </div>
+      )}
+      {receiptNotices.length > 0 && (
+        <div className="shrink-0 max-h-32 overflow-y-auto border-b border-warn/30 dark:border-warn-bright/30 bg-warn-soft dark:bg-warn-dark-soft p-2 flex flex-col gap-2">
+          {receiptNotices.map((notice) => (
+            <div key={notice.saleId} role="status" className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-ink dark:text-ink-dark">
+              <Printer className="w-4 h-4 shrink-0 text-warn dark:text-warn-bright" />
+              <span className="flex-1 min-w-0 break-words">
+                إيصال الفاتورة #{notice.invoiceNumber || notice.saleId}: {notice.message}
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={printingSaleIds.includes(notice.saleId)}
+                  onClick={() => void submitReceipt({ id: notice.saleId, invoiceNumber: notice.invoiceNumber || undefined }, true)}
+                  className="px-2 py-1 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark flex items-center gap-1 disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  إعادة طباعة نسخة فقط
+                </button>
+                <button
+                  type="button"
+                  title="إخفاء تنبيه هذا الإيصال"
+                  aria-label="إخفاء تنبيه هذا الإيصال"
+                  onClick={() => setReceiptNotices((previous) => previous.filter((item) => item.saleId !== notice.saleId))}
+                  className="p-1 text-ink-muted dark:text-ink-muted-dark"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* 1. THREE-PANE MAIN WORKSPACE */}
+      <div inert={checkoutFrozen} className="contents">
       <div className="flex-1 flex flex-row overflow-hidden">
         
         {/* ================= REGION A: BARCODE SEARCH & CART TABLE ================= */}
-        <section className={`${showFastItems ? 'flex-1 min-w-[360px]' : 'flex-1'} h-full bg-surface dark:bg-surface-dark hairline-l flex flex-col overflow-hidden`}>
+        <section className="pos-cart-panel flex-1 min-w-0 h-full bg-surface dark:bg-surface-dark hairline-l flex flex-col overflow-hidden">
           {showCafeMode && (
             <PosOrderModeBar
               orderType={orderType}
@@ -3139,7 +3428,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           }}
           onSave={(dispense) => {
             setCart((prev) => {
-              const updated = [...prev];
+              const updated = copyCartForUpdate(prev);
               const idx = controlledDispenseModalItem.index;
               if (updated[idx]) {
                 updated[idx] = {
@@ -3313,6 +3602,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           }}
         />
       )}
+      </div>
     </div>
   );
 };

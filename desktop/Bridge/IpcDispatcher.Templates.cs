@@ -45,37 +45,8 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "templates:seedProducts":
-                    string tplToSeed = "supermarket";
-                    if (request.Payload != null)
-                    {
-                        JObject sObj = request.Payload as JObject;
-                        if (sObj != null && sObj["templateId"] != null)
-                        {
-                            tplToSeed = sObj["templateId"].ToString();
-                        }
-                        else if (request.Payload is string)
-                        {
-                            string strPayload = request.Payload.ToString();
-                            if (!string.IsNullOrWhiteSpace(strPayload))
-                            {
-                                tplToSeed = strPayload;
-                            }
-                        }
-                    }
-                    if (string.IsNullOrWhiteSpace(tplToSeed) || tplToSeed == "supermarket")
-                    {
-                        string savedType = DatabaseService.SettingsRepo.Get("store_type", "");
-                        if (!string.IsNullOrWhiteSpace(savedType))
-                        {
-                            tplToSeed = savedType;
-                        }
-                    }
-                    int seededCount = DatabaseService.Templates.SeedProductsForTemplate(tplToSeed);
-                    response = BridgeResponse.Ok(request.Id, new {
-                        success = true,
-                        seededCount = seededCount,
-                        templateId = tplToSeed
-                    });
+                    response = BridgeResponse.Fail(request.Id, "LEGACY_CATALOGUE_DISABLED",
+                        "تم عزل الكتالوجات القديمة. استخدم مراجعة المراجع وأدخل أسعار المتجر الفعلية.");
                     return true;
 
                 case "demo:getStatus":
@@ -84,6 +55,11 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "demo:load":
+#if !DEBUG
+                    response = BridgeResponse.Fail(request.Id, "DEMO_DISABLED_IN_RELEASE",
+                        "بيانات التدريب متاحة في إصدار التدريب Debug فقط، وليست لقاعدة متجر فعلية.");
+                    return true;
+#else
                     string demoStoreType = "supermarket";
                     if (request.Payload != null)
                     {
@@ -105,6 +81,7 @@ namespace RafiqPOS.Bridge
                     }
                     response = BridgeResponse.Ok(request.Id, demoLoadRes);
                     return true;
+#endif
 
                 case "demo:clear":
                     var demoClearRes = DatabaseService.DemoData.ClearDemoData();

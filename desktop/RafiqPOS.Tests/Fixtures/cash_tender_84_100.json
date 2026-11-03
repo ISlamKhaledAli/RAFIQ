@@ -1,0 +1,9 @@
+{
+  "paymentMethod": "cash",
+  "paidPiasters": 10000,
+  "payments": [
+    { "amountPiasters": 10000, "method": "cash" }
+  ],
+  "changeDuePiasters": 1600,
+  "customerId": null
+}

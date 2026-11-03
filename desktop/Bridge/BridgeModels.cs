@@ -13,6 +13,9 @@ namespace RafiqPOS.Bridge
 
         [JsonProperty("payload")]
         public object Payload { get; set; }
+
+        [JsonIgnore]
+        internal RafiqPOS.Models.RequestAdmission Admission { get; set; }
     }
 
     public class BridgeResponse

@@ -80,7 +80,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                prodA = prodService.SaveProduct(prodA, true, true);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    prodA = prodService.SaveProduct(prodA, true, true);
 
                 var prodB = new Product
                 {
@@ -93,7 +94,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                prodB = prodService.SaveProduct(prodB, true, true);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    prodB = prodService.SaveProduct(prodB, true, true);
 
                 var prodC = new Product
                 {
@@ -106,7 +108,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                prodC = prodService.SaveProduct(prodC, true, true);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    prodC = prodService.SaveProduct(prodC, true, true);
 
                 // Seed Customer
                 var cust = new Customer

@@ -59,11 +59,9 @@ namespace RafiqPOS.Services
             return new InventoryService(cs, _movementRepo ?? new StockMovementRepository(cs), _repo, _auditRepo);
         }
 
-        // Server-side gate for stock edits; calls without a signed-in session (internal jobs/tests) are trusted
         private static bool CanAdjustStock()
         {
-            if (SecurityService.CurrentUser == null) return true;
-            return DatabaseService.Security != null && DatabaseService.Security.HasPermission("stock.adjust");
+            return ProductWritePolicy.CurrentUserHasPermission("stock.adjust");
         }
 
         private static void EnsureCanAdjustStock()
@@ -237,9 +235,14 @@ namespace RafiqPOS.Services
             }
 
             Product existing = null;
+            string actorId;
+            string actorName;
 
             lock (SaleService.FinancialWriteLock)
+            using (ProductWritePolicy.Operation operation = ProductWritePolicy.BeginOperation())
             {
+                actorId = operation.ActorId;
+                actorName = operation.ActorName;
                 if (!string.IsNullOrWhiteSpace(product.Id))
                 {
                     existing = _repo.GetById(product.Id);
@@ -249,8 +252,9 @@ namespace RafiqPOS.Services
                     product.Id = Guid.NewGuid().ToString();
                 }
 
+                ProductWritePolicy.ValidateProduct(existing, product, ProductWritePolicy.CurrentUserHasPermission);
+
                 Action<System.Data.SQLite.SQLiteConnection, System.Data.SQLite.SQLiteTransaction> stockLedgerStep = null;
-                string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
 
                 if (existing != null)
                 {
@@ -312,7 +316,9 @@ namespace RafiqPOS.Services
                 product.UpdatedAt = DateTime.UtcNow.ToString("o");
                 product.IsActive = true;
 
-                _repo.Upsert(product, stockLedgerStep);
+                _repo.Upsert(product, stockLedgerStep,
+                    existing == null || existing.PricePiasters != product.PricePiasters,
+                    existing == null || existing.CostPiasters != product.CostPiasters);
                 if (existing != null && stockLedgerStep != null)
                 {
                     var saved = _repo.GetById(product.Id);
@@ -327,7 +333,6 @@ namespace RafiqPOS.Services
             {
                 try
                 {
-                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
                     if (existing != null)
                     {
                         if (existing.PricePiasters != product.PricePiasters)
@@ -376,8 +381,6 @@ namespace RafiqPOS.Services
             {
                 try
                 {
-                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
-                    string actorName = SecurityService.CurrentUser != null ? (SecurityService.CurrentUser.DisplayName ?? SecurityService.CurrentUser.Username) : "المدير";
                     if (existing != null)
                     {
                         if (existing.PricePiasters != product.PricePiasters || existing.CostPiasters != product.CostPiasters)
@@ -437,7 +440,7 @@ namespace RafiqPOS.Services
             {
                 try
                 {
-                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    string actorId = CapturedActorId();
                     _auditRepo.Log(new AuditLog
                     {
                         UserId = actorId,
@@ -462,7 +465,7 @@ namespace RafiqPOS.Services
             {
                 try
                 {
-                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    string actorId = CapturedActorId();
                     _auditRepo.Log(new AuditLog
                     {
                         UserId = actorId,
@@ -487,7 +490,7 @@ namespace RafiqPOS.Services
             {
                 try
                 {
-                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    string actorId = CapturedActorId();
                     _auditRepo.Log(new AuditLog
                     {
                         UserId = actorId,
@@ -502,6 +505,16 @@ namespace RafiqPOS.Services
                 }
             }
             return count;
+        }
+
+        private static string CapturedActorId()
+        {
+            ProductWritePolicy.Operation operation = ProductWritePolicy.CurrentOperation;
+            if (operation != null) return operation.ActorId;
+            RequestAdmission admission = ProductWritePolicy.CurrentAdmission;
+            if (admission != null) return admission.IsAuthenticated ? admission.ActorId : "system";
+            UserDto user = SecurityService.CurrentUser;
+            return user != null ? user.Id : "usr_admin_default";
         }
 
         public void BulkUpdateMinStock(List<string> productIds, long minStockMilli)
@@ -522,8 +535,9 @@ namespace RafiqPOS.Services
             }
 
             lock (SaleService.FinancialWriteLock)
+            using (ProductWritePolicy.Operation operation = ProductWritePolicy.BeginOperation())
             {
-                return _repo.ImportBatchAtomic(request.Items, request.DuplicateStrategy, userId, CanAdjustStock());
+                return _repo.ImportBatchAtomic(request.Items, request.DuplicateStrategy, operation.ActorId, CanAdjustStock());
             }
         }
 
@@ -759,7 +773,9 @@ namespace RafiqPOS.Services
         public Product SavePackagingLevels(string productId, List<ProductUnit> units, string defaultSaleUnitId, string defaultPurchaseUnitId, string displayUnitId, bool isLooseSellable, int? multiplyStockByFactor = null)
         {
             lock (SaleService.FinancialWriteLock)
+            using (ProductWritePolicy.Operation operation = ProductWritePolicy.BeginOperation())
             {
+                ProductWritePolicy.ValidateFinancialUnitStructure(ProductWritePolicy.CurrentUserHasPermission, "products.packaging.edit");
                 return _repo.SavePackagingLevels(productId, units, defaultSaleUnitId, defaultPurchaseUnitId, displayUnitId, isLooseSellable, multiplyStockByFactor);
             }
         }

@@ -76,6 +76,13 @@ namespace RafiqPOS.Services
 
         public LoadDemoDataResult LoadDemoData(string storeType)
         {
+#if !DEBUG
+            return new LoadDemoDataResult
+            {
+                Success = false,
+                Message = "DEMO_DISABLED_IN_RELEASE: بيانات التدريب متاحة في إصدار Debug فقط."
+            };
+#else
             var result = new LoadDemoDataResult();
             string now = DateTime.UtcNow.ToString("o");
 
@@ -229,6 +236,7 @@ namespace RafiqPOS.Services
                     }
                 }
             }
+#endif
         }
 
         public ClearDemoDataResult ClearDemoData()

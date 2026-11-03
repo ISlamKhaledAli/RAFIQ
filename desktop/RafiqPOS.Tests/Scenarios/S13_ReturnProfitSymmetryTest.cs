@@ -97,7 +97,9 @@ namespace RafiqPOS.Tests.Scenarios
         public void Scenario_S13_No_Invoice_Return_Reverses_Vat_From_Product_Rate()
         {
             var shift = OpenTestShift("usr_cashier_1", "كاشير 1", 100000);
-            var prod = ProductService.SaveProduct(new Product
+            Product prod;
+            using (ProductWritePolicy.EnterTrustedFixtureOperation())
+            prod = ProductService.SaveProduct(new Product
             {
                 Name = "صنف 14% بدون فاتورة",
                 Barcode = "BAR_" + Guid.NewGuid().ToString("N").Substring(0, 8),

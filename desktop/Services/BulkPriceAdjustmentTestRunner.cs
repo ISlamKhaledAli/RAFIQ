@@ -98,9 +98,12 @@ namespace RafiqPOS.Services
                     IsActive = true
                 };
 
-                productService.SaveProduct(p1);
-                productService.SaveProduct(p2);
-                productService.SaveProduct(p3);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                {
+                    productService.SaveProduct(p1);
+                    productService.SaveProduct(p2);
+                    productService.SaveProduct(p3);
+                }
 
                 // 5. Test Preview Percentage Increase with Quarter Pound Rounding
                 var previewReqPercent = new BulkPricePreviewRequest

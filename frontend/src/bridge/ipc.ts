@@ -95,6 +95,11 @@ declare global {
 
 import { emitDataChanged, type RafiqDataTopic } from '../utils/eventBus.ts';
 import { DEFAULT_REGISTRY } from '../context/featureTypes.ts';
+import { handleCatalogueMock } from './catalogueMocks.ts';
+import { DevelopmentCheckoutStore } from './checkoutMocks.ts';
+import { BridgeResponseError } from './errors.ts';
+
+const developmentCheckouts = new DevelopmentCheckoutStore();
 
 const pendingRequests = new Map<string, {
   action: string;
@@ -105,6 +110,8 @@ const pendingRequests = new Map<string, {
 
 /** Data-changed topics a successful action invalidates; read-only actions must map to none. */
 export function getAutoTopicsForAction(action: string): RafiqDataTopic[] {
+  if (action === 'sales:reconcileCheckout' || action === 'sales:abandonCheckout') return [];
+  if (action === 'catalogue:apply') return ['products', 'categories', 'dashboard'];
   // CRITICAL SENIOR SAFEGUARD:
   // Never dispatch data changes for read/query actions (get, list, search, check, preview, summary, print, calculate, export, test).
   // Doing so causes infinite loop cycles where views fetching data re-trigger event listeners endlessly.
@@ -258,7 +265,7 @@ function ensureListenerAttached() {
           pending.resolve(response.data);
         } else {
           const friendlyMessage = sanitizeBridgeError(response.error?.message);
-          pending.reject(new Error(friendlyMessage));
+          pending.reject(new BridgeResponseError(response.error?.code || 'UNKNOWN_ERROR', friendlyMessage));
         }
       }
     });
@@ -309,23 +316,29 @@ export async function invoke<TResult = any, TPayload = any>(
     return new Promise<TResult>((resolve, reject) => {
       const timer = setTimeout(async () => {
         pendingRequests.delete(id);
-        // Audit F-45: If sales:create timed out, query by idempotencyKey to recover sale if saved
+        let recoveryFailure = '';
         if (action === 'sales:create' && payload && typeof payload === 'object') {
           const idemKey = (payload as Record<string, unknown>).idempotencyKey as string | undefined;
           if (idemKey) {
             try {
-              const recovered = await invoke('sales:getByIdempotencyKey', { idempotencyKey: idemKey }, 5000);
+              const recovered = await invoke('sales:reconcileCheckout', payload, 5000);
               if (recovered) {
                 dispatchAutoTopicsForAction(action);
                 resolve(recovered as TResult);
                 return;
               }
-            } catch {
-              // Not recovered, fall through to timeout rejection
+            } catch (error: unknown) {
+              if (error instanceof BridgeResponseError && [
+                'SALE_IDEMPOTENCY_CONFLICT', 'SALE_IDEMPOTENCY_RECONCILIATION_REQUIRED', 'SALE_CHECKOUT_ABANDONED',
+              ].includes(error.code)) {
+                reject(error);
+                return;
+              }
+              recoveryFailure = ` تعذر التحقق من محاولة الحفظ: ${error instanceof Error ? error.message : String(error)}`;
             }
           }
         }
-        reject(new Error(`انتهت مهلة الانتظار للعملية: ${action}`));
+        reject(new Error(`انتهت مهلة الانتظار للعملية: ${action}.${recoveryFailure}`));
       }, effectiveTimeout);
 
       pendingRequests.set(id, { action, resolve, reject, timer });
@@ -340,7 +353,7 @@ export async function invoke<TResult = any, TPayload = any>(
     throw new Error(`[RAFIQ-POS] Running in production outside C# WebView2 host is strictly prohibited. Action: "${action}"`);
   }
 
-  console.info(`[IPC-DEV-MOCK] Action: "${action}"`, payload);
+  console.info(`[IPC-DEV-MOCK] Action: "${action}"`);
   const mockRes = await mockHandler(action, payload);
   dispatchAutoTopicsForAction(action);
   return mockRes;
@@ -350,6 +363,26 @@ export async function invoke<TResult = any, TPayload = any>(
  * Mock responses for browser development when not running inside C# WebView2
  */
 async function mockHandler(action: string, payload: any): Promise<any> {
+  if ([
+    'wallets:processTransaction', 'wallets:fundAccount',
+    'epay:createTransaction', 'epay:fundTerminal',
+    'wallets:reconcileAttempt', 'wallets:abandonAttempt',
+    'epay:reconcileAttempt', 'epay:abandonAttempt',
+  ].includes(action)) {
+    throw new BridgeResponseError(
+      'DEV_MOCK_NATIVE_HOST_REQUIRED',
+      'العمليات المالية والتحقق أو الإيقاف الآمن لها تتطلب مضيف ويندوز وقاعدة SQLite الفعلية؛ محاكاة المتصفح لا تسجل هذه العمليات ولا تؤكد نتيجتها.',
+    );
+  }
+  if (action.startsWith('catalogue:') || action === 'templates:seedProducts') {
+    return handleCatalogueMock(action, payload);
+  }
+  if ([
+    'sales:create', 'sales:getRecent', 'sales:getById', 'sales:getByIdempotencyKey',
+    'sales:reconcileCheckout', 'sales:abandonCheckout',
+  ].includes(action)) {
+    return developmentCheckouts.handle(action, payload, mockCurrentUserId);
+  }
   await new Promise((r) => setTimeout(r, 150)); // simulate latency
 
   switch (action) {
@@ -597,13 +630,45 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'printer:printReceipt':
       return {
         success: true,
-        printerName: payload?.printerName || 'POS-80 Thermal Printer',
-        paperWidth: payload?.paperWidth || '80mm',
+        printerUsed: payload?.printerName || 'POS-80 Thermal Printer',
+        drawerStatus: 'notRequested',
         message: 'تم إرسال إيصال الفاتورة للطابعة بنجاح (Mock)',
       };
 
+    case 'printer:getDrawerSafety':
+      return {
+        canOpen: false,
+        code: 'DRAWER_HARDWARE_NOT_APPROVED',
+        message: 'الفتح الكهربائي محظور: خرج XP-Q801K المعلن 24 فولت والدرج Seething 405A المحدد 12 فولت. تقليل مدة النبضة لا يغيّر الجهد.',
+      };
+
+    case 'printer:kickDrawer':
+    case 'drawer:openManual':
+    case 'drawer:kick':
+      return {
+        success: false,
+        message: 'لم تُرسل أي نبضة: توافق الجهد والحمل والتوصيل غير معتمد.',
+        printerUsed: '',
+        drawerStatus: 'blocked',
+        warningCode: 'DRAWER_HARDWARE_NOT_APPROVED',
+      };
+
+    case 'expenses:getToday':
+    case 'sales:getHeld':
+      return [];
+
+    case 'sales:getHeldCount':
+      return { count: 0 };
+
+    case 'sales:hold':
+    case 'sales:recallHeld':
+    case 'sales:deleteHeld':
+    case 'expenses:create':
+    case 'expenses:cancel':
+      throw new Error('DEV_MOCK_NATIVE_HOST_REQUIRED: هذه العملية تحتاج مضيف C# وقاعدة بيانات اختبار؛ لم يتم تسجيل أي حركة.');
+
     case 'counters:getNextExpectedInvoiceNumber':
-      return { nextInvoiceNumber: 1043 };
+      return { nextInvoiceNumber: developmentCheckouts.nextInvoiceNumber };
 
     case 'sales:getByInvoiceNumber': {
       const invNum = typeof payload === 'object' && payload !== null ? Number(payload.invoiceNumber) : Number(payload);
@@ -638,10 +703,6 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           { method: 'cash', amountPiasters: 8000 }
         ]
       };
-    }
-
-    case 'sales:getByIdempotencyKey': {
-      return null;
     }
 
     case 'sales:cancel': {
@@ -933,6 +994,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       mockLockoutUntil = 0;
       const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
       mockRecoveryCode = `RFK-${randomPart}`;
+      const owner = mockUsers.find((user) => user.id === 'usr_admin_default');
+      if (owner) owner.mustChangePin = false;
       return {
         success: true,
         message: 'تم حفظ الرقم السري بنجاح.',
@@ -1412,21 +1475,12 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       if (typeof window !== 'undefined') {
         localStorage.setItem('rafiq_first_run_completed', 'true');
       }
-      const count = payload?.seedInitialProducts !== false ? 168 : 0;
       return {
         success: true,
         message: 'تم تطبيق القالب وتخصيص المتجر بنجاح.',
         categoriesCount: 0,
         quickItemsCount: 0,
-        productsCount: count,
-      };
-    }
-
-    case 'templates:seedProducts': {
-      return {
-        success: true,
-        seededCount: 168,
-        templateId: payload?.templateId || 'supermarket',
+        productsCount: 0,
       };
     }
 
@@ -4332,5 +4386,3 @@ let mockDigitalAccounts: any[] = [
 
 let mockDigitalTransactions: any[] = [];
 let mockDigitalFundings: any[] = [];
-
-

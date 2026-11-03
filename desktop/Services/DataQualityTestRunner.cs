@@ -65,7 +65,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(p1);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(p1);
 
                 // Product 2: Missing Cost (cost = 0)
                 var p2 = new Product
@@ -81,7 +82,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(p2);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(p2);
 
                 // Product 3: Missing Barcode (barcode empty, no secondary barcodes)
                 var p3 = new Product
@@ -97,7 +99,8 @@ namespace RafiqPOS.Services
                     Unit = "kg",
                     IsActive = true
                 };
-                productService.SaveProduct(p3);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(p3);
 
                 // Product 4: Missing / Unassigned Category (cat_general)
                 var p4 = new Product
@@ -113,7 +116,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(p4);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(p4);
 
                 // Product 5: Duplicate Barcode Collision (Matches Product 1: 622100000001 via secondary barcode)
                 var p5 = new Product
@@ -129,7 +133,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(p5);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(p5);
 
                 using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
                 {
@@ -158,7 +163,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(p6);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(p6);
 
                 // Product 7: Price Below Cost (cost 4000 > price 3000)
                 var p7 = new Product
@@ -175,7 +181,8 @@ namespace RafiqPOS.Services
                     IsActive = true
                 };
                 // confirmBelowCost = true allows saving
-                productService.SaveProduct(p7, false, true);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(p7, false, true);
 
                 // Product 8: Missing Selling Price (price = 0)
                 var p8 = new Product
@@ -191,7 +198,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(p8, false, true);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(p8, false, true);
 
                 // Product 9: Orphan Product (points to non-existent category)
                 var p9 = new Product
@@ -207,7 +215,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(p9);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    productService.SaveProduct(p9);
 
                 // Product 10: Orphan Variant (points to non-existent parent product)
                 using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
@@ -393,15 +402,21 @@ namespace RafiqPOS.Services
                     };
 
                     // Verify cashier is rejected (Rule 8 RBAC)
-                    var cashierUser = new UserDto { Id = "cashier_dq_test", Username = "cashier", Role = "cashier", IsActive = true };
+                    var cashier = DatabaseService.UserRepo.GetById("usr_cashier_1");
+                    if (cashier.MustChangePin) DatabaseService.Security.ChangeUserPin(cashier.Id, "8529");
+                    var cashierUser = SecurityService.MapToDto(DatabaseService.UserRepo.GetById(cashier.Id));
                     SecurityService.SetCurrentUserForTesting(cashierUser);
+                    bridgeReq.Admission = SecurityService.CaptureRequestAdmission();
                     var rejectedResponse = IpcDispatcher.Dispatch(bridgeReq);
                     Assert(rejectedResponse != null && !rejectedResponse.Success, "تم حجب فحص جودة البيانات عن الكاشير بنجاح (RBAC Enforced)", result);
 
                     // Verify admin is authorized
-                    var adminUser = new UserDto { Id = "admin_dq_test", Username = "admin", Role = "admin", IsActive = true };
+                    var admin = DatabaseService.UserRepo.GetById("usr_admin_default");
+                    if (admin.MustChangePin) DatabaseService.Security.ChangeUserPin(admin.Id, "7418");
+                    var adminUser = SecurityService.MapToDto(DatabaseService.UserRepo.GetById(admin.Id));
                     SecurityService.SetCurrentUserForTesting(adminUser);
 
+                    bridgeReq.Admission = SecurityService.CaptureRequestAdmission();
                     var dispatchResponse = IpcDispatcher.Dispatch(bridgeReq);
                     Assert(dispatchResponse != null, "استجابة IPC Dispatcher لفحص جودة البيانات ليست فارغة", result);
                     Assert(dispatchResponse.Success, "استجابة IPC Dispatcher ناجحة (Success = true)", result);
@@ -414,6 +429,7 @@ namespace RafiqPOS.Services
                         Payload = null
                     };
 
+                    bridgeRepairReq.Admission = SecurityService.CaptureRequestAdmission();
                     var dispatchRepairResponse = IpcDispatcher.Dispatch(bridgeRepairReq);
                     Assert(dispatchRepairResponse != null, "استجابة IPC Dispatcher لمعالجة جودة البيانات ليست فارغة", result);
                     Assert(dispatchRepairResponse.Success, "استجابة IPC للمعالجة ناجحة (Success = true)", result);

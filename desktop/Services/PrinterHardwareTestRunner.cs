@@ -228,8 +228,17 @@ namespace RafiqPOS.Services
                     // رسم خط أسود لاختبار عتبة التحويل النقطي
                     g.FillRectangle(Brushes.Black, new Rectangle(0, 50, 576, 20));
 
-                    // تحويل الصورة مع نبضة الدرج وقص الورق
-                    byte[] rasterBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(testBmp, kickDrawer: true, autoCut: true);
+                    bool embeddedKickBlocked = false;
+                    try
+                    {
+                        RawPrinterHelper.ConvertBitmapToEscPosRaster(testBmp, kickDrawer: true, autoCut: true);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        embeddedKickBlocked = true;
+                    }
+                    assert("EscPos_Embedded_Drawer_Kick_Blocked", embeddedKickBlocked, "منع نبضة غير معتمدة قبل تكوين بيانات الطباعة");
+                    byte[] rasterBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(testBmp, kickDrawer: false, autoCut: true);
 
                     assert("EscPos_Raster_NotEmpty", rasterBytes != null && rasterBytes.Length > 0, "مصفوفة أوامر ESC/POS غير فارغة: " + (rasterBytes != null ? rasterBytes.Length : 0) + " بايت");
 
@@ -247,7 +256,7 @@ namespace RafiqPOS.Services
                             break;
                         }
                     }
-                    assert("EscPos_Drawer_Kick_Included", hasDrawerKick, "تضمين نبضة فتح درج النقدية المادي القياسية");
+                    assert("EscPos_Drawer_Kick_Excluded", !hasDrawerKick, "بيانات الإيصال لا تحتوي على نبضة فتح درج");
 
                     // فحص أمر الطباعة النقطية GS v 0 (0x1D, 0x76, 0x30)
                     bool hasRasterCmd = false;

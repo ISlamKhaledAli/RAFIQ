@@ -78,7 +78,8 @@ namespace RafiqPOS.Tests.Scenarios
             {
                 Id = Guid.NewGuid().ToString("N"),
                 Action = action,
-                Payload = payload
+                Payload = payload,
+                Admission = SecurityService.CaptureRequestAdmission()
             });
         }
 
@@ -112,6 +113,8 @@ namespace RafiqPOS.Tests.Scenarios
 
         protected static Product CreateProduct(string name, long pricePiasters, long costPiasters, long stockMilli)
         {
+            using (ProductWritePolicy.EnterTrustedFixtureOperation())
+            {
             return DatabaseService.Products.SaveProduct(new Product
             {
                 Name = name,
@@ -122,6 +125,7 @@ namespace RafiqPOS.Tests.Scenarios
                 Unit = "piece",
                 IsActive = true
             }, true, true);
+            }
         }
 
         protected static long Stock(string productId)

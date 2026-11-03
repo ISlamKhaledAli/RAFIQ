@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Wallet,
   Smartphone,
@@ -34,6 +34,8 @@ import { CustomSelect } from '../../components/CustomSelect';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { FinancialAttemptRecovery } from '../../components/FinancialAttemptRecovery';
+import { useFinancialJournal } from '../../hooks/useFinancialJournal';
 import type {
   DigitalAccount,
   DigitalTransaction,
@@ -48,6 +50,27 @@ export interface WalletsViewProps {
   isActive?: boolean;
   activeSubTab?: WalletsSubTab;
   onSubTabChange?: (tab: WalletsSubTab) => void;
+}
+
+type WalletFundingSource = 'cash_drawer' | 'bank_transfer' | 'external';
+
+interface WalletFundingRequest {
+  accountId: string;
+  amountPiasters: number;
+  fundingSource: WalletFundingSource;
+  notes?: string;
+}
+
+interface WalletTransactionRequest {
+  accountId: string;
+  txType: 'cash_out' | 'cash_in';
+  amountPiasters: number;
+  profitPiasters: number;
+  paymentDestination: 'cash_drawer';
+  customerPhone?: string;
+  customerName?: string;
+  referenceNumber?: string;
+  notes?: string;
 }
 
 // =========================================================================
@@ -269,7 +292,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   onSubTabChange: _onSubTabChange,
 }) => {
   const { currentUser, isRoot, isAdmin, hasPermission } = useAuth();
-  const currentUserName = currentUser?.displayName || currentUser?.username || 'كاشير المحل';
+  const financial = useFinancialJournal(currentUser?.id);
 
   // Permissions
   const canFund = isRoot || isAdmin || hasPermission('wallets.fund');
@@ -316,6 +339,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [analytics, setAnalytics] = useState<DigitalAnalyticsSummary | null>(null);
   const [_loading, setLoading] = useState<boolean>(false);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const financialWritePending = useRef(false);
 
   // Form State: 2 Direct Inputs (Amount & Profit)
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
@@ -349,7 +373,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [isFundingModalOpen, setIsFundingModalOpen] = useState(false);
   const [fundingAccountId, setFundingAccountId] = useState('');
   const [fundingAmountPiasters, setFundingAmountPiasters] = useState<number>(0);
-  const [fundingSource, setFundingSource] = useState<'cash_drawer' | 'bank_transfer' | 'external_cash'>('cash_drawer');
+  const [fundingSource, setFundingSource] = useState<WalletFundingSource>('cash_drawer');
   const [fundingNotes, setFundingNotes] = useState('');
   const [liveDrawerCashPiasters, setLiveDrawerCashPiasters] = useState<number | null>(null);
 
@@ -376,7 +400,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
   const { requestClose: requestCloseFunding, handleBackdropClick: handleFundingBackdropClick } = useModalDismiss({
     isOpen: isFundingModalOpen,
-    onClose: () => setIsFundingModalOpen(false),
+    onClose: () => { if (!financialWritePending.current && !financial.blocked) setIsFundingModalOpen(false); },
     isDirty: isFundingDirty,
     confirmTitle: 'تعديلات شحن الرصيد غير محفوظة',
     confirmMessage: 'لقد قمت بإدخال بيانات لشحن الرصيد. هل أنت متأكد من الخروج وتجاهل العملية؟',
@@ -517,6 +541,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
   // Submit Transaction
   const handleProcessTransaction = async () => {
+    if (financialWritePending.current || financial.blocked) return;
     if (!selectedAccount) {
       setFeedbackMsg({ type: 'error', text: 'يرجى اختيار المحفظة أو الحساب المطلوب أولاً.' });
       return;
@@ -536,8 +561,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     }
 
     try {
+      financialWritePending.current = true;
       setActionLoading(true);
-      const res = await invoke<DigitalTransaction>('wallets:processTransaction', {
+      const res = await financial.run<DigitalTransaction>('wallets:processTransaction', {
         accountId: selectedAccount.id,
         txType,
         amountPiasters,
@@ -546,8 +572,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         customerName: customerName.trim() || undefined,
         referenceNumber: referenceNumber.trim() || undefined,
         notes: notes.trim() || undefined,
-        performedBy: currentUserName,
-      });
+        paymentDestination: 'cash_drawer',
+      } satisfies WalletTransactionRequest);
 
       setLastProcessedTx(res);
       setFeedbackMsg({
@@ -568,12 +594,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       console.error('Failed to process wallet transaction:', err);
       setFeedbackMsg({ type: 'error', text: err?.message || 'فشلت معالجة المعاملة. يرجى إعادة المحاولة.' });
     } finally {
+      financialWritePending.current = false;
       setActionLoading(false);
     }
   };
 
   // Open Funding Modal
   const handleOpenFundingModal = (accId?: string) => {
+    if (financialWritePending.current || financial.blocked) return;
     setFundingAccountId(accId || selectedAccountId || (accounts[0] ? accounts[0].id : ''));
     setFundingAmountPiasters(0);
     setFundingSource('cash_drawer');
@@ -584,6 +612,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
   // Save Funding
   const handleSaveFunding = async () => {
+    if (financialWritePending.current || financial.blocked) return;
     if (!fundingAccountId || fundingAmountPiasters <= 0) {
       setFeedbackMsg({ type: 'error', text: 'يرجى اختيار الحساب وتحديد مبلغ شحن صحيح أكبر من صفر.' });
       return;
@@ -607,14 +636,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     }
 
     try {
+      financialWritePending.current = true;
       setActionLoading(true);
-      await invoke('wallets:fundAccount', {
+      await financial.run('wallets:fundAccount', {
         accountId: fundingAccountId,
         amountPiasters: fundingAmountPiasters,
-        source: fundingSource,
+        fundingSource,
         notes: fundingNotes.trim() || undefined,
-        performedBy: currentUserName,
-      });
+      } satisfies WalletFundingRequest);
 
       setIsFundingModalOpen(false);
       setFeedbackMsg({
@@ -626,6 +655,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       console.error('Failed to fund account:', err);
       setFeedbackMsg({ type: 'error', text: err?.message || 'فشلت عملية شحن المحفظة.' });
     } finally {
+      financialWritePending.current = false;
       setActionLoading(false);
     }
   };
@@ -849,6 +879,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
   return (
     <div className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-y-auto" dir="rtl">
+      <fieldset disabled={financial.blocked} className={financial.blocked ? 'contents pointer-events-none opacity-50' : 'contents'}>
       
       {/* 1. Standard Rafiq POS Top Header Bar */}
       <header className="bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
@@ -1254,7 +1285,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 <button
                   type="button"
                   onClick={handleProcessTransaction}
-                  disabled={actionLoading || amountPiasters <= 0 || hasInsufficientBalance}
+                  disabled={actionLoading || amountPiasters <= 0 || !!hasInsufficientBalance}
                   className={`h-12 w-full rounded-xl font-black text-sm text-white shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 disabled:pointer-events-none ${
                     isCashOut
                       ? 'bg-red-600 hover:bg-red-700 active:bg-red-800'
@@ -1813,11 +1844,11 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 </label>
                 <CustomSelect
                   value={fundingSource}
-                  onChange={(val) => setFundingSource(val as any)}
+                  onChange={(val) => setFundingSource(val as WalletFundingSource)}
                   options={[
                     { value: 'cash_drawer', label: 'من درج نقدية الكاشير' },
                     { value: 'bank_transfer', label: 'تحويل بنكي مباشر' },
-                    { value: 'external_cash', label: 'كاش خارجي / صاحب المحل' },
+                    { value: 'external', label: 'كاش خارجي / صاحب المحل' },
                   ]}
                 />
 
@@ -2244,6 +2275,12 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         </div>
       )}
 
+      </fieldset>
+      <FinancialAttemptRecovery journal={financial} onResolved={() => {
+        setAmountPiasters(0); setProfitPiasters(0); setCustomerPhone(''); setCustomerName('');
+        setReferenceNumber(''); setNotes(''); setFundingAmountPiasters(0); setFundingNotes('');
+        setIsFundingModalOpen(false); setLastProcessedTx(null); void loadData();
+      }} />
     </div>
   );
 };

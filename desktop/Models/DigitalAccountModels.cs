@@ -5,6 +5,22 @@ using RafiqPOS.Common;
 
 namespace RafiqPOS.Models
 {
+    public class FinancialAttemptResult
+    {
+        [JsonProperty("status")]
+        public string Status { get; set; }
+        [JsonProperty("operation")]
+        public string Operation { get; set; }
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
+        [JsonProperty("actorId")]
+        public string ActorId { get; set; }
+        [JsonProperty("requestFingerprint")]
+        public string RequestFingerprint { get; set; }
+        [JsonProperty("data")]
+        public object Data { get; set; }
+    }
+
     public class DigitalAccount
     {
         [JsonProperty("id")]
@@ -102,6 +118,12 @@ namespace RafiqPOS.Models
 
     public class DigitalTransaction
     {
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
+
+        [JsonProperty("idempotencyFingerprint")]
+        public string IdempotencyFingerprint { get; set; }
+
         [JsonProperty("id")]
         public string Id { get; set; }
 
@@ -205,6 +227,12 @@ namespace RafiqPOS.Models
 
     public class DigitalAccountFunding
     {
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
+
+        [JsonProperty("idempotencyFingerprint")]
+        public string IdempotencyFingerprint { get; set; }
+
         [JsonProperty("id")]
         public string Id { get; set; }
 

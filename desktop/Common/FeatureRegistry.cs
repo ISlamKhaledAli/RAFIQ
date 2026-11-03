@@ -189,6 +189,8 @@ namespace RafiqPOS.Common
                 {
                     "epay:createTransaction",
                     "epay:fundTerminal",
+                    "epay:reconcileAttempt",
+                    "epay:abandonAttempt",
                     "epay:saveTerminal",
                     "epay:adjustBalance"
                 },
@@ -210,6 +212,8 @@ namespace RafiqPOS.Common
                 {
                     "wallets:processTransaction",
                     "wallets:fundAccount",
+                    "wallets:reconcileAttempt",
+                    "wallets:abandonAttempt",
                     "wallets:saveAccount",
                     "wallets:createAccount",
                     "wallets:updateAccount",
@@ -692,6 +696,7 @@ namespace RafiqPOS.Common
         public static bool IsHistoricalOrReadCommand(string command)
         {
             if (string.IsNullOrEmpty(command)) return false;
+            if (command == "wallets:reconcileAttempt" || command == "epay:reconcileAttempt") return true;
 
             if (command.StartsWith("reports:", StringComparison.OrdinalIgnoreCase)) return true;
             if (command.EndsWith(":get", StringComparison.OrdinalIgnoreCase)) return true;

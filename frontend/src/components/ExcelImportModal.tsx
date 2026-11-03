@@ -26,6 +26,8 @@ import { invoke } from '../bridge/ipc';
 import { formatArabicCurrency } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { CatalogueReferenceImportModal } from './CatalogueReferenceImportModal';
+import { usePermission } from '../utils/usePermission';
 
 interface ExcelImportModalProps {
   isOpen: boolean;
@@ -43,6 +45,8 @@ export const ExcelImportModal = ({
   categories
 }: ExcelImportModalProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [referenceOpen, setReferenceOpen] = useState(false);
+  const canImportReference = usePermission('products.import');
   const [isDragging, setIsDragging] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -215,7 +219,7 @@ export const ExcelImportModal = ({
   const isDirty = Boolean(selectedFile || parsedRows.length > 0);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
-    isOpen,
+    isOpen: isOpen && !referenceOpen,
     onDismiss: onClose,
     isDirty,
     confirmTitle: 'إلغاء استيراد الأصناف؟',
@@ -223,6 +227,9 @@ export const ExcelImportModal = ({
   });
 
   if (!isOpen) return null;
+  if (referenceOpen) return <CatalogueReferenceImportModal categories={categories}
+    onClose={() => setReferenceOpen(false)}
+    onSuccess={summary => { setReferenceOpen(false); onSuccess(summary); onClose(); }} />;
 
   return (
     <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
@@ -252,6 +259,11 @@ export const ExcelImportModal = ({
 
         {/* 2. Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+          {canImportReference && <button type="button" disabled={importing || parsing}
+            className="w-full rounded border border-brand bg-brand-soft px-4 py-3 text-brand text-right font-bold"
+            onClick={() => setReferenceOpen(true)}>
+            تصفح مراجع غذائية موثقة المصدر — راجع العبوة وأدخل أسعار المتجر قبل الإضافة
+          </button>}
 
           {/* Template Download Banner */}
           <div className="bg-emerald-500/5 hairline-all rounded-md p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-emerald-500/20">
@@ -262,7 +274,7 @@ export const ExcelImportModal = ({
               <div>
                 <h4 className="font-bold text-emerald-950 text-[12.5px]">هل تحتاج نموذج الإكسل المعتمد لملء الأصناف؟</h4>
                 <p className="text-emerald-800 text-[11px] leading-relaxed mt-0.5">
-                  قم بتحميل ملف النموذج الجاهز (يحتوي على تابات منفصلة لكل قسم، لوحة ملخص الأقسام، معادلات مالية ومخزنية تلقائية، وتنسيق باركود نصي سليم).
+                  قالب فارغ بعناوين وتعليمات فقط لبيانات التاجر؛ بدون باركودات تجريبية أو أسعار أو تكاليف مفترضة.
                 </p>
               </div>
             </div>

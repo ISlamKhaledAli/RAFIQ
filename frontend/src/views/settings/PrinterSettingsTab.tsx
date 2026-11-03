@@ -8,7 +8,7 @@ import {
   Server,
   Tag,
   UtensilsCrossed,
-  Gauge
+  ShieldAlert
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
@@ -17,6 +17,7 @@ import { invoke } from '../../bridge/ipc';
 import { rafiqAlert } from '../../utils/dialogService';
 import { useFeatures } from '../../context/useFeatures';
 import type { KotRoutingConfig, CategoryKotRoute } from '../../types/cafe';
+import type { DrawerSafetyStatus } from '../../types/printing';
 
 interface PrinterSettingsTabProps {
   printersList: { name: string; isDefault: boolean; isOnline: boolean }[];
@@ -27,12 +28,6 @@ interface PrinterSettingsTabProps {
   autoPrintOnSale: boolean;
   setAutoPrintOnSale: (val: boolean) => void;
   onToggleAutoPrint?: (val: boolean) => void;
-  openDrawerOnSale: boolean;
-  setOpenDrawerOnSale: (val: boolean) => void;
-  onToggleOpenDrawer?: (val: boolean) => void;
-  drawerPulseMs?: string;
-  setDrawerPulseMs?: (val: string) => void;
-  onChangeDrawerPulse?: (val: string) => void;
   printersLoading: boolean;
   testPrinting: boolean;
   printerSaveSuccess: boolean;
@@ -52,12 +47,6 @@ export const PrinterSettingsTab = ({
   autoPrintOnSale,
   setAutoPrintOnSale,
   onToggleAutoPrint,
-  openDrawerOnSale,
-  setOpenDrawerOnSale,
-  onToggleOpenDrawer,
-  drawerPulseMs = '30',
-  setDrawerPulseMs,
-  onChangeDrawerPulse,
   printersLoading,
   testPrinting,
   printerSaveSuccess,
@@ -75,8 +64,22 @@ export const PrinterSettingsTab = ({
   const [labelPaperSize, setLabelPaperSize] = useState('38x25');
   const [labelTestPrinting, setLabelTestPrinting] = useState(false);
   const [labelTestMessage, setLabelTestMessage] = useState<{ text: string; isError: boolean } | null>(null);
-  const [drawerTesting, setDrawerTesting] = useState(false);
-  const [drawerTestMessage, setDrawerTestMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [drawerSafetyMessage, setDrawerSafetyMessage] = useState('الفتح الكهربائي للدرج محظور إلى حين اعتماد توافق الأجهزة.');
+
+  useEffect(() => {
+    let active = true;
+    void invoke<DrawerSafetyStatus>('printer:getDrawerSafety').then((status) => {
+      if (status.canOpen !== false || !status.message) {
+        throw new Error('استجابة سلامة الدرج غير معتمدة؛ سيبقى الفتح الكهربائي محظوراً.');
+      }
+      if (active) setDrawerSafetyMessage(status.message);
+    }).catch((error: unknown) => {
+      if (active) {
+        setDrawerSafetyMessage(`تعذر تحميل حالة سلامة الدرج؛ لن تُرسل أي نبضة. ${error instanceof Error ? error.message : String(error)}`);
+      }
+    });
+    return () => { active = false; };
+  }, []);
 
   // KOT Routing State
   const [kotKitchenPrinter, setKotKitchenPrinter] = useState('');
@@ -167,35 +170,6 @@ export const PrinterSettingsTab = ({
     }
   };
 
-  const handleTestDrawer = async () => {
-    if (!selectedPrinter) {
-      void rafiqAlert({
-        title: 'تنبيه',
-        message: 'يرجى اختيار طابعة فواتير أولاً لتجربة نبضة فتح الدرج.',
-        variant: 'warning',
-      });
-      return;
-    }
-    setDrawerTesting(true);
-    setDrawerTestMessage(null);
-    try {
-      const res = await invoke<{ success: boolean; message: string; printerUsed: string }>('printer:kickDrawer', {
-        printerName: selectedPrinter,
-        pulseMs: Number(drawerPulseMs || '30'),
-      });
-      if (res && res.success) {
-        setDrawerTestMessage({ text: res.message || 'تم إرسال نبضة فتح درج النقدية بنجاح!', isError: false });
-      } else {
-        setDrawerTestMessage({ text: res?.message || 'تعذر فتح درج النقدية. تأكد من توصيل كابل RJ11 بالدرج والطابعة.', isError: true });
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setDrawerTestMessage({ text: `فشل فتح الدرج: ${msg}`, isError: true });
-    } finally {
-      setDrawerTesting(false);
-    }
-  };
-
   return (
     <div className="bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark shadow-subtle p-5 flex flex-col gap-5 text-xs text-ink dark:text-ink-dark">
       {/* Top Header Card */}
@@ -282,7 +256,7 @@ export const PrinterSettingsTab = ({
               placeholder="اختار طابعة الفواتير..."
             />
             <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1.5 m-0 leading-relaxed">
-              رفيق بيدعم كل طابعات الـ USB والشبكة وطابعات الكاشير الحرارية (Xprinter, Rongta, Epson, Bixolon, Sunmi وغيرها) بدون أي تعريفات معقدة.
+              اختر طابعة مثبتة بتعريف ويندوز المناسب، ثم اختبر الورق والمقاس فعلياً. توافق الطباعة لا يعني توافق جهد درج النقدية أو السماح بفتحه كهربائياً.
             </p>
           </div>
 
@@ -340,98 +314,31 @@ export const PrinterSettingsTab = ({
             />
           </div>
 
-          <div 
-            onClick={() => {
-              const next = !openDrawerOnSale;
-              setOpenDrawerOnSale(next);
-              if (onToggleOpenDrawer) onToggleOpenDrawer(next);
-            }}
-            className={`p-3.5 rounded-lg border cursor-pointer flex items-center justify-between gap-3 transition-all ${
-              openDrawerOnSale ? 'bg-brand/5 dark:bg-brand-dark-soft/40 border-brand/40 dark:border-brand-bright/40' : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark'
-            }`}
-          >
+          <div className="p-3.5 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between gap-3">
             <div className="flex flex-col gap-0.5">
               <span className="font-bold text-ink dark:text-ink-dark text-xs">فتح درج النقدية والفلوس تلقائياً مع البيع (Cash Drawer)</span>
               <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                إرسال نبضة فتح الدرج تلقائياً مع كل عملية بيع كاش
+                غير متاح حالياً: لن يرسل البرنامج نبضات كهربائية إلى الدرج
               </span>
             </div>
             <ToggleSwitch
-              checked={openDrawerOnSale}
-              onChange={(next) => {
-                setOpenDrawerOnSale(next);
-                if (onToggleOpenDrawer) onToggleOpenDrawer(next);
-              }}
+              checked={false}
+              disabled
+              onChange={() => undefined}
             />
           </div>
 
-          {/* Cash Drawer Pulse Duration Control & Test */}
-          <div className="p-3.5 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Gauge className="w-4 h-4 text-brand dark:text-brand-bright" />
-                <span className="font-bold text-ink dark:text-ink-dark text-xs">
-                  قوة ومدة نبضة فتح الدرج (Pulse Duration)
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleTestDrawer}
-                disabled={drawerTesting || !selectedPrinter}
-                className="px-2.5 py-1 rounded-md bg-surface dark:bg-surface-dark hover:bg-white dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
-                title="إرسال نبضة فورية لاختبار فتح الدرج بالقوة المحددة"
-              >
-                <Zap className={'w-3 h-3 text-brand dark:text-brand-bright ' + (drawerTesting ? 'animate-spin' : '')} />
-                <span>{drawerTesting ? 'جاري الفتح...' : 'تجربة فتح الدرج الآن'}</span>
-              </button>
+          <div role="status" className="p-3.5 rounded-lg border border-warn/30 dark:border-warn-bright/30 bg-warn-soft dark:bg-warn-dark-soft flex flex-col gap-2.5">
+            <div className="flex items-center gap-1.5 text-warn dark:text-warn-bright">
+              <ShieldAlert className="w-4 h-4 shrink-0" />
+              <span className="font-bold text-xs">حظر الفتح الكهربائي لحماية الدرج والطابعة</span>
             </div>
-
-            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-tight m-0">
-              التحكم في قوة وزمن النبضة الكهربائية لملف الدرج (Solenoid)؛ اختر مدة أقصر للأدراج الخفيفة لمنع الارتداد العنيف وتخفيف الصوت، أو أطول للأدراج الثقيلة.
+            <p className="text-[11px] text-ink dark:text-ink-dark leading-relaxed m-0">{drawerSafetyMessage}</p>
+            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0">
+              راجع المورّد لتوافق الجهد والحمل والتوصيل. مدة النبضة ليست تحكماً في الفولت أو سرعة حركة الدرج.
+              يجب أيضاً تعطيل الفتح التلقائي من تعريف الطابعة؛ البرنامج لا يتحكم في نبضات التعريف.
+              طباعة الإيصالات ستظل متاحة بدون أمر فتح من البرنامج.
             </p>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-              {[
-                { id: '20', title: '20 ms', label: 'هادئة وخفيفة', desc: 'للأدراج الخفيفة لمنع الارتداد' },
-                { id: '30', title: '30 ms', label: 'متوازنة (افتراضي)', desc: 'الأفضل لمعظم الطابعات' },
-                { id: '50', title: '50 ms', label: 'قوية وسريعة', desc: 'للأدراج الثقيلة أو المشدودة' },
-                { id: '100', title: '100 ms', label: 'أقصى قوة', desc: 'للأدراج الكبيرة جداً' },
-              ].map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => {
-                    setDrawerPulseMs?.(opt.id);
-                    if (onChangeDrawerPulse) onChangeDrawerPulse(opt.id);
-                  }}
-                  className={'p-2 rounded-lg border text-right flex flex-col gap-0.5 transition-all cursor-pointer ' + (
-                    (drawerPulseMs || '30') === opt.id
-                      ? 'bg-brand/10 dark:bg-brand-dark-soft border-brand dark:border-brand-bright text-brand dark:text-brand-bright font-bold shadow-2xs'
-                      : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-line-hover text-ink dark:text-ink-dark'
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold">{opt.title}</span>
-                    {(drawerPulseMs || '30') === opt.id && (
-                      <CheckCircle className="w-3 h-3 text-brand dark:text-brand-bright" />
-                    )}
-                  </div>
-                  <span className="text-[10px] font-semibold text-ink dark:text-ink-dark">{opt.label}</span>
-                  <span className="text-[9px] text-ink-muted dark:text-ink-muted-dark leading-tight">{opt.desc}</span>
-                </button>
-              ))}
-            </div>
-
-            {drawerTestMessage && (
-              <div className={'p-2 rounded-md text-[11px] font-semibold flex items-center gap-1.5 border mt-1 ' + (
-                drawerTestMessage.isError
-                  ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright'
-                  : 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-bright/30 text-paid dark:text-paid-bright'
-              )}>
-                {drawerTestMessage.isError ? <Zap className="w-3.5 h-3.5 shrink-0" /> : <CheckCircle className="w-3.5 h-3.5 shrink-0" />}
-                <span>{drawerTestMessage.text}</span>
-              </div>
-            )}
           </div>
         </div>
       </div>

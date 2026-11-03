@@ -92,7 +92,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   };
 
   return (
-    <section className="flex-1 min-w-[300px] h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex flex-col p-2.5 sm:p-3 select-none overflow-hidden shrink-0 shadow-2xs">
+    <section className="w-[240px] min-w-[220px] xl:w-auto xl:flex-1 xl:min-w-[300px] h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex flex-col p-2.5 sm:p-3 select-none overflow-hidden shrink-0 shadow-2xs">
       {/* Section Header */}
       <div className="flex items-center justify-between mb-2 pb-2 border-b border-line dark:border-line-dark shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -211,7 +211,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
       {/* 2-Column Grid of Smart Catalog Items */}
       <div 
         onScroll={handleScroll}
-        className="flex-1 grid grid-cols-2 gap-2 overflow-y-auto pr-0.5 pt-2 pb-2 px-1 content-start custom-scrollbar"
+        className="flex-1 grid grid-cols-1 xl:grid-cols-2 gap-2 overflow-y-auto pr-0.5 pt-2 pb-2 px-1 content-start custom-scrollbar"
       >
         {itemsToRender.map((item) => {
           const stockMilli = typeof item.stockQuantityMilli === 'number' ? item.stockQuantityMilli : null;

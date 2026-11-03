@@ -37,7 +37,9 @@ namespace RafiqPOS.Tests.Scenarios
             OpenShift(0);
             var drug = CreateProduct("ترامادول 50 مجم", 300, 200, 100000);
             DatabaseService.ProductUnits.EnsureDefaultBaseUnit(drug);
-            var box = DatabaseService.ProductUnits.CreateUnit(new ProductUnit
+            ProductUnit box;
+            using (ProductWritePolicy.EnterTrustedFixtureOperation())
+            box = DatabaseService.ProductUnits.CreateUnit(new ProductUnit
             {
                 ProductId = drug.Id,
                 UnitName = "علبة 10 أقراص",

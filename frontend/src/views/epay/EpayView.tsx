@@ -41,7 +41,8 @@ import type {
   EpayServiceType, 
   EpayPaymentDestination
 } from '../../types/models';
-import { createAttemptKey } from '../../utils/idempotency';
+import { FinancialAttemptRecovery } from '../../components/FinancialAttemptRecovery';
+import { useFinancialJournal } from '../../hooks/useFinancialJournal';
 
 export type EpaySubTab = 'pos' | 'terminals' | 'history' | 'analytics';
 
@@ -90,7 +91,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
   }, [activeSubTab]);
 
   const activeTabRaw = activeSubTab || internalTab;
-  const { hasPermission, isRoot, isAdmin } = useAuth();
+  const { currentUser, hasPermission, isRoot, isAdmin } = useAuth();
+  const financial = useFinancialJournal(currentUser?.id);
   const canFund = isRoot || isAdmin || hasPermission('epay.fund');
   const canManageTerminals = isRoot || isAdmin || hasPermission('epay.terminals_manage');
   const canViewAnalytics = isRoot || isAdmin || hasPermission('epay.analytics');
@@ -106,9 +108,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
   }, [activeTabRaw, canAccessTerminals, canViewHistory, canViewAnalytics]);
 
   const [terminals, setTerminals] = useState<EpayTerminal[]>([]);
-  // A retry after a timeout reuses the key so a terminal operation or funding is never recorded twice
-  const txAttemptRef = useRef(createAttemptKey('epay'));
-  const fundAttemptRef = useRef(createAttemptKey('fund'));
+  const financialWritePending = useRef(false);
   const [transactions, setTransactions] = useState<EpayTransaction[]>([]);
   const [fundings, setFundings] = useState<EpayTerminalFunding[]>([]);
   const [analytics, setAnalytics] = useState<EpayAnalyticsSummary | null>(null);
@@ -201,7 +201,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
   const { requestClose: requestCloseFunding, handleBackdropClick: handleFundingBackdropClick } = useModalDismiss({
     isOpen: isFundingModalOpen,
-    onClose: () => setIsFundingModalOpen(false),
+    onClose: () => { if (!financial.blocked && !financialWritePending.current) setIsFundingModalOpen(false); },
     isDirty: isFundingDirty,
     confirmTitle: 'تعديلات شحن الرصيد غير محفوظة',
     confirmMessage: 'لقد قمت بإدخال بيانات لشحن رصيد الماكينة. هل أنت متأكد من الخروج وتجاهل العملية؟',
@@ -335,6 +335,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
   // Submit Transaction
   const handleCreateTransaction = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (financialWritePending.current || financial.blocked) return;
     if (!currentTerminal) {
       setErrorMsg('يرجى اختيار ماكينة دفع صالحة');
       return;
@@ -348,6 +349,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
       return;
     }
 
+    financialWritePending.current = true;
     setIsSubmittingTx(true);
     setErrorMsg(null);
     try {
@@ -361,15 +363,11 @@ export const EpayView: React.FC<EpayViewProps> = ({
         billAmountPiasters,
         customerFeePiasters: shopProfitPiasters,
         providerCommissionPiasters: machineCommissionPiasters,
-        paymentDestination,
         paymentChannel: paymentDestination,
-        machineDeductedPiasters: deductedBalancePiasters,
         notes: notes.trim() || undefined,
-        idempotencyKey: txAttemptRef.current.current(),
       };
 
-      const result = await invoke<EpayTransaction>('epay:createTransaction', payload);
-      txAttemptRef.current.complete();
+      const result = await financial.run<EpayTransaction>('epay:createTransaction', payload);
       setSuccessMsg(`تم تنفيذ عملية "${serviceName}" بنجاح! صافي ربح المحل: ${formatArabicCurrency(netProfitPiasters)}`);
 
       if (autoPrintReceipt && result) {
@@ -388,6 +386,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
     } catch (err: any) {
       setErrorMsg(err?.message || 'فشل تنفيذ عملية الدفع الإلكتروني');
     } finally {
+      financialWritePending.current = false;
       setIsSubmittingTx(false);
     }
   };
@@ -418,6 +417,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
   // Submit Funding
   const handleFundTerminal = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (financialWritePending.current || financial.blocked) return;
     if (!fundingTerminalId) {
       setFundingModalError('يرجى اختيار ماكينة دفع صالحة');
       return;
@@ -438,17 +438,16 @@ export const EpayView: React.FC<EpayViewProps> = ({
       }
     }
 
+    financialWritePending.current = true;
     setIsSubmittingFunding(true);
     setFundingModalError(null);
     try {
-      await invoke('epay:fundTerminal', {
+      await financial.run('epay:fundTerminal', {
         terminalId: fundingTerminalId,
         amountPiasters: fundingAmountPiasters,
         fundingSource,
         notes: fundingNotes.trim() || undefined,
-        idempotencyKey: fundAttemptRef.current.current(),
       });
-      fundAttemptRef.current.complete();
 
       setSuccessMsg(`تمت تغذية رصيد الماكينة بمبلغ ${formatArabicCurrency(fundingAmountPiasters)} بنجاح`);
       setIsFundingModalOpen(false);
@@ -458,6 +457,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
     } catch (err: any) {
       setFundingModalError(err?.message || 'فشل تغذية رصيد الماكينة');
     } finally {
+      financialWritePending.current = false;
       setIsSubmittingFunding(false);
     }
   };
@@ -642,6 +642,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
   return (
     <div className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-y-auto" dir="rtl">
+      <fieldset disabled={financial.blocked} className={financial.blocked ? 'contents pointer-events-none opacity-50' : 'contents'}>
       {/* 1. Top Header Bar */}
       <header className="bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
         <div className="flex items-center gap-3">
@@ -1274,6 +1275,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       <button
                         type="button"
                         onClick={() => {
+                          if (financial.blocked || financialWritePending.current) return;
                           setFundingTerminalId(term.id);
                           setFundingAmountPiasters(100000);
                           setFundingModalError(null);
@@ -2230,6 +2232,13 @@ export const EpayView: React.FC<EpayViewProps> = ({
           </div>
         </div>
       )}
+      </fieldset>
+      <FinancialAttemptRecovery journal={financial} onResolved={() => {
+        setBillAmountPiasters(0); setMachineCommissionPiasters(0); setShopProfitPiasters(0);
+        setCustomerPhone(''); setCustomerName(''); setReferenceNumber(''); setNotes('');
+        setFundingAmountPiasters(0); setFundingNotes(''); setIsFundingModalOpen(false);
+        void loadData();
+      }} />
     </div>
   );
 };

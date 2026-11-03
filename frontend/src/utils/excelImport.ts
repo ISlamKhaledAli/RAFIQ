@@ -1,6 +1,7 @@
 import type { Product, Category } from '../types/models';
 import { poundsToPiasters, normalizeArabicNumerals, normalizeArabicText } from './money.ts';
 import { invoke } from '../bridge/ipc.ts';
+import legacyQuarantine from '../../public/catalogue/legacy-quarantine.json' with { type: 'json' };
 
 async function getXlsx() {
   return await import('xlsx');
@@ -198,165 +199,24 @@ export async function downloadExcelTemplate(): Promise<void> {
   }
   const XLSX = await getXlsx();
 
-  const standardHeaders = [
-    'م',
-    'اسم الصنف *',
-    'الباركود الرئيسي',
-    'باركودات إضافية (مفصولة بفاصلة)',
-    'الوحدة (قطعة / كجم)',
-    'سعر البيع (بالجنيه) *',
-    'سعر التكلفة (بالجنيه)',
-    'الرصيد الافتتاحي',
-    'حد الطلب الأدنى',
-    'هامش الربح للقطعة (ج.م)',
-    'نسبة الربح (%)',
-    'إجمالي قيمة التكلفة (ج.م)',
-    'إجمالي القيمة البيعية (ج.م)',
-    'إجمالي الربح المتوقع (ج.م)',
-    'حالة المخزون التلقائية',
-    'نسبة الضريبة (%)',
-    'كود الصنف الداخلي (SKU)',
-    'اللون / النوع / النكهة (اختياري)',
-    'المقاس / السعة / التركيز / الحجم (اختياري)',
-    'كود التصنيف الضريبي (GS1/EGS)',
-  ];
-
-  const standardColWidths = [
-    { wch: 6 },
-    { wch: 38 },
-    { wch: 20 },
-    { wch: 24 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 18 },
-    { wch: 15 },
-    { wch: 22 },
-    { wch: 22 },
-    { wch: 22 },
-    { wch: 18 },
-    { wch: 14 },
-    { wch: 20 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 22 },
-  ];
-
-  function buildSheetJsProductSheet(sheetTitle: string, itemsList: any[]) {
-    const titleRow = [`رفيق POS - ${sheetTitle}`];
-    const subRow = [
-      'تعليمات هامة: الأعمدة المميزة بنجمة (*) إلزامية | اسم التابة يمثل القسم تلقائياً | الباركودات تحفظ كنص | المبالغ بالجنيه المصري | الأعمدة تتحدث بمعادلات إكسل التلقائية'
-    ];
-
-    const dataRows = itemsList.map((item, idx) => {
-      const r = idx + 4;
-      const price = Number(item.price || 0);
-      const cost = Number(item.cost || 0);
-      const stock = Number(item.stock || 0);
-      const minStock = Number(item.minStock || 0);
-      const unitMargin = price - cost;
-      const marginPct = cost > 0 ? unitMargin / cost : 0;
-      const totalCost = stock * cost;
-      const totalRetail = stock * price;
-      const totalProfit = totalRetail - totalCost;
-      const statusText = stock <= 0 ? 'نفد من المخزن' : (stock <= minStock ? 'قارب على النفاد' : 'متوفر بالمخزن');
-
-      return [
-        idx + 1,
-        item.name || '',
-        item.barcode ? String(item.barcode) : '',
-        item.additionalBarcodes ? String(item.additionalBarcodes) : '',
-        item.unit || 'قطعة',
-        price,
-        cost,
-        stock,
-        minStock,
-        { f: `F${r}-G${r}`, t: 'n', v: Number(unitMargin.toFixed(2)) },
-        { f: `IF(G${r}>0, (F${r}-G${r})/G${r}, 0)`, t: 'n', v: Number(marginPct.toFixed(4)), z: '0.0%' },
-        { f: `H${r}*G${r}`, t: 'n', v: Number(totalCost.toFixed(2)), z: '#,##0.00' },
-        { f: `H${r}*F${r}`, t: 'n', v: Number(totalRetail.toFixed(2)), z: '#,##0.00' },
-        { f: `M${r}-L${r}`, t: 'n', v: Number(totalProfit.toFixed(2)), z: '#,##0.00' },
-        { f: `IF(H${r}<=0, "نفد من المخزن", IF(H${r}<=I${r}, "قارب على النفاد", "متوفر بالمخزن"))`, t: 's', v: statusText },
-        Number(item.taxRate || 0),
-        item.sku || `SKU-${String(idx + 1).padStart(4, '0')}`,
-        item.color || '',
-        item.size || '',
-        item.taxCategoryCode || '',
-      ];
-    });
-
-    const lastDataRow = itemsList.length + 3;
-    const sumRowIdx = itemsList.length + 4;
-    const summaryRow = [
-      'الإجمالي',
-      `إجمالي ${itemsList.length} صنف مسجل`,
-      '',
-      '',
-      '',
-      { f: `AVERAGE(F4:F${lastDataRow})`, t: 'n', z: '#,##0.00' },
-      { f: `AVERAGE(G4:G${lastDataRow})`, t: 'n', z: '#,##0.00' },
-      { f: `SUM(H4:H${lastDataRow})`, t: 'n', z: '#,##0.##' },
-      '',
-      { f: `AVERAGE(J4:J${lastDataRow})`, t: 'n', z: '#,##0.00' },
-      { f: `IF(L${sumRowIdx}>0, N${sumRowIdx}/L${sumRowIdx}, 0)`, t: 'n', z: '0.0%' },
-      { f: `SUM(L4:L${lastDataRow})`, t: 'n', z: '#,##0.00' },
-      { f: `SUM(M4:M${lastDataRow})`, t: 'n', z: '#,##0.00' },
-      { f: `SUM(N4:N${lastDataRow})`, t: 'n', z: '#,##0.00' },
-      'محسوب بالمعادلات',
-      '',
-      '',
-      '',
-      '',
-      '',
-    ];
-
-    const allRows = [titleRow, subRow, standardHeaders, ...dataRows, summaryRow];
-    const ws = XLSX.utils.aoa_to_sheet(allRows);
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 19 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 19 } },
-    ];
-    ws['!cols'] = standardColWidths;
-    ws['!views'] = [{ rightToLeft: true }];
-    return ws;
-  }
-
-  // Sample data across diverse categories (stock set to 0 by default so merchant enters actual inventory)
-  const sampleGrocery = [
-    { name: 'شاي العروسة ناعم 250 جم', barcode: '6223000123456', additionalBarcodes: '6223000123457', category: 'بقالة ومشروبات', unit: 'قطعة', price: 35.0, cost: 28.5, stock: 0, minStock: 10, sku: 'TEA-AR-250', taxCategoryCode: 'EG-100000-01' },
-    { name: 'سكر أبيض فاخر 1 كجم', barcode: '6223000987654', category: 'بقالة ومشروبات', unit: 'قطعة', price: 27.0, cost: 22.0, stock: 0, minStock: 15, sku: 'SGR-01' },
-    { name: 'زيت خليط قلية ممتاز 700 مل', barcode: '6224000112233', category: 'بقالة ومشروبات', unit: 'قطعة', price: 55.0, cost: 46.0, stock: 0, minStock: 8, sku: 'OIL-700' },
-  ];
-
-  const sampleClothing = [
-    { name: 'تيشيرت بولو كاجوال رجالي', barcode: '6225501100026', category: 'ملابس وأحذية', unit: 'قطعة', price: 220.0, cost: 140.0, stock: 0, minStock: 5, color: 'كحلي', size: 'L', sku: 'POLO-NV-L' },
-    { name: 'بنطلون جينز كلاسيك شبابي', barcode: '6225502200031', category: 'ملابس وأحذية', unit: 'قطعة', price: 350.0, cost: 230.0, stock: 0, minStock: 4, color: 'أزرق غامق', size: '34', sku: 'JNS-BLU-34' },
-    { name: 'حذاء رياضي كوتشي كاجوال', barcode: '6225504400017', category: 'ملابس وأحذية', unit: 'قطعة', price: 320.0, cost: 200.0, stock: 0, minStock: 3, color: 'أسود', size: '42', sku: 'SHOE-BK-42' },
-  ];
-
-  const sampleDairy = [
-    { name: 'جبنة بيضاء رومي قديمة بالوزن', barcode: '200987654321', category: 'ألبان وأجبان', unit: 'كجم', price: 320.0, cost: 260.0, stock: 0, minStock: 3, sku: 'CHS-ROM-01', taxCategoryCode: 'EG-100000-03' },
-    { name: 'حليب كامل الدسم مبستر 1 لتر', barcode: '6221000123987', category: 'ألبان وأجبان', unit: 'قطعة', price: 38.0, cost: 31.0, stock: 0, minStock: 10, sku: 'MLK-1L' },
-    { name: 'جبنة فيتا دومتي أبيض 500 جم', barcode: '6221000456123', category: 'ألبان وأجبان', unit: 'قطعة', price: 42.0, cost: 34.0, stock: 0, minStock: 12, sku: 'CHS-DOM-500' },
-  ];
-
-  const sampleCleaning = [
-    { name: 'صابون سائل بريل بالليمون 1 لتر', barcode: '6222000554433', category: 'منظفات وعناية', unit: 'قطعة', price: 42.0, cost: 35.0, stock: 0, minStock: 5, sku: 'CLN-PRL-01', taxCategoryCode: 'EG-100000-05' },
-    { name: 'مسحوق غسيل أوتوماتيك أريال 2.5 كجم', barcode: '6222000889911', category: 'منظفات وعناية', unit: 'قطعة', price: 175.0, cost: 145.0, stock: 0, minStock: 5, sku: 'DET-ARL-25' },
-  ];
-
-  const wb = XLSX.utils.book_new();
-
-  // Category Tabs directly: Each department has its own tab with products and formulas
-  XLSX.utils.book_append_sheet(wb, buildSheetJsProductSheet('قسم: بقالة ومشروبات', sampleGrocery), 'بقالة ومشروبات');
-  XLSX.utils.book_append_sheet(wb, buildSheetJsProductSheet('قسم: ملابس وأحذية', sampleClothing), 'ملابس وأحذية');
-  XLSX.utils.book_append_sheet(wb, buildSheetJsProductSheet('قسم: ألبان وأجبان', sampleDairy), 'ألبان وأجبان');
-  XLSX.utils.book_append_sheet(wb, buildSheetJsProductSheet('قسم: منظفات وعناية', sampleCleaning), 'منظفات وعناية');
-
-  // Trigger browser download
+  const wb = buildBlankMerchantTemplate(XLSX);
   XLSX.writeFile(wb, 'قالب_استيراد_المنتجات_رفيق_POS.xlsx');
+}
+
+export function buildBlankMerchantTemplate(XLSX: typeof import('xlsx')) {
+  const wb = XLSX.utils.book_new();
+  const headers = ['اسم الصنف', 'الباركود الرئيسي', 'باركودات إضافية', 'القسم', 'الوحدة',
+    'سعر البيع (بالجنيه)', 'سعر التكلفة (بالجنيه)', 'الرصيد الافتتاحي', 'حد الطلب الأدنى',
+    'نسبة الضريبة', 'كود الصنف الداخلي'];
+  const sheet = XLSX.utils.aoa_to_sheet([headers]);
+  sheet['!cols'] = headers.map(() => ({ wch: 24 }));
+  XLSX.utils.book_append_sheet(wb, sheet, 'قالب المنتجات');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['قالب فارغ لبيانات التاجر فقط؛ لا يحتوي أصنافاً أو أسعاراً مقترحة.'],
+    ['احفظ الباركود كنص وأدخل أسعار البيع والتكلفة الفعلية. راجع الرصيد والضريبة قبل الاستيراد.'],
+    ['مراجع Open Food Facts والكتالوجات القديمة لا تستورد من هذا المسار؛ استخدم مراجعة المراجع.'],
+  ]), 'تعليمات');
+  return wb;
 }
 
 function getFormattedTimestamp(): string {
@@ -735,6 +595,29 @@ export async function downloadErrorReport(errorRows: ValidatedImportRow[]): Prom
   XLSX.writeFile(wb, 'تقرير_أخطاء_استيراد_المنتجات.xlsx');
 }
 
+export async function assertMerchantWorkbook(XLSX: typeof import('xlsx'), workbook: import('xlsx').WorkBook,
+  bytes: ArrayBuffer): Promise<void> {
+  const prefix = new TextDecoder().decode(new Uint8Array(bytes).subarray(0, 16384)).trimStart();
+  if ((prefix.startsWith('{') || prefix.startsWith('[')) &&
+      /"gtin14Key"\s*:/.test(prefix) && /"source"\s*:\s*"openfoodfacts"/.test(prefix))
+    throw new Error('REFERENCE_REVIEW_REQUIRED: حزمة المراجع تراجع من نافذة المراجع، وليس استيراد التاجر.');
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
+    byte => byte.toString(16).padStart(2, '0')).join('');
+  if (legacyQuarantine.artifacts.some(item => item.sha256 === digest))
+    throw new Error('LEGACY_CATALOGUE_DISABLED: هذا ملف كتالوج قديم معزول؛ استخدم مراجعة المراجع.');
+  for (const sheetName of workbook.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1, defval: '' });
+    for (const row of rows) {
+      const cells = row.map(cell => String(cell).trim());
+      const lower = cells.map(cell => cell.toLowerCase());
+      if (sheetName === '_rafiq_reference_v1' ||
+          (lower.includes('gtin14key') && lower.includes('recordid')) ||
+          cells.some(cell => cell.includes('rafiq-reference-v1') || cell.includes('"source":"openfoodfacts"')))
+        throw new Error('REFERENCE_REVIEW_REQUIRED: ملفات المراجع تراجع من نافذة المراجع، وليس استيراد التاجر.');
+    }
+  }
+}
+
 /**
  * قراءة ملف إكسل أو CSV بأمان واستخراج الصفوف مع تتبع دقيق لأرقام الصفوف الواقعية والشيتات
  */
@@ -742,11 +625,10 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
   const arrayBuffer = await file.arrayBuffer();
   const XLSX = await getXlsx();
   const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: false, raw: false });
-
+  await assertMerchantWorkbook(XLSX, workbook, arrayBuffer);
   if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
     throw new Error('الملف فارغ ولا يحتوي على أي أوراق عمل');
   }
-
   const resultRows: RawImportRow[] = [];
   const seenKeys = new Set<string>();
 

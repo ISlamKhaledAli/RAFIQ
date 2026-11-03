@@ -52,7 +52,17 @@ namespace RafiqPOS.Services
 
         public ProductUnit CreateUnit(ProductUnit unit)
         {
+            lock (SaleService.FinancialWriteLock)
+            using (ProductWritePolicy.Operation operation = ProductWritePolicy.BeginOperation())
+            {
+                return CreateUnitLocked(unit);
+            }
+        }
+
+        private ProductUnit CreateUnitLocked(ProductUnit unit)
+        {
             if (unit == null) throw new ArgumentNullException("unit");
+            ProductWritePolicy.ValidateUnit(null, unit, ProductWritePolicy.CurrentUserHasPermission);
 
             // 1. Validation
             ValidateUnit(unit, true);
@@ -76,12 +86,22 @@ namespace RafiqPOS.Services
 
         public ProductUnit UpdateUnit(ProductUnit unit)
         {
+            lock (SaleService.FinancialWriteLock)
+            using (ProductWritePolicy.Operation operation = ProductWritePolicy.BeginOperation())
+            {
+                return UpdateUnitLocked(unit);
+            }
+        }
+
+        private ProductUnit UpdateUnitLocked(ProductUnit unit)
+        {
             if (unit == null) throw new ArgumentNullException("unit");
             if (string.IsNullOrWhiteSpace(unit.Id)) throw new ArgumentException("معرف الوحدة مطلوب");
 
             var existing = _unitRepo.GetById(unit.Id);
             if (existing == null) throw new InvalidOperationException("الوحدة غير موجودة");
 
+            ProductWritePolicy.ValidateUnit(existing, unit, ProductWritePolicy.CurrentUserHasPermission);
             ValidateUnit(unit, false);
 
             // If it was the base unit, and trying to unmark base unit without another base unit:
@@ -138,6 +158,16 @@ namespace RafiqPOS.Services
         }
 
         public void SetBaseUnit(string productId, string unitId)
+        {
+            lock (SaleService.FinancialWriteLock)
+            using (ProductWritePolicy.Operation operation = ProductWritePolicy.BeginOperation())
+            {
+                ProductWritePolicy.ValidateFinancialUnitStructure(ProductWritePolicy.CurrentUserHasPermission);
+                SetBaseUnitLocked(productId, unitId);
+            }
+        }
+
+        private void SetBaseUnitLocked(string productId, string unitId)
         {
             if (string.IsNullOrWhiteSpace(productId)) throw new ArgumentException("معرف المنتج مطلوب");
             if (string.IsNullOrWhiteSpace(unitId)) throw new ArgumentException("معرف الوحدة مطلوب");

@@ -459,44 +459,19 @@ namespace RafiqPOS.Services
         {
             using (var wb = new XLWorkbook())
             {
-                var groceryProds = new List<Product>()
-                {
-                    new Product { Name = "شاي العروسة ناعم 250 جم", Barcode = "6223000123456", Barcodes = new List<string> { "6223000123457" }, Unit = "piece", PricePiasters = 3500, CostPiasters = 2850, StockQuantityMilli = 0, MinStockQuantityMilli = 10000, InternalCode = "TEA-AR-250" },
-                    new Product { Name = "سكر أبيض فاخر 1 كجم", Barcode = "6223000987654", Unit = "piece", PricePiasters = 2700, CostPiasters = 2200, StockQuantityMilli = 0, MinStockQuantityMilli = 15000, InternalCode = "SGR-01" },
-                    new Product { Name = "زيت خليط قلية ممتاز 700 مل", Barcode = "6224000112233", Unit = "piece", PricePiasters = 5500, CostPiasters = 4600, StockQuantityMilli = 0, MinStockQuantityMilli = 8000, InternalCode = "OIL-700" }
-                };
-
-                var clothingProds = new List<Product>()
-                {
-                    new Product { Name = "تيشيرت بولو كاجوال رجالي", Barcode = "6225501100026", Unit = "piece", VariantColor = "كحلي", VariantSize = "L", PricePiasters = 22000, CostPiasters = 14000, StockQuantityMilli = 0, MinStockQuantityMilli = 5000, InternalCode = "POLO-NV-L" },
-                    new Product { Name = "حذاء رياضي كوتشي كاجوال", Barcode = "6225504400017", Unit = "piece", VariantColor = "أسود", VariantSize = "42", PricePiasters = 32000, CostPiasters = 20000, StockQuantityMilli = 0, MinStockQuantityMilli = 3000, InternalCode = "SHOE-BK-42" }
-                };
-
-                var dairyProds = new List<Product>()
-                {
-                    new Product { Name = "جبنة بيضاء رومي قديمة بالوزن", Barcode = "200987654321", Unit = "kg", PricePiasters = 32000, CostPiasters = 26000, StockQuantityMilli = 0, MinStockQuantityMilli = 3000, InternalCode = "CHS-ROM-01" },
-                    new Product { Name = "حليب كامل الدسم مبستر 1 لتر", Barcode = "6221000123987", Unit = "piece", PricePiasters = 3800, CostPiasters = 3100, StockQuantityMilli = 0, MinStockQuantityMilli = 10000, InternalCode = "MLK-1L" }
-                };
-
-                var cleaningProds = new List<Product>()
-                {
-                    new Product { Name = "صابون سائل بريل بالليمون 1 لتر", Barcode = "6222000554433", Unit = "piece", PricePiasters = 4200, CostPiasters = 3500, StockQuantityMilli = 0, MinStockQuantityMilli = 5000, TaxRatePercent = 14, InternalCode = "CLN-PRL-01" },
-                    new Product { Name = "مسحوق غسيل أوتوماتيك أريال 2.5 كجم", Barcode = "6222000889911", Unit = "piece", PricePiasters = 17500, CostPiasters = 14500, StockQuantityMilli = 0, MinStockQuantityMilli = 5000, InternalCode = "DET-ARL-25" }
-                };
-
-                // Category Sheets directly: Each department has its own dedicated tab with its items and formulas
-                var ws1 = wb.Worksheets.Add("بقالة ومشروبات");
-                PopulateStandardProductSheet(ws1, "قسم: بقالة ومشروبات", groceryProds, null, "بقالة ومشروبات");
-
-                var ws2 = wb.Worksheets.Add("ملابس وأحذية");
-                PopulateStandardProductSheet(ws2, "قسم: ملابس وأحذية", clothingProds, null, "ملابس وأحذية");
-
-                var ws3 = wb.Worksheets.Add("ألبان وأجبان");
-                PopulateStandardProductSheet(ws3, "قسم: ألبان وأجبان", dairyProds, null, "ألبان وأجبان");
-
-                var ws4 = wb.Worksheets.Add("منظفات وعناية");
-                PopulateStandardProductSheet(ws4, "قسم: منظفات وعناية", cleaningProds, null, "منظفات وعناية");
-
+                var sheet = wb.Worksheets.Add("قالب المنتجات");
+                sheet.RightToLeft = true;
+                string[] headers = { "اسم الصنف", "الباركود الرئيسي", "باركودات إضافية", "القسم", "الوحدة",
+                    "سعر البيع (بالجنيه)", "سعر التكلفة (بالجنيه)", "الرصيد الافتتاحي", "حد الطلب الأدنى",
+                    "نسبة الضريبة", "كود الصنف الداخلي" };
+                for (int i = 0; i < headers.Length; i++) sheet.Cell(1, i + 1).Value = headers[i];
+                sheet.Columns(2, 3).Style.NumberFormat.Format = "@";
+                sheet.Columns().Width = 24;
+                var instructions = wb.Worksheets.Add("تعليمات");
+                instructions.RightToLeft = true;
+                instructions.Cell(1, 1).Value = "قالب فارغ لبيانات التاجر فقط؛ لا يحتوي أصنافاً أو أسعاراً مقترحة.";
+                instructions.Cell(2, 1).Value = "احفظ الباركود كنص وأدخل أسعار البيع والتكلفة الفعلية. راجع الرصيد والضريبة قبل الاستيراد.";
+                instructions.Cell(3, 1).Value = "مراجع Open Food Facts والكتالوجات القديمة لا تستورد من هذا المسار؛ استخدم مراجعة المراجع.";
                 using (var ms = new MemoryStream())
                 {
                     wb.SaveAs(ms);

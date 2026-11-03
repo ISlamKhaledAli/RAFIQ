@@ -1,3 +1,5 @@
+throw new Error('LEGACY_CATALOGUE_DISABLED: unverified pharmacy identities and inferred costs must not overwrite shared production templates.');
+
 const fs = require('fs');
 const path = require('path');
 const xlsx = require(path.resolve(__dirname, '..', 'frontend', 'node_modules', 'xlsx'));

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rafiq immutable food-reference candidate v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "recordId", "gtin", "gtin14Key", "nameOriginal", "brand", "variant", "netQuantityText", "packDescription", "category", "provenance"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "recordId": { "type": "string", "pattern": "^off:[0-9]+$" },
+    "gtin": { "type": "string", "pattern": "^(?:[0-9]{8}|[0-9]{12}|[0-9]{13}|[0-9]{14})$" },
+    "gtin14Key": { "type": "string", "pattern": "^[0-9]{14}$" },
+    "nameOriginal": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "brand": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "variant": { "type": "null" },
+    "netQuantityText": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "packDescription": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "category": { "enum": ["dairy", "beverages", "snacks", "staples", "pantry"] },
+    "provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source", "sourceRecordId", "sourceUrl", "sourceModifiedAt", "retrievedAt", "rawRecordSha256", "databaseLicense", "contentsLicense"],
+      "properties": {
+        "source": { "const": "openfoodfacts" },
+        "sourceRecordId": { "type": "string" },
+        "sourceUrl": { "type": "string", "pattern": "^https://world.openfoodfacts.org/product/[0-9]+$" },
+        "sourceModifiedAt": { "type": "string", "format": "date-time" },
+        "retrievedAt": { "type": "string", "format": "date-time" },
+        "rawRecordSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "databaseLicense": { "const": "ODbL-1.0" },
+        "contentsLicense": { "const": "DbCL-1.0" }
+      }
+    }
+  }
+}

@@ -20,9 +20,19 @@ namespace RafiqPOS.Services
 
     public class PrintResult
     {
+        public PrintResult()
+        {
+            DrawerStatus = "notRequested";
+            Message = "";
+            PrinterUsed = "";
+        }
+
         public bool Success { get; set; }
         public string Message { get; set; }
         public string PrinterUsed { get; set; }
+        public string DrawerStatus { get; set; }
+        public string WarningCode { get; set; }
+        public string WarningMessage { get; set; }
     }
 
     /// <summary>
@@ -125,73 +135,21 @@ namespace RafiqPOS.Services
             return true;
         }
 
-        public int GetConfiguredDrawerPulseMs()
-        {
-            if (_settings != null)
-            {
-                string val = _settings.Get("drawer_pulse_ms", "30");
-                int ms;
-                if (int.TryParse(val, out ms) && ms >= 10 && ms <= 250)
-                {
-                    return ms;
-                }
-            }
-            return 30;
-        }
-
-
         /// <summary>
         /// نبضة فتح درج النقدية المادي عبر ESC/POS (USB Spooler أو طابعة شبكية TCP)
         /// </summary>
         public PrintResult KickDrawer(string printerName = null, int? pulseMs = null)
         {
-            string targetPrinter = ResolvePrinterName(printerName);
-            if (string.IsNullOrWhiteSpace(targetPrinter))
+            Logger.Warn("تم حظر الفتح الكهربائي للدرج: " + DrawerSafetyPolicy.BlockReason);
+            return new PrintResult
             {
-                return new PrintResult
-                {
-                    Success = false,
-                    Message = "لم يتم تحديد طابعة لفتح الدرج (لا توجد طابعة افتراضية محددة).",
-                    PrinterUsed = ""
-                };
-            }
-
-            try
-            {
-                string errMsg;
-                int effectivePulse = pulseMs.HasValue ? pulseMs.Value : GetConfiguredDrawerPulseMs();
-                bool ok = RawPrinterHelper.SendDrawerKick(targetPrinter, out errMsg, effectivePulse);
-                if (ok)
-                {
-                    Logger.Info("تم إرسال نبضة فتح درج النقدية بنجاح إلى: " + targetPrinter);
-                    return new PrintResult
-                    {
-                        Success = true,
-                        Message = string.Format("تم فتح درج النقدية بنجاح بقوة ({0} مللي ثانية).", effectivePulse),
-                        PrinterUsed = targetPrinter
-                    };
-                }
-                else
-                {
-                    Logger.Warn("فشل إرسال نبضة فتح الدرج: " + errMsg);
-                    return new PrintResult
-                    {
-                        Success = false,
-                        Message = "تعذر فتح الدرج: " + errMsg,
-                        PrinterUsed = targetPrinter
-                    };
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Error("استثناء أثناء فتح درج النقدية: " + ex.Message, ex);
-                return new PrintResult
-                {
-                    Success = false,
-                    Message = "خطأ أثناء إرسال أمر فتح الدرج: " + ex.Message,
-                    PrinterUsed = targetPrinter
-                };
-            }
+                Success = false,
+                Message = DrawerSafetyPolicy.BlockReason,
+                PrinterUsed = printerName ?? "",
+                DrawerStatus = "blocked",
+                WarningCode = DrawerSafetyPolicy.WarningCode,
+                WarningMessage = DrawerSafetyPolicy.BlockReason
+            };
         }
 
         /// <summary>
@@ -287,6 +245,29 @@ namespace RafiqPOS.Services
         /// </summary>
         public PrintResult PrintSaleReceipt(Sale sale, string printerName = null, string paperWidth = null, bool? openDrawer = null, bool isCopy = false)
         {
+            bool drawerRequested = !isCopy && DrawerSafetyPolicy.HasCashPayment(sale) &&
+                (openDrawer.HasValue ? openDrawer.Value : GetConfiguredOpenDrawer());
+            return AddDrawerSafetyNotice(PrintSaleReceiptPaper(sale, printerName, paperWidth, isCopy), drawerRequested);
+        }
+
+        private static PrintResult AddDrawerSafetyNotice(PrintResult result, bool drawerRequested)
+        {
+            if (drawerRequested)
+            {
+                result.DrawerStatus = "blocked";
+                result.WarningCode = DrawerSafetyPolicy.WarningCode;
+                result.WarningMessage = DrawerSafetyPolicy.BlockReason;
+                Logger.Warn(DrawerSafetyPolicy.BlockReason);
+            }
+            if (result.Success)
+            {
+                result.Message = "تم إرسال الإيصال إلى قائمة انتظار الطباعة. يُرجى التأكد من خروجه فعلياً.";
+            }
+            return result;
+        }
+
+        private PrintResult PrintSaleReceiptPaper(Sale sale, string printerName, string paperWidth, bool isCopy)
+        {
             if (sale == null)
             {
                 return new PrintResult { Success = false, Message = "بيانات الفاتورة فارغة" };
@@ -297,32 +278,10 @@ namespace RafiqPOS.Services
             bool isCompact = IsCompactPaper(targetWidth);
             int printWidth = GetContentWidthPoints(targetWidth);
 
-            bool shouldOpenDrawer;
-            if (openDrawer.HasValue)
-            {
-                shouldOpenDrawer = openDrawer.Value;
-            }
-            else
-            {
-                bool isCashInvolved = sale.PaymentMethod == "cash" || sale.PaidPiasters > 0;
-                if (sale.Payments != null)
-                {
-                    for (int pi = 0; pi < sale.Payments.Count; pi++)
-                    {
-                        if (sale.Payments[pi] != null && sale.Payments[pi].Method == "cash" && sale.Payments[pi].AmountPiasters > 0)
-                        {
-                            isCashInvolved = true;
-                            break;
-                        }
-                    }
-                }
-                shouldOpenDrawer = GetConfiguredOpenDrawer() && isCashInvolved;
-            }
-
             // توجيه الطباعة إلى طابعة الشبكة (TCP Port 9100) عبر أوامر ESC/POS النقطية المباشرة
             if (RawPrinterHelper.IsNetworkPrinter(targetPrinter))
             {
-                return PrintSaleReceiptToNetwork(sale, targetPrinter, targetWidth, shouldOpenDrawer, isCopy);
+                return PrintSaleReceiptToNetwork(sale, targetPrinter, targetWidth, isCopy);
             }
 
             bool isThermal = IsThermalPrinter(targetPrinter, targetWidth);
@@ -337,7 +296,7 @@ namespace RafiqPOS.Services
                     {
                         if (bmp != null)
                         {
-                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs());
+                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, autoCut);
                             string errMsg;
                             string docTitle = string.Format("Rafiq Receipt #{0}", sale.InvoiceNumber);
                             bool ok = RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, docTitle, out errMsg);
@@ -440,19 +399,6 @@ namespace RafiqPOS.Services
                     doc.Print();
                 }
 
-                if (shouldOpenDrawer)
-                {
-                    try
-                    {
-                        string kickErr;
-                        RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr, GetConfiguredDrawerPulseMs());
-                    }
-                    catch (Exception exDrawer)
-                    {
-                        Logger.Warn("فشل إرسال نبضة فتح درج النقدية بعد الطباعة: " + exDrawer.Message);
-                    }
-                }
-
                 if (autoCut && !isThermal)
                 {
                     try
@@ -500,7 +446,7 @@ namespace RafiqPOS.Services
             }
         }
 
-        private PrintResult PrintSaleReceiptToNetwork(Sale sale, string networkTarget, string paperWidth, bool shouldOpenDrawer, bool isCopy)
+        private PrintResult PrintSaleReceiptToNetwork(Sale sale, string networkTarget, string paperWidth, bool isCopy)
         {
             try
             {
@@ -517,7 +463,7 @@ namespace RafiqPOS.Services
                     }
 
                     bool autoCut = GetConfiguredAutoCut();
-                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs());
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, autoCut);
 
                     string errMsg;
                     string docTitle = string.Format("Rafiq Network Receipt #{0}", sale.InvoiceNumber);
@@ -1243,6 +1189,12 @@ namespace RafiqPOS.Services
             int? paperWidth = null,
             bool? openDrawer = null)
         {
+            bool drawerRequested = openDrawer.HasValue ? openDrawer.Value : GetConfiguredOpenDrawer();
+            return AddDrawerSafetyNotice(PrintReturnReceiptPaper(returnObj, printerName, paperWidth), drawerRequested);
+        }
+
+        private PrintResult PrintReturnReceiptPaper(Return returnObj, string printerName, int? paperWidth)
+        {
             if (returnObj == null)
             {
                 return new PrintResult { Success = false, Message = "بيانات المرتجع غير صحيحة" };
@@ -1253,11 +1205,9 @@ namespace RafiqPOS.Services
                 ? paperWidth.Value
                 : GetContentWidthPoints(GetConfiguredPaperWidth());
 
-            bool shouldOpenDrawer = openDrawer.HasValue ? openDrawer.Value : GetConfiguredOpenDrawer();
-
             if (RawPrinterHelper.IsNetworkPrinter(targetPrinter))
             {
-                return PrintReturnReceiptToNetwork(returnObj, targetPrinter, printWidth, shouldOpenDrawer);
+                return PrintReturnReceiptToNetwork(returnObj, targetPrinter, printWidth);
             }
 
             try
@@ -1300,16 +1250,6 @@ namespace RafiqPOS.Services
                     doc.Print();
                 }
 
-                if (shouldOpenDrawer)
-                {
-                    try
-                    {
-                        string kickErr;
-                        RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr, GetConfiguredDrawerPulseMs());
-                    }
-                    catch { }
-                }
-
                 if (GetConfiguredAutoCut())
                 {
                     try
@@ -1339,7 +1279,7 @@ namespace RafiqPOS.Services
             }
         }
 
-        private PrintResult PrintReturnReceiptToNetwork(Return returnObj, string networkTarget, int printWidth, bool shouldOpenDrawer)
+        private PrintResult PrintReturnReceiptToNetwork(Return returnObj, string networkTarget, int printWidth)
         {
             try
             {
@@ -1351,7 +1291,7 @@ namespace RafiqPOS.Services
                     }
 
                     bool autoCut = GetConfiguredAutoCut();
-                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs());
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, autoCut);
 
                     string errMsg;
                     string docTitle = string.Format("Rafiq Network Return #{0}", returnObj.ReturnNumber);

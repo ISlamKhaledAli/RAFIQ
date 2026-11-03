@@ -144,7 +144,10 @@ namespace RafiqPOS.Models
         [JsonProperty("idempotencyKey")]
         public string IdempotencyKey { get; set; }
 
-        [JsonProperty("supervisorPin")]
+        [JsonIgnore]
+        public string IdempotencyFingerprint { get; set; }
+
+        [JsonIgnore]
         public string SupervisorPin { get; set; }
 
         [JsonIgnore]

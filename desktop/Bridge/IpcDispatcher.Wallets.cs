@@ -19,12 +19,53 @@ namespace RafiqPOS.Bridge
             return new DigitalAccountRepository(DatabaseService.ConnectionString, DatabaseService.AuditRepo);
         }
 
+        private static BridgeResponse ResolveFinancialAttemptRequest(BridgeRequest request, bool wallet)
+        {
+            var envelope = request.Payload as JObject;
+            if (envelope == null) return BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "الطلب الأصلي وهوية المستخدم مطلوبان");
+            string operation = (string)envelope["operation"];
+            string actorId = (string)envelope["actorId"];
+            var payload = envelope["payload"] as JObject;
+            Common.IdempotencyGuard.VerifyFinancialAttemptActor(actorId);
+            string permission;
+            if (wallet && operation == "wallets:processTransaction") permission = "wallets.transact";
+            else if (wallet && operation == "wallets:fundAccount") permission = "wallets.fund";
+            else if (!wallet && operation == "epay:createTransaction") permission = "epay.transact";
+            else if (!wallet && operation == "epay:fundTerminal") permission = "epay.fund";
+            else return BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "نوع المحاولة لا يطابق هذه الخدمة");
+            if (!Common.IdempotencyGuard.FinancialHasPermission(permission))
+                return BridgeResponse.Fail(request.Id, "FORBIDDEN", "لا تملك صلاحية العملية المالية الأصلية");
+            bool abandon = request.Action.EndsWith(":abandonAttempt", StringComparison.Ordinal);
+            var result = wallet ? GetWalletsRepo().ResolveAttempt(operation, payload, actorId, abandon) :
+                GetEpayRepo().ResolveAttempt(operation, payload, actorId, abandon);
+            return BridgeResponse.Ok(request.Id, result);
+        }
+
         private static bool TryDispatchWallets(BridgeRequest request, out BridgeResponse response)
+        {
+            if (request == null || request.Action == null || !request.Action.StartsWith("wallets:", StringComparison.Ordinal))
+            {
+                response = null;
+                return false;
+            }
+            BridgeResponse result = null;
+            bool handled = Common.IdempotencyGuard.WithFinancialOperation<bool>(null,
+                delegate { return TryDispatchWalletsCore(request, out result); });
+            response = result;
+            return handled;
+        }
+
+        private static bool TryDispatchWalletsCore(BridgeRequest request, out BridgeResponse response)
         {
             response = null;
 
             switch (request.Action)
             {
+                case "wallets:reconcileAttempt":
+                case "wallets:abandonAttempt":
+                    response = ResolveFinancialAttemptRequest(request, true);
+                    return true;
+
                 case "wallets:getAccounts":
                     {
                         var repo = GetWalletsRepo();
@@ -124,8 +165,7 @@ namespace RafiqPOS.Bridge
                             return true;
                         }
 
-                        var sessionUser = SecurityService.CurrentUser;
-                        string userId = sessionUser != null ? sessionUser.Id : "admin";
+                        string userId = Common.IdempotencyGuard.FinancialActorId("admin");
 
                         lock (SaleService.FinancialWriteLock)
                         {
@@ -153,9 +193,25 @@ namespace RafiqPOS.Bridge
 
                         string accountId = pObj["accountId"] != null ? pObj["accountId"].ToString() : null;
                         long amountPiasters = pObj["amountPiasters"] != null ? pObj["amountPiasters"].Value<long>() : 0;
-                        string fundingSource = pObj["fundingSource"] != null ? pObj["fundingSource"].ToString() : "cash_drawer";
+                        string fundingSource = DigitalAccountRepository.NormalizeFundingSource(pObj["fundingSource"] != null ? pObj["fundingSource"].ToString() : null);
+                        if (pObj["source"] != null)
+                        {
+                            string legacySource = DigitalAccountRepository.NormalizeFundingSource(pObj["source"].ToString());
+                            if (pObj["fundingSource"] != null && fundingSource != legacySource)
+                            {
+                                response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "مصدر التغذية متناقض بين الحقول المرسلة");
+                                return true;
+                            }
+                            fundingSource = legacySource;
+                        }
+                        string idempotencyKey = Common.IdempotencyGuard.NormalizeKey(pObj["idempotencyKey"] != null ? pObj["idempotencyKey"].ToString() : null);
                         string notes = pObj["notes"] != null ? pObj["notes"].ToString() : null;
 
+                        if (idempotencyKey == null || Common.IdempotencyGuard.FinancialActorId(null) == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "رقم محاولة ثابت وجلسة مستخدم موثقة مطلوبان لتسجيل التغذية");
+                            return true;
+                        }
                         if (string.IsNullOrEmpty(accountId))
                         {
                             response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "يرجى تحديد الحساب المطلوب تغذيته");
@@ -167,13 +223,11 @@ namespace RafiqPOS.Bridge
                             return true;
                         }
 
-                        string createdBy = SecurityService.CurrentUser != null
-                            ? (!string.IsNullOrEmpty(SecurityService.CurrentUser.DisplayName) ? SecurityService.CurrentUser.DisplayName : SecurityService.CurrentUser.Username)
-                            : "الكاشير";
+                        string createdBy = Common.IdempotencyGuard.FinancialActorId(null);
 
                         lock (SaleService.FinancialWriteLock)
                         {
-                            var funding = repo.FundAccount(accountId, amountPiasters, fundingSource, notes, createdBy);
+                            var funding = repo.FundAccount(accountId, amountPiasters, fundingSource, notes, createdBy, idempotencyKey);
                             response = BridgeResponse.Ok(request.Id, funding);
                         }
                         return true;
@@ -195,6 +249,11 @@ namespace RafiqPOS.Bridge
                             return true;
                         }
 
+                        if (Common.IdempotencyGuard.NormalizeKey(tx.IdempotencyKey) == null || Common.IdempotencyGuard.FinancialActorId(null) == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "رقم محاولة ثابت وجلسة مستخدم موثقة مطلوبان لتسجيل العملية");
+                            return true;
+                        }
                         if (string.IsNullOrEmpty(tx.AccountId))
                         {
                             response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "يرجى اختيار المحفظة أو حساب إنستاباي");
@@ -206,12 +265,7 @@ namespace RafiqPOS.Bridge
                             return true;
                         }
 
-                        if (SecurityService.CurrentUser != null)
-                        {
-                            tx.CashierName = !string.IsNullOrEmpty(SecurityService.CurrentUser.DisplayName)
-                                ? SecurityService.CurrentUser.DisplayName
-                                : SecurityService.CurrentUser.Username;
-                        }
+                        tx.CashierName = Common.IdempotencyGuard.FinancialActorName(tx.CashierName);
 
                         lock (SaleService.FinancialWriteLock)
                         {
@@ -245,9 +299,12 @@ namespace RafiqPOS.Bridge
                             return true;
                         }
 
-                        string cancelledBy = SecurityService.CurrentUser != null
-                            ? (!string.IsNullOrEmpty(SecurityService.CurrentUser.DisplayName) ? SecurityService.CurrentUser.DisplayName : SecurityService.CurrentUser.Username)
-                            : "الكاشير";
+                        if (Common.IdempotencyGuard.FinancialActorId(null) == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "جلسة مستخدم موثقة مطلوبة للإلغاء");
+                            return true;
+                        }
+                        string cancelledBy = Common.IdempotencyGuard.FinancialActorId(null);
 
                         lock (SaleService.FinancialWriteLock)
                         {

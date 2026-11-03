@@ -157,29 +157,38 @@ namespace RafiqPOS.Tests.Scenarios
 
             var noReason = ProductService.GetById(prod.Id);
             noReason.StockQuantityMilli = 1000;
-            Assert.Throws<ArgumentException>(delegate { ProductService.SaveProduct(noReason, true, true); });
+            using (AdmitProductRequest("usr_admin_default"))
+                Assert.Throws<ArgumentException>(delegate { ProductService.SaveProduct(noReason, true, true); });
             Assert.AreEqual(4000, ProductRepo.GetById(prod.Id).StockQuantityMilli, "لا يتغير الرصيد بدون سبب");
 
             var cashier = UserRepo.GetById("usr_cashier_1");
             Assert.IsNotNull(cashier, "الكاشير المبدئي غير موجود");
+            var permissions = SecurityService.GetAllPermissionsDictionary(false);
+            permissions["products.edit"] = true;
+            permissions["products.edit_price"] = true;
+            SecurityService.UpdateUserPermissions(cashier.Id, permissions);
             SecurityService.SetCurrentUserForTesting(SecurityService.MapToDto(cashier));
             var cashierEdit = ProductService.GetById(prod.Id);
             cashierEdit.StockQuantityMilli = 1000;
             cashierEdit.StockAdjustReason = "تالف";
-            Assert.Throws<UnauthorizedAccessException>(delegate { ProductService.SaveProduct(cashierEdit, true, true); });
+            using (AdmitProductRequest(cashier.Id))
+                Assert.Throws<UnauthorizedAccessException>(delegate { ProductService.SaveProduct(cashierEdit, true, true); });
             Assert.AreEqual(4000, ProductRepo.GetById(prod.Id).StockQuantityMilli, "الكاشير بدون صلاحية التسوية لا يغير الرصيد");
 
             // A price-only edit by the same cashier stays allowed
             var priceOnly = ProductService.GetById(prod.Id);
             priceOnly.PricePiasters = 1600;
-            ProductService.SaveProduct(priceOnly, true, true);
+            using (AdmitProductRequest(cashier.Id))
+                ProductService.SaveProduct(priceOnly, true, true);
             Assert.AreEqual(1600, ProductRepo.GetById(prod.Id).PricePiasters);
 
             SecurityService.SetCurrentUserForTesting(null);
             var adminEdit = ProductService.GetById(prod.Id);
             adminEdit.StockQuantityMilli = 1000;
             adminEdit.StockAdjustReason = "تالف بالرف";
-            var saved = ProductService.SaveProduct(adminEdit, true, true);
+            Product saved;
+            using (AdmitProductRequest("usr_admin_default"))
+                saved = ProductService.SaveProduct(adminEdit, true, true);
 
             Assert.AreEqual(1000, saved.StockQuantityMilli);
             Assert.AreEqual(1000, LedgerSum(prod.Id), "الحركة سجلت داخل نفس المعاملة");
@@ -218,7 +227,9 @@ namespace RafiqPOS.Tests.Scenarios
                 new ProductUnit { Id = "u-juice-base", ProductId = juice.Id, UnitName = "علبة", ConversionFactor = 1, IsBaseUnit = true, SellPricePiasters = 900, CostPricePiasters = 700, Barcode = "6220000000002" },
                 new ProductUnit { Id = "u-juice-carton", ProductId = juice.Id, UnitName = "كرتونة", ConversionFactor = 24, IsBaseUnit = false, SellPricePiasters = 20000, CostPricePiasters = 16000, Barcode = "6220000000001" }
             };
-            var ex = Assert.Throws<InvalidOperationException>(delegate { ProductService.SaveProduct(edit, true, true); });
+            InvalidOperationException ex;
+            using (AdmitProductRequest("usr_admin_default"))
+                ex = Assert.Throws<InvalidOperationException>(delegate { ProductService.SaveProduct(edit, true, true); });
             StringAssert.Contains("مياه معدنية صغيرة", ex.Message);
 
             // Legacy duplicate already in the database: the product whose own barcode matches wins every time

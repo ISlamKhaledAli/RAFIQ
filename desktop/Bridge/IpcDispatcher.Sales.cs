@@ -14,6 +14,14 @@ namespace RafiqPOS.Bridge
             response = null;
             switch (request.Action)
             {
+                case "sales:reconcileCheckout":
+                    response = HandleSaleAttemptControl(request, false);
+                    return true;
+
+                case "sales:abandonCheckout":
+                    response = HandleSaleAttemptControl(request, true);
+                    return true;
+
                 case "sales:create":
                     // Feature #173: Block sale creation when license is expired or tampered (Task 173-2)
                     if (DatabaseService.License != null && DatabaseService.License.IsLicenseExpired())
@@ -62,6 +70,16 @@ namespace RafiqPOS.Bridge
                                 saleToCreate.SupervisorPin = supervisorPin;
                             }
                         }
+                        if (SecurityService.CurrentUser == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "UNAUTHORIZED", "يجب تسجيل الدخول قبل البيع.");
+                            return true;
+                        }
+                        if (string.IsNullOrWhiteSpace(saleIdempotencyKey))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرّف محاولة حفظ الفاتورة مطلوب لمنع تسجيلها مرتين.");
+                            return true;
+                        }
                         var createdSale = DatabaseService.Sales.ProcessSale(saleToCreate, saleIdempotencyKey);
                         if (DatabaseService.License != null)
                         {
@@ -72,7 +90,7 @@ namespace RafiqPOS.Bridge
                     catch (InvalidOperationException invEx)
                     {
                         Logger.Warn("فشل التحقق من بيع الفاتورة أو الرصيد: " + invEx.Message);
-                        response = BridgeResponse.Fail(request.Id, "SALE_VALIDATION_FAILED", invEx.Message);
+                        response = BridgeResponse.Fail(request.Id, SaleAttemptErrorCode(invEx.Message), invEx.Message);
                     }
                     catch (Exception ex)
                     {
@@ -255,6 +273,7 @@ namespace RafiqPOS.Bridge
                             heldToSave.SubtotalPiasters = holdPayloadObj["subtotalPiasters"].Value<long>();
                         }
                     }
+
                     heldToSave.CashierId = SessionActorId();
                     var savedHeld = DatabaseService.HeldSales.HoldSale(heldToSave);
                     response = BridgeResponse.Ok(request.Id, savedHeld);
@@ -463,6 +482,60 @@ namespace RafiqPOS.Bridge
 
                 default:
                     return false;
+            }
+        }
+
+        private static string SaleAttemptErrorCode(string message)
+        {
+            string[] codes = new string[]
+            {
+                "SALE_IDEMPOTENCY_CONFLICT",
+                "SALE_IDEMPOTENCY_RECONCILIATION_REQUIRED",
+                "SALE_CHECKOUT_ABANDONED"
+            };
+            for (int i = 0; i < codes.Length; i++)
+            {
+                if (message != null && message.StartsWith(codes[i], StringComparison.Ordinal)) return codes[i];
+            }
+            return "SALE_VALIDATION_FAILED";
+        }
+
+        private static BridgeResponse HandleSaleAttemptControl(BridgeRequest request, bool abandon)
+        {
+            var actor = SecurityService.CurrentUser;
+            if (actor == null)
+            {
+                return BridgeResponse.Fail(request.Id, "UNAUTHORIZED", "يجب تسجيل الدخول للتحقق من محاولة حفظ الفاتورة.");
+            }
+            if (request.Payload == null)
+            {
+                return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات محاولة حفظ الفاتورة مطلوبة.");
+            }
+            try
+            {
+                Sale attempt = JsonConvert.DeserializeObject<Sale>(request.Payload.ToString());
+                if (attempt == null || string.IsNullOrWhiteSpace(attempt.IdempotencyKey))
+                {
+                    return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرّف وبيانات محاولة الحفظ الأصلية مطلوبة.");
+                }
+                attempt.CashierId = actor.Id;
+                attempt.CashierName = !string.IsNullOrWhiteSpace(actor.DisplayName) ? actor.DisplayName : actor.Username;
+                if (abandon)
+                {
+                    Sale committed = DatabaseService.Sales.AbandonCheckout(attempt, attempt.IdempotencyKey);
+                    return BridgeResponse.Ok(request.Id, new { abandoned = committed == null, sale = committed });
+                }
+                return BridgeResponse.Ok(request.Id, DatabaseService.Sales.ReconcileCheckout(attempt, attempt.IdempotencyKey));
+            }
+            catch (JsonException ex)
+            {
+                Logger.Warn("بيانات محاولة الحفظ غير صالحة: " + ex.Message);
+                return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات محاولة الحفظ غير صالحة؛ لم يتم إنشاء أي بيع جديد.");
+            }
+            catch (InvalidOperationException ex)
+            {
+                Logger.Warn("تعذر حسم محاولة حفظ الفاتورة: " + ex.Message);
+                return BridgeResponse.Fail(request.Id, SaleAttemptErrorCode(ex.Message), ex.Message);
             }
         }
     }

@@ -14,6 +14,7 @@ namespace RafiqPOS.Tests
     public abstract class TestBase
     {
         protected string TestDbPath;
+        protected string TestDirectory;
         protected string ConnectionString;
 
         // Repositories
@@ -59,8 +60,13 @@ namespace RafiqPOS.Tests
         [SetUp]
         public virtual void BaseSetUp()
         {
-            TestDbPath = Path.Combine(Path.GetTempPath(), "rafiq_nunit_" + Guid.NewGuid().ToString("N") + ".db");
-            ConnectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", TestDbPath);
+            RafiqPOS.Services.SecurityService.SetCurrentUserForTesting(null);
+            TestDirectory = Path.Combine(Path.GetTempPath(), "rafiq_nunit_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(TestDirectory);
+            TestDbPath = Path.Combine(TestDirectory, "rafiq_test.db");
+            // These are connection defaults, not a one-off PRAGMA on the migration connection.
+            // Every repository/fixture connection must enforce the same immediate FKs as production.
+            ConnectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;Foreign Keys=True;Journal Mode=Wal;Synchronous=Normal;", TestDbPath);
 
             // Apply all migrations on isolated SQLite database (1 to LATEST_SUPPORTED_VERSION)
             MigrationRunner.ApplyMigrations(ConnectionString, TestDbPath);
@@ -134,6 +140,7 @@ namespace RafiqPOS.Tests
         [TearDown]
         public virtual void BaseTearDown()
         {
+            RafiqPOS.Services.SecurityService.SetCurrentUserForTesting(null);
             try
             {
                 DatabaseService.TableRepo = null;
@@ -158,6 +165,15 @@ namespace RafiqPOS.Tests
                 if (File.Exists(walFile)) File.Delete(walFile);
                 string shmFile = TestDbPath + "-shm";
                 if (File.Exists(shmFile)) File.Delete(shmFile);
+                // Migration backups belong to this test too, never a shared temp/migration_backups directory.
+                if (!string.IsNullOrEmpty(TestDirectory) && Directory.Exists(TestDirectory))
+                {
+                    string fullPath = Path.GetFullPath(TestDirectory);
+                    if (!fullPath.StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.OrdinalIgnoreCase)
+                        || !Path.GetFileName(fullPath).StartsWith("rafiq_nunit_", StringComparison.Ordinal))
+                        throw new InvalidOperationException("Refusing to delete a non-test directory.");
+                    Directory.Delete(fullPath, true);
+                }
             }
             catch
             {
@@ -177,7 +193,21 @@ namespace RafiqPOS.Tests
                 Unit = "piece",
                 IsActive = true
             };
-            return ProductService.SaveProduct(p, true, true);
+            using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                return ProductService.SaveProduct(p, true, true);
+        }
+
+        protected IDisposable AdmitProductRequest(string userId)
+        {
+            User actor = UserRepo.GetById(userId);
+            Assert.IsNotNull(actor, "The direct request must name a persisted test actor.");
+            if (actor.MustChangePin)
+            {
+                SecurityService.ChangeUserPin(userId, "7418");
+                actor = UserRepo.GetById(userId);
+            }
+            RafiqPOS.Services.SecurityService.SetCurrentUserForTesting(RafiqPOS.Services.SecurityService.MapToDto(actor));
+            return ProductWritePolicy.EnterRequest(RafiqPOS.Services.SecurityService.CaptureRequestAdmission());
         }
 
         protected Customer CreateTestCustomer(string name, long creditLimitPiasters = 0, long initialBalancePiasters = 0)

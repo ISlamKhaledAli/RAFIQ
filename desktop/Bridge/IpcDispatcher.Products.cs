@@ -229,8 +229,8 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "products:clearAll":
-                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
-                    string actorName = SecurityService.CurrentUser != null ? (SecurityService.CurrentUser.DisplayName ?? SecurityService.CurrentUser.Username) : "المدير";
+                    string actorId = SessionActorId();
+                    string actorName = SessionActorName();
                     int clearedCount = DatabaseService.Products.ClearAllProducts();
                     try
                     {
@@ -242,7 +242,7 @@ namespace RafiqPOS.Bridge
                                 Action = "products_clear_all",
                                 EntityType = "product",
                                 EntityId = "ALL",
-                                DetailsJson = string.Format("{{\"actor\":\"{0}\",\"archivedCount\":{1},\"timestamp\":\"{2}\"}}", actorName, clearedCount, DateTime.UtcNow.ToString("o"))
+                                DetailsJson = JsonConvert.SerializeObject(new { actor = actorName, archivedCount = clearedCount, timestamp = DateTime.UtcNow.ToString("o") })
                             });
                         }
                     }
@@ -283,7 +283,7 @@ namespace RafiqPOS.Bridge
                         response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "قائمة الأصناف المراد استيرادها فارغة");
                         return true;
                     }
-                    string importUserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    string importUserId = SessionActorId();
                     var importResult = DatabaseService.Products.ImportBatch(importReq, importUserId);
                     response = BridgeResponse.Ok(request.Id, importResult);
                     return true;

@@ -53,17 +53,6 @@ namespace RafiqPOS.Common
 
         #region ESC/POS Standard Command Sequences
 
-        // نبضات فتح درج النقدية القياسية (دبوس 2 ودبوس 5 + معيار Star Micronics)
-        // ESC p 0 25 250 (Pin 2: 50ms ON, 500ms OFF)
-        // ESC p 1 25 250 (Pin 5: 50ms ON, 500ms OFF)
-        // 0x07 (BEL - Star Micronics pulse)
-        private static readonly byte[] DRAWER_KICK_PULSE = new byte[]
-        {
-            0x1B, 0x70, 0x00, 0x0F, 0x64,
-            0x1B, 0x70, 0x01, 0x0F, 0x64,
-            0x07
-        };
-
         // تغذية 3 أسطر وقص الورق الجزئي (Partial Cut)
         // ESC d 3 (تغذية 3 أسطر ليخرج الورق بعد رأس الطباعة)
         // GS V 66 0 (قص جزئي قياسي يترك نقطة واحدة لمنع سقوط الإيصال)
@@ -72,23 +61,6 @@ namespace RafiqPOS.Common
             0x1B, 0x64, 0x04,
             0x1D, 0x56, 0x42, 0x00
         };
-
-        public static byte[] GetDrawerKickPulse(int pulseMs = 30)
-        {
-            byte t1 = (byte)Math.Max(5, Math.Min(125, pulseMs / 2));
-            byte t2 = 100;
-            return new byte[]
-            {
-                0x1B, 0x70, 0x00, t1, t2,
-                0x1B, 0x70, 0x01, t1, t2,
-                0x07
-            };
-        }
-
-        public static byte[] DrawerKickPulse
-        {
-            get { return GetDrawerKickPulse(30); }
-        }
 
         public static byte[] PaperCutSequence
         {
@@ -100,8 +72,12 @@ namespace RafiqPOS.Common
         /// تضمن طباعة النصوص العربية والباركود والشعار بأعلى دقة على كافة طابعات الإيصالات الشبكية (TCP) و USB
         /// وتعمل بسرعة فائقة (&lt; 2ms) عبر معالجة الذاكرة المباشرة LockBits
         /// </summary>
-        public static byte[] ConvertBitmapToEscPosRaster(Bitmap bitmap, bool kickDrawer, bool autoCut, int drawerPulseMs = 30)
+        public static byte[] ConvertBitmapToEscPosRaster(Bitmap bitmap, bool kickDrawer, bool autoCut)
         {
+            if (kickDrawer)
+            {
+                throw new InvalidOperationException(DrawerSafetyPolicy.BlockReason);
+            }
             if (bitmap == null) return new byte[0];
 
             int width = bitmap.Width;
@@ -114,12 +90,6 @@ namespace RafiqPOS.Common
                 // 1. ESC @ (تهيئة الطابعة)
                 bw.Write((byte)0x1B);
                 bw.Write((byte)0x40);
-
-                // 2. نبضة فتح درج النقدية إذا طُلبت
-                if (kickDrawer)
-                {
-                    bw.Write(GetDrawerKickPulse(drawerPulseMs));
-                }
 
                 // 3. محاذاة في المنتصف: ESC a 1
                 bw.Write((byte)0x1B);
@@ -266,7 +236,9 @@ namespace RafiqPOS.Common
         /// </summary>
         public static bool SendDrawerKick(string printerTarget, out string errorMessage, int pulseMs = 30)
         {
-            return SendRawBytes(printerTarget, GetDrawerKickPulse(pulseMs), "Rafiq Drawer Kick", out errorMessage);
+            errorMessage = DrawerSafetyPolicy.BlockReason;
+            Logger.Warn("تم منع أمر فتح الدرج قبل الوصول للطابعة: " + errorMessage);
+            return false;
         }
 
         /// <summary>

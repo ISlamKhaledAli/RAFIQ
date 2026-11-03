@@ -4,6 +4,7 @@ import type { Sale } from '../types/models';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { formatArabicCurrency, totalSaleDiscountPiasters } from '../utils/money';
+import { readPrintResult, receiptPrintRequest } from '../utils/printing';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -34,7 +35,7 @@ export function ReceiptModal({
     isDirty: false,
   });
   const [isPrinting, setIsPrinting] = useState(false);
-  const [printStatus, setPrintStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [printStatus, setPrintStatus] = useState<{ ok: boolean; msg: string; warning?: string } | null>(null);
   const [liveSettings, setLiveSettings] = useState<Record<string, string>>({});
   const [paperWidth, setPaperWidth] = useState<'80mm' | '57mm'>('80mm');
 
@@ -100,14 +101,13 @@ export function ReceiptModal({
     setPrintStatus(null);
 
     try {
-      const res = await invoke<{ ok: boolean; message?: string; printerName?: string }>('printer:printReceipt', {
-        saleId: sale.id,
-      });
+      const res = readPrintResult(await invoke<unknown>('printer:printReceipt', receiptPrintRequest(sale.id)));
 
-      if (res && res.ok) {
+      if (res.success) {
         setPrintStatus({
           ok: true,
-          msg: `تم إرسال الفاتورة بنجاح إلى الطابعة (${res.printerName || 'الافتراضية'})`,
+          msg: `تم إرسال نسخة الإيصال إلى الطابعة (${res.printerUsed || 'الافتراضية'})`,
+          warning: res.warningMessage || undefined,
         });
       } else {
         const errMsg = res?.message || 'تعذر إرسال أمر الطباعة للطابعة الحرارية. يرجى مراجعة التوصيل والكابل.';
@@ -119,7 +119,7 @@ export function ReceiptModal({
     } catch (err: unknown) {
       setPrintStatus({
         ok: false,
-        msg: (err as Error)?.message || 'حدث خطأ غير متوقع أثناء التواصل مع خدمة الطباعة.',
+        msg: `لم يمكن تأكيد إرسال الإيصال. لا تُعد تسجيل البيع؛ أعد طباعة نسخة فقط. ${err instanceof Error ? err.message : String(err)}`,
       });
     } finally {
       setIsPrinting(false);
@@ -232,6 +232,11 @@ export function ReceiptModal({
         </div>
 
         {/* Paper Out / Hardware Error Banner */}
+        {printStatus?.warning && (
+          <div role="status" className="mx-4 mt-2 rounded-lg border border-warn/30 dark:border-warn-bright/30 bg-warn-soft dark:bg-warn-dark-soft p-3 text-xs text-ink dark:text-ink-dark">
+            {printStatus.warning}
+          </div>
+        )}
         {printStatus && !printStatus.ok && (
           <div className="px-4 py-2.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800/60 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />

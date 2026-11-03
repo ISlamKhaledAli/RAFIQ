@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Text;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Repositories;
@@ -25,66 +29,168 @@ namespace RafiqPOS.Services
         /// </summary>
         public static readonly object FinancialWriteLock = new object();
 
-        private static readonly Dictionary<string, Sale> _completedByIdempotencyKey = new Dictionary<string, Sale>();
-        private static readonly Queue<string> _idempotencyOrder = new Queue<string>();
-        private const int IDEMPOTENCY_CACHE_SIZE = 200;
-
         /// <summary>
         /// Creates a sale at most once per client checkout key, so a retry after a UI timeout cannot duplicate it (Audit F-09, F-16).
         /// </summary>
         public Sale ProcessSale(Sale sale, string idempotencyKey)
         {
             lock (FinancialWriteLock)
+            using (BeginFinancialOperation())
             {
-                if (string.IsNullOrWhiteSpace(idempotencyKey) && sale != null && !string.IsNullOrWhiteSpace(sale.IdempotencyKey))
-                {
-                    idempotencyKey = sale.IdempotencyKey;
-                }
-
-                // 1. Fast in-memory cache lookup
-                if (!string.IsNullOrWhiteSpace(idempotencyKey) && _completedByIdempotencyKey.ContainsKey(idempotencyKey))
-                {
-                    return _completedByIdempotencyKey[idempotencyKey];
-                }
-
-                // 2. Persistent SQLite idempotency check across app restarts (Audit F-09)
+                if (sale == null) throw new ArgumentNullException("sale");
+                idempotencyKey = ResolveCheckoutKey(sale, idempotencyKey);
+                var posting = PrepareCheckoutRequest(sale);
+                string fingerprint = CheckoutFingerprint(posting);
                 if (!string.IsNullOrWhiteSpace(idempotencyKey))
                 {
+                    _saleRepo.EnsureCheckoutNotAbandoned(idempotencyKey, fingerprint);
                     Sale existing = _saleRepo.GetSaleByIdempotencyKey(idempotencyKey);
                     if (existing != null)
                     {
-                        _completedByIdempotencyKey[idempotencyKey] = existing;
+                        EnsureCheckoutReplayMatches(existing.IdempotencyFingerprint, fingerprint);
                         return existing;
                     }
                 }
 
-                if (sale != null && !string.IsNullOrWhiteSpace(idempotencyKey))
-                {
-                    sale.IdempotencyKey = idempotencyKey;
-                }
-
-                Sale created = ProcessSaleCore(sale);
-
-                if (!string.IsNullOrWhiteSpace(idempotencyKey))
-                {
-                    _completedByIdempotencyKey[idempotencyKey] = created;
-                    _idempotencyOrder.Enqueue(idempotencyKey);
-                    while (_idempotencyOrder.Count > IDEMPOTENCY_CACHE_SIZE)
-                    {
-                        _completedByIdempotencyKey.Remove(_idempotencyOrder.Dequeue());
-                    }
-                }
-                return created;
+                posting.IdempotencyKey = idempotencyKey;
+                posting.IdempotencyFingerprint = fingerprint;
+                return ProcessSaleCore(posting);
             }
         }
 
         public static void ClearIdempotencyCache()
         {
+            // Replay verification is database-backed; retained for existing callers.
+        }
+
+        internal static void EnsureCheckoutReplayMatches(string stored, string requested)
+        {
+            if (string.IsNullOrEmpty(stored))
+                throw new InvalidOperationException("SALE_IDEMPOTENCY_RECONCILIATION_REQUIRED: الفاتورة السابقة لا تحتوي على بصمة طلب موثقة. راجع الفاتورة برقمها قبل أي محاولة بيع جديدة.");
+            if (!string.Equals(stored, requested, StringComparison.Ordinal))
+                throw new InvalidOperationException("SALE_IDEMPOTENCY_CONFLICT: مفتاح المحاولة مرتبط بفاتورة ببيانات مختلفة. احتفظ بالسلة وراجع الفاتورة السابقة قبل إنشاء محاولة جديدة.");
+        }
+
+        public Sale ReconcileCheckout(Sale request, string idempotencyKey)
+        {
             lock (FinancialWriteLock)
+            using (BeginFinancialOperation())
             {
-                _completedByIdempotencyKey.Clear();
-                _idempotencyOrder.Clear();
+                if (request == null) throw new ArgumentNullException("request");
+                string key = ResolveCheckoutKey(request, idempotencyKey);
+                if (key == null) throw new ArgumentException("مفتاح محاولة البيع مطلوب للمطابقة.", "idempotencyKey");
+                string fingerprint = CheckoutFingerprint(PrepareCheckoutRequest(request));
+                var existing = _saleRepo.GetSaleByIdempotencyKey(key);
+                if (existing == null)
+                {
+                    _saleRepo.EnsureCheckoutNotAbandoned(key, fingerprint);
+                    return null;
+                }
+                EnsureCheckoutReplayMatches(existing.IdempotencyFingerprint, fingerprint);
+                return existing;
             }
+        }
+
+        public Sale AbandonCheckout(Sale request, string idempotencyKey)
+        {
+            lock (FinancialWriteLock)
+            using (BeginFinancialOperation())
+            {
+                if (request == null) throw new ArgumentNullException("request");
+                string key = ResolveCheckoutKey(request, idempotencyKey);
+                if (key == null) throw new ArgumentException("مفتاح محاولة البيع مطلوب لإلغاء المحاولة.", "idempotencyKey");
+                return _saleRepo.AbandonCheckoutAtomic(key, CheckoutFingerprint(PrepareCheckoutRequest(request)));
+            }
+        }
+
+        internal static ProductWritePolicy.Operation BeginFinancialOperation()
+        {
+            return ProductWritePolicy.CurrentAdmission != null ? ProductWritePolicy.BeginOperation() : null;
+        }
+
+        internal static bool HasFinancialPermission(string actorId, string permission)
+        {
+            var operation = ProductWritePolicy.CurrentAdmission != null ? ProductWritePolicy.CurrentOperation : null;
+            if (operation != null) return operation.HasPermission(permission);
+            if (ProductWritePolicy.CurrentAdmission != null)
+                throw new UnauthorizedAccessException("يجب اعتماد جلسة الطلب داخل القفل المالي قبل التحقق من الصلاحيات.");
+            return DatabaseService.Security != null && DatabaseService.Security.HasPermission(actorId, permission);
+        }
+
+        private static Sale PrepareCheckoutRequest(Sale request)
+        {
+            var posting = JsonConvert.DeserializeObject<Sale>(JsonConvert.SerializeObject(request));
+            posting.IsInternalSeed = ProductWritePolicy.CurrentAdmission == null && request.IsInternalSeed;
+            posting.SupervisorPin = request.SupervisorPin;
+            var operation = ProductWritePolicy.CurrentAdmission != null ? ProductWritePolicy.CurrentOperation : null;
+            if (operation != null)
+            {
+                posting.CashierId = operation.ActorId;
+                posting.CashierName = operation.ActorName;
+            }
+            return posting;
+        }
+
+        private static string ResolveCheckoutKey(Sale request, string suppliedKey)
+        {
+            string key = IdempotencyGuard.NormalizeKey(suppliedKey);
+            string embedded = IdempotencyGuard.NormalizeKey(request.IdempotencyKey);
+            if (key != null && embedded != null && !string.Equals(key, embedded, StringComparison.Ordinal))
+                throw new InvalidOperationException("SALE_IDEMPOTENCY_CONFLICT: مفتاح الطلب لا يطابق مفتاح محاولة البيع.");
+            return key ?? embedded;
+        }
+
+        private static JObject FingerprintFields(object source, params string[] fields)
+        {
+            if (source == null) return null;
+            JObject serialized = JObject.FromObject(source);
+            var selected = new JObject();
+            foreach (string field in fields) selected[field] = serialized[field];
+            return selected;
+        }
+
+        internal static string CheckoutFingerprint(Sale sale)
+        {
+            var request = FingerprintFields(sale, "cashierId", "customerId", "customerName", "customerPhone", "discountPiasters", "paidPiasters",
+                "changePiasters", "paymentMethod", "status", "notes", "shiftId", "orderType", "tableId", "tableName",
+                "guestsCount", "waiterName", "serviceFeePiasters", "serviceChargePiasters", "deliveryFeePiasters");
+            var items = new JArray();
+            if (sale.Items != null)
+                foreach (var item in sale.Items)
+                {
+                    if (item == null) { items.Add(JValue.CreateNull()); continue; }
+                    var line = FingerprintFields(item, "productId", "productName", "barcode", "quantityMilli",
+                        "unitPricePiasters", "discountPiasters", "taxRatePercent", "unit", "unitId", "unitName",
+                        "conversionFactor", "batchId", "batchNumber", "expiryDate", "isExpiredBypass", "isColdChain", "notes");
+                    var modifiers = new JArray();
+                    if (item.Modifiers != null)
+                        foreach (var modifier in item.Modifiers)
+                            modifiers.Add(FingerprintFields(modifier, "optionId", "groupName", "optionName", "extraPricePiasters", "quantityMilli"));
+                    line["modifiers"] = modifiers;
+                    items.Add(line);
+                }
+            request["items"] = items;
+            var payments = new JArray();
+            if (sale.Payments != null)
+                foreach (var payment in sale.Payments)
+                    payments.Add(FingerprintFields(payment, "method", "amountPiasters"));
+            request["payments"] = payments;
+            request["insuranceClaim"] = FingerprintFields(sale.InsuranceClaim, "contractId", "companyId",
+                "memberId", "memberNo", "patientName", "approvalNo", "status", "claimBatchId", "settledAt", "rejectionReason");
+            request["deliveryInfo"] = FingerprintFields(sale.DeliveryInfo, "customerName", "customerPhone",
+                "deliveryAddress", "landmark", "zoneId", "zoneName", "deliveryFeePiasters", "riderId", "riderName", "notes");
+            request["prescription"] = FingerprintFields(sale.Prescription, "patientName", "patientPhone",
+                "patientNationalId", "doctorName", "clinic", "prescriptionNo", "prescriptionDate", "notes", "imagePath", "createdBy");
+            var dispenses = new JArray();
+            if (sale.ControlledDispenses != null)
+                foreach (var dispense in sale.ControlledDispenses)
+                    dispenses.Add(FingerprintFields(dispense, "productId", "batchId", "batchNumber", "quantityMilli",
+                        "patientName", "patientNationalId", "patientPhone", "patientAddress", "doctorName",
+                        "doctorLicenseNo", "prescriptionNo", "prescriptionDate", "prescriptionId", "entryType",
+                        "originalDispenseId", "reason", "dispensedBy", "approvedBy", "notes"));
+            request["controlledDispenses"] = dispenses;
+            using (var sha = SHA256.Create())
+                return "sale-v1:" + BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(request.ToString(Formatting.None)))).Replace("-", "").ToLowerInvariant();
         }
 
         public Sale ProcessSale(Sale sale)
@@ -104,6 +210,10 @@ namespace RafiqPOS.Services
         private Sale ProcessSaleCore(Sale sale)
         {
             if (sale == null) throw new ArgumentNullException("sale");
+            var operation = ProductWritePolicy.CurrentAdmission != null ? ProductWritePolicy.CurrentOperation : null;
+            var legacyActor = operation == null ? SecurityService.CurrentUser : null;
+            string actorId = operation != null ? operation.ActorId : (legacyActor != null ? legacyActor.Id : null);
+            string actorRole = operation != null ? operation.Role : (legacyActor != null ? legacyActor.Role : null);
             if (sale.Items == null || sale.Items.Count == 0)
             {
                 throw new InvalidOperationException("لا يمكن حفظ فاتورة بدون أصناف");
@@ -226,10 +336,9 @@ namespace RafiqPOS.Services
             }
 
             // Discount permissions are enforced server-side; a verified supervisor PIN substitutes for the missing permission
-            if (SecurityService.CurrentUser != null && DatabaseService.Security != null && !sale.IsSupervisorAuthorized)
+            if (actorId != null && (operation != null || DatabaseService.Security != null) && !sale.IsSupervisorAuthorized)
             {
-                string discountUserId = SecurityService.CurrentUser.Id;
-                if (sale.DiscountPiasters > 0 && !DatabaseService.Security.HasPermission(discountUserId, "pos.discount_invoice"))
+                if (sale.DiscountPiasters > 0 && !HasFinancialPermission(actorId, "pos.discount_invoice"))
                 {
                     throw new InvalidOperationException("ليس لديك صلاحية خصم على إجمالي الفاتورة. يرجى طلب اعتماد المشرف.");
                 }
@@ -238,7 +347,7 @@ namespace RafiqPOS.Services
                 {
                     if (sale.Items[dIdx].DiscountPiasters > 0) { hasLineDiscount = true; break; }
                 }
-                if (hasLineDiscount && !DatabaseService.Security.HasPermission(discountUserId, "pos.discount_line"))
+                if (hasLineDiscount && !HasFinancialPermission(actorId, "pos.discount_line"))
                 {
                     throw new InvalidOperationException("ليس لديك صلاحية خصم على الأصناف. يرجى طلب اعتماد المشرف.");
                 }
@@ -269,9 +378,9 @@ namespace RafiqPOS.Services
             var resolvedProducts = new Dictionary<string, Product>();
 
             // Price authority applies to interactive sales by a logged-in user without the override permission
-            bool enforcePriceAuthority = SecurityService.CurrentUser != null
-                && DatabaseService.Security != null
-                && !DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.price_override");
+            bool enforcePriceAuthority = actorId != null
+                && (operation != null || DatabaseService.Security != null)
+                && !HasFinancialPermission(actorId, "pos.price_override");
             // Owner rule: a verified supervisor PIN approves catalogue-price deviations, each one is audited with the sale
             sale.SupervisorPriceDeviations = new List<SalePriceDeviation>();
 
@@ -664,9 +773,9 @@ namespace RafiqPOS.Services
 
                         // Check cashier authorization
                         bool requiresApproval = false;
-                        if (DatabaseService.Security != null && !string.IsNullOrEmpty(sale.CashierId))
+                        if ((operation != null || DatabaseService.Security != null) && !string.IsNullOrEmpty(sale.CashierId))
                         {
-                            requiresApproval = !DatabaseService.Security.HasPermission(sale.CashierId, "pharma.controlled.dispense");
+                            requiresApproval = !HasFinancialPermission(sale.CashierId, "pharma.controlled.dispense");
                         }
 
                         // Each controlled line consumes its own dispense entry (the UI sends one per cart line, in cart order)
@@ -794,13 +903,11 @@ namespace RafiqPOS.Services
 
             // Server-side Cashier Discount Limit Enforcement (Scenario 3 / Audit Security Rule 8 & F-10)
             // Prevent client-side bypass: verify that any discount exceeding cashier limits has supervisor authorization
-            if (SecurityService.CurrentUser != null)
+            if (actorId != null)
             {
-                bool isPrivilegedUser = SecurityService.CurrentUser.Role == "root" ||
-                                        SecurityService.CurrentUser.Role == "admin" ||
-                                        (DatabaseService.Security != null &&
-                                         (DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.discount_unlimited") ||
-                                          DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.discount_override")));
+                bool isPrivilegedUser = actorRole == "root" || actorRole == "admin" ||
+                                        HasFinancialPermission(actorId, "pos.discount_unlimited") ||
+                                        HasFinancialPermission(actorId, "pos.discount_override");
 
                 if (!isPrivilegedUser && subtotal.Piasters > 0 && totalDiscountPiasters > 0)
                 {
@@ -843,7 +950,8 @@ namespace RafiqPOS.Services
                             DatabaseService.AuditRepo.Log(new AuditLog
                             {
                                 Id = "aud_" + Guid.NewGuid().ToString("N"),
-                                UserId = !string.IsNullOrEmpty(supCheck.SupervisorName) ? supCheck.SupervisorName : (SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Username : "cashier"),
+                                UserId = operation != null ? operation.ActorId : (!string.IsNullOrEmpty(supCheck.SupervisorName)
+                                    ? supCheck.SupervisorName : (legacyActor != null ? legacyActor.Username : "cashier")),
                                 Action = "DISCOUNT_SUPERVISOR_OVERRIDE",
                                 EntityType = "SALE",
                                 EntityId = sale.Id,
@@ -880,8 +988,12 @@ namespace RafiqPOS.Services
             // Insurance Claim Processing (Story 132 / Feature #189)
             if (sale.InsuranceClaim != null)
             {
-                if (SecurityService.CurrentUser != null && DatabaseService.Security != null &&
-                    !DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "insurance.sell"))
+                if ((!string.IsNullOrEmpty(sale.InsuranceClaim.Status) && sale.InsuranceClaim.Status != "pending")
+                    || !string.IsNullOrEmpty(sale.InsuranceClaim.ClaimBatchId) || !string.IsNullOrEmpty(sale.InsuranceClaim.SettledAt))
+                    throw new InvalidOperationException("مطالبة التأمين الجديدة يجب أن تكون معلقة وغير مجمعة أو مسواة.");
+
+                if (actorId != null && (operation != null || DatabaseService.Security != null) &&
+                    !HasFinancialPermission(actorId, "insurance.sell"))
                 {
                     throw new InvalidOperationException("المستخدم الحالي لا يملك صلاحية بيع روشتات التأمين الطبي (insurance.sell).");
                 }
@@ -1070,6 +1182,7 @@ namespace RafiqPOS.Services
             }
 
             var result = _saleRepo.CreateSaleAtomic(sale);
+            result.SupervisorPin = null;
             result.NegativeStockWarnings = sale.NegativeStockWarnings;
             return result;
         }
@@ -1107,11 +1220,10 @@ namespace RafiqPOS.Services
             long price = item.UnitPricePiasters;
             int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
 
-            // Products without a catalogue price are sold at an entered price by design
-            if (product.PricePiasters <= 0) return true;
-            if (price == product.PricePiasters) return true;
-            if (price == product.PricePiasters * factor) return true;
-            if (matchedUnit != null && matchedUnit.SellPricePiasters > 0 && price == matchedUnit.SellPricePiasters) return true;
+            long resolvedPrice = matchedUnit != null && matchedUnit.SellPricePiasters > 0
+                ? matchedUnit.SellPricePiasters : checked(product.PricePiasters * factor);
+            if (resolvedPrice <= 0) return true;
+            if (price == resolvedPrice) return true;
 
             // Story 140 / Feature #197: Item Modifiers price authority validation
             // If item has modifiers, subtract verified modifier extra prices and check against base catalogue price
@@ -1139,11 +1251,7 @@ namespace RafiqPOS.Services
                 }
 
                 long basePriceWithoutModifiers = price - modifiersExtra;
-                if (basePriceWithoutModifiers == product.PricePiasters || basePriceWithoutModifiers == product.PricePiasters * factor)
-                {
-                    return true;
-                }
-                if (matchedUnit != null && matchedUnit.SellPricePiasters > 0 && basePriceWithoutModifiers == matchedUnit.SellPricePiasters)
+                if (basePriceWithoutModifiers == resolvedPrice)
                 {
                     return true;
                 }
@@ -1167,14 +1275,16 @@ namespace RafiqPOS.Services
                     if (qi == null) continue;
                     bool sameProduct = string.Equals(qi.ProductId, product.Id, StringComparison.Ordinal) ||
                                        string.Equals(qi.Id, product.Id, StringComparison.Ordinal);
-                    if (sameProduct)
+                    bool sameUnit = string.IsNullOrWhiteSpace(qi.Unit) ? factor == 1
+                        : string.Equals(qi.Unit, item.Unit, StringComparison.OrdinalIgnoreCase);
+                    if (sameProduct && sameUnit)
                     {
                         if (qi.IsOpenPrice || qi.PricePiasters == price) return true;
                     }
 
                     // Authorized store combo / bundle offer component:
                     // If product is a configured component in an active quick item bundle offer, allow it
-                    if (!string.IsNullOrEmpty(qi.BundleItemsJson) && qi.BundleItemsJson.IndexOf(product.Id, StringComparison.OrdinalIgnoreCase) >= 0)
+                    if (factor == 1 && !string.IsNullOrEmpty(qi.BundleItemsJson) && qi.BundleItemsJson.IndexOf(product.Id, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         if (price > 0 && price <= (product.PricePiasters * factor))
                         {
@@ -1188,37 +1298,30 @@ namespace RafiqPOS.Services
             // If the product has batches with custom selling prices, match either the item's specific batch or any active batch
             if (DatabaseService.ProductBatchRepo != null && !string.IsNullOrEmpty(product.Id))
             {
-                try
+                if (!string.IsNullOrEmpty(item.BatchId))
                 {
-                    if (!string.IsNullOrEmpty(item.BatchId))
+                    var b = DatabaseService.ProductBatchRepo.GetById(item.BatchId);
+                    if (b != null && b.ProductId == product.Id && b.SellPricePiasters.HasValue && b.SellPricePiasters.Value > 0)
                     {
-                        var b = DatabaseService.ProductBatchRepo.GetById(item.BatchId);
-                        if (b != null && b.SellPricePiasters.HasValue && b.SellPricePiasters.Value > 0)
-                        {
-                            long batchPrice = b.SellPricePiasters.Value;
-                            if (price == batchPrice || price == batchPrice * factor) return true;
-                        }
+                        long batchPrice = b.SellPricePiasters.Value;
+                        if (price == checked(batchPrice * factor)) return true;
                     }
-                    else
+                }
+                else
+                {
+                    var batches = DatabaseService.ProductBatchRepo.GetByProductId(product.Id);
+                    if (batches != null)
                     {
-                        var batches = DatabaseService.ProductBatchRepo.GetByProductId(product.Id);
-                        if (batches != null)
+                        for (int bi = 0; bi < batches.Count; bi++)
                         {
-                            for (int bi = 0; bi < batches.Count; bi++)
+                            var b = batches[bi];
+                            if (b != null && b.SellPricePiasters.HasValue && b.SellPricePiasters.Value > 0)
                             {
-                                var b = batches[bi];
-                                if (b != null && b.SellPricePiasters.HasValue && b.SellPricePiasters.Value > 0)
-                                {
-                                    long batchPrice = b.SellPricePiasters.Value;
-                                    if (price == batchPrice || price == batchPrice * factor) return true;
-                                }
+                                long batchPrice = b.SellPricePiasters.Value;
+                                if (price == checked(batchPrice * factor)) return true;
                             }
                         }
                     }
-                }
-                catch
-                {
-                    // Fail gracefully and fallback
                 }
             }
 
@@ -1352,27 +1455,25 @@ namespace RafiqPOS.Services
                 throw new ArgumentException("سبب الإلغاء إجباري لتسجيل العملية في سجل النظام", "reason");
             }
 
-            // Task 33-3: Verify supervisor PIN if security PIN is enabled
-            if (DatabaseService.Security != null)
+            lock (FinancialWriteLock)
+            using (var operation = BeginFinancialOperation())
             {
-                var pinStatus = DatabaseService.Security.GetStatus();
-                if (pinStatus != null && pinStatus.IsEnabled)
+                if (operation != null) userId = operation.ActorId;
+                if (DatabaseService.Security != null)
                 {
-                    if (string.IsNullOrEmpty(supervisorPin))
+                    var pinStatus = DatabaseService.Security.GetStatus();
+                    if (pinStatus != null && pinStatus.IsEnabled)
                     {
-                        throw new UnauthorizedAccessException("إلغاء الفاتورة يتطلب إدخال الرقم السري للمشرف.");
-                    }
-                    var pinCheck = DatabaseService.Security.VerifySupervisorPin(supervisorPin, "SALE_CANCEL");
-                    if (pinCheck == null || !pinCheck.Success)
-                    {
-                        string msg = (pinCheck != null && !string.IsNullOrEmpty(pinCheck.Message)) ? pinCheck.Message : "الرقم السري للمشرف غير صحيح";
-                        throw new UnauthorizedAccessException(msg);
+                        if (string.IsNullOrEmpty(supervisorPin))
+                            throw new UnauthorizedAccessException("إلغاء الفاتورة يتطلب إدخال الرقم السري للمشرف.");
+                        var pinCheck = DatabaseService.Security.VerifySupervisorPin(supervisorPin, "SALE_CANCEL");
+                        if (pinCheck == null || !pinCheck.Success)
+                        {
+                            string msg = (pinCheck != null && !string.IsNullOrEmpty(pinCheck.Message)) ? pinCheck.Message : "الرقم السري للمشرف غير صحيح";
+                            throw new UnauthorizedAccessException(msg);
+                        }
                     }
                 }
-            }
-
-            lock (FinancialWriteLock)
-            {
                 return _saleRepo.CancelSaleAtomic(saleId, reason.Trim(), userId);
             }
         }

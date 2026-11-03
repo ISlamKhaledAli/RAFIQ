@@ -75,9 +75,37 @@ describe('Go-live 3B round 2: drawer and e-pay retries, no client identity', () 
     assert.match(shift, /idempotencyKey: cashOutAttemptRef\.current\.current\(\)/);
   });
 
-  it('e-pay transactions and terminal fundings carry a key', () => {
+  it('e-pay transactions and terminal fundings durably preserve the keyed original after a lost response', async () => {
     const epay = readSrc('views/epay/EpayView.tsx');
-    assert.match(epay, /idempotencyKey: txAttemptRef\.current\.current\(\)/);
-    assert.match(epay, /idempotencyKey: fundAttemptRef\.current\.current\(\)/);
+    assert.match(epay, /financial\.run<EpayTransaction>\('epay:createTransaction'/);
+    assert.match(epay, /financial\.run\('epay:fundTerminal'/);
+    assert.doesNotMatch(epay, /cashierName:|performedBy:/);
+    const { createFinancialAttempt, readFinancialAttempt } = await import('../src/utils/financialAttempt.ts');
+    for (const action of ['epay:createTransaction', 'epay:fundTerminal']) {
+      const saved = new Map(), rows = new Map(), calls = [];
+      const storage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) };
+      const payload = action.endsWith('fundTerminal') ?
+        { terminalId: 'terminal', amountPiasters: 10000, fundingSource: 'external' } :
+        { terminalId: 'terminal', billAmountPiasters: 10000, customerFeePiasters: 100,
+          providerCommissionPiasters: 0, serviceType: 'bill', paymentChannel: 'external' };
+      let lost = true;
+      const send = async (_, request) => {
+        assert.equal(readFinancialAttempt(storage).payload.idempotencyKey, request.idempotencyKey, 'Persist before sending');
+        calls.push(request);
+        if (!rows.has(request.idempotencyKey)) rows.set(request.idempotencyKey, {
+          ...request, id: 'saved', idempotencyFingerprint: 'fingerprint', createdBy: 'cashier-test',
+          previousBalancePiasters: 50000, newBalancePiasters: 60000,
+        });
+        if (lost) { lost = false; throw new Error('Committed then response lost'); }
+        return rows.get(request.idempotencyKey);
+      };
+      await assert.rejects(createFinancialAttempt(storage, 'cashier-test', action, send).execute(payload));
+      const frozen = readFinancialAttempt(storage);
+      await createFinancialAttempt(storage, 'cashier-test', action, send).execute({ ...payload, amountPiasters: 20000 });
+      assert.equal(calls[1].idempotencyKey, calls[0].idempotencyKey);
+      assert.deepEqual(calls[1], frozen.payload, 'A remounted form cannot substitute edited values');
+      assert.equal(rows.size, 1, 'A retry cannot create a second posting');
+      assert.equal(readFinancialAttempt(storage), null, 'Only the strict committed result clears the journal');
+    }
   });
 });

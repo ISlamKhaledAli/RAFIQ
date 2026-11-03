@@ -26,10 +26,14 @@ namespace RafiqPOS.Services
         public const string ReturnedCatalogCostExpr =
             "((ri.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000)";
 
-        // Damaged goods never come back to stock, so only the revenue is lost
+        // Recover cost only when the return actually restored sellable inventory.
         public static string CostRecovered(string costExpr)
         {
-            return "(CASE WHEN ri.is_damaged = 1 THEN 0 ELSE " + costExpr + " END)";
+            return "(CASE WHEN ri.is_damaged = 1 OR COALESCE(si.stock_deducted, 1) = 0 " +
+                   "OR NOT EXISTS (SELECT 1 FROM stock_movements sm_return " +
+                   "WHERE sm_return.reference_id = r.id AND sm_return.reference_type = 'RETURN' " +
+                   "AND sm_return.product_id = ri.product_id AND sm_return.movement_type = 'REFUND' " +
+                   "AND sm_return.quantity_milli > 0) THEN 0 ELSE " + costExpr + " END)";
         }
 
         public const string FromClause = @"

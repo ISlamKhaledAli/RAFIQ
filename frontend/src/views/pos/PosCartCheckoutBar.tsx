@@ -92,8 +92,7 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   return (
     <div className="bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark shadow-[0_-2px_8px_rgba(0,0,0,0.03)] p-1.5 sm:p-2 flex flex-col gap-1.5 shrink-0 select-none">
       
-      {/* 1. Upper Info & Support Actions Strip - Single neat non-wrapping row */}
-      <div className="flex items-center justify-between gap-1 flex-nowrap pb-1 border-b border-line/60 dark:border-line-dark/60 overflow-x-auto no-scrollbar">
+      <div className="flex items-center justify-between gap-1 flex-wrap pb-1 border-b border-line/60 dark:border-line-dark/60">
         
         {/* Cart Meta (Invoice #, Count, Discount, DDI status) */}
         <div className="flex items-center gap-1 text-xs shrink-0">
@@ -151,7 +150,7 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
         </div>
 
         {/* Support Action Buttons (مصروف, تفريغ, تعليق, معلقة, مرتجع) */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 flex-wrap">
 
           {/* مصروف درج */}
           {onOpenExpenseModal && (

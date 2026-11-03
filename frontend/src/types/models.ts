@@ -261,6 +261,8 @@ export interface SaleItem {
 
 export interface Sale {
   id?: string;
+  idempotencyKey?: string | null;
+  idempotencyFingerprint?: string | null;
   invoiceNumber?: number;
   cashierId?: string | null;
   cashierName?: string | null;
@@ -1465,6 +1467,8 @@ export interface EpayTerminal {
 
 export interface EpayTransaction {
   id: string;
+  idempotencyKey?: string | null;
+  idempotencyFingerprint?: string | null;
   terminalId: string;
   terminalName?: string;
   terminalProvider?: string;
@@ -1496,10 +1500,12 @@ export interface EpayTransaction {
 
 export interface EpayTerminalFunding {
   id: string;
+  idempotencyKey?: string | null;
+  idempotencyFingerprint?: string | null;
   terminalId: string;
   terminalName?: string;
   amountPiasters: number;
-  fundingSource: 'cash_drawer' | 'bank_transfer' | 'external_cash';
+  fundingSource: 'cash_drawer' | 'bank_transfer' | 'external' | 'external_cash';
   previousBalancePiasters: number;
   newBalancePiasters: number;
   notes?: string;
@@ -1565,6 +1571,9 @@ export interface DigitalAccount {
 
 export interface DigitalTransaction {
   id: string;
+  idempotencyKey?: string | null;
+  idempotencyFingerprint?: string | null;
+  paymentDestination?: 'cash_drawer' | 'terminal_till' | 'safe' | 'external';
   transactionNumber: string;
   accountId: string;
   accountName?: string;
@@ -1595,10 +1604,12 @@ export interface DigitalTransaction {
 
 export interface DigitalAccountFunding {
   id: string;
+  idempotencyKey?: string | null;
+  idempotencyFingerprint?: string | null;
   accountId: string;
   accountName?: string;
   amountPiasters: number;
-  fundingSource: 'cash_drawer' | 'bank_transfer' | 'external_cash';
+  fundingSource: 'cash_drawer' | 'bank_transfer' | 'external' | 'external_cash';
   previousBalancePiasters: number;
   newBalancePiasters: number;
   notes?: string;

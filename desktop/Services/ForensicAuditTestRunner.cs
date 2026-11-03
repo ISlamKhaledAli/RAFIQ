@@ -174,6 +174,11 @@ namespace RafiqPOS.Services
                         adminUser = SecurityService.MapToDto(createdUser);
                     }
                 }
+                if (adminUser.MustChangePin)
+                {
+                    DatabaseService.Security.ChangeUserPin(adminUser.Id, "7418");
+                    adminUser = SecurityService.MapToDto(DatabaseService.UserRepo.GetById(adminUser.Id));
+                }
                 SecurityService.SetCurrentUserForTesting(adminUser);
 
                 // Open Shift for Cashier operations
@@ -215,7 +220,8 @@ namespace RafiqPOS.Services
                     Unit = "قطعة",
                     IsActive = true
                 };
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterTrustedFixtureOperation())
+                    DatabaseService.Products.SaveProduct(prod);
 
                 var sale = new Sale
                 {
@@ -260,7 +266,8 @@ namespace RafiqPOS.Services
                 // 5. COMPREHENSIVE LOGGING: PRICE & COST UPDATE (تعديل سعر البيع والتكلفة)
                 // =========================================================================
                 prod.PricePiasters = 12500;
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterRequest(SecurityService.CaptureRequestAdmission()))
+                    DatabaseService.Products.SaveProduct(prod);
 
                 var priceLogs = auditService.GetLogs(10, "price_update");
                 Assert(priceLogs.Count > 0, "شمولية التسجيل: تدوين تعديل سعر البيع (price_update)", result);
@@ -271,7 +278,8 @@ namespace RafiqPOS.Services
                 }
 
                 prod.CostPiasters = 6200;
-                DatabaseService.Products.SaveProduct(prod);
+                using (ProductWritePolicy.EnterRequest(SecurityService.CaptureRequestAdmission()))
+                    DatabaseService.Products.SaveProduct(prod);
 
                 var costLogs = auditService.GetLogs(10, "cost_update");
                 Assert(costLogs.Count > 0, "شمولية التسجيل: تدوين تعديل سعر التكلفة (cost_update)", result);

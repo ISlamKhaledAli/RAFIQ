@@ -23,7 +23,7 @@ interface CertifiedDevice {
   model: string;
   brand: string;
   type: string;
-  status: 'certified' | 'recommended';
+  status: 'certified' | 'recommended' | 'blocked';
   arabicSupport: 'ممتاز (مدمج بدون تشويه)' | 'جيد جداً (عبر ESC/POS)' | 'قياسي';
   connectionType: 'USB' | 'USB + LAN' | 'RJ11' | 'Serial / USB';
   testResults: {
@@ -63,13 +63,13 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
       'توصيل كابل USB وتشغيل الطابعة.',
       'تثبيت درايفر Xprinter الرسمي لنظام Windows (متوفر لويندوز 7 حتى 11).',
       'في إعدادات رفيق > الطابعة الحرارية: اختر الطابعة الافتراضية ومقاس 80mm.',
-      'تفعيل خياري "طباعة فورية" و "فتح درج النقدية تلقائياً".',
+      'تفعيل الطباعة الفورية فقط؛ الفتح الكهربائي للدرج محظور إلى حين اعتماد توافق الأجهزة.',
       'الضغط على "طباعة صفحة تجريبية" للتأكد من خروج الإيصال باللغة العربية الواضحة.',
     ],
     recommendedSettings: {
       paperOrCode: '80mm (72mm printable area)',
       driverName: 'Xprinter 80 Series Driver',
-      drawerCode: '27,112,0,25,250 (أمر فتح الدرج القياسي)',
+      drawerCode: 'محظور حالياً؛ مدة النبضة ليست تحكماً في الجهد',
     },
     notes: 'أكثر طابعات الفواتير انتشاراً واقتصادية في مصر، قطع الغيار ورولات الورق متوفرة في كل مكان، واعتماديتها ممتازة لكافة المحلات والمتاجر.',
   },
@@ -91,12 +91,12 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
     setupSteps: [
       'تثبيت درايفر Bixolon Windows Driver v7.',
       'اختيار مقاس الورق 80mm × 297mm من خصائص الطابعة.',
-      'اختيار الطابعة كافتراضية في رفيق POS واختبار الطباعة والدرج.',
+      'اختيار الطابعة كافتراضية واختبار الورق فقط بعد تعطيل فتح الدرج من تعريف الطابعة.',
     ],
     recommendedSettings: {
       paperOrCode: '80mm',
       driverName: 'Bixolon SRP-330II Driver',
-      drawerCode: 'Standard ESC/POS Pulse Pin 2',
+      drawerCode: 'لا يوجد ملف فتح كهربائي معتمد في هذا الإصدار',
     },
     notes: 'طابعة صناعية للمحلات الكبيرة والهايبرماركت، محرك طباعة صامت جداً ومقاوم للغبار ورطوبة المحل.',
   },
@@ -290,24 +290,24 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
     model: 'MK-410 / E-410 Heavy Duty Metal Drawer',
     brand: 'Maken / POS-D',
     type: 'درج نقدية إلكتروني حديدي 5 خانات نقدية و 8 فكة',
-    status: 'certified',
+    status: 'blocked',
     arabicSupport: 'ممتاز (مدمج بدون تشويه)',
     connectionType: 'RJ11',
     testResults: {
-      latency: '< 50ms (فتح فوري مع أمر الطباعة)',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'ملف مغناطيسي 24V / 12V',
+      latency: 'لم يُعتمد الفتح الكهربائي',
+      win7Compat: false,
+      win10_11Compat: false,
+      autoCutterOrTrigger: 'يلزم التحقق من جهد الملف وتوصيله لدى المورّد',
     },
     setupSteps: [
-      'توصيل كابل RJ11 المزود مع الدرج بمنفذ (DK / Cash Drawer) الموجود في ظهر طابعة الفواتير.',
-      'في شاشة الإعدادات برفيق POS > الطابعة الحرارية: فعّل خيار "فتح درج النقدية تلقائياً".',
-      'عند الضغط على "طباعة تجريبية" أو إنهاء أي عملية بيع، سيُفتح الدرج تلقائياً بصوت ناعم.',
+      'الفتحة RJ11 وحدها لا تثبت توافق الجهد أو ترتيب الأطراف أو الحمل.',
+      'خرج درج XP-Q801K المعلن 24 فولت والدرج Seething 405A المحدد 12 فولت؛ يُحظر إرسال نبضات حتى يؤكد المورّد التوافق.',
+      'يجب تعطيل فتح الدرج من تعريف الطابعة أيضاً. رفيق يطبع الإيصال بدون نبضة فتح من البرنامج.',
     ],
     recommendedSettings: {
-      drawerCode: 'ESC p 0 25 250 (Pin 2 / 24V)',
+      drawerCode: 'محظور — لا تستخدم نبضة أقصر لمحاولة تحويل 24 فولت إلى 12 فولت',
     },
-    notes: 'هيكل حديدي صلب مع مفتاح أمان ثلاثي الأوضاع (قفل / فتح إلكتروني / فتح يدوي بالطوارئ).',
+    notes: 'لم تُنفذ شهادة توافق كهربائي. سرعة حركة الدرج تتأثر بالزنبرك والاحتكاك والحمل ولا يضمنها البرنامج.',
   },
 
   // 4. BARCODE SCALES
@@ -548,6 +548,11 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                             موصى به للمتاجر المزدحمة
                           </span>
                         )}
+                        {device.status === 'blocked' && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30">
+                            الفتح الكهربائي غير معتمد ومحظور
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted truncate m-0 mt-0.5">
                         {device.notes}
@@ -639,7 +644,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                         )}
                         {device.recommendedSettings.drawerCode && (
                           <div>
-                            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">أمر فتح الدرج:</span>
+                            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">حالة الفتح الكهربائي:</span>
                             <strong className="font-mono text-paid dark:text-paid-bright">{device.recommendedSettings.drawerCode}</strong>
                           </div>
                         )}
@@ -684,4 +689,3 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
     </div>
   );
 };
-

@@ -31,6 +31,7 @@ namespace RafiqPOS.Tests.Scenarios
             _latte = CreateProduct("لاتيه", 4000, 0, 0);
 
             DatabaseService.ProductUnits.EnsureDefaultBaseUnit(_latte);
+            using (ProductWritePolicy.EnterTrustedFixtureOperation())
             _tray = DatabaseService.ProductUnits.CreateUnit(new ProductUnit
             {
                 ProductId = _latte.Id,

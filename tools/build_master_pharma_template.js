@@ -1,3 +1,5 @@
+throw new Error('LEGACY_CATALOGUE_DISABLED: guessed prices and pack factors must not overwrite shared production templates.');
+
 const fs = require('fs');
 const path = require('path');
 const xlsx = require(path.resolve(__dirname, '..', 'frontend', 'node_modules', 'xlsx'));

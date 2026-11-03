@@ -86,6 +86,12 @@ namespace RafiqPOS.Services
         public Dictionary<string, string> SaveSettings(Dictionary<string, string> newSettings, string userId = null)
         {
             if (newSettings == null) return GetAllSettings();
+            string requestedDrawerSetting;
+            if (newSettings.TryGetValue("printer_open_drawer", out requestedDrawerSetting) &&
+                requestedDrawerSetting != "0")
+            {
+                throw new InvalidOperationException(Common.DrawerSafetyPolicy.BlockReason);
+            }
 
             var oldSettings = _repo.GetAll();
             var changes = new List<Dictionary<string, string>>();

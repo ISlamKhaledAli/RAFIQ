@@ -4,6 +4,7 @@ using System.Data.SQLite;
 using Newtonsoft.Json;
 using RafiqPOS.Models;
 using RafiqPOS.Services;
+using Newtonsoft.Json.Linq;
 
 namespace RafiqPOS.Repositories
 {
@@ -61,6 +62,11 @@ namespace RafiqPOS.Repositories
         }
 
         public EpayTerminal SaveTerminal(EpayTerminal terminal)
+        {
+            return Common.IdempotencyGuard.WithFinancialOperation("epay.terminals_manage", delegate { return SaveTerminalCore(terminal); });
+        }
+
+        private EpayTerminal SaveTerminalCore(EpayTerminal terminal)
         {
             if (terminal == null) return null;
             if (string.IsNullOrWhiteSpace(terminal.Id))
@@ -202,6 +208,15 @@ namespace RafiqPOS.Repositories
 
         public bool DeleteTerminal(string terminalId, out string message)
         {
+            string localMessage = null;
+            bool result = Common.IdempotencyGuard.WithFinancialOperation("epay.terminals_manage",
+                delegate { return DeleteTerminalCore(terminalId, out localMessage); });
+            message = localMessage;
+            return result;
+        }
+
+        private bool DeleteTerminalCore(string terminalId, out string message)
+        {
             message = "";
             if (string.IsNullOrWhiteSpace(terminalId))
             {
@@ -292,7 +307,7 @@ namespace RafiqPOS.Repositories
                             _auditRepo.Log(conn, trans, new AuditLog
                             {
                                 Id = "aud_" + Guid.NewGuid().ToString("N"),
-                                UserId = "admin",
+                                UserId = Common.IdempotencyGuard.FinancialActorId("admin"),
                                 Action = txCount == 0 ? "epay_terminal_delete" : "epay_terminal_archive",
                                 EntityType = "epay_terminal",
                                 EntityId = terminalId,
@@ -314,8 +329,57 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        private static string FundingFingerprint(string terminalId, long amount, string source, string notes, string actorId)
+        {
+            if (string.IsNullOrWhiteSpace(terminalId) || amount <= 0) throw new ArgumentException("الماكينة ومبلغ التغذية الأصلي مطلوبان");
+            return DigitalAccountRepository.RequestFingerprint("epay_fund", terminalId, amount,
+                DigitalAccountRepository.NormalizeFundingSource(source), notes, actorId);
+        }
+
+        public FinancialAttemptResult ResolveAttempt(string operation, JObject payload, string actorId, bool abandon)
+        {
+            string permission = operation == "epay:fundTerminal" ? "epay.fund" : "epay.transact";
+            return Common.IdempotencyGuard.WithFinancialOperation(permission, delegate { return ResolveAttemptCore(operation, payload, actorId, abandon); });
+        }
+
+        private FinancialAttemptResult ResolveAttemptCore(string operation, JObject payload, string actorId, bool abandon)
+        {
+            Common.IdempotencyGuard.VerifyFinancialAttemptActor(actorId);
+            if (payload == null) throw new ArgumentException("الطلب الأصلي مطلوب");
+            bool funding = operation == "epay:fundTerminal";
+            if (!funding && operation != "epay:createTransaction") throw new ArgumentException("عملية ماكينة غير صالحة");
+            string key;
+            string fingerprint;
+            if (funding)
+            {
+                key = (string)payload["idempotencyKey"];
+                fingerprint = FundingFingerprint((string)payload["terminalId"], (long?)payload["amountPiasters"] ?? 0,
+                    (string)payload["fundingSource"], (string)payload["notes"], actorId);
+            }
+            else
+            {
+                var tx = payload.ToObject<EpayTransaction>();
+                fingerprint = PrepareTransactionFingerprint(tx);
+                key = tx.IdempotencyKey;
+            }
+            return Common.IdempotencyGuard.ResolveFinancialAttempt(_connectionString, operation, key, fingerprint, actorId, abandon,
+                delegate(SQLiteConnection conn, SQLiteTransaction trans, string id)
+                {
+                    return LoadByIdempotency(conn, trans, Common.IdempotencyGuard.FinancialAttemptTable(operation), key, fingerprint);
+                }, _auditRepo);
+        }
+
         public EpayTerminalFunding FundTerminal(string terminalId, long amountPiasters, string fundingSource, string notes, string createdBy, string idempotencyKey = null)
         {
+            return Common.IdempotencyGuard.WithFinancialOperation("epay.fund",
+                delegate { return FundTerminalCore(terminalId, amountPiasters, fundingSource, notes, createdBy, idempotencyKey); });
+        }
+
+        private EpayTerminalFunding FundTerminalCore(string terminalId, long amountPiasters, string fundingSource, string notes, string createdBy, string idempotencyKey)
+        {
+            fundingSource = DigitalAccountRepository.NormalizeFundingSource(fundingSource);
+            idempotencyKey = Common.IdempotencyGuard.NormalizeKey(idempotencyKey);
+            createdBy = Common.IdempotencyGuard.FinancialActorId(createdBy);
             if (amountPiasters <= 0)
             {
                 throw new ArgumentException("مبلغ تغذية رصيد الماكينة يجب أن يكون أكبر من الصفر");
@@ -324,9 +388,7 @@ namespace RafiqPOS.Repositories
             lock (SaleService.FinancialWriteLock)
             {
                 // A retry after a UI timeout returns the recorded funding; the same key with other data is rejected
-                string fundFingerprint = Common.IdempotencyGuard.Fingerprint("epay_fund", terminalId, amountPiasters, fundingSource ?? "cash_drawer");
-                var existingFunding = LoadByIdempotency("epay_terminal_fundings", idempotencyKey, fundFingerprint) as EpayTerminalFunding;
-                if (existingFunding != null) return existingFunding;
+                string fundFingerprint = FundingFingerprint(terminalId, amountPiasters, fundingSource, notes, createdBy);
 
                 string now = DateTime.UtcNow.ToString("o");
                 string fundingId = Guid.NewGuid().ToString();
@@ -341,6 +403,13 @@ namespace RafiqPOS.Repositories
                     {
                     try
                     {
+                        Common.IdempotencyGuard.EnsureFinancialAttemptNotCancelled(conn, trans, "epay:fundTerminal", idempotencyKey, fundFingerprint, createdBy);
+                        var existingFunding = LoadByIdempotency(conn, trans, "epay_terminal_fundings", idempotencyKey, fundFingerprint) as EpayTerminalFunding;
+                        if (existingFunding != null)
+                        {
+                            trans.Commit();
+                            return existingFunding;
+                        }
                         if (string.Equals(fundingSource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
                             var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
@@ -349,13 +418,10 @@ namespace RafiqPOS.Repositories
                                 throw new InvalidOperationException("لا يمكن تغذية رصيد الماكينة من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                             }
 
-                            if (DatabaseService.DailyClosing != null)
+                            long available = DrawerCashCalculator.CalculateForBusinessDate(conn, trans, currentBDate).ExpectedCashPiasters;
+                            if (available < amountPiasters)
                             {
-                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
-                                if (liveBal != null && liveBal.AvailableCashPiasters < amountPiasters)
-                                {
-                                    throw new InvalidOperationException(string.Format("رصيد نقدية درج الكاشير المتاح حالياً ({0:N2} ج.م) غير كافٍ لتغذية ماكينة الدفع بمبلغ ({1:N2} ج.م). يرجى تغذية الدرج أولاً أو اختيار مصدر تمويل آخر (مثل: كاش خارجي / صاحب المحل).", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
-                                }
+                                throw new InvalidOperationException("رصيد نقدية درج الكاشير غير كافٍ لتغذية ماكينة الدفع. اختر مصدر تمويل آخر أو قم بتغذية الدرج أولاً.");
                             }
                         }
 
@@ -375,7 +441,7 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        newBal = prevBal + amountPiasters;
+                        newBal = checked(prevBal + amountPiasters);
 
                         // 2. Update terminal balance
                         string updateSql = "UPDATE epay_terminals SET balance_piasters = @newBal, updated_at = @now WHERE id = @id;";
@@ -448,7 +514,9 @@ namespace RafiqPOS.Repositories
                     NewBalancePiasters = newBal,
                     Notes = notes,
                     CreatedBy = createdBy,
-                    CreatedAt = now
+                    CreatedAt = now,
+                    IdempotencyKey = idempotencyKey,
+                    IdempotencyFingerprint = fundFingerprint
                 };
             }
         }
@@ -569,9 +637,15 @@ namespace RafiqPOS.Repositories
             };
         }
 
-        public EpayTransaction CreateTransaction(EpayTransaction tx)
+        private static string PrepareTransactionFingerprint(EpayTransaction tx)
         {
             if (tx == null) throw new ArgumentNullException("tx");
+            tx.PaymentChannel = DigitalAccountRepository.NormalizePaymentDestination(tx.PaymentChannel);
+            tx.ServiceType = string.IsNullOrWhiteSpace(tx.ServiceType) ? "other" : tx.ServiceType.Trim().ToLowerInvariant();
+            tx.ServiceName = tx.ServiceName ?? "خدمة إلكترونية";
+            tx.IdempotencyKey = Common.IdempotencyGuard.NormalizeKey(tx.IdempotencyKey);
+            string actorId = Common.IdempotencyGuard.FinancialActorId(tx.CashierName);
+            tx.CashierName = Common.IdempotencyGuard.FinancialActorName(tx.CashierName);
             if (string.IsNullOrWhiteSpace(tx.TerminalId))
             {
                 throw new ArgumentException("يجب تحديد ماكينة الدفع الإلكتروني");
@@ -589,13 +663,24 @@ namespace RafiqPOS.Repositories
                 throw new ArgumentException("عمولة الشركة لا يمكن أن تكون سالبة");
             }
 
+            string fingerprint = DigitalAccountRepository.RequestFingerprint("epay_tx", tx.TerminalId, tx.ServiceType, tx.BillAmountPiasters,
+                    tx.CustomerFeePiasters, tx.ProviderCommissionPiasters, tx.ReferenceNumber, tx.PaymentChannel,
+                    tx.ServiceName, tx.CustomerPhone, tx.CustomerName, tx.Notes, actorId);
+            tx.IdempotencyFingerprint = fingerprint;
+            return fingerprint;
+        }
+
+        public EpayTransaction CreateTransaction(EpayTransaction tx)
+        {
+            return Common.IdempotencyGuard.WithFinancialOperation("epay.transact", delegate { return CreateTransactionCore(tx); });
+        }
+
+        private EpayTransaction CreateTransactionCore(EpayTransaction tx)
+        {
+            string txFingerprint = PrepareTransactionFingerprint(tx);
+            string actorId = Common.IdempotencyGuard.FinancialActorId(tx.CashierName);
             lock (SaleService.FinancialWriteLock)
             {
-                // A retry after a UI timeout returns the recorded transaction; the same key with other data is rejected
-                string txFingerprint = Common.IdempotencyGuard.Fingerprint("epay_tx", tx.TerminalId, tx.ServiceType, tx.BillAmountPiasters,
-                    tx.CustomerFeePiasters, tx.ProviderCommissionPiasters, tx.ReferenceNumber, tx.PaymentChannel);
-                var existingTx = LoadByIdempotency("epay_transactions", tx.IdempotencyKey, txFingerprint) as EpayTransaction;
-                if (existingTx != null) return existingTx;
 
                 if (string.IsNullOrWhiteSpace(tx.Id))
                 {
@@ -604,7 +689,7 @@ namespace RafiqPOS.Repositories
 
                 string now = DateTime.UtcNow.ToString("o");
                 tx.CreatedAt = now;
-                tx.Status = string.IsNullOrWhiteSpace(tx.Status) ? "completed" : tx.Status;
+                tx.Status = "completed";
 
                 // Financial Calculations (F-16 server-side closed formula):
                 if (tx.ServiceType == "cash_out")
@@ -615,8 +700,8 @@ namespace RafiqPOS.Repositories
                 }
                 else
                 {
-                    tx.MachineDeductedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters;
-                    tx.TotalReceivedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters + tx.CustomerFeePiasters;
+                    tx.MachineDeductedPiasters = checked(tx.BillAmountPiasters + tx.ProviderCommissionPiasters);
+                    tx.TotalReceivedPiasters = checked(tx.MachineDeductedPiasters + tx.CustomerFeePiasters);
                     tx.NetProfitPiasters = tx.CustomerFeePiasters;
                 }
 
@@ -627,6 +712,13 @@ namespace RafiqPOS.Repositories
                     {
                     try
                     {
+                        Common.IdempotencyGuard.EnsureFinancialAttemptNotCancelled(conn, trans, "epay:createTransaction", tx.IdempotencyKey, txFingerprint, actorId);
+                        var existingTx = LoadByIdempotency(conn, trans, "epay_transactions", tx.IdempotencyKey, txFingerprint) as EpayTransaction;
+                        if (existingTx != null)
+                        {
+                            trans.Commit();
+                            return existingTx;
+                        }
                         // 1. Get terminal info and check balance & status
                         bool isActive = true;
                         long currentTermBal = 0;
@@ -663,14 +755,12 @@ namespace RafiqPOS.Repositories
                             if (string.Equals(tx.ServiceType, "cash_out", StringComparison.OrdinalIgnoreCase))
                             {
                                 long netDrawerOutflow = tx.BillAmountPiasters - tx.CustomerFeePiasters;
-                                if (netDrawerOutflow > 0 && RafiqPOS.Services.DatabaseService.DailyClosing != null)
+                                if (netDrawerOutflow > 0)
                                 {
-                                    var liveBal = RafiqPOS.Services.DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
-                                    if (liveBal != null && liveBal.AvailableCashPiasters < netDrawerOutflow)
+                                    long available = DrawerCashCalculator.CalculateForBusinessDate(conn, trans, currentBDate).ExpectedCashPiasters;
+                                    if (available < netDrawerOutflow)
                                     {
-                                        throw new InvalidOperationException(string.Format(
-                                            "رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لصرف سحب نقدي للمستهلك بقيمة ({1:N2} ج.م). يرجى توريد نقدية للدرج أولاً.",
-                                            liveBal.AvailableCashPiasters / 100.0, netDrawerOutflow / 100.0));
+                                        throw new InvalidOperationException("رصيد نقدية الدرج غير كافٍ لصرف السحب النقدي. يرجى تغذية الدرج أولاً.");
                                     }
                                 }
                             }
@@ -689,7 +779,8 @@ namespace RafiqPOS.Repositories
                             balanceDelta = -tx.MachineDeductedPiasters;
                         }
 
-                        if (balanceDelta < 0 && (currentTermBal + balanceDelta) < 0)
+                        long newBalance = checked(currentTermBal + balanceDelta);
+                        if (newBalance < 0)
                         {
                             throw new InvalidOperationException(string.Format("رصيد ماكينة الدفع الإلكتروني غير كافٍ لإتمام العملية (الرصيد الحالي: {0:N2} ج.م، المطلوب خصمه: {1:N2} ج.م)",
                                 currentTermBal / 100.0, Math.Abs(balanceDelta) / 100.0));
@@ -697,13 +788,13 @@ namespace RafiqPOS.Repositories
 
                         string updateBalSql = @"
                             UPDATE epay_terminals 
-                            SET balance_piasters = balance_piasters + @delta,
+                            SET balance_piasters = @balance,
                                 updated_at = @now
                             WHERE id = @id;
                         ";
                         using (var cmd = new SQLiteCommand(updateBalSql, conn, trans))
                         {
-                            cmd.Parameters.AddWithValue("@delta", balanceDelta);
+                            cmd.Parameters.AddWithValue("@balance", newBalance);
                             cmd.Parameters.AddWithValue("@now", now);
                             cmd.Parameters.AddWithValue("@id", tx.TerminalId);
                             cmd.ExecuteNonQuery();
@@ -754,7 +845,7 @@ namespace RafiqPOS.Repositories
                             _auditRepo.Log(conn, trans, new AuditLog
                             {
                                 Id = "aud_" + Guid.NewGuid().ToString("N"),
-                                UserId = string.IsNullOrWhiteSpace(tx.CashierName) ? "usr_admin_default" : tx.CashierName,
+                                UserId = string.IsNullOrWhiteSpace(actorId) ? "usr_admin_default" : actorId,
                                 Action = "epay_transaction_create",
                                 EntityType = "epay_transaction",
                                 EntityId = tx.Id,
@@ -780,6 +871,15 @@ namespace RafiqPOS.Repositories
 
         public EpayTransaction CancelTransaction(string transactionId, string reason, string cancelledBy)
         {
+            return Common.IdempotencyGuard.WithFinancialOperation("epay.cancel",
+                delegate { return CancelTransactionCore(transactionId, reason, cancelledBy); });
+        }
+
+        private EpayTransaction CancelTransactionCore(string transactionId, string reason, string cancelledBy)
+        {
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("سبب الإلغاء مطلوب");
+            cancelledBy = Common.IdempotencyGuard.FinancialActorId(cancelledBy);
+            if (string.IsNullOrWhiteSpace(cancelledBy)) throw new ArgumentException("المستخدم المسؤول عن الإلغاء مطلوب");
             if (string.IsNullOrWhiteSpace(transactionId))
             {
                 throw new ArgumentException("معرف العملية غير صالح");
@@ -820,8 +920,15 @@ namespace RafiqPOS.Repositories
 
                         if (string.Equals(tx.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
                         {
-                            throw new InvalidOperationException("هذه العملية ملغاة بالفعل مسبقاً");
+                            trans.Commit();
+                            return tx;
                         }
+                        BusinessDayHelper.EnsureOriginalPeriodOpen(conn, trans, tx.CreatedAt);
+                        long originalCashInflow = tx.ServiceType == "cash_out" ?
+                            tx.CustomerFeePiasters - tx.BillAmountPiasters : tx.TotalReceivedPiasters;
+                        if (tx.PaymentChannel == "cash_drawer" && originalCashInflow > 0 &&
+                            DrawerCashCalculator.CalculateForBusinessDate(conn, trans, BusinessDayHelper.GetCurrentBusinessDate(conn, trans)).ExpectedCashPiasters < originalCashInflow)
+                            throw new InvalidOperationException("نقدية الدرج غير كافية لإلغاء العملية وإعادة المبلغ للعميل.");
 
                         // 2. Fetch terminal to adjust balance
                         long termBal = 0;
@@ -856,16 +963,17 @@ namespace RafiqPOS.Repositories
                         {
                             reversalDelta = tx.MachineDeductedPiasters;
                         }
+                        long newBalance = checked(termBal + reversalDelta);
 
                         string updateBalSql = @"
                             UPDATE epay_terminals 
-                            SET balance_piasters = balance_piasters + @delta,
+                            SET balance_piasters = @balance,
                                 updated_at = @now
                             WHERE id = @id;
                         ";
                         using (var cmd = new SQLiteCommand(updateBalSql, conn, trans))
                         {
-                            cmd.Parameters.AddWithValue("@delta", reversalDelta);
+                            cmd.Parameters.AddWithValue("@balance", newBalance);
                             cmd.Parameters.AddWithValue("@now", now);
                             cmd.Parameters.AddWithValue("@id", tx.TerminalId);
                             cmd.ExecuteNonQuery();
@@ -897,12 +1005,14 @@ namespace RafiqPOS.Repositories
                             _auditRepo.Log(conn, trans, new AuditLog
                             {
                                 Id = "aud_" + Guid.NewGuid().ToString("N"),
-                                UserId = string.IsNullOrWhiteSpace(cancelledBy) ? "usr_admin_default" : cancelledBy,
+                                UserId = cancelledBy,
                                 Action = "epay_transaction_cancel",
                                 EntityType = "epay_transaction",
                                 EntityId = tx.Id,
-                                DetailsJson = string.Format("{{\"billAmount\":{0},\"reversalDelta\":{1},\"terminalId\":\"{2}\",\"reason\":\"{3}\"}}",
-                                    tx.BillAmountPiasters, reversalDelta, tx.TerminalId, (reason ?? "").Replace("\"", "'")),
+                                DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                                {
+                                    billAmount = tx.BillAmountPiasters, reversalDelta = reversalDelta, terminalId = tx.TerminalId, reason = reason, userId = cancelledBy
+                                }),
                                 CreatedAt = now
                             });
                         }
@@ -1014,6 +1124,8 @@ namespace RafiqPOS.Repositories
         {
             return new EpayTerminalFunding
             {
+                IdempotencyKey = reader["idempotency_key"] != DBNull.Value ? reader["idempotency_key"].ToString() : null,
+                IdempotencyFingerprint = reader["idempotency_fingerprint"] != DBNull.Value ? reader["idempotency_fingerprint"].ToString() : null,
                 Id = reader["id"].ToString(),
                 TerminalId = reader["terminal_id"].ToString(),
                 TerminalName = HasColumn(reader, "terminal_name") && reader["terminal_name"] != DBNull.Value ? reader["terminal_name"].ToString() : "",
@@ -1030,25 +1142,21 @@ namespace RafiqPOS.Repositories
         /// <summary>
         /// إعادة نفس السجل المحفوظ بمفتاح منع التكرار (عملية أو تغذية) بدلاً من تكرار الحركة المالية
         /// </summary>
-        private object LoadByIdempotency(string table, string idempotencyKey, string fingerprint)
+        private object LoadByIdempotency(SQLiteConnection conn, SQLiteTransaction trans, string table, string idempotencyKey, string fingerprint)
         {
-            string existingId = Common.IdempotencyGuard.FindExisting(_connectionString, table, "id", idempotencyKey, fingerprint);
+            string existingId = Common.IdempotencyGuard.FindExisting(conn, trans, table, "id", idempotencyKey, fingerprint);
             if (existingId == null) return null;
             string sql = table == "epay_transactions"
-                ? "SELECT * FROM epay_transactions WHERE id = @id LIMIT 1;"
+                ? "SELECT t.*, m.name AS terminal_name FROM epay_transactions t LEFT JOIN epay_terminals m ON t.terminal_id = m.id WHERE t.id = @id LIMIT 1;"
                 : "SELECT f.*, m.name AS terminal_name FROM epay_terminal_fundings f LEFT JOIN epay_terminals m ON f.terminal_id = m.id WHERE f.id = @id LIMIT 1;";
-            using (var conn = new SQLiteConnection(_connectionString))
+            using (var cmd = new SQLiteCommand(sql, conn, trans))
             {
-                conn.Open();
-                using (var cmd = new SQLiteCommand(sql, conn))
+                cmd.Parameters.AddWithValue("@id", existingId);
+                using (var reader = cmd.ExecuteReader())
                 {
-                    cmd.Parameters.AddWithValue("@id", existingId);
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        if (!reader.Read()) return null;
-                        if (table == "epay_transactions") return MapReaderToTransaction(reader);
-                        return MapFunding(reader);
-                    }
+                    if (!reader.Read()) return null;
+                    if (table == "epay_transactions") return MapReaderToTransaction(reader);
+                    return MapFunding(reader);
                 }
             }
         }
@@ -1222,6 +1330,8 @@ namespace RafiqPOS.Repositories
 
             return new EpayTransaction
             {
+                IdempotencyKey = reader["idempotency_key"] != DBNull.Value ? reader["idempotency_key"].ToString() : null,
+                IdempotencyFingerprint = reader["idempotency_fingerprint"] != DBNull.Value ? reader["idempotency_fingerprint"].ToString() : null,
                 Id = reader["id"].ToString(),
                 TerminalId = reader["terminal_id"].ToString(),
                 TerminalName = termName,
@@ -1245,6 +1355,12 @@ namespace RafiqPOS.Repositories
         }
 
         public EpayTerminal AdjustBalance(string terminalId, long newBalancePiasters, string reason, string userId)
+        {
+            return Common.IdempotencyGuard.WithFinancialOperation("epay.balance_adjust",
+                delegate { return AdjustBalanceCore(terminalId, newBalancePiasters, reason, Common.IdempotencyGuard.FinancialActorId(userId)); });
+        }
+
+        private EpayTerminal AdjustBalanceCore(string terminalId, long newBalancePiasters, string reason, string userId)
         {
             if (string.IsNullOrWhiteSpace(terminalId)) throw new ArgumentException("معرف الماكينة مطلوب");
             if (newBalancePiasters < 0) throw new ArgumentException("رصيد الماكينة لا يمكن أن يكون سالباً");

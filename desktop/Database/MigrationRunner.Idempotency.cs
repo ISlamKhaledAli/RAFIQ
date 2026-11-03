@@ -24,6 +24,87 @@ namespace RafiqPOS.Database
                 BackupDatabaseBeforeMigration(dbPath);
                 ApplyMigration61(conn);
             }
+
+            if (currentVersion < 62)
+            {
+                BackupDatabaseBeforeMigration(dbPath);
+                ApplyMigration62(conn);
+            }
+        }
+
+        private static readonly string[] FINANCIAL_RETRY_TABLES = new string[]
+        {
+            "digital_transactions", "digital_account_fundings"
+        };
+
+        private static void ApplyMigration62(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    EnsureFinancialRetryColumns(conn, trans);
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT INTO schema_migrations (version, name, applied_at)
+                        VALUES (62, 'Financial retry barriers and delivery cash handover tracking', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void EnsureFinancialRetryColumns(SQLiteConnection conn, SQLiteTransaction trans)
+        {
+            using (var cmd = new SQLiteCommand(@"
+                CREATE TABLE IF NOT EXISTS sale_checkout_cancellations (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    request_fingerprint TEXT NOT NULL,
+                    actor_id TEXT NOT NULL,
+                    cancelled_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS financial_attempt_cancellations (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    operation TEXT NOT NULL,
+                    idempotency_key TEXT NOT NULL,
+                    request_fingerprint TEXT NOT NULL,
+                    actor_id TEXT NOT NULL,
+                    cancelled_at TEXT NOT NULL,
+                    UNIQUE(operation, idempotency_key)
+                );
+            ", conn, trans))
+            {
+                cmd.ExecuteNonQuery();
+            }
+            for (int i = 0; i < FINANCIAL_RETRY_TABLES.Length; i++)
+            {
+                string table = FINANCIAL_RETRY_TABLES[i];
+                if (!TableExists(conn, trans, table)) continue;
+                EnsureColumn(conn, trans, table, "idempotency_key", "TEXT DEFAULT NULL");
+                EnsureColumn(conn, trans, table, "idempotency_fingerprint", "TEXT DEFAULT NULL");
+                using (var cmd = new SQLiteCommand(string.Format(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_{0}_idempotency ON {0}(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key != '';",
+                    table), conn, trans))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            if (TableExists(conn, trans, "sales"))
+            {
+                EnsureColumn(conn, trans, "sales", "idempotency_fingerprint", "TEXT DEFAULT NULL");
+            }
+            if (TableExists(conn, trans, "delivery_orders"))
+            {
+                EnsureColumn(conn, trans, "delivery_orders", "cash_handover_tracked", "INTEGER DEFAULT NULL");
+            }
         }
 
         // Tables that the UI may retry, with the client key and the request fingerprint stored per row
@@ -91,6 +172,7 @@ namespace RafiqPOS.Database
                 try
                 {
                     EnsureStep3BColumns(conn, trans);
+                    EnsureFinancialRetryColumns(conn, trans);
                     trans.Commit();
                 }
                 catch

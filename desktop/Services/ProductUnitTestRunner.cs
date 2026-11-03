@@ -28,6 +28,7 @@ namespace RafiqPOS.Services
 
             string tempDbPath = Path.Combine(Path.GetTempPath(), "rafiq_unit_test_" + Guid.NewGuid().ToString("N") + ".db");
             string tempConnStr = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", tempDbPath);
+            UserDto previousUser = SecurityService.CurrentUser;
 
             try
             {
@@ -48,6 +49,10 @@ namespace RafiqPOS.Services
                 var saleRepo = new SaleRepository(tempConnStr, counterRepo, auditRepo, batchRepo);
                 var returnRepo = new ReturnRepository(tempConnStr, counterRepo, auditRepo);
                 var invService = new InventoryService(tempConnStr, smRepo, productRepo, auditRepo, unitRepo, priceHistoryRepo);
+                var userRepo = new UserRepository(tempConnStr);
+                var security = new SecurityService(new SettingsRepository(tempConnStr), auditRepo, userRepo);
+                security.ChangeUserPin("usr_admin_default", "7418");
+                SecurityService.SetCurrentUserForTesting(SecurityService.MapToDto(userRepo.GetById("usr_admin_default")));
 
                 // TEST 1: Base Product & Default Base Unit
                 var prod = new Product
@@ -61,7 +66,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(prod);
+                using (EnterTestRequest(userRepo))
+                    productService.SaveProduct(prod);
                 unitService.EnsureDefaultBaseUnit(prod);
 
                 var baseUnit = unitService.GetBaseUnit(prod.Id);
@@ -83,7 +89,8 @@ namespace RafiqPOS.Services
                     IsDivisible = false,
                     SortOrder = 1
                 };
-                unitService.CreateUnit(cartonUnit);
+                using (EnterTestRequest(userRepo))
+                    unitService.CreateUnit(cartonUnit);
 
                 var halfDozenUnit = new ProductUnit
                 {
@@ -98,7 +105,8 @@ namespace RafiqPOS.Services
                     IsDivisible = false,
                     SortOrder = 2
                 };
-                unitService.CreateUnit(halfDozenUnit);
+                using (EnterTestRequest(userRepo))
+                    unitService.CreateUnit(halfDozenUnit);
 
                 var allUnits = unitService.GetUnitsForProduct(prod.Id);
                 Assert(allUnits.Count == 3, "المنتج يحتوي على 3 وحدات (أساسية + كرتونة + باكت)", result);
@@ -176,7 +184,8 @@ namespace RafiqPOS.Services
                     Unit = "piece",
                     IsActive = true
                 };
-                productService.SaveProduct(prod2);
+                using (EnterTestRequest(userRepo))
+                    productService.SaveProduct(prod2);
                 unitService.EnsureDefaultBaseUnit(prod2);
 
                 var carton24Unit = new ProductUnit
@@ -192,7 +201,8 @@ namespace RafiqPOS.Services
                     IsDivisible = false,
                     SortOrder = 1
                 };
-                unitService.CreateUnit(carton24Unit);
+                using (EnterTestRequest(userRepo))
+                    unitService.CreateUnit(carton24Unit);
 
                 // Purchase 1 carton of 24 pieces via InventoryService.RecordPurchase
                 invService.RecordPurchase(
@@ -320,7 +330,8 @@ namespace RafiqPOS.Services
                         Barcode = cartonUnit.Barcode,
                         IsDivisible = cartonUnit.IsDivisible
                     };
-                    unitService.UpdateUnit(modifiedUnit);
+                    using (EnterTestRequest(userRepo))
+                        unitService.UpdateUnit(modifiedUnit);
                 }
                 catch (InvalidOperationException)
                 {
@@ -331,7 +342,9 @@ namespace RafiqPOS.Services
                 // 8.4 Secondary unit with sales CAN update sell price or barcode (prices are mutable)
                 cartonUnit.SellPricePiasters = 29500; // Price increase to 295.00 EGP
                 cartonUnit.Barcode = "6221112229990"; // Updated barcode
-                var updatedCarton = unitService.UpdateUnit(cartonUnit);
+                ProductUnit updatedCarton;
+                using (EnterTestRequest(userRepo))
+                    updatedCarton = unitService.UpdateUnit(cartonUnit);
                 Assert(updatedCarton.SellPricePiasters == 29500 && updatedCarton.Barcode == "6221112229990", "السماح بتحديث أسعار وباركودات الوحدات مع الحفاظ على ثبات معامل التحويل", result);
 
                 // 8.5 ProductRepository.SaveProduct enforces unit immutability
@@ -346,7 +359,8 @@ namespace RafiqPOS.Services
                             u.ConversionFactor = 48; // Mutate
                         }
                     }
-                    productService.SaveProduct(prodWithMutatedUnits);
+                    using (EnterTestRequest(userRepo))
+                        productService.SaveProduct(prodWithMutatedUnits);
                 }
                 catch (InvalidOperationException)
                 {
@@ -376,6 +390,7 @@ namespace RafiqPOS.Services
             }
             finally
             {
+                SecurityService.SetCurrentUserForTesting(previousUser);
                 try
                 {
                     if (File.Exists(tempDbPath))
@@ -387,6 +402,11 @@ namespace RafiqPOS.Services
             }
 
             return result;
+        }
+
+        private static IDisposable EnterTestRequest(UserRepository userRepo)
+        {
+            return ProductWritePolicy.EnterRequest(SecurityService.CaptureRequestAdmission(userRepo.GetById));
         }
 
         private static void Assert(bool condition, string assertionName, ProductUnitTestResult result)

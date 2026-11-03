@@ -49,7 +49,8 @@ namespace RafiqPOS.Tests.Scenarios
             staleProductSnapshot.Name = "شاي لبتون 100 فتلة - عبوة توفير";
 
             // حفظ المنتج: تعديل بيانات المنتج لا يجب أن يمس الرصيد الحي
-            ProductService.SaveProduct(staleProductSnapshot, false, false);
+            using (AdmitProductRequest("usr_admin_default"))
+                ProductService.SaveProduct(staleProductSnapshot, false, false);
 
             // 5. Assert: الرصيد النهائي يجب أن يظل 80,000 ملي ولا يعود إلى 100,000 القديمة
             var finalProd = ProductService.GetById(prod.Id);
@@ -68,7 +69,8 @@ namespace RafiqPOS.Tests.Scenarios
             loadedProd.StockQuantityMilli = 25000;
             // Step 3A (M5): a card stock edit is a stock adjustment and needs a documented reason
             loadedProd.StockAdjustReason = "جرد فعلي للرف";
-            ProductService.SaveProduct(loadedProd, false, false);
+            using (AdmitProductRequest("usr_admin_default"))
+                ProductService.SaveProduct(loadedProd, false, false);
 
             var updatedProd = ProductService.GetById(prod.Id);
             Assert.AreEqual(25000, updatedProd.StockQuantityMilli, "يجب تحديث رصيد الصنف إلى 25000 ملي (25 قطعة) عند تعديل الكمية صراحةً من بطاقة الصنف");

@@ -1394,6 +1394,7 @@ namespace RafiqPOS
         private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
             string rawJson = null;
+            RafiqPOS.Models.RequestAdmission admission = null;
             try
             {
                 // Accept bridge messages only from the bundled local application origin (Audit F-02)
@@ -1403,6 +1404,7 @@ namespace RafiqPOS
                     Logger.Warn("تم تجاهل رسالة IPC من مصدر غير موثوق: " + source);
                     return;
                 }
+                admission = SecurityService.CaptureRequestAdmission();
                 rawJson = e.WebMessageAsJson;
             }
             catch (Exception ex)
@@ -1420,6 +1422,7 @@ namespace RafiqPOS
                 try
                 {
                     request = JsonConvert.DeserializeObject<BridgeRequest>(rawJson);
+                    if (request != null) request.Admission = admission;
                     if (request != null && !string.IsNullOrEmpty(request.Id))
                     {
                         reqId = request.Id;

@@ -37,16 +37,27 @@ namespace RafiqPOS.Repositories
                 returnObj.CreatedAt = DateTime.UtcNow.ToString("o");
             }
 
+            lock (SaleService.FinancialWriteLock)
+            using (var operation = SaleService.BeginFinancialOperation())
             using (var conn = new SQLiteConnection(_connectionString))
             {
+                if (operation != null) returnObj.CashierId = operation.ActorId;
                 conn.Open();
                 using (var trans = conn.BeginTransaction())
                 {
                     try
                     {
-                        // 1. Get next sequential return number
-                        int nextReturnNumber = (int)_counters.GetNextCounterNumber(conn, trans, "return_number", "returns", "return_number");
-                        returnObj.ReturnNumber = nextReturnNumber;
+                        BusinessDayHelper.EnsureOriginalPeriodOpen(conn, trans, returnObj.CreatedAt);
+                        if (!string.IsNullOrEmpty(returnObj.ShiftId))
+                        {
+                            using (var shiftCmd = new SQLiteCommand("SELECT COUNT(*) FROM shifts WHERE id = @shift AND status = 'open' AND closed_at IS NULL AND business_date = @day;", conn, trans))
+                            {
+                                shiftCmd.Parameters.AddWithValue("@shift", returnObj.ShiftId);
+                                shiftCmd.Parameters.AddWithValue("@day", BusinessDayHelper.GetCurrentBusinessDate(conn, trans).ToString("yyyy-MM-dd"));
+                                if (Convert.ToInt64(shiftCmd.ExecuteScalar()) != 1)
+                                    throw new InvalidOperationException("لا يمكن تسجيل مرتجع على وردية مغلقة أو غير حالية.");
+                            }
+                        }
 
                         long saleFinalTotal = 0;
                         string saleStatus = null;
@@ -100,6 +111,20 @@ namespace RafiqPOS.Repositories
                         if (!string.IsNullOrEmpty(saleStatus) && string.Equals(saleStatus, "cancelled", StringComparison.OrdinalIgnoreCase))
                         {
                             throw new InvalidOperationException("لا يمكن عمل مرتجع على فاتورة ملغاة بالفعل.");
+                        }
+
+                        if (!string.IsNullOrEmpty(returnObj.SaleId))
+                        {
+                            if (saleStatus == null) throw new InvalidOperationException("الفاتورة الأصلية غير موجودة.");
+                            InsuranceRepository.EnsureSaleReversalAllowed(conn, trans, returnObj.SaleId, true);
+                            DeliveryRepository.EnsureSaleReversalAllowed(conn, trans, returnObj.SaleId, true);
+                            ValidateInvoiceLines(conn, trans, returnObj);
+                        }
+                        else
+                        {
+                            foreach (var item in returnObj.Items)
+                                if (item != null && !string.IsNullOrEmpty(item.SaleItemId))
+                                    throw new InvalidOperationException("لا يمكن تحديد بند فاتورة في مرتجع بدون فاتورة أصلية.");
                         }
 
                         // Calculate total and enforce consistency (prevent tampering)
@@ -179,6 +204,8 @@ namespace RafiqPOS.Repositories
                                 }
                             }
                         }
+
+                        returnObj.ReturnNumber = (int)_counters.GetNextCounterNumber(conn, trans, "return_number", "returns", "return_number");
 
                         // 2. Insert Returns Master record
                         string insertReturnSql = @"
@@ -273,7 +300,7 @@ namespace RafiqPOS.Repositories
                             {
                                 if (catalogPrice > 0 && item.UnitPricePiasters > catalogPrice)
                                 {
-                                    bool hasOverride = RafiqPOS.Services.DatabaseService.Security != null && RafiqPOS.Services.DatabaseService.Security.HasPermission(returnObj.CashierId, "pos.price_override");
+                                    bool hasOverride = SaleService.HasFinancialPermission(returnObj.CashierId, "pos.price_override");
                                     if (!hasOverride)
                                     {
                                         throw new InvalidOperationException(string.Format(
@@ -288,9 +315,11 @@ namespace RafiqPOS.Repositories
                             bool factorResolved = false;
                             if (!string.IsNullOrEmpty(item.SaleItemId))
                             {
-                                using (var fCmd = new SQLiteCommand("SELECT conversion_factor FROM sale_items WHERE id = @siId LIMIT 1;", conn, trans))
+                                using (var fCmd = new SQLiteCommand("SELECT conversion_factor FROM sale_items WHERE id = @siId AND sale_id = @sid AND product_id = @pid LIMIT 1;", conn, trans))
                                 {
                                     fCmd.Parameters.AddWithValue("@siId", item.SaleItemId);
+                                    fCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
+                                    fCmd.Parameters.AddWithValue("@pid", item.ProductId);
                                     object fRes = fCmd.ExecuteScalar();
                                     if (fRes != null && fRes != DBNull.Value)
                                     {
@@ -314,7 +343,7 @@ namespace RafiqPOS.Repositories
                                     }
                                 }
                             }
-                            long baseQtyMilli = item.QuantityMilli * factor;
+                            long baseQtyMilli = checked(item.QuantityMilli * factor);
 
                             // Recipe-made menu items never left stock (their ingredients did), so nothing returns to stock
                             bool lineStockDeducted = prodExistsInDb && (!string.IsNullOrEmpty(returnObj.SaleId)
@@ -388,12 +417,14 @@ namespace RafiqPOS.Repositories
                                             JOIN sale_items si ON a.sale_item_id = si.id
                                             JOIN product_batches pb ON a.batch_id = pb.id
                                             WHERE si.sale_id = @sid AND si.product_id = @prodId
+                                              AND (@lineId IS NULL OR si.id = @lineId)
                                             ORDER BY a.created_at DESC, a.rowid DESC;
                                         ";
                                         using (var saCmd = new SQLiteCommand(sAllocSql, conn, trans))
                                         {
                                             saCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
                                             saCmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                            saCmd.Parameters.AddWithValue("@lineId", (object)item.SaleItemId ?? DBNull.Value);
                                             using (var saReader = saCmd.ExecuteReader())
                                             {
                                                 while (saReader.Read())
@@ -902,6 +933,71 @@ namespace RafiqPOS.Repositories
                         throw;
                     }
                 }
+            }
+        }
+
+        private static void ValidateInvoiceLines(SQLiteConnection conn, SQLiteTransaction trans, Return request)
+        {
+            var quantities = new Dictionary<string, long>(StringComparer.Ordinal);
+            var amounts = new Dictionary<string, long>(StringComparer.Ordinal);
+            foreach (var item in request.Items)
+            {
+                if (item == null || item.QuantityMilli <= 0) throw new InvalidOperationException("بند المرتجع غير صالح.");
+                SaleItem original = null;
+                using (var cmd = new SQLiteCommand(@"
+                    SELECT id, product_id, product_name, unit, conversion_factor, quantity_milli, total_piasters
+                    FROM sale_items WHERE sale_id = @sid
+                      AND ((@line IS NOT NULL AND id = @line)
+                        OR (@line IS NULL AND product_id = @pid AND (@unit IS NULL OR unit = @unit COLLATE NOCASE)));", conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@sid", request.SaleId);
+                    cmd.Parameters.AddWithValue("@line", string.IsNullOrEmpty(item.SaleItemId) ? (object)DBNull.Value : item.SaleItemId);
+                    cmd.Parameters.AddWithValue("@pid", (object)item.ProductId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@unit", string.IsNullOrEmpty(item.Unit) ? (object)DBNull.Value : item.Unit);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            if (original != null) throw new InvalidOperationException("يجب تحديد بند الفاتورة الأصلي للمرتجع عند تكرار الصنف.");
+                            original = new SaleItem
+                            {
+                                Id = reader["id"].ToString(), ProductId = reader["product_id"].ToString(),
+                                ProductName = reader["product_name"].ToString(), Unit = reader["unit"].ToString(),
+                                ConversionFactor = reader["conversion_factor"] == DBNull.Value ? 1 : Convert.ToInt32(reader["conversion_factor"]),
+                                QuantityMilli = Convert.ToInt64(reader["quantity_milli"]),
+                                TotalPiasters = Convert.ToInt64(reader["total_piasters"])
+                            };
+                        }
+                    }
+                }
+                if (original == null) throw new InvalidOperationException("بند المرتجع لا يخص الفاتورة الأصلية.");
+                ReturnService.BindInvoiceLine(item, original);
+                long pastQuantity = 0;
+                long pastAmount = 0;
+                using (var cmd = new SQLiteCommand(@"
+                    SELECT COALESCE(SUM(ri.quantity_milli), 0), COALESCE(SUM(ri.total_piasters), 0)
+                    FROM return_items ri JOIN returns r ON r.id = ri.return_id
+                    WHERE r.sale_id = @sid AND (ri.sale_item_id = @line
+                       OR (ri.sale_item_id IS NULL AND ri.product_id = @pid AND ri.unit = @unit));", conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@sid", request.SaleId);
+                    cmd.Parameters.AddWithValue("@line", original.Id);
+                    cmd.Parameters.AddWithValue("@pid", original.ProductId);
+                    cmd.Parameters.AddWithValue("@unit", original.Unit);
+                    using (var reader = cmd.ExecuteReader())
+                        if (reader.Read())
+                        {
+                            pastQuantity = Convert.ToInt64(reader[0]);
+                            pastAmount = Convert.ToInt64(reader[1]);
+                        }
+                }
+                long quantity = checked((quantities.ContainsKey(original.Id) ? quantities[original.Id] : 0) + item.QuantityMilli);
+                long amount = checked((amounts.ContainsKey(original.Id) ? amounts[original.Id] : 0) + item.TotalPiasters);
+                if (quantity > original.QuantityMilli - pastQuantity || item.TotalPiasters < 0
+                    || amount > original.TotalPiasters - pastAmount)
+                    throw new InvalidOperationException("كمية أو قيمة المرتجع تتجاوز المتبقي من بند الفاتورة الأصلية.");
+                quantities[original.Id] = quantity;
+                amounts[original.Id] = amount;
             }
         }
 
