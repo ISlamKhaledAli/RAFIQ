@@ -98,6 +98,14 @@ namespace RafiqPOS.Bridge
                     {
                         saleId = request.Payload.ToString().Trim('"', ' ');
                     }
+                    if (saleId.StartsWith("RFQ-INV-", StringComparison.OrdinalIgnoreCase))
+                    {
+                        saleId = saleId.Substring(8);
+                    }
+                    else if (saleId.StartsWith("INV-", StringComparison.OrdinalIgnoreCase))
+                    {
+                        saleId = saleId.Substring(4);
+                    }
                     var singleSale = DatabaseService.Sales.GetSaleById(saleId);
                     if (singleSale == null)
                     {
@@ -182,11 +190,29 @@ namespace RafiqPOS.Bridge
                     JObject invPayload = request.Payload as JObject;
                     if (invPayload != null && invPayload["invoiceNumber"] != null)
                     {
-                        invNum = invPayload["invoiceNumber"].Value<int>();
+                        var rawVal = invPayload["invoiceNumber"].ToString().Trim('"', ' ', '#');
+                        if (rawVal.StartsWith("RFQ-INV-", StringComparison.OrdinalIgnoreCase))
+                            rawVal = rawVal.Substring(8);
+                        else if (rawVal.StartsWith("RFQ-", StringComparison.OrdinalIgnoreCase))
+                            rawVal = rawVal.Substring(4);
+                        else if (rawVal.StartsWith("INV-", StringComparison.OrdinalIgnoreCase))
+                            rawVal = rawVal.Substring(4);
+                        else if (rawVal.StartsWith("INV", StringComparison.OrdinalIgnoreCase))
+                            rawVal = rawVal.Substring(3);
+                        int.TryParse(rawVal, out invNum);
                     }
                     else if (request.Payload != null)
                     {
-                        int.TryParse(request.Payload.ToString().Trim('"', ' ', '#'), out invNum);
+                        var rawVal = request.Payload.ToString().Trim('"', ' ', '#');
+                        if (rawVal.StartsWith("RFQ-INV-", StringComparison.OrdinalIgnoreCase))
+                            rawVal = rawVal.Substring(8);
+                        else if (rawVal.StartsWith("RFQ-", StringComparison.OrdinalIgnoreCase))
+                            rawVal = rawVal.Substring(4);
+                        else if (rawVal.StartsWith("INV-", StringComparison.OrdinalIgnoreCase))
+                            rawVal = rawVal.Substring(4);
+                        else if (rawVal.StartsWith("INV", StringComparison.OrdinalIgnoreCase))
+                            rawVal = rawVal.Substring(3);
+                        int.TryParse(rawVal, out invNum);
                     }
                     if (invNum <= 0)
                     {

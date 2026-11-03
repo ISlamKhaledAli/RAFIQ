@@ -1002,7 +1002,13 @@ namespace RafiqPOS.Bridge
             // 3. Initial onboarding: when setting up the store before login, applying store template and saving initial settings is allowed ONLY when first run is needed
             if (DatabaseService.Templates != null && DatabaseService.Templates.IsFirstRunNeeded())
             {
-                if (request.Action == "templates:apply" || request.Action == "settings:save")
+                if (request.Action == "templates:apply" ||
+                    request.Action == "settings:save" ||
+                    request.Action == "products:importBatch" ||
+                    request.Action == "products:getAll" ||
+                    request.Action == "products:list" ||
+                    request.Action == "categories:getAll" ||
+                    request.Action == "excel:getTemplate")
                 {
                     return null;
                 }

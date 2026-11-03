@@ -53,7 +53,7 @@ namespace RafiqPOS.Services
             // 1. Title Banner
             ws.Range("A1:T1").Merge();
             var titleCell = ws.Cell("A1");
-            titleCell.Value = "رفيق POS - " + sheetTitleBanner;
+            titleCell.Value = "نظام رفيق - " + sheetTitleBanner;
             titleCell.Style.Font.Bold = true;
             titleCell.Style.Font.FontSize = 13;
             titleCell.Style.Font.FontColor = XLColor.White;
@@ -302,7 +302,7 @@ namespace RafiqPOS.Services
 
             ws.Range("A1:I1").Merge();
             var titleCell = ws.Cell("A1");
-            titleCell.Value = "رفيق POS - لوحة مؤشرات وملخص أقسام المتجر (" + catalogTitle + ")";
+            titleCell.Value = "نظام رفيق - لوحة مؤشرات وملخص أقسام المتجر (" + catalogTitle + ")";
             titleCell.Style.Font.Bold = true;
             titleCell.Style.Font.FontSize = 13;
             titleCell.Style.Font.FontColor = XLColor.White;
@@ -745,7 +745,7 @@ namespace RafiqPOS.Services
                 // 1. Title Banner
                 ws.Range("A1:E1").Merge();
                 var titleCell = ws.Cell("A1");
-                titleCell.Value = "رفيق POS - نموذج استيراد بيانات العملاء والديون الافتتاحية للمتاجر";
+                titleCell.Value = "نظام رفيق - نموذج استيراد بيانات العملاء والديون الافتتاحية للمتاجر";
                 titleCell.Style.Font.Bold = true;
                 titleCell.Style.Font.FontSize = 13;
                 titleCell.Style.Font.FontColor = XLColor.White;
@@ -870,7 +870,7 @@ namespace RafiqPOS.Services
                 // 1. Title Banner
                 ws.Range("A1:S1").Merge();
                 var titleCell = ws.Cell("A1");
-                titleCell.Value = "رفيق POS - نموذج استيراد دليل الأدوية والمستحضرات المرجعي الصيدلي الشامل";
+                titleCell.Value = "نظام رفيق - نموذج استيراد دليل الأدوية والمستحضرات المرجعي الصيدلي الشامل";
                 titleCell.Style.Font.Bold = true;
                 titleCell.Style.Font.FontSize = 13;
                 titleCell.Style.Font.FontColor = XLColor.White;

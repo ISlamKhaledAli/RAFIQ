@@ -189,7 +189,7 @@ namespace RafiqPOS.Bridge
                     string osDetails = RafiqPOS.Common.OsDetector.GetOsFriendlyName() + (Environment.Is64BitOperatingSystem ? " (64-bit)" : " (32-bit)");
                     response = BridgeResponse.Ok(request.Id, new
                     {
-                        appName = "رفيق POS",
+                        appName = "نظام رفيق",
                         version = "1.0.0",
                         osVersion = osDetails,
                         isWebView2 = true,
@@ -256,7 +256,7 @@ namespace RafiqPOS.Bridge
 
                 case "settings:getStoreProfile":
                     var storeSettings = DatabaseService.Settings.GetAllSettings();
-                    string sName = storeSettings.ContainsKey("store_name") ? storeSettings["store_name"] : (storeSettings.ContainsKey("storeName") ? storeSettings["storeName"] : "رفيق POS");
+                    string sName = storeSettings.ContainsKey("store_name") ? storeSettings["store_name"] : (storeSettings.ContainsKey("storeName") ? storeSettings["storeName"] : "نظام رفيق");
                     string sPhone = storeSettings.ContainsKey("store_phone") ? storeSettings["store_phone"] : "";
                     string sAddr = storeSettings.ContainsKey("store_address") ? storeSettings["store_address"] : "";
                     response = BridgeResponse.Ok(request.Id, new { storeName = sName, storePhone = sPhone, storeAddress = sAddr });

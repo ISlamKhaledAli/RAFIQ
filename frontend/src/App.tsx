@@ -303,7 +303,7 @@ export default function App() {
   });
   const [isReadinessOpen, setIsReadinessOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(true);
-  const [storeName, setStoreName] = useState('رفيق POS');
+  const [storeName, setStoreName] = useState('نظام رفيق');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
@@ -1197,7 +1197,7 @@ export default function App() {
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           <div
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-surface-dark-2 border border-[#DCE1DC] dark:border-line-dark flex items-center justify-center p-1 shadow-2xs shrink-0 select-none"
-            title="رفيق POS"
+            title="نظام رفيق"
           >
             <img 
               src={isDark ? '/logo_modern.png' : '/logo_classic.png'} 
@@ -1206,7 +1206,7 @@ export default function App() {
             />
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm sm:text-base font-extrabold text-ink dark:text-ink-dark leading-tight m-0 truncate">{storeName || 'رفيق POS'}</h1>
+            <h1 className="text-sm sm:text-base font-extrabold text-ink dark:text-ink-dark leading-tight m-0 truncate">{storeName || 'نظام رفيق'}</h1>
             <p className="text-[10px] sm:text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted m-0 truncate">نظام نقاط البيع وإدارة المتاجر والمحلات</p>
           </div>
         </div>
@@ -2256,7 +2256,7 @@ export default function App() {
 
       {/* Feature #172: Fullscreen License Expired Lock Screen (Task 172-1, 172-3, 172-5) */}
       <LicenseExpiredLockScreen
-        isOpen={isLockScreenOpen}
+        isOpen={isLockScreenOpen && !isFirstRunWizardOpen}
         expiryInfo={licenseExpiry}
         onUnlocked={handleLicenseUnlocked}
         onEnterReadOnlyMode={() => {

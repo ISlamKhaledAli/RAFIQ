@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Printer, X, CheckCircle, AlertTriangle, Loader2, RotateCcw } from 'lucide-react';
 import type { Sale } from '../types/models';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { formatArabicCurrency, totalSaleDiscountPiasters } from '../utils/money';
+import { formatInvoiceBarcode } from '../utils/invoiceBarcode';
+import { encodeCode128 } from '../utils/code128';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -14,6 +16,7 @@ interface ReceiptModalProps {
   storeAddress?: string;
   receiptHeader?: string;
   receiptFooter?: string;
+  onOpenReturn?: (sale: Sale) => void;
 }
 
 
@@ -26,8 +29,17 @@ export function ReceiptModal({
   storePhone = '',
   storeAddress = '',
   receiptHeader = '',
-  receiptFooter = ''
+  receiptFooter = '',
+  onOpenReturn
 }: ReceiptModalProps) {
+  const barcodeText = useMemo(() => {
+    if (!sale) return '';
+    return formatInvoiceBarcode(sale.invoiceNumber || sale.id);
+  }, [sale]);
+
+  const barcodeBits = useMemo(() => {
+    return barcodeText ? encodeCode128(barcodeText) : '';
+  }, [barcodeText]);
   const { handleBackdropClick } = useModalDismiss({
     isOpen,
     onClose,
@@ -571,24 +583,44 @@ export function ReceiptModal({
             <div className="text-center space-y-1.5 mt-2">
               {activeFooter && <div className="text-[10px] text-gray-700 font-sans leading-relaxed">{activeFooter}</div>}
               
-              {/* Authentic Barcode Visual Strip */}
-              <div className="pt-1 flex flex-col items-center">
-                <div className="flex items-end justify-center h-8 gap-[1.5px] px-2 py-0.5 bg-white">
-                  {[2,1,3,1,2,1,1,3,2,1,2,2,1,1,3,1,2,1,1,2,3,1,1,2,2,1,3,1,2,1].map((w, i) => (
-                    <div 
-                      key={i} 
-                      className={`bg-black h-full ${w === 3 ? 'w-[3px]' : w === 2 ? 'w-[2px]' : 'w-[1px]'}`} 
-                    />
-                  ))}
+              {/* Authentic Code 128 Barcode Visual Strip */}
+              {barcodeText && (
+                <div className="pt-1 flex flex-col items-center">
+                  <div className="flex items-center justify-center h-8 px-2 py-0.5 bg-white overflow-hidden max-w-[220px]">
+                    {barcodeBits ? (
+                      <svg
+                        viewBox={`0 0 ${barcodeBits.length} 32`}
+                        className="h-full w-full max-w-[200px]"
+                        preserveAspectRatio="none"
+                        shapeRendering="crispEdges"
+                      >
+                        {barcodeBits.split('').map((bit, idx) => (
+                          bit === '1' ? (
+                            <rect key={idx} x={idx} y={0} width={1} height={32} fill="#000000" />
+                          ) : null
+                        ))}
+                      </svg>
+                    ) : null}
+                  </div>
+                  <div className="text-[9.5px] text-black font-mono font-semibold tracking-wider mt-0.5">
+                    {barcodeText}
+                  </div>
                 </div>
-                <div className="text-[9.5px] text-black font-mono font-semibold tracking-wider mt-0.5">
-                  {sale.invoiceNumber ? String(sale.invoiceNumber).padStart(8, '0') : sale.id}
-                </div>
-              </div>
+              )}
 
               {/* Developer Branding Signature */}
-              <div className="border-t border-dotted border-gray-400 pt-1.5 mt-2 text-center text-[9px] text-gray-500 font-sans tracking-tight">
-                {developerSignature}
+              <div className="border-t border-dotted border-gray-400 pt-1.5 mt-2 text-center text-[9px] text-gray-500 font-sans tracking-tight leading-relaxed">
+                {developerSignature.includes('\n') ? (
+                  developerSignature.split('\n').map((line, i) => (
+                    <div key={i}>{line.trim()}</div>
+                  ))
+                ) : developerSignature.includes(' | ') ? (
+                  developerSignature.split(' | ').map((line, i) => (
+                    <div key={i}>{line.trim()}</div>
+                  ))
+                ) : (
+                  <div>{developerSignature}</div>
+                )}
               </div>
             </div>
           </div>
@@ -611,6 +643,21 @@ export function ReceiptModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {onOpenReturn && sale && sale.status !== 'cancelled' && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenReturn(sale);
+                }}
+                disabled={isPrinting}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded bg-warn-soft hover:bg-warn/20 text-warn border border-warn/30 text-xs font-bold transition-all shadow-2xs active:scale-[0.98] cursor-pointer"
+                title="بدء عملية استرجاع أو استبدال أصناف من هذه الفاتورة (F11)"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>عمل مرتجع للفاتورة</span>
+              </button>
+            )}
             <button
               onClick={onClose}
               disabled={isPrinting}

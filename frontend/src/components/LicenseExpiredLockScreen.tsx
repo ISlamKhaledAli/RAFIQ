@@ -186,7 +186,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
       if (res?.success && res.license?.isActive) {
         void rafiqAlert({
           title: 'تم التجديد بنجاح!',
-          message: res.message || 'تم تجديد وترخيص رفيق POS بنجاح.',
+          message: res.message || 'تم تجديد وترخيص نظام رفيق بنجاح.',
           variant: 'success',
         });
         onUnlocked();
@@ -256,12 +256,12 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
           <div className="mb-3.5 flex items-center justify-center">
             <img 
               src="/logo_full.png" 
-              alt="رفيق POS" 
+              alt="نظام رفيق" 
               className="h-10 object-contain drop-shadow-xs dark:hidden" 
             />
             <img 
               src="/logo_full_dark.png" 
-              alt="رفيق POS" 
+              alt="نظام رفيق" 
               className="h-10 object-contain drop-shadow-xs hidden dark:block" 
             />
           </div>
@@ -297,8 +297,8 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
               : isDeviceMismatch
               ? 'تم إيقاف البيع: الترخيص مربوط بجهاز آخر'
               : isUnlicensed
-              ? 'تفعيل نسخة رفيق POS'
-              : 'انتهت فترة اشتراك رفيق POS'}
+              ? 'تفعيل نسخة نظام رفيق'
+              : 'انتهت فترة اشتراك نظام رفيق'}
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-500 dark:text-ink-muted-dark max-w-md leading-relaxed">

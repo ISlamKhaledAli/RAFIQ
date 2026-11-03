@@ -16,6 +16,7 @@ import {
 import type { Sale, Return, Product } from '../types/models';
 import { extractProducts } from '../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
+import { parseInvoiceBarcode } from '../utils/invoiceBarcode';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { useAuth } from '../context/useAuth';
@@ -197,10 +198,14 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
     setSearchingSale(true);
     setSaleError(null);
     try {
-      const num = parseInt(query, 10);
+      const invMatch = parseInvoiceBarcode(query);
+      const num = invMatch?.invoiceNumber || parseInt(query, 10);
       let sale: Sale | null = null;
       if (!isNaN(num) && num > 0) {
         sale = await invoke<Sale>('sales:getByInvoiceNumber', { invoiceNumber: num });
+      }
+      if (!sale && invMatch?.rawId) {
+        sale = await invoke<Sale>('sales:getById', { id: invMatch.rawId });
       }
       if (!sale) {
         const found = await invoke<Sale[]>('sales:search', { query, limit: 1 });
@@ -509,7 +514,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                     <div className="relative flex-1">
                       <input
                         type="text"
-                        placeholder="اكتب رقم الفاتورة هنا..."
+                        placeholder="امسح باركود الفاتورة (RFQ-INV-...) أو اكتب رقمها..."
                         value={invoiceQuery}
                         onChange={(e) => setInvoiceQuery(e.target.value)}
                         className="w-full h-10 px-3 pr-9 bg-slate-50 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-ink-dark focus:outline-none focus:border-amber-500 dark:focus:border-warn focus:bg-white dark:focus:bg-surface-dark"

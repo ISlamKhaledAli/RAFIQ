@@ -275,7 +275,7 @@ export const LoginScreen: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-xl font-bold leading-tight tracking-wide">
-                  رفيق POS
+                  نظام رفيق
                 </h1>
                 <p className="text-xs text-emerald-200/80">نظام نقاط البيع وإدارة المتاجر</p>
               </div>

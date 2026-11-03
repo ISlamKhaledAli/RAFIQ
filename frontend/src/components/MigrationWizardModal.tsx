@@ -747,7 +747,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
         {/* Footer */}
         <div className="px-6 py-3 border-t border-line bg-surface-2 flex items-center justify-between text-xs text-ink-muted">
-          <span>نظام رفيق POS — إصدار معتمد لويندوز 7 و 10 و 11</span>
+          <span>نظام رفيق — إصدار معتمد لويندوز 7 و 10 و 11</span>
           <button
             type="button"
             onClick={onClose}

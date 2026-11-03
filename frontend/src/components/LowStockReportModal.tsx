@@ -127,7 +127,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
 
         {/* Printable Header (Visible only when printing) */}
         <div className="hidden print:block p-6 border-b border-line text-center space-y-1">
-          <h1 className="text-2xl font-black text-ink">رفيق POS - أمر شراء ونواقص المخزون</h1>
+          <h1 className="text-2xl font-black text-ink">نظام رفيق - أمر شراء ونواقص المخزون</h1>
           <p className="text-sm text-ink-muted">
             تاريخ التقرير: {new Date().toLocaleDateString('ar-EG-u-nu-latn')} - إجمالي الأصناف الناقصة: {filteredItems.length}
           </p>

@@ -315,21 +315,50 @@ namespace RafiqPOS.Services
                 int itemsCreated = 0;
                 int prodsCreated = 0;
 
+                try
+                {
+                    using (var conn = new SQLiteConnection(_connectionString))
+                    {
+                        conn.Open();
+                        using (var countCmd = new SQLiteCommand("SELECT (SELECT COUNT(1) FROM categories), (SELECT COUNT(1) FROM products WHERE is_active = 1);", conn))
+                        {
+                            using (var reader = countCmd.ExecuteReader())
+                            {
+                                if (reader.Read())
+                                {
+                                    catsCreated = Convert.ToInt32(reader[0]);
+                                    prodsCreated = Convert.ToInt32(reader[1]);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception countEx)
+                {
+                    Logger.Warn("Count categories/products warning: " + countEx.Message);
+                }
+
                 // 3. Audit Log
                 if (_auditRepo != null)
                 {
+                    string details = prodsCreated > 0
+                        ? string.Format("تم تهيئة النظام بنجاح وتجهيز خصائص النشاط التجاري: {0} ({1} صنف مسجل جاهز للبيع)", template.Name, prodsCreated)
+                        : string.Format("تم تهيئة النظام بنجاح وتجهيز خصائص النشاط التجاري: {0} (قاعدة بيانات نظيفة 100% وجاهزة للبدء)", template.Name);
+
                     _auditRepo.Log(new AuditLog
                     {
                         UserId = "system",
                         Action = "FIRST_RUN_WIZARD_COMPLETED",
                         EntityType = "TEMPLATE",
                         EntityId = template.Id,
-                        DetailsJson = string.Format("تم تهيئة النظام بنجاح وتجهيز خصائص النشاط التجاري: {0} (قاعدة بيانات نظيفة 100% وجاهزة للبدء)", template.Name)
+                        DetailsJson = details
                     });
                 }
 
                 result.Success = true;
-                result.Message = string.Format("تم تهيئة وتجهيز النظام بنجاح لنشاط: {0} بقاعدة بيانات نظيفة.", template.Name);
+                result.Message = prodsCreated > 0
+                    ? string.Format("تم تهيئة وتجهيز النظام بنجاح لنشاط: {0} مع {1} صنف مسجل جاهز للبيع.", template.Name, prodsCreated)
+                    : string.Format("تم تهيئة وتجهيز النظام بنجاح لنشاط: {0} بقاعدة بيانات نظيفة.", template.Name);
                 result.CategoriesCount = catsCreated;
                 result.QuickItemsCount = itemsCreated;
                 result.ProductsCount = prodsCreated;

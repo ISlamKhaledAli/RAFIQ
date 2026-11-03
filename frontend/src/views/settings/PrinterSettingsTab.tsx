@@ -9,7 +9,8 @@ import {
   Tag,
   UtensilsCrossed,
   Gauge,
-  Sliders
+  Sliders,
+  Sparkles
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
@@ -389,23 +390,24 @@ export const PrinterSettingsTab = ({
           </div>
 
           {/* Cash Drawer Pulse Duration Control & Test */}
-          <div className="p-4 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-3">
+          <div className="p-4 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold shadow-2xs">
                   <Gauge className="w-4 h-4 text-brand dark:text-brand-bright" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-ink dark:text-ink-dark text-xs">
-                      قوة ومدة نبضة فتح الدرج (Pulse Duration)
+                      معايرة نبضة فتح درج النقدية (Pulse Duration)
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20">
-                      تبدأ من 2 مللي ثانية (الأهدأ)
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5 text-paid dark:text-paid-bright" />
+                      معيار ESC/POS الصامت
                     </span>
                   </div>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-tight m-0">
-                    التحكم الدقيق في زمن الشرارة الكهربائية لملف الدرج (Solenoid)؛ تم تقليل الحد الأدنى وإلغاء كود الرنين القديم تماماً لمنع قفز الدرج وارتداده العنيف.
+                  <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-tight m-0 mt-0.5">
+                    التحكم الدقيق في زمن الشرارة الكهربائية لملف الدرج (Solenoid) لضمان فتح ناعم دون ارتداد أو صوت ارتطام مزعج.
                   </p>
                 </div>
               </div>
@@ -414,35 +416,34 @@ export const PrinterSettingsTab = ({
                 type="button"
                 onClick={() => void handleTestDrawer()}
                 disabled={drawerTesting || !selectedPrinter}
-                className="px-3 py-1.5 rounded-lg bg-surface dark:bg-surface-dark hover:bg-white dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                className="px-3.5 py-1.5 rounded-lg bg-surface dark:bg-surface-dark hover:bg-white dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
                 title="إرسال نبضة فورية لاختبار فتح الدرج بالقوة المحددة حالياً"
               >
                 <Zap className={'w-3.5 h-3.5 text-brand dark:text-brand-bright ' + (drawerTesting ? 'animate-spin' : '')} />
-                <span>{drawerTesting ? 'جاري الفتح...' : `تجربة النبضة الحالية (${drawerPulseMs || '30'} ms)`}</span>
+                <span>{drawerTesting ? 'جاري الفتح...' : `تجربة النبضة الحالية (${drawerPulseMs || '6'} ms)`}</span>
               </button>
             </div>
 
             {/* Note badge */}
-            <div className="p-2.5 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-start gap-2 text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+            <div className="p-2.5 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-start gap-2.5 text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
               <Sliders className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
               <div>
-                <strong className="text-ink dark:text-ink-dark font-bold">طريقة التجربة السريعة: </strong>
-                اضغط على زر <span className="font-bold text-brand dark:text-brand-bright">[تجربة]</span> في أي كارت أدناه لاختبار النبضة فوراً دون الحاجة لتغيير الشاشة. ابدأ من درجة <strong className="text-brand dark:text-brand-bright">2 ms</strong> أو <strong className="text-brand dark:text-brand-bright">5 ms</strong>؛ إذا فتح الدرج بهدوء فاختره، وإذا لم يفتح انتقل للدرجة التالية تدريجياً.
+                <strong className="text-ink dark:text-ink-dark font-bold">توجيه هندسي لسلاسة الدرج: </strong>
+                نوصي باختيار <strong className="text-brand dark:text-brand-bright">6 ms (النبضة الذهبية)</strong> فهي النقطة الهندسية الأهدأ لسحب لسان القفل بسلاسة تامة دون صوت صدمة أو ارتداد. انقر على أي كارت لاختياره، أو استخدم زر <span className="font-bold text-brand dark:text-brand-bright">[تجربة]</span> لاختبار النبضة على درجك مباشرة.
               </div>
             </div>
 
-            {/* Presets Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 pt-1">
+            {/* Senior Presets Grid: 6 Balanced, Spacious Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-0.5">
               {[
-                { id: '2', title: '2 ms', tag: 'الأهدأ إطلاقاً', label: 'أقل نبضة ممكنة', desc: 'للأدراج ذات السوستة القوية؛ تفتح بهدوء وتمنع الارتداد تماماً' },
-                { id: '5', title: '5 ms', tag: 'خفيفة جداً', label: 'حساسة وخفيفة', desc: 'للأدراج الخفيفة لمنع الصدمة والصوت العالي' },
-                { id: '10', title: '10 ms', tag: 'هادئة', label: 'خفيفة ومعتدلة', desc: 'للأدراج القياسية لفتح هادئ وغير مزعج' },
-                { id: '20', title: '20 ms', tag: 'معتدلة', label: 'متوسطة', desc: 'مناسبة لمعظم الأدراج الجديدة' },
-                { id: '30', title: '30 ms', tag: 'متوازنة', label: 'الافتراضي القياسي', desc: 'النبضة الشائعة لطابعات الفواتير' },
-                { id: '50', title: '50 ms', tag: 'قوية', label: 'سريعة وقوية', desc: 'للأدراج الثقيلة أو المشدودة' },
-                { id: '100', title: '100 ms', tag: 'أقصى قوة', label: 'للأدراج الكبيرة', desc: 'للأدراج الكبيرة جداً وممتلئة النقدية' },
+                { id: '2', title: '2 ms', tag: 'الأهدأ إطلاقاً', label: 'فائقة الخفة', desc: 'للأدراج ذات السوستة القوية والمجاري الناعمة' },
+                { id: '4', title: '4 ms', tag: 'هادئة جداً', label: 'خفيفة وناعمة', desc: 'للأدراج الخفيفة لمنع الصدمة والصوت العالي' },
+                { id: '6', title: '6 ms', tag: 'النبضة الذهبية', isRecommended: true, label: 'الأمثل والأهدأ', desc: 'توازن مثالي: فتح فوري وناعم بدون ارتداد لأغلب الأدراج' },
+                { id: '8', title: '8 ms', tag: 'ناعمة ومؤكدة', label: 'متزنة ومضمونة', desc: 'للأدراج القياسية إذا كان الدرج محملاً بالعملات' },
+                { id: '12', title: '12 ms', tag: 'معتدلة قياسية', label: 'شائعة وسريعة', desc: 'للأدراج التجارية الكبيرة لضمان سرعة الفتح' },
+                { id: '20', title: '20 ms', tag: 'قوة عالية', label: 'للأدراج الثقيلة', desc: 'للأدراج الكبيرة جداً أو ذات السوستة المشدودة' },
               ].map((opt) => {
-                const isSelected = (drawerPulseMs || '30') === opt.id;
+                const isSelected = (drawerPulseMs || '6') === opt.id;
                 return (
                   <div
                     key={opt.id}
@@ -450,16 +451,21 @@ export const PrinterSettingsTab = ({
                       setDrawerPulseMs?.(opt.id);
                       if (onChangeDrawerPulse) onChangeDrawerPulse(opt.id);
                     }}
-                    className={`p-2 rounded-lg border text-right flex flex-col justify-between gap-1.5 transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-lg border text-right flex flex-col justify-between gap-2 transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-brand/10 dark:bg-brand-dark-soft border-brand dark:border-brand-bright text-brand dark:text-brand-bright shadow-2xs ring-1 ring-brand/30'
                         : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-line-hover text-ink dark:text-ink-dark'
                     }`}
                   >
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black tracking-tight">{opt.title}</span>
-                        {isSelected ? (
+                        <span className="text-xs font-black font-mono tracking-tight">{opt.title}</span>
+                        {opt.isRecommended ? (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-paid-soft text-paid dark:bg-paid-dark-soft dark:text-paid-bright border border-paid/30 font-bold flex items-center gap-0.5">
+                            <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                            الأمثل
+                          </span>
+                        ) : isSelected ? (
                           <CheckCircle className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                         ) : (
                           <span className="text-[9px] px-1 py-0.2 rounded bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark">
@@ -467,8 +473,8 @@ export const PrinterSettingsTab = ({
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] font-bold text-ink dark:text-ink-dark">{opt.label}</span>
-                      <span className="text-[9px] text-ink-muted dark:text-ink-muted-dark leading-tight line-clamp-2">
+                      <span className="text-[11px] font-bold text-ink dark:text-ink-dark leading-tight">{opt.label}</span>
+                      <span className="text-[9.5px] text-ink-muted dark:text-ink-muted-dark leading-snug line-clamp-2 h-7">
                         {opt.desc}
                       </span>
                     </div>
@@ -482,7 +488,7 @@ export const PrinterSettingsTab = ({
                         void handleTestDrawer(opt.id);
                       }}
                       disabled={drawerTesting || !selectedPrinter}
-                      className="mt-1 w-full py-1 px-1.5 rounded bg-surface-2 dark:bg-surface-dark-2 hover:bg-white dark:hover:bg-surface-dark border border-line dark:border-line-dark hover:border-brand text-ink dark:text-ink-dark text-[10px] font-bold flex items-center justify-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
+                      className="w-full py-1 px-1.5 rounded bg-surface-2 dark:bg-surface-dark-2 hover:bg-white dark:hover:bg-surface-dark border border-line dark:border-line-dark hover:border-brand text-ink dark:text-ink-dark text-[10px] font-bold flex items-center justify-center gap-1 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs active:scale-98"
                       title={`تجربة فتح الدرج بقوة ${opt.title} فوراً`}
                     >
                       <Zap className="w-2.5 h-2.5 text-brand dark:text-brand-bright" />
@@ -494,22 +500,28 @@ export const PrinterSettingsTab = ({
             </div>
 
             {/* Custom Milliseconds Input + Port Pin Configuration */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-line dark:border-line-dark">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-line dark:border-line-dark">
               {/* Custom ms input */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                  <span>تحديد رقم مخصص بالميللي ثانية (2 - 250 ms)</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                    <span>تحديد رقم مخصص بالميللي ثانية (2 - 250 ms)</span>
+                  </label>
+                  <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark">
+                    مضاعفات 2 ms لمعيار ESC/POS
+                  </span>
+                </div>
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
                     <input
                       type="number"
                       min={2}
                       max={250}
+                      step={2}
                       value={customPulse}
                       onChange={(e) => setCustomPulse(e.target.value)}
-                      placeholder="مثال: 3 أو 4 أو 8"
+                      placeholder="مثال: 6 أو 8 أو 16"
                       className="w-full px-3 py-1.5 text-xs rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark font-mono font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-ink-muted dark:text-ink-muted-dark font-bold">
@@ -528,7 +540,7 @@ export const PrinterSettingsTab = ({
                     }}
                     disabled={drawerTesting || !selectedPrinter}
                     className="px-3 py-1.5 rounded-lg bg-surface dark:bg-surface-dark hover:bg-white dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
-                    title="تجربة الرقم المكتوب فوراً"
+                    title="تجربة الرقم المكتوب فوراً على الطابعة"
                   >
                     <Zap className="w-3 h-3 text-brand dark:text-brand-bright" />
                     <span>تجربة</span>
@@ -554,7 +566,7 @@ export const PrinterSettingsTab = ({
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center justify-between">
                   <span>منفذ توصيل كابل الدرج (RJ11 Pin)</span>
-                  <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark font-normal">منفذ 1 هو القياسي لمنع النبض المزدوج</span>
+                  <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark font-normal">منفذ 1 هو القياسي لمعظم الطابعات</span>
                 </label>
                 <CustomSelect
                   value={drawerPin || '0'}

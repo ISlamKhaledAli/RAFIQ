@@ -270,7 +270,7 @@ export const SystemDiagnosticsTab = ({
             <span className="font-bold text-paid dark:text-paid-bright">ISlam Khaled Ali</span>
           </div>
           <span className="text-ink-muted dark:text-ink-muted-dark text-[11px] font-mono">
-            جميع الحقوق محفوظة © 2026 رفيق POS
+            جميع الحقوق محفوظة © 2026 نظام رفيق
           </span>
         </div>
 

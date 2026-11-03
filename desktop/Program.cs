@@ -749,7 +749,7 @@ namespace RafiqPOS
             Application.ThreadException += Application_ThreadException;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
-            Logger.Info("تم بدء تشغيل نظام رفيق POS بنجاح.");
+            Logger.Info("تم بدء تشغيل نظام رفيق بنجاح.");
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -765,7 +765,7 @@ namespace RafiqPOS
             }
             finally
             {
-                Logger.Info("تم إغلاق نظام رفيق POS.");
+                Logger.Info("تم إغلاق نظام رفيق.");
                 if (_singleInstanceMutex != null)
                 {
                     try
@@ -801,8 +801,8 @@ namespace RafiqPOS
             {
                 // Fallback to notification only if window activation cannot be completed
                 MessageBox.Show(
-                    "برنامج رفيق POS قيد التشغيل بالفعل على هذا الجهاز في نافذة أخرى.",
-                    "رفيق POS",
+                    "برنامج نظام رفيق قيد التشغيل بالفعل على هذا الجهاز في نافذة أخرى.",
+                    "نظام رفيق",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information
                 );
@@ -837,7 +837,7 @@ namespace RafiqPOS
 
             MessageBox.Show(
                 msg,
-                "تنبيه النظام — رفيق POS",
+                "تنبيه النظام — نظام رفيق",
                 MessageBoxButtons.OK,
                 isFatal ? MessageBoxIcon.Error : MessageBoxIcon.Warning
             );

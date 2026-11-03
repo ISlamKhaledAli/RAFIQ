@@ -91,7 +91,7 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
     setupSteps: [
       'تثبيت درايفر Bixolon Windows Driver v7.',
       'اختيار مقاس الورق 80mm × 297mm من خصائص الطابعة.',
-      'اختيار الطابعة كافتراضية في رفيق POS واختبار الطباعة والدرج.',
+      'اختيار الطابعة كافتراضية في نظام رفيق واختبار الطباعة والدرج.',
     ],
     recommendedSettings: {
       paperOrCode: '80mm',
@@ -118,7 +118,7 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
     setupSteps: [
       'تثبيت برنامج Epson Advanced Printer Driver (APD).',
       'ضبط خط الطابعة على وضع TrueType مع لغة Windows-1256.',
-      'تعيينها كطابعة فواتير افتراضية في شاشة رفيق POS.',
+      'تعيينها كطابعة فواتير افتراضية في شاشة نظام رفيق.',
     ],
     recommendedSettings: {
       paperOrCode: '80mm Roll',
@@ -143,7 +143,7 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
     },
     setupSteps: [
       'تثبيت درايفر POS-58 Series Driver.',
-      'في إعدادات رفيق POS > اختيار مقاس الورق: 57mm (بدلاً من 80mm).',
+      'في إعدادات نظام رفيق > اختيار مقاس الورق: 57mm (بدلاً من 80mm).',
       'إلغاء تفعيل قاطع الورق الآلي إن لم تكن مزودة به.',
     ],
     recommendedSettings: {
@@ -301,7 +301,7 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
     },
     setupSteps: [
       'توصيل كابل RJ11 المزود مع الدرج بمنفذ (DK / Cash Drawer) الموجود في ظهر طابعة الفواتير.',
-      'في شاشة الإعدادات برفيق POS > الطابعة الحرارية: فعّل خيار "فتح درج النقدية تلقائياً".',
+      'في شاشة الإعدادات بنظام رفيق > الطابعة الحرارية: فعّل خيار "فتح درج النقدية تلقائياً".',
       'عند الضغط على "طباعة تجريبية" أو إنهاء أي عملية بيع، سيُفتح الدرج تلقائياً بصوت ناعم.',
     ],
     recommendedSettings: {
@@ -334,7 +334,7 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
     recommendedSettings: {
       paperOrCode: 'EAN-13 Scale Barcode (20-XXXX-WWWWW-C)',
     },
-    notes: 'متوافق بالكامل مع خوارزمية فك شفرات الموازين المدمجة في رفيق POS دون الحاجة لأي برامج وسيطة.',
+    notes: 'متوافق بالكامل مع خوارزمية فك شفرات الموازين المدمجة في نظام رفيق دون الحاجة لأي برامج وسيطة.',
   },
 ];
 
@@ -607,7 +607,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                     <div className="flex flex-col gap-2">
                       <span className="font-bold text-xs text-brand dark:text-brand-bright flex items-center gap-1.5">
                         <Sliders className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
-                        <span>ورقة إعداد وتشغيل هذا الجهاز في رفيق POS:</span>
+                        <span>ورقة إعداد وتشغيل هذا الجهاز في نظام رفيق:</span>
                       </span>
 
                       <div className="p-3 rounded-xl bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1.5">

@@ -53,12 +53,12 @@ namespace RafiqPOS.Services
             // -------------------------------------------------------------
             try
             {
-                string invoiceBarcode = "00001001";
+                string invoiceBarcode = "RFQ-INV-00001001";
                 string bits = BarcodeGenerator.EncodeCode128(invoiceBarcode);
 
                 assert("Barcode_Encode_NotEmpty", !string.IsNullOrEmpty(bits), "طول البتات: " + (bits != null ? bits.Length : 0));
-                // Code 128 subset B: 11 (Start) + 8*11 (Chars) + 11 (Checksum) + 13 (Stop) = 123 bits
-                assert("Barcode_BitLength_Valid", bits != null && bits.Length == 123, "طول سلسلة بتات الباركود 123 بت متوافق مع ISO 15417");
+                // Code 128 subset B: 11 (Start) + 16*11 (Chars) + 11 (Checksum) + 13 (Stop) = 211 bits
+                assert("Barcode_BitLength_Valid", bits != null && bits.Length == 211, "طول سلسلة بتات الباركود 211 بت متوافق مع ISO 15417");
 
                 // رسم الباركود في مستطيل رسومي دون استثناءات
                 using (var bmp = new Bitmap(280, 50))

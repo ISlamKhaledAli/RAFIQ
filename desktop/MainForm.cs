@@ -119,7 +119,7 @@ namespace RafiqPOS
         {
             Instance = this;
             _isDemoError = isDemoError;
-            this.Text = "رفيق POS — نظام نقاط البيع وإدارة المتاجر";
+            this.Text = "نظام رفيق — إدارة المتاجر ونقاط البيع";
             this.Size = new Size(1280, 800);
             _uiScale = DetectUiScale();
             _isSplashDarkMode = DetectSplashDarkMode();
@@ -351,7 +351,7 @@ namespace RafiqPOS
                     sfTitle.LineAlignment = StringAlignment.Center;
                     sfTitle.FormatFlags = StringFormatFlags.DirectionRightToLeft;
                     Rectangle titleRect = new Rectangle(10, 106, cardW - 20, 32);
-                    g.DrawString("رفيق POS", titleFont, titleBrush, titleRect, sfTitle);
+                    g.DrawString("نظام رفيق", titleFont, titleBrush, titleRect, sfTitle);
                 }
 
                 // 5. Subtitle (Y=142, Segoe UI 10.5, #5FBFA2 in Dark, #006D41 in Light)
@@ -817,7 +817,7 @@ namespace RafiqPOS
             // Brand Badge
             _lblBadge = new Label
             {
-                Text = "رفيق POS — نظام نقاط البيع وإدارة المتاجر",
+                Text = "نظام رفيق — إدارة المتاجر ونقاط البيع",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(52, 211, 153), // Emerald 400
                 Location = new Point(24, 18),

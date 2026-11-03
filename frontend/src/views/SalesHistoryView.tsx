@@ -23,6 +23,7 @@ import { useDataSubscription } from '../utils/eventBus';
 import { openHelpCenter } from '../utils/helpService';
 import type { Sale, Return } from '../types/models';
 import { formatArabicCurrency, totalSaleDiscountPiasters } from '../utils/money';
+import { parseInvoiceBarcode } from '../utils/invoiceBarcode';
 import { VoidInvoiceModal } from '../components/VoidInvoiceModal';
 import { ReturnModal } from '../components/ReturnModal';
 import { CustomDatePicker } from '../components/CustomDatePicker';
@@ -204,7 +205,8 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
   };
 
   const handleSearchInvoice = async () => {
-    const raw = searchQuery.trim().replace(/^#/, '');
+    const invMatch = parseInvoiceBarcode(searchQuery);
+    const raw = invMatch?.invoiceNumber ? String(invMatch.invoiceNumber) : searchQuery.trim().replace(/^#/, '');
     setSearchError(null);
     if (!raw) {
       await loadSales();
@@ -212,14 +214,36 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
     }
 
     // 1. Try finding in current memory first
-    const num = parseInt(raw, 10);
+    const num = invMatch?.invoiceNumber || parseInt(raw, 10);
     const existing = !isNaN(num) ? sales.find((s) => s.invoiceNumber === num) : null;
     if (existing) {
       void handleOpenDetails(existing);
       return;
     }
 
-    // 2. Perform backend search via sales:search
+    // 2. Direct lookup if scanned/entered barcode is an invoice barcode
+    if (invMatch && invMatch.type === 'sale') {
+      setLoading(true);
+      try {
+        let singleSale: Sale | null = null;
+        if (invMatch.invoiceNumber) {
+          singleSale = await invoke<Sale>('sales:getByInvoiceNumber', { invoiceNumber: invMatch.invoiceNumber });
+        } else if (invMatch.rawId) {
+          singleSale = await invoke<Sale>('sales:getById', { id: invMatch.rawId });
+        }
+        if (singleSale && singleSale.id) {
+          setSales([singleSale]);
+          void handleOpenDetails(singleSale);
+          return;
+        }
+      } catch {
+        // Fallback to general search if direct lookup encounters an exception
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // 3. Perform backend search via sales:search
     setLoading(true);
     try {
       const results = await invoke<Sale[]>('sales:search', {
@@ -323,8 +347,11 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
     // 3. Search Query (Invoice #, customer name/phone, notes, amount)
     if (searchQuery.trim()) {
+      const invParsed = parseInvoiceBarcode(searchQuery);
       const q = searchQuery.trim().toLowerCase().replace(/^#/, '');
-      const invMatch = String(s.invoiceNumber || '').includes(q);
+      const invMatch = invParsed?.invoiceNumber 
+        ? s.invoiceNumber === invParsed.invoiceNumber 
+        : String(s.invoiceNumber || '').includes(q);
       const notesMatch = (s.notes || '').toLowerCase().includes(q);
       const custMatch = (s.customerName || '').toLowerCase().includes(q) || (s.customerPhone || '').includes(q);
       const paymentMatch = (s.paymentMethod || '').toLowerCase().includes(q);
@@ -439,7 +466,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 void handleSearchInvoice();
               }
             }}
-            placeholder="ابحث برقم الفاتورة، اسم الزبون، المبلغ، أو ملاحظة..."
+            placeholder="امسح باركود الفاتورة (RFQ-INV-...) أو ابحث بالرقم أو العميل..."
             className="w-full h-9 pr-9 pl-8 text-xs bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none focus:ring-2 focus:ring-paid/20 focus:border-paid dark:focus:border-brand-bright transition-all"
           />
           {searchQuery && (

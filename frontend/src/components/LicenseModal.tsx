@@ -188,9 +188,12 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           await fetchLicense();
         }
         if (onLicenseUpdated) onLicenseUpdated();
+        try {
+          window.dispatchEvent(new CustomEvent('rafiq:license-updated', { detail: res.license }));
+        } catch {}
         void rafiqAlert({
           title: 'تهانينا!',
-          message: res.message || 'تم تفعيل ترخيص رفيق POS السحابي بنجاح!',
+          message: res.message || 'تم تفعيل ترخيص نظام رفيق السحابي بنجاح!',
           variant: 'success',
         });
       } else {
@@ -226,9 +229,12 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           await fetchLicense();
         }
         if (onLicenseUpdated) onLicenseUpdated();
+        try {
+          window.dispatchEvent(new CustomEvent('rafiq:license-updated', { detail: res.license }));
+        } catch {}
         void rafiqAlert({
           title: 'تفعيل أوفلاين ناجح!',
-          message: res.message || 'تم تفعيل ترخيص رفيق POS بنجاح بدون إنترنت عبر كود الدعم المعتمد!',
+          message: res.message || 'تم تفعيل ترخيص نظام رفيق بنجاح بدون إنترنت عبر كود الدعم المعتمد!',
           variant: 'success',
         });
       } else {
@@ -322,7 +328,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
+      className="fixed inset-0 z-[10020] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
       onClick={handleBackdropClick}
     >
       <div 

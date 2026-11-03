@@ -1,8 +1,9 @@
 import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
-import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, ShieldCheck, Info, Wand2, ShieldAlert, Smartphone } from 'lucide-react';
+import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, ShieldCheck, Info, ShieldAlert, Smartphone } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useTheme } from '../../context/useTheme';
-import { optimizeImageForThermal } from '../../utils/thermalImageOptimizer';
+import { processUploadedLogo } from '../../utils/thermalImageOptimizer';
+import { rafiqAlert } from '../../utils/dialogService';
 import { invoke } from '../../bridge/ipc';
 import { useFeatures } from '../../context/useFeatures';
 import type { ControlledMandatoryFields } from '../../types/pharma';
@@ -122,39 +123,60 @@ export const StoreProfileTab = ({
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // تفريغ القيمة للسماح بإعادة اختيار نفس الملف إذا رغب المستخدم
+    e.target.value = '';
+
     if (!file) return;
-    if (!file.type.startsWith('image/')) return;
+
+    if (!file.type.startsWith('image/')) {
+      void rafiqAlert({
+        title: 'صيغة غير مدعومة',
+        message: 'يرجى اختيار ملف صورة صالح (PNG أو JPG أو WEBP).',
+        variant: 'warning',
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      void rafiqAlert({
+        title: 'حجم الصورة كبير',
+        message: 'حجم ملف الشعار يتجاوز 5 ميجابايت. يرجى اختيار صورة أصغر حجماً لتفادي بطء الطباعة.',
+        variant: 'warning',
+      });
+      return;
+    }
+
+    setIsOptimizing(true);
     const reader = new FileReader();
     reader.onload = async () => {
       if (typeof reader.result === 'string' && setStoreLogoUrl) {
         try {
-          // Auto-optimize to recommended thermal dimensions (200x70) & pure high contrast monochrome
-          const optimized = await optimizeImageForThermal(reader.result, 200, 70);
-          setStoreLogoUrl(optimized);
+          // المعالجة الاحترافية: ضبط الأبعاد بنسب متناسقة حتى 240×240 دون مط أو تشويه ألوان
+          const processed = await processUploadedLogo(reader.result, 240);
+          setStoreLogoUrl(processed);
         } catch {
           setStoreLogoUrl(reader.result);
+        } finally {
+          setIsOptimizing(false);
         }
+      } else {
+        setIsOptimizing(false);
       }
+    };
+    reader.onerror = () => {
+      setIsOptimizing(false);
+      void rafiqAlert({
+        title: 'فشل قراءة الملف',
+        message: 'تعذر قراءة ملف الصورة المختارة. يرجى إعادة المحاولة.',
+        variant: 'error',
+      });
     };
     reader.readAsDataURL(file);
   };
 
-  const handleOptimizeCurrentLogo = async () => {
-    if (!storeLogoUrl || !setStoreLogoUrl || isOptimizing) return;
-    setIsOptimizing(true);
-    try {
-      const optimized = await optimizeImageForThermal(storeLogoUrl, 200, 70);
-      setStoreLogoUrl(optimized);
-    } catch (err) {
-      console.error('Failed to optimize logo:', err);
-    } finally {
-      setIsOptimizing(false);
-    }
-  };
-
-  const handleResetLogo = (variant: 'wide' | 'square' = 'square') => {
+  const handleResetLogo = () => {
     if (setStoreLogoUrl) {
-      setStoreLogoUrl(variant === 'wide' ? '/receipt_logo.png' : '/receipt_logo_square.png');
+      setStoreLogoUrl('/receipt_logo_square.png');
     }
   };
 
@@ -343,9 +365,9 @@ export const StoreProfileTab = ({
             {showReceiptLogo && (
               <div className="flex flex-col gap-3 pt-1 border-t border-line dark:border-line-dark">
                 {/* Controls and current preview */}
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-surface dark:bg-surface-dark p-3 rounded border border-line dark:border-line-dark">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-surface dark:bg-surface-dark p-3 rounded-lg border border-line dark:border-line-dark shadow-2xs">
                   <div className="flex items-center gap-3">
-                    <div className="w-16 h-12 rounded border border-line dark:border-line-dark bg-white dark:bg-surface-dark-3 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                    <div className="w-14 h-14 rounded-lg border border-line dark:border-line-dark bg-white dark:bg-surface-dark-3 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
                       <img
                         src={storeLogoUrl}
                         alt="معاينة الشعار"
@@ -356,101 +378,59 @@ export const StoreProfileTab = ({
                       />
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-ink dark:text-ink-dark">
-                        {storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/logo.png'
-                          ? 'شعار مخصص للمتجر (مجهّز حرارياً)'
-                          : 'شعار رفيق المعتمد للطابعات الحرارية (Monochrome)'}
+                      <span className="text-xs font-bold text-ink dark:text-ink-dark">
+                        {storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/logo.png'
+                          ? 'شعار المتجر (يظهر في الإيصالات وفواتير البيع)'
+                          : 'شعار رفيق المعتمد (الافتراضي)'}
                       </span>
                       <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                        أبيض وأسود نقي عالي التباين بدقة 203 DPI بدون بهتان
+                        {storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/logo.png'
+                          ? 'يتم الحفاظ على الألوان والتفاصيل الطبيعية للشعار بدقة عالية متوافقة مع الطباعة'
+                          : 'الشعار الرسمي المعتمد لنظام رفيق بكامل ألوانه الطبيعية'}
                       </span>
                     </div>
                   </div>
 
                   <div className="flex items-center flex-wrap gap-2">
-                    {/* Default Rafiq Variants Toggle */}
-                    {(storeLogoUrl === '/receipt_logo.png' || storeLogoUrl === '/receipt_logo_square.png' || storeLogoUrl === '/logo.png') && (
-                      <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-0.5 rounded border border-line dark:border-line-dark text-[11px]">
-                        <button
-                          type="button"
-                          onClick={() => handleResetLogo('square')}
-                          className={`px-2 py-1 rounded transition-colors ${
-                            storeLogoUrl === '/receipt_logo_square.png'
-                              ? 'bg-brand text-white font-bold'
-                              : 'text-ink-muted hover:text-ink dark:text-ink-muted-dark'
-                          }`}
-                        >
-                          شعار مربع (120×120) • الافتراضي
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleResetLogo('wide')}
-                          className={`px-2 py-1 rounded transition-colors ${
-                            storeLogoUrl === '/receipt_logo.png' || storeLogoUrl === '/logo.png'
-                              ? 'bg-brand text-white font-bold'
-                              : 'text-ink-muted hover:text-ink dark:text-ink-muted-dark'
-                          }`}
-                        >
-                          شعار عريض (200×60)
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Optimize custom logo button */}
-                    {storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/logo.png' && (
-                      <button
-                        type="button"
-                        onClick={handleOptimizeCurrentLogo}
-                        disabled={isOptimizing}
-                        className="px-2.5 py-1.5 bg-paid-soft dark:bg-paid-dark/30 text-paid dark:text-paid-bright border border-paid/30 hover:bg-paid/20 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                        title="تحسين ومعالجة الشعار تلقائياً إلى أبيض وأسود عالي التباين وأبعاد 200×70"
-                      >
-                        <Wand2 className="w-3.5 h-3.5" />
-                        <span>{isOptimizing ? 'جاري المعالجة...' : 'تحسين حراري'}</span>
-                      </button>
-                    )}
-
-                    <label className="px-3 py-1.5 bg-brand text-white hover:bg-brand-hover rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors">
+                    <label className="px-3.5 py-2 bg-brand text-white hover:bg-brand-hover rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors">
                       <Upload className="w-3.5 h-3.5" />
-                      <span>رفع شعار جديد</span>
+                      <span>{isOptimizing ? 'جاري الرفع...' : 'رفع شعار جديد'}</span>
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
                         className="hidden"
                         onChange={handleLogoUpload}
+                        disabled={isOptimizing}
                       />
                     </label>
 
-                    {storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/logo.png' && (
+                    {storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/logo.png' && (
                       <button
                         type="button"
-                        onClick={() => handleResetLogo('square')}
-                        className="px-2.5 py-1.5 bg-surface-2 dark:bg-surface-dark-2 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark border border-line dark:border-line-dark rounded text-xs font-medium flex items-center gap-1 transition-colors"
-                        title="استعادة الشعار الافتراضي لنظام رفيق"
+                        onClick={handleResetLogo}
+                        className="px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark border border-line dark:border-line-dark rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="استعادة شعار رفيق الافتراضي المعتمد"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
-                        <span>الافتراضي</span>
+                        <span>استعادة الشعار الافتراضي</span>
                       </button>
                     )}
                   </div>
                 </div>
 
                 {/* Technical Recommended Dimensions Banner */}
-                <div className="bg-brand-soft/40 dark:bg-brand-dark/20 border border-brand/20 dark:border-brand-bright/20 rounded p-2.5 text-[11px] leading-relaxed text-ink dark:text-ink-dark flex items-start gap-2">
+                <div className="bg-brand-soft/40 dark:bg-brand-dark/20 border border-brand/20 dark:border-brand-bright/20 rounded-lg p-2.5 text-[11px] leading-relaxed text-ink dark:text-ink-dark flex items-start gap-2">
                   <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
                   <div className="flex-1 space-y-1">
                     <div className="font-bold text-brand dark:text-brand-bright">
-                      المقاسات والمواصفات الفنية الموصى بها للطابعات الحرارية:
+                      إرشادات شعار الإيصال وفواتير البيع:
                     </div>
                     <ul className="list-disc list-inside space-y-0.5 text-ink-muted dark:text-ink-muted-dark text-[10.5px]">
                       <li>
-                        <strong className="text-ink dark:text-ink-dark">ورق قياسي 80 مم:</strong> الأبعاد المثالية هي <span dir="ltr" className="font-mono font-semibold">200 × 70</span> بكسل (أو مربع حتى <span dir="ltr" className="font-mono font-semibold">120 × 120</span> بكسل).
+                        <strong className="text-ink dark:text-ink-dark">المقاس القياسي الموصى به:</strong> تصميم مربع بدقة <span dir="ltr" className="font-mono font-semibold">120 × 120</span> حتى <span dir="ltr" className="font-mono font-semibold">240 × 240</span> بكسل لملاءمة مثالية لورق 80 مم و 57 مم.
                       </li>
                       <li>
-                        <strong className="text-ink dark:text-ink-dark">ورق مضغوط 57 مم:</strong> الأبعاد المثالية هي <span dir="ltr" className="font-mono font-semibold">150 × 50</span> بكسل.
-                      </li>
-                      <li>
-                        <strong className="text-ink dark:text-ink-dark">نقاء الطباعة:</strong> يُفضل دائماً ملف <span className="font-semibold">PNG</span> بخلفية بيضاء نقية أو مفرغة، مع تصميم أبيض وأسود عالي التباين (High Contrast / Grayscale) وبدقة 203 DPI لتجنب أي بهتان في رأس الطباعة الحراري.
+                        <strong className="text-ink dark:text-ink-dark">نقاء الألوان والجودة:</strong> يحتفظ النظام بكامل ألوان الشعار الطبيعية ونقاء خطوطه وتفاصيله؛ وتقوم الطابعة الحرارية بتدريج الظلال تلقائياً بأعلى نقاء ممكن.
                       </li>
                     </ul>
                   </div>
@@ -855,8 +835,18 @@ export const StoreProfileTab = ({
           )}
 
           {/* Developer Branding Signature */}
-          <div className="border-t border-dotted border-gray-400 pt-1.5 mt-2 text-center text-[9px] text-gray-500 font-sans tracking-tight">
-            {developerSignature}
+          <div className="border-t border-dotted border-gray-400 pt-1.5 mt-2 text-center text-[9px] text-gray-500 font-sans tracking-tight leading-relaxed">
+            {developerSignature.includes('\n') ? (
+              developerSignature.split('\n').map((line, i) => (
+                <div key={i}>{line.trim()}</div>
+              ))
+            ) : developerSignature.includes(' | ') ? (
+              developerSignature.split(' | ').map((line, i) => (
+                <div key={i}>{line.trim()}</div>
+              ))
+            ) : (
+              <div>{developerSignature}</div>
+            )}
           </div>
 
           {/* Bottom Zigzag Cut */}

@@ -258,7 +258,18 @@ function ensureListenerAttached() {
           pending.resolve(response.data);
         } else {
           const friendlyMessage = sanitizeBridgeError(response.error?.message);
-          pending.reject(new Error(friendlyMessage));
+          const err = new Error(friendlyMessage);
+          if (response.error?.code) {
+            (err as any).code = response.error.code;
+          }
+          if (response.error?.code === 'LICENSE_EXPIRED') {
+            try {
+              window.dispatchEvent(new CustomEvent('rafiq:open-license'));
+            } catch {
+              // ignore
+            }
+          }
+          pending.reject(err);
         }
       }
     });
@@ -767,7 +778,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'excel:getTemplate':
       return {
         success: true,
-        fileName: 'قالب_استيراد_المنتجات_رفيق_POS.xlsx',
+        fileName: 'قالب_استيراد_المنتجات_نظام_رفيق.xlsx',
       };
 
     case 'excel:exportProducts':
@@ -2748,7 +2759,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'excel:getCustomerTemplate':
       return {
         success: true,
-        fileName: 'قالب_استيراد_العملاء_رفيق_POS.xlsx',
+        fileName: 'قالب_استيراد_العملاء_نظام_رفيق.xlsx',
         base64: 'UEsDBBQAAAAIA...',
       };
 

@@ -139,7 +139,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
       if (res && res.base64) {
         const link = document.createElement('a');
         link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${res.base64}`;
-        link.download = res.fileName || 'قالب_استيراد_العملاء_رفيق_POS.xlsx';
+        link.download = res.fileName || 'قالب_استيراد_العملاء_نظام_رفيق.xlsx';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

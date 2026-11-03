@@ -1,6 +1,6 @@
 import React from 'react';
 import type { FormEvent } from 'react';
-import { Barcode, Search, Loader2, Package, Snowflake } from 'lucide-react';
+import { Barcode, Search, Loader2, Package, Snowflake, Sparkles } from 'lucide-react';
 import type { Product, ProductUnit } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 
@@ -22,6 +22,8 @@ interface PosBarcodeBarProps {
   setSelectedDropdownIndex: (val: number) => void;
   onSelectProduct: (prod: Product, specificUnit?: ProductUnit) => void;
   onNavigateToEpay?: () => void;
+  onToggleCatalog?: () => void;
+  isCatalogCollapsed?: boolean;
 }
 
 export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
@@ -41,6 +43,8 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
   selectedDropdownIndex,
   setSelectedDropdownIndex,
   onSelectProduct,
+  onToggleCatalog,
+  isCatalogCollapsed = false,
 }) => {
   return (
     <div ref={searchContainerRef} className="p-2 sm:p-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark shrink-0 relative">
@@ -96,6 +100,24 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
           <Barcode className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
           <span className="hidden md:inline">فحص القارئ</span>
         </button>
+
+        {onToggleCatalog && (
+          <button
+            type="button"
+            onClick={onToggleCatalog}
+            className={`h-11 px-2.5 sm:px-3 border rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer shadow-2xs active:scale-[0.98] ${
+              isCatalogCollapsed
+                ? 'bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border-line dark:border-line-dark text-ink-muted hover:text-ink'
+                : 'bg-paid-soft dark:bg-paid-dark-soft border-paid/30 text-paid dark:text-paid-bright hover:bg-paid-soft/80'
+            }`}
+            title={isCatalogCollapsed ? "عرض أصناف المحل السريعة (Ctrl+B)" : "إخفاء لوحة أصناف المحل وتوسيع السلة (Ctrl+B)"}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span className="hidden md:inline">
+              {isCatalogCollapsed ? 'عرض الأصناف' : 'إخفاء الأصناف'}
+            </span>
+          </button>
+        )}
       </form>
 
       {/* Live Search Floating Dropdown (Task 22-4) */}

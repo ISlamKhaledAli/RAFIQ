@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { DragEvent, ChangeEvent } from 'react';
 import { 
   X, 
@@ -12,7 +12,8 @@ import {
   FileText,
   Search,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  KeyRound
 } from 'lucide-react';
 import type { Product, Category } from '../types/models';
 import { 
@@ -33,6 +34,7 @@ interface ExcelImportModalProps {
   onSuccess: (summary: string) => void;
   existingProducts: Product[];
   categories: Category[];
+  zIndexClass?: string;
 }
 
 export const ExcelImportModal = ({
@@ -40,7 +42,8 @@ export const ExcelImportModal = ({
   onClose,
   onSuccess,
   existingProducts,
-  categories
+  categories,
+  zIndexClass
 }: ExcelImportModalProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -50,7 +53,19 @@ export const ExcelImportModal = ({
   const [parsedRows, setParsedRows] = useState<ValidatedImportRow[]>([]);
   const [duplicateStrategy, setDuplicateStrategy] = useState<'skip' | 'update' | 'error'>('skip');
   const [onlyValidRows, setOnlyValidRows] = useState(true);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLicenseError, setIsLicenseError] = useState(false);
+
+  useEffect(() => {
+    const handleLicenseUpdated = () => {
+      setErrorMessage(null);
+      setIsLicenseError(false);
+    };
+    window.addEventListener('rafiq:license-updated', handleLicenseUpdated);
+    return () => {
+      window.removeEventListener('rafiq:license-updated', handleLicenseUpdated);
+    };
+  }, []);
   const [statusFilter, setStatusFilter] = useState<'all' | 'valid' | 'warning' | 'error'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -207,6 +222,18 @@ export const ExcelImportModal = ({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء حفظ الأصناف بقاعدة البيانات.';
       setErrorMessage(msg);
+      const isLic = (err as any)?.code === 'LICENSE_EXPIRED' ||
+        msg.includes('ترخيص') ||
+        msg.includes('اشتراك') ||
+        msg.includes('LICENSE_EXPIRED');
+      setIsLicenseError(isLic);
+      if (isLic) {
+        try {
+          window.dispatchEvent(new CustomEvent('rafiq:open-license'));
+        } catch {
+          // ignore
+        }
+      }
     } finally {
       setImporting(false);
     }
@@ -225,7 +252,7 @@ export const ExcelImportModal = ({
   if (!isOpen) return null;
 
   return (
-    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+    <div onClick={handleBackdropClick} className={`fixed inset-0 ${zIndexClass || "z-50"} flex items-center justify-center bg-black/60 backdrop-blur-xs p-4`}>
       <div 
         className="bg-surface hairline-all rounded-lg shadow-xl w-full max-w-5xl flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         dir="rtl"
@@ -352,9 +379,21 @@ export const ExcelImportModal = ({
 
           {/* Error Message */}
           {errorMessage && (
-            <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright px-3.5 py-2.5 rounded-md flex items-center gap-2 text-[11.5px]">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMessage}</span>
+            <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright p-3 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11.5px] animate-in fade-in duration-150">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
+                <span className="font-medium leading-relaxed">{errorMessage}</span>
+              </div>
+              {isLicenseError && (
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('rafiq:open-license'))}
+                  className="px-3 py-1.5 rounded bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-bold text-xs hover:bg-brand-dark dark:hover:bg-brand-bright/90 flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-2xs"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>تفعيل ترخيص البرنامج الآن</span>
+                </button>
+              )}
             </div>
           )}
 

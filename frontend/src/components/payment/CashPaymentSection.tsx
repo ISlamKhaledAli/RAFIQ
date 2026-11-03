@@ -8,7 +8,6 @@ interface CashPaymentSectionProps {
   onReceivedChange: (raw: string) => void;
   receivedInputRef: React.RefObject<HTMLInputElement | null>;
   netTotalPiasters: number;
-  quickPresetsPiasters: number[];
   onSetPreset: (piasters: number) => void;
   isShortPayment: boolean;
   selectedCustomer: Customer | undefined;
@@ -26,7 +25,6 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
   onReceivedChange,
   receivedInputRef,
   netTotalPiasters,
-  quickPresetsPiasters,
   onSetPreset,
   isShortPayment,
   selectedCustomer,
@@ -47,7 +45,7 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
       <div className="flex flex-col gap-2">
         <label className="text-xs font-bold text-ink dark:text-ink-dark flex items-center justify-between whitespace-nowrap">
           <span>المبلغ المستلم من العميل (المدفوع نقداً):</span>
-          <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-normal whitespace-nowrap">اضغط على المبالغ الجاهزة أو اكتب المبلغ</span>
+          <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-normal whitespace-nowrap">اكتب المبلغ أو اضغط على الأزرار السريعة</span>
         </label>
 
         <div className="relative">
@@ -57,49 +55,39 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
             value={receivedInput}
             onChange={(e) => onReceivedChange(e.target.value)}
             className="w-full h-[52px] px-4 text-2xl font-mono font-black text-brand dark:text-brand-bright bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand/50 dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-lg text-right pl-16 focus:outline-none"
-            placeholder="0.00"
+            placeholder=""
           />
           <div className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm text-ink-muted dark:text-ink-dark-muted">
             ج.م
           </div>
         </div>
 
-        {/* Quick Presets Buttons + Quick Full Credit Button */}
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
+        {/* Quick Action Buttons: Exact Cash + Full Credit */}
+        <div className="flex items-center gap-3 mt-2 flex-wrap">
           <button
             type="button"
             onClick={() => onSetPreset(netTotalPiasters)}
-            className="py-1.5 px-3 rounded text-xs font-bold bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright hover:bg-brand hover:text-white border border-brand/30 dark:border-line-dark transition-colors cursor-pointer whitespace-nowrap active:scale-95"
+            className="h-11 px-5 rounded-xl text-sm font-bold bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright hover:bg-brand hover:text-white border border-brand/30 dark:border-line-dark transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 shadow-2xs active:scale-95"
             title="استلام إجمالي الفاتورة بالضبط نقداً"
           >
-            المبلغ بالظبط ({formatArabicCurrency(netTotalPiasters)})
+            <Check className="w-4 h-4 shrink-0" />
+            <span>المبلغ بالظبط</span>
           </button>
 
           {/* Quick Credit Button (Egyptian Retail Wording) */}
           <button
             type="button"
             onClick={onQuickFullCredit}
-            className={`py-1.5 px-3 rounded text-xs font-bold border transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 active:scale-95 ${
+            className={`h-11 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 active:scale-95 shadow-2xs ${
               isCreditActive
                 ? 'bg-warn text-white border-warn shadow-xs'
                 : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 hover:bg-warn hover:text-white dark:hover:bg-warn dark:hover:text-white'
             }`}
             title="تسجيل الفاتورة على حساب العميل بالكامل (0 كاش مستلم)"
           >
-            <UserCheck className="w-3.5 h-3.5 shrink-0" />
+            <UserCheck className="w-4 h-4 shrink-0" />
             <span>على الحساب بالكامل (بدون كاش)</span>
           </button>
-
-          {quickPresetsPiasters.filter(p => p !== netTotalPiasters).map((amt) => (
-            <button
-              key={amt}
-              type="button"
-              onClick={() => onSetPreset(amt)}
-              className="py-1.5 px-3 rounded text-xs font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark hover:border-brand/50 dark:hover:border-brand-bright/50 transition-colors cursor-pointer whitespace-nowrap active:scale-95"
-            >
-              {(amt / 100).toFixed(2)} ج.م
-            </button>
-          ))}
         </div>
       </div>
 

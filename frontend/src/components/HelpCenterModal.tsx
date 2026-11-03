@@ -1040,7 +1040,7 @@ export const HelpCenterModal = ({
                           طلب الدعم الفني المباشر وبيانات الجهاز
                         </h3>
                         <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0">
-                          بيانات جهازك والترخيص ورقم الاتصال المباشر مع مهندسي رفيق POS
+                          بيانات جهازك والترخيص ورقم الاتصال المباشر مع مهندسي نظام رفيق
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-2.5 py-1 rounded-lg border border-paid/20 dark:border-paid-dark-border">
@@ -1214,7 +1214,7 @@ export const HelpCenterModal = ({
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright" />
             <span className="font-medium">
-              نظام رفيق POS — نظام إدارة نقاط البيع والمتاجر ومحلات التجزئة
+              نظام رفيق — لإدارة نقاط البيع والمتاجر ومحلات التجزئة
             </span>
           </div>
 

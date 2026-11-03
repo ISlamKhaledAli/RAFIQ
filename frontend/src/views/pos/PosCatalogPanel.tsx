@@ -14,6 +14,8 @@ import {
   HeartPulse,
   ClipboardList,
   ShieldAlert,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import type { ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
@@ -42,6 +44,8 @@ interface PosCatalogPanelProps {
   isCartEmpty?: boolean;
   totalCatalogProductsCount?: number;
   categories?: Category[];
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
@@ -65,6 +69,8 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   isCartEmpty = false,
   totalCatalogProductsCount = 0,
   categories: _categories = [],
+  isCollapsed = false,
+  onToggleCollapse,
 }) => {
   const { isEnabled } = useFeatures();
   // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
@@ -92,7 +98,75 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   };
 
   return (
-    <section className="flex-1 min-w-[300px] h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex flex-col p-2.5 sm:p-3 select-none overflow-hidden shrink-0 shadow-2xs">
+    <aside
+      className={`h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex select-none overflow-hidden shrink-0 shadow-2xs relative transition-[width,min-width,max-width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        isCollapsed
+          ? 'w-11 min-w-[44px] max-w-[44px]'
+          : 'w-[380px] min-w-[340px] sm:w-[400px] lg:w-[440px] xl:w-[480px] max-w-[560px]'
+      }`}
+    >
+      {/* 1. SLIM COLLAPSED DOCKED RAIL */}
+      <div
+        onClick={onToggleCollapse}
+        className={`w-11 min-w-[44px] h-full flex flex-col items-center py-2.5 px-1 select-none overflow-hidden shrink-0 group hover:bg-brand-soft/40 hover:border-brand/40 cursor-pointer transition-opacity duration-200 ${
+          isCollapsed
+            ? 'opacity-100 pointer-events-auto delay-100'
+            : 'opacity-0 pointer-events-none w-0 min-w-0 overflow-hidden hidden'
+        }`}
+        title="انقر لتوسيع لوحة أصناف المحل السريعة (Ctrl+B)"
+        role="button"
+        tabIndex={isCollapsed ? 0 : -1}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggleCollapse?.();
+          }
+        }}
+      >
+        {/* Expand Action Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleCollapse?.();
+          }}
+          className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark text-ink hover:text-brand dark:hover:text-brand-bright border border-line dark:border-line-dark group-hover:border-brand/40 group-hover:bg-brand group-hover:text-white flex items-center justify-center transition-all shadow-2xs mb-2 cursor-pointer"
+          title="توسيع لوحة الأصناف (Ctrl+B)"
+        >
+          <PanelLeftOpen className="w-4 h-4 stroke-[2.2]" />
+        </button>
+
+        {/* Sparkles Icon & Count */}
+        <div className="w-7 h-7 rounded-lg bg-paid-soft dark:bg-paid-dark-soft flex items-center justify-center text-paid dark:text-paid-bright border border-paid-border dark:border-paid/30 mb-1.5 shrink-0">
+          <Sparkles className="w-3.5 h-3.5" />
+        </div>
+        <span className="text-[10px] font-mono font-bold bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted px-1 py-0.5 rounded-md border border-line dark:border-line-dark shrink-0 mb-3" title={`إجمالي الأصناف: ${smartItems.length}`}>
+          {smartItems.length}
+        </span>
+
+        {/* Vertical Text Label */}
+        <div className="flex-1 flex items-center justify-center py-2">
+          <span className="text-xs font-bold text-ink dark:text-ink-dark [writing-mode:vertical-rl] rotate-180 tracking-wide select-none opacity-80 group-hover:opacity-100 group-hover:text-brand transition-colors whitespace-nowrap">
+            أصناف المحل
+          </span>
+        </div>
+
+        {/* Shortcut Hint */}
+        <div className="mt-auto pt-2 flex flex-col items-center gap-1 shrink-0">
+          <span className="text-[9px] font-mono font-bold text-ink-muted dark:text-ink-dark-muted px-1 py-0.5 rounded bg-surface dark:bg-surface-dark border border-line dark:border-line-dark tracking-tighter" title="اختصار لوحة المفاتيح">
+            Ctrl+B
+          </span>
+        </div>
+      </div>
+
+      {/* 2. FULL EXPANDED CATALOG WORKSPACE */}
+      <div 
+        className={`h-full flex-1 flex flex-col p-2.5 sm:p-3 overflow-hidden min-w-[340px] transition-opacity duration-200 ${
+          isCollapsed
+            ? 'opacity-0 pointer-events-none hidden'
+            : 'opacity-100 pointer-events-auto delay-75'
+        }`}
+      >
       {/* Section Header */}
       <div className="flex items-center justify-between mb-2 pb-2 border-b border-line dark:border-line-dark shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -181,6 +255,17 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             <Plus className="w-3.5 h-3.5" />
             <span>صنف سريع</span>
           </button>
+
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="w-7 h-7 rounded-lg bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright border border-line dark:border-line-dark hover:border-brand/30 flex items-center justify-center transition-all shadow-2xs cursor-pointer active:scale-95"
+              title="تصغير لوحة الأصناف وتوسيع السلة (Ctrl+B)"
+            >
+              <PanelLeftClose className="w-4 h-4 stroke-[2]" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -458,6 +543,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
           </div>
         )}
       </div>
-    </section>
+      </div>
+    </aside>
   );
 };

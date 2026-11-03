@@ -152,7 +152,7 @@ namespace RafiqPOS.Services
                     File.WriteAllText(Path.Combine(tempDir, "system_error.log"), recentLogs, Encoding.UTF8);
 
                     // 3. Write Readme file in Arabic
-                    string readme = "حزمة الدعم الفني لنظام رفيق POS\n" +
+                    string readme = "حزمة الدعم الفني لنظام رفيق\n" +
                                     "تاريخ الإنشاء: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\n" +
                                     "ملاحظة أمان وخصوصية: هذه الحزمة تحتوي حصراً على سجلات الأخطاء الفنية وإحصائيات النظام ومواصفات الجهاز، ولا تحتوي على أي أسماء عملاء أو أرقام هواتف أو تفاصيل مالية خاصة.";
                     File.WriteAllText(Path.Combine(tempDir, "README_AR.txt"), readme, Encoding.UTF8);

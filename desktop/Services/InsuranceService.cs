@@ -214,7 +214,7 @@ namespace RafiqPOS.Services
                 // 1. Header Banner
                 ws.Range("A1:K1").Merge();
                 var title = ws.Cell("A1");
-                title.Value = "رفيق POS - مطالبة تأمين طبي رسمية للشركات المتعاقدة";
+                title.Value = "نظام رفيق - مطالبة تأمين طبي رسمية للشركات المتعاقدة";
                 title.Style.Font.Bold = true;
                 title.Style.Font.FontSize = 14;
                 title.Style.Font.FontColor = XLColor.White;

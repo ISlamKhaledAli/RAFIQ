@@ -348,7 +348,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
         {/* Footer */}
         <div className="px-5 py-3.5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between gap-3 shrink-0">
           <div className="text-2xs text-ink-muted dark:text-ink-dark-muted">
-            محرك التفاعلات الدوائية السريري المعتمد — رفيق POS
+            محرك التفاعلات الدوائية السريري المعتمد — نظام رفيق
           </div>
 
           <div className="flex items-center gap-2">

@@ -188,7 +188,7 @@ export async function downloadExcelTemplate(): Promise<void> {
     if (res && res.base64) {
       downloadBase64File(
         res.base64,
-        res.fileName || 'قالب_استيراد_المنتجات_رفيق_POS.xlsx',
+        res.fileName || 'قالب_استيراد_المنتجات_نظام_رفيق.xlsx',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       );
       return;
@@ -245,7 +245,7 @@ export async function downloadExcelTemplate(): Promise<void> {
   ];
 
   function buildSheetJsProductSheet(sheetTitle: string, itemsList: any[]) {
-    const titleRow = [`رفيق POS - ${sheetTitle}`];
+    const titleRow = [`نظام رفيق - ${sheetTitle}`];
     const subRow = [
       'تعليمات هامة: الأعمدة المميزة بنجمة (*) إلزامية | اسم التابة يمثل القسم تلقائياً | الباركودات تحفظ كنص | المبالغ بالجنيه المصري | الأعمدة تتحدث بمعادلات إكسل التلقائية'
     ];
@@ -356,7 +356,7 @@ export async function downloadExcelTemplate(): Promise<void> {
   XLSX.utils.book_append_sheet(wb, buildSheetJsProductSheet('قسم: منظفات وعناية', sampleCleaning), 'منظفات وعناية');
 
   // Trigger browser download
-  XLSX.writeFile(wb, 'قالب_استيراد_المنتجات_رفيق_POS.xlsx');
+  XLSX.writeFile(wb, 'قالب_استيراد_المنتجات_نظام_رفيق.xlsx');
 }
 
 function getFormattedTimestamp(): string {
@@ -414,7 +414,7 @@ async function exportProductsViaSheetJs(products: Product[], catMap: Map<string,
   ];
 
   function buildSheetJsProductSheet(sheetTitle: string, prods: Product[]) {
-    const titleRow = [`رفيق POS - ${sheetTitle}`];
+    const titleRow = [`نظام رفيق - ${sheetTitle}`];
     const subRow = [
       `تاريخ التصدير: ${new Date().toLocaleDateString('ar-EG')} | اسم التابة يمثل القسم تلقائياً | إجمالي الأصناف: ${prods.length} صنف | المبالغ بالجنيه المصري | المعادلات تتحدث تلقائياً`
     ];

@@ -20,7 +20,7 @@ import { useAuth } from '../context/useAuth';
 import { SupervisorPromptModal } from './SupervisorPromptModal';
 
 import { CashPaymentSection } from './payment/CashPaymentSection';
-import { buildCashQuickPresetsPiasters, piastersToInputText } from './payment/cashPresets';
+import { piastersToInputText } from './payment/cashPresets';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -66,8 +66,8 @@ export const PaymentModal = ({
   onConfirmPayment,
   loading = false,
 }: PaymentModalProps) => {
-  const [receivedInput, setReceivedInput] = useState<string>(() => piastersToInputText(netTotalPiasters));
-  const [receivedPiasters, setReceivedPiasters] = useState<number>(() => netTotalPiasters);
+  const [receivedInput, setReceivedInput] = useState<string>('');
+  const [receivedPiasters, setReceivedPiasters] = useState<number>(0);
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(selectedCustomerId || null);
   const [newlyAddedCustomers, setNewlyAddedCustomers] = useState<Customer[]>([]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -115,7 +115,7 @@ export const PaymentModal = ({
   // Reset and synchronize all payment fields cleanly whenever modal opens (Feature #27 / Anti-leak)
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
-      setReceivedInput('0');
+      setReceivedInput('');
       setReceivedPiasters(0);
       setIsFullCreditMode(false);
       setSaveChangeToCustomerAccount(false);
@@ -126,7 +126,6 @@ export const PaymentModal = ({
       setQuickPhone('');
       const timer = setTimeout(() => {
         receivedInputRef.current?.focus();
-        receivedInputRef.current?.select();
       }, 60);
       prevIsOpenRef.current = true;
       return () => clearTimeout(timer);
@@ -236,7 +235,7 @@ export const PaymentModal = ({
       }
     }
 
-    setReceivedInput('0');
+    setReceivedInput('');
     setReceivedPiasters(0);
     setIsFullCreditMode(true);
   };
@@ -453,22 +452,19 @@ export const PaymentModal = ({
 
     const payments: SalePayment[] = [
       {
-        amountPiasters: Math.min(receivedPiasters, netTotalPiasters),
+        amountPiasters: receivedPiasters,
         method: 'cash',
       },
     ];
 
     onConfirmPayment({
       paymentMethod: 'cash',
-      paidPiasters: Math.min(receivedPiasters, netTotalPiasters),
+      paidPiasters: receivedPiasters,
       payments,
       changeDuePiasters,
       customerId: currentCustomerId,
     });
   };
-
-  // Quick cash buttons generator (Exact, next 50, next 100, 200)
-  const quickPresetsPiasters = buildCashQuickPresetsPiasters(netTotalPiasters);
 
   if (!isOpen) return null;
 
@@ -643,7 +639,6 @@ export const PaymentModal = ({
             onReceivedChange={handleReceivedChange}
             receivedInputRef={receivedInputRef}
             netTotalPiasters={netTotalPiasters}
-            quickPresetsPiasters={quickPresetsPiasters}
             onSetPreset={setPresetReceived}
             isShortPayment={isShortPayment}
             selectedCustomer={selectedCustomer}

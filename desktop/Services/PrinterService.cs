@@ -26,7 +26,7 @@ namespace RafiqPOS.Services
     }
 
     /// <summary>
-    /// محرك الطباعة الحرارية وأوامر ESC/POS لنظام رفيق POS
+    /// محرك الطباعة الحرارية وأوامر ESC/POS لنظام رفيق
     /// يدعم طابعات الإيصالات USB والشبكية (80mm و 57mm) مع طباعة الحروف العربية والباركود والشعار
     /// ونبضة فتح درج النقدية وقص الورق التلقائي وعزل أعطال الطابعة دون تجميد النظام
     /// متوافق مع .NET Framework 4.8 و C# 5 وأنظمة ويندوز 7 SP1 حتى 11
@@ -1213,7 +1213,7 @@ namespace RafiqPOS.Services
 
                 // 6. باركود الفاتورة مطابق للمعاينة
                 y += 4;
-                string barcodeValue = sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString("D8") : (sale.Id ?? "00000000");
+                string barcodeValue = sale.InvoiceNumber > 0 ? string.Format("RFQ-INV-{0:D8}", sale.InvoiceNumber) : string.Format("RFQ-INV-{0}", sale.Id ?? "00000000");
                 float barcodeH = isCompact ? 30f : 36f;
                 var barcodeRect = new RectangleF(isCompact ? 15 : 25, y, contentWidth - (isCompact ? 30 : 50), barcodeH);
                 BarcodeGenerator.DrawBarcode(g, barcodeValue, barcodeRect, showText: false);
@@ -1591,7 +1591,7 @@ namespace RafiqPOS.Services
                 y += 22;
 
                 // باركود المرتجع Code 128
-                string retBarcode = string.Format("RET{0:D6}", returnObj.ReturnNumber);
+                string retBarcode = string.Format("RFQ-RET-{0:D8}", returnObj.ReturnNumber);
                 float retBarH = isCompact ? 34f : 40f;
                 BarcodeGenerator.DrawBarcode(g, retBarcode, new RectangleF(10, y, contentWidth - 20, retBarH), showText: true, textFont: fontSmall);
                 y += retBarH + 6;
