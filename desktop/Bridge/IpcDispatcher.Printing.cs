@@ -120,6 +120,7 @@ namespace RafiqPOS.Bridge
                 case "printer:kickDrawer":
                     string kickPrinter = null;
                     int? kickPulse = null;
+                    int? kickPin = null;
                     JObject kdPayload = request.Payload as JObject;
                     if (kdPayload != null)
                     {
@@ -129,8 +130,13 @@ namespace RafiqPOS.Bridge
                             int pVal;
                             if (int.TryParse(kdPayload["pulseMs"].ToString(), out pVal)) kickPulse = pVal;
                         }
+                        if (kdPayload["pin"] != null)
+                        {
+                            int pPin;
+                            if (int.TryParse(kdPayload["pin"].ToString(), out pPin)) kickPin = pPin;
+                        }
                     }
-                    var kickRes = DatabaseService.Printer.KickDrawer(kickPrinter, kickPulse);
+                    var kickRes = DatabaseService.Printer.KickDrawer(kickPrinter, kickPulse, kickPin);
                     response = BridgeResponse.Ok(request.Id, kickRes);
                     return true;
 

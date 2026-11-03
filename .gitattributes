@@ -1,0 +1,4 @@
+# Ensure cryptographically hashed catalogue artifacts retain LF on all platforms
+/frontend/public/catalogue/** text eol=lf
+/tools/catalogue/** text eol=lf
+

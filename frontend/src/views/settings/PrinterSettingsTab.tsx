@@ -8,7 +8,8 @@ import {
   Server,
   Tag,
   UtensilsCrossed,
-  Gauge
+  Gauge,
+  Sliders
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
@@ -33,6 +34,9 @@ interface PrinterSettingsTabProps {
   drawerPulseMs?: string;
   setDrawerPulseMs?: (val: string) => void;
   onChangeDrawerPulse?: (val: string) => void;
+  drawerPin?: string;
+  setDrawerPin?: (val: string) => void;
+  onChangeDrawerPin?: (val: string) => void;
   printersLoading: boolean;
   testPrinting: boolean;
   printerSaveSuccess: boolean;
@@ -58,6 +62,9 @@ export const PrinterSettingsTab = ({
   drawerPulseMs = '30',
   setDrawerPulseMs,
   onChangeDrawerPulse,
+  drawerPin = '0',
+  setDrawerPin,
+  onChangeDrawerPin,
   printersLoading,
   testPrinting,
   printerSaveSuccess,
@@ -77,6 +84,13 @@ export const PrinterSettingsTab = ({
   const [labelTestMessage, setLabelTestMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [drawerTesting, setDrawerTesting] = useState(false);
   const [drawerTestMessage, setDrawerTestMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [customPulse, setCustomPulse] = useState<string>(drawerPulseMs || '30');
+
+  useEffect(() => {
+    if (drawerPulseMs) {
+      setCustomPulse(drawerPulseMs);
+    }
+  }, [drawerPulseMs]);
 
   // KOT Routing State
   const [kotKitchenPrinter, setKotKitchenPrinter] = useState('');
@@ -167,7 +181,7 @@ export const PrinterSettingsTab = ({
     }
   };
 
-  const handleTestDrawer = async () => {
+  const handleTestDrawer = async (pulseOverride?: string) => {
     if (!selectedPrinter) {
       void rafiqAlert({
         title: 'تنبيه',
@@ -176,17 +190,26 @@ export const PrinterSettingsTab = ({
       });
       return;
     }
+    const pulseToUse = Number(pulseOverride || drawerPulseMs || '30');
+    const pinToUse = Number(drawerPin || '0');
     setDrawerTesting(true);
     setDrawerTestMessage(null);
     try {
       const res = await invoke<{ success: boolean; message: string; printerUsed: string }>('printer:kickDrawer', {
         printerName: selectedPrinter,
-        pulseMs: Number(drawerPulseMs || '30'),
+        pulseMs: pulseToUse,
+        pin: pinToUse,
       });
       if (res && res.success) {
-        setDrawerTestMessage({ text: res.message || 'تم إرسال نبضة فتح درج النقدية بنجاح!', isError: false });
+        setDrawerTestMessage({
+          text: res.message || `تم إرسال نبضة فتح درج النقدية بنجاح بقوة (${pulseToUse} مللي ثانية)!`,
+          isError: false,
+        });
       } else {
-        setDrawerTestMessage({ text: res?.message || 'تعذر فتح درج النقدية. تأكد من توصيل كابل RJ11 بالدرج والطابعة.', isError: true });
+        setDrawerTestMessage({
+          text: res?.message || 'تعذر فتح درج النقدية. تأكد من توصيل كابل RJ11 بالدرج والطابعة.',
+          isError: true,
+        });
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -366,69 +389,201 @@ export const PrinterSettingsTab = ({
           </div>
 
           {/* Cash Drawer Pulse Duration Control & Test */}
-          <div className="p-3.5 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Gauge className="w-4 h-4 text-brand dark:text-brand-bright" />
-                <span className="font-bold text-ink dark:text-ink-dark text-xs">
-                  قوة ومدة نبضة فتح الدرج (Pulse Duration)
-                </span>
+          <div className="p-4 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold">
+                  <Gauge className="w-4 h-4 text-brand dark:text-brand-bright" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-ink dark:text-ink-dark text-xs">
+                      قوة ومدة نبضة فتح الدرج (Pulse Duration)
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20">
+                      تبدأ من 2 مللي ثانية (الأهدأ)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-tight m-0">
+                    التحكم الدقيق في زمن الشرارة الكهربائية لملف الدرج (Solenoid)؛ تم تقليل الحد الأدنى وإلغاء كود الرنين القديم تماماً لمنع قفز الدرج وارتداده العنيف.
+                  </p>
+                </div>
               </div>
+
               <button
                 type="button"
-                onClick={handleTestDrawer}
+                onClick={() => void handleTestDrawer()}
                 disabled={drawerTesting || !selectedPrinter}
-                className="px-2.5 py-1 rounded-md bg-surface dark:bg-surface-dark hover:bg-white dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
-                title="إرسال نبضة فورية لاختبار فتح الدرج بالقوة المحددة"
+                className="px-3 py-1.5 rounded-lg bg-surface dark:bg-surface-dark hover:bg-white dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                title="إرسال نبضة فورية لاختبار فتح الدرج بالقوة المحددة حالياً"
               >
-                <Zap className={'w-3 h-3 text-brand dark:text-brand-bright ' + (drawerTesting ? 'animate-spin' : '')} />
-                <span>{drawerTesting ? 'جاري الفتح...' : 'تجربة فتح الدرج الآن'}</span>
+                <Zap className={'w-3.5 h-3.5 text-brand dark:text-brand-bright ' + (drawerTesting ? 'animate-spin' : '')} />
+                <span>{drawerTesting ? 'جاري الفتح...' : `تجربة النبضة الحالية (${drawerPulseMs || '30'} ms)`}</span>
               </button>
             </div>
 
-            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-tight m-0">
-              التحكم في قوة وزمن النبضة الكهربائية لملف الدرج (Solenoid)؛ اختر مدة أقصر للأدراج الخفيفة لمنع الارتداد العنيف وتخفيف الصوت، أو أطول للأدراج الثقيلة.
-            </p>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-              {[
-                { id: '20', title: '20 ms', label: 'هادئة وخفيفة', desc: 'للأدراج الخفيفة لمنع الارتداد' },
-                { id: '30', title: '30 ms', label: 'متوازنة (افتراضي)', desc: 'الأفضل لمعظم الطابعات' },
-                { id: '50', title: '50 ms', label: 'قوية وسريعة', desc: 'للأدراج الثقيلة أو المشدودة' },
-                { id: '100', title: '100 ms', label: 'أقصى قوة', desc: 'للأدراج الكبيرة جداً' },
-              ].map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => {
-                    setDrawerPulseMs?.(opt.id);
-                    if (onChangeDrawerPulse) onChangeDrawerPulse(opt.id);
-                  }}
-                  className={'p-2 rounded-lg border text-right flex flex-col gap-0.5 transition-all cursor-pointer ' + (
-                    (drawerPulseMs || '30') === opt.id
-                      ? 'bg-brand/10 dark:bg-brand-dark-soft border-brand dark:border-brand-bright text-brand dark:text-brand-bright font-bold shadow-2xs'
-                      : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-line-hover text-ink dark:text-ink-dark'
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold">{opt.title}</span>
-                    {(drawerPulseMs || '30') === opt.id && (
-                      <CheckCircle className="w-3 h-3 text-brand dark:text-brand-bright" />
-                    )}
-                  </div>
-                  <span className="text-[10px] font-semibold text-ink dark:text-ink-dark">{opt.label}</span>
-                  <span className="text-[9px] text-ink-muted dark:text-ink-muted-dark leading-tight">{opt.desc}</span>
-                </button>
-              ))}
+            {/* Note badge */}
+            <div className="p-2.5 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-start gap-2 text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+              <Sliders className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-ink dark:text-ink-dark font-bold">طريقة التجربة السريعة: </strong>
+                اضغط على زر <span className="font-bold text-brand dark:text-brand-bright">[تجربة]</span> في أي كارت أدناه لاختبار النبضة فوراً دون الحاجة لتغيير الشاشة. ابدأ من درجة <strong className="text-brand dark:text-brand-bright">2 ms</strong> أو <strong className="text-brand dark:text-brand-bright">5 ms</strong>؛ إذا فتح الدرج بهدوء فاختره، وإذا لم يفتح انتقل للدرجة التالية تدريجياً.
+              </div>
             </div>
 
+            {/* Presets Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 pt-1">
+              {[
+                { id: '2', title: '2 ms', tag: 'الأهدأ إطلاقاً', label: 'أقل نبضة ممكنة', desc: 'للأدراج ذات السوستة القوية؛ تفتح بهدوء وتمنع الارتداد تماماً' },
+                { id: '5', title: '5 ms', tag: 'خفيفة جداً', label: 'حساسة وخفيفة', desc: 'للأدراج الخفيفة لمنع الصدمة والصوت العالي' },
+                { id: '10', title: '10 ms', tag: 'هادئة', label: 'خفيفة ومعتدلة', desc: 'للأدراج القياسية لفتح هادئ وغير مزعج' },
+                { id: '20', title: '20 ms', tag: 'معتدلة', label: 'متوسطة', desc: 'مناسبة لمعظم الأدراج الجديدة' },
+                { id: '30', title: '30 ms', tag: 'متوازنة', label: 'الافتراضي القياسي', desc: 'النبضة الشائعة لطابعات الفواتير' },
+                { id: '50', title: '50 ms', tag: 'قوية', label: 'سريعة وقوية', desc: 'للأدراج الثقيلة أو المشدودة' },
+                { id: '100', title: '100 ms', tag: 'أقصى قوة', label: 'للأدراج الكبيرة', desc: 'للأدراج الكبيرة جداً وممتلئة النقدية' },
+              ].map((opt) => {
+                const isSelected = (drawerPulseMs || '30') === opt.id;
+                return (
+                  <div
+                    key={opt.id}
+                    onClick={() => {
+                      setDrawerPulseMs?.(opt.id);
+                      if (onChangeDrawerPulse) onChangeDrawerPulse(opt.id);
+                    }}
+                    className={`p-2 rounded-lg border text-right flex flex-col justify-between gap-1.5 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-brand/10 dark:bg-brand-dark-soft border-brand dark:border-brand-bright text-brand dark:text-brand-bright shadow-2xs ring-1 ring-brand/30'
+                        : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-line-hover text-ink dark:text-ink-dark'
+                    }`}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black tracking-tight">{opt.title}</span>
+                        {isSelected ? (
+                          <CheckCircle className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
+                        ) : (
+                          <span className="text-[9px] px-1 py-0.2 rounded bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark">
+                            {opt.tag}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-bold text-ink dark:text-ink-dark">{opt.label}</span>
+                      <span className="text-[9px] text-ink-muted dark:text-ink-muted-dark leading-tight line-clamp-2">
+                        {opt.desc}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDrawerPulseMs?.(opt.id);
+                        if (onChangeDrawerPulse) onChangeDrawerPulse(opt.id);
+                        void handleTestDrawer(opt.id);
+                      }}
+                      disabled={drawerTesting || !selectedPrinter}
+                      className="mt-1 w-full py-1 px-1.5 rounded bg-surface-2 dark:bg-surface-dark-2 hover:bg-white dark:hover:bg-surface-dark border border-line dark:border-line-dark hover:border-brand text-ink dark:text-ink-dark text-[10px] font-bold flex items-center justify-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
+                      title={`تجربة فتح الدرج بقوة ${opt.title} فوراً`}
+                    >
+                      <Zap className="w-2.5 h-2.5 text-brand dark:text-brand-bright" />
+                      <span>تجربة</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Custom Milliseconds Input + Port Pin Configuration */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-line dark:border-line-dark">
+              {/* Custom ms input */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                  <span>تحديد رقم مخصص بالميللي ثانية (2 - 250 ms)</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      min={2}
+                      max={250}
+                      value={customPulse}
+                      onChange={(e) => setCustomPulse(e.target.value)}
+                      placeholder="مثال: 3 أو 4 أو 8"
+                      className="w-full px-3 py-1.5 text-xs rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark font-mono font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-ink-muted dark:text-ink-muted-dark font-bold">
+                      ms
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const valNum = parseInt(customPulse, 10);
+                      const safeVal = isNaN(valNum) || valNum < 2 ? '2' : (valNum > 250 ? '250' : String(valNum));
+                      setCustomPulse(safeVal);
+                      setDrawerPulseMs?.(safeVal);
+                      if (onChangeDrawerPulse) onChangeDrawerPulse(safeVal);
+                      void handleTestDrawer(safeVal);
+                    }}
+                    disabled={drawerTesting || !selectedPrinter}
+                    className="px-3 py-1.5 rounded-lg bg-surface dark:bg-surface-dark hover:bg-white dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                    title="تجربة الرقم المكتوب فوراً"
+                  >
+                    <Zap className="w-3 h-3 text-brand dark:text-brand-bright" />
+                    <span>تجربة</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const valNum = parseInt(customPulse, 10);
+                      const safeVal = isNaN(valNum) || valNum < 2 ? '2' : (valNum > 250 ? '250' : String(valNum));
+                      setCustomPulse(safeVal);
+                      setDrawerPulseMs?.(safeVal);
+                      if (onChangeDrawerPulse) onChangeDrawerPulse(safeVal);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 border border-brand/30 text-brand dark:text-brand-bright text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                    title="تثبيت هذا الرقم كنبضة افتراضية"
+                  >
+                    تثبيت
+                  </button>
+                </div>
+              </div>
+
+              {/* Port Pin Selector */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center justify-between">
+                  <span>منفذ توصيل كابل الدرج (RJ11 Pin)</span>
+                  <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark font-normal">منفذ 1 هو القياسي لمنع النبض المزدوج</span>
+                </label>
+                <CustomSelect
+                  value={drawerPin || '0'}
+                  onChange={(val) => {
+                    setDrawerPin?.(val);
+                    if (onChangeDrawerPin) onChangeDrawerPin(val);
+                  }}
+                  options={[
+                    { value: '0', label: 'منفذ 1 (Pin 2 - القياسي لمعظم الأدراج وطابعات نقاط البيع)' },
+                    { value: '1', label: 'منفذ 2 (Pin 5 - للأدراج المتصلة بالمنفذ الثاني)' },
+                    { value: '2', label: 'كلا المنفذين معاً (Pin 2 + Pin 5)' },
+                  ]}
+                  size="md"
+                />
+              </div>
+            </div>
+
+            {/* Drawer Test Result Message */}
             {drawerTestMessage && (
-              <div className={'p-2 rounded-md text-[11px] font-semibold flex items-center gap-1.5 border mt-1 ' + (
+              <div className={`p-2.5 rounded-md text-[11px] font-semibold flex items-center gap-2 border mt-1 ${
                 drawerTestMessage.isError
                   ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright'
                   : 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-bright/30 text-paid dark:text-paid-bright'
-              )}>
-                {drawerTestMessage.isError ? <Zap className="w-3.5 h-3.5 shrink-0" /> : <CheckCircle className="w-3.5 h-3.5 shrink-0" />}
+              }`}>
+                {drawerTestMessage.isError ? (
+                  <Zap className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
+                ) : (
+                  <CheckCircle className="w-4 h-4 shrink-0 text-paid dark:text-paid-bright" />
+                )}
                 <span>{drawerTestMessage.text}</span>
               </div>
             )}

@@ -434,7 +434,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           <div className="bg-brand-soft dark:bg-brand-dark-soft border border-brand/50 dark:border-brand/40 rounded-[6px] p-3.5 flex items-center gap-3 shrink-0">
             <Info className="w-5 h-5 text-brand dark:text-brand-bright shrink-0" />
             <span className="text-[14px] text-brand dark:text-brand-bright font-medium">
-              اختر نشاط محلك لضبط ميزات البيع المناسبة فقط — قاعدة البيانات تبدأ نظيفة 100% بدون أي أقسام أو تصنيفات أو أصناف مسبقة
+              اختر نشاط محلك لضبط ميزات البيع والخصائص التشغيلية المناسبة لطبيعة تجارتك
             </span>
           </div>
 
@@ -473,9 +473,6 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
                   {/* Summary Feature Badges */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <span className="text-[12px] text-paid dark:text-paid-bright border border-paid/30 dark:border-paid/40 bg-paid-soft dark:bg-paid-dark-soft rounded-[6px] px-2 py-0.5 font-bold">
-                      نظيف 100%
-                    </span>
                     {tpl.featuresSummary?.map((feat, idx) => (
                       <span key={idx} className="text-[12px] text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark rounded-[6px] px-2 py-0.5 bg-white dark:bg-surface-dark-2 font-medium">
                         {feat}
@@ -859,7 +856,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
               <span className="text-ink-muted dark:text-ink-dark-muted text-[12px] font-medium">حالة قاعدة البيانات</span>
               <span className="text-paid dark:text-paid-bright text-[15px] font-bold mt-2 flex items-center gap-1.5">
                 <Check className="w-4 h-4 text-paid dark:text-paid-bright" />
-                <span>نظيفة 100% بدون أقسام أو أصناف</span>
+                <span>جاهزة لتسجيل بضاعتك</span>
               </span>
             </div>
 
@@ -892,10 +889,10 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             </div>
             <div className="flex flex-col">
               <h4 className="text-ink dark:text-ink-dark text-[16px] font-semibold">
-                بداية نظيفة 100% بدون أي أقسام أو أصناف مسبقة
+                جاهز تماماً لبدء تسجيل أصناف وبضاعة محلك
               </h4>
               <p className="text-ink-muted dark:text-ink-dark-muted text-[13px] mt-1 leading-relaxed">
-                تم ضبط وتفعيل ميزات البيع المناسبة لنشاطك، وتبدأ قاعدة البيانات نظيفة تماماً بدون أي أقسام أو تصنيفات أو أصناف مسبقة لتتمكن من إضافة بضاعتك وترتيب أقسامك بنفسك بكل حرية.
+                تم ضبط وتفعيل ميزات البيع المناسبة لنشاطك، ويمكنك الآن البدء مباشرة في إضافة بضاعتك وترتيب أقسامك أو استيرادها بكل حرية وسهولة.
               </p>
             </div>
           </div>
@@ -943,7 +940,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
               <div className="absolute top-4 right-[13px] bottom-4 w-[1px] bg-white/25 -z-0 pointer-events-none" />
 
               {[
-                { num: 1, title: 'نوع النشاط والميزات التشغيلية', desc: 'تحديد نشاط المحل وضبط الميزات التشغيلية فقط', badge: 'نظيف 100%' },
+                { num: 1, title: 'نوع النشاط والميزات التشغيلية', desc: 'تحديد نشاط المحل وضبط الميزات التشغيلية' },
                 { num: 2, title: 'بيانات المحل والفاتورة', desc: 'الاسم، الهاتف، وترويسة الإيصال' },
                 { num: 3, title: 'الأجهزة وحفظ البيانات', desc: 'طابعة الكاشير ومسار النسخ الاحتياطي' },
                 { num: 4, title: 'المراجعة وتأكيد البدء', desc: 'اعتماد التجهيزات والانتقال للكاشير' },
@@ -976,11 +973,6 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                         }`}>
                           {s.title}
                         </span>
-                        {s.badge && (
-                          <span className="text-[11px] text-white/90 border border-white/40 px-1.5 py-0.5 rounded-[4px] tabular-nums">
-                            {s.badge}
-                          </span>
-                        )}
                       </div>
                       <span className={`text-[12px] leading-relaxed ${
                         isActive ? 'text-white/70' : isPassed ? 'text-white/75' : 'text-white/50'
@@ -1028,7 +1020,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
               {/* Description */}
               <p className="text-ink-muted dark:text-ink-dark-muted text-[14px] leading-relaxed mb-8">
-                تم ضبط ميزات نشاطك بنجاح، وقاعدة البيانات جاهزة ونظيفة 100% بدون أي أقسام أو تصنيفات أو أصناف مسبقة. جاري نقلك لشاشة نقطة البيع…
+                تم ضبط ميزات نشاطك بنجاح، وقاعدة البيانات جاهزة للعمل. جاري نقلك لشاشة نقطة البيع…
               </p>
 
               {/* 44px Progress Strip */}
@@ -1060,7 +1052,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                     {step === 4 && 'مراجعة التجهيزات والبدء الفعلي'}
                   </h1>
                   <p className="text-[13px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
-                    {step === 1 && 'سيقوم رفيق بضبط خصائص وميزات البيع المناسبة لنشاطك مع إبقاء قاعدة البيانات نظيفة 100% بدون أي أقسام أو أصناف للبدء الفوري'}
+                    {step === 1 && 'سيقوم رفيق بضبط خصائص وميزات البيع المناسبة لنشاطك التجاري للبدء الفوري'}
                     {step === 2 && 'المعلومات اللي هتظهر في رأس وتذييل إيصال الكاشير للزبون'}
                     {step === 3 && 'حدد طابعة الإيصالات الحرارية ومسار النسخ الاحتياطي التلقائي لحماية بياناتك'}
                     {step === 4 && 'تأكيد الخيارات واعتماد التجهيز لفتح شاشة الكاشير وبدء البيع فوراً'}
@@ -1110,7 +1102,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                 <span>النشاط المختار: </span>
                 <span className="font-semibold text-ink dark:text-ink-dark">{selectedTemplate?.name}</span>
                 <span className="mx-2">·</span>
-                <span className="font-semibold text-paid dark:text-paid-bright">قاعدة بيانات نظيفة 100% · جاهز للبدء</span>
+                <span className="font-semibold text-paid dark:text-paid-bright">جاهز للبدء والبيع</span>
               </div>
 
               <div className="flex items-center gap-4">

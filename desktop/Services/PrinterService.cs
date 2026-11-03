@@ -131,7 +131,7 @@ namespace RafiqPOS.Services
             {
                 string val = _settings.Get("drawer_pulse_ms", "30");
                 int ms;
-                if (int.TryParse(val, out ms) && ms >= 10 && ms <= 250)
+                if (int.TryParse(val, out ms) && ms >= 2 && ms <= 250)
                 {
                     return ms;
                 }
@@ -139,11 +139,25 @@ namespace RafiqPOS.Services
             return 30;
         }
 
+        public int GetConfiguredDrawerPin()
+        {
+            if (_settings != null)
+            {
+                string val = _settings.Get("drawer_pin", "0");
+                int pin;
+                if (int.TryParse(val, out pin) && (pin == 0 || pin == 1 || pin == 2))
+                {
+                    return pin;
+                }
+            }
+            return 0;
+        }
+
 
         /// <summary>
         /// نبضة فتح درج النقدية المادي عبر ESC/POS (USB Spooler أو طابعة شبكية TCP)
         /// </summary>
-        public PrintResult KickDrawer(string printerName = null, int? pulseMs = null)
+        public PrintResult KickDrawer(string printerName = null, int? pulseMs = null, int? pin = null)
         {
             string targetPrinter = ResolvePrinterName(printerName);
             if (string.IsNullOrWhiteSpace(targetPrinter))
@@ -160,7 +174,8 @@ namespace RafiqPOS.Services
             {
                 string errMsg;
                 int effectivePulse = pulseMs.HasValue ? pulseMs.Value : GetConfiguredDrawerPulseMs();
-                bool ok = RawPrinterHelper.SendDrawerKick(targetPrinter, out errMsg, effectivePulse);
+                int effectivePin = pin.HasValue ? pin.Value : GetConfiguredDrawerPin();
+                bool ok = RawPrinterHelper.SendDrawerKick(targetPrinter, out errMsg, effectivePulse, effectivePin);
                 if (ok)
                 {
                     Logger.Info("تم إرسال نبضة فتح درج النقدية بنجاح إلى: " + targetPrinter);
@@ -337,7 +352,7 @@ namespace RafiqPOS.Services
                     {
                         if (bmp != null)
                         {
-                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs());
+                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
                             string errMsg;
                             string docTitle = string.Format("Rafiq Receipt #{0}", sale.InvoiceNumber);
                             bool ok = RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, docTitle, out errMsg);
@@ -445,7 +460,7 @@ namespace RafiqPOS.Services
                     try
                     {
                         string kickErr;
-                        RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr, GetConfiguredDrawerPulseMs());
+                        RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
                     }
                     catch (Exception exDrawer)
                     {
@@ -517,7 +532,7 @@ namespace RafiqPOS.Services
                     }
 
                     bool autoCut = GetConfiguredAutoCut();
-                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs());
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
 
                     string errMsg;
                     string docTitle = string.Format("Rafiq Network Receipt #{0}", sale.InvoiceNumber);
@@ -1305,7 +1320,7 @@ namespace RafiqPOS.Services
                     try
                     {
                         string kickErr;
-                        RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr, GetConfiguredDrawerPulseMs());
+                        RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
                     }
                     catch { }
                 }
@@ -1351,7 +1366,7 @@ namespace RafiqPOS.Services
                     }
 
                     bool autoCut = GetConfiguredAutoCut();
-                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs());
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
 
                     string errMsg;
                     string docTitle = string.Format("Rafiq Network Return #{0}", returnObj.ReturnNumber);

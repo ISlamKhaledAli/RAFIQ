@@ -104,6 +104,7 @@ export const SettingsView = ({
   const [autoPrintOnSale, setAutoPrintOnSale] = useState<boolean>(true);
   const [openDrawerOnSale, setOpenDrawerOnSale] = useState<boolean>(false);
   const [drawerPulseMs, setDrawerPulseMs] = useState<string>('30');
+  const [drawerPin, setDrawerPin] = useState<string>('0');
   const [printersLoading, setPrintersLoading] = useState<boolean>(false);
   const [testPrinting, setTestPrinting] = useState<boolean>(false);
   const [printerSaveSuccess, setPrinterSaveSuccess] = useState<boolean>(false);
@@ -187,6 +188,7 @@ export const SettingsView = ({
           if (settings.printer_auto_print !== undefined) setAutoPrintOnSale(settings.printer_auto_print === '1');
           if (settings.printer_open_drawer !== undefined) setOpenDrawerOnSale(settings.printer_open_drawer === '1');
           if (settings.drawer_pulse_ms) setDrawerPulseMs(settings.drawer_pulse_ms);
+          if (settings.drawer_pin) setDrawerPin(settings.drawer_pin);
           if (settings.logo_variant === 'modern' || settings.logo_variant === 'classic') {
             setLogoVariant(settings.logo_variant);
             try {
@@ -297,6 +299,7 @@ export const SettingsView = ({
         printer_auto_print: autoPrintOnSale ? '1' : '0',
         printer_open_drawer: openDrawerOnSale ? '1' : '0',
         drawer_pulse_ms: drawerPulseMs,
+        drawer_pin: drawerPin,
       });
       setPrinterSaveSuccess(true);
       setTimeout(() => setPrinterSaveSuccess(false), 3500);
@@ -351,6 +354,12 @@ export const SettingsView = ({
     const prev = drawerPulseMs;
     setDrawerPulseMs(newVal);
     await autoSaveSetting({ drawer_pulse_ms: newVal }, () => setDrawerPulseMs(prev), 'قوة ونبضة فتح الدرج');
+  };
+
+  const handleChangeDrawerPin = async (newVal: string) => {
+    const prev = drawerPin;
+    setDrawerPin(newVal);
+    await autoSaveSetting({ drawer_pin: newVal }, () => setDrawerPin(prev), 'منفذ نبضة فتح الدرج');
   };
 
   const handleTestPrint = async () => {
@@ -537,6 +546,9 @@ export const SettingsView = ({
           drawerPulseMs={drawerPulseMs}
           setDrawerPulseMs={setDrawerPulseMs}
           onChangeDrawerPulse={handleChangeDrawerPulse}
+          drawerPin={drawerPin}
+          setDrawerPin={setDrawerPin}
+          onChangeDrawerPin={handleChangeDrawerPin}
           printersLoading={printersLoading}
           testPrinting={testPrinting}
           printerSaveSuccess={printerSaveSuccess}

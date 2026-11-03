@@ -258,7 +258,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
               <h2 className="text-base font-bold text-ink dark:text-ink-dark flex items-center gap-2">
                 <span>تطبيق روشتة التأمين الطبي والتعاقدات</span>
                 {currentClaim && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-paid-soft text-paid border border-paid-border">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border">
                     تعديل روشتة سابقة
                   </span>
                 )}
@@ -271,7 +271,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -280,16 +280,16 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {errorMsg && (
-            <div className="p-3 bg-danger-soft border border-danger-border rounded-xl text-danger flex items-center gap-2 text-xs font-semibold">
+            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/40 rounded-xl text-danger dark:text-danger-bright flex items-center gap-2 text-xs font-semibold">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {cart.length === 0 ? (
-            <div className="py-10 text-center text-ink-muted">
-              <FileText className="w-12 h-12 mx-auto mb-2 opacity-30 text-ink-muted" />
-              <p className="text-sm font-bold">سلة المشتريات فارغة</p>
+            <div className="py-10 text-center text-ink-muted dark:text-ink-dark-muted">
+              <FileText className="w-12 h-12 mx-auto mb-2 opacity-30 text-ink-muted dark:text-ink-dark-muted" />
+              <p className="text-sm font-bold text-ink dark:text-ink-dark">سلة المشتريات فارغة</p>
               <p className="text-xs">أضف الأدوية والمستلزمات إلى السلة أولاً لتطبيق الروشتة التأمينية عليها</p>
             </div>
           ) : (
@@ -323,7 +323,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                       value: c.id,
                       label: `${c.name} (تحمل المريض: ${(c.patientShareBps / 100).toFixed(0)}%)`,
                     }))}
-                    placeholder={availableContracts.length === 0 ? 'لا توجد عقود نشطة لهذه الشركة' : 'اختر العقد الطبي...'}
+                    placeholder={availableContracts.length === 0 ? "لا توجد عقود نشطة لهذه الشركة" : "اختر العقد الطبي..."}
                     disabled={loading || availableContracts.length === 0}
                   />
                 </div>
@@ -337,7 +337,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                     <span>بيانات المشترك والبطاقة الطبية</span>
                   </span>
                   {selectedContractObj && (
-                    <span className="text-[11px] font-semibold text-brand dark:text-brand-bright bg-brand-soft px-2 py-0.5 rounded-md border border-brand/20">
+                    <span className="text-[11px] font-semibold text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft px-2 py-0.5 rounded-md border border-brand/20 dark:border-brand-bright/20">
                       نسبة التحمل: {(selectedContractObj.patientShareBps / 100).toFixed(0)}%
                       {selectedContractObj.capPerInvoicePiasters && selectedContractObj.capPerInvoicePiasters > 0 && (
                         <span> | حد الفاتورة: {formatArabicCurrency(selectedContractObj.capPerInvoicePiasters)}</span>
@@ -348,7 +348,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-ink-muted mb-1">
+                    <label className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                       رقم العضوية / رقم البطاقة الطبية *
                     </label>
                     <div className="relative">
@@ -357,19 +357,19 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                         value={memberNo}
                         onChange={(e) => setMemberNo(e.target.value)}
                         placeholder="أدخل أو امسح الباركود للكارنيه..."
-                        className="w-full h-9 px-3 pl-8 text-xs bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-ink font-mono font-bold focus:outline-none focus:border-brand"
+                        className="w-full h-9 px-3 pl-8 text-xs bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark font-mono font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                       />
-                      <Search className="w-3.5 h-3.5 text-ink-muted absolute left-2.5 top-3 pointer-events-none" />
+                      <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute left-2.5 top-3 pointer-events-none" />
                     </div>
                     {matchedMember ? (
-                      <p className="mt-1 text-[10px] text-paid font-semibold flex items-center gap-1">
+                      <p className="mt-1 text-[10px] text-paid dark:text-paid-bright font-semibold flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
                         <span>مشترك مسجل: {matchedMember.memberName}</span>
                         {matchedMember.validTo && <span>(صالح حتى: {matchedMember.validTo})</span>}
                       </p>
                     ) : (
                       memberNo.trim() && (
-                        <p className="mt-1 text-[10px] text-ink-muted flex items-center gap-1">
+                        <p className="mt-1 text-[10px] text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
                           <Info className="w-3 h-3" />
                           <span>رقم غير محفوظ، يمكنك كتابة اسم المريض يدوياً أدناه</span>
                         </p>
@@ -378,7 +378,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-ink-muted mb-1">
+                    <label className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                       اسم المريض / المشترك *
                     </label>
                     <input
@@ -386,14 +386,14 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                       value={patientName}
                       onChange={(e) => setPatientName(e.target.value)}
                       placeholder="الاسم الثلاثي أو الرباعي للمشترك..."
-                      className="w-full h-9 px-3 text-xs bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-ink font-bold focus:outline-none focus:border-brand"
+                      className="w-full h-9 px-3 text-xs bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-ink-muted mb-1">
+                    <label className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                       رقم الموافقة الطبية (Medical Approval No)
                     </label>
                     <input
@@ -401,12 +401,12 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                       value={approvalNo}
                       onChange={(e) => setApprovalNo(e.target.value)}
                       placeholder="رقم الموافقة إن وجدت أو اترك فارغاً..."
-                      className="w-full h-9 px-3 text-xs bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-ink font-mono focus:outline-none focus:border-brand"
+                      className="w-full h-9 px-3 text-xs bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark font-mono focus:outline-none focus:border-brand dark:focus:border-brand-bright placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-ink-muted mb-1">
+                    <label className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                       اسم الطبيب المعالج / العيادة
                     </label>
                     <input
@@ -414,47 +414,47 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                       value={doctorName}
                       onChange={(e) => setDoctorName(e.target.value)}
                       placeholder="اسم الطبيب أو جهة التحويل..."
-                      className="w-full h-9 px-3 text-xs bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-ink focus:outline-none focus:border-brand"
+                      className="w-full h-9 px-3 text-xs bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Row 3: Financial Summary & Calculation Split Preview */}
-              <div className="bg-surface border border-line dark:border-line-dark rounded-xl p-3.5 space-y-3 shadow-2xs">
+              <div className="bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-3.5 space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
-                    <Percent className="w-4 h-4 text-paid" />
+                    <Percent className="w-4 h-4 text-paid dark:text-paid-bright" />
                     <span>توزيع الحصص المالية للفاتورة الحالية</span>
                   </span>
                   {calculating && (
-                    <span className="text-[10px] text-ink-muted animate-pulse">جاري حساب الحصص...</span>
+                    <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted animate-pulse">جاري حساب الحصص...</span>
                   )}
                 </div>
 
                 {calcResult ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      <div className="bg-surface-2 dark:bg-surface-dark-2 p-2 rounded-lg border border-line dark:border-line-dark">
-                        <span className="block text-[10px] text-ink-muted font-bold">إجمالي الفاتورة</span>
+                      <div className="bg-surface dark:bg-surface-dark-3 p-2 rounded-lg border border-line dark:border-line-dark">
+                        <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي الفاتورة</span>
                         <span className="text-xs font-black text-ink dark:text-ink-dark font-mono">
                           {formatArabicCurrency(calcResult.totalInvoicePiasters)}
                         </span>
                       </div>
 
-                      <div className="bg-surface-2 dark:bg-surface-dark-2 p-2 rounded-lg border border-line dark:border-line-dark">
-                        <span className="block text-[10px] text-ink-muted font-bold">المبلغ المغطى</span>
+                      <div className="bg-surface dark:bg-surface-dark-3 p-2 rounded-lg border border-line dark:border-line-dark">
+                        <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold">المبلغ المغطى</span>
                         <span className="text-xs font-black text-ink dark:text-ink-dark font-mono">
                           {formatArabicCurrency(calcResult.coveredPiasters)}
                         </span>
                         {calcResult.excludedPiasters > 0 && (
-                          <span className="block text-[9px] text-danger font-medium">
+                          <span className="block text-[9px] text-danger dark:text-danger-bright font-medium">
                             مستبعد: {formatArabicCurrency(calcResult.excludedPiasters)}
                           </span>
                         )}
                       </div>
 
-                      <div className="bg-brand-soft/70 dark:bg-brand-dark-soft p-2 rounded-lg border border-brand/20">
+                      <div className="bg-brand-soft/70 dark:bg-brand-dark-soft p-2 rounded-lg border border-brand/20 dark:border-brand-bright/20">
                         <span className="block text-[10px] text-brand dark:text-brand-bright font-bold">
                           تحمل المريض (كاش)
                         </span>
@@ -463,7 +463,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                         </span>
                       </div>
 
-                      <div className="bg-paid-soft/70 dark:bg-paid-dark-soft p-2 rounded-lg border border-paid/20">
+                      <div className="bg-paid-soft/70 dark:bg-paid-dark-soft p-2 rounded-lg border border-paid/20 dark:border-paid-bright/20">
                         <span className="block text-[10px] text-paid dark:text-paid-bright font-bold">
                           مطالبة الشركة (آجل)
                         </span>
@@ -474,7 +474,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                     </div>
 
                     {calcResult.capApplied && (
-                      <div className="p-2 bg-warn-soft border border-warn/30 rounded-lg text-warn text-[11px] font-semibold flex items-center gap-1.5">
+                      <div className="p-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 dark:border-warn-border rounded-lg text-warn dark:text-warn-bright text-[11px] font-semibold flex items-center gap-1.5">
                         <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                         <span>
                           تم تطبيق الحد الأقصى للمطالبة في الفاتورة: تم تحويل الفائض ({formatArabicCurrency(calcResult.capExcessPiasters)}) إلى حصة المريض.
@@ -483,26 +483,26 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                     )}
 
                     {/* Item Coverages breakdown */}
-                    <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden">
-                      <div className="bg-surface-2 dark:bg-surface-dark-2 px-3 py-1.5 text-[11px] font-bold text-ink-muted flex justify-between">
+                    <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden bg-surface dark:bg-surface-dark-3">
+                      <div className="bg-surface-2 dark:bg-surface-dark px-3 py-1.5 text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted flex justify-between border-b border-line dark:border-line-dark">
                         <span>تفصيل تغطية بنود السلة ({calcResult.itemCoverages.length} أصناف)</span>
                       </div>
                       <div className="divide-y divide-line dark:divide-line-dark max-h-36 overflow-y-auto">
                         {calcResult.itemCoverages.map((item, idx) => (
                           <div key={idx} className="px-3 py-1.5 text-xs flex items-center justify-between">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className={`w-2 h-2 rounded-full shrink-0 ${item.isCovered ? 'bg-paid' : 'bg-danger'}`} />
-                              <span className="truncate text-ink font-medium">{item.productName}</span>
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${item.isCovered ? "bg-paid dark:bg-paid-bright" : "bg-danger dark:bg-danger-bright"}`} />
+                              <span className="truncate text-ink dark:text-ink-dark font-medium">{item.productName}</span>
                               {!item.isCovered && item.exclusionReason && (
-                                <span className="text-[10px] text-danger bg-danger-soft px-1.5 py-0.2 rounded border border-danger-border shrink-0">
+                                <span className="text-[10px] text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.2 rounded border border-danger-border dark:border-danger/30 shrink-0">
                                   {item.exclusionReason}
                                 </span>
                               )}
                             </div>
                             <div className="flex items-center gap-3 shrink-0 font-mono text-[11px]">
-                              <span className="text-ink-muted">الإجمالي: {formatArabicCurrency(item.lineTotalPiasters)}</span>
-                              <span className="text-brand font-bold">مريض: {formatArabicCurrency(item.patientPiasters)}</span>
-                              <span className="text-paid font-bold">شركة: {formatArabicCurrency(item.companyPiasters)}</span>
+                              <span className="text-ink-muted dark:text-ink-dark-muted">الإجمالي: {formatArabicCurrency(item.lineTotalPiasters)}</span>
+                              <span className="text-brand dark:text-brand-bright font-bold">مريض: {formatArabicCurrency(item.patientPiasters)}</span>
+                              <span className="text-paid dark:text-paid-bright font-bold">شركة: {formatArabicCurrency(item.companyPiasters)}</span>
                             </div>
                           </div>
                         ))}
@@ -510,7 +510,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                     </div>
                   </div>
                 ) : (
-                  <div className="py-4 text-center text-xs text-ink-muted">
+                  <div className="py-4 text-center text-xs text-ink-muted dark:text-ink-dark-muted">
                     اختر العقد الطبي لمعاينة توزيع الحصص
                   </div>
                 )}
@@ -529,7 +529,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                   onRemoveClaim();
                   onClose();
                 }}
-                className="h-9 px-3 bg-danger-soft hover:bg-danger/20 text-danger border border-danger-border rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="h-9 px-3 bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 text-danger dark:text-danger-bright border border-danger-border dark:border-danger/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>إلغاء التأمين من الفاتورة</span>
@@ -541,7 +541,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
             <button
               type="button"
               onClick={onClose}
-              className="h-9 px-4 bg-surface hover:bg-surface-3 text-ink border border-line rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              className="h-9 px-4 bg-surface dark:bg-surface-dark-3 hover:bg-surface-3 dark:hover:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
             >
               إلغاء
             </button>

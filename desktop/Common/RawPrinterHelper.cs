@@ -73,21 +73,39 @@ namespace RafiqPOS.Common
             0x1D, 0x56, 0x42, 0x00
         };
 
-        public static byte[] GetDrawerKickPulse(int pulseMs = 30)
+        public static byte[] GetDrawerKickPulse(int pulseMs = 30, int pin = 0)
         {
-            byte t1 = (byte)Math.Max(5, Math.Min(125, pulseMs / 2));
-            byte t2 = 100;
-            return new byte[]
+            // مدة النبضة الكهربائية (Pulse ON time = t1 * 2 ms)
+            // في بروتوكول ESC/POS القياسي، كل وحدة في t1 تمثل 2 مللي ثانية.
+            // أدنى قيمة لـ t1 هي 1 (تعطي 2 مللي ثانية)، وهي أقل وأهدأ نبضة كهربائية ممكنة تمنع الفتح العنيف والارتداد
+            byte t1 = (byte)Math.Max(1, Math.Min(127, pulseMs / 2));
+            byte t2 = 100; // مدة التوقف (OFF time = 100 * 2ms = 200 ms) لمنع الارتداد والتكرار
+
+            if (pin == 1)
             {
-                0x1B, 0x70, 0x00, t1, t2,
-                0x1B, 0x70, 0x01, t1, t2,
-                0x07
-            };
+                // منفذ الدرج الثاني (Pin 5 فقط)
+                return new byte[] { 0x1B, 0x70, 0x01, t1, t2 };
+            }
+            else if (pin == 2)
+            {
+                // كلا المنفذين معاً (Pin 2 + Pin 5)
+                return new byte[]
+                {
+                    0x1B, 0x70, 0x00, t1, t2,
+                    0x1B, 0x70, 0x01, t1, t2
+                };
+            }
+            else
+            {
+                // الوضع القياسي الافتراضي: منفذ الدرج الأول (Pin 2 فقط - m = 0x00)
+                // تم إزالة بايت 0x07 (BEL) نهائياً لمنع إطلاق نبضة جرس/إنذار طويلة (200ms) تجعل الدرج يرتد بعنف شديد
+                return new byte[] { 0x1B, 0x70, 0x00, t1, t2 };
+            }
         }
 
         public static byte[] DrawerKickPulse
         {
-            get { return GetDrawerKickPulse(30); }
+            get { return GetDrawerKickPulse(30, 0); }
         }
 
         public static byte[] PaperCutSequence
@@ -100,7 +118,7 @@ namespace RafiqPOS.Common
         /// تضمن طباعة النصوص العربية والباركود والشعار بأعلى دقة على كافة طابعات الإيصالات الشبكية (TCP) و USB
         /// وتعمل بسرعة فائقة (&lt; 2ms) عبر معالجة الذاكرة المباشرة LockBits
         /// </summary>
-        public static byte[] ConvertBitmapToEscPosRaster(Bitmap bitmap, bool kickDrawer, bool autoCut, int drawerPulseMs = 30)
+        public static byte[] ConvertBitmapToEscPosRaster(Bitmap bitmap, bool kickDrawer, bool autoCut, int drawerPulseMs = 30, int drawerPin = 0)
         {
             if (bitmap == null) return new byte[0];
 
@@ -118,7 +136,7 @@ namespace RafiqPOS.Common
                 // 2. نبضة فتح درج النقدية إذا طُلبت
                 if (kickDrawer)
                 {
-                    bw.Write(GetDrawerKickPulse(drawerPulseMs));
+                    bw.Write(GetDrawerKickPulse(drawerPulseMs, drawerPin));
                 }
 
                 // 3. محاذاة في المنتصف: ESC a 1
@@ -264,9 +282,9 @@ namespace RafiqPOS.Common
         /// <summary>
         /// إرسال نبضة فتح درج النقدية المادي (Cash Drawer Kick)
         /// </summary>
-        public static bool SendDrawerKick(string printerTarget, out string errorMessage, int pulseMs = 30)
+        public static bool SendDrawerKick(string printerTarget, out string errorMessage, int pulseMs = 30, int pin = 0)
         {
-            return SendRawBytes(printerTarget, GetDrawerKickPulse(pulseMs), "Rafiq Drawer Kick", out errorMessage);
+            return SendRawBytes(printerTarget, GetDrawerKickPulse(pulseMs, pin), "Rafiq Drawer Kick", out errorMessage);
         }
 
         /// <summary>
