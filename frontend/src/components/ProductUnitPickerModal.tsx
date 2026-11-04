@@ -81,9 +81,9 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
               <Package className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white dark:text-ink-dark flex items-center gap-2">
+              <h3 className="t-modal-title text-white dark:text-ink-dark flex items-center gap-2">
                 <span>اختيار وحدة البيع</span>
-                <span className="text-[11px] bg-white/15 dark:bg-surface-dark-3 px-2 py-0.5 rounded-full font-mono text-paid dark:text-paid-bright">
+                <span className="text-micro bg-white/15 dark:bg-surface-dark-3 px-2 py-0.5 rounded-full font-mono text-paid dark:text-paid-bright">
                   {units.length} وحدات
                 </span>
               </h3>
@@ -104,7 +104,7 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
 
         {/* Units List */}
         <div className="p-4 flex flex-col gap-2.5 max-h-[60vh] overflow-y-auto bg-surface dark:bg-surface-dark">
-          <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-semibold mb-1">
+          <p className="text-micro text-ink-muted dark:text-ink-dark-muted font-semibold mb-1">
             اختر وحدة البيع المطلوبة لإضافتها إلى الفاتورة (أو اضغط الرقم على لوحة المفاتيح):
           </p>
 
@@ -140,19 +140,19 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
                         {u.unitName}
                       </span>
                       {u.isBaseUnit ? (
-                        <span className="text-[10px] font-bold bg-paid text-white px-2 py-0.5 rounded-md flex items-center gap-0.5">
+                        <span className="text-micro font-bold bg-paid text-white px-2 py-0.5 rounded-md flex items-center gap-0.5">
                           <Check className="w-2.5 h-2.5" />
                           <span>الوحدة الأساسية</span>
                         </span>
                       ) : (
-                        <span className="text-[10.5px] font-medium text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
+                        <span className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
                           تحتوي على {factor} قطعة
                         </span>
                       )}
                     </div>
 
                     {/* Stock status for this unit */}
-                    <div className="flex items-center gap-2 mt-1 text-[11px]">
+                    <div className="flex items-center gap-2 mt-1 text-micro">
                       {isUnitOutOfStock ? (
                         <span className="text-danger dark:text-danger-bright font-bold">غير متوفر في المخزن</span>
                       ) : (
@@ -170,7 +170,7 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
                     <span>{formatArabicCurrency(unitSellPrice)}</span>
                   </div>
                   {u.barcode && (
-                    <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono block">
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono block">
                       {u.barcode}
                     </span>
                   )}

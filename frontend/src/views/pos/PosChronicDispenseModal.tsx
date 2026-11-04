@@ -195,9 +195,9 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
               <PackageCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm sm:text-base text-ink dark:text-ink-dark flex items-center gap-2">
+              <h3 className="t-modal-title text-ink dark:text-ink-dark flex items-center gap-2">
                 <span>صرف العلاج الشهري السريع (أدوية الأمراض المزمنة)</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand text-white">
+                <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-brand text-white">
                   نقرة واحدة
                 </span>
               </h3>
@@ -234,7 +234,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                     className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand text-xs font-bold text-ink dark:text-ink-dark shadow-2xs cursor-pointer transition-all hover:scale-102"
                   >
                     <span>{a.customerName}</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-warn text-white font-mono font-bold">
+                    <span className="text-micro px-1.5 py-0.2 rounded-full bg-warn text-white dark:bg-warn-bright dark:text-surface-dark font-mono font-bold">
                       {a.medicationsCount} دواء
                     </span>
                   </button>
@@ -273,7 +273,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                       className="p-2 hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer text-xs flex items-center justify-between border-b border-line/40 dark:border-line-dark/40 last:border-b-0"
                     >
                       <span className="font-bold text-ink dark:text-ink-dark">{c.name}</span>
-                      <span className="font-mono text-ink-muted text-[11px]">{c.phone || '---'}</span>
+                      <span className="font-mono text-ink-muted dark:text-ink-dark-muted text-micro">{c.phone || '---'}</span>
                     </div>
                   ))}
                 </div>
@@ -295,7 +295,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                         setChronicMeds([]);
                         setPatientProfile(null);
                       }}
-                      className="text-[10px] text-danger hover:underline cursor-pointer"
+                      className="text-micro text-danger dark:text-danger-bright hover:underline cursor-pointer"
                     >
                       (تغيير)
                     </button>
@@ -307,7 +307,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                     </div>
                   )}
                   {patientProfile?.allergies && (
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-danger dark:text-danger-bright mt-1">
+                    <div className="flex items-center gap-1 text-micro font-bold text-danger dark:text-danger-bright mt-1">
                       <AlertTriangle className="w-3 h-3 shrink-0" />
                       <span>حساسية: {patientProfile.allergies}</span>
                     </div>
@@ -315,7 +315,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label className="text-[11px] font-bold text-ink-muted">دورة الصرف:</label>
+                  <label className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">دورة الصرف:</label>
                   <input
                     type="number"
                     min="1"
@@ -345,7 +345,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
             <div className="py-12 text-center text-ink-muted border border-dashed border-line dark:border-line-dark rounded-xl">
               <Pill className="w-10 h-10 text-ink-muted/30 mx-auto mb-2" />
               <p className="text-xs font-bold">لا توجد أدوية مزمنة مسجلة في ملف هذا المريض</p>
-              <p className="text-[11px] text-ink-muted/70 mt-1">
+              <p className="text-micro text-ink-muted/70 mt-1">
                 يمكنك تسجيل أدويته المزمنة من نافذة "الملف الطبي" في شاشة العملاء
               </p>
             </div>
@@ -359,7 +359,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                   <button
                     type="button"
                     onClick={selectAll}
-                    className="text-brand hover:underline cursor-pointer"
+                    className="text-brand dark:text-brand-bright hover:underline cursor-pointer"
                   >
                     تحديد الكل
                   </button>
@@ -367,7 +367,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                   <button
                     type="button"
                     onClick={deselectAll}
-                    className="text-ink-muted hover:underline cursor-pointer"
+                    className="text-ink-muted dark:text-ink-dark-muted hover:underline cursor-pointer"
                   >
                     إلغاء التحديد
                   </button>
@@ -400,7 +400,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
                           <span className="font-bold text-xs text-ink dark:text-ink-dark block">
                             {m.productName}
                           </span>
-                          <div className="flex items-center gap-2 text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                          <div className="flex items-center gap-2 text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">
                             <span>الجرعة: {(m.dailyQtyMilli / 1000).toFixed(1)} قرص/يوم</span>
                             {m.notes && <span>• {m.notes}</span>}
                           </div>
@@ -409,11 +409,11 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
 
                       <div className="flex items-center gap-3 text-left">
                         {isOutOfStock ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft text-danger border border-danger/30">
+                          <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30">
                             رصيد منتهي
                           </span>
                         ) : prod ? (
-                          <span className="font-mono text-xs font-bold text-ink-muted">
+                          <span className="font-mono text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
                             رصيد: {(prod.stockQuantityMilli / 1000).toFixed(0)} علبة
                           </span>
                         ) : null}
@@ -440,7 +440,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="h-9 px-4 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 rounded-xl text-xs font-bold text-ink transition-colors cursor-pointer"
+              className="h-9 px-4 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl text-xs font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
             >
               إلغاء
             </button>
@@ -452,7 +452,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
               className="flex items-center gap-1.5 h-9 px-5 bg-brand hover:bg-brand-hover text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
             >
               <PackageCheck className="w-4 h-4" />
-              <span>تحميل الأدوية في السلة ({selectedCount})</span>
+              <span>تحميل الأدوية في السلة</span>
             </button>
           </div>
         </div>

@@ -21,6 +21,7 @@ import { useDataSubscription } from '../utils/eventBus';
 import { DatabaseRecoveryModal } from './DatabaseRecoveryModal';
 import { MigrationWizardModal } from './MigrationWizardModal';
 import { rafiqAlert } from '../utils/dialogService';
+import { useAuth } from '../context/useAuth';
 
 interface BackupFileInfo {
   fileName: string;
@@ -72,6 +73,8 @@ interface BackupManagerProps {
 }
 
 export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) => {
+  // Restore, migration and license activation are owner-only (the server enforces the same rule)
+  const { isOwnerOrRoot } = useAuth();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<BackupStatusInfo | null>(null);
   const [drives, setDrives] = useState<DriveItem[]>([]);
@@ -275,35 +278,26 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
   };
 
   return (
-    <div className="flex flex-col gap-4 text-ink dark:text-ink-dark select-none font-sans">
+    <div className="flex flex-col gap-5 text-ink dark:text-ink-dark select-none font-sans">
       {/* 1. Header Alert Banner if Overdue (Task 9-6) */}
       {status?.isOverdue && (
-        <div className="p-3.5 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-[6px] flex items-start justify-between gap-3 text-warn dark:text-warn-bright shadow-sm">
-          <div className="flex items-start gap-2.5">
+        <div className="p-4 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl flex flex-wrap items-start justify-between gap-x-4 gap-y-3 text-warn dark:text-warn-bright shadow-sm">
+          <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-warn dark:text-warn-bright shrink-0 mt-0.5" />
             <div>
-              <h4 className="text-[13px] font-bold m-0 text-warn dark:text-warn-bright">تنبيه أمان البيانات (النسخ الاحتياطي متأخر)</h4>
-              <p className="text-[12px] m-0 mt-0.5 text-warn/80 dark:text-warn-bright/80 leading-relaxed font-sans">
+              <h4 className="t-label m-0 text-warn dark:text-warn-bright">تنبيه أمان البيانات (النسخ الاحتياطي متأخر)</h4>
+              <p className="text-xs m-0 mt-1 text-warn/80 dark:text-warn-bright/80 leading-relaxed font-sans">
                 {status.overdueWarning}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void handleCreateBackup()}
-            disabled={loading}
-            className="shrink-0 px-3 py-1.5 bg-warn hover:bg-warn-dark text-white rounded text-[12px] font-bold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span>خذ نسخة دلوقتي</span>
-          </button>
         </div>
       )}
 
       {/* Action Result Toast/Banner */}
       {actionMessage && (
         <div 
-          className={`p-3 rounded-[6px] border flex items-center justify-between text-[12px] font-medium ${
+          className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs font-medium ${
             actionMessage.type === 'success'
               ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30'
               : actionMessage.type === 'warning'
@@ -328,44 +322,38 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
       )}
 
       {/* 2. Top Summary & Trigger Card */}
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-5 flex flex-col gap-4 shadow-2xs">
-        <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright flex items-center justify-center font-bold">
-              <Database className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-[14px] font-bold text-ink dark:text-ink-dark m-0">حالة النسخ الاحتياطي وحماية بيانات المحل</h3>
-              <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0">نسخ حي مباشر وآمن للبيانات في الخلفية من غير ما توقف البيع</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 sm:p-6 flex flex-col gap-5 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3 border-b border-line dark:border-line-dark pb-5">
+          <div className="flex flex-wrap items-center gap-3">
+            {isOwnerOrRoot && (
             <button
               type="button"
               onClick={handleOpenLicense}
-              className="h-[38px] px-3.5 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand-soft/80 dark:hover:bg-brand-bright/25 border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright rounded text-[12.5px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              className="h-10 px-4 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand-soft/80 dark:hover:bg-brand-bright/25 border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright rounded-lg text-xs font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-colors shadow-2xs cursor-pointer"
               title="ترخيص وتفعيل برنامج رفيق، تجديد الاشتراك، أو نقل الترخيص لجهاز آخر"
             >
               <KeyRound className="w-4 h-4 text-brand dark:text-brand-bright" />
               <span>ترخيص وتفعيل البرنامج</span>
             </button>
+            )}
 
+            {isOwnerOrRoot && (
             <button
               type="button"
               onClick={() => setIsMigrationModalOpen(true)}
-              className="h-[38px] px-3.5 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand-soft/80 dark:hover:bg-brand-bright/25 border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright rounded text-[12.5px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              className="h-10 px-4 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand-soft/80 dark:hover:bg-brand-bright/25 border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright rounded-lg text-xs font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-colors shadow-2xs cursor-pointer"
               title="نقل البرنامج والبيانات إلى جهاز جديد مع مقارنة الأرقام"
             >
               <Laptop className="w-4 h-4 text-brand dark:text-brand-bright" />
               <span>نقل لجهاز جديد</span>
             </button>
+            )}
 
             <button
               type="button"
               onClick={() => void handleCreateBackup()}
               disabled={loading}
-              className="h-[38px] px-4 bg-brand dark:bg-paid-bright hover:bg-brand-hover dark:hover:bg-paid disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-muted-dark text-white dark:text-slate-900 rounded text-[12.5px] font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
+              className="h-10 px-5 bg-brand dark:bg-paid-bright hover:bg-brand-hover dark:hover:bg-paid-bright-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-muted-dark text-white dark:text-surface-dark rounded-lg text-xs font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-colors shadow-sm cursor-pointer"
             >
               {loading ? (
                 <>
@@ -383,18 +371,18 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
         </div>
 
         {/* Status Metrics Strip */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-[12px]">
-          <div className="p-3 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1">
-            <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark font-medium">تاريخ آخر نسخة ناجحة</span>
-            <div className="flex items-center gap-1.5 font-bold text-ink dark:text-ink-dark">
-              <Clock className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
+          <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+            <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-medium">تاريخ آخر نسخة ناجحة</span>
+            <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark">
+              <Clock className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
               <span>{formatDate(status?.lastBackupAt || '')}</span>
             </div>
           </div>
 
-          <div className="p-3 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1">
-            <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark font-medium">حالة الأمان</span>
-            <div className="flex items-center gap-1.5 font-bold">
+          <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+            <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-medium">حالة الأمان</span>
+            <div className="flex items-center gap-2 font-bold">
               {status?.isOverdue ? (
                 <>
                   <span className="w-2 h-2 rounded-full bg-warn dark:bg-warn-bright"></span>
@@ -407,25 +395,25 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
                 </>
               ) : (
                 <>
-                  <span className="w-2 h-2 rounded-full bg-gray-400 dark:bg-gray-600"></span>
+                  <span className="w-2 h-2 rounded-full bg-line-hover dark:bg-line-dark-hover"></span>
                   <span className="text-ink-muted dark:text-ink-muted-dark">لم يتم النسخ بعد</span>
                 </>
               )}
             </div>
           </div>
 
-          <div className="p-3 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1">
-            <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark font-medium">حجم النسخة الأخيرة</span>
-            <div className="flex items-center gap-1.5 font-bold text-ink dark:text-ink-dark font-mono">
-              <HardDrive className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark" />
+          <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+            <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-medium">حجم النسخة الأخيرة</span>
+            <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark font-mono">
+              <HardDrive className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark shrink-0" />
               <span>{formatBytes(status?.lastBackupSizeBytes || 0)}</span>
             </div>
           </div>
 
-          <div className="p-3 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1">
-            <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark font-medium">فحص السلامة الآلي</span>
-            <div className="flex items-center gap-1.5 font-bold text-paid dark:text-paid-bright">
-              <ShieldCheck className="w-3.5 h-3.5" />
+          <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+            <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-medium">فحص السلامة الآلي</span>
+            <div className="flex items-center gap-2 font-bold text-paid dark:text-paid-bright">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
               <span>PRAGMA Verified OK</span>
             </div>
           </div>
@@ -433,14 +421,14 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
       </div>
 
       {/* 3. Backup Policy & Drive Selection Card (Tasks 9-1, 9-3, 9-4, 9-5) */}
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-5 flex flex-col gap-4 shadow-2xs">
-        <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-2">
-          <div className="flex items-center gap-2">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 sm:p-6 flex flex-col gap-5 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line dark:border-line-dark pb-4">
+          <div className="flex items-center gap-2.5">
             <FolderCheck className="w-4 h-4 text-brand dark:text-brand-bright" />
-            <h3 className="text-[13px] font-bold text-ink dark:text-ink-dark m-0">سياسة النسخ ومكان الحفظ (فلاشة USB / مجلد محلي)</h3>
+            <h3 className="t-card-title text-ink dark:text-ink-dark m-0">سياسة النسخ ومكان الحفظ (فلاشة USB / مجلد محلي)</h3>
           </div>
           {settingsSaved && (
-            <span className="text-[11px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded border border-paid-border dark:border-paid-bright/30">
+            <span className="text-xs font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2.5 py-1 rounded border border-paid-border dark:border-paid-bright/30">
               تم حفظ السياسة بنجاح
             </span>
           )}
@@ -448,36 +436,36 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
 
         {/* USB Flash Drive Quick Selection */}
         <div>
-          <label className="block text-ink dark:text-ink-dark font-semibold text-[12px] mb-1.5">
+          <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2.5">
             الأقراص والفلاشات المتصلة بالجهاز (اختر الفلاشة بضغطة واحدة):
           </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {drives.map((d) => (
               <button
                 type="button"
                 key={d.name}
                 onClick={() => setTargetFolder(`${d.name}RafiqBackups`)}
-                className={`p-2.5 rounded border text-right transition-all flex items-center justify-between cursor-pointer ${
+                className={`p-3.5 rounded-lg border text-right transition-all flex items-center justify-between gap-3 cursor-pointer ${
                   targetFolder.startsWith(d.name)
                     ? 'bg-brand-soft dark:bg-brand-bright/20 border-brand dark:border-brand-bright text-brand dark:text-brand-bright ring-1 ring-brand/30 dark:ring-brand-bright/30'
                     : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark-hover text-ink dark:text-ink-dark'
                 }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {d.isRemovable ? (
-                    <Usb className="w-4 h-4 text-brand dark:text-brand-bright" />
+                    <Usb className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
                   ) : (
-                    <HardDrive className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
+                    <HardDrive className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark shrink-0" />
                   )}
                   <div>
-                    <span className="font-bold text-[12px] block text-ink dark:text-ink-dark">{d.name} {d.label}</span>
-                    <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark font-mono block">
+                    <span className="font-bold text-xs block text-ink dark:text-ink-dark">{d.name} {d.label}</span>
+                    <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-mono block mt-0.5">
                       المتاح: {formatBytes(d.freeSpaceBytes)} / {formatBytes(d.totalSpaceBytes)}
                     </span>
                   </div>
                 </div>
                 {d.isRemovable && (
-                  <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-brand dark:bg-paid-bright text-white dark:text-slate-900 font-bold">
+                  <span className="text-micro px-2 py-0.5 rounded bg-brand dark:bg-paid-bright text-white dark:text-surface-dark font-bold shrink-0">
                     فلاشة USB
                   </span>
                 )}
@@ -488,35 +476,35 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
 
         {/* Target Folder Path Input */}
         <div>
-          <label className="block text-ink dark:text-ink-dark font-semibold text-[12px] mb-1">
+          <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2">
             مسار مجلد النسخ الاحتياطي:
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-3">
             <input
               type="text"
               value={targetFolder}
               onChange={(e) => setTargetFolder(e.target.value)}
               placeholder="مثال: E:\RafiqBackups أو C:\RafiqBackups"
-              className="flex-1 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[38px] px-3 text-[12.5px] text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
+              className="flex-1 min-w-[14rem] bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
             />
             <button
               type="button"
               onClick={() => setTargetFolder(status?.configuredFolder || '')}
-              className="px-3 h-[38px] bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark rounded text-[11px] font-semibold text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
+              className="px-4 h-10 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark rounded-lg text-xs font-semibold whitespace-nowrap text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
             >
               استعادة الافتراضي
             </button>
           </div>
-          <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 leading-relaxed font-sans">
+          <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-2 leading-relaxed font-sans">
             ملاحظة: لو الفلاشة اتفصلت أو تعذر الحفظ فيها، النظام بيحفظ تلقائياً في مجلد آمن داخل الجهاز عشان البيع ما يقفش أبداً.
           </p>
         </div>
 
         {/* Automation Triggers & Retention Rules Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-line dark:border-line-dark text-[12px]">
+        <div className="grid grid-cols-1 gap-5 pt-5 border-t border-line dark:border-line-dark text-xs">
           {/* Checkboxes */}
-          <div className="flex flex-col gap-2.5">
-            <label className="flex items-center gap-2 cursor-pointer font-medium text-ink dark:text-ink-dark">
+          <div className="flex flex-col gap-3.5">
+            <label className="flex items-center gap-2.5 cursor-pointer font-medium text-sm text-ink dark:text-ink-dark">
               <input
                 type="checkbox"
                 checked={autoOnClose}
@@ -526,7 +514,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
               <span>أخذ نسخة احتياطية تلقائياً عند قفل البرنامج (موصى به جداً)</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer font-medium text-ink dark:text-ink-dark">
+            <label className="flex items-center gap-2.5 cursor-pointer font-medium text-sm text-ink dark:text-ink-dark">
               <input
                 type="checkbox"
                 checked={autoDaily}
@@ -538,57 +526,57 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
           </div>
 
           {/* Retention Numbers */}
-          <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
               <div>
-                <label className="block text-[11px] text-ink-muted dark:text-ink-muted-dark font-medium mb-1">حفظ نسخ آخر (أيام):</label>
+                <label className="block text-xs text-ink-muted dark:text-ink-muted-dark font-medium mb-1.5">حفظ نسخ آخر (أيام):</label>
                 <input
                   type="number"
                   min="1"
                   max="60"
                   value={retentionDays}
                   onChange={(e) => setRetentionDays(parseInt(e.target.value) || 7)}
-                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-ink-muted dark:text-ink-muted-dark font-medium mb-1">نسخ أسبوعية (أسابيع):</label>
+                <label className="block text-xs text-ink-muted dark:text-ink-muted-dark font-medium mb-1.5">نسخ أسبوعية (أسابيع):</label>
                 <input
                   type="number"
                   min="1"
                   max="52"
                   value={retentionWeeks}
                   onChange={(e) => setRetentionWeeks(parseInt(e.target.value) || 4)}
-                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-ink-muted dark:text-ink-muted-dark font-medium mb-1">أقصى عدد نسخ (نسخة):</label>
+                <label className="block text-xs text-ink-muted dark:text-ink-muted-dark font-medium mb-1.5">أقصى عدد نسخ (نسخة):</label>
                 <input
                   type="number"
                   min="3"
                   max="50"
                   value={maxCopies}
                   onChange={(e) => setMaxCopies(parseInt(e.target.value) || 20)}
-                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-ink-muted dark:text-ink-muted-dark font-medium mb-1">تنبيه بعد (أيام):</label>
+                <label className="block text-xs text-ink-muted dark:text-ink-muted-dark font-medium mb-1.5">تنبيه بعد (أيام):</label>
                 <input
                   type="number"
                   min="1"
                   max="30"
                   value={warnAfterDays}
                   onChange={(e) => setWarnAfterDays(parseInt(e.target.value) || 2)}
-                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-10 px-2 text-sm font-bold font-mono text-ink dark:text-ink-dark text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
               </div>
             </div>
-            <p className="text-[10.5px] text-ink-muted dark:text-ink-muted-dark font-sans m-0 leading-relaxed">
+            <p className="text-xs text-ink-muted dark:text-ink-muted-dark font-sans m-0 leading-relaxed">
               * محرك الاستبقاء الآمن: بيدمج نسخ نفس اليوم لمنع تراكم الملفات عند قفل البرنامج وفتحه، وبيحتفظ دائماً بـ 3 نسخ سليمة كحد أدنى مضمون مهما حصل.
             </p>
           </div>
@@ -597,7 +585,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
         <button
           type="button"
           onClick={() => void handleSavePolicy()}
-          className="self-end mt-1 px-4 h-[36px] bg-brand dark:bg-paid-bright hover:bg-brand-hover dark:hover:bg-paid text-white dark:text-slate-900 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+          className="self-end h-10 px-5 bg-brand dark:bg-paid-bright hover:bg-brand-hover dark:hover:bg-paid-bright-hover text-white dark:text-surface-dark rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
         >
           <Save className="w-3.5 h-3.5" />
           <span>حفظ وتطبيق سياسة النسخ</span>
@@ -605,26 +593,25 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
       </div>
 
       {/* 4. List of Existing Backups (Tasks 9-1 & 125-2) */}
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-5 flex flex-col gap-3 text-[12px] shadow-2xs">
-        <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-2">
-          <div className="flex items-center gap-2">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 sm:p-6 flex flex-col gap-4 text-xs shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line dark:border-line-dark pb-4">
+          <div className="flex items-center gap-2.5">
             <Database className="w-4 h-4 text-brand dark:text-brand-bright" />
-            <h3 className="text-[13px] font-bold text-ink dark:text-ink-dark m-0">سجل النسخ الاحتياطية المتوفرة في المجلد</h3>
+            <h3 className="t-card-title text-ink dark:text-ink-dark m-0">سجل النسخ الاحتياطية المتوفرة في المجلد</h3>
           </div>
-          <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
+          <span className="text-xs text-ink-muted dark:text-ink-muted-dark">
             إجمالي النسخ: {status?.recentBackups?.length ?? 0}
           </span>
         </div>
 
         {status?.recentBackups && status.recentBackups.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-right border-collapse text-[11.5px]">
+            <table className="w-full text-right border-collapse text-xs">
               <thead>
                 <tr className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border-b border-line dark:border-line-dark">
                   <th className="py-2 px-3 font-semibold">اسم ملف النسخة</th>
                   <th className="py-2 px-3 font-semibold">تاريخ الإنشاء</th>
                   <th className="py-2 px-3 font-semibold">الحجم</th>
-                  <th className="py-2 px-3 font-semibold text-center">فحص السلامة</th>
                   <th className="py-2 px-3 font-semibold text-center">الإجراءات</th>
                 </tr>
               </thead>
@@ -634,12 +621,6 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
                     <td className="py-2.5 px-3 font-semibold text-ink dark:text-ink-dark">{bk.fileName}</td>
                     <td className="py-2.5 px-3 text-ink-muted dark:text-ink-muted-dark">{bk.createdAt}</td>
                     <td className="py-2.5 px-3 text-ink dark:text-ink-dark font-bold">{formatBytes(bk.sizeBytes)}</td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-[10.5px] font-sans font-bold border border-paid-border dark:border-paid-bright/30">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>تم التحقق</span>
-                      </span>
-                    </td>
                     <td className="py-2.5 px-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
@@ -656,22 +637,24 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
                               setActionMessage({ text: `فشل الفحص: ${msg}`, type: 'error' });
                             }
                           }}
-                          className="px-2 py-1 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark rounded text-[11px] font-sans text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
+                          className="px-2 py-1 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark rounded text-micro font-sans text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
                           title="إعادة فحص سلامة وتطابق النسخة"
                         >
                           <ShieldCheck className="w-3 h-3 text-paid dark:text-paid-bright" />
                           <span>فحص</span>
                         </button>
 
+                        {isOwnerOrRoot && (
                         <button
                           type="button"
                           onClick={() => setRestoreTarget(bk)}
-                          className="px-2.5 py-1 bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand dark:hover:bg-paid-bright hover:text-white dark:hover:text-slate-900 border border-line dark:border-line-dark rounded text-[11px] font-sans font-bold text-ink dark:text-ink-dark transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
+                          className="px-2.5 py-1 bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand dark:hover:bg-paid-bright hover:text-white dark:hover:text-surface-dark border border-line dark:border-line-dark rounded text-micro font-sans font-bold text-ink dark:text-ink-dark transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
                           title="استرجاع قاعدة البيانات من هذه النسخة"
                         >
                           <RotateCcw className="w-3 h-3" />
                           <span>استرجاع</span>
                         </button>
+                        )}
                       </div>
                     </td>
                   </tr>

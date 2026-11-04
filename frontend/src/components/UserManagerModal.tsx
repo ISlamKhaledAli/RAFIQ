@@ -18,6 +18,7 @@ import {
   Edit3,
   Eye,
   EyeOff,
+  Trash2,
   UserCheck,
   UserX,
   Settings,
@@ -37,14 +38,55 @@ import {
   HeartPulse,
   Coffee,
 } from 'lucide-react';
-import { invoke } from '../bridge/ipc';
+import { invoke, deleteUser } from '../bridge/ipc';
 import type { UserDto } from '../bridge/ipc';
 import { useAuth } from '../context/useAuth';
 import { useFeatures } from '../context/useFeatures';
-import { CustomSelect } from './CustomSelect';
-import type { SelectOption } from './CustomSelect';
 import { ToggleSwitch } from './ToggleSwitch';
+import { ConfirmModal } from './ConfirmModal';
+import { isValidPinFormat, isWeakPin } from '../utils/pinPolicy';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { PERMISSION_GROUPS } from '../constants/permissionGroups';
+import type { PermissionGroupDef, PermissionIconId } from '../constants/permissionGroups';
+import {
+  canManageUser,
+  getRoleBadgeClasses,
+  getRoleKind,
+  getRoleLabel,
+  getTier,
+  ROLE_LABEL_CASHIER,
+  ROLE_LABEL_MANAGER,
+} from '../utils/roleLabels';
+
+const PERMISSION_ICONS: Record<PermissionIconId, React.ReactNode> = {
+  cart: <ShoppingCart className="w-4 h-4 text-brand" />,
+  pricing: <DollarSign className="w-4 h-4 text-brand" />,
+  shifts: <Clock className="w-4 h-4 text-brand" />,
+  invoices: <FileText className="w-4 h-4 text-brand" />,
+  customers: <Users className="w-4 h-4 text-brand" />,
+  products: <Package className="w-4 h-4 text-brand" />,
+  stock: <ClipboardList className="w-4 h-4 text-brand" />,
+  purchases: <Truck className="w-4 h-4 text-brand" />,
+  expenses: <CreditCard className="w-4 h-4 text-brand" />,
+  epay: <Smartphone className="w-4 h-4 text-brand" />,
+  wallets: <Wallet className="w-4 h-4 text-brand" />,
+  reports: <BarChart2 className="w-4 h-4 text-brand" />,
+  settings: <Settings className="w-4 h-4 text-brand" />,
+  users: <Shield className="w-4 h-4 text-brand" />,
+  pharma: <Pill className="w-4 h-4 text-brand" />,
+  insurance: <Building2 className="w-4 h-4 text-brand" />,
+  patients: <HeartPulse className="w-4 h-4 text-brand" />,
+  cafe: <Coffee className="w-4 h-4 text-brand" />,
+};
+
+type PermissionGroup = PermissionGroupDef;
+
+/** Tree order: root/owner first, managers before cashiers, then by display name. */
+function sortTreeNodes(nodes: UserDto[]): UserDto[] {
+  return [...nodes]
+    .sort((a, b) => getTier(b) - getTier(a) || a.displayName.localeCompare(b.displayName, 'ar'))
+    .map((n) => (n.children && n.children.length > 0 ? { ...n, children: sortTreeNodes(n.children) } : n));
+}
 
 interface UserManagerModalProps {
   isOpen: boolean;
@@ -54,294 +96,46 @@ interface UserManagerModalProps {
   currentUser?: UserDto | null;
 }
 
-interface PermissionItem {
-  key: string;
-  label: string;
-  description: string;
-}
+// Builds the hierarchy locally from the flat list: owner on top, managers directly beneath the owner,
+// cashiers beneath their creator (or the owner when the creator is not visible).
+function buildTreeFromFlat(flatList: UserDto[]): UserDto[] {
+  const map = new Map<string, UserDto>();
+  const roots: UserDto[] = [];
+  const owner = flatList.find((u) => getRoleKind(u) === 'owner');
 
-interface PermissionGroup {
-  id: string;
-  name: string;
-  icon: React.ReactNode;
-  items: PermissionItem[];
-}
+  flatList.forEach((u) => {
+    map.set(u.id, { ...u, children: [] });
+  });
 
-const PERMISSION_GROUPS: PermissionGroup[] = [
-  {
-    id: 'pos',
-    name: 'نقاط البيع والكاشير',
-    icon: <ShoppingCart className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'pos.access', label: 'دخول شاشة البيع', description: 'السماح بفتح شاشة البيع وإجراء عمليات الكاشير' },
-      { key: 'pos.sell', label: 'إتمام عمليات البيع', description: 'حفظ الفاتورة وقبض القيمة وطباعة الإيصال' },
-      { key: 'pos.discount_line', label: 'خصم على صنف', description: 'إمكانية إعطاء خصم على صنف معين' },
-      { key: 'pos.discount_invoice', label: 'خصم على الفاتورة', description: 'إمكانية إعطاء خصم إجمالي على الفاتورة' },
-      { key: 'pos.discount_unlimited', label: 'تجاوز حد الخصم', description: 'إمكانية إعطاء خصومات تفوق النسبة المحددة للمحل' },
-      { key: 'pos.hold_invoice', label: 'تعليق واسترجاع الفواتير', description: 'تعليق الطلبات في الوردية واستئنافها لاحقاً' },
-      { key: 'pos.price_override', label: 'تعديل السعر يدوياً', description: 'تغيير سعر بيع الصنف مباشرة أثناء البيع' },
-      { key: 'pos.void_line', label: 'حذف سطر من الفاتورة', description: 'حذف منتج تم إدخاله في الفاتورة الحالية' },
-      { key: 'pos.quick_add', label: 'إضافة صنف سريع', description: 'إضافة بند مباشر بدون كود مسبق' },
-      { key: 'pos.reprint', label: 'إعادة طباعة الفاتورة', description: 'إعادة طباعة إيصالات العمليات السابقة' },
-      { key: 'pos.change_unit', label: 'تبديل وحدة البيع بالكاشير', description: 'السماح بالتبديل السريع بين العلبة والشريط والقرص أثناء البيع (مفتاح /)' },
-      { key: 'pos.select_batch', label: 'اختيار تشغيلة/دفعة الصنف يدوياً', description: 'السماح للكاشير باختيار تشغيلة معينة بدلاً من صرف الأقرب للصلاحية تلقائياً' },
-    ],
-  },
-  {
-    id: 'shifts',
-    name: 'الورديات والخزينة وحركات الدرج',
-    icon: <Clock className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'shifts.view', label: 'الاطلاع على الوردية وسجل الدرج', description: 'السماح بالاطلاع على تفاصيل الوردية الحالية والسابقة وحركات النقدية' },
-      { key: 'shifts.open', label: 'فتح وردية جديدة واستلام الدرج', description: 'السماح بفتح وردية عمل جديدة وإدخال العهدة الافتتاحية' },
-      { key: 'shifts.close', label: 'إغلاق وتشميع الوردية وتسليم النقدية', description: 'السماح بإغلاق الوردية وإدخال النقد الفعلي بالدرج واحتساب العجز والزيادة' },
-      { key: 'shifts.cash_in', label: 'تغذية نقدية للدرج (Cash In)', description: 'إضافة مبالغ نقدية كفكة أو عهدة إضافية للدرج' },
-      { key: 'shifts.cash_out', label: 'سحب نقدي من الدرج (Cash Out)', description: 'سحب مبالغ نقدية من الدرج لتوريدها للخزينة الرئيسية' },
-    ],
-  },
-  {
-    id: 'epay',
-    name: 'خدمات وماكينات الدفع الإلكتروني',
-    icon: <Smartphone className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'epay.access', label: 'دخول خدمات وماكينات الدفع', description: 'السماح بفتح قسم الدفع والخدمات الإلكترونية' },
-      { key: 'epay.transact', label: 'تنفيذ عمليات الدفع وشحن الرصيد', description: 'تسجيل ودفع فواتير، كروت شحن، تحويل محافظ' },
-      { key: 'epay.fund', label: 'تغذية وشحن رصيد الماكينات', description: 'إضافة وشحن رصيد لماكينات الدفع من الدرج أو البنك' },
-      { key: 'epay.terminals_manage', label: 'إدارة وضبط ماكينات الدفع', description: 'إضافة وتعديل بيانات الماكينات وحساباتها والعمولات الافتراضية' },
-      { key: 'epay.history', label: 'سجل العمليات والإيصالات', description: 'الاطلاع على أرشيف عمليات الدفع والإيصالات المطبوعة' },
-      { key: 'epay.analytics', label: 'الاطلاع على أرباح وتحليلات الماكينات', description: 'عرض تقارير صافي الربح وعمولات الشركات المستقلة' },
-      { key: 'epay.cancel', label: 'إلغاء واسترجاع عمليات الدفع', description: 'إلغاء عملية دفع إلكتروني مسجلة واسترجاع رصيد الماكينة تلقائياً' },
-    ],
-  },
-  {
-    id: 'wallets',
-    name: 'المحافظ الإلكترونية وإنستاباي',
-    icon: <Wallet className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'wallets.access', label: 'دخول شاشة المحافظ وإنستاباي', description: 'السماح بفتح قسم المحافظ وإنستاباي وإجراء العمليات' },
-      { key: 'wallets.transact', label: 'تنفيذ عمليات السحب والإيداع', description: 'تسجيل عمليات سحب كاش وإيداع مع تحديد الربح والمبلغ' },
-      { key: 'wallets.fund', label: 'تغذية وشحن أرصدة المحافظ', description: 'إيداع وشحن رصيد جديد للمحافظ وإنستاباي من الدرج أو البنك' },
-      { key: 'wallets.accounts_manage', label: 'إدارة وتعديل المحافظ والحسابات', description: 'إضافة وتعديل بيانات المحافظ وأرقام الهواتف والحدود الشهرية' },
-      { key: 'wallets.history', label: 'سجل حركات وعمليات المحافظ', description: 'الاطلاع على سجل المعاملات والإيصالات لكل محفظة' },
-      { key: 'wallets.analytics', label: 'أرباح وتحليلات المحافظ وإنستاباي', description: 'الاطلاع على إجمالي الأرصدة وصافي أرباح العمليات المباشرة' },
-    ],
-  },
-  {
-    id: 'invoices',
-    name: 'الفواتير والمرتجعات',
-    icon: <FileText className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'invoices.view', label: 'عرض سجل الفواتير', description: 'استعراض فواتير المبيعات السابقة' },
-      { key: 'invoices.cancel', label: 'إلغاء الفواتير', description: 'إلغاء فاتورة مسجلة ورد البضاعة للمخزن' },
-      { key: 'returns.create', label: 'عمل مرتجع بفاتورة', description: 'استرجاع بضاعة استناداً لرقم فاتورة أصلية' },
-      { key: 'returns.without_invoice', label: 'مرتجع بدون فاتورة', description: 'استرجاع بضاعة نقدية بدون توفر الفاتورة الأصلية' },
-    ],
-  },
-  {
-    id: 'products',
-    name: 'الأصناف والمخزون',
-    icon: <Package className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'products.view', label: 'عرض الأصناف', description: 'استعراض قائمة المنتجات وأسعار البيع' },
-      { key: 'products.create', label: 'إضافة صنف جديد', description: 'إدخال منتج جديد وتعيين باركود وسعر' },
-      { key: 'products.edit', label: 'تعديل بيانات الأصناف', description: 'تعديل الاسم والباركود والوحدات' },
-      { key: 'products.packaging.edit', label: 'تعديل منظومة التعبئة والتجزئة', description: 'السماح بتعريف وإدارة مستويات العبوات والبيع المفكوك' },
-      { key: 'products.unit_rebase', label: 'إعادة التأسيس الذري للوحدات', description: 'السماح بتحويل الوحدة الأساسية للصنف ومضاعفة الرصيد والتشغيلات' },
-      { key: 'products.edit_price', label: 'تعديل سعر البيع', description: 'تعديل سعر البيع القطاعي والجملة' },
-      { key: 'products.edit_cost', label: 'الاطلاع وتعديل التكلفة', description: 'رؤية سعر الشراء الحقيقي وتعديله' },
-      { key: 'products.archive', label: 'أرشفة / حذف صنف', description: 'تعطيل أو حذف صنف من المنظومة' },
-      { key: 'products.clear_all', label: 'تصفير وأرشفة كافة الأصناف', description: 'صلاحية حساسة لأرشفة كافة أصناف المحل دفعة واحدة' },
-      { key: 'products.import', label: 'استيراد من إكسل', description: 'رفع ملفات إكسل لإضافة وتحديث المنتجات' },
-      { key: 'products.export', label: 'تصدير المخزون', description: 'تصدير بيانات الأصناف والمخزون لملفات خارجية' },
-      { key: 'categories.manage', label: 'إدارة التصنيفات', description: 'إضافة وتعديل أقسام المنتجات' },
-      { key: 'stock.view', label: 'عرض كميات المخزون', description: 'الاطلاع على الجرد والأرصدة الحالية' },
-      { key: 'stock.adjust', label: 'تسوية الجرد والمخزن', description: 'تعديل الكميات يدوياً بعد الجرد الفعلي' },
-      { key: 'stock.movement_log', label: 'سجل حركة المخزون', description: 'متابعة كارت الصنف وتقرير حركاته' },
-      { key: 'inventory.locations.manage', label: 'إدارة مواقع التخزين والرفوف والأدراج', description: 'إضافة وتعديل وحذف أماكن التخزين وطباعة باركود الرفوف وتوليد مسودات الجرد' },
-    ],
-  },
-  {
-    id: 'purchases',
-    name: 'المشتريات والموردين',
-    icon: <Truck className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'purchases.view', label: 'عرض المشتريات', description: 'استعراض فواتير التوريد من الموردين' },
-      { key: 'purchases.create', label: 'تسجيل فاتورة شراء', description: 'إضافة وارد بضاعة وتحديث التكلفة والأرصدة' },
-      { key: 'suppliers.manage', label: 'إدارة الموردين', description: 'إضافة الموردين ومتابعة كشوف حساباتهم وسدادهم' },
-    ],
-  },
-  {
-    id: 'shortages',
-    name: 'دفتر النواقص وطلبيات الموردين',
-    icon: <ClipboardList className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'shortage.view', label: 'الاطلاع على دفتر النواقص', description: 'السماح باستعراض النواقص ومقترحات الطلبيات وتقارير المبيعات المفقودة' },
-      { key: 'shortage.manage', label: 'تسجيل وإدارة النواقص', description: 'السماح بتسجيل نواقص جديدة يدوياً وتعديل حالتها وحذفها' },
-      { key: 'shortage.convert_to_purchase', label: 'تحويل النواقص لطلبيات شراء', description: 'السماح بتجميع النواقص وتحويلها لأوامر شراء مقترحة ومسودات فواتير توريد' },
-    ],
-  },
-  {
-    id: 'pharma',
-    name: 'المنظومة الدوائية والبدائل',
-    icon: <Pill className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'pharma.drug_info.edit', label: 'تعديل البيانات الدوائية والمواد الفعالة', description: 'السماح بتعديل الاسم العلمي والأشكال الدوائية والجرعات والمواد الفعالة للصنف' },
-      { key: 'pharma.alternatives.view', label: 'استعراض البدائل والمثائل الدوائية', description: 'السماح بفتح محرك البدائل في شاشة البيع واقتراح المثائل والبدائل للعميل (F8)' },
-      { key: 'pharma.controlled.dispense', label: 'صرف أدوية الجدول والرقابة', description: 'السماح بصرف أدوية الجدول والمهدئات وتوثيق بيانات المريض والطبيب والروشتة' },
-      { key: 'pharma.controlled.approve', label: 'اعتماد وموافقة صرف الجدول (صيدلي مشرف)', description: 'صلاحية الصيدلي المشرف لاعتماد صرف أدوية الجدول وإدخال رمز PIN' },
-      { key: 'pharma.controlled.register_view', label: 'استعراض دفتر التفتيش الصيدلي', description: 'الاطلاع على دفتر أدوية الجدول والرقابة والرصيد التراكمي وطباعته A4' },
-      { key: 'pharma.controlled.view_full', label: 'عرض الأرقام القومية للمرضى كاملة', description: 'إلغاء تقنيع الأرقام القومية في السجل ودفتر التفتيش لأغراض الرقابة الرسمية' },
-      { key: 'prescriptions.manage', label: 'إدارة وأرشفة الروشتات الطبية', description: 'أرشفة الروشتات وإرفاق الصور الطبية والبحث في السجل الطبي للمرضى' },
-      { key: 'pharma.expiry_returns.manage', label: 'إدارة مرتجعات الصلاحية ومحاضر الإعدام', description: 'السماح بفحص نوافذ إرجاع الأدوية للموردين وتحويلها لمرتجع واعتماد محاضر إعدام البضاعة المنتهية' },
-      { key: 'pharma.drug_reference.import', label: 'استيراد وتحديث دليل الأدوية المرجعي', description: 'السماح باستيراد ومطابقة ملفات إكسل الدليل المرجعي الخارجي وتحديث الأسعار الرسمية' },
-      { key: 'pharma.stocktaking.manage', label: 'الجرد الصيدلي المتقدم والتسويات', description: 'السماح بجرد الصيدلية حسب الرف والتشغيلة وإدخال الكميات المركبة واعتماد فروق الجرد' },
-      { key: 'pharma.dosage_labels.print', label: 'طباعة ملصقات الجرعات الطبية', description: 'السماح بطباعة ملصقات تعليمات الجرعة والاستخدام الحرارية لعبوات المرضى' },
-      { key: 'reports.pharma.view', label: 'تقارير الصيدلية وخريطة الصلاحيات', description: 'الاطلاع على خريطة الصلاحيات الشهرية بالأدوية الراكدة وأرباح الشركات والمواد الفعالة' },
-      { key: 'pharma.ddi.manage', label: 'إدارة واستيراد جدول التفاعلات الدوائية', description: 'السماح بإضافة وتعديل وحذف التفاعلات الدوائية واستيرادها من الإكسل' },
-      { key: 'pharma.ddi.override', label: 'تجاوز تحذيرات التفاعلات الدوائية الحرجة', description: 'صلاحية الصيدلي المشرف لتجاوز منع الصرف للتفاعلات الخطيرة وإدخال PIN' },
-    ],
-  },
-  {
-    id: 'insurance',
-    name: 'التأمين الطبي والتعاقدات ومطالبات الشركات',
-    icon: <Building2 className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'insurance.manage_contracts', label: 'إدارة شركات وعقود التأمين', description: 'إضافة وتعديل وحذف شركات التأمين الطبي وبنود العقود ونسب التحمل وقوائم المستثنيات' },
-      { key: 'insurance.sell', label: 'صرف روشتات التأمين للكاشير', description: 'السماح بصرف فواتير روشتات التأمين واحتساب نسبة تحمل المريض وحصة الشركة' },
-      { key: 'insurance.claims.manage', label: 'إدارة ومطالبات التأمين الشهرية', description: 'تجميع الفواتير المعلقة في مطالبات شهرية رسمية وتصديرها إكسل للشركات' },
-      { key: 'insurance.claims.settle', label: 'تسوية مطالبات التأمين والرفوضات', description: 'تسوية مبالغ المطالبات المعتمدة وتسجيل الرفوضات وترحيلها التلقائي للمصروفات' },
-    ],
-  },
-  {
-    id: 'patients',
-    name: 'ملفات المرضى والأمراض المزمنة وتنبيهات الاستحقاق',
-    icon: <HeartPulse className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'patients.view', label: 'استعراض الملف الطبي وتنبيهات الاستحقاق', description: 'الاطلاع على الملف الطبي للمريض والحساسية وتنبيهات مواعيد صرف العلاج الشهري' },
-      { key: 'patients.edit', label: 'تعديل الملف الطبي وتسجيل الأدوية المزمنة', description: 'تعديل بيانات الحساسية والأمراض المزمنة وإضافة وحذف الأدوية الدورية للمريض' },
-    ],
-  },
-  {
-    id: 'cafe_restaurant',
-    name: 'الكافيهات والمطاعم والدليفري والتصنيع',
-    icon: <Coffee className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'tables.view', label: 'استعراض خريطة الصالة والطاولات', description: 'فتح خريطة الصالة ومتابعة حالة الطاولات والطلبات المفتوحة' },
-      { key: 'tables.manage_orders', label: 'فتح الطاولات وإدارة طلبات الصالة', description: 'فتح طاولة جديدة، إضافة الأصناف، وطباعة شيك المراجعة للضيوف' },
-      { key: 'tables.transfer_merge', label: 'نقل ودمج الطاولات', description: 'نقل طلب طاولة لطاولة أخرى أو دمج حساب طاولتين معاً' },
-      { key: 'tables.split_bill', label: 'تقسيم فاتورة الطاولة بالأصناف', description: 'فصل أصناف محددة من الطاولة لسدادها بشكل مستقل لكل ضيف' },
-      { key: 'tables.configure_floor', label: 'تعديل تصميم الصالة والطاولات', description: 'إضافة وتعديل وحذف الطاولات والأقسام وسعة المقاعد' },
-      { key: 'kot.print', label: 'إرسال وطباعة بون المطبخ والبار (KOT)', description: 'إرسال الطلبات الجديدة أو المعدلة لطابعة المطبخ والبار' },
-      { key: 'kot.configure', label: 'إعداد وتوجيه طابعات المطبخ والبار', description: 'تخصيص طابعات المطبخ والبار وربط الأقسام بها' },
-      { key: 'modifiers.manage', label: 'إدارة مجموعات الإضافات والتخصيصات', description: 'إنشاء وتعديل مجموعات الإضافات (السكر، الحليب، الصوصات) وربطها بالأصناف' },
-      { key: 'delivery.orders.manage', label: 'إدارة طلبات الدليفري وإسناد الطيارين', description: 'تسجيل طلبات التوصيل وإسنادها للطيارين وتحديث حالة التوصيل' },
-      { key: 'delivery.riders.settle', label: 'تصفية عهدة الطيارين وتحصيل النقدية', description: 'استلام النقدية المحصلة من الطيارين وتقفيل حساباتهم في الدرج' },
-      { key: 'delivery.zones_riders.configure', label: 'إدارة مناطق التوصيل وبيانات الطيارين', description: 'إضافة وتعديل مناطق التوصيل ورسومها وتسجيل بيانات الطيارين وعمولاتهم' },
-      { key: 'recipes.manage', label: 'إدارة الرسبي ومكونات التصنيع (BOM)', description: 'تعريف وتعديل مكونات الأصنيع والهدر وطريقة خصم الخامات' },
-      { key: 'recipes.produce', label: 'تسجيل أوامر الإنتاج والتصنيع المجمع', description: 'تنفيذ دورة إنتاج مجمعة لخصم الخامات وإضافة المنتج التام للمخزون' },
-    ],
-  },
-  {
-    id: 'customers',
-    name: 'العملاء والآجل والديون',
-    icon: <CreditCard className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'customers.view', label: 'عرض العملاء', description: 'استعراض بيانات العملاء وأرقام هواتفهم' },
-      { key: 'customers.create', label: 'إضافة عميل جديد', description: 'تسجيل عميل جديد وفتح ملف حساب' },
-      { key: 'customers.edit', label: 'تعديل بيانات العميل', description: 'تعديل الهاتف وسقف المديونية والاسم' },
-      { key: 'customers.ledger', label: 'كشف حساب العميل', description: 'استعراض سجل المعاملات والديون السابقة' },
-      { key: 'customers.payment', label: 'سداد دفعة / قبض دين', description: 'تسجيل تحصيل مالي من العميل وتوريده للخزينة' },
-      { key: 'customers.payment_cancel', label: 'إلغاء سند قبض', description: 'إلغاء دفعة مسجلة للعميل' },
-      { key: 'customers.credit_sale', label: 'البيع الآجل', description: 'إمكانية إتمام فواتير بيع بالآجل على الحساب' },
-      { key: 'customers.credit_limit', label: 'تحديد وتعديل الحد الائتماني', description: 'صلاحية تغيير الحد الأقصى للمديونية المسموحة للعميل' },
-      { key: 'customers.opening_balance', label: 'إدخال الرصيد الافتتاحي للعميل', description: 'صلاحية تحديد رصيد سابق للعميل عند فتح الحساب' },
-      { key: 'customers.credit_limit_override', label: 'تجاوز الحد الائتماني', description: 'السماح بإتمام فواتير آجل تتجاوز سقف الدين المحدد' },
-    ],
-  },
-  {
-    id: 'epay',
-    name: 'الدفع الإلكتروني وفواتير الخدمات',
-    icon: <Smartphone className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'epay.access', label: 'دخول شاشة الدفع الإلكتروني', description: 'فتح تبويب ماكينات وخدمات الدفع الإلكتروني' },
-      { key: 'epay.transact', label: 'تنفيذ عمليات شحن ودفع', description: 'تسجيل عمليات شحن رصيد وفواتير ودفع كاش أوت' },
-      { key: 'epay.fund', label: 'تغذية رصيد الماكينات', description: 'إضافة رصيد لماكينات الدفع من الخزينة أو مصادر أخرى' },
-      { key: 'epay.terminals_manage', label: 'إدارة ماكينات الدفع', description: 'إضافة وتعديل بيانات الماكينات وقواعد العمولات' },
-      { key: 'epay.history', label: 'سجل عمليات الدفع', description: 'استعراض تقارير وسجلات حركات الماكينات' },
-      { key: 'epay.analytics', label: 'تحليلات وأرباح الدفع', description: 'الاطلاع على إحصائيات الأرباح والعمولات' },
-      { key: 'epay.cancel', label: 'إلغاء عملية دفع', description: 'إلغاء معاملة دفع وتصحيح الرصيد' },
-      { key: 'epay.balance_adjust', label: 'تسوية رصيد الماكينة يدوياً', description: 'تعديل رصيد الماكينة مع إلزام ذكر السبب وتوثيقه في السجل' },
-    ],
-  },
-  {
-    id: 'wallets',
-    name: 'المحافظ الإلكترونية وإنستاباي',
-    icon: <Wallet className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'wallets.access', label: 'دخول شاشة المحافظ الرقمية', description: 'استعراض حسابات المحافظ وإنستاباي' },
-      { key: 'wallets.transact', label: 'تحويل واستقبال أموال', description: 'تنفيذ عمليات إرسال واستلام عبر المحافظ' },
-      { key: 'wallets.fund', label: 'تغذية رصيد المحفظة', description: 'إضافة رصيد للمحفظة من الدرج أو الحسابات' },
-      { key: 'wallets.accounts_manage', label: 'إدارة حسابات المحافظ', description: 'إضافة وتعديل المحافظ وحسابات إنستاباي' },
-      { key: 'wallets.history', label: 'سجل حركات المحافظ', description: 'الاطلاع على الحركات التاريخية للتحويلات' },
-      { key: 'wallets.analytics', label: 'تحليلات المحافظ', description: 'تقارير الأداء والأرباح الخاصة بالتحويلات' },
-      { key: 'wallets.balance_adjust', label: 'تسوية رصيد المحفظة يدوياً', description: 'تعديل رصيد المحفظة مع إلزام ذكر السبب وتوثيقه في السجل' },
-      { key: 'wallets.cancel', label: 'إلغاء عملية محفظة', description: 'إلغاء معاملة محفظة أو إنستاباي وتصحيح الرصيد' },
-    ],
-  },
-  {
-    id: 'reports',
-    name: 'التقارير المالية والأرباح',
-    icon: <BarChart2 className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'reports.sales', label: 'تقارير المبيعات', description: 'استعراض تقارير فواتير المبيعات وحركة الأصناف' },
-      { key: 'reports.profit', label: 'تقارير الأرباح والخسائر', description: 'الاطلاع على هامش وصافي الربح المالي' },
-      { key: 'reports.inventory', label: 'تقييم المخزون المالي', description: 'قيمة البضاعة بسعر التكلفة والبيع' },
-      { key: 'reports.customers', label: 'تقرير مديونيات العملاء', description: 'إجمالي الديون المعلقة وأعمار الديون' },
-      { key: 'reports.cashier', label: 'تقرير أداء الكاشير', description: 'مبيعات وإيرادات كل موظف على حدة' },
-      { key: 'reports.daily_closing', label: 'إقفال الوردية واليومية', description: 'إجراء تقفيل الصندوق واليومية Z-Report' },
-    ],
-  },
-  {
-    id: 'settings',
-    name: 'إعدادات النظام والنسخ الاحتياطي',
-    icon: <Settings className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'settings.store', label: 'بيانات المحل والفاتورة', description: 'تعديل اسم المحل والهاتف وترويسة الإيصال' },
-      { key: 'settings.printer', label: 'إعدادات الطابعات', description: 'ضبط طابعة الإيصالات وهوامش الطباعة' },
-      { key: 'settings.barcode', label: 'إعدادات الباركود والميزان', description: 'ضبط الباركود وقارئ الميزان الإلكتروني' },
-      { key: 'settings.features', label: 'ميزات ونشاط المحل', description: 'تفعيل وتعطيل ميزات ونشاط المحل والخدمات المتقدمة وتخصيص الواجهات' },
-      { key: 'settings.backup', label: 'النسخ الاحتياطي', description: 'تصدير نسخة احتياطية من قاعدة البيانات' },
-      { key: 'settings.restore', label: 'استعادة النسخ الاحتياطي', description: 'استرجاع بيانات سابقة للنظام' },
-      { key: 'settings.license', label: 'معلومات الترخيص', description: 'الاطلاع على حالة التفعيل والنسخة' },
-    ],
-  },
-  {
-    id: 'users',
-    name: 'إدارة الهيكل الإداري والموظفين',
-    icon: <Users className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'users.view', label: 'استعراض شجرة الموظفين', description: 'رؤية الهيكل الإداري والحسابات التابعة' },
-      { key: 'users.create', label: 'إنشاء حسابات فرعية', description: 'إضافة حسابات جديدة تحت إشراف الحساب' },
-      { key: 'users.edit', label: 'تعديل بيانات الحسابات', description: 'تعديل أسماء وأدوار الحسابات التابعة' },
-      { key: 'users.deactivate', label: 'تفعيل وتعطيل الحسابات', description: 'إيقاف الحسابات التابعة وتفعيلها' },
-      { key: 'users.reset_pin', label: 'تغيير كلمات المرور و PIN', description: 'إعادة ضبط أرقام الدخول للحسابات التابعة' },
-      { key: 'users.delegate', label: 'منح حق التفويض', description: 'السماح للحساب بإنشاء حسابات فرعية وتفويضها' },
-      { key: 'audit_log.view', label: 'سجل التدقيق والرقابة', description: 'الاطلاع على جميع العمليات الحساسة في المحل' },
-    ],
-  },
-  {
-    id: 'expenses',
-    name: 'المصروفات والخزينة',
-    icon: <DollarSign className="w-4 h-4 text-brand" />,
-    items: [
-      { key: 'expenses.view', label: 'عرض المصروفات', description: 'استعراض قيود الصرف وسجلات الخزينة' },
-      { key: 'expenses.create', label: 'تسجيل مصروف جديد', description: 'سحب مبالغ من الدرج أو الخزينة وتسجيل البند والسبب' },
-      { key: 'expenses.edit', label: 'تعديل بنود المصروفات', description: 'تعديل مبالغ وتفاصيل قيود الصرف المسجلة' },
-      { key: 'expenses.delete', label: 'حذف قيود المصروفات', description: 'حذف قيود الصرف المالي وتوثيق السبب في سجل التدقيق' },
-      { key: 'expenses.cancel', label: 'إلغاء قيود المصروفات', description: 'إلغاء وتراجع عن قيد الصرف واسترجاع المبلغ للخزينة' },
-    ],
-  },
-];
+  const wouldCycle = (childId: string, candidateParentId: string): boolean => {
+    let cursor: string | null | undefined = candidateParentId;
+    for (let depth = 0; cursor && depth < 50; depth++) {
+      if (cursor === childId) return true;
+      cursor = map.get(cursor)?.parentId;
+    }
+    return false;
+  };
+
+  flatList.forEach((u) => {
+    const node = map.get(u.id);
+    if (!node) return;
+    const kind = getRoleKind(u);
+    let parentNode: UserDto | undefined;
+    if (kind === 'manager') {
+      parentNode = owner ? map.get(owner.id) : undefined;
+    } else if (kind === 'cashier') {
+      parentNode = (u.parentId ? map.get(u.parentId) : undefined) || (owner ? map.get(owner.id) : undefined);
+    }
+    if (parentNode && parentNode.id !== u.id && !wouldCycle(u.id, parentNode.id)) {
+      parentNode.children = parentNode.children || [];
+      parentNode.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+
+  return sortTreeNodes(roots);
+}
 
 export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   isOpen,
@@ -353,29 +147,38 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const { currentUser: authUser, isRoot, login } = useAuth();
   const currentUser = propCurrentUser || authUser;
   const isRootSession = isRoot || currentUser?.role === 'root' || currentUser?.username === 'root';
+  // A session opened from the login screen with the security PIN acts as the owner.
+  const viewer = useMemo<UserDto | { role: string; isOwner: boolean } | null>(() => {
+    if (supervisorPin && getTier(currentUser) < 2) return { role: 'admin', isOwner: true };
+    return currentUser;
+  }, [supervisorPin, currentUser]);
+  const viewerTier = getTier(viewer);
+  const canChooseManagerRole = viewerTier >= 2;
+  // True for the logged-in account itself (a login-screen supervisor session stands in for the owner account)
+  const isSameAccount = useCallback(
+    (u: UserDto | null | undefined): boolean => {
+      if (!u) return false;
+      if (currentUser?.id === u.id) return true;
+      return Boolean(supervisorPin) && viewerTier === 2 && getRoleKind(u) === 'owner';
+    },
+    [currentUser, supervisorPin, viewerTier]
+  );
   const [users, setUsers] = useState<UserDto[]>([]);
   const [userTree, setUserTree] = useState<UserDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<UserDto | null>(null);
 
   // Form modes: 'none' | 'add' | 'edit' | 'permissions' | 'credentials' | 'switchLogin'
   const [formMode, setFormMode] = useState<'none' | 'add' | 'edit' | 'permissions' | 'credentials' | 'switchLogin'>('none');
   const [selectedUser, setSelectedUser] = useState<UserDto | null>(null);
-  const [credMethod, setCredMethod] = useState<'pin' | 'password'>('pin');
 
   const { isEnabled } = useFeatures();
 
-  // Filter permission groups based on active store features (zero pharmacy leakage in non-pharmacies)
+  // Filter permission groups based on active store features (zero pharmacy/cafe leakage in other stores)
   const visiblePermissionGroups = useMemo(() => {
-    return PERMISSION_GROUPS.filter((group) => {
-      if (group.id === 'pharma' && !isEnabled('feature_pharmacy')) return false;
-      if (group.id === 'insurance' && !isEnabled('feature_insurance')) return false;
-      if (group.id === 'patients' && !isEnabled('feature_patient_profiles')) return false;
-      if (group.id === 'epay' && !isEnabled('feature_epay_services')) return false;
-      if (group.id === 'wallets' && !isEnabled('feature_digital_wallets')) return false;
-      return true;
-    });
+    return PERMISSION_GROUPS.filter((group) => !group.feature || isEnabled(group.feature));
   }, [isEnabled]);
 
   // Search filter
@@ -386,15 +189,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<'admin' | 'cashier'>('cashier');
-  const [password, setPassword] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [currentCredential, setCurrentCredential] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [switchSecret, setSwitchSecret] = useState('');
   const [showSwitchSecret, setShowSwitchSecret] = useState(false);
-  const [canDelegate, setCanDelegate] = useState(false);
-  const [maxDepth, setMaxDepth] = useState(1);
   const [isActive, setIsActive] = useState(true);
   const [permissionsState, setPermissionsState] = useState<Record<string, boolean>>({});
 
@@ -402,52 +201,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
 
 
-  // Helper to construct local hierarchy if getTree returns flat
-  const buildTreeFromFlat = (flatList: UserDto[]): UserDto[] => {
-    const map = new Map<string, UserDto>();
-    const roots: UserDto[] = [];
-
-    flatList.forEach((u) => {
-      map.set(u.id, { ...u, children: [] });
-    });
-
-    flatList.forEach((u) => {
-      const node = map.get(u.id);
-      if (!node) return;
-      if (u.parentId && map.has(u.parentId)) {
-        const parentNode = map.get(u.parentId);
-        if (parentNode) {
-          parentNode.children = parentNode.children || [];
-          parentNode.children.push(node);
-        }
-      } else {
-        roots.push(node);
-      }
-    });
-
-    return roots;
-  };
-
-  // Load Data
+  // Load Data (also the single refresh path after create / edit / role change / delete)
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const allUsersPromise = invoke<UserDto[]>('users:getAll', supervisorPin ? { supervisorPin } : undefined);
-      const treePromise = invoke<UserDto[]>('users:getTree').catch(() => []);
-
-      const [allList, treeList] = await Promise.all([allUsersPromise, treePromise]);
+      const allList = await invoke<UserDto[]>('users:getAll', supervisorPin ? { supervisorPin } : undefined);
       const visibleUsers = (allList || []).filter((u) => isRootSession || u.role !== 'root');
       setUsers(visibleUsers);
-
-      const hasVisibleTree = treeList && treeList.length > 0 && (isRootSession || !treeList.some((t) => t.role === 'root'));
-      if (hasVisibleTree) {
-        setUserTree(treeList);
-      } else {
-        // Fallback: Build tree locally from visible users
-        const tree = buildTreeFromFlat(visibleUsers);
-        setUserTree(tree);
-      }
+      setUserTree(buildTreeFromFlat(visibleUsers));
     } catch (err: any) {
       setError(err?.message || 'تعذر تحميل بيانات المستخدمين والهيكل الإداري.');
     } finally {
@@ -475,16 +237,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     return users.find((u) => u.id === id);
   }, [users]);
 
-  // Check if user is Store Owner or protected Administrator (Cannot have permissions stripped or be deactivated)
-  const isOwnerOrAdmin = useCallback((u: UserDto | null | undefined): boolean => {
-    if (!u) return false;
-    return u.role === 'root' || u.role === 'admin' || u.username === 'admin';
-  }, []);
+  // Owner / manager / root accounts hold every operational permission by default (cashiers are matrix-limited)
+  const isPrivilegedAccount = useCallback((u: UserDto | null | undefined): boolean => getTier(u) >= 1, []);
 
-  // Parent user for permission capping
+  // Parent user for permission capping (the creator; the server decides the real parent)
   const activeParentUser = useMemo(() => {
     if (!parentId) {
-      return currentUser || users.find((u) => u.role === 'root' || u.role === 'admin') || null;
+      return currentUser || users.find((u) => getTier(u) >= 1) || null;
     }
     return findUserById(parentId) || currentUser || null;
   }, [parentId, currentUser, users, findUserById]);
@@ -500,57 +259,29 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         return true;
       }
 
-      // 3. Store Owner / Admin: holds all system permissions by default unless explicitly revoked by Root
-      if (!activeParentUser || isOwnerOrAdmin(activeParentUser)) {
+      // 3. Owner / manager: holds all operational permissions unless explicitly revoked by Root
+      if (!activeParentUser || isPrivilegedAccount(activeParentUser)) {
         if (activeParentUser?.permissions && activeParentUser.permissions[permKey] === false) {
           return false;
         }
         return true;
       }
 
-      // 4. Delegated sub-user (e.g. supervisor cashier): restricted to their assigned permissions
+      // 4. Any other account: restricted to its assigned permissions
       if (!activeParentUser.permissions) return false;
       return !!activeParentUser.permissions[permKey];
     },
-    [isRootSession, activeParentUser, isOwnerOrAdmin]
+    [isRootSession, activeParentUser, isPrivilegedAccount]
   );
 
-  // Eligible Parents for creating a sub-user
-  const eligibleParents = useMemo((): SelectOption[] => {
-    // If root, can choose any user that can delegate, or themselves
-    if (isRootSession) {
-      return users
-        .filter((u) => u.role === 'root' || u.canDelegate || u.role === 'admin')
-        .map((u) => ({
-          value: u.id,
-          label: `${u.displayName} (@${u.username}) [${u.role === 'root' ? 'الروت الأعلى' : u.role === 'admin' ? 'مدير' : 'مفوّض'}]`,
-        }));
-    }
-    // If regular user with delegation, can only be themselves
-    if (currentUser) {
-      return [
-        {
-          value: currentUser.id,
-          label: `${currentUser.displayName} (@${currentUser.username}) [حسابك الحالي]`,
-        },
-      ];
-    }
-    return [];
-  }, [isRootSession, currentUser, users]);
-
-  // Start Add Sub-User
-  const handleStartAdd = (targetParentId?: string) => {
-    const chosenParentId = targetParentId || currentUser?.id || users[0]?.id || '';
-    setParentId(chosenParentId);
+  // Start Add Account (single entry point; the server decides the parent account)
+  const handleStartAdd = () => {
+    setParentId(currentUser?.id || '');
     setUsername('');
     setDisplayName('');
     setRole('cashier');
-    setPassword('');
     setPin('');
     setConfirmPin('');
-    setShowPassword(false);
-    setCanDelegate(false);
-    setMaxDepth(1);
     setIsActive(true);
 
     // Default permissions based on cashier role
@@ -582,8 +313,6 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     setUsername(user.username);
     setDisplayName(user.displayName);
     setRole(user.role === 'admin' ? 'admin' : 'cashier');
-    setCanDelegate(!!user.canDelegate);
-    setMaxDepth(user.maxDepth || 0);
     setIsActive(user.isActive);
     setFormMode('edit');
     setError('');
@@ -596,8 +325,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       setError('حساب الروت يمتلك كافة صلاحيات النظام بشكل دائم وتلقائي، ولا يمكن تقييد أو سحب الصلاحيات منه.');
       return;
     }
-    if (isOwnerOrAdmin(user) && !isRootSession) {
-      setError('لا يمكن تعديل صلاحيات صاحب المحل والمدير إلا من خلال حساب الـ Root الأعلى.');
+    if (getTier(user) >= 1 && !isRootSession) {
+      setError('لا يمكن تعديل صلاحيات المالك والمديرين إلا من خلال حساب المطور (Root).');
       return;
     }
     setSelectedUser(user);
@@ -610,7 +339,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         if (user.permissions && user.permissions[p.key] !== undefined) {
           perms[p.key] = !!user.permissions[p.key];
         } else {
-          perms[p.key] = user.role === 'root' || user.role === 'admin';
+          perms[p.key] = getTier(user) >= 1;
         }
       });
     });
@@ -623,12 +352,9 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   // Start Credentials Manager
   const handleStartCredentials = (user: UserDto) => {
     setSelectedUser(user);
-    setPassword('');
     setPin('');
     setConfirmPin('');
     setCurrentCredential('');
-    setShowPassword(false);
-    setCredMethod(user.role === 'admin' || user.role === 'root' ? 'password' : 'pin');
     setFormMode('credentials');
     setError('');
     setSuccessMsg('');
@@ -649,7 +375,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     e.preventDefault();
     if (!selectedUser) return;
     if (!switchSecret.trim()) {
-      setError('يرجى إدخال الرقم السري (PIN) أو كلمة المرور للمتابعة.');
+      setError('يرجى إدخال الرقم السري (PIN) للمتابعة.');
       return;
     }
 
@@ -681,52 +407,46 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       return;
     }
 
-    if (!pin && !password) {
-      setError('يجب تحديد كلمة مرور أو رقم سري (PIN) للدخول.');
+    if (!pin) {
+      setError('يجب تحديد رقم سري (PIN) للدخول.');
       return;
     }
 
-    if (pin) {
-      if (pin.length < 4 || pin.length > 8 || !/^\d+$/.test(pin)) {
-        setError('الرقم السري (PIN) يجب أن يتكون من 4 إلى 8 أرقام رقمية.');
-        return;
-      }
-      if (pin !== confirmPin) {
-        setError('الرقم السري وتأكيد الرقم السري غير متطابقين.');
-        return;
-      }
+    if (!isValidPinFormat(pin)) {
+      setError('الرقم السري (PIN) يجب أن يتكون من 4 إلى 8 أرقام رقمية.');
+      return;
     }
-
-    if (password && password.length < 4) {
-      setError('كلمة المرور يجب ألا تقل عن 4 أحرف أو أرقام.');
+    if (isWeakPin(pin)) {
+      setError('الرقم السري ضعيف وسهل التخمين. يرجى اختيار رقم سري أقوى (غير مكرر أو متتالي).');
+      return;
+    }
+    if (pin !== confirmPin) {
+      setError('الرقم السري وتأكيد الرقم السري غير متطابقين.');
       return;
     }
 
-    // Verify delegation permission ceiling
+    // Only a manager-or-lower account may be created by this session; managers always create cashiers
+    const effectiveRole: 'admin' | 'cashier' = canChooseManagerRole ? role : 'cashier';
+
+    // Verify the permission ceiling (managers hold all operational permissions, so their matrix is not sent)
+    // Every key is sent explicitly (true/false) so role defaults never re-grant an unchecked key
     const finalPermissions: Record<string, boolean> = {};
-    Object.keys(permissionsState).forEach((k) => {
-      if (permissionsState[k]) {
-        if (!parentHoldsPermission(k)) {
-          // Parent doesn't hold it, cannot grant
-          return;
-        }
-        finalPermissions[k] = true;
-      }
-    });
+    if (effectiveRole === 'cashier') {
+      Object.keys(permissionsState).forEach((k) => {
+        // A key the parent doesn't hold can never be granted
+        finalPermissions[k] = Boolean(permissionsState[k]) && parentHoldsPermission(k);
+      });
+    }
 
     setLoading(true);
     setError('');
     try {
       await invoke('users:createSubUser', {
-        parentId: parentId || undefined,
         username: username.trim(),
         displayName: displayName.trim(),
-        password: password ? password.trim() : undefined,
-        pin: pin || undefined,
-        role,
-        canDelegate,
-        maxDepth: canDelegate ? maxDepth : 0,
-        permissions: finalPermissions,
+        pin,
+        role: effectiveRole,
+        permissions: effectiveRole === 'cashier' ? finalPermissions : undefined,
       });
 
       setSuccessMsg(`تم إنشاء الحساب (${displayName}) بنجاح ضمن الهيكل الإداري.`);
@@ -740,6 +460,19 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     }
   };
 
+  // What the viewer may change on an account in the edit form (owner/root role and status are fixed)
+  const getEditPrivileges = (u: UserDto) => {
+    const self = isSameAccount(u);
+    const manage = canManageUser(viewer, u);
+    const fixedAccount = getTier(u) >= 2;
+    return {
+      self,
+      manage,
+      canChangeRole: manage && canChooseManagerRole && !self && !fixedAccount,
+      canChangeActive: manage && !self && !fixedAccount,
+    };
+  };
+
   // Submit Edit Details
   const handleSubmitEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -748,44 +481,25 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       return;
     }
 
-    if (isOwnerOrAdmin(selectedUser)) {
-      if (!isActive) {
-        setError('حساب صاحب المحل محمي ولا يمكن تعطيله مطلقاً.');
-        return;
-      }
-      if (role !== 'admin') {
-        setError('لا يمكن خفض رتبة حساب صاحب المحل.');
-        return;
-      }
-    }
-
-    if (selectedUser.role === 'root' && !isActive) {
-      setError('حساب الروت الرئيسي محمي ولا يمكن تعطيله مطلقاً.');
+    const { self: isSelfEdit, manage: canManage, canChangeRole, canChangeActive } = getEditPrivileges(selectedUser);
+    if (!canManage && !isSelfEdit) {
+      setError('ليس لديك صلاحية تعديل هذا الحساب.');
       return;
     }
+    // Role / active status change only for accounts strictly below the viewer (never self, owner or root)
+    const nextRole = canChangeRole ? role : selectedUser.role;
+    const nextActive = canChangeActive ? isActive : selectedUser.isActive;
 
     setLoading(true);
     setError('');
     try {
-      // 1. Update basic info
       await invoke('users:update', {
         id: selectedUser.id,
         displayName: displayName.trim(),
-        role: selectedUser.role === 'root' ? 'root' : role,
-        isActive: selectedUser.role === 'root' ? true : isActive,
+        role: nextRole,
+        isActive: nextActive,
         supervisorPin: supervisorPin || undefined,
       });
-
-      // 2. Update delegation rights only when they changed; nobody may change their own delegation
-      const nextMaxDepth = canDelegate ? maxDepth : 0;
-      const delegationChanged = Boolean(selectedUser.canDelegate) !== canDelegate || (selectedUser.maxDepth || 0) !== nextMaxDepth;
-      if (selectedUser.role !== 'root' && selectedUser.id !== currentUser?.id && delegationChanged) {
-        await invoke('users:setDelegation', {
-          userId: selectedUser.id,
-          canDelegate,
-          maxDepth: nextMaxDepth,
-        });
-      }
 
       setSuccessMsg('تم تحديث بيانات الحساب بنجاح.');
       await loadData();
@@ -807,8 +521,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       setError('حساب الروت يمتلك كافة الصلاحيات بشكل دائم ولا يمكن تقييدها أو سحبها.');
       return;
     }
-    if (isOwnerOrAdmin(selectedUser) && !isRootSession) {
-      setError('لا يمكن تعديل صلاحيات صاحب المحل إلا من خلال حساب الـ Root الأعلى.');
+    if (getTier(selectedUser) >= 1 && !isRootSession) {
+      setError('لا يمكن تعديل صلاحيات المالك والمديرين إلا من خلال حساب المطور (Root).');
       return;
     }
 
@@ -821,6 +535,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       } else {
         finalPerms[key] = false;
       }
+    });
+    // Keys hidden from the editor (owner/root-only or retired) keep their stored value
+    Object.keys(selectedUser.permissions || {}).forEach((key) => {
+      if (!(key in finalPerms)) finalPerms[key] = !!selectedUser.permissions![key];
     });
 
     setLoading(true);
@@ -842,59 +560,69 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     }
   };
 
-  // Submit Credentials (Password / PIN)
+  // Owner (non-root) resetting a manager's PIN confirms with his own PIN, sent as supervisorPin
+  const credUsesSupervisorPin = (target: UserDto): boolean =>
+    !isRootSession && !isSameAccount(target) && getTier(target) === 1 && canManageUser(viewer, target);
+
+  // Submit Credentials (PIN only; legacy passwords are left untouched on the server)
   const handleSubmitCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
 
-    if (!pin && !password) {
-      setError('يرجى إدخال كلمة مرور جديدة أو رقم سري (PIN) جديد.');
+    if (!pin) {
+      setError('يرجى إدخال رقم سري (PIN) جديد.');
+      return;
+    }
+    if (!isValidPinFormat(pin)) {
+      setError('الرقم السري (PIN) يجب أن يكون من 4 إلى 8 أرقام.');
+      return;
+    }
+    if (isWeakPin(pin)) {
+      setError('الرقم السري ضعيف وسهل التخمين. يرجى اختيار رقم سري أقوى (غير مكرر أو متتالي).');
+      return;
+    }
+    if (pin !== confirmPin) {
+      setError('الرقم السري وتأكيد الرقم السري غير متطابقين.');
       return;
     }
 
     setLoading(true);
     setError('');
     try {
-      // 1. If password provided
-      if (password) {
-        if (password.length < 4) {
-          setError('كلمة المرور يجب ألا تقل عن 4 خانات.');
-          setLoading(false);
-          return;
-        }
-        await invoke('users:setPassword', {
-          userId: selectedUser.id,
-          newPassword: password.trim(),
-          currentPassword: currentCredential || undefined,
-        });
-      }
+      // Resetting a manager: the server wants the owner's own PIN as supervisorPin (never as the manager's currentPin)
+      await invoke('users:changePin', {
+        id: selectedUser.id,
+        newPin: pin,
+        currentPin: credUsesSupervisorPin(selectedUser) ? undefined : currentCredential || undefined,
+        supervisorPin: (credUsesSupervisorPin(selectedUser) ? currentCredential : '') || supervisorPin || undefined,
+      });
 
-      // 2. If PIN provided
-      if (pin) {
-        if (pin.length < 4 || pin.length > 8 || !/^\d+$/.test(pin)) {
-          setError('الرقم السري (PIN) يجب أن يكون من 4 إلى 8 أرقام.');
-          setLoading(false);
-          return;
-        }
-        if (pin !== confirmPin) {
-          setError('الرقم السري وتأكيد الرقم السري غير متطابقين.');
-          setLoading(false);
-          return;
-        }
-        await invoke('users:changePin', {
-          id: selectedUser.id,
-          newPin: pin,
-          currentPin: currentCredential || undefined,
-          supervisorPin: supervisorPin || undefined,
-        });
-      }
-
-      setSuccessMsg(`تم تحديث بيانات الدخول للحساب (${selectedUser.displayName}) بنجاح.`);
+      setSuccessMsg(`تم تحديث الرقم السري للحساب (${selectedUser.displayName}) بنجاح.`);
       await loadData();
       setFormMode('none');
       if (onUsersChanged) onUsersChanged();
     } catch (err: any) {
-      setError(err?.message || 'فشل تحديث بيانات الدخول.');
+      setError(err?.message || 'فشل تحديث الرقم السري.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Soft-delete an account (server enforces who may delete whom and blocks accounts with an open shift)
+  const handleConfirmDelete = async () => {
+    const target = deleteTarget;
+    if (!target) return;
+    setDeleteTarget(null);
+    setLoading(true);
+    setError('');
+    try {
+      await deleteUser(target.id);
+      setSuccessMsg(`تم حذف حساب (${target.displayName}) من القوائم.`);
+      setFormMode('none');
+      await loadData();
+      if (onUsersChanged) onUsersChanged();
+    } catch (err: any) {
+      setError(err?.message || 'فشل حذف الحساب.');
     } finally {
       setLoading(false);
     }
@@ -902,12 +630,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
   // Toggle user active status directly
   const handleToggleStatus = async (user: UserDto) => {
-    if (isOwnerOrAdmin(user)) {
-      setError('حساب صاحب المحل محمي ضد التعطيل دائماً لضمان استمرارية عمل المتجر.');
-      return;
-    }
-    if (currentUser?.id === user.id) {
-      setError('لا يمكنك تعطيل حسابك الحالي المسجل دخوله.');
+    if (!canManageUser(viewer, user) || isSameAccount(user)) {
+      setError('ليس لديك صلاحية تعطيل أو تفعيل هذا الحساب.');
       return;
     }
 
@@ -923,7 +647,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       });
       setSuccessMsg(
         user.isActive
-          ? `تم تعطيل حساب (${user.displayName}) وتعطيل الحسابات التابعة له تلقائياً.`
+          ? `تم تعطيل حساب (${user.displayName}).`
           : `تم إعادة تفعيل حساب (${user.displayName}) بنجاح.`
       );
       await loadData();
@@ -982,28 +706,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     );
   }, [users, searchQuery]);
 
-  // Render Role Badge
+  // Render Role Badge (labels come from the shared role helper; only the owner is ever "المالك")
   const renderRoleBadge = (u: UserDto) => {
-    if (u.role === 'root') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-brand text-white shadow-2xs whitespace-nowrap shrink-0">
-          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-          <span>الروت الأعلى (Root)</span>
-        </span>
-      );
-    }
-    if (u.role === 'admin') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border whitespace-nowrap shrink-0">
-          <Shield className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
-          <span>صاحب المحل / مدير</span>
-        </span>
-      );
-    }
+    const kind = getRoleKind(u);
+    const Icon = kind === 'root' ? ShieldCheck : kind === 'cashier' ? Users : Shield;
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark whitespace-nowrap shrink-0">
-        <Users className="w-3.5 h-3.5 shrink-0" />
-        <span>كاشير / موظف</span>
+      <span
+        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold whitespace-nowrap shrink-0 ${getRoleBadgeClasses(u)}`}
+      >
+        <Icon className="w-3.5 h-3.5 shrink-0" />
+        <span>{getRoleLabel(u)}</span>
       </span>
     );
   };
@@ -1036,15 +748,18 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const renderTreeNode = (node: UserDto, level = 0) => {
     const isExpanded = expandedNodes[node.id] !== false;
     const hasChildren = node.children && node.children.length > 0;
-    const isSelf = currentUser?.id === node.id;
+    const isSelf = isSameAccount(node);
     const isRoot = node.role === 'root';
-    const canCreateSub = isRootSession || (currentUser?.id === node.id && currentUser?.canDelegate);
+    const nodeKind = getRoleKind(node);
+    const isOwnerOrRootNode = nodeKind === 'owner' || nodeKind === 'root';
+    const canManageNode = canManageUser(viewer, node);
+    const canDeleteNode = canManageNode && !isSelf && !isOwnerOrRootNode;
 
     return (
       <div key={node.id} className="relative">
         {/* Node Card */}
         <div
-          className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition-all my-2 min-w-[760px] ${
+          className={`flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border transition-all my-2 ${
             isRoot
               ? 'bg-brand-soft/40 dark:bg-brand-dark-soft border-brand/40 dark:border-brand-bright/40 shadow-xs'
               : !node.isActive
@@ -1075,7 +790,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs ${
                 isRoot
                   ? 'bg-brand text-white'
-                  : node.role === 'admin'
+                  : nodeKind === 'owner' || nodeKind === 'manager'
                   ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
                   : 'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark'
               }`}
@@ -1089,7 +804,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <span className="font-bold text-sm text-ink dark:text-ink-dark truncate">{node.displayName}</span>
                 <span className="font-mono text-xs text-ink-muted dark:text-ink-muted-dark dir-ltr">@{node.username}</span>
                 {isSelf && (
-                  <span className="text-[10px] font-bold bg-paid/10 dark:bg-paid-dark-soft text-paid dark:text-paid-bright px-2 py-0.5 rounded-full border border-paid/20 dark:border-paid-dark-border shrink-0">
+                  <span className="text-micro font-bold bg-paid/10 dark:bg-paid-dark-soft text-paid dark:text-paid-bright px-2 py-0.5 rounded-full border border-paid/20 dark:border-paid-dark-border shrink-0">
                     أنت
                   </span>
                 )}
@@ -1100,7 +815,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
                 {/* Status Indicator */}
                 <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold whitespace-nowrap shrink-0 ${
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-micro font-bold whitespace-nowrap shrink-0 ${
                     node.isActive
                       ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
                       : 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-dark-soft'
@@ -1112,7 +827,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
                 {/* Last Login Indicator */}
                 {node.lastLoginAt && (
-                  <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark whitespace-nowrap shrink-0">
+                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark whitespace-nowrap shrink-0">
                     آخر دخول: {formatLastLogin(node.lastLoginAt)}
                   </span>
                 )}
@@ -1121,40 +836,27 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-            {/* Add Sub-account under this node */}
-            {(isRootSession || canCreateSub) && (
-              <button
-                type="button"
-                onClick={() => handleStartAdd(node.id)}
-                className="px-2.5 py-1.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand-container text-brand dark:text-brand-bright text-xs font-bold rounded-lg border border-brand/20 dark:border-brand-bright/30 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
-                title="إضافة حساب فرعي يتبع هذا الحساب"
-              >
-                <UserPlus className="w-3.5 h-3.5 shrink-0" />
-                <span>حساب فرعي</span>
-              </button>
-            )}
-
-            {/* Manage Permissions */}
-            {(node.role === 'root' || node.username === 'root') || (isOwnerOrAdmin(node) && !isRootSession) ? (
+          <div className="flex flex-wrap items-center gap-1.5 whitespace-nowrap">
+            {/* Manage Permissions: owner/root are always full; managers are edited by root only */}
+            {isOwnerOrRootNode ? (
               <span
                 className="px-2.5 py-1.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-xs font-bold rounded-lg border border-paid-border dark:border-paid-dark-border flex items-center gap-1.5 shadow-2xs select-none whitespace-nowrap shrink-0"
-                title={node.role === 'root' ? 'حساب الروت محمي بكامل الصلاحيات دائماً' : 'صاحب المحل محمي بكامل الصلاحيات أمام الموظفين'}
+                title={nodeKind === 'root' ? 'حساب المطور (Root) يمتلك كامل الصلاحيات دائماً' : 'المالك يمتلك كامل الصلاحيات دائماً'}
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                 <span>كامل الصلاحيات</span>
               </span>
-            ) : (
+            ) : canManageNode && (nodeKind === 'cashier' || isRootSession) ? (
               <button
                 type="button"
                 onClick={() => handleStartPermissions(node)}
                 className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark text-xs font-bold rounded-lg border border-line dark:border-line-dark transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-                title={isOwnerOrAdmin(node) ? 'تعديل وتحديد صلاحيات صاحب المحل' : 'تعديل مصفوفة الصلاحيات'}
+                title="تعديل مصفوفة الصلاحيات"
               >
                 <Shield className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                 <span>الصلاحيات</span>
               </button>
-            )}
+            ) : null}
 
             {/* Switch Account / Login */}
             {!isSelf && node.isActive && (
@@ -1169,30 +871,34 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               </button>
             )}
 
-            {/* Change Password / PIN */}
-            <button
-              type="button"
-              onClick={() => handleStartCredentials(node)}
-              className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark text-xs font-bold rounded-lg border border-line dark:border-line-dark transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-              title="تغيير كلمة المرور أو الرقم السري (PIN)"
-            >
-              <Key className="w-3.5 h-3.5 text-warn dark:text-warn-bright shrink-0" />
-              <span>كلمة المرور</span>
-            </button>
+            {/* Change PIN */}
+            {(canManageNode || isSelf) && (
+              <button
+                type="button"
+                onClick={() => handleStartCredentials(node)}
+                className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark text-xs font-bold rounded-lg border border-line dark:border-line-dark transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                title="تغيير الرقم السري (PIN)"
+              >
+                <Key className="w-3.5 h-3.5 text-warn dark:text-warn-bright shrink-0" />
+                <span>الرقم السري</span>
+              </button>
+            )}
 
             {/* Edit Profile */}
-            <button
-              type="button"
-              onClick={() => handleStartEdit(node)}
-              className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark text-xs font-bold rounded-lg border border-line dark:border-line-dark transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-              title="تعديل بيانات الحساب"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
-              <span>تعديل</span>
-            </button>
+            {(canManageNode || isSelf) && (
+              <button
+                type="button"
+                onClick={() => handleStartEdit(node)}
+                className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark text-xs font-bold rounded-lg border border-line dark:border-line-dark transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                title="تعديل بيانات الحساب"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
+                <span>تعديل</span>
+              </button>
+            )}
 
             {/* Toggle Status (Active / Deactive) */}
-            {!isOwnerOrAdmin(node) && !isSelf && (
+            {canDeleteNode && (
               <button
                 type="button"
                 onClick={() => handleToggleStatus(node)}
@@ -1201,9 +907,21 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     ? 'bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright border-danger-border dark:border-danger-dark-soft'
                     : 'bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid/20 dark:hover:bg-brand-container text-paid dark:text-paid-bright border-paid-border dark:border-paid-dark-border'
                 }`}
-                title={node.isActive ? 'تعطيل الحساب وتجميد فروعه' : 'تفعيل الحساب'}
+                title={node.isActive ? 'تعطيل الحساب' : 'تفعيل الحساب'}
               >
                 {node.isActive ? <UserX className="w-4 h-4 shrink-0" /> : <UserCheck className="w-4 h-4 shrink-0" />}
+              </button>
+            )}
+
+            {/* Delete (soft) */}
+            {canDeleteNode && (
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(node)}
+                className="p-1.5 rounded-lg border transition-colors cursor-pointer whitespace-nowrap shrink-0 bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright border-danger-border dark:border-danger-dark-soft"
+                title="حذف الحساب"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
               </button>
             )}
           </div>
@@ -1222,7 +940,6 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const isDirty = formMode !== 'none' && formMode !== 'switchLogin' && Boolean(
     username.trim() ||
     displayName.trim() ||
-    password.trim() ||
     pin.trim()
   );
 
@@ -1240,11 +957,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     isDirty,
     confirmTitle: 'إلغاء التعديلات غير المحفوظة؟',
     confirmMessage: 'تم إدخال تعديلات في بيانات الموظف. هل أنت متأكد من الإلغاء والتراجع دون حفظ؟',
+    disabled: deleteTarget !== null,
   });
 
   if (!isOpen) return null;
 
+  const editPrivileges = selectedUser ? getEditPrivileges(selectedUser) : null;
+
   return (
+    <>
     <div
       onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
@@ -1262,20 +983,20 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-ink dark:text-ink-dark">إدارة حسابات الموظفين والكاشير</h2>
+                <h2 className="t-modal-title text-ink dark:text-ink-dark">إدارة حسابات الموظفين والكاشير</h2>
                 {isRootSession ? (
-                  <span className="bg-brand text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold shadow-2xs flex items-center gap-1">
+                  <span className="bg-brand text-white text-micro px-2.5 py-0.5 rounded-full font-bold shadow-2xs flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>جلسة الروت الكاملة</span>
+                    <span>جلسة المطور (Root)</span>
                   </span>
                 ) : (
-                  <span className="bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-brand/20 dark:border-brand-bright/20">
-                    صلاحيات إدارية
+                  <span className="bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro px-2.5 py-0.5 rounded-full font-bold border border-brand/20 dark:border-brand-bright/20">
+                    {getRoleLabel(viewer)}
                   </span>
                 )}
               </div>
               <p className="text-xs text-ink-muted dark:text-ink-muted-dark font-medium">
-                إدارة حسابات الموظفين والكاشيرية، ضبط كلمات المرور والـ PIN، وتحديد الصلاحيات
+                إدارة الأرقام السرية (PIN) وتحديد صلاحيات كل موظف
               </p>
             </div>
           </div>
@@ -1376,29 +1097,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                 <div className="flex items-center gap-2">
                   <UserPlus className="w-5 h-5 text-brand dark:text-brand-bright" />
-                  <h3 className="text-base font-black text-ink dark:text-ink-dark">إضافة حساب موظف / حساب فرعي جديد</h3>
+                  <h3 className="t-card-title text-ink dark:text-ink-dark">إضافة حساب موظف جديد</h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setFormMode('none')}
-                  className="text-xs text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer"
-                >
-                  الرجوع للهيكل الإداري
-                </button>
-              </div>
-
-              {/* Hierarchy Parent Selection */}
-              <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark">المشرف المباشر (الأصل في شجرة الصلاحيات)</label>
-                <CustomSelect
-                  value={parentId}
-                  onChange={(val) => setParentId(val)}
-                  options={eligibleParents}
-                  placeholder="اختر المشرف المسؤول عن هذا الحساب..."
-                />
-                <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                  معلومة: الحساب الجديد مش هيقدر ياخد أي صلاحية مش موجودة عند المشرف بتاعه.
-                </p>
               </div>
 
               {/* Basic Info */}
@@ -1427,7 +1127,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 </div>
               </div>
 
-              {/* Role Selection */}
+              {/* Role Selection: only the owner / root may create a manager */}
+              {canChooseManagerRole ? (
               <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
                 <label className="block text-xs font-bold text-ink dark:text-ink-dark">الدور الوظيفي</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -1440,8 +1141,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                         : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-brand/40'
                     }`}
                   >
-                    <div className="font-bold text-ink dark:text-ink-dark text-xs">كاشير / نقطة البيع</div>
-                    <div className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-0.5">
+                    <div className="font-bold text-ink dark:text-ink-dark text-xs">{ROLE_LABEL_CASHIER}</div>
+                    <div className="text-micro text-ink-muted dark:text-ink-muted-dark mt-0.5">
                       مخصص للمبيعات المباشرة وخدمة العملاء وفق الصلاحيات الممنوحة
                     </div>
                   </button>
@@ -1455,114 +1156,59 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                         : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-paid/40'
                     }`}
                   >
-                    <div className="font-bold text-ink dark:text-ink-dark text-xs">مدير فرعي / مشرف</div>
-                    <div className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-0.5">
-                      يمتلك صلاحيات إشرافية ورقابية موسعة على الورديات والمخزن
+                    <div className="font-bold text-ink dark:text-ink-dark text-xs">{ROLE_LABEL_MANAGER}</div>
+                    <div className="text-micro text-ink-muted dark:text-ink-muted-dark mt-0.5">
+                      يدير الكاشيرية والورديات والمخزن بكامل صلاحيات التشغيل
                     </div>
                   </button>
                 </div>
               </div>
+              ) : null}
 
-              {/* Dual Credentials: Password & PIN */}
+              {/* Credentials: PIN only */}
               <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark">بيانات تسجيل الدخول (كلمة مرور أو PIN)</label>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">يمكن استخدام أحدهما أو كليهما</span>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark">الرقم السري للدخول (PIN)</label>
+                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark">من 4 إلى 8 أرقام</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">
-                      كلمة المرور (نصية - اختياري)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl pr-3.5 pl-9 py-2 text-ink dark:text-ink-dark text-xs focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">
-                      الرقم السري السريع (PIN: 4 - 8 أرقام)
+                    <label className="block text-micro font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">
+                      الرقم السري (PIN)
                     </label>
                     <input
                       type="password"
                       inputMode="numeric"
                       maxLength={8}
+                      required
                       value={pin}
                       onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                      placeholder="••••"
-                      className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-xs font-mono tracking-widest text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                      className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-xs font-mono focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
                   </div>
-                </div>
-
-                {pin && (
                   <div>
-                    <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">تأكيد الرقم السري (PIN)</label>
+                    <label className="block text-micro font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">تأكيد الرقم السري (PIN)</label>
                     <input
                       type="password"
                       inputMode="numeric"
                       maxLength={8}
+                      required
                       value={confirmPin}
                       onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                      placeholder="••••"
-                      className="w-full max-w-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-xs font-mono tracking-widest text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                      className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-xs font-mono focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
                   </div>
-                )}
+                </div>
               </div>
 
-              {/* Delegation Authority Settings */}
-              {(isRootSession || currentUser?.canDelegate) && (
-                <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-xs text-ink dark:text-ink-dark">حق التفويض وإنشاء حسابات فرعية (Delegation)</div>
-                      <div className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                        السماح لهذا الموظف بإنشاء حسابات تحت إشرافه وتفويض صلاحياته لهم
-                      </div>
-                    </div>
-                    <ToggleSwitch checked={canDelegate} onChange={(val) => setCanDelegate(val)} />
-                  </div>
-
-                  {canDelegate && (
-                    <div className="pt-2 border-t border-line dark:border-line-dark flex items-center gap-3">
-                      <label className="text-xs font-bold text-ink dark:text-ink-dark whitespace-nowrap">أقصى عمق للتفريع (Max Depth):</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={5}
-                        value={maxDepth}
-                        onChange={(e) => setMaxDepth(parseInt(e.target.value) || 1)}
-                        className="w-20 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 py-1.5 text-xs text-ink dark:text-ink-dark font-bold text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                      />
-                      <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                        يحدد كم مستوى فرعي يمكن للحساب إنشاؤه تحت شجرته
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Permissions Matrix */}
+              {!canChooseManagerRole || role === 'cashier' ? (
+              /* Permissions Matrix */
               <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-bold text-xs text-ink dark:text-ink-dark">مصفوفة الصلاحيات الممنوحة</div>
-                    <div className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
+                    <div className="text-micro text-ink-muted dark:text-ink-muted-dark">
                       أي صلاحية يتم تفعيلها هنا ستظهر للموظف في واجهته، وتختفي تماماً الصلاحيات غير المحددة
                     </div>
                   </div>
@@ -1594,13 +1240,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                       <div key={group.id} className="border border-line dark:border-line-dark rounded-xl p-3 bg-canvas/40 dark:bg-canvas-dark/40">
                         <div className="flex items-center justify-between pb-2 mb-2 border-b border-line dark:border-line-dark">
                           <div className="flex items-center gap-2">
-                            {group.icon}
+                            {PERMISSION_ICONS[group.icon]}
                             <span className="font-bold text-xs text-ink dark:text-ink-dark">{group.name}</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleToggleGroup(group, !allChecked)}
-                            className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
+                            className="text-micro font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
                           >
                             {allChecked ? 'إلغاء تحديد القسم' : 'تحديد القسم بالكامل'}
                           </button>
@@ -1634,7 +1280,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                                 </div>
                                 <div className="flex flex-col">
                                   <span className="text-xs font-bold text-ink dark:text-ink-dark">{item.label}</span>
-                                  <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark leading-tight">
+                                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-tight">
                                     {!allowedByParent ? 'محجوبة: لا يمتلكها المشرف' : item.description}
                                   </span>
                                 </div>
@@ -1647,6 +1293,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   })}
                 </div>
               </div>
+              ) : (
+                <div className="bg-paid-soft dark:bg-paid-dark-soft p-3 rounded-2xl border border-paid-border dark:border-paid-dark-border text-xs text-paid dark:text-paid-bright font-bold flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 shrink-0" />
+                  <span>المدير يمتلك كامل صلاحيات التشغيل ولا تُحدد له صلاحيات فردية.</span>
+                </div>
+              )}
 
               {/* Form Actions */}
               <div className="flex items-center gap-3 pt-3">
@@ -1674,14 +1326,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
           {formMode === 'edit' && selectedUser && (
             <form onSubmit={handleSubmitEdit} className="max-w-xl mx-auto space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
-                <h3 className="text-base font-black text-ink dark:text-ink-dark">تعديل بيانات الحساب: {selectedUser.displayName}</h3>
-                <button
-                  type="button"
-                  onClick={() => setFormMode('none')}
-                  className="text-xs text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer"
-                >
-                  الرجوع للهيكل الإداري
-                </button>
+                <h3 className="t-card-title text-ink dark:text-ink-dark">تعديل بيانات الحساب: {selectedUser.displayName}</h3>
               </div>
 
               <div>
@@ -1705,12 +1350,14 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 />
               </div>
 
-              {selectedUser.role === 'root' ? (
-                <div className="p-3 bg-brand-soft dark:bg-brand-dark/40 border border-brand/30 dark:border-brand-bright/30 rounded-xl text-brand dark:text-brand-bright text-xs font-bold">
-                  حساب الروت الرئيسي يتمتع بصلاحيات مطلقة ودائمة ولا يمكن تخفيض دوره أو تعطيله.
+              {getTier(selectedUser) >= 2 ? (
+                <div className="p-3 bg-brand-soft dark:bg-brand-dark/40 border border-brand/30 dark:border-brand-bright/30 rounded-xl text-brand dark:text-brand-bright text-xs font-bold flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 shrink-0" />
+                  <span>{getRoleLabel(selectedUser)}: صلاحيات كاملة ودائمة، ولا يمكن تغيير الدور أو تعطيل الحساب.</span>
                 </div>
               ) : (
                 <>
+                  {editPrivileges?.canChangeRole ? (
                   <div>
                     <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">الدور الوظيفي</label>
                     <div className="grid grid-cols-2 gap-3">
@@ -1723,7 +1370,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                             : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-brand/40'
                         }`}
                       >
-                        <div className="font-bold text-ink dark:text-ink-dark text-xs">كاشير (نقطة البيع)</div>
+                        <div className="font-bold text-ink dark:text-ink-dark text-xs">{ROLE_LABEL_CASHIER}</div>
                       </button>
                       <button
                         type="button"
@@ -1734,47 +1381,28 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                             : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-paid/40'
                         }`}
                       >
-                        <div className="font-bold text-ink dark:text-ink-dark text-xs">ترقية إلى مدير فرعي</div>
+                        <div className="font-bold text-ink dark:text-ink-dark text-xs">{ROLE_LABEL_MANAGER}</div>
                       </button>
                     </div>
                   </div>
+                  ) : (
+                  <div className="flex items-center justify-between p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl">
+                    <span className="text-xs font-bold text-ink dark:text-ink-dark">الدور الوظيفي</span>
+                    {renderRoleBadge(selectedUser)}
+                  </div>
+                  )}
 
+                  {editPrivileges?.canChangeActive ? (
                   <div className="flex items-center justify-between p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl">
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-ink dark:text-ink-dark">حساب نشط</span>
-                      <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                        عند التعطيل، يتم حظر تسجيل دخول الموظف وكافة الحسابات المتفرعة منه
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark">
+                        عند التعطيل، يتم حظر تسجيل دخول الموظف
                       </span>
                     </div>
                     <ToggleSwitch checked={isActive} onChange={(val) => setIsActive(val)} />
                   </div>
-
-                  {/* Delegation toggle */}
-                  <div className="bg-surface dark:bg-surface-dark p-3.5 border border-line dark:border-line-dark rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-ink dark:text-ink-dark">حق التفويض (إنشاء حسابات تابعة)</span>
-                        <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                          تحديد ما إذا كان هذا الموظف يستطيع إضافة موظفين تحت إشرافه
-                        </span>
-                      </div>
-                      <ToggleSwitch checked={canDelegate} onChange={(val) => setCanDelegate(val)} />
-                    </div>
-
-                    {canDelegate && (
-                      <div className="pt-2 border-t border-line dark:border-line-dark flex items-center gap-3">
-                        <label className="text-xs font-bold text-ink dark:text-ink-dark whitespace-nowrap">أقصى عمق للتفريع:</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={5}
-                          value={maxDepth}
-                          onChange={(e) => setMaxDepth(parseInt(e.target.value) || 1)}
-                          className="w-16 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg px-2 py-1 text-xs text-ink dark:text-ink-dark font-bold text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                        />
-                      </div>
-                    )}
-                  </div>
+                  ) : null}
                 </>
               )}
 
@@ -1806,19 +1434,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <div className="flex items-center gap-2">
                   <Shield className="w-5 h-5 text-brand dark:text-brand-bright" />
                   <div>
-                    <h3 className="text-base font-black text-ink dark:text-ink-dark">تعديل مصفوفة صلاحيات: {selectedUser.displayName}</h3>
-                    <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
+                    <h3 className="t-card-title text-ink dark:text-ink-dark">تعديل مصفوفة صلاحيات: {selectedUser.displayName}</h3>
+                    <p className="text-micro text-ink-muted dark:text-ink-muted-dark">
                       التحكم الدقيق في ظهور وإخفاء أقسام وميزات البرنامج لهذا الموظف
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setFormMode('none')}
-                  className="text-xs text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer"
-                >
-                  الرجوع للهيكل الإداري
-                </button>
               </div>
 
               {/* Cascade Warning Alert */}
@@ -1826,7 +1447,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold">خد بالك لو لغيت صلاحية من هنا:</span>
-                  <p className="mt-0.5 text-[11px] leading-relaxed">
+                  <p className="mt-0.5 text-micro leading-relaxed">
                     أي صلاحية هتشيلها من الموظف ده، هتتشال تلقائياً وفوراً من كل الموظفين التابعين ليه وتحت إشرافه.
                   </p>
                 </div>
@@ -1862,13 +1483,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     <div key={group.id} className="border border-line dark:border-line-dark rounded-xl p-3 bg-surface dark:bg-surface-dark">
                       <div className="flex items-center justify-between pb-2 mb-2 border-b border-line dark:border-line-dark">
                         <div className="flex items-center gap-2">
-                          {group.icon}
+                          {PERMISSION_ICONS[group.icon]}
                           <span className="font-bold text-xs text-ink dark:text-ink-dark">{group.name}</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleToggleGroup(group, !allChecked)}
-                          className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
+                          className="text-micro font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
                         >
                           {allChecked ? 'إلغاء تحديد القسم' : 'تحديد القسم بالكامل'}
                         </button>
@@ -1902,7 +1523,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                               </div>
                               <div className="flex flex-col">
                                 <span className="text-xs font-bold text-ink dark:text-ink-dark">{item.label}</span>
-                                <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark leading-tight">
+                                <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-tight">
                                   {!allowedByParent ? 'محجوبة: لا يمتلكها المشرف' : item.description}
                                 </span>
                               </div>
@@ -1942,171 +1563,69 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                 <div className="flex items-center gap-2">
                   <Key className="w-5 h-5 text-warn dark:text-warn-bright" />
-                  <h3 className="text-base font-black text-ink dark:text-ink-dark">تغيير كلمة المرور والرمز السري (PIN): {selectedUser.displayName}</h3>
+                  <h3 className="t-card-title text-ink dark:text-ink-dark">تغيير الرقم السري (PIN): {selectedUser.displayName}</h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setFormMode('none')}
-                  className="text-xs text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer"
-                >
-                  الرجوع للهيكل الإداري
-                </button>
               </div>
 
               {/* Informative Guidance Notice */}
               <div className="bg-surface-2 dark:bg-surface-dark-2 p-3 rounded-xl border border-line dark:border-line-dark text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                تُستخدم هذه النافذة لإعادة تعيين كلمة المرور أو الرمز السري (PIN) الخاص بالموظف في حال نسيانه أو الحاجة لتحديثه، دون التأثير على صلاحياته أو بياناته.
+                تُستخدم هذه النافذة لإعادة تعيين الرقم السري (PIN) الخاص بالموظف في حال نسيانه أو الحاجة لتحديثه، دون التأثير على صلاحياته أو بياناته.
               </div>
 
-              {/* Current Credential Prompt if editing root or admin */}
-              {(selectedUser.role === 'root' || selectedUser.role === 'admin') && (
+              {selectedUser.hasPassword && selectedUser.hasPin === false && (
+                <div className="bg-warn-soft dark:bg-warn-dark-soft p-3 rounded-xl border border-warn/20 dark:border-warn-bright/30 text-xs text-warn dark:text-warn-bright font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>هذا الحساب يدخل بكلمة مرور قديمة؛ عيّن PIN جديداً.</span>
+                </div>
+              )}
+
+              {/* Current PIN prompt if editing an owner / manager / root account */}
+              {getTier(selectedUser) >= 1 && !(credUsesSupervisorPin(selectedUser) && supervisorPin) && (
                 <div className="bg-warn-soft dark:bg-warn-dark-soft p-3 rounded-xl border border-warn/20 dark:border-warn-bright/30 space-y-1.5">
                   <label className="block text-xs font-bold text-warn dark:text-warn-bright">
-                    كلمة المرور الحالية أو PIN الحالي (لتأكيد الهوية)
+                    {credUsesSupervisorPin(selectedUser) ? 'رقم المالك السري (للتأكيد)' : 'الرقم السري الحالي (لتأكيد الهوية)'}
                   </label>
                   <input
                     type="password"
+                    inputMode="numeric"
+                    maxLength={8}
                     value={currentCredential}
-                    onChange={(e) => setCurrentCredential(e.target.value)}
-                    placeholder="••••••••"
+                    onChange={(e) => setCurrentCredential(e.target.value.replace(/\D/g, ''))}
                     className="w-full bg-surface dark:bg-surface-dark-2 border border-warn/40 dark:border-warn-bright/40 rounded-xl px-3 py-2 text-ink dark:text-ink-dark text-xs focus:outline-none focus:border-warn font-mono"
                   />
-                  <p className="text-[11px] text-warn dark:text-warn-bright font-medium">
-                    لحماية النظام: تعديل حسابات الإدارة يتطلب تأكيد بيانات الحساب الحالية.
+                  <p className="text-micro text-warn dark:text-warn-bright font-medium">
+                    {credUsesSupervisorPin(selectedUser)
+                      ? 'لحماية النظام: إعادة تعيين رقم مدير تتطلب تأكيد رقمك السري كمالك.'
+                      : 'لحماية النظام: تعديل حسابات الإدارة قد يتطلب تأكيد الرقم السري الحالي.'}
                   </p>
                 </div>
               )}
 
-              {/* Credential Method Switcher */}
-              <div className="bg-surface-2 dark:bg-surface-dark-2 p-1.5 rounded-xl border border-line dark:border-line-dark grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCredMethod('pin')}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    credMethod === 'pin'
-                      ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs border border-brand/20 dark:border-brand-bright/30'
-                      : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'
-                  }`}
-                >
-                  <Key className="w-4 h-4 text-warn dark:text-warn-bright" />
-                  <span>رقم سري (PIN أرقام) — للكاشير</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCredMethod('password')}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    credMethod === 'password'
-                      ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs border border-brand/20 dark:border-brand-bright/30'
-                      : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'
-                  }`}
-                >
-                  <Lock className="w-4 h-4 text-brand dark:text-brand-bright" />
-                  <span>كلمة مرور نصية — للإدارة</span>
-                </button>
-              </div>
-
-              {/* PIN Method Panel */}
-              {credMethod === 'pin' && (
-                <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark space-y-3">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-ink dark:text-ink-dark">الرقم السري السريع (PIN: 4 - 8 أرقام)</label>
-                      <span className="text-[11px] text-paid dark:text-paid-bright font-medium">موصى به لنقاط البيع وشاشات اللمس</span>
-                    </div>
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      maxLength={8}
-                      autoFocus
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                      placeholder="••••"
-                      className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                    />
-                    <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1.5 leading-relaxed">
-                      أرقام سريعة تسهّل على الكاشير تسجيل الدخول السريع ولمس الشاشة بدون كيبورد.
-                    </p>
-                  </div>
-
-                  {pin && (
-                    <div>
-                      <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">تأكيد الرقم السري الجديد</label>
-                      <input
-                        type="password"
-                        inputMode="numeric"
-                        maxLength={8}
-                        value={confirmPin}
-                        onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                        placeholder="••••"
-                        className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                      />
-                    </div>
-                  )}
-
-                  {password && (
-                    <div className="p-2 bg-brand-soft/30 dark:bg-brand-dark/30 rounded-lg text-[11px] text-brand dark:text-brand-bright border border-brand/20 dark:border-brand/40 flex items-center justify-between">
-                      <span>كلمة المرور النصية المضبوطة مسبقاً: مفعّلة</span>
-                      <button
-                        type="button"
-                        onClick={() => setPassword('')}
-                        className="text-danger dark:text-danger-bright hover:underline font-bold cursor-pointer"
-                      >
-                        إلغاء النصية والاعتماد على الـ PIN فقط
-                      </button>
-                    </div>
-                  )}
+              {/* New PIN */}
+              <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">الرقم السري الجديد (PIN: 4 - 8 أرقام)</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    autoFocus
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                    className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-sm font-mono focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  />
                 </div>
-              )}
-
-              {/* Password Method Panel */}
-              {credMethod === 'password' && (
-                <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark space-y-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-ink dark:text-ink-dark">تعيين كلمة مرور جديدة</label>
-                    <span className="text-[11px] text-brand dark:text-brand-bright font-medium">لحسابات الإدارة والكيبورد الكامل</span>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      autoFocus
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="اكتب كلمة مرور جديدة (أحرف أو أرقام)"
-                      className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl pr-3.5 pl-9 py-2 text-ink dark:text-ink-dark text-xs focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                    تتيح تسجيل الدخول بكتابة الحروف والأرقام عبر الكيبورد وتوفر حماية قوية لحساب المدير.
-                  </p>
-
-                  {pin && (
-                    <div className="p-2 bg-brand-soft/30 dark:bg-brand-dark/30 rounded-lg text-[11px] text-brand dark:text-brand-bright border border-brand/20 dark:border-brand/40 flex items-center justify-between mt-2">
-                      <span>رقم الـ PIN السريع المضبوط مسبقاً: مفعّل</span>
-                      <button
-                        type="button"
-                        onClick={() => { setPin(''); setConfirmPin(''); }}
-                        className="text-danger dark:text-danger-bright hover:underline font-bold cursor-pointer"
-                      >
-                        إلغاء الـ PIN والاعتماد على النصية فقط
-                      </button>
-                    </div>
-                  )}
+                <div>
+                  <label className="block text-micro font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">تأكيد الرقم السري الجديد</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    value={confirmPin}
+                    onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+                    className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-sm font-mono focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  />
                 </div>
-              )}
-
-              {/* Summary note */}
-              <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-[11px] text-ink-muted dark:text-ink-muted-dark flex items-center justify-between">
-                <span>وسيلة الدخول النشطة:</span>
-                <span className="font-bold text-brand dark:text-brand-bright">
-                  {pin && password ? 'كلاهما (PIN أرقام + كلمة مرور نصية)' : pin ? 'الرقم السري (PIN) فقط' : password ? 'كلمة المرور النصية فقط' : 'لم يتم تحديد وسيلة جديدة بعد'}
-                </span>
               </div>
 
               <div className="flex items-center gap-3 pt-3">
@@ -2115,7 +1634,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   disabled={loading}
                   className="flex-1 py-2.5 bg-brand hover:bg-brand-hover text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-40 cursor-pointer"
                 >
-                  {loading ? 'جاري الحفظ...' : 'حفظ وتحديث كلمة المرور'}
+                  {loading ? 'جاري الحفظ...' : 'حفظ الرقم السري'}
                 </button>
                 <button
                   type="button"
@@ -2136,15 +1655,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                 <div className="flex items-center gap-2">
                   <LogIn className="w-5 h-5 text-paid dark:text-paid-bright" />
-                  <h3 className="text-base font-black text-ink dark:text-ink-dark">تسجيل الدخول كـ: {selectedUser.displayName}</h3>
+                  <h3 className="t-card-title text-ink dark:text-ink-dark">تسجيل الدخول كـ: {selectedUser.displayName}</h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setFormMode('none')}
-                  className="text-xs text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer"
-                >
-                  الرجوع للهيكل الإداري
-                </button>
               </div>
 
               {/* Account Card Preview */}
@@ -2161,20 +1673,19 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
               {/* Instructions */}
               <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                يرجى إدخال الرقم السري (PIN) أو كلمة المرور الخاصة بهذا الحساب للتحقق والتبديل الفوري للجلسة.
+                يرجى إدخال الرقم السري (PIN) الخاص بهذا الحساب للتحقق والتبديل الفوري للجلسة.
               </p>
 
               {/* PIN / Password Input */}
               <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark space-y-2">
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark">الرقم السري (PIN) أو كلمة المرور</label>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark">الرقم السري (PIN)</label>
                 <div className="relative">
                   <input
                     type={showSwitchSecret ? 'text' : 'password'}
                     autoFocus
                     value={switchSecret}
                     onChange={(e) => setSwitchSecret(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl pr-3.5 pl-9 py-2.5 text-ink dark:text-ink-dark text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                    className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl pr-3.5 pl-9 py-2.5 text-ink dark:text-ink-dark text-sm font-mono focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
                   <button
                     type="button"
@@ -2211,15 +1722,26 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark shrink-0">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-brand dark:text-brand-bright" />
-            <span>الحسابات وكلمات السر متأمنة ومشفرة تماماً على جهازك</span>
+            <span>الأرقام السرية مشفرة ومحفوظة بأمان على جهازك</span>
           </div>
           <div className="flex items-center gap-3">
-            <span>الحسابات المسجلة: {users.length}</span>
-            <span>•</span>
-            <span>{isRootSession ? 'جلسة الروت: يمكنك تخصيص وتعديل صلاحيات صاحب المحل' : 'حساب صاحب المحل محمي بكامل الصلاحيات'}</span>
+            <span>{isRootSession ? 'تعديل صلاحيات المديرين متاح' : 'المالك والمديرون يمتلكون كامل صلاحيات التشغيل'}</span>
           </div>
         </div>
       </div>
     </div>
+    <ConfirmModal
+      isOpen={deleteTarget !== null}
+      title="حذف الحساب"
+      message={deleteTarget ? `سيتم حذف حساب (${deleteTarget.displayName}) من القوائم ولن يتمكن من تسجيل الدخول بعد الآن.` : ''}
+      consequence="الفواتير والحركات المسجلة باسمه تبقى محفوظة في السجل ولا تتأثر."
+      confirmText="حذف الحساب"
+      cancelText="تراجع"
+      isDanger
+      icon={<Trash2 className="w-5 h-5" />}
+      onConfirm={() => void handleConfirmDelete()}
+      onCancel={() => setDeleteTarget(null)}
+    />
+    </>
   );
 };

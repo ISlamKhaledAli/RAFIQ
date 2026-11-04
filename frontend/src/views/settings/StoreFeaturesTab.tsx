@@ -35,6 +35,7 @@ import {
   X
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
+import { SegmentedTabs } from '../../components/SegmentedTabs';
 import { useFeatures } from '../../context/useFeatures';
 import { rafiqAlert } from '../../utils/dialogService';
 import { INITIAL_STORE_TEMPLATES } from '../../constants/storeTemplates';
@@ -204,25 +205,25 @@ export const StoreFeaturesTab = ({
   }, [registry, selectedCategory, searchQuery]);
 
   return (
-    <div className="flex flex-col gap-3.5 text-xs text-ink dark:text-ink-dark animate-in fade-in pb-8 select-none">
+    <div className="flex flex-col gap-5 text-xs text-ink dark:text-ink-dark animate-in fade-in pb-8 select-none">
       
       {/* 1. Store Activity Header Banner */}
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-11 h-11 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
             <Store className="w-5 h-5 text-brand dark:text-brand-bright" />
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-muted-dark">نشاط المتجر الحالي:</span>
-              <span className="text-xs font-black text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft px-2.5 py-0.5 rounded-lg border border-brand/20 dark:border-brand-bright/20">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">نشاط المتجر الحالي:</span>
+              <span className="text-xs font-black text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft px-2.5 py-1 rounded-lg border border-brand/20 dark:border-brand-bright/20">
                 {activeTemplate?.name || 'سوبر ماركت وبقالة'}
               </span>
-              <span className="text-[10px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded-md border border-paid/20">
+              <span className="text-micro font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-1 rounded-md border border-paid/20">
                 {activeCount} من {registry.length} ميزة مفعّلة
               </span>
             </div>
-            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5 leading-relaxed line-clamp-1">
+            <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0 mt-1.5 leading-relaxed">
               {activeTemplate?.description || 'نظام ذكي متكامل لضبط المبيعات والمخزون والحسابات اليومية'}
             </p>
           </div>
@@ -232,7 +233,7 @@ export const StoreFeaturesTab = ({
           <button
             type="button"
             onClick={onOpenWizard}
-            className="px-3.5 py-2 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-2 shrink-0 self-start sm:self-auto"
+            className="h-10 px-5 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-2 shrink-0 self-start lg:self-auto"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>تغيير نشاط المتجر (المعالج السريع)</span>
@@ -241,9 +242,9 @@ export const StoreFeaturesTab = ({
       </div>
 
       {/* 2. Compact Collapsible Clarification Banner: InstaPay POS vs Wallet Agency */}
-      <div className="bg-paid-soft/40 dark:bg-paid-dark-soft/20 border border-paid/20 dark:border-paid/30 rounded-2xl p-3 shadow-2xs transition-all">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+      <div className="bg-paid-soft/40 dark:bg-paid-dark-soft/20 border border-paid/20 dark:border-paid/30 rounded-2xl p-4 shadow-2xs transition-all">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex items-center gap-2.5">
             <Info className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
             <span className="text-xs font-bold text-ink dark:text-ink-dark">
               توضيح هام حول إنستاباي والمحافظ الإلكترونية في المحلات
@@ -252,7 +253,7 @@ export const StoreFeaturesTab = ({
           <button
             type="button"
             onClick={() => setShowTipBanner(!showTipBanner)}
-            className="text-[11px] font-bold text-paid hover:text-paid-dark dark:text-paid-bright flex items-center gap-1 cursor-pointer bg-paid-soft dark:bg-paid-dark-soft px-2 py-1 rounded-lg border border-paid/20"
+            className="h-9 px-3 text-xs font-bold text-paid hover:text-paid-dark dark:text-paid-bright dark:hover:text-paid-bright flex items-center gap-1.5 cursor-pointer bg-paid-soft dark:bg-paid-dark-soft rounded-lg border border-paid/20"
           >
             <span>{showTipBanner ? 'إخفاء التفاصيل' : 'عرض التوضيح'}</span>
             {showTipBanner ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -260,13 +261,13 @@ export const StoreFeaturesTab = ({
         </div>
 
         {showTipBanner && (
-          <div className="mt-2.5 pt-2.5 border-t border-paid/15 dark:border-paid/20 grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-            <div className="bg-surface/80 dark:bg-surface-dark/80 p-2.5 rounded-xl border border-line/60">
-              <strong className="text-paid dark:text-paid-bright block mb-0.5">1. قبول الدفع في الكاشير:</strong>
+          <div className="mt-3 pt-3 border-t border-paid/15 dark:border-paid/20 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+            <div className="bg-surface/80 dark:bg-surface-dark/80 p-3.5 rounded-xl border border-line/60 dark:border-line-dark/60">
+              <strong className="text-paid dark:text-paid-bright block mb-1">1. قبول الدفع في الكاشير:</strong>
               متاح لجميع الأنشطة (ملابس، كافيهات، مخابز، جزارة، صيدليات) لتمكين الزبائن من سداد ثمن مشترياتهم عبر إنستاباي أو محفظة كاش.
             </div>
-            <div className="bg-surface/80 dark:bg-surface-dark/80 p-2.5 rounded-xl border border-line/60">
-              <strong className="text-warn dark:text-warn-bright block mb-0.5">2. خدمات وكالة سحب وإيداع المحافظ:</strong>
+            <div className="bg-surface/80 dark:bg-surface-dark/80 p-3.5 rounded-xl border border-line/60 dark:border-line-dark/60">
+              <strong className="text-warn dark:text-warn-bright block mb-1">2. خدمات وكالة سحب وإيداع المحافظ:</strong>
               مخصصة فقط لمحلات الموبايل والسوبرماركت التي تقدم خدمة السحب والإيداع النقدي للجمهور مقابل عمولة.
             </div>
           </div>
@@ -275,58 +276,41 @@ export const StoreFeaturesTab = ({
 
       {/* 3. RBAC Alert Banner if Read-Only */}
       {!canManageFeatures && (
-        <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl p-3 text-xs text-warn-dark dark:text-warn-bright font-bold flex items-center gap-2.5 shadow-2xs">
+        <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl p-4 text-xs text-warn dark:text-warn-bright font-bold flex items-center gap-3 shadow-2xs">
           <ShieldAlert className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
           <span>مفاتيح الميزات للعرض فقط: تعديل ميزات النظام محصور بالمشرف الفني الأعلى (Root) لحماية إعدادات المتجر.</span>
         </div>
       )}
 
-      {/* 4. Controls: Categories Filter Pills & Live Search Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-2.5 shadow-2xs">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-          {CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            const isSelected = selectedCategory === cat.id;
-            const count = categoryCounts[cat.id] || 0;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-                  isSelected
-                    ? 'bg-paid text-white shadow-2xs'
-                    : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2/80'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-ink-muted dark:text-ink-muted-dark'}`} />
-                <span>{cat.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                  isSelected ? 'bg-white/20 text-white' : 'bg-line/40 text-ink-muted dark:text-ink-muted-dark'
-                }`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      {/* 4. Controls: Categories Filter Tabs & Live Search Bar */}
+      <div className="flex flex-col gap-3">
+        <SegmentedTabs
+          ariaLabel="تصنيفات الميزات"
+          value={selectedCategory}
+          onChange={setSelectedCategory}
+          options={CATEGORIES.map((cat) => ({
+            value: cat.id,
+            label: `${cat.label} (${categoryCounts[cat.id] || 0})`,
+            icon: cat.icon,
+            tone: 'paid' as const,
+          }))}
+        />
 
         {/* Search Input */}
-        <div className="relative min-w-[220px]">
-          <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <div className="relative w-full md:max-w-md">
+          <Search className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="بحث في أسماء الميزات..."
-            className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl h-8.5 pr-8 pl-8 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright transition-colors"
+            className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl h-10 pr-9 pl-9 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright transition-colors"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -335,7 +319,7 @@ export const StoreFeaturesTab = ({
       </div>
 
       {/* 5. Features Grid - Senior Redesigned Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filteredFeatures.map((feat) => {
           const isEnabled = flags[feat.key] ?? feat.defaultValue ?? false;
           const FeatIcon = FEATURE_ICON_MAP[feat.key] || SlidersHorizontal;
@@ -354,7 +338,7 @@ export const StoreFeaturesTab = ({
                   await rafiqAlert(msg || 'تعذر تعديل حالة الميزة');
                 }
               }}
-              className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 shadow-2xs ${
+              className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col justify-between gap-4 shadow-2xs ${
                 canManageFeatures ? 'cursor-pointer hover:shadow-xs hover:border-line-hover' : 'cursor-not-allowed opacity-80'
               } ${
                 isEnabled
@@ -362,11 +346,11 @@ export const StoreFeaturesTab = ({
                   : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark'
               }`}
             >
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {/* Header row with Title & ToggleSwitch */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                       isEnabled 
                         ? 'bg-paid text-white shadow-2xs' 
                         : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark'
@@ -374,12 +358,12 @@ export const StoreFeaturesTab = ({
                       <FeatIcon className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
-                      <h4 className="font-bold text-xs text-ink dark:text-ink-dark truncate m-0">
+                      <h4 className="t-label text-ink dark:text-ink-dark leading-snug m-0">
                         {feat.nameAr}
                       </h4>
-                      <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="flex items-center gap-1.5 mt-1">
                         <span className={`w-1.5 h-1.5 rounded-full ${isEnabled ? 'bg-paid' : 'bg-ink-muted/40'}`} />
-                        <span className={`text-[10px] font-semibold ${
+                        <span className={`text-micro font-semibold ${
                           isEnabled ? 'text-paid dark:text-paid-bright' : 'text-ink-muted dark:text-ink-muted-dark'
                         }`}>
                           {isEnabled ? 'مفعّلة' : 'معطّلة'}
@@ -410,29 +394,29 @@ export const StoreFeaturesTab = ({
 
                 {/* Badges for special distinction */}
                 {isPosPayments && (
-                  <div className="inline-flex items-center gap-1 text-[10px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 px-2 py-0.5 rounded-md w-fit">
+                  <div className="inline-flex items-center gap-1 text-micro font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 px-2 py-0.5 rounded-md w-fit">
                     <Smartphone className="w-3 h-3" />
                     <span>سداد الفواتير في شاشة البيع</span>
                   </div>
                 )}
                 {isWalletsAgency && (
-                  <div className="inline-flex items-center gap-1 text-[10px] font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 px-2 py-0.5 rounded-md w-fit">
+                  <div className="inline-flex items-center gap-1 text-micro font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 px-2 py-0.5 rounded-md w-fit">
                     <Wallet className="w-3 h-3" />
                     <span>خدمة سحب وإيداع نقدي للجمهور (كيوسك)</span>
                   </div>
                 )}
 
                 {/* Description */}
-                <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 font-sans line-clamp-2">
+                <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 font-sans">
                   {feat.descriptionAr}
                 </p>
               </div>
 
               {/* Dependencies if any */}
               {feat.requires && feat.requires.length > 0 && (
-                <div className="text-[10px] text-ink-muted dark:text-ink-muted-dark flex items-center gap-1 pt-1.5 border-t border-line/40 dark:border-line-dark/40">
-                  <span className="font-bold text-ink/70 dark:text-ink-dark/70">تتطلب:</span>
-                  <span className="truncate">
+                <div className="text-micro text-ink-muted dark:text-ink-muted-dark flex items-start gap-1.5 pt-3 border-t border-line/40 dark:border-line-dark/40">
+                  <span className="font-bold text-ink/70 dark:text-ink-dark/70 shrink-0">تتطلب:</span>
+                  <span className="leading-relaxed">
                     {feat.requires
                       .map((r) => registry.find((x) => x.key === r)?.nameAr || r)
                       .join('، ')}

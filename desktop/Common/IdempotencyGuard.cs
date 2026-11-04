@@ -14,7 +14,8 @@ namespace RafiqPOS.Common
         // Fixed internal whitelist; table/column names are never taken from a request
         private static readonly string[] GUARDED_TABLES = new string[]
         {
-            "returns", "customer_ledger", "expenses", "cash_drawer_transactions", "epay_transactions", "epay_terminal_fundings"
+            "returns", "customer_ledger", "expenses", "cash_drawer_transactions", "epay_transactions", "epay_terminal_fundings",
+            "purchases", "purchase_returns", "supplier_transactions"
         };
 
         public static string Fingerprint(params object[] parts)

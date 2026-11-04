@@ -98,14 +98,6 @@ namespace RafiqPOS.Bridge
                     {
                         saleId = request.Payload.ToString().Trim('"', ' ');
                     }
-                    if (saleId.StartsWith("RFQ-INV-", StringComparison.OrdinalIgnoreCase))
-                    {
-                        saleId = saleId.Substring(8);
-                    }
-                    else if (saleId.StartsWith("INV-", StringComparison.OrdinalIgnoreCase))
-                    {
-                        saleId = saleId.Substring(4);
-                    }
                     var singleSale = DatabaseService.Sales.GetSaleById(saleId);
                     if (singleSale == null)
                     {
@@ -190,29 +182,11 @@ namespace RafiqPOS.Bridge
                     JObject invPayload = request.Payload as JObject;
                     if (invPayload != null && invPayload["invoiceNumber"] != null)
                     {
-                        var rawVal = invPayload["invoiceNumber"].ToString().Trim('"', ' ', '#');
-                        if (rawVal.StartsWith("RFQ-INV-", StringComparison.OrdinalIgnoreCase))
-                            rawVal = rawVal.Substring(8);
-                        else if (rawVal.StartsWith("RFQ-", StringComparison.OrdinalIgnoreCase))
-                            rawVal = rawVal.Substring(4);
-                        else if (rawVal.StartsWith("INV-", StringComparison.OrdinalIgnoreCase))
-                            rawVal = rawVal.Substring(4);
-                        else if (rawVal.StartsWith("INV", StringComparison.OrdinalIgnoreCase))
-                            rawVal = rawVal.Substring(3);
-                        int.TryParse(rawVal, out invNum);
+                        invNum = invPayload["invoiceNumber"].Value<int>();
                     }
                     else if (request.Payload != null)
                     {
-                        var rawVal = request.Payload.ToString().Trim('"', ' ', '#');
-                        if (rawVal.StartsWith("RFQ-INV-", StringComparison.OrdinalIgnoreCase))
-                            rawVal = rawVal.Substring(8);
-                        else if (rawVal.StartsWith("RFQ-", StringComparison.OrdinalIgnoreCase))
-                            rawVal = rawVal.Substring(4);
-                        else if (rawVal.StartsWith("INV-", StringComparison.OrdinalIgnoreCase))
-                            rawVal = rawVal.Substring(4);
-                        else if (rawVal.StartsWith("INV", StringComparison.OrdinalIgnoreCase))
-                            rawVal = rawVal.Substring(3);
-                        int.TryParse(rawVal, out invNum);
+                        int.TryParse(request.Payload.ToString().Trim('"', ' ', '#'), out invNum);
                     }
                     if (invNum <= 0)
                     {
@@ -433,39 +407,37 @@ namespace RafiqPOS.Bridge
                         string pPrinterName = null;
                         int? pPaperWidth = null;
                         bool? pOpenDrawer = null;
+                        string printReturnId = null;
 
                         if (printRetObj != null)
                         {
-                            if (printRetObj["return"] != null)
-                            {
-                                retToPrint = printRetObj["return"].ToObject<Return>();
-                            }
-                            else if (printRetObj["returnId"] != null)
-                            {
-                                retToPrint = DatabaseService.Returns.GetReturnById(printRetObj["returnId"].ToString());
-                            }
-                            else if (printRetObj["id"] != null)
-                            {
-                                retToPrint = DatabaseService.Returns.GetReturnById(printRetObj["id"].ToString());
-                            }
+                            // Only a stored return can be printed: the id is required and client-supplied amounts are never used
+                            if (printRetObj["returnId"] != null) printReturnId = printRetObj["returnId"].ToString();
+                            else if (printRetObj["id"] != null) printReturnId = printRetObj["id"].ToString();
+                            else if (printRetObj["return"] != null && printRetObj["return"]["id"] != null) printReturnId = printRetObj["return"]["id"].ToString();
 
                             if (printRetObj["printerName"] != null) pPrinterName = printRetObj["printerName"].ToString();
                             if (printRetObj["paperWidth"] != null) pPaperWidth = printRetObj["paperWidth"].Value<int>();
                             if (printRetObj["openDrawer"] != null) pOpenDrawer = printRetObj["openDrawer"].Value<bool>();
                         }
 
-                        if (retToPrint == null)
+                        if (!string.IsNullOrWhiteSpace(printReturnId))
                         {
-                            retToPrint = JsonConvert.DeserializeObject<Return>(request.Payload.ToString());
+                            retToPrint = DatabaseService.Returns.GetReturnById(printReturnId);
                         }
 
-                        if (retToPrint == null)
+                        if (retToPrint == null || retToPrint.Items == null || retToPrint.Items.Count == 0)
                         {
                             response = BridgeResponse.Fail(request.Id, "NOT_FOUND", "تعذر العثور على بيانات المرتجع للطباعة");
                             return true;
                         }
 
                         var printRes = DatabaseService.Printer.PrintReturnReceipt(retToPrint, pPrinterName, pPaperWidth, pOpenDrawer);
+                        if (printRes == null || !printRes.Success)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "PRINT_FAILED", printRes != null && !string.IsNullOrWhiteSpace(printRes.Message) ? printRes.Message : "فشل طباعة إيصال المرتجع.");
+                            return true;
+                        }
                         response = BridgeResponse.Ok(request.Id, printRes);
                     }
                     catch (Exception ex)

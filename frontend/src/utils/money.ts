@@ -33,15 +33,39 @@ export function normalizeArabicText(text: string): string {
 }
 
 /**
- * تحويل الجنيهات إلى قروش مع التقريب لأقرب قرش صحيح
+ * تحويل الجنيهات إلى قروش مع التقريب لأقرب قرش صحيح (نصف القرش يُقرَّب بعيداً عن الصفر)
+ * يعتمد على تحليل الأرقام العشرية كنص حتى لا يظهر خطأ الفاصلة العائمة (مثال: 1.005 -> 101 وليس 100)
  * @param pounds المبلغ بالجنيه (مثال: 15.50)
  * @returns المبلغ بالقروش كعدد صحيح (مثال: 1550)
  */
 export function poundsToPiasters(pounds: number | string): number {
-  const normalized = typeof pounds === 'string' ? normalizeArabicNumerals(pounds) : pounds;
-  const num = typeof normalized === 'string' ? parseFloat(normalized.replace(/,/g, '')) : normalized;
-  if (isNaN(num)) return 0;
-  return Math.round(num * 100);
+  const normalized = typeof pounds === 'string' ? normalizeArabicNumerals(pounds).replace(/,/g, '').trim() : String(pounds);
+  const match = /^([+-]?)(\d*)\.?(\d*)(?:[eE]([+-]?\d+))?/.exec(normalized);
+  if (!match) return 0;
+
+  const intPart = match[2];
+  const fracPart = match[3];
+  if (intPart.length + fracPart.length === 0) return 0;
+
+  const negative = match[1] === '-';
+  const exponent = match[4] ? parseInt(match[4], 10) : 0;
+  // value (pounds) = digits x 10^(exponent - fracLen); piasters = value x 100
+  const digits = (intPart + fracPart).replace(/^0+(?=\d)/, '');
+  const scale = exponent - fracPart.length + 2;
+
+  let piasters: number;
+  if (scale >= 0) {
+    if (scale > 30) return 0;
+    piasters = Number(digits + '0'.repeat(scale));
+  } else {
+    const cut = digits.length + scale;
+    const kept = cut > 0 ? digits.slice(0, cut) : '0';
+    const nextDigit = cut >= 0 && cut < digits.length ? digits.charCodeAt(cut) - 48 : 0;
+    piasters = Number(kept) + (nextDigit >= 5 ? 1 : 0);
+  }
+
+  if (!Number.isFinite(piasters) || piasters === 0) return 0;
+  return negative ? -piasters : piasters;
 }
 
 /**

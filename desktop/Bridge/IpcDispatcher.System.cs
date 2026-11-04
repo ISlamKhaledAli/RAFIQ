@@ -15,7 +15,7 @@ namespace RafiqPOS.Bridge
         private static readonly HashSet<string> PRINTER_SETTING_KEYS = new HashSet<string>(StringComparer.Ordinal)
         {
             "default_printer_name", "receipt_paper_width", "printer_auto_print", "printer_open_drawer",
-            "default_label_printer_name", "default_label_paper_size", "drawer_pulse_ms", "drawer_pin"
+            "default_label_printer_name", "default_label_paper_size", "drawer_pulse_ms", "drawer_pin", "report_paper_size"
         };
 
         private static readonly HashSet<string> BARCODE_SETTING_KEYS = new HashSet<string>(StringComparer.Ordinal)
@@ -189,8 +189,8 @@ namespace RafiqPOS.Bridge
                     string osDetails = RafiqPOS.Common.OsDetector.GetOsFriendlyName() + (Environment.Is64BitOperatingSystem ? " (64-bit)" : " (32-bit)");
                     response = BridgeResponse.Ok(request.Id, new
                     {
-                        appName = "نظام رفيق",
-                        version = "1.0.0",
+                        appName = "رفيق POS",
+                        version = RafiqPOS.Services.AppUpdateService.CurrentVersion,
                         osVersion = osDetails,
                         isWebView2 = true,
                         dbStatus = DatabaseService.GetStatus()
@@ -256,7 +256,7 @@ namespace RafiqPOS.Bridge
 
                 case "settings:getStoreProfile":
                     var storeSettings = DatabaseService.Settings.GetAllSettings();
-                    string sName = storeSettings.ContainsKey("store_name") ? storeSettings["store_name"] : (storeSettings.ContainsKey("storeName") ? storeSettings["storeName"] : "نظام رفيق");
+                    string sName = storeSettings.ContainsKey("store_name") ? storeSettings["store_name"] : (storeSettings.ContainsKey("storeName") ? storeSettings["storeName"] : "رفيق POS");
                     string sPhone = storeSettings.ContainsKey("store_phone") ? storeSettings["store_phone"] : "";
                     string sAddr = storeSettings.ContainsKey("store_address") ? storeSettings["store_address"] : "";
                     response = BridgeResponse.Ok(request.Id, new { storeName = sName, storePhone = sPhone, storeAddress = sAddr });

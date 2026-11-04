@@ -38,7 +38,7 @@ export const QuickAddCustomerForm = ({
           </div>
           <span className="text-xs font-bold text-emerald-950">إضافة عميل جديد سريع (خلال ثوانٍ):</span>
         </div>
-        <span className="text-[11px] text-emerald-800 font-semibold bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300/60">
+        <span className="text-micro text-emerald-800 font-semibold bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300/60">
           سيتم حفظه واختياره فوراً
         </span>
       </div>

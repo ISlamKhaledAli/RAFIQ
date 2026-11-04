@@ -4,10 +4,13 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Printing;
 using System.Drawing.Text;
+using System.Globalization;
 using System.IO;
+using System.Text;
 using RafiqPOS.Common;
 using RafiqPOS.Models;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace RafiqPOS.Services
 {
@@ -26,8 +29,8 @@ namespace RafiqPOS.Services
     }
 
     /// <summary>
-    /// محرك الطباعة الحرارية وأوامر ESC/POS لنظام رفيق
-    /// يدعم طابعات الإيصالات USB والشبكية (80mm و 57mm) مع طباعة الحروف العربية والباركود والشعار
+    /// محرك الطباعة الحرارية وأوامر ESC/POS لنظام رفيق POS
+    /// يدعم طابعات الإيصالات USB والشبكية (80mm و 57mm) مع طباعة الحروف العربية والشعار
     /// ونبضة فتح درج النقدية وقص الورق التلقائي وعزل أعطال الطابعة دون تجميد النظام
     /// متوافق مع .NET Framework 4.8 و C# 5 وأنظمة ويندوز 7 SP1 حتى 11
     /// </summary>
@@ -249,7 +252,7 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
-        /// طباعة صفحة اختبار عربية للتأكد من عمل الطابعة وجودة الحروف والباركود والشعار
+        /// طباعة صفحة اختبار عربية للتأكد من عمل الطابعة وجودة الحروف والشعار (فاتورة تجريبية موسومة، لا تُسجل ولا تُرقم)
         /// </summary>
         public PrintResult PrintTestReceipt(string printerName = null, string paperWidth = null)
         {
@@ -261,16 +264,18 @@ namespace RafiqPOS.Services
                 var testSale = new Sale
                 {
                     Id = "test_sale_receipt",
-                    InvoiceNumber = 1001,
+                    InvoiceNumber = 0,
+                    Status = "TEST_PILOT",
                     CreatedAt = DateTime.UtcNow.ToString("o"),
-                    CashierId = "كاشير تجريبي",
+                    CashierName = "كاشير تجريبي",
                     PaymentMethod = "cash",
                     SubtotalPiasters = 12500,
                     DiscountPiasters = 1000,
-                    TaxPiasters = 1400,
-                    TotalPiasters = 12900,
+                    TaxPiasters = 1412,
+                    TotalPiasters = 11500,
                     PaidPiasters = 15000,
-                    Notes = "فاتورة تجريبية لاختبار جودة الطباعة والحروف العربية والباركود",
+                    ChangePiasters = 3500,
+                    Notes = "فاتورة تجريبية - ليست فاتورة حقيقية. لاختبار جودة الطباعة والحروف العربية",
                     Items = new List<SaleItem>
                     {
                         new SaleItem { ProductName = "لبن جهينة كامل الدسم 1 لتر", QuantityMilli = 2000, UnitPricePiasters = 4200, TotalPiasters = 8400, Unit = "piece" },
@@ -298,7 +303,7 @@ namespace RafiqPOS.Services
 
         /// <summary>
         /// طباعة إيصال بيع حراري عربي كامل على طابعة ويندوز أو طابعة شبكية ESC/POS مع دعم مقاسات 80mm و 57mm
-        /// ورسم باركود حقيقي Code 128 ونبضة فتح الدرج وقص الورق التلقائي
+        /// ونبضة فتح الدرج وقص الورق التلقائي
         /// </summary>
         public PrintResult PrintSaleReceipt(Sale sale, string printerName = null, string paperWidth = null, bool? openDrawer = null, bool isCopy = false)
         {
@@ -307,10 +312,15 @@ namespace RafiqPOS.Services
                 return new PrintResult { Success = false, Message = "بيانات الفاتورة فارغة" };
             }
 
+            string validationError;
+            if (!TryValidateSaleForPrint(sale, out validationError))
+            {
+                return new PrintResult { Success = false, Message = validationError };
+            }
+
             string targetPrinter = ResolvePrinterName(printerName);
             string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
             bool isCompact = IsCompactPaper(targetWidth);
-            int printWidth = GetContentWidthPoints(targetWidth);
 
             bool shouldOpenDrawer;
             if (openDrawer.HasValue)
@@ -343,116 +353,50 @@ namespace RafiqPOS.Services
             bool isThermal = IsThermalPrinter(targetPrinter, targetWidth);
             bool autoCut = GetConfiguredAutoCut();
 
-            // للطابعات الحرارية المحلية (USB / Spooler): نستخدم ESC/POS Raster المباشر لمنع أي هدر في الورق
-            if (isThermal)
-            {
-                try
-                {
-                    using (var bmp = RenderReceiptToBitmap(sale, targetWidth, isCopy))
-                    {
-                        if (bmp != null)
-                        {
-                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
-                            string errMsg;
-                            string docTitle = string.Format("Rafiq Receipt #{0}", sale.InvoiceNumber);
-                            bool ok = RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, docTitle, out errMsg);
-                            if (ok)
-                            {
-                                if (isCopy && DatabaseService.Audit != null)
-                                {
-                                    try
-                                    {
-                                        DatabaseService.Audit.Log(
-                                            userId: !string.IsNullOrEmpty(sale.CashierId) ? sale.CashierId : "usr_admin_default",
-                                            action: "sale_reprint",
-                                            entityType: "sale",
-                                            entityId: sale.Id,
-                                            detailsJson: string.Format("{{\"invoiceNumber\":{0},\"isCopy\":true,\"timestamp\":\"{1}\"}}", sale.InvoiceNumber, DateTime.UtcNow.ToString("o"))
-                                        );
-                                    }
-                                    catch { }
-                                }
-
-                                return new PrintResult
-                                {
-                                    Success = true,
-                                    Message = string.Format("تم إرسال {0} للفاتورة #{1} إلى الطابعة '{2}' بنجاح.", isCopy ? "نسخة طبق الأصل" : "الإيصال", sale.InvoiceNumber, targetPrinter),
-                                    PrinterUsed = targetPrinter
-                                };
-                            }
-                            else
-                            {
-                                Logger.Warn(string.Format("فشل الإرسال المباشر ESC/POS للطابعة '{0}': {1}، جاري المحاولة عبر Windows PrintDocument.", targetPrinter, errMsg));
-                            }
-                        }
-                    }
-                }
-                catch (Exception exRaster)
-                {
-                    Logger.Warn("استثناء أثناء طباعة ESC/POS Raster: " + exRaster.Message);
-                }
-            }
-
+            ReceiptRenderJob job = null;
             try
             {
-                var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
-                string storeName = store.ContainsKey("store_name") ? store["store_name"] : "متجر رفيق";
-                string phone = store.ContainsKey("store_phone") ? store["store_phone"] : "";
-                string address = store.ContainsKey("store_address") ? store["store_address"] : "";
-                string taxNumber = store.ContainsKey("tax_number") ? store["tax_number"] : "";
-                string header = store.ContainsKey("receipt_header") ? store["receipt_header"] : "";
-                string footer = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "";
+                job = CreateSaleReceiptJob(sale, targetWidth, isCopy);
 
-                using (var doc = new PrintDocument())
+                // للطابعات الحرارية المحلية (USB / Spooler): نستخدم ESC/POS Raster المباشر لمنع أي هدر في الورق
+                if (isThermal)
                 {
-                    if (!string.IsNullOrWhiteSpace(targetPrinter))
-                    {
-                        doc.PrinterSettings.PrinterName = targetPrinter;
-                    }
-
-                    doc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
-                    doc.OriginAtMargins = false;
-
-                    if (!doc.PrinterSettings.IsValid)
-                    {
-                        return new PrintResult
-                        {
-                            Success = false,
-                            Message = string.Format("الطابعة '{0}' غير مثبتة أو غير متصلة بالنظام. الفاتورة رقم #{1} محفوظة بأمان في قاعدة البيانات.", targetPrinter, sale.InvoiceNumber),
-                            PrinterUsed = targetPrinter
-                        };
-                    }
-
-                    float measuredHeight;
-                    using (var bmpMeasure = new Bitmap(10, 10))
-                    using (var gMeasure = Graphics.FromImage(bmpMeasure))
-                    {
-                        measuredHeight = RenderReceiptPage(gMeasure, sale, storeName, phone, address, taxNumber, header, footer, printWidth, isCopy);
-                    }
-
-                    int widthHundredths = isCompact ? 228 : 314;
-                    int heightHundredths = (int)Math.Ceiling((measuredHeight / 72.0) * 100.0) + 12;
                     try
                     {
-                        doc.DefaultPageSettings.PaperSize = new PaperSize("RafiqReceipt", widthHundredths, heightHundredths);
+                        byte[] escposBytes = BuildReceiptEscPos(job, shouldOpenDrawer, autoCut);
+                        string errMsg;
+                        string docTitle = string.Format("Rafiq Receipt #{0}", sale.InvoiceNumber);
+                        if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, docTitle, out errMsg))
+                        {
+                            RecordSaleReceiptPrinted(sale, isCopy, targetPrinter, false);
+
+                            return new PrintResult
+                            {
+                                Success = true,
+                                Message = string.Format("تم إرسال {0} للفاتورة #{1} إلى الطابعة '{2}' بنجاح.", isCopy ? "نسخة طبق الأصل" : "الإيصال", sale.InvoiceNumber, targetPrinter),
+                                PrinterUsed = targetPrinter
+                            };
+                        }
+
+                        Logger.Warn(string.Format("فشل الإرسال المباشر ESC/POS للطابعة '{0}': {1}، جاري المحاولة عبر Windows PrintDocument.", targetPrinter, errMsg));
                     }
-                    catch { }
-
-                    doc.DocumentName = string.Format(isCopy ? "إيصال رفيق (نسخة) - فاتورة #{0}" : "إيصال رفيق - فاتورة #{0}", sale.InvoiceNumber);
-                    doc.PrintController = new StandardPrintController(); // طباعة صامتة بدون نوافذ حوارية مزعجة
-
-                    doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
+                    catch (Exception exRaster)
                     {
-                        e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
-                        e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                        e.Graphics.SmoothingMode = SmoothingMode.None;
-                        e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+                        Logger.Warn("استثناء أثناء طباعة ESC/POS Raster: " + exRaster.Message);
+                    }
+                }
 
-                        RenderReceiptPage(e.Graphics, sale, storeName, phone, address, taxNumber, header, footer, printWidth, isCopy);
-                        e.HasMorePages = false;
+                // مسار ويندوز (PrintDocument): صفحة بمقاس ورق صريح وارتفاع محسوب من المحتوى وهوامش صفرية
+                string gdiError;
+                string docName = string.Format(isCopy ? "إيصال رفيق (نسخة) - فاتورة #{0}" : "إيصال رفيق - فاتورة #{0}", sale.InvoiceNumber);
+                if (!PrintReceiptJobViaGdi(job, targetPrinter, docName, isCompact, out gdiError))
+                {
+                    return new PrintResult
+                    {
+                        Success = false,
+                        Message = string.Format("{0} الفاتورة رقم #{1} محفوظة بأمان في قاعدة البيانات.", gdiError, sale.InvoiceNumber),
+                        PrinterUsed = targetPrinter
                     };
-
-                    doc.Print();
                 }
 
                 if (shouldOpenDrawer)
@@ -481,20 +425,7 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                if (isCopy && DatabaseService.Audit != null)
-                {
-                    try
-                    {
-                        DatabaseService.Audit.Log(
-                            userId: !string.IsNullOrEmpty(sale.CashierId) ? sale.CashierId : "usr_admin_default",
-                            action: "sale_reprint",
-                            entityType: "sale",
-                            entityId: sale.Id,
-                            detailsJson: string.Format("{{\"invoiceNumber\":{0},\"isCopy\":true,\"timestamp\":\"{1}\"}}", sale.InvoiceNumber, DateTime.UtcNow.ToString("o"))
-                        );
-                    }
-                    catch { }
-                }
+                RecordSaleReceiptPrinted(sale, isCopy, targetPrinter, false);
 
                 return new PrintResult
                 {
@@ -513,26 +444,154 @@ namespace RafiqPOS.Services
                     PrinterUsed = targetPrinter
                 };
             }
+            finally
+            {
+                if (job != null) job.Dispose();
+            }
+        }
+
+        public const string ReceiptPrintedAuditAction = "RECEIPT_PRINTED";
+        public const string SaleReprintAuditAction = "sale_reprint";
+        public const string ReturnReprintAuditAction = "return_reprint";
+
+        /// <summary>
+        /// فحص صلاحية الفاتورة للطباعة: لا طباعة لإيصال فارغ أو بقيم سالبة
+        /// </summary>
+        public static bool TryValidateSaleForPrint(Sale sale, out string error)
+        {
+            error = null;
+            if (sale == null)
+            {
+                error = "بيانات الفاتورة فارغة";
+                return false;
+            }
+            if (sale.Items == null || sale.Items.Count == 0)
+            {
+                error = "الفاتورة لا تحتوي على أي أصناف ولا يمكن طباعة إيصال فارغ.";
+                return false;
+            }
+            for (int i = 0; i < sale.Items.Count; i++)
+            {
+                SaleItem item = sale.Items[i];
+                if (item == null || item.QuantityMilli <= 0 || item.UnitPricePiasters < 0 || item.DiscountPiasters < 0 || item.TotalPiasters < 0)
+                {
+                    error = "بيانات أصناف الفاتورة غير صالحة (كمية أو سعر أو خصم غير صحيح) ولا يمكن طباعتها.";
+                    return false;
+                }
+            }
+            if (sale.SubtotalPiasters < 0 || sale.DiscountPiasters < 0 || sale.TotalPiasters < 0 || sale.PaidPiasters < 0
+                || sale.ChangePiasters < 0 || sale.ServiceChargePiasters < 0 || sale.DeliveryFeePiasters < 0 || sale.TaxPiasters < 0)
+            {
+                error = "إجماليات الفاتورة غير صالحة (قيم سالبة) ولا يمكن طباعتها.";
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>الشيك المبدئي وفواتير التدريب لا تُسجل كإيصال أصلي ولا تُعد نسخاً</summary>
+        public static bool IsTransientReceiptSale(Sale sale)
+        {
+            if (sale == null) return false;
+            return string.Equals(sale.Id, PreBillSaleId, StringComparison.Ordinal)
+                || string.Equals(sale.Status, "TEST_PILOT", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>المستخدم الحالي هو صاحب العملية؛ كاشير الفاتورة فقط عند غياب الجلسة</summary>
+        public static void ResolveAuditActor(string fallbackUserId, out string userId, out string userName)
+        {
+            UserDto current = SecurityService.CurrentUser;
+            if (current != null && !string.IsNullOrWhiteSpace(current.Id))
+            {
+                userId = current.Id;
+                userName = current.Username ?? "";
+                return;
+            }
+            userId = !string.IsNullOrEmpty(fallbackUserId) ? fallbackUserId : "usr_admin_default";
+            userName = "";
+        }
+
+        /// <summary>هل طُبع إيصال هذه الفاتورة من قبل (أصل أو نسخة)؟ عند تعذر قراءة السجل تُعامل كمطبوعة سابقاً</summary>
+        public bool HasSaleReceiptBeenPrinted(string saleId)
+        {
+            return HasPrintMarker("sale", saleId, SaleReprintAuditAction);
+        }
+
+        private bool HasPrintMarker(string entityType, string entityId, string copyAction)
+        {
+            if (string.IsNullOrWhiteSpace(entityId) || string.Equals(entityId, PreBillSaleId, StringComparison.Ordinal)) return false;
+            if (DatabaseService.Audit == null) return false;
+            try
+            {
+                string[] actions = new string[] { ReceiptPrintedAuditAction, copyAction };
+                for (int a = 0; a < actions.Length; a++)
+                {
+                    List<AuditLog> logs = DatabaseService.Audit.GetLogs(1000, actions[a], null, null, null, entityId);
+                    for (int i = 0; i < logs.Count; i++)
+                    {
+                        if (string.Equals(logs[i].EntityType, entityType, StringComparison.Ordinal)
+                            && string.Equals(logs[i].EntityId, entityId, StringComparison.Ordinal))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر قراءة سجل طباعة الإيصال، سيُعامل الإيصال كنسخة: " + ex.Message);
+                return true;
+            }
+        }
+
+        private void RecordSaleReceiptPrinted(Sale sale, bool isCopy, string printerUsed, bool isNetwork)
+        {
+            if (sale == null || IsTransientReceiptSale(sale)) return;
+            RecordPrintAudit("sale", sale.Id, isCopy, SaleReprintAuditAction, sale.InvoiceNumber, printerUsed, isNetwork, sale.CashierId);
+        }
+
+        /// <summary>
+        /// توثيق طباعة إيصال في سجل التدقيق: RECEIPT_PRINTED للأصل (وهو علامة أن أي طباعة تالية نسخة) أو إجراء النسخة (لا يُفشل الطباعة أبداً)
+        /// </summary>
+        private void RecordPrintAudit(string entityType, string entityId, bool isCopy, string copyAction, int documentNumber, string printerUsed, bool isNetwork, string fallbackUserId)
+        {
+            if (string.IsNullOrWhiteSpace(entityId) || DatabaseService.Audit == null) return;
+            try
+            {
+                string userId;
+                string userName;
+                ResolveAuditActor(fallbackUserId, out userId, out userName);
+
+                var details = new JObject();
+                details["number"] = documentNumber;
+                details["isCopy"] = isCopy;
+                details["printer"] = printerUsed ?? "";
+                if (isNetwork) details["networkPrinter"] = printerUsed ?? "";
+                details["username"] = userName;
+                details["timestamp"] = DateTime.UtcNow.ToString("o");
+
+                DatabaseService.Audit.Log(
+                    userId: userId,
+                    action: isCopy ? copyAction : ReceiptPrintedAuditAction,
+                    entityType: entityType,
+                    entityId: entityId,
+                    detailsJson: details.ToString(Formatting.None)
+                );
+            }
+            catch (Exception exAudit)
+            {
+                Logger.Warn("تعذر تسجيل طباعة الإيصال في سجل التدقيق: " + exAudit.Message);
+            }
         }
 
         private PrintResult PrintSaleReceiptToNetwork(Sale sale, string networkTarget, string paperWidth, bool shouldOpenDrawer, bool isCopy)
         {
             try
             {
-                using (var bmp = RenderReceiptToBitmap(sale, paperWidth, isCopy))
+                using (var job = CreateSaleReceiptJob(sale, paperWidth, isCopy))
                 {
-                    if (bmp == null)
-                    {
-                        return new PrintResult
-                        {
-                            Success = false,
-                            Message = "فشل توليد صورة الإيصال للطباعة الشبكية.",
-                            PrinterUsed = networkTarget
-                        };
-                    }
-
                     bool autoCut = GetConfiguredAutoCut();
-                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
+                    byte[] escposBytes = BuildReceiptEscPos(job, shouldOpenDrawer, autoCut);
 
                     string errMsg;
                     string docTitle = string.Format("Rafiq Network Receipt #{0}", sale.InvoiceNumber);
@@ -540,20 +599,7 @@ namespace RafiqPOS.Services
 
                     if (ok)
                     {
-                        if (isCopy && DatabaseService.Audit != null)
-                        {
-                            try
-                            {
-                                DatabaseService.Audit.Log(
-                                    userId: !string.IsNullOrEmpty(sale.CashierId) ? sale.CashierId : "usr_admin_default",
-                                    action: "sale_reprint",
-                                    entityType: "sale",
-                                    entityId: sale.Id,
-                                    detailsJson: string.Format("{{\"invoiceNumber\":{0},\"isCopy\":true,\"networkPrinter\":\"{1}\",\"timestamp\":\"{2}\"}}", sale.InvoiceNumber, networkTarget, DateTime.UtcNow.ToString("o"))
-                                );
-                            }
-                            catch { }
-                        }
+                        RecordSaleReceiptPrinted(sale, isCopy, networkTarget, true);
 
                         return new PrintResult
                         {
@@ -593,48 +639,20 @@ namespace RafiqPOS.Services
             if (sale == null) return null;
 
             string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
-            bool isCompact = IsCompactPaper(targetWidth);
-            int contentWidth = GetContentWidthPoints(targetWidth);
-
-            // على طابعات 203 DPI: 80mm = 576 بكسل، 57mm = 384 بكسل
-            int pixelWidth = isCompact ? 384 : 576;
-            float scale = (float)pixelWidth / (float)contentWidth;
-
-            // تقدير الارتفاع الأولي مع هامش كافٍ
-            int estimatedHeight = Math.Max(500, 360 + (sale.Items != null ? sale.Items.Count * 45 : 0) + (isCopy ? 40 : 0) + 150);
-            int pixelHeight = (int)(estimatedHeight * scale);
-
-            var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
-            string storeName = store.ContainsKey("store_name") ? store["store_name"] : "متجر رفيق";
-            string phone = store.ContainsKey("store_phone") ? store["store_phone"] : "";
-            string address = store.ContainsKey("store_address") ? store["store_address"] : "";
-            string taxNumber = store.ContainsKey("tax_number") ? store["tax_number"] : "";
-            string header = store.ContainsKey("receipt_header") ? store["receipt_header"] : "";
-            string footer = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "";
-
-            var bmpTemp = new Bitmap(pixelWidth, pixelHeight);
-            float finalY;
-            using (var g = Graphics.FromImage(bmpTemp))
+            using (var job = CreateSaleReceiptJob(sale, targetWidth, isCopy))
             {
-                g.Clear(Color.White);
-                g.ScaleTransform(scale, scale);
-                g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.SmoothingMode = SmoothingMode.None;
-                g.PixelOffsetMode = PixelOffsetMode.Half;
-
-                finalY = RenderReceiptPage(g, sale, storeName, phone, address, taxNumber, header, footer, contentWidth, isCopy);
+                return RenderReceiptBand(job, 0, job.PixelHeight);
             }
+        }
 
-            int finalPixelHeight = Math.Max(50, (int)Math.Ceiling((finalY + 4f) * scale));
-            var bmpFinal = new Bitmap(pixelWidth, finalPixelHeight);
-            using (var gFinal = Graphics.FromImage(bmpFinal))
-            {
-                gFinal.DrawImage(bmpTemp, 0, 0, new Rectangle(0, 0, pixelWidth, finalPixelHeight), GraphicsUnit.Pixel);
-            }
-            bmpTemp.Dispose();
-
-            return bmpFinal;
+        private ReceiptRenderJob CreateSaleReceiptJob(Sale sale, string paperWidth, bool isCopy)
+        {
+            ReceiptStoreInfo store = LoadReceiptStoreInfo();
+            Image logo = TryLoadStoreLogo();
+            return CreateReceiptJob(
+                delegate(Graphics g, int width) { return RenderReceiptPage(g, sale, store, logo, width, isCopy); },
+                GetContentWidthPoints(paperWidth),
+                logo);
         }
 
         /// <summary>
@@ -831,21 +849,273 @@ namespace RafiqPOS.Services
             return (string.Equals(unit, "kg", StringComparison.OrdinalIgnoreCase) || quantityMilli % 1000 != 0) ? "كجم" : "ق";
         }
 
-        private float RenderReceiptPage(
-            Graphics g,
-            Sale sale,
-            string storeName,
-            string phone,
-            string address,
-            string taxNumber,
-            string header,
-            string footer,
-            int contentWidth,
-            bool isCopy = false)
-        {
-            g.Clear(Color.White);
+        // =====================================================================
+        // محرك رسم الإيصال: قياس ثم رسم - الارتفاع يُحسب دائماً من المحتوى الفعلي (بدون حد ثابت للأصناف)
+        // =====================================================================
 
-            bool isCompact = (contentWidth <= 210);
+        private const int MaxReceiptBitmapRows = 8192;   // أقصى ارتفاع لصورة واحدة قبل التقسيم إلى شرائح
+        private const int ReceiptBandRows = 4096;        // ارتفاع الشريحة عند تقسيم الإيصالات الطويلة جداً (بدون اقتطاع)
+        private const int ReceiptGdiPageRows = 12000;    // أقصى ارتفاع صفحة في مسار طباعة ويندوز (203 DPI)
+        private const string GeneralCashCustomerId = "cust_general_cash";
+        private const string PreBillSaleId = "PRE-BILL";
+        private const string DefaultReceiptThanks = "شكراً لزيارتكم";
+        private const string DefaultDeveloperSignature = "نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965";
+        private const string LegacyDeveloperSignature = "نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد";
+
+        // نصوص الخاتمة الافتراضية القديمة تُعامل كأنها فارغة (نفس سلوك المعاينة)
+        private static readonly string[] LegacyReceiptFooters = new string[]
+        {
+            "شكراً لتعاملكم معنا! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.",
+            "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر."
+        };
+
+        private static string _receiptFontName;
+
+        private delegate float ReceiptPaintFunc(Graphics g, int contentWidth);
+
+        /// <summary>مهمة طباعة: دالة رسم + أبعاد محسوبة من قياس المحتوى + الشعار المملوك لها</summary>
+        private sealed class ReceiptRenderJob : IDisposable
+        {
+            public ReceiptPaintFunc Paint;
+            public int ContentWidth;
+            public int PixelWidth;
+            public float Scale;
+            public int PixelHeight;
+            public Image Logo;
+
+            public void Dispose()
+            {
+                if (Logo != null)
+                {
+                    Logo.Dispose();
+                    Logo = null;
+                }
+            }
+        }
+
+        private sealed class ReceiptStoreInfo
+        {
+            public string Name = "";
+            public string Phone = "";
+            public string Address = "";
+            public string TaxNumber = "";
+            public string Header = "";
+            public string Footer = "";
+            public string Signature = "";
+        }
+
+        private sealed class ReceiptPaymentLine
+        {
+            public string Label;
+            public long Amount;
+        }
+
+        private sealed class ReceiptTotals
+        {
+            public int ItemCount;
+            public long PieceCount;
+            public long Subtotal;
+            public long DiscountTotal;
+            public long ServiceCharge;
+            public long DeliveryFee;
+            public long Total;
+            public long Tax;
+            public long EpayFee;
+            public long Payable;
+            public long Paid;
+            public long Change;
+            public long Deposited;
+            public long Remaining;
+            public List<ReceiptPaymentLine> Payments = new List<ReceiptPaymentLine>();
+        }
+
+        private sealed class ReceiptLine
+        {
+            public string Name;
+            public string Qty;
+            public string Price;
+            public string Total;
+            public string Discount;
+            public List<string> Details = new List<string>();
+        }
+
+        // ---------- تنسيق الأرقام والتواريخ (أعداد صحيحة فقط - لا double/float في المبالغ) ----------
+
+        private static string GroupThousands(string digits)
+        {
+            if (digits.Length <= 3) return digits;
+            var sb = new StringBuilder();
+            int first = digits.Length % 3;
+            if (first > 0) sb.Append(digits, 0, first);
+            for (int i = first; i < digits.Length; i += 3)
+            {
+                if (sb.Length > 0) sb.Append(',');
+                sb.Append(digits, i, 3);
+            }
+            return sb.ToString();
+        }
+
+        private static ulong AbsAsUnsigned(long value)
+        {
+            return value < 0 ? (ulong)(-(value + 1)) + 1UL : (ulong)value;
+        }
+
+        /// <summary>123456789 قرش => "1,234,567.89" (أرقام لاتينية، مستقل عن لغة الويندوز)</summary>
+        public static string FormatReceiptMoney(long piasters)
+        {
+            ulong abs = AbsAsUnsigned(piasters);
+            ulong frac = abs % 100UL;
+            string text = GroupThousands((abs / 100UL).ToString(CultureInfo.InvariantCulture)) + "." + (frac < 10UL ? "0" : "") + frac.ToString(CultureInfo.InvariantCulture);
+            return piasters < 0 ? "-" + text : text;
+        }
+
+        /// <summary>الكمية بالملي-وحدة: قطع صحيحة بدون كسور، والأوزان بثلاث خانات (1.250)</summary>
+        public static string FormatReceiptQuantity(long quantityMilli, bool forceDecimals)
+        {
+            ulong abs = AbsAsUnsigned(quantityMilli);
+            ulong frac = abs % 1000UL;
+            string text = GroupThousands((abs / 1000UL).ToString(CultureInfo.InvariantCulture));
+            if (frac != 0UL || forceDecimals) text += "." + frac.ToString("000", CultureInfo.InvariantCulture);
+            return quantityMilli < 0 ? "-" + text : text;
+        }
+
+        public static string FormatReceiptQuantityWithUnit(long quantityMilli, string unitName, string unit)
+        {
+            string label = FormatReceiptUnit(unitName, unit, quantityMilli);
+            return FormatReceiptQuantity(quantityMilli, label == "كجم") + " " + label;
+        }
+
+        public static string FormatReceiptDateTime(string createdAt)
+        {
+            DateTime parsed = DateTime.Now;
+            if (!string.IsNullOrWhiteSpace(createdAt)
+                && !DateTime.TryParse(createdAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out parsed)
+                && !DateTime.TryParse(createdAt, out parsed))
+            {
+                parsed = DateTime.Now;
+            }
+            return parsed.ToString("yyyy/MM/dd HH:mm", CultureInfo.InvariantCulture);
+        }
+
+        public static string GetReceiptPaymentLabel(string method)
+        {
+            string m = (method ?? "").Trim().ToLowerInvariant();
+            if (m == "cash") return "نقدي";
+            if (m == "card") return "بطاقة";
+            if (m == "instapay") return "إنستاباي";
+            if (m == "vodafone_cash" || m == "wallet") return "محفظة إلكترونية";
+            if (m == "insurance") return "شركة التأمين";
+            return "المدفوع";
+        }
+
+        private static long GetReceiptLineGross(SaleItem item)
+        {
+            return Money.FromPiasters(item.UnitPricePiasters).MultiplyByMilliUnits(item.QuantityMilli).Piasters;
+        }
+
+        private static bool IsMeasureUnitLabel(string label)
+        {
+            return label == "كجم" || label == "جم" || label == "لتر" || label == "متر";
+        }
+
+        /// <summary>تجميع إجماليات الإيصال مباشرة من الفاتورة المخزنة (بدون إعادة حساب الضريبة أو الإجمالي)</summary>
+        private static ReceiptTotals ComputeReceiptTotals(Sale sale)
+        {
+            var t = new ReceiptTotals();
+            long lineDiscounts = 0;
+            long grossSum = 0;
+            if (sale.Items != null)
+            {
+                for (int i = 0; i < sale.Items.Count; i++)
+                {
+                    SaleItem item = sale.Items[i];
+                    if (item == null) continue;
+                    t.ItemCount++;
+                    lineDiscounts += Math.Max(0L, item.DiscountPiasters);
+                    grossSum += GetReceiptLineGross(item);
+                    string label = FormatReceiptUnit(item.UnitName, item.Unit, item.QuantityMilli);
+                    if (item.QuantityMilli > 0 && item.QuantityMilli % 1000 == 0 && !IsMeasureUnitLabel(label))
+                    {
+                        t.PieceCount += item.QuantityMilli / 1000;
+                    }
+                }
+            }
+
+            t.Subtotal = sale.SubtotalPiasters > 0 ? sale.SubtotalPiasters : grossSum;
+            t.DiscountTotal = Math.Max(0L, sale.DiscountPiasters) + lineDiscounts;
+            t.ServiceCharge = Math.Max(0L, sale.ServiceChargePiasters);
+            t.DeliveryFee = Math.Max(0L, sale.DeliveryFeePiasters);
+            t.Total = sale.TotalPiasters;
+            t.Tax = Math.Max(0L, sale.TaxPiasters);
+            t.EpayFee = Math.Max(0L, sale.ServiceFeePiasters);
+            t.Payable = t.Total + t.EpayFee;
+
+            long nonCredit = 0;
+            long credit = 0;
+            if (sale.Payments != null)
+            {
+                for (int i = 0; i < sale.Payments.Count; i++)
+                {
+                    SalePayment p = sale.Payments[i];
+                    if (p == null || p.AmountPiasters <= 0) continue;
+                    if (string.Equals(p.Method, "credit", StringComparison.OrdinalIgnoreCase))
+                    {
+                        credit += p.AmountPiasters;
+                    }
+                    else
+                    {
+                        nonCredit += p.AmountPiasters;
+                        t.Payments.Add(new ReceiptPaymentLine { Label = GetReceiptPaymentLabel(p.Method), Amount = p.AmountPiasters });
+                    }
+                }
+            }
+
+            if (nonCredit == 0 && credit == 0)
+            {
+                long paid = sale.PaidPiasters;
+                if (string.Equals(sale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (paid > 0)
+                    {
+                        nonCredit = paid;
+                        t.Payments.Add(new ReceiptPaymentLine { Label = GetReceiptPaymentLabel(null), Amount = paid });
+                    }
+                }
+                else
+                {
+                    if (paid <= 0) paid = t.Total;
+                    nonCredit = paid;
+                    if (paid > 0) t.Payments.Add(new ReceiptPaymentLine { Label = GetReceiptPaymentLabel(sale.PaymentMethod), Amount = paid });
+                }
+            }
+
+            t.Paid = nonCredit;
+            if (credit == 0 && t.Paid < t.Payable) credit = t.Payable - t.Paid;
+            t.Remaining = credit;
+
+            long excess = t.Paid - t.Payable;
+            if (excess > 0)
+            {
+                bool registered = !string.IsNullOrWhiteSpace(sale.CustomerId)
+                    && !string.Equals(sale.CustomerId, GeneralCashCustomerId, StringComparison.OrdinalIgnoreCase);
+                long handedBack = Math.Max(0L, sale.ChangePiasters);
+                if (registered)
+                {
+                    t.Change = Math.Min(handedBack, excess);
+                    t.Deposited = excess - t.Change;
+                }
+                else
+                {
+                    t.Change = handedBack > 0 ? Math.Min(handedBack, excess) : excess;
+                }
+            }
+
+            return t;
+        }
+
+        private static string ResolveReceiptFontName()
+        {
+            if (_receiptFontName != null) return _receiptFontName;
 
             // سلسلة الخطوط العربية المتوافقة
             string fontName = "Arial";
@@ -868,387 +1138,820 @@ namespace RafiqPOS.Services
                 }
             }
 
-            // تخصيص أحجام الخطوط تناسبياً مع مقاس الورق (80mm أو 57mm)
-            float titleSize = isCompact ? 10.5f : 12f;
-            float boldSize = isCompact ? 8f : 9f;
-            float regSize = isCompact ? 7.5f : 8.5f;
-            float smallSize = isCompact ? 6.8f : 7.5f;
-            float largeSize = isCompact ? 11f : 12.5f;
+            _receiptFontName = fontName;
+            return fontName;
+        }
 
-            using (var fontTitle = new Font(fontName, titleSize, FontStyle.Bold))
-            using (var fontBold = new Font(fontName, boldSize, FontStyle.Bold))
-            using (var fontRegular = new Font(fontName, regSize, FontStyle.Regular))
-            using (var fontSmall = new Font(fontName, smallSize, FontStyle.Regular))
-            using (var fontLarge = new Font(fontName, largeSize, FontStyle.Bold))
-            using (var penDashed = new Pen(Color.Black, 1f) { DashStyle = DashStyle.Dash })
-            using (var penSolid = new Pen(Color.Black, 1.2f))
+        private static void ApplyReceiptGraphicsHints(Graphics g)
+        {
+            g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.SmoothingMode = SmoothingMode.None;
+            g.PixelOffsetMode = PixelOffsetMode.Half;
+        }
+
+        /// <summary>تمرير قياس: يحسب ارتفاع الإيصال الفعلي بنفس الرسم والمقياس المستخدمين في الطباعة</summary>
+        private static ReceiptRenderJob CreateReceiptJob(ReceiptPaintFunc paint, int contentWidth, Image logo)
+        {
+            var job = new ReceiptRenderJob();
+            job.Paint = paint;
+            job.Logo = logo;
+            bool compact = contentWidth <= 210;
+            // على طابعات 203 DPI: 80mm = 576 بكسل، 57mm = 384 بكسل
+            job.ContentWidth = compact ? 190 : 285;
+            job.PixelWidth = compact ? 384 : 576;
+            job.Scale = (float)job.PixelWidth / (float)job.ContentWidth;
+
+            try
             {
-                var rtlFormat = new StringFormat
+                using (var bmpMeasure = new Bitmap(job.PixelWidth, 8))
+                using (var gMeasure = Graphics.FromImage(bmpMeasure))
                 {
-                    FormatFlags = StringFormatFlags.DirectionRightToLeft,
-                    Alignment = StringAlignment.Near,
-                    LineAlignment = StringAlignment.Center
-                };
+                    ApplyReceiptGraphicsHints(gMeasure);
+                    gMeasure.ScaleTransform(job.Scale, job.Scale);
+                    float measured = paint(gMeasure, job.ContentWidth);
+                    job.PixelHeight = Math.Max(40, (int)Math.Ceiling(measured * job.Scale) + 2);
+                }
+            }
+            catch
+            {
+                job.Dispose();
+                throw;
+            }
 
-                var centerFormat = new StringFormat
+            return job;
+        }
+
+        /// <summary>رسم شريحة من الإيصال (rows صفاً بدءاً من top) في صورة مستقلة</summary>
+        private static Bitmap RenderReceiptBand(ReceiptRenderJob job, int top, int rows)
+        {
+            var bmp = new Bitmap(job.PixelWidth, Math.Max(1, rows));
+            try
+            {
+                using (var g = Graphics.FromImage(bmp))
                 {
-                    FormatFlags = StringFormatFlags.DirectionRightToLeft,
-                    Alignment = StringAlignment.Center,
-                    LineAlignment = StringAlignment.Center
-                };
+                    g.Clear(Color.White);
+                    ApplyReceiptGraphicsHints(g);
+                    g.TranslateTransform(0f, -(float)top);
+                    g.ScaleTransform(job.Scale, job.Scale);
+                    job.Paint(g, job.ContentWidth);
+                }
+            }
+            catch
+            {
+                bmp.Dispose();
+                throw;
+            }
+            return bmp;
+        }
 
-                var leftFormat = new StringFormat
+        /// <summary>بايتات ESC/POS: صورة واحدة للإيصالات العادية، وشرائح متتالية (بدون اقتطاع) للإيصالات الطويلة جداً</summary>
+        private byte[] BuildReceiptEscPos(ReceiptRenderJob job, bool kickDrawer, bool autoCut)
+        {
+            int pulseMs = GetConfiguredDrawerPulseMs();
+            int pin = GetConfiguredDrawerPin();
+
+            if (job.PixelHeight <= MaxReceiptBitmapRows)
+            {
+                using (var bmp = RenderReceiptBand(job, 0, job.PixelHeight))
                 {
-                    Alignment = StringAlignment.Near,
-                    LineAlignment = StringAlignment.Center
-                };
+                    return RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, kickDrawer, autoCut, pulseMs, pin);
+                }
+            }
 
-                // مسافة بداية علوية متوازنة وبسيطة (2pt لمنع الهدر العلوي)
-                float y = 2f;
-
-                // 0. رسم شعار المتجر إذا وجد
-                using (var logo = TryLoadStoreLogo())
+            using (var ms = new MemoryStream())
+            {
+                ms.WriteByte(0x1B); ms.WriteByte(0x40);                              // ESC @
+                if (kickDrawer)
                 {
-                    if (logo != null)
+                    byte[] kick = RawPrinterHelper.GetDrawerKickPulse(pulseMs, pin);
+                    ms.Write(kick, 0, kick.Length);
+                }
+                ms.WriteByte(0x1B); ms.WriteByte(0x61); ms.WriteByte(0x01);          // ESC a 1
+
+                for (int top = 0; top < job.PixelHeight; top += ReceiptBandRows)
+                {
+                    int rows = Math.Min(ReceiptBandRows, job.PixelHeight - top);
+                    using (var band = RenderReceiptBand(job, top, rows))
                     {
-                        try
-                        {
-                            float maxLogoW = isCompact ? 90f : 130f;
-                            float maxLogoH = isCompact ? 38f : 48f;
-                            float scale = Math.Min(maxLogoW / logo.Width, maxLogoH / logo.Height);
-                            if (scale > 1f) scale = 1f;
-
-                            float drawW = logo.Width * scale;
-                            float drawH = logo.Height * scale;
-                            float drawX = (contentWidth - drawW) / 2f;
-
-                            g.DrawImage(logo, drawX, y, drawW, drawH);
-                            y += drawH + 3f;
-                        }
-                        catch
-                        {
-                        }
+                        AppendEscPosRaster(ms, band);
                     }
                 }
 
-                // 1. ترويسة المتجر
-                g.DrawString(storeName, fontTitle, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 19 : 22), centerFormat);
-                y += isCompact ? 19 : 22;
-
-                if (!string.IsNullOrWhiteSpace(address))
+                if (autoCut)
                 {
-                    g.DrawString(address, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 13 : 15), centerFormat);
-                    y += isCompact ? 13 : 15;
+                    byte[] cut = RawPrinterHelper.PaperCutSequence;
+                    ms.Write(cut, 0, cut.Length);
                 }
-
-                if (!string.IsNullOrWhiteSpace(phone))
+                else
                 {
-                    g.DrawString("تليفون: " + phone, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 13 : 15), centerFormat);
-                    y += isCompact ? 13 : 15;
+                    ms.WriteByte(0x1B); ms.WriteByte(0x64); ms.WriteByte(0x03);      // ESC d 3
                 }
+                return ms.ToArray();
+            }
+        }
 
-                if (!string.IsNullOrWhiteSpace(taxNumber))
+        /// <summary>GS v 0 على دفعات 256 صفاً (نفس عتبة RawPrinterHelper) لشريحة واحدة</summary>
+        private static void AppendEscPosRaster(MemoryStream ms, Bitmap bmp)
+        {
+            int width = bmp.Width;
+            int height = bmp.Height;
+            int bytesPerLine = (width + 7) / 8;
+
+            System.Drawing.Imaging.BitmapData data = bmp.LockBits(
+                new Rectangle(0, 0, width, height),
+                System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            try
+            {
+                int stride = Math.Abs(data.Stride);
+                byte[] pixels = new byte[stride * height];
+                System.Runtime.InteropServices.Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+
+                for (int yStart = 0; yStart < height; yStart += 256)
                 {
-                    g.DrawString("ر.ض: " + taxNumber, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 13 : 15), centerFormat);
-                    y += isCompact ? 13 : 15;
-                }
+                    int chunk = Math.Min(256, height - yStart);
+                    ms.WriteByte(0x1D); ms.WriteByte(0x76); ms.WriteByte(0x30); ms.WriteByte(0x00);
+                    ms.WriteByte((byte)(bytesPerLine & 0xFF));
+                    ms.WriteByte((byte)((bytesPerLine >> 8) & 0xFF));
+                    ms.WriteByte((byte)(chunk & 0xFF));
+                    ms.WriteByte((byte)((chunk >> 8) & 0xFF));
 
-                if (!string.IsNullOrWhiteSpace(header))
-                {
-                    g.DrawLine(penDashed, 5, y + 2, contentWidth - 5, y + 2);
-                    y += 5;
-                    g.DrawString(header, fontRegular, Brushes.Black, new RectangleF(0, y, contentWidth, isCompact ? 15 : 17), centerFormat);
-                    y += isCompact ? 16 : 18;
-                    g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                    y += 4;
-                }
-
-                // 2. بيانات الفاتورة الأساسية في سطر واحد منظم (طابق المعاينة بدقة)
-                g.DrawLine(penDashed, 5, y + 1, contentWidth - 5, y + 1);
-                y += 4;
-
-                string invNumStr = string.Format("فاتورة: #{0}", sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
-                DateTime saleDate;
-                if (!DateTime.TryParse(sale.CreatedAt, out saleDate)) saleDate = DateTime.Now;
-                string dateStr = saleDate.ToString("yyyy/MM/dd HH:mm");
-
-                float metaHalf = contentWidth / 2f;
-                g.DrawString(invNumStr, fontBold, Brushes.Black, new RectangleF(metaHalf, y, metaHalf - 5, 16), rtlFormat);
-                g.DrawString(dateStr, fontSmall, Brushes.Black, new RectangleF(5, y, metaHalf - 5, 16), leftFormat);
-                y += 18;
-
-                if (isCopy)
-                {
-                    g.DrawString("*** نسخة طبق الأصل - إيصال مكرر ***", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
-                    y += 17;
-                }
-
-                if (string.Equals(sale.Status, "TEST_PILOT", StringComparison.OrdinalIgnoreCase))
-                {
-                    g.DrawString("*** فاتورة تجريبية - تدريب ***", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
-                    y += 17;
-                }
-
-                if (string.Equals(sale.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
-                {
-                    g.DrawString("*** فاتورة ملغاة ***", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
-                    y += 18;
-                }
-
-                // بيانات المشتري (إذا تم إدخال اسم عميل)
-                if (!string.IsNullOrWhiteSpace(sale.CustomerName))
-                {
-                    string custStr = "العميل: " + sale.CustomerName;
-                    if (!string.IsNullOrWhiteSpace(sale.CustomerPhone))
+                    for (int y = yStart; y < yStart + chunk; y++)
                     {
-                        custStr += " (" + sale.CustomerPhone + ")";
-                    }
-                    g.DrawString(custStr, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rtlFormat);
-                    y += 15;
-                }
-
-                // 3. جدول الأصناف المباعة (مطابق للمعاينة بالكامل: الصنف | الكمية × السعر | الإجمالي في سطر واحد)
-                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                y += 3;
-
-                float colTotW = isCompact ? 48f : 65f;
-                float colQtyW = isCompact ? 68f : 85f;
-                float colItemW = contentWidth - colTotW - colQtyW - 10f;
-
-                using (var headerCenterFormat = new StringFormat
-                {
-                    FormatFlags = StringFormatFlags.DirectionRightToLeft | StringFormatFlags.NoWrap,
-                    Alignment = StringAlignment.Center,
-                    LineAlignment = StringAlignment.Center
-                })
-                {
-                    g.DrawString("الصنف", fontBold, Brushes.Black, new RectangleF(contentWidth - colItemW - 5, y, colItemW, 16), rtlFormat);
-                    g.DrawString("الكمية × السعر", fontBold, Brushes.Black, new RectangleF(colTotW + 5, y, colQtyW, 16), headerCenterFormat);
-                    g.DrawString("الإجمالي", fontBold, Brushes.Black, new RectangleF(5, y, colTotW - 5, 16), leftFormat);
-                }
-                y += 17;
-                g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
-                y += 4;
-
-                // 4. أسطر الأصناف
-                if (sale.Items != null)
-                {
-                    foreach (var item in sale.Items)
-                    {
-                        string qStr;
-                        if (string.Equals(item.Unit, "kg", StringComparison.OrdinalIgnoreCase))
+                        int rowOffset = y * stride;
+                        for (int xByte = 0; xByte < bytesPerLine; xByte++)
                         {
-                            qStr = (item.QuantityMilli / 1000.0).ToString("0.000");
-                        }
-                        else if (item.QuantityMilli % 1000 != 0)
-                        {
-                            qStr = (item.QuantityMilli / 1000.0).ToString("0.###");
-                        }
-                        else
-                        {
-                            qStr = (item.QuantityMilli / 1000).ToString();
-                        }
-
-                        string pStr = (item.UnitPricePiasters / 100.0).ToString("0.00");
-                        string tStr = (item.TotalPiasters / 100.0).ToString("0.00");
-                        string qtyPriceStr = qStr + " × " + pStr;
-
-                        var nameSize = g.MeasureString(item.ProductName ?? "صنف", fontBold, (int)colItemW, rtlFormat);
-                        float rowH = Math.Max(isCompact ? 15f : 17f, nameSize.Height + 1f);
-
-                        // رسم الأعمدة الثلاثة على نفس السطر
-                        g.DrawString(item.ProductName ?? "صنف", fontBold, Brushes.Black, new RectangleF(contentWidth - colItemW - 5, y, colItemW, rowH), rtlFormat);
-                        g.DrawString(qtyPriceStr, fontRegular, Brushes.Black, new RectangleF(colTotW + 5, y, colQtyW, 16), centerFormat);
-                        g.DrawString(tStr, fontBold, Brushes.Black, new RectangleF(5, y, colTotW - 5, 16), leftFormat);
-                        y += rowH + 1f;
-
-                        // سطر خصم الصنف إن وجد
-                        if (item.DiscountPiasters > 0)
-                        {
-                            string discStr = string.Format("(خصم -{0:0.00})", item.DiscountPiasters / 100.0);
-                            g.DrawString(discStr, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 13), rtlFormat);
-                            y += 13f;
-                        }
-
-                        // تشغيلة وصلاحية الأدوية (للصيدليات)
-                        if (!string.IsNullOrWhiteSpace(item.BatchNumber) || !string.IsNullOrWhiteSpace(item.ExpiryDate))
-                        {
-                            string bInfo = "تشغيلة: " + (!string.IsNullOrWhiteSpace(item.BatchNumber) ? item.BatchNumber : "---");
-                            if (!string.IsNullOrWhiteSpace(item.ExpiryDate)) bInfo += " | انتهاء: " + item.ExpiryDate;
-                            g.DrawString(bInfo, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 13), rtlFormat);
-                            y += 13f;
-                        }
-
-                        // إضافات المطاعم
-                        if (item.Modifiers != null && item.Modifiers.Count > 0)
-                        {
-                            for (int mi = 0; mi < item.Modifiers.Count; mi++)
+                            byte b = 0;
+                            for (int bit = 0; bit < 8; bit++)
                             {
-                                var mod = item.Modifiers[mi];
-                                if (mod == null || string.IsNullOrWhiteSpace(mod.OptionName)) continue;
-                                string modLine = "  + " + mod.OptionName;
-                                if (mod.ExtraPricePiasters > 0) modLine += string.Format(" (+{0:0.00})", mod.ExtraPricePiasters / 100.0);
-                                g.DrawString(modLine, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 13), rtlFormat);
-                                y += 13f;
+                                int x = xByte * 8 + bit;
+                                if (x >= width) break;
+                                int px = rowOffset + (x * 4);
+                                int lum = (pixels[px + 2] * 299 + pixels[px + 1] * 587 + pixels[px] * 114) / 1000;
+                                if (pixels[px + 3] > 128 && lum < 185) b |= (byte)(0x80 >> bit);
                             }
-                        }
-
-                        // ملاحظات الصنف
-                        if (!string.IsNullOrWhiteSpace(item.Notes))
-                        {
-                            g.DrawString("  * " + item.Notes, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 13), rtlFormat);
-                            y += 13f;
+                            ms.WriteByte(b);
                         }
                     }
                 }
+            }
+            finally
+            {
+                bmp.UnlockBits(data);
+            }
+        }
 
-                // 5. قسم الإجماليات (مطابق تماماً للمعاينة في الصورة 2)
-                g.DrawLine(penDashed, 5, y + 1, contentWidth - 5, y + 1);
-                y += 5;
+        private static int ReceiptRowsToHundredthsInch(int rows)
+        {
+            return (int)(((long)rows * 100L + 202L) / 203L) + 8;
+        }
 
-                long receiptDiscountPiasters = sale.DiscountPiasters;
-                if (sale.Items != null)
+        /// <summary>
+        /// مسار ويندوز (PrintDocument): يرسم صورة الإيصال بمقاس ورق صريح وارتفاع من المحتوى وهوامش صفرية.
+        /// الإيصال الطويل جداً يُقسم إلى صفحات متتالية بدل الاقتطاع.
+        /// </summary>
+        private bool PrintReceiptJobViaGdi(ReceiptRenderJob job, string printerName, string documentName, bool isCompact, out string error)
+        {
+            error = null;
+            using (var doc = new PrintDocument())
+            {
+                if (!string.IsNullOrWhiteSpace(printerName))
                 {
-                    for (int di = 0; di < sale.Items.Count; di++)
+                    doc.PrinterSettings.PrinterName = printerName;
+                }
+
+                doc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
+                doc.OriginAtMargins = false;
+
+                if (!doc.PrinterSettings.IsValid)
+                {
+                    error = string.Format("الطابعة '{0}' غير مثبتة أو غير متصلة بالنظام.", printerName);
+                    return false;
+                }
+
+                int paperWidth = isCompact ? 228 : 314;
+                int pageCount = (job.PixelHeight + ReceiptGdiPageRows - 1) / ReceiptGdiPageRows;
+                int pageIndex = 0;
+
+                try
+                {
+                    doc.DefaultPageSettings.PaperSize = new PaperSize("RafiqReceipt", paperWidth, ReceiptRowsToHundredthsInch(Math.Min(ReceiptGdiPageRows, job.PixelHeight)));
+                }
+                catch (Exception exPaper)
+                {
+                    Logger.Warn("تعذر ضبط مقاس ورق الإيصال: " + exPaper.Message);
+                }
+
+                doc.DocumentName = documentName;
+                doc.PrintController = new StandardPrintController(); // طباعة صامتة بدون نوافذ حوارية مزعجة
+
+                doc.QueryPageSettings += delegate(object sender, QueryPageSettingsEventArgs qe)
+                {
+                    int pageRows = Math.Min(ReceiptGdiPageRows, job.PixelHeight - pageIndex * ReceiptGdiPageRows);
+                    try
                     {
-                        receiptDiscountPiasters += sale.Items[di].DiscountPiasters;
+                        qe.PageSettings.PaperSize = new PaperSize("RafiqReceipt", paperWidth, ReceiptRowsToHundredthsInch(pageRows));
+                    }
+                    catch (Exception exPage)
+                    {
+                        Logger.Warn("تعذر ضبط ارتفاع صفحة الإيصال: " + exPage.Message);
+                    }
+                };
+
+                doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
+                {
+                    int top = pageIndex * ReceiptGdiPageRows;
+                    int pageRows = Math.Min(ReceiptGdiPageRows, job.PixelHeight - top);
+                    using (var band = RenderReceiptBand(job, top, pageRows))
+                    {
+                        // 1/100 بوصة: الصورة بحجمها الفعلي عند 203 DPI ومتمركزة على عرض الورق
+                        float destW = job.PixelWidth * 100f / 203f;
+                        float destH = pageRows * 100f / 203f;
+                        float offsetX = Math.Max(0f, (paperWidth - destW) / 2f);
+                        e.Graphics.PageUnit = GraphicsUnit.Display;
+                        e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+                        e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+                        e.Graphics.DrawImage(band, new RectangleF(offsetX, 0f, destW, destH));
+                    }
+                    pageIndex++;
+                    e.HasMorePages = pageIndex < pageCount;
+                };
+
+                doc.Print();
+            }
+            return true;
+        }
+
+        private ReceiptStoreInfo LoadReceiptStoreInfo()
+        {
+            var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
+            var info = new ReceiptStoreInfo();
+            info.Name = ReadStoreSetting(store, "store_name");
+            if (info.Name.Length == 0) info.Name = "متجر رفيق";
+            info.Phone = ReadStoreSetting(store, "store_phone");
+            info.Address = ReadStoreSetting(store, "store_address");
+            info.TaxNumber = ReadStoreSetting(store, "tax_number");
+            info.Header = ReadStoreSetting(store, "receipt_header");
+            info.Footer = ReadStoreSetting(store, "receipt_footer");
+            for (int i = 0; i < LegacyReceiptFooters.Length; i++)
+            {
+                if (info.Footer == LegacyReceiptFooters[i]) info.Footer = "";
+            }
+
+            string signature = _settings != null ? _settings.Get("developer_signature", DefaultDeveloperSignature) : DefaultDeveloperSignature;
+            if (string.IsNullOrWhiteSpace(signature) || signature == LegacyDeveloperSignature) signature = DefaultDeveloperSignature;
+            info.Signature = signature.Trim();
+            return info;
+        }
+
+        private static string ReadStoreSetting(Dictionary<string, string> store, string key)
+        {
+            string value;
+            if (store != null && store.TryGetValue(key, out value) && value != null) return value.Trim();
+            return "";
+        }
+
+        /// <summary>أدوات الرسم: كل دالة تقيس ثم ترسم وتحرك Y، فلا يوجد نص مقطوع مهما طال</summary>
+        private sealed class ReceiptPainter : IDisposable
+        {
+            public const float Pad = 5f;
+            public const float ColGap = 6f;
+
+            public readonly Graphics G;
+            public readonly float W;
+            public readonly float Usable;
+            public readonly bool Compact;
+            public readonly string FontName;
+            public readonly Font Title;
+            public readonly Font Large;
+            public readonly Font Bold;
+            public readonly Font Regular;
+            public readonly Font Small;
+            public readonly Pen Dashed;
+            public readonly Pen Solid;
+            public readonly StringFormat Rtl;
+            public readonly StringFormat RtlNoWrap;
+            public readonly StringFormat Center;
+            public readonly StringFormat Left;
+            public readonly StringFormat Right;
+            private readonly StringFormat _measure;
+            public float Y;
+
+            public ReceiptPainter(Graphics g, int contentWidth)
+            {
+                G = g;
+                W = contentWidth;
+                Usable = contentWidth - 2f * Pad;
+                Compact = contentWidth <= 210;
+                Y = 2f;
+                FontName = ResolveReceiptFontName();
+
+                // أحجام الخطوط تناسبية مع مقاس الورق (80mm أو 57mm)
+                Title = new Font(FontName, Compact ? 10.5f : 12f, FontStyle.Bold);
+                Large = new Font(FontName, Compact ? 11.5f : 13f, FontStyle.Bold);
+                Bold = new Font(FontName, Compact ? 8f : 9f, FontStyle.Bold);
+                Regular = new Font(FontName, Compact ? 7.5f : 8.5f, FontStyle.Regular);
+                Small = new Font(FontName, Compact ? 6.8f : 7.5f, FontStyle.Regular);
+                Dashed = new Pen(Color.Black, 1f) { DashStyle = DashStyle.Dash };
+                Solid = new Pen(Color.Black, 1.2f);
+
+                Rtl = new StringFormat { FormatFlags = StringFormatFlags.DirectionRightToLeft, Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
+                RtlNoWrap = new StringFormat { FormatFlags = StringFormatFlags.DirectionRightToLeft | StringFormatFlags.NoWrap, Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
+                Center = new StringFormat { FormatFlags = StringFormatFlags.DirectionRightToLeft, Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Near };
+                Left = (StringFormat)StringFormat.GenericTypographic.Clone();
+                Left.Alignment = StringAlignment.Near;
+                Left.LineAlignment = StringAlignment.Near;
+                Left.FormatFlags |= StringFormatFlags.NoWrap;
+                Right = (StringFormat)StringFormat.GenericTypographic.Clone();
+                Right.Alignment = StringAlignment.Far;
+                Right.LineAlignment = StringAlignment.Near;
+                Right.FormatFlags |= StringFormatFlags.NoWrap;
+                _measure = (StringFormat)StringFormat.GenericTypographic.Clone();
+                _measure.FormatFlags |= StringFormatFlags.NoWrap;
+            }
+
+            public void Dispose()
+            {
+                Title.Dispose(); Large.Dispose(); Bold.Dispose(); Regular.Dispose(); Small.Dispose();
+                Dashed.Dispose(); Solid.Dispose();
+                Rtl.Dispose(); RtlNoWrap.Dispose(); Center.Dispose(); Left.Dispose(); Right.Dispose(); _measure.Dispose();
+            }
+
+            /// <summary>عرض سطر واحد (بدون التفاف) بوحدات الرسم، مع هامش أمان صغير</summary>
+            public float TextW(string text, Font font)
+            {
+                if (string.IsNullOrEmpty(text)) return 0f;
+                return (float)Math.Ceiling(G.MeasureString(text, font, new PointF(0f, 0f), _measure).Width) + 1f;
+            }
+
+            public float LineH(Font font)
+            {
+                return (float)Math.Ceiling(font.GetHeight(G)) + 1f;
+            }
+
+            public void Separator(Pen pen, float before, float after)
+            {
+                Y += before;
+                G.DrawLine(pen, Pad, Y, W - Pad, Y);
+                Y += after;
+            }
+
+            /// <summary>نص ملتف على عرض كامل: يقاس بنفس التنسيق المستخدم في الرسم ثم يُرسم بارتفاعه الكامل</summary>
+            public float WrapText(string text, Font font, StringFormat format, float x, float width)
+            {
+                if (string.IsNullOrWhiteSpace(text)) return 0f;
+                string clean = text.Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+                SizeF size = G.MeasureString(clean, font, new SizeF(width, 100000f), format);
+                float h = (float)Math.Ceiling(size.Height) + 1f;
+                G.DrawString(clean, font, Brushes.Black, new RectangleF(x, Y, width, h), format);
+                Y += h;
+                return h;
+            }
+
+            /// <summary>نص ملتف على اليمين وقيمة قصيرة على اليسار في نفس السطر (التفاف النص دون تداخل مع القيمة)</summary>
+            public void WrapWithSide(string text, string side, Font textFont, Font sideFont)
+            {
+                float sideW = TextW(side, sideFont);
+                float textW = sideW > 0f ? Usable - sideW - ColGap : Usable;
+                float sideH = sideW > 0f ? LineH(sideFont) : 0f;
+                if (sideW > 0f) G.DrawString(side, sideFont, Brushes.Black, new RectangleF(Pad, Y, sideW + 2f, sideH), Left);
+
+                float textH = 0f;
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    string clean = text.Trim();
+                    SizeF size = G.MeasureString(clean, textFont, new SizeF(textW, 100000f), Rtl);
+                    textH = (float)Math.Ceiling(size.Height) + 1f;
+                    G.DrawString(clean, textFont, Brushes.Black, new RectangleF(W - Pad - textW, Y, textW, textH), Rtl);
+                }
+                Y += Math.Max(textH, sideH);
+            }
+
+            /// <summary>عنوان على اليمين وقيمة على اليسار؛ تنزل القيمة لسطر مستقل إذا لم يتسع الاثنان معاً</summary>
+            public void LabelValue(string label, string value, Font labelFont, Font valueFont, float valueColW)
+            {
+                float valueW = valueColW > 0f ? valueColW : TextW(value, valueFont);
+                float labelW = TextW(label, labelFont);
+                float h = Math.Max(LineH(labelFont), LineH(valueFont));
+                if (labelW + valueW + ColGap <= Usable)
+                {
+                    G.DrawString(label, labelFont, Brushes.Black, new RectangleF(Pad, Y, Usable, h), Rtl);
+                    DrawValue(value, valueFont, valueW, h);
+                    Y += h;
+                }
+                else
+                {
+                    WrapText(label, labelFont, Rtl, Pad, Usable);
+                    DrawValue(value, valueFont, valueW, LineH(valueFont));
+                    Y += LineH(valueFont);
+                }
+            }
+
+            private void DrawValue(string value, Font font, float colW, float h)
+            {
+                G.DrawString(value, font, Brushes.Black, new RectangleF(Pad, Y, Math.Max(colW, 1f), h), Right);
+            }
+
+            /// <summary>صف أعمدة الأصناف: كتلة الأرقام على اليسار (الإجمالي | السعر | الكمية) بعروض مقاسة مسبقاً، واسم الصنف اختيارياً على اليمين في نفس السطر</summary>
+            public void NumbersRow(string name, string qty, string price, string total, float qtyW, float priceW, float totalW, Font nameFont, Font qtyFont, Font priceFont, Font totalFont)
+            {
+                float h = Math.Max(LineH(qtyFont), Math.Max(LineH(priceFont), LineH(totalFont)));
+                if (!string.IsNullOrEmpty(name)) h = Math.Max(h, LineH(nameFont));
+                float priceX = Pad + totalW + ColGap;
+                float qtyX = priceX + priceW + ColGap;
+                G.DrawString(total, totalFont, Brushes.Black, new RectangleF(Pad, Y, totalW, h), Right);
+                G.DrawString(price, priceFont, Brushes.Black, new RectangleF(priceX, Y, priceW, h), Right);
+                G.DrawString(qty, qtyFont, Brushes.Black, new RectangleF(qtyX, Y, qtyW, h), RtlNoWrap);
+                if (!string.IsNullOrEmpty(name))
+                {
+                    float nameX = qtyX + qtyW + ColGap;
+                    G.DrawString(name, nameFont, Brushes.Black, new RectangleF(nameX, Y, W - Pad - nameX, h), RtlNoWrap);
+                }
+                Y += h;
+            }
+
+            /// <summary>شارة سوداء بنص أبيض (نسخة / ملغاة / تجريبية)</summary>
+            public void Badge(string text)
+            {
+                float h = LineH(Bold) + 3f;
+                float x = Pad + 8f;
+                float w = W - 2f * x;
+                G.FillRectangle(Brushes.Black, new RectangleF(x, Y, w, h));
+                G.DrawString(text, Bold, Brushes.White, new RectangleF(x, Y + 1.5f, w, h - 1.5f), Center);
+                Y += h + 3f;
+            }
+
+            /// <summary>الإجمالي النهائي: العنوان بخط عريض والمبلغ بخط كبير، ويصغّر المبلغ تلقائياً إن لزم حتى لا يُقص أبداً</summary>
+            public void GrandTotal(string label, string amount, string currency)
+            {
+                Font valueFont = Large;
+                bool ownsFont = false;
+                float size = Large.Size;
+                float amountW = TextW(amount, valueFont);
+                float currencyW = TextW(currency, valueFont);
+                float valueW = amountW + (currencyW > 0f ? 3f + currencyW : 0f);
+                while (valueW > Usable && size > 6f)
+                {
+                    size -= 0.5f;
+                    if (ownsFont) valueFont.Dispose();
+                    valueFont = new Font(FontName, size, FontStyle.Bold);
+                    ownsFont = true;
+                    amountW = TextW(amount, valueFont);
+                    currencyW = TextW(currency, valueFont);
+                    valueW = amountW + (currencyW > 0f ? 3f + currencyW : 0f);
+                }
+
+                try
+                {
+                    float labelW = TextW(label, Bold);
+                    float h = Math.Max(LineH(Bold), LineH(valueFont));
+                    float rowY = Y;
+                    if (labelW + valueW + ColGap <= Usable)
+                    {
+                        G.DrawString(label, Bold, Brushes.Black, new RectangleF(Pad, rowY + (h - LineH(Bold)) / 2f, Usable, LineH(Bold)), Rtl);
+                    }
+                    else
+                    {
+                        WrapText(label, Bold, Rtl, Pad, Usable);
+                        rowY = Y;
+                        h = LineH(valueFont);
+                    }
+
+                    // الرقم والعملة يُرسمان منفصلين حتى لا يتغير ترتيبهما مع اتجاه النص
+                    G.DrawString(amount, valueFont, Brushes.Black, new RectangleF(Pad, rowY, amountW + 2f, h), Left);
+                    if (currencyW > 0f) G.DrawString(currency, valueFont, Brushes.Black, new RectangleF(Pad + amountW + 3f, rowY, currencyW + 2f, h), Left);
+                    Y = rowY + h;
+                }
+                finally
+                {
+                    if (ownsFont) valueFont.Dispose();
+                }
+            }
+        }
+
+        private static void DrawStoreHeader(ReceiptPainter p, ReceiptStoreInfo store, Image logo, bool includeHeaderText)
+        {
+            if (logo != null && logo.Width > 0 && logo.Height > 0)
+            {
+                try
+                {
+                    float maxW = p.Compact ? 90f : 130f;
+                    float maxH = p.Compact ? 38f : 48f;
+                    float scale = Math.Min(maxW / logo.Width, maxH / logo.Height);
+                    if (scale > 1f) scale = 1f;
+                    float drawW = logo.Width * scale;
+                    float drawH = logo.Height * scale;
+                    p.G.DrawImage(logo, (p.W - drawW) / 2f, p.Y, drawW, drawH);
+                    p.Y += drawH + 3f;
+                }
+                catch (Exception exLogo)
+                {
+                    Logger.Warn("تعذر رسم شعار المتجر على الإيصال: " + exLogo.Message);
+                }
+            }
+
+            p.WrapText(store.Name, p.Title, p.Center, ReceiptPainter.Pad, p.Usable);
+            p.WrapText(store.Address, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+            if (store.Phone.Length > 0) p.WrapText("هاتف: " + store.Phone, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+            if (store.TaxNumber.Length > 0) p.WrapText("الرقم الضريبي: " + store.TaxNumber, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+            if (includeHeaderText && store.Header.Length > 0)
+            {
+                p.Y += 2f;
+                p.WrapText(store.Header, p.Regular, p.Center, ReceiptPainter.Pad, p.Usable);
+            }
+        }
+
+        private static void DrawReceiptSignature(ReceiptPainter p, ReceiptStoreInfo store)
+        {
+            if (store.Signature.Length == 0) return;
+            p.Separator(p.Dashed, 2f, 3f);
+            p.WrapText(store.Signature, p.Small, p.Center, ReceiptPainter.Pad - 3f, p.Usable + 6f);
+        }
+
+        /// <summary>جدول الأصناف: الاسم بعرض كامل ملتفاً، وتحته الكمية | السعر | الإجمالي بأعمدة مقاسة (أو سطرين إذا لم تتسع)</summary>
+        private static void DrawReceiptLines(ReceiptPainter p, List<ReceiptLine> lines, string headerNote = null)
+        {
+            if (lines == null || lines.Count == 0) return;
+
+            float qtyW = p.TextW("الكمية", p.Bold);
+            float priceW = p.TextW("السعر", p.Bold);
+            float totalW = p.TextW("الإجمالي", p.Bold);
+            for (int i = 0; i < lines.Count; i++)
+            {
+                qtyW = Math.Max(qtyW, p.TextW(lines[i].Qty, p.Regular));
+                priceW = Math.Max(priceW, p.TextW(lines[i].Price, p.Regular));
+                totalW = Math.Max(totalW, p.TextW(lines[i].Total, p.Bold));
+            }
+
+            // كتلة الأرقام (الكمية | السعر | الإجمالي) على اليسار؛ إن لم تتسع تُعرض الكمية × السعر والإجمالي في سطرين
+            float cluster = qtyW + priceW + totalW + 2f * ReceiptPainter.ColGap;
+            bool columns = cluster <= p.Usable;
+            float nameAvail = p.Usable - cluster - ReceiptPainter.ColGap;
+
+            if (columns)
+            {
+                float labelW = p.TextW("الصنف", p.Bold);
+                if (labelW <= nameAvail)
+                {
+                    p.NumbersRow("الصنف", "الكمية", "السعر", "الإجمالي", qtyW, priceW, totalW, p.Bold, p.Bold, p.Bold, p.Bold);
+                }
+                else
+                {
+                    p.WrapText("الصنف", p.Bold, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                    p.NumbersRow(null, "الكمية", "السعر", "الإجمالي", qtyW, priceW, totalW, p.Bold, p.Bold, p.Bold, p.Bold);
+                }
+            }
+            else
+            {
+                p.WrapText("الصنف", p.Bold, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                p.LabelValue("الكمية × السعر", "الإجمالي", p.Bold, p.Bold, 0f);
+            }
+            p.Separator(p.Solid, 1f, 3f);
+
+            if (!string.IsNullOrEmpty(headerNote))
+            {
+                p.WrapText(headerNote, p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+            }
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                ReceiptLine line = lines[i];
+                if (columns && p.TextW(line.Name, p.Bold) <= nameAvail)
+                {
+                    // اسم قصير: كل شيء في سطر واحد (توفير للورق)
+                    p.NumbersRow(line.Name, line.Qty, line.Price, line.Total, qtyW, priceW, totalW, p.Bold, p.Regular, p.Regular, p.Bold);
+                }
+                else
+                {
+                    // اسم طويل: سطر كامل العرض (ملتف دون اقتطاع) ثم الأرقام في السطر التالي
+                    p.WrapText(line.Name, p.Bold, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                    if (columns) p.NumbersRow(null, line.Qty, line.Price, line.Total, qtyW, priceW, totalW, p.Bold, p.Regular, p.Regular, p.Bold);
+                    else p.LabelValue(line.Qty + " × " + line.Price, line.Total, p.Regular, p.Bold, 0f);
+                }
+
+                if (!string.IsNullOrEmpty(line.Discount))
+                {
+                    p.LabelValue("خصم", "-" + line.Discount, p.Small, p.Small, columns ? totalW : 0f);
+                }
+
+                for (int d = 0; d < line.Details.Count; d++)
+                {
+                    p.WrapText(line.Details[d], p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable - 8f);
+                }
+                p.Y += 3f;
+            }
+        }
+
+        private static List<ReceiptLine> BuildSaleReceiptLines(Sale sale)
+        {
+            var lines = new List<ReceiptLine>();
+            if (sale.Items == null) return lines;
+
+            for (int i = 0; i < sale.Items.Count; i++)
+            {
+                SaleItem item = sale.Items[i];
+                if (item == null) continue;
+
+                var line = new ReceiptLine();
+                line.Name = string.IsNullOrWhiteSpace(item.ProductName) ? "صنف" : item.ProductName.Trim();
+                line.Qty = FormatReceiptQuantityWithUnit(item.QuantityMilli, item.UnitName, item.Unit);
+                line.Price = FormatReceiptMoney(item.UnitPricePiasters);
+                line.Total = FormatReceiptMoney(GetReceiptLineGross(item));
+                if (item.DiscountPiasters > 0) line.Discount = FormatReceiptMoney(item.DiscountPiasters);
+
+                // تشغيلة وصلاحية الأدوية (للصيدليات)
+                if (!string.IsNullOrWhiteSpace(item.BatchNumber) || !string.IsNullOrWhiteSpace(item.ExpiryDate))
+                {
+                    string batch = "تشغيلة: " + (!string.IsNullOrWhiteSpace(item.BatchNumber) ? item.BatchNumber.Trim() : "---");
+                    if (!string.IsNullOrWhiteSpace(item.ExpiryDate)) batch += " | انتهاء: " + item.ExpiryDate.Trim();
+                    line.Details.Add(batch);
+                }
+
+                // إضافات المطاعم
+                if (item.Modifiers != null)
+                {
+                    for (int m = 0; m < item.Modifiers.Count; m++)
+                    {
+                        SaleItemModifier mod = item.Modifiers[m];
+                        if (mod == null || string.IsNullOrWhiteSpace(mod.OptionName)) continue;
+                        string modText = "+ " + mod.OptionName.Trim();
+                        if (mod.ExtraPricePiasters > 0) modText += " (+" + FormatReceiptMoney(mod.ExtraPricePiasters) + ")";
+                        line.Details.Add(modText);
                     }
                 }
 
-                // المجموع الفرعي
-                g.DrawString("المجموع الفرعي:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
-                g.DrawString((sale.SubtotalPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
-                y += 17;
+                if (!string.IsNullOrWhiteSpace(item.Notes)) line.Details.Add("ملاحظة: " + item.Notes.Trim());
+                lines.Add(line);
+            }
+            return lines;
+        }
 
-                // الخصم (إذا وجد خصم)
-                if (receiptDiscountPiasters > 0 || sale.DiscountPiasters > 0)
+        private static bool HasColdChainItems(Sale sale)
+        {
+            if (sale.HasColdChainItems) return true;
+            if (sale.Items == null) return false;
+            for (int i = 0; i < sale.Items.Count; i++)
+            {
+                if (sale.Items[i] != null && sale.Items[i].IsColdChain) return true;
+            }
+            return false;
+        }
+
+        private static string BuildOrderMetaText(Sale sale)
+        {
+            string orderType = (sale.OrderType ?? "").Trim().ToLowerInvariant();
+            bool hasTable = !string.IsNullOrWhiteSpace(sale.TableName);
+            bool hasCall = sale.OrderCallNumber > 0;
+            bool hasWaiter = !string.IsNullOrWhiteSpace(sale.WaiterName);
+            if (!hasTable && !hasCall && !hasWaiter && orderType != "dine_in" && orderType != "delivery") return "";
+
+            var parts = new List<string>();
+            if (hasCall) parts.Add("نداء " + sale.OrderCallNumber.ToString(CultureInfo.InvariantCulture));
+            if (orderType == "delivery") parts.Add("توصيل");
+            else if (hasTable || orderType == "dine_in") parts.Add(hasTable ? "طاولة " + sale.TableName.Trim() : "صالة");
+            if (hasWaiter) parts.Add("الكابتن: " + sale.WaiterName.Trim());
+            if (hasTable && sale.GuestsCount > 1) parts.Add("ضيوف: " + sale.GuestsCount.ToString(CultureInfo.InvariantCulture));
+            return string.Join(" - ", parts.ToArray());
+        }
+
+        private float RenderReceiptPage(Graphics g, Sale sale, ReceiptStoreInfo store, Image logo, int contentWidth, bool isCopy)
+        {
+            ReceiptTotals t = ComputeReceiptTotals(sale);
+            bool isPreBill = string.Equals(sale.Id, PreBillSaleId, StringComparison.Ordinal);
+            bool isDelivery = string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase);
+
+            using (var p = new ReceiptPainter(g, contentWidth))
+            {
+                // 1. ترويسة المتجر (الاسم كبير، والعنوان/الهاتف/الرقم الضريبي صغيرة)
+                DrawStoreHeader(p, store, logo, true);
+                p.Separator(p.Dashed, 3f, 4f);
+
+                // 2. رقم الفاتورة + التاريخ والوقت + الكاشير (كتلة مضغوطة)
+                string invoiceText = isPreBill
+                    ? "حساب مبدئي"
+                    : (sale.InvoiceNumber > 0 ? "فاتورة رقم: " + sale.InvoiceNumber.ToString(CultureInfo.InvariantCulture) : "فاتورة");
+                p.WrapWithSide(invoiceText, FormatReceiptDateTime(sale.CreatedAt), p.Bold, p.Small);
+                if (!string.IsNullOrWhiteSpace(sale.CashierName))
                 {
-                    long totalDiscount = Math.Max(receiptDiscountPiasters, sale.DiscountPiasters);
-                    g.DrawString("الخصم:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
-                    g.DrawString("-" + (totalDiscount / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
-                    y += 17;
+                    p.WrapText("الكاشير: " + sale.CashierName.Trim(), p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
                 }
 
-                if (sale.TaxPiasters > 0)
+                string orderMeta = BuildOrderMetaText(sale);
+                if (orderMeta.Length > 0) p.WrapText(orderMeta, p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+
+                if (!isDelivery && !string.IsNullOrWhiteSpace(sale.CustomerName)
+                    && !string.Equals(sale.CustomerId, GeneralCashCustomerId, StringComparison.OrdinalIgnoreCase))
                 {
-                    g.DrawString("ضريبة القيمة المضافة:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
-                    g.DrawString((sale.TaxPiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
-                    y += 17;
+                    string customer = "العميل: " + sale.CustomerName.Trim();
+                    if (!string.IsNullOrWhiteSpace(sale.CustomerPhone)) customer += " (" + sale.CustomerPhone.Trim() + ")";
+                    p.WrapText(customer, p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
                 }
 
-                if (sale.DeliveryFeePiasters > 0)
+                // 3. شارات الحالة (نسخة فقط عند إعادة الطباعة)
+                p.Y += 2f;
+                if (isCopy) p.Badge("نسخة - إعادة طباعة");
+                if (isPreBill) p.Badge("غير مدفوع - للمراجعة فقط");
+                if (string.Equals(sale.Status, "TEST_PILOT", StringComparison.OrdinalIgnoreCase)) p.Badge("فاتورة تجريبية - تدريب");
+                if (string.Equals(sale.Status, "cancelled", StringComparison.OrdinalIgnoreCase)) p.Badge("فاتورة ملغاة");
+
+                p.Separator(p.Dashed, 0f, 3f);
+
+                // 4. جدول الأصناف
+                DrawReceiptLines(p, BuildSaleReceiptLines(sale));
+
+                // 5. الإجماليات: عدد الأصناف/القطع ثم الإجمالي قبل الخصم والخصم والرسوم ثم الإجمالي النهائي
+                p.Separator(p.Dashed, 0f, 3f);
+                string countsText = "عدد الأصناف: " + t.ItemCount.ToString(CultureInfo.InvariantCulture);
+                string piecesText = (t.PieceCount > 0 && t.PieceCount != t.ItemCount) ? "عدد القطع: " + t.PieceCount.ToString(CultureInfo.InvariantCulture) : "";
+                p.WrapWithSide(countsText, piecesText, p.Small, p.Small);
+
+                var rows = new List<KeyValuePair<string, string>>();
+                if (t.DiscountTotal > 0 || t.ServiceCharge > 0 || t.DeliveryFee > 0)
                 {
-                    g.DrawString("رسوم التوصيل:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
-                    g.DrawString((sale.DeliveryFeePiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
-                    y += 17;
+                    rows.Add(new KeyValuePair<string, string>("الإجمالي قبل الخصم", FormatReceiptMoney(t.Subtotal)));
+                }
+                if (t.DiscountTotal > 0) rows.Add(new KeyValuePair<string, string>("الخصم", "-" + FormatReceiptMoney(t.DiscountTotal)));
+                if (t.ServiceCharge > 0) rows.Add(new KeyValuePair<string, string>("خدمة الصالة", FormatReceiptMoney(t.ServiceCharge)));
+                if (t.DeliveryFee > 0) rows.Add(new KeyValuePair<string, string>("رسوم التوصيل", FormatReceiptMoney(t.DeliveryFee)));
+
+                float colW = 0f;
+                for (int i = 0; i < rows.Count; i++) colW = Math.Max(colW, p.TextW(rows[i].Value, p.Regular));
+                for (int i = 0; i < rows.Count; i++) p.LabelValue(rows[i].Key, rows[i].Value, p.Regular, p.Regular, colW);
+
+                p.Separator(p.Solid, 1f, 3f);
+                p.GrandTotal("الإجمالي النهائي", FormatReceiptMoney(t.Total), "ج.م");
+                if (t.Tax > 0) p.LabelValue("منها ضريبة القيمة المضافة", FormatReceiptMoney(t.Tax), p.Small, p.Small, 0f);
+                if (t.EpayFee > 0)
+                {
+                    p.LabelValue("رسوم خدمة الدفع الإلكتروني", FormatReceiptMoney(t.EpayFee), p.Regular, p.Regular, 0f);
+                    p.LabelValue("المطلوب سداده", FormatReceiptMoney(t.Payable), p.Bold, p.Bold, 0f);
                 }
 
-                if (sale.ServiceChargePiasters > 0)
+                // 6. المدفوعات: طرق الدفع المستخدمة فقط + الباقي + المتبقي الآجل
+                if (!isPreBill && (t.Payments.Count > 0 || t.Remaining > 0))
                 {
-                    g.DrawString("خدمة الصالة:", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
-                    g.DrawString((sale.ServiceChargePiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
-                    y += 17;
+                    p.Separator(p.Dashed, 2f, 3f);
+                    var payRows = new List<KeyValuePair<string, string>>();
+                    bool single = t.Payments.Count == 1;
+                    for (int i = 0; i < t.Payments.Count; i++)
+                    {
+                        string label = t.Payments[i].Label;
+                        if (single) label = label == "المدفوع" ? "المدفوع" : "المدفوع (" + label + ")";
+                        payRows.Add(new KeyValuePair<string, string>(label, FormatReceiptMoney(t.Payments[i].Amount)));
+                    }
+                    if (t.Payments.Count > 1) payRows.Add(new KeyValuePair<string, string>("إجمالي المدفوع", FormatReceiptMoney(t.Paid)));
+                    if (t.Change > 0) payRows.Add(new KeyValuePair<string, string>("الباقي للعميل", FormatReceiptMoney(t.Change)));
+                    if (t.Deposited > 0) payRows.Add(new KeyValuePair<string, string>("مودع في حساب العميل", FormatReceiptMoney(t.Deposited)));
+                    if (t.Remaining > 0) payRows.Add(new KeyValuePair<string, string>("المتبقي (آجل على الحساب)", FormatReceiptMoney(t.Remaining)));
+
+                    float payColW = 0f;
+                    for (int i = 0; i < payRows.Count; i++) payColW = Math.Max(payColW, p.TextW(payRows[i].Value, p.Bold));
+                    for (int i = 0; i < payRows.Count; i++)
+                    {
+                        bool emphasis = payRows[i].Key == "الباقي للعميل" || payRows[i].Key == "إجمالي المدفوع" || payRows[i].Key.StartsWith("المتبقي", StringComparison.Ordinal);
+                        Font f = emphasis ? p.Bold : p.Regular;
+                        p.LabelValue(payRows[i].Key, payRows[i].Value, f, f, payColW);
+                    }
                 }
 
-                // خط فاصل عريض قبل الإجمالي المطلوب
-                g.DrawLine(penSolid, 5, y + 1, contentWidth - 5, y + 1);
-                y += 4;
-
-                // الإجمالي المطلوب (بخط عريض وواضح كما في الصورة 2)
-                g.DrawString("الإجمالي المطلوب:", fontLarge, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, isCompact ? 22 : 26), rtlFormat);
-                g.DrawString((sale.TotalPiasters / 100.0).ToString("0.00") + " ج.م", fontLarge, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, isCompact ? 22 : 26), leftFormat);
-                y += isCompact ? 24 : 28;
-
-                // طريقة الدفع والمتبقي
-                string methodLabel = "المدفوع كاش:";
-                if (sale.PaymentMethod == "credit") methodLabel = "المبلغ (آجل):";
-                else if (sale.PaymentMethod == "instapay") methodLabel = "المدفوع إنستاباي:";
-                else if (sale.PaymentMethod == "vodafone_cash") methodLabel = "المدفوع محفظة:";
-                else if (sale.PaymentMethod == "card") methodLabel = "المدفوع بطاقة:";
-                else if (sale.PaymentMethod == "multi") methodLabel = "المدفوع مجزأ:";
-
-                long totalPaid = sale.PaidPiasters > 0 ? sale.PaidPiasters : sale.TotalPiasters;
-                long changeDue = Math.Max(0, sale.ChangePiasters);
-
-                g.DrawString(methodLabel, fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
-                g.DrawString((totalPaid / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
-                y += 17;
-
-                if (changeDue > 0)
+                // 7. بيانات التوصيل (للدليفري فقط)
+                if (isDelivery)
                 {
-                    g.DrawString("الباقي للزبون:", fontBold, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 17), rtlFormat);
-                    g.DrawString((changeDue / 100.0).ToString("0.00") + " ج.م", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 17), leftFormat);
-                    y += 18;
-                }
-
-                // قسيمة الدليفري إن وجدت
-                if (string.Equals(sale.OrderType, "delivery", StringComparison.OrdinalIgnoreCase))
-                {
-                    y += 4;
-                    g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
-                    y += 3;
-                    g.DrawString("=== توصيل دليفري ===", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), centerFormat);
-                    y += 17;
-
+                    p.Separator(p.Solid, 3f, 3f);
                     string dCust = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.CustomerName))
                         ? sale.DeliveryInfo.CustomerName
                         : (!string.IsNullOrWhiteSpace(sale.CustomerName) ? sale.CustomerName : "عميل دليفري");
                     string dPhone = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.CustomerPhone))
                         ? sale.DeliveryInfo.CustomerPhone
                         : (sale.CustomerPhone ?? "");
-                    string dAddr = (sale.DeliveryInfo != null && !string.IsNullOrWhiteSpace(sale.DeliveryInfo.DeliveryAddress))
-                        ? sale.DeliveryInfo.DeliveryAddress
-                        : "";
-
-                    g.DrawString("العميل: " + dCust + (string.IsNullOrWhiteSpace(dPhone) ? "" : " (" + dPhone + ")"), fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
-                    y += 15;
-                    if (!string.IsNullOrWhiteSpace(dAddr))
+                    p.WrapText("توصيل - العميل: " + dCust.Trim() + (string.IsNullOrWhiteSpace(dPhone) ? "" : " (" + dPhone.Trim() + ")"), p.Bold, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                    if (sale.DeliveryInfo != null)
                     {
-                        g.DrawString("العنوان: " + dAddr, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 15), rtlFormat);
-                        y += 15;
+                        if (!string.IsNullOrWhiteSpace(sale.DeliveryInfo.DeliveryAddress)) p.WrapText("العنوان: " + sale.DeliveryInfo.DeliveryAddress.Trim(), p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                        if (!string.IsNullOrWhiteSpace(sale.DeliveryInfo.Landmark)) p.WrapText("علامة مميزة: " + sale.DeliveryInfo.Landmark.Trim(), p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                        if (!string.IsNullOrWhiteSpace(sale.DeliveryInfo.Notes)) p.WrapText("ملاحظات: " + sale.DeliveryInfo.Notes.Trim(), p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
                     }
-                    g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
-                    y += 4;
                 }
 
-                // 6. باركود الفاتورة مطابق للمعاينة
-                y += 4;
-                string barcodeValue = sale.InvoiceNumber > 0 ? string.Format("RFQ-INV-{0:D8}", sale.InvoiceNumber) : string.Format("RFQ-INV-{0}", sale.Id ?? "00000000");
-                float barcodeH = isCompact ? 30f : 36f;
-                var barcodeRect = new RectangleF(isCompact ? 15 : 25, y, contentWidth - (isCompact ? 30 : 50), barcodeH);
-                BarcodeGenerator.DrawBarcode(g, barcodeValue, barcodeRect, showText: false);
-                y += barcodeH + 2;
-
-                g.DrawString(barcodeValue, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 14), centerFormat);
-                y += 16;
-
-                // 7. خاتمة الإيصال (فقط وحصرياً إذا قام المستخدم بكتابة خاتمة)
-                if (!string.IsNullOrWhiteSpace(footer))
+                // 8. تنبيه سلسلة التبريد + ملاحظات الفاتورة + الخاتمة (رسالة المتجر أو شكراً) + توقيع النظام
+                p.Separator(p.Dashed, 3f, 3f);
+                if (HasColdChainItems(sale))
                 {
-                    g.DrawLine(penDashed, 5, y + 1, contentWidth - 5, y + 1);
-                    y += 5;
-                    var footerSize = g.MeasureString(footer, fontSmall, (int)(contentWidth - 10), centerFormat);
-                    float footerH = Math.Max(15f, footerSize.Height + 2f);
-                    g.DrawString(footer, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, footerH), centerFormat);
-                    y += footerH + 4;
+                    p.WrapText("تنبيه: يحفظ في الثلاجة 2-8 مئوية", p.Bold, p.Center, ReceiptPainter.Pad, p.Usable);
+                    p.Y += 2f;
                 }
-
-                // 8. حقوق وتوقيع مطور النظام
-                g.DrawLine(penDashed, 5, y + 1, contentWidth - 5, y + 1);
-                y += 4;
-                string defaultSig = "نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965";
-                string devSig = _settings != null ? _settings.Get("developer_signature", defaultSig) : defaultSig;
-                if (string.IsNullOrWhiteSpace(devSig) || devSig == "نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد")
+                if (!isPreBill && !string.IsNullOrWhiteSpace(sale.Notes))
                 {
-                    devSig = defaultSig;
+                    p.WrapText(sale.Notes, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+                    p.Y += 2f;
                 }
-                g.DrawString(devSig, fontSmall, Brushes.Black, new RectangleF(2, y, contentWidth - 4, isCompact ? 22 : 16), centerFormat);
-                y += isCompact ? 24 : 18;
+                p.WrapText(store.Footer.Length > 0 ? store.Footer : DefaultReceiptThanks, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+                DrawReceiptSignature(p, store);
 
-                // هامش سفلي طفيف جداً قبل شفرة القص
-                y += 8f;
-
-                return y;
+                // هامش سفلي طفيف قبل شفرة القص
+                p.Y += 8f;
+                return p.Y;
             }
         }
 
@@ -1256,7 +1959,8 @@ namespace RafiqPOS.Services
             Return returnObj,
             string printerName = null,
             int? paperWidth = null,
-            bool? openDrawer = null)
+            bool? openDrawer = null,
+            bool isCopy = false)
         {
             if (returnObj == null)
             {
@@ -1264,55 +1968,71 @@ namespace RafiqPOS.Services
             }
 
             string targetPrinter = ResolvePrinterName(printerName);
+            string configuredWidth = GetConfiguredPaperWidth();
             int printWidth = (paperWidth.HasValue && paperWidth.Value > 0)
                 ? paperWidth.Value
-                : GetContentWidthPoints(GetConfiguredPaperWidth());
+                : GetContentWidthPoints(configuredWidth);
 
-            bool shouldOpenDrawer = openDrawer.HasValue ? openDrawer.Value : GetConfiguredOpenDrawer();
+            // الدرج يُفتح فقط عند رد المبلغ نقداً (لا يُفتح للرد على حساب العميل أو المحافظ)
+            bool shouldOpenDrawer = IsCashRefund(returnObj.RefundMethod)
+                && (openDrawer.HasValue ? openDrawer.Value : GetConfiguredOpenDrawer());
+
+            // إعادة طباعة إيصال سبقت طباعته تُوسم نسخة على الخادم بغض النظر عن طلب العميل
+            if (!isCopy && HasPrintMarker("return", returnObj.Id, ReturnReprintAuditAction))
+            {
+                isCopy = true;
+            }
 
             if (RawPrinterHelper.IsNetworkPrinter(targetPrinter))
             {
-                return PrintReturnReceiptToNetwork(returnObj, targetPrinter, printWidth, shouldOpenDrawer);
+                return PrintReturnReceiptToNetwork(returnObj, targetPrinter, printWidth, shouldOpenDrawer, isCopy);
             }
+
+            bool isThermal = IsThermalPrinter(targetPrinter, configuredWidth);
+            bool autoCut = GetConfiguredAutoCut();
 
             try
             {
-                string storeName = _settings != null ? _settings.Get("store_name", "متجر رفيق") : "متجر رفيق";
-                string phone = _settings != null ? _settings.Get("store_phone", "") : "";
-                string address = _settings != null ? _settings.Get("store_address", "") : "";
-
-                using (var doc = new PrintDocument())
+                using (var job = CreateReturnReceiptJob(returnObj, printWidth, isCopy))
                 {
-                    if (!string.IsNullOrWhiteSpace(targetPrinter))
+                    // الطابعة الحرارية المحلية: ESC/POS Raster مباشر (نفس مسار إيصال البيع) ثم ويندوز كبديل بمقاس ورق صريح
+                    if (isThermal)
                     {
-                        doc.PrinterSettings.PrinterName = targetPrinter;
+                        try
+                        {
+                            byte[] escposBytes = BuildReceiptEscPos(job, shouldOpenDrawer, autoCut);
+                            string rawErr;
+                            string rawTitle = string.Format("Rafiq Return #{0}", returnObj.ReturnNumber);
+                            if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, rawTitle, out rawErr))
+                            {
+                                RecordPrintAudit("return", returnObj.Id, isCopy, ReturnReprintAuditAction, returnObj.ReturnNumber, targetPrinter, false, returnObj.CashierId);
+                                return new PrintResult
+                                {
+                                    Success = true,
+                                    Message = string.Format("تم إرسال {0} المرتجع #{1} إلى الطابعة بنجاح.", isCopy ? "نسخة من إيصال" : "إيصال", returnObj.ReturnNumber),
+                                    PrinterUsed = targetPrinter
+                                };
+                            }
+
+                            Logger.Warn(string.Format("فشل الإرسال المباشر ESC/POS لإيصال المرتجع على '{0}': {1}، جاري المحاولة عبر Windows PrintDocument.", targetPrinter, rawErr));
+                        }
+                        catch (Exception exRaster)
+                        {
+                            Logger.Warn("استثناء أثناء طباعة إيصال المرتجع بـ ESC/POS Raster: " + exRaster.Message);
+                        }
                     }
 
-                    if (!doc.PrinterSettings.IsValid)
+                    string gdiError;
+                    string docName = string.Format("إيصال مرتجع بضاعة #{0}", returnObj.ReturnNumber);
+                    if (!PrintReceiptJobViaGdi(job, targetPrinter, docName, printWidth <= 210, out gdiError))
                     {
                         return new PrintResult
                         {
                             Success = false,
-                            Message = string.Format("الطابعة المحددة '{0}' غير صالحة أو غير مثبتة في النظام.", targetPrinter),
+                            Message = gdiError,
                             PrinterUsed = targetPrinter
                         };
                     }
-
-                    doc.DocumentName = string.Format("إيصال مرتجع بضاعة #{0}", returnObj.ReturnNumber);
-                    doc.PrintController = new StandardPrintController();
-
-                    doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
-                    {
-                        e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
-                        e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                        e.Graphics.SmoothingMode = SmoothingMode.None;
-                        e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
-
-                        RenderReturnReceiptPage(e.Graphics, returnObj, storeName, phone, address, printWidth);
-                        e.HasMorePages = false;
-                    };
-
-                    doc.Print();
                 }
 
                 if (shouldOpenDrawer)
@@ -1322,23 +2042,31 @@ namespace RafiqPOS.Services
                         string kickErr;
                         RawPrinterHelper.SendDrawerKick(targetPrinter, out kickErr, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
                     }
-                    catch { }
+                    catch (Exception exDrawer)
+                    {
+                        Logger.Warn("فشل إرسال نبضة فتح درج النقدية بعد طباعة المرتجع: " + exDrawer.Message);
+                    }
                 }
 
-                if (GetConfiguredAutoCut())
+                if (autoCut && !isThermal)
                 {
                     try
                     {
                         string cutErr;
                         RawPrinterHelper.SendPaperCut(targetPrinter, out cutErr);
                     }
-                    catch { }
+                    catch (Exception exCut)
+                    {
+                        Logger.Warn("فشل إرسال أمر قص الورق بعد طباعة المرتجع: " + exCut.Message);
+                    }
                 }
+
+                RecordPrintAudit("return", returnObj.Id, isCopy, ReturnReprintAuditAction, returnObj.ReturnNumber, targetPrinter, false, returnObj.CashierId);
 
                 return new PrintResult
                 {
                     Success = true,
-                    Message = string.Format("تم إرسال إيصال المرتجع #{0} إلى الطابعة بنجاح.", returnObj.ReturnNumber),
+                    Message = string.Format("تم إرسال {0} المرتجع #{1} إلى الطابعة بنجاح.", isCopy ? "نسخة من إيصال" : "إيصال", returnObj.ReturnNumber),
                     PrinterUsed = targetPrinter
                 };
             }
@@ -1354,28 +2082,28 @@ namespace RafiqPOS.Services
             }
         }
 
-        private PrintResult PrintReturnReceiptToNetwork(Return returnObj, string networkTarget, int printWidth, bool shouldOpenDrawer)
+        private PrintResult PrintReturnReceiptToNetwork(Return returnObj, string networkTarget, int printWidth, bool shouldOpenDrawer, bool isCopy)
         {
             try
             {
-                using (var bmp = RenderReturnReceiptToBitmap(returnObj, printWidth))
+                using (var job = CreateReturnReceiptJob(returnObj, printWidth, isCopy))
                 {
-                    if (bmp == null)
-                    {
-                        return new PrintResult { Success = false, Message = "فشل توليد صورة إيصال المرتجع للطباعة الشبكية.", PrinterUsed = networkTarget };
-                    }
-
                     bool autoCut = GetConfiguredAutoCut();
-                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, shouldOpenDrawer, autoCut, GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
+                    byte[] escposBytes = BuildReceiptEscPos(job, shouldOpenDrawer, autoCut);
 
                     string errMsg;
                     string docTitle = string.Format("Rafiq Network Return #{0}", returnObj.ReturnNumber);
                     bool ok = RawPrinterHelper.SendRawBytes(networkTarget, escposBytes, docTitle, out errMsg);
 
+                    if (ok)
+                    {
+                        RecordPrintAudit("return", returnObj.Id, isCopy, ReturnReprintAuditAction, returnObj.ReturnNumber, networkTarget, true, returnObj.CashierId);
+                    }
+
                     return new PrintResult
                     {
                         Success = ok,
-                        Message = ok ? string.Format("تم إرسال إيصال المرتجع #{0} إلى طابعة الشبكة بنجاح.", returnObj.ReturnNumber) : ("تعذر الطباعة على طابعة الشبكة: " + errMsg),
+                        Message = ok ? string.Format("تم إرسال {0} المرتجع #{1} إلى طابعة الشبكة بنجاح.", isCopy ? "نسخة من إيصال" : "إيصال", returnObj.ReturnNumber) : ("تعذر الطباعة على طابعة الشبكة: " + errMsg),
                         PrinterUsed = networkTarget
                     };
                 }
@@ -1387,234 +2115,96 @@ namespace RafiqPOS.Services
             }
         }
 
-        public Bitmap RenderReturnReceiptToBitmap(Return returnObj, int printWidth)
+        public Bitmap RenderReturnReceiptToBitmap(Return returnObj, int printWidth, bool isCopy = false)
         {
             if (returnObj == null) return null;
-            bool isCompact = (printWidth <= 210);
-            int pixelWidth = isCompact ? 384 : 576;
-            float scale = (float)pixelWidth / (float)printWidth;
-
-            int estimatedHeight = Math.Max(400, 320 + (returnObj.Items != null ? returnObj.Items.Count * 40 : 0) + 120);
-            int pixelHeight = (int)(estimatedHeight * scale);
-
-            string storeName = _settings != null ? _settings.Get("store_name", "متجر رفيق") : "متجر رفيق";
-            string phone = _settings != null ? _settings.Get("store_phone", "") : "";
-            string address = _settings != null ? _settings.Get("store_address", "") : "";
-
-            var bmpTemp = new Bitmap(pixelWidth, pixelHeight);
-            float finalY;
-            using (var g = Graphics.FromImage(bmpTemp))
+            using (var job = CreateReturnReceiptJob(returnObj, printWidth, isCopy))
             {
-                g.Clear(Color.White);
-                g.ScaleTransform(scale, scale);
-                g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.SmoothingMode = SmoothingMode.None;
-                g.PixelOffsetMode = PixelOffsetMode.Half;
-
-                finalY = RenderReturnReceiptPage(g, returnObj, storeName, phone, address, printWidth);
+                return RenderReceiptBand(job, 0, job.PixelHeight);
             }
-
-            int finalPixelHeight = Math.Max(50, (int)Math.Ceiling((finalY + 12f) * scale));
-            var bmpFinal = new Bitmap(pixelWidth, finalPixelHeight);
-            using (var gFinal = Graphics.FromImage(bmpFinal))
-            {
-                gFinal.DrawImage(bmpTemp, 0, 0, new Rectangle(0, 0, pixelWidth, finalPixelHeight), GraphicsUnit.Pixel);
-            }
-            bmpTemp.Dispose();
-
-            return bmpFinal;
         }
 
-        private float RenderReturnReceiptPage(
-            Graphics g,
-            Return returnObj,
-            string storeName,
-            string phone,
-            string address,
-            int contentWidth)
+        private ReceiptRenderJob CreateReturnReceiptJob(Return returnObj, int printWidth, bool isCopy)
         {
-            g.Clear(Color.White);
+            ReceiptStoreInfo store = LoadReceiptStoreInfo();
+            Image logo = TryLoadStoreLogo();
+            return CreateReceiptJob(
+                delegate(Graphics g, int width) { return RenderReturnReceiptPage(g, returnObj, store, logo, width, isCopy); },
+                printWidth,
+                logo);
+        }
 
-            bool isCompact = (contentWidth <= 210);
+        /// <summary>هل يُرد المبلغ نقداً من الدرج (الافتراضي نقداً عند غياب الطريقة)</summary>
+        public static bool IsCashRefund(string refundMethod)
+        {
+            return string.IsNullOrWhiteSpace(refundMethod)
+                || string.Equals(refundMethod.Trim(), "cash", StringComparison.OrdinalIgnoreCase);
+        }
 
-            string fontName = "Arial";
-            using (var testFont = new Font("Cairo", 9f))
+        private float RenderReturnReceiptPage(Graphics g, Return returnObj, ReceiptStoreInfo store, Image logo, int contentWidth, bool isCopy)
+        {
+            using (var p = new ReceiptPainter(g, contentWidth))
             {
-                if (testFont.Name == "Cairo") fontName = "Cairo";
-                else
-                {
-                    using (var segFont = new Font("Segoe UI", 9f))
-                    {
-                        if (segFont.Name == "Segoe UI") fontName = "Segoe UI";
-                        else
-                        {
-                            using (var tahomaFont = new Font("Tahoma", 9f))
-                            {
-                                if (tahomaFont.Name == "Tahoma") fontName = "Tahoma";
-                            }
-                        }
-                    }
-                }
-            }
+                DrawStoreHeader(p, store, logo, false);
+                p.Separator(p.Dashed, 3f, 4f);
+                p.Badge("إيصال مرتجع بضاعة");
+                if (isCopy) p.Badge("نسخة - إعادة طباعة");
 
-            float titleSize = isCompact ? 10.5f : 12f;
-            float boldSize = isCompact ? 8f : 9f;
-            float regSize = isCompact ? 7.5f : 8.5f;
-            float smallSize = isCompact ? 6.8f : 7.5f;
-            float largeSize = isCompact ? 11.5f : 13f;
-
-            using (var fontTitle = new Font(fontName, titleSize, FontStyle.Bold))
-            using (var fontBold = new Font(fontName, boldSize, FontStyle.Bold))
-            using (var fontRegular = new Font(fontName, regSize, FontStyle.Regular))
-            using (var fontSmall = new Font(fontName, smallSize, FontStyle.Regular))
-            using (var fontLarge = new Font(fontName, largeSize, FontStyle.Bold))
-            using (var penDashed = new Pen(Color.Black, 1f) { DashStyle = DashStyle.Dash })
-            using (var penSolid = new Pen(Color.Black, 1.5f))
-            using (var centerFormat = new StringFormat { FormatFlags = StringFormatFlags.DirectionRightToLeft, Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-            using (var rightFormat = new StringFormat { FormatFlags = StringFormatFlags.DirectionRightToLeft, Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
-            using (var leftFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
-            {
-                float y = 5;
-
-                // 1. ترويسة المتجر
-                g.DrawString(storeName, fontTitle, Brushes.Black, new RectangleF(0, y, contentWidth, 22), centerFormat);
-                y += 24;
-
-                if (!string.IsNullOrWhiteSpace(address))
-                {
-                    g.DrawString(address, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 14), centerFormat);
-                    y += 16;
-                }
-                if (!string.IsNullOrWhiteSpace(phone))
-                {
-                    g.DrawString("هاتف: " + phone, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 14), centerFormat);
-                    y += 16;
-                }
-
-                y += 4;
-                g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
-                y += 8;
-
-                // شارة: إيصال مرتجع بضاعة
-                g.FillRectangle(Brushes.Black, new RectangleF(15, y, contentWidth - 30, 24));
-                g.DrawString("إيصال مرتجع بضاعة", fontBold, Brushes.White, new RectangleF(15, y, contentWidth - 30, 24), centerFormat);
-                y += 30;
-
-                // 2. بيانات المرتجع
-                string retNumStr = "رقم المرتجع: #" + returnObj.ReturnNumber;
-                g.DrawString(retNumStr, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rightFormat);
-                y += 18;
-
+                // رقم المرتجع + التاريخ، ثم الفاتورة الأصلية والعميل والسبب
+                p.WrapWithSide("مرتجع رقم: " + returnObj.ReturnNumber.ToString(CultureInfo.InvariantCulture), FormatReceiptDateTime(returnObj.CreatedAt), p.Bold, p.Small);
                 if (returnObj.InvoiceNumber.HasValue && returnObj.InvoiceNumber.Value > 0)
                 {
-                    string origInvStr = "الفاتورة الأصلية: #" + returnObj.InvoiceNumber.Value;
-                    g.DrawString(origInvStr, fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rightFormat);
-                    y += 18;
+                    p.WrapText("الفاتورة الأصلية: " + returnObj.InvoiceNumber.Value.ToString(CultureInfo.InvariantCulture), p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
                 }
                 else
                 {
-                    g.DrawString("مرتجع حر (بدون فاتورة أصلية)", fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rightFormat);
-                    y += 18;
+                    p.WrapText("مرتجع بدون فاتورة أصلية", p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
                 }
+                if (!string.IsNullOrWhiteSpace(returnObj.CustomerName)) p.WrapText("العميل: " + returnObj.CustomerName.Trim(), p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
+                if (!string.IsNullOrWhiteSpace(returnObj.Reason)) p.WrapText("السبب: " + returnObj.Reason.Trim(), p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
 
-                DateTime retDate = DateTime.Now;
-                DateTime.TryParse(returnObj.CreatedAt, out retDate);
-                g.DrawString(retDate.ToString("yyyy/MM/dd HH:mm"), fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rightFormat);
-                y += 16;
+                p.Separator(p.Dashed, 2f, 3f);
 
-                if (!string.IsNullOrWhiteSpace(returnObj.CustomerName))
-                {
-                    g.DrawString("العميل: " + returnObj.CustomerName, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rightFormat);
-                    y += 16;
-                }
-
-                if (!string.IsNullOrWhiteSpace(returnObj.Reason))
-                {
-                    g.DrawString("السبب: " + returnObj.Reason, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rightFormat);
-                    y += 16;
-                }
-
-                y += 4;
-                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                y += 6;
-
-                // 3. جدول الأصناف
-                float colProdW = contentWidth * 0.48f;
-                float colQtyW = contentWidth * 0.22f;
-                float colTotalW = contentWidth * 0.30f;
-
-                g.DrawString("الصنف", fontBold, Brushes.Black, new RectangleF(contentWidth - colProdW - 5, y, colProdW, 16), rightFormat);
-                g.DrawString("الكمية", fontBold, Brushes.Black, new RectangleF(contentWidth - colProdW - colQtyW - 5, y, colQtyW, 16), centerFormat);
-                g.DrawString("الإجمالي", fontBold, Brushes.Black, new RectangleF(5, y, colTotalW, 16), leftFormat);
-                y += 18;
-                g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
-                y += 6;
-
-                // 4. أسطر الأصناف المرتجعة
+                // جدول الأصناف المرتجعة (نفس أعمدة إيصال البيع)
+                var lines = new List<ReceiptLine>();
+                bool anyNetPricedLine = false;
                 if (returnObj.Items != null)
                 {
-                    foreach (var item in returnObj.Items)
+                    for (int i = 0; i < returnObj.Items.Count; i++)
                     {
-                        string pName = item.ProductName ?? "";
-                        if (item.IsDamaged)
+                        ReturnItem item = returnObj.Items[i];
+                        if (item == null) continue;
+                        var line = new ReceiptLine();
+                        line.Name = (string.IsNullOrWhiteSpace(item.ProductName) ? "صنف" : item.ProductName.Trim()) + (item.IsDamaged ? " (تالف)" : "");
+                        line.Qty = FormatReceiptQuantityWithUnit(item.QuantityMilli, null, item.Unit);
+                        line.Price = FormatReceiptMoney(item.UnitPricePiasters);
+                        line.Total = FormatReceiptMoney(item.TotalPiasters);
+                        if (Money.FromPiasters(item.UnitPricePiasters).MultiplyByMilliUnits(item.QuantityMilli).Piasters != item.TotalPiasters)
                         {
-                            pName += " [تالف]";
+                            anyNetPricedLine = true;
                         }
-
-                        g.DrawString(pName, fontRegular, Brushes.Black, new RectangleF(contentWidth - colProdW - 5, y, colProdW, 16), rightFormat);
-
-                        double qty = item.QuantityMilli / 1000.0;
-                        string qtyStr = qty.ToString("0.###");
-                        g.DrawString(qtyStr, fontRegular, Brushes.Black, new RectangleF(contentWidth - colProdW - colQtyW - 5, y, colQtyW, 16), centerFormat);
-
-                        string itemTotalStr = Money.FormatPiasters(item.TotalPiasters);
-                        g.DrawString(itemTotalStr, fontBold, Brushes.Black, new RectangleF(5, y, colTotalW, 16), leftFormat);
-                        y += 18;
+                        lines.Add(line);
                     }
                 }
+                DrawReceiptLines(p, lines, anyNetPricedLine ? "الأسعار صافية بعد الخصم" : null);
 
-                y += 4;
-                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                y += 6;
+                p.Separator(p.Solid, 0f, 3f);
+                p.GrandTotal("إجمالي المبلغ المسترد", FormatReceiptMoney(returnObj.TotalPiasters), "ج.م");
 
-                // 5. إجمالي المبلغ المسترد
-                g.DrawString("إجمالي المبلغ المسترد:", fontBold, Brushes.Black, new RectangleF(contentWidth * 0.4f, y, contentWidth * 0.55f, 20), rightFormat);
-                string totalStr = Money.FormatPiasters(returnObj.TotalPiasters) + " ج.م";
-                g.DrawString(totalStr, fontLarge, Brushes.Black, new RectangleF(5, y, contentWidth * 0.45f, 20), leftFormat);
-                y += 24;
+                string refundKey = (returnObj.RefundMethod ?? "").Trim().ToLowerInvariant();
+                string methodText;
+                if (refundKey == "credit" || refundKey == "customer_balance") methodText = "طريقة الرد: خصم من حساب العميل";
+                else if (refundKey == "instapay") methodText = "طريقة الرد: تحويل انستاباي";
+                else if (refundKey == "vodafone_cash") methodText = "طريقة الرد: تحويل فودافون كاش";
+                else if (refundKey == "wallet") methodText = "طريقة الرد: تحويل إلى المحفظة";
+                else if (IsCashRefund(returnObj.RefundMethod)) methodText = "طريقة الرد: نقداً من الخزينة";
+                else methodText = "طريقة الرد: " + returnObj.RefundMethod.Trim();
+                p.WrapText(methodText, p.Regular, p.Rtl, ReceiptPainter.Pad, p.Usable);
 
-                string methodStr = string.Equals(returnObj.RefundMethod, "credit", StringComparison.OrdinalIgnoreCase)
-                    ? "طريقة الرد: خصم من حساب العميل"
-                    : "طريقة الرد: نقداً من الخزينة";
-                g.DrawString(methodStr, fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rightFormat);
-                y += 22;
+                DrawReceiptSignature(p, store);
 
-                // باركود المرتجع Code 128
-                string retBarcode = string.Format("RFQ-RET-{0:D8}", returnObj.ReturnNumber);
-                float retBarH = isCompact ? 34f : 40f;
-                BarcodeGenerator.DrawBarcode(g, retBarcode, new RectangleF(10, y, contentWidth - 20, retBarH), showText: true, textFont: fontSmall);
-                y += retBarH + 6;
-
-                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                y += 8;
-
-                g.DrawString("تم توثيق المرتجع بنجاح في سجل العمليات الرقابي", fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
-                y += 18;
-
-                string defaultSig = "نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965";
-                string devSigReturn = _settings != null ? _settings.Get("developer_signature", defaultSig) : defaultSig;
-                if (string.IsNullOrWhiteSpace(devSigReturn) || devSigReturn == "نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد")
-                {
-                    devSigReturn = defaultSig;
-                }
-                y += 2;
-                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
-                y += 4;
-                g.DrawString(devSigReturn, fontSmall, Brushes.Black, new RectangleF(2, y, contentWidth - 4, isCompact ? 28 : 18), centerFormat);
-                y += isCompact ? 30 : 20;
-
-                return y;
+                p.Y += 8f;
+                return p.Y;
             }
         }
 
@@ -1637,6 +2227,39 @@ namespace RafiqPOS.Services
                 return PrintDailyClosingReportToNetwork(closing, targetPrinter, targetWidth);
             }
 
+            bool isCompact = IsCompactPaper(targetWidth);
+
+            // الطابعة الحرارية المحلية: نفس مسار الصورة النقطية ESC/POS المستخدم في إيصال البيع (بدون هدر ورق)
+            if (IsThermalPrinter(targetPrinter, targetWidth))
+            {
+                try
+                {
+                    using (var bmp = RenderDailyClosingToBitmap(closing, targetWidth))
+                    {
+                        if (bmp != null)
+                        {
+                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, GetConfiguredAutoCut(), GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
+                            string rawErr;
+                            string rawTitle = string.Format("Rafiq Closing #{0}", closing.ClosingNumber);
+                            if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, rawTitle, out rawErr))
+                            {
+                                return new PrintResult
+                                {
+                                    Success = true,
+                                    Message = string.Format("تم إرسال تقرير إقفال اليومية #{0} إلى الطابعة '{1}' بنجاح.", closing.ClosingNumber, targetPrinter),
+                                    PrinterUsed = targetPrinter
+                                };
+                            }
+                            Logger.Warn(string.Format("فشل الإرسال المباشر ESC/POS لتقرير الإقفال على الطابعة '{0}': {1}، جاري المحاولة عبر Windows PrintDocument.", targetPrinter, rawErr));
+                        }
+                    }
+                }
+                catch (Exception exRaster)
+                {
+                    Logger.Warn("استثناء أثناء طباعة تقرير الإقفال بـ ESC/POS Raster: " + exRaster.Message);
+                }
+            }
+
             try
             {
                 var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
@@ -1649,6 +2272,9 @@ namespace RafiqPOS.Services
                         doc.PrinterSettings.PrinterName = targetPrinter;
                     }
 
+                    doc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(0, 0, 0, 0);
+                    doc.OriginAtMargins = false;
+
                     if (!doc.PrinterSettings.IsValid)
                     {
                         return new PrintResult
@@ -1658,6 +2284,22 @@ namespace RafiqPOS.Services
                             PrinterUsed = targetPrinter
                         };
                     }
+
+                    // مقاس ورق صريح بدل الافتراضي للطابعة، والارتفاع من قياس المحتوى الفعلي
+                    float measuredHeight;
+                    using (var bmpMeasure = new Bitmap(10, 10))
+                    using (var gMeasure = Graphics.FromImage(bmpMeasure))
+                    {
+                        measuredHeight = RenderDailyClosingPage(gMeasure, closing, storeName, printWidth);
+                    }
+
+                    int widthHundredths = isCompact ? 228 : 314;
+                    int heightHundredths = (int)Math.Ceiling((measuredHeight / 72.0) * 100.0) + 12;
+                    try
+                    {
+                        doc.DefaultPageSettings.PaperSize = new PaperSize("RafiqClosing", widthHundredths, heightHundredths);
+                    }
+                    catch { }
 
                     doc.DocumentName = string.Format("تقرير إقفال اليومية #{0}", closing.ClosingNumber);
                     doc.PrintController = new StandardPrintController();
@@ -1748,15 +2390,22 @@ namespace RafiqPOS.Services
             int pixelWidth = isCompact ? 384 : 576;
             float scale = (float)pixelWidth / (float)contentWidth;
 
-            int estimatedHeight = 650;
-            int pixelHeight = (int)(estimatedHeight * scale);
-
             var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
             string storeName = store.ContainsKey("store_name") ? store["store_name"] : "متجر رفيق";
 
-            var bmpTemp = new Bitmap(pixelWidth, pixelHeight);
+            // تمريرة قياس أولاً: الارتفاع يُحسب من عدد الصفوف الفعلي فلا يُقص التقرير مهما زادت الصفوف
             float finalY;
-            using (var g = Graphics.FromImage(bmpTemp))
+            using (var bmpMeasure = new Bitmap(pixelWidth, 10))
+            using (var gMeasure = Graphics.FromImage(bmpMeasure))
+            {
+                gMeasure.ScaleTransform(scale, scale);
+                gMeasure.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                finalY = RenderDailyClosingPage(gMeasure, closing, storeName, contentWidth);
+            }
+
+            int finalPixelHeight = Math.Max(50, (int)Math.Ceiling((finalY + 12f) * scale));
+            var bmpFinal = new Bitmap(pixelWidth, finalPixelHeight);
+            using (var g = Graphics.FromImage(bmpFinal))
             {
                 g.Clear(Color.White);
                 g.ScaleTransform(scale, scale);
@@ -1765,16 +2414,8 @@ namespace RafiqPOS.Services
                 g.SmoothingMode = SmoothingMode.None;
                 g.PixelOffsetMode = PixelOffsetMode.Half;
 
-                finalY = RenderDailyClosingPage(g, closing, storeName, contentWidth);
+                RenderDailyClosingPage(g, closing, storeName, contentWidth);
             }
-
-            int finalPixelHeight = Math.Max(50, (int)Math.Ceiling((finalY + 12f) * scale));
-            var bmpFinal = new Bitmap(pixelWidth, finalPixelHeight);
-            using (var gFinal = Graphics.FromImage(bmpFinal))
-            {
-                gFinal.DrawImage(bmpTemp, 0, 0, new Rectangle(0, 0, pixelWidth, finalPixelHeight), GraphicsUnit.Pixel);
-            }
-            bmpTemp.Dispose();
 
             return bmpFinal;
         }
@@ -1791,49 +2432,68 @@ namespace RafiqPOS.Services
 
             var centerFormat = new StringFormat { Alignment = StringAlignment.Center, FormatFlags = StringFormatFlags.DirectionRightToLeft };
             var rightFormat = new StringFormat { Alignment = StringAlignment.Near, FormatFlags = StringFormatFlags.DirectionRightToLeft };
-            var leftFormat = new StringFormat { Alignment = StringAlignment.Far };
+            // القيمة: اتجاه يسار-إلى-يمين بلا التفاف؛ عرضها يُقاس فلا يُقص مبلغ كبير
+            var valueFormat = new StringFormat
+            {
+                Alignment = StringAlignment.Near,
+                Trimming = StringTrimming.EllipsisCharacter,
+                FormatFlags = StringFormatFlags.NoWrap
+            };
 
             float y = 10;
             float contentWidth = printWidth;
 
-            // 1. Store Header
-            g.DrawString(storeName, fontTitle, Brushes.Black, new RectangleF(0, y, contentWidth, 20), centerFormat);
-            y += 22;
+            // يقيس ارتفاع النص بعد الالتفاف ويرسمه كاملاً ثم ينزل بالسطر (لا قص لسطر عربي طويل)
+            Action<string, Font, StringFormat, float> drawBlock = delegate(string text, Font f, StringFormat fmt, float gap)
+            {
+                SizeF size = g.MeasureString(text, f, (int)contentWidth, fmt);
+                g.DrawString(text, f, Brushes.Black, new RectangleF(0, y, contentWidth, size.Height + 1f), fmt);
+                y += size.Height + gap;
+            };
 
-            g.DrawString("تقرير إقفال اليومية والوردية", fontHeader, Brushes.Black, new RectangleF(0, y, contentWidth, 18), centerFormat);
-            y += 20;
+            // 1. Store Header
+            drawBlock(storeName, fontTitle, centerFormat, 3f);
+            drawBlock("تقرير إقفال اليومية والوردية", fontHeader, centerFormat, 4f);
 
             g.DrawLine(Pens.Black, 0, y, contentWidth, y);
             y += 6;
 
+            // وقت الإقفال المسجّل (وليس لحظة الطباعة) كي تُظهر إعادة الطباعة الوقت الأصلي
+            DateTime closedAt;
+            if (string.IsNullOrWhiteSpace(closing.ClosedAt) ||
+                !DateTime.TryParse(closing.ClosedAt, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out closedAt))
+            {
+                closedAt = DateTime.Now;
+            }
+
             // 2. Info Block
-            g.DrawString(string.Format("رقم الإقفال: #{0}", closing.ClosingNumber), fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
-            y += 16;
-
-            g.DrawString(string.Format("يوم العمل: {0}", closing.BusinessDate), fontBody, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
-            y += 16;
-
-            g.DrawString(string.Format("الكاشير: {0}", closing.CashierName ?? "غير محدد"), fontBody, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
-            y += 16;
-
-            g.DrawString(string.Format("وقت الإقفال: {0}", DateTime.Now.ToString("yyyy-MM-dd HH:mm")), fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
-            y += 18;
+            drawBlock(string.Format("رقم الإقفال: #{0}", closing.ClosingNumber), fontBold, rightFormat, 2f);
+            drawBlock(string.Format("يوم العمل: {0}", closing.BusinessDate), fontBody, rightFormat, 2f);
+            drawBlock(string.Format("الكاشير: {0}", closing.CashierName ?? "غير محدد"), fontBody, rightFormat, 2f);
+            drawBlock(string.Format("وقت الإقفال: {0}", closedAt.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)), fontSmall, rightFormat, 4f);
 
             g.DrawLine(Pens.Black, 0, y, contentWidth, y);
             y += 8;
 
-            // Helper row
+            // صف تسمية/قيمة: القيمة يساراً بعرضها المقاس، والتسمية يميناً تلتف في الباقي بلا تداخل
             Action<string, string, bool> drawRow = delegate(string label, string val, bool isBold)
             {
                 var f = isBold ? fontBold : fontBody;
-                g.DrawString(label, f, Brushes.Black, new RectangleF(0, y, contentWidth * 0.6f, 16), rightFormat);
-                g.DrawString(val, f, Brushes.Black, new RectangleF(contentWidth * 0.55f, y, contentWidth * 0.45f, 16), leftFormat);
-                y += 17;
+                const float margin = 2f;
+                const float gutter = 6f;
+                SizeF valSize = g.MeasureString(val, f, 10000, valueFormat);
+                float valW = Math.Min(valSize.Width + 2f, contentWidth * 0.6f);
+                float labelW = contentWidth - valW - gutter - (margin * 2f);
+                SizeF labelSize = g.MeasureString(label, f, (int)labelW, rightFormat);
+                float rowH = Math.Max(valSize.Height, labelSize.Height) + 1f;
+
+                g.DrawString(val, f, Brushes.Black, new RectangleF(margin, y, valW, rowH), valueFormat);
+                g.DrawString(label, f, Brushes.Black, new RectangleF(contentWidth - margin - labelW, y, labelW, rowH), rightFormat);
+                y += rowH + 1f;
             };
 
             // 3. Sales Breakdown
-            g.DrawString("ملخص المبيعات والحركات", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
-            y += 18;
+            drawBlock("ملخص المبيعات والحركات", fontBold, rightFormat, 3f);
 
             drawRow(string.Format("إجمالي المبيعات ({0} فواتير):", closing.InvoicesCount), (closing.TotalSalesPiasters / 100.0).ToString("N2") + " ج.م", true);
             drawRow("  • مبيعات نقدية (بالدرج):", (closing.CashSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
@@ -1915,8 +2575,7 @@ namespace RafiqPOS.Services
             y += 8;
 
             // 4. جرد النقدية والخزينة
-            g.DrawString("جرد النقدية والخزينة", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
-            y += 18;
+            drawBlock("جرد النقدية والخزينة", fontBold, rightFormat, 3f);
 
             drawRow("النقد المفترض في الدرج:", (closing.ExpectedCashPiasters / 100.0).ToString("N2") + " ج.م", true);
             drawRow("النقد الفعلي المعدود:", (closing.ActualCashPiasters / 100.0).ToString("N2") + " ج.م", true);
@@ -1933,10 +2592,8 @@ namespace RafiqPOS.Services
             drawRow("الربح التقريبي لليوم:", (closing.GrossProfitPiasters / 100.0).ToString("N2") + " ج.م", true);
             y += 8;
 
-            g.DrawString("سجل إقفال رسمي ومختوم رقمياً • لا يُعدّل بعد الحفظ", fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
-            y += 16;
-            g.DrawString("نظام رفيق لنقاط البيع وإدارة المتاجر", fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
-            y += 18;
+            drawBlock("سجل إقفال رسمي ومختوم رقمياً • لا يُعدّل بعد الحفظ", fontSmall, centerFormat, 3f);
+            drawBlock("نظام رفيق لنقاط البيع وإدارة المتاجر", fontSmall, centerFormat, 6f);
 
             return y;
         }

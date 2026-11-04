@@ -98,7 +98,7 @@ export const ConfirmModal = ({
             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconContainerClass}`}>
               {icon || defaultIcon}
             </div>
-            <h3 className="text-[14px] font-bold text-ink dark:text-ink-dark m-0">{title}</h3>
+            <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">{title}</h3>
           </div>
 
           <button
@@ -111,11 +111,11 @@ export const ConfirmModal = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-5 flex flex-col gap-3 text-[13px] text-ink dark:text-ink-dark">
+        <div className="p-5 flex flex-col gap-3 text-sm text-ink dark:text-ink-dark">
           <p className="leading-relaxed m-0 font-medium">{message}</p>
 
           {consequence && (
-            <div className={`p-3 rounded text-[11.5px] border leading-relaxed flex items-start gap-2 ${
+            <div className={`p-3 rounded text-micro border leading-relaxed flex items-start gap-2 ${
               effectiveVariant === 'danger'
                 ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright' 
                 : 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
@@ -131,7 +131,7 @@ export const ConfirmModal = ({
           <button
             type="button"
             onClick={onCancel}
-            className="h-[38px] px-4 rounded border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark text-[12.5px] font-semibold transition-colors cursor-pointer"
+            className="h-[38px] px-4 rounded border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark text-xs font-semibold transition-colors cursor-pointer"
           >
             {cancelText}
           </button>
@@ -140,7 +140,7 @@ export const ConfirmModal = ({
             type="button"
             autoFocus
             onClick={onConfirm}
-            className={`h-[38px] px-5 rounded text-white text-[12.5px] font-bold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer ${confirmBtnClass}`}
+            className={`h-[38px] px-5 rounded text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer ${confirmBtnClass}`}
           >
             {confirmText}
           </button>

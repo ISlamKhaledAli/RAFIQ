@@ -319,8 +319,8 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <TrendingUp className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white leading-tight">تعديل أسعار وتكلفة البضاعة بالجملة</h2>
-              <p className="text-[11px] text-emerald-100/70">تغيير أسعار البيع والتكلفة بنسبة مئوية أو بمبلغ ثابت أو من شيت إكسل دفعة واحدة</p>
+              <h2 className="t-modal-title text-white leading-tight">تعديل أسعار وتكلفة البضاعة بالجملة</h2>
+              <p className="text-micro text-emerald-100/70">تغيير أسعار البيع والتكلفة بنسبة مئوية أو بمبلغ ثابت أو من شيت إكسل دفعة واحدة</p>
             </div>
           </div>
           <button
@@ -339,11 +339,6 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
           <div className="flex flex-col gap-1.5">
             <label className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
               <span>البضاعة المستهدفة للتعديل</span>
-              {selectedProductIds.length > 0 && (
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold">
-                  {selectedProductIds.length} محدد
-                </span>
-              )}
             </label>
             <CustomSelect
               value={scope}
@@ -386,7 +381,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <button
                 type="button"
                 onClick={() => setMethod('percentage')}
-                className={`flex-1 py-1 px-1.5 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                className={`flex-1 py-1 px-1.5 rounded-lg font-bold text-micro flex items-center justify-center gap-1 border transition-all cursor-pointer ${
                   method === 'percentage'
                     ? 'bg-brand text-white border-brand shadow-2xs'
                     : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark hover:text-ink dark:hover:text-ink-dark'
@@ -398,7 +393,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <button
                 type="button"
                 onClick={() => setMethod('fixed_amount')}
-                className={`flex-1 py-1 px-1.5 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                className={`flex-1 py-1 px-1.5 rounded-lg font-bold text-micro flex items-center justify-center gap-1 border transition-all cursor-pointer ${
                   method === 'fixed_amount'
                     ? 'bg-brand text-white border-brand shadow-2xs'
                     : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark hover:text-ink dark:hover:text-ink-dark'
@@ -410,7 +405,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <button
                 type="button"
                 onClick={() => setMethod('excel')}
-                className={`flex-1 py-1 px-1.5 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                className={`flex-1 py-1 px-1.5 rounded-lg font-bold text-micro flex items-center justify-center gap-1 border transition-all cursor-pointer ${
                   method === 'excel'
                     ? 'bg-brand text-white border-brand shadow-2xs'
                     : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark hover:text-ink dark:hover:text-ink-dark'
@@ -460,13 +455,13 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <>
                 <label className="font-bold text-ink dark:text-ink-dark">ملف إكسل أو CSV للأسعار</label>
                 <div className="flex items-center gap-2">
-                  <label className="h-8 px-3 rounded-xl border border-brand dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-brand-soft/80 dark:hover:bg-brand-soft/30">
+                  <label className="h-8 px-3 rounded-xl border border-brand dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright text-micro font-bold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-brand-soft/80 dark:hover:bg-brand-soft/30">
                     <FileSpreadsheet className="w-3.5 h-3.5" />
                     <span>{excelFileName ? 'تغيير الملف' : 'رفع شيت الأسعار'}</span>
                     <input type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
                   </label>
                   {excelFileName && (
-                    <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted truncate max-w-[120px] font-mono">{excelFileName}</span>
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted truncate max-w-[120px] font-mono">{excelFileName}</span>
                   )}
                 </div>
               </>
@@ -479,7 +474,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="سبب تغيير الأسعار (بيتسجل في تاريخ الصنف)"
-                className="w-full h-7 px-2.5 text-[11px] rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                className="w-full h-7 px-2.5 text-micro rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
               />
             </div>
           </div>
@@ -509,7 +504,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               type="button"
               onClick={() => void handleGeneratePreview()}
               disabled={previewLoading}
-              className="h-8 px-4 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright hover:bg-brand dark:hover:bg-brand hover:text-white border border-brand/30 dark:border-brand-bright/30 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-98"
+              className="h-8 px-4 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright hover:bg-brand dark:hover:bg-brand hover:text-white dark:hover:text-white border border-brand/30 dark:border-brand-bright/30 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-98"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${previewLoading ? 'animate-spin' : ''}`} />
               <span>{previewLoading ? 'جاري الحساب والمعاينة...' : 'تحديث ومعاينة الأسعار'}</span>
@@ -540,7 +535,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               </span>
 
               {activeBelowCostCount > 0 && (
-                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30 text-[11px] animate-pulse">
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30 text-micro animate-pulse">
                   <AlertTriangle className="w-3 h-3 text-warn dark:text-warn-bright" />
                   <span>{activeBelowCostCount} صنف سعر بيعه هيبقى أقل من التكلفة (خسارة)!</span>
                 </span>
@@ -555,7 +550,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 value={previewSearch}
                 onChange={(e) => setPreviewSearch(normalizeArabicNumerals(e.target.value))}
                 placeholder="دور في البضاعة المعروضة..."
-                className="w-full bg-transparent border-none text-[11px] text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
+                className="w-full bg-transparent border-none text-micro text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
               />
               {previewSearch && (
                 <button type="button" onClick={() => setPreviewSearch('')} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
@@ -585,10 +580,10 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
             <div className="flex items-center gap-2.5">
               <AlertTriangle className="w-5 h-5 text-warn dark:text-warn-bright shrink-0" />
               <div>
-                <p className="m-0 text-[12px] font-black text-warn dark:text-warn-bright">
+                <p className="m-0 text-xs font-black text-warn dark:text-warn-bright">
                   تنبيه: فيه {activeBelowCostCount} صنف سعر بيعهم الجديد هيكون أقل من سعر التكلفة (بيع بالخسارة)!
                 </p>
-                <p className="m-0 text-[11px] text-ink-muted dark:text-ink-dark-muted font-normal">
+                <p className="m-0 text-micro text-ink-muted dark:text-ink-dark-muted font-normal">
                   متأكد إنك عاوز تكمل وتطبق الأسعار دي بالخسارة للأصناف المحددة؟
                 </p>
               </div>
@@ -604,7 +599,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <button
                 type="button"
                 onClick={() => void handleApplyChanges()}
-                className="px-3 py-1 bg-warn hover:bg-warn-dark text-white rounded-lg text-xs font-bold cursor-pointer shadow-xs"
+                className="px-3 py-1 bg-warn hover:bg-warn-dark dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark rounded-lg text-xs font-bold cursor-pointer shadow-xs"
               >
                 أيوه، اعتمد الأسعار رغم الخسارة
               </button>
@@ -616,7 +611,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
         <div className="flex-1 overflow-hidden flex flex-col p-4 pt-2">
           <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden flex flex-col shadow-2xs">
             {/* Table Header */}
-            <div className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 grid grid-cols-12 items-center text-[11.5px] font-bold text-ink-muted dark:text-ink-dark-muted shrink-0 select-none">
+            <div className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 grid grid-cols-12 items-center text-micro font-bold text-ink-muted dark:text-ink-dark-muted shrink-0 select-none">
               <div className="col-span-1 flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -657,7 +652,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 <div className="h-full flex flex-col items-center justify-center gap-2 text-ink-muted dark:text-ink-dark-muted p-8">
                   <Search className="w-8 h-8 text-line-hover dark:text-line-dark-strong" />
                   <p className="text-xs font-bold m-0 text-ink dark:text-ink-dark">مافيش أصناف مطابقة لبحثك أو للنطاق المختار</p>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted m-0">اتأكد من اختيار القسم أو الأصناف الصح واضغط 'تحديث ومعاينة'</p>
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">اتأكد من اختيار القسم أو الأصناف الصح واضغط 'تحديث ومعاينة'</p>
                 </div>
               ) : (
                 filteredPreviewItems.map((item) => {
@@ -687,29 +682,29 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                       </div>
 
                       {/* Barcode */}
-                      <div className="col-span-2 font-mono text-[11px] text-ink-muted dark:text-ink-dark-muted truncate">
+                      <div className="col-span-2 font-mono text-micro text-ink-muted dark:text-ink-dark-muted truncate">
                         {item.barcode || '—'}
                       </div>
 
                       {/* Name & Category */}
                       <div className="col-span-3 flex flex-col pr-1 truncate">
-                        <span className="font-bold text-ink dark:text-ink-dark truncate text-[11.5px]">{item.productName}</span>
-                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-normal">{item.categoryName}</span>
+                        <span className="font-bold text-ink dark:text-ink-dark truncate text-micro">{item.productName}</span>
+                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal">{item.categoryName}</span>
                       </div>
 
                       {/* Sale Price Comparison */}
                       <div className="col-span-2 flex items-center justify-center gap-1.5 font-mono text-xs">
-                        <span className="text-ink-muted dark:text-ink-dark-muted line-through text-[11px]">
+                        <span className="text-ink-muted dark:text-ink-dark-muted line-through text-micro">
                           {formatArabicCurrency(item.currentPricePiasters)}
                         </span>
                         <ArrowLeft className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted shrink-0" />
-                        <span className={`font-bold ${hasPriceChange ? 'text-paid dark:text-paid-bright text-[12.5px]' : 'text-ink dark:text-ink-dark'}`}>
+                        <span className={`font-bold ${hasPriceChange ? 'text-paid dark:text-paid-bright text-xs' : 'text-ink dark:text-ink-dark'}`}>
                           {formatArabicCurrency(item.newPricePiasters)}
                         </span>
                       </div>
 
                       {/* Price Diff */}
-                      <div className="col-span-1 text-center font-mono text-[11px]">
+                      <div className="col-span-1 text-center font-mono text-micro">
                         {item.priceDiffPiasters !== 0 ? (
                           <span
                             className={`px-1.5 py-0.5 rounded font-bold ${
@@ -727,13 +722,13 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
 
                       {/* Cost Comparison */}
                       <div className="col-span-2 flex items-center justify-center gap-1.5 font-mono text-xs">
-                        <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">
+                        <span className="text-ink-muted dark:text-ink-dark-muted text-micro">
                           {formatArabicCurrency(item.currentCostPiasters)}
                         </span>
                         {hasCostChange && (
                           <>
                             <ArrowLeft className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted shrink-0" />
-                            <span className="font-bold text-ink dark:text-ink-dark text-[12px]">
+                            <span className="font-bold text-ink dark:text-ink-dark text-xs">
                               {formatArabicCurrency(item.newCostPiasters)}
                             </span>
                           </>
@@ -744,18 +739,18 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                       <div className="col-span-1 flex items-center justify-center">
                         {item.belowCost ? (
                           <span
-                            className="px-2 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-[10px] font-bold border border-warn/20 dark:border-warn-bright/30 flex items-center gap-1"
+                            className="px-2 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold border border-warn/20 dark:border-warn-bright/30 flex items-center gap-1"
                             title="سعر البيع الجديد أقل من سعر التكلفة"
                           >
                             <AlertTriangle className="w-2.5 h-2.5 text-warn dark:text-warn-bright" />
                             <span>بيع بخسارة</span>
                           </span>
                         ) : hasPriceChange || hasCostChange ? (
-                          <span className="px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-[10px] font-bold border border-paid/20 dark:border-paid/30">
+                          <span className="px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold border border-paid/20 dark:border-paid/30">
                             هيتغير
                           </span>
                         ) : (
-                          <span className="text-ink-muted dark:text-ink-dark-muted text-[10px]">ثابت زي ما هو</span>
+                          <span className="text-ink-muted dark:text-ink-dark-muted text-micro">ثابت زي ما هو</span>
                         )}
                       </div>
                     </div>
@@ -803,7 +798,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <span>
                 {applying
                   ? 'جاري حفظ الأسعار الجديدة...'
-                  : `اعتماد وتطبيق الأسعار الجديدة (${activeSelectedCount} صنف)`}
+                  : 'اعتماد وتطبيق الأسعار الجديدة'}
               </span>
             </button>
           </div>
@@ -818,8 +813,8 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                   <Undo2 className="w-5 h-5 text-warn dark:text-warn-bright" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-ink dark:text-ink-dark">التراجع عن آخر تعديل جماعي للأسعار؟</h3>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">استعادة الأسعار والتكلفة القديمة لجميع الأصناف التي تم تعديلها في آخر دفعة</p>
+                  <h3 className="t-card-title text-ink dark:text-ink-dark">التراجع عن آخر تعديل جماعي للأسعار؟</h3>
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted">استعادة الأسعار والتكلفة القديمة لجميع الأصناف التي تم تعديلها في آخر دفعة</p>
                 </div>
               </div>
 
@@ -832,7 +827,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                   type="button"
                   onClick={() => setShowRevertConfirm(false)}
                   disabled={reverting}
-                  className="h-8 px-4 rounded-xl border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold hover:bg-surface-2 transition-colors cursor-pointer"
+                  className="h-8 px-4 rounded-xl border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -840,7 +835,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                   type="button"
                   onClick={() => void handleRevertLastAdjustment()}
                   disabled={reverting}
-                  className="h-8 px-4 rounded-xl bg-warn hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                  className="h-8 px-4 rounded-xl bg-warn hover:bg-amber-700 dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
                 >
                   <Undo2 className={`w-3.5 h-3.5 ${reverting ? 'animate-spin' : ''}`} />
                   <span>{reverting ? 'جاري التراجع...' : 'تأكيد التراجع الآن'}</span>

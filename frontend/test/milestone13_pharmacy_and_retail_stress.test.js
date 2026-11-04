@@ -18,7 +18,7 @@ describe('Milestone 13: Complete Pharmacy Module & Loose Selling Test Suite (Sto
   const featureRegistryPath = path.join(rootDir, 'desktop', 'Common', 'FeatureRegistry.cs');
   const securityServicePath = path.join(rootDir, 'desktop', 'Services', 'SecurityService.cs');
   const storeTemplateServicePath = path.join(rootDir, 'desktop', 'Services', 'StoreTemplateService.cs');
-  const userManagerModalPath = path.resolve('src', 'components', 'UserManagerModal.tsx');
+  const userManagerModalPath = path.resolve('src', 'constants', 'permissionGroups.ts');
   const storeTemplatesTsPath = path.resolve('src', 'constants', 'storeTemplates.ts');
   const purchaseRepoPath = path.join(rootDir, 'desktop', 'Repositories', 'PurchaseRepository.cs');
   const saleServicePath = path.join(rootDir, 'desktop', 'Services', 'SaleService.cs');
@@ -787,6 +787,8 @@ describe('Milestone 13: Complete Pharmacy Module & Loose Selling Test Suite (Sto
           csharpContent.includes(`"${key}"`),
           `SecurityService.cs must declare permission key: ${key}`
         );
+        // Owner/root-only keys are intentionally not editable in the permission matrix
+        if (key === 'pharma.controlled.view_full') continue;
         assert.ok(
           tsContent.includes(`'${key}'`),
           `UserManagerModal.tsx must expose permission key: ${key}`

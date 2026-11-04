@@ -98,8 +98,8 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
               <Tag className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-ink m-0">خصم خاص على الصنف</h3>
-              <p className="text-[11px] text-ink-muted m-0 truncate max-w-[260px]">
+              <h3 className="t-modal-title text-ink m-0">خصم خاص على الصنف</h3>
+              <p className="text-micro text-ink-muted m-0 truncate max-w-[260px]">
                 {item.productName} ({formatArabicCurrency(grossPiasters)})
               </p>
             </div>
@@ -176,7 +176,7 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
 
           {/* Quick Buttons */}
           <div className="mb-4">
-            <span className="block text-[11px] font-bold text-ink-muted mb-1.5">اختصارات سريعة:</span>
+            <span className="block text-micro font-bold text-ink-muted mb-1.5">اختصارات سريعة:</span>
             <div className="grid grid-cols-4 gap-1.5">
               {discountType === 'amount' ? (
                 <>

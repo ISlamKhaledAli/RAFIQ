@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import type { DragEvent, ChangeEvent } from 'react';
 import { 
   X, 
@@ -12,8 +12,7 @@ import {
   FileText,
   Search,
   ChevronLeft,
-  ChevronRight,
-  KeyRound
+  ChevronRight
 } from 'lucide-react';
 import type { Product, Category } from '../types/models';
 import { 
@@ -34,7 +33,6 @@ interface ExcelImportModalProps {
   onSuccess: (summary: string) => void;
   existingProducts: Product[];
   categories: Category[];
-  zIndexClass?: string;
 }
 
 export const ExcelImportModal = ({
@@ -42,8 +40,7 @@ export const ExcelImportModal = ({
   onClose,
   onSuccess,
   existingProducts,
-  categories,
-  zIndexClass
+  categories
 }: ExcelImportModalProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -53,19 +50,7 @@ export const ExcelImportModal = ({
   const [parsedRows, setParsedRows] = useState<ValidatedImportRow[]>([]);
   const [duplicateStrategy, setDuplicateStrategy] = useState<'skip' | 'update' | 'error'>('skip');
   const [onlyValidRows, setOnlyValidRows] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isLicenseError, setIsLicenseError] = useState(false);
-
-  useEffect(() => {
-    const handleLicenseUpdated = () => {
-      setErrorMessage(null);
-      setIsLicenseError(false);
-    };
-    window.addEventListener('rafiq:license-updated', handleLicenseUpdated);
-    return () => {
-      window.removeEventListener('rafiq:license-updated', handleLicenseUpdated);
-    };
-  }, []);
+  const [errorMessage, setErrorMessage] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'valid' | 'warning' | 'error'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -222,18 +207,6 @@ export const ExcelImportModal = ({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء حفظ الأصناف بقاعدة البيانات.';
       setErrorMessage(msg);
-      const isLic = (err as any)?.code === 'LICENSE_EXPIRED' ||
-        msg.includes('ترخيص') ||
-        msg.includes('اشتراك') ||
-        msg.includes('LICENSE_EXPIRED');
-      setIsLicenseError(isLic);
-      if (isLic) {
-        try {
-          window.dispatchEvent(new CustomEvent('rafiq:open-license'));
-        } catch {
-          // ignore
-        }
-      }
     } finally {
       setImporting(false);
     }
@@ -252,7 +225,7 @@ export const ExcelImportModal = ({
   if (!isOpen) return null;
 
   return (
-    <div onClick={handleBackdropClick} className={`fixed inset-0 ${zIndexClass || "z-50"} flex items-center justify-center bg-black/60 backdrop-blur-xs p-4`}>
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
       <div 
         className="bg-surface hairline-all rounded-lg shadow-xl w-full max-w-5xl flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         dir="rtl"
@@ -264,8 +237,8 @@ export const ExcelImportModal = ({
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-ink">استيراد الأصناف من ملف إكسل أو CSV</h2>
-              <p className="text-[11px] text-ink-muted">إضافة وتحديث المنتجات والمخزون دفعة واحدة في معاملة آمنة ومحمية</p>
+              <h2 className="t-modal-title text-ink">استيراد الأصناف من ملف إكسل أو CSV</h2>
+              <p className="text-micro text-ink-muted">إضافة وتحديث المنتجات والمخزون دفعة واحدة في معاملة آمنة ومحمية</p>
             </div>
           </div>
           <button
@@ -287,8 +260,8 @@ export const ExcelImportModal = ({
                 <FileText className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="font-bold text-emerald-950 text-[12.5px]">هل تحتاج نموذج الإكسل المعتمد لملء الأصناف؟</h4>
-                <p className="text-emerald-800 text-[11px] leading-relaxed mt-0.5">
+                <h4 className="t-label text-emerald-950">هل تحتاج نموذج الإكسل المعتمد لملء الأصناف؟</h4>
+                <p className="text-emerald-800 text-micro leading-relaxed mt-0.5">
                   قم بتحميل ملف النموذج الجاهز (يحتوي على تابات منفصلة لكل قسم، لوحة ملخص الأقسام، معادلات مالية ومخزنية تلقائية، وتنسيق باركود نصي سليم).
                 </p>
               </div>
@@ -304,7 +277,7 @@ export const ExcelImportModal = ({
                 }
               }}
               disabled={downloadingTemplate}
-              className="shrink-0 h-9 px-3.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11.5px] flex items-center justify-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60"
+              className="shrink-0 h-9 px-3.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-micro flex items-center justify-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60"
             >
               <Download className="w-4 h-4" />
               <span>{downloadingTemplate ? 'جاري التحميل...' : 'تحميل نموذج الإكسل الجاهز (.xlsx)'}</span>
@@ -335,8 +308,8 @@ export const ExcelImportModal = ({
                 <UploadCloud className="w-6 h-6 text-emerald-600" />
               </div>
               <div>
-                <p className="font-bold text-ink text-[12.5px]">اسحب ملف الإكسل هنا، أو انقر لاختيار الملف من جهازك</p>
-                <p className="text-ink-muted text-[11px] mt-0.5">الملفات المدعومة: مصنفات Excel (.xlsx, .xls) أو ملفات القيم المفصولة (.csv)</p>
+                <p className="font-bold text-ink text-xs">اسحب ملف الإكسل هنا، أو انقر لاختيار الملف من جهازك</p>
+                <p className="text-ink-muted text-micro mt-0.5">الملفات المدعومة: مصنفات Excel (.xlsx, .xls) أو ملفات القيم المفصولة (.csv)</p>
               </div>
             </div>
           ) : (
@@ -344,8 +317,8 @@ export const ExcelImportModal = ({
               <div className="flex items-center gap-2.5">
                 <FileSpreadsheet className="w-5 h-5 text-emerald-600 shrink-0" />
                 <div>
-                  <span className="font-bold text-ink text-[12px]">{selectedFile.name}</span>
-                  <span className="text-[11px] text-ink-muted mr-2 font-mono">
+                  <span className="font-bold text-ink text-xs">{selectedFile.name}</span>
+                  <span className="text-micro text-ink-muted mr-2 font-mono">
                     ({(selectedFile.size / 1024).toFixed(1)} KB)
                   </span>
                 </div>
@@ -354,7 +327,7 @@ export const ExcelImportModal = ({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-2.5 py-1 text-[11px] font-bold rounded bg-surface hover:bg-surface-3 hairline-all text-ink transition-colors"
+                  className="px-2.5 py-1 text-micro font-bold rounded bg-surface hover:bg-surface-3 hairline-all text-ink transition-colors"
                 >
                   تغيير الملف
                 </button>
@@ -379,21 +352,9 @@ export const ExcelImportModal = ({
 
           {/* Error Message */}
           {errorMessage && (
-            <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright p-3 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11.5px] animate-in fade-in duration-150">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
-                <span className="font-medium leading-relaxed">{errorMessage}</span>
-              </div>
-              {isLicenseError && (
-                <button
-                  type="button"
-                  onClick={() => window.dispatchEvent(new CustomEvent('rafiq:open-license'))}
-                  className="px-3 py-1.5 rounded bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-bold text-xs hover:bg-brand-dark dark:hover:bg-brand-bright/90 flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-2xs"
-                >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  <span>تفعيل ترخيص البرنامج الآن</span>
-                </button>
-              )}
+            <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright px-3.5 py-2.5 rounded-md flex items-center gap-2 text-micro">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
             </div>
           )}
 
@@ -417,7 +378,7 @@ export const ExcelImportModal = ({
                       : 'bg-surface-2 hairline-all hover:bg-surface-3'
                   }`}
                 >
-                  <span className="text-ink-muted text-[10.5px]">إجمالي الأصناف بالملف</span>
+                  <span className="text-ink-muted text-micro">إجمالي الأصناف بالملف</span>
                   <p className="text-base font-bold text-ink mt-0.5 font-mono">{parsedRows.length}</p>
                 </button>
 
@@ -430,7 +391,7 @@ export const ExcelImportModal = ({
                       : 'bg-paid-soft/50 dark:bg-paid-dark-soft/50 border-paid/20 hover:border-paid/40'
                   }`}
                 >
-                  <span className="text-paid dark:text-paid-bright text-[10.5px] font-bold flex items-center gap-1">
+                  <span className="text-paid dark:text-paid-bright text-micro font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     أصناف جديدة جاهزة
                   </span>
@@ -446,7 +407,7 @@ export const ExcelImportModal = ({
                       : 'bg-warn-soft/50 dark:bg-warn-dark-soft/50 border-warn/20 hover:border-warn/40'
                   }`}
                 >
-                  <span className="text-warn dark:text-warn-bright text-[10.5px] font-bold flex items-center gap-1">
+                  <span className="text-warn dark:text-warn-bright text-micro font-bold flex items-center gap-1">
                     <AlertTriangle className="w-3.5 h-3.5" />
                     أصناف مسجلة مسبقاً
                   </span>
@@ -462,7 +423,7 @@ export const ExcelImportModal = ({
                       : 'bg-danger-soft/50 dark:bg-danger-dark-soft/50 border-danger/20 hover:border-danger/40'
                   }`}
                 >
-                  <span className="text-danger dark:text-danger-bright text-[10.5px] font-bold flex items-center gap-1">
+                  <span className="text-danger dark:text-danger-bright text-micro font-bold flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />
                     صفوف تحتوي أخطاء
                   </span>
@@ -476,7 +437,7 @@ export const ExcelImportModal = ({
                   
                   {/* Duplicate Strategy */}
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-ink text-[11.5px] shrink-0">معالجة الأصناف المكررة:</span>
+                    <span className="font-bold text-ink text-micro shrink-0">معالجة الأصناف المكررة:</span>
                     <CustomSelect
                       value={duplicateStrategy}
                       onChange={(val) => setDuplicateStrategy(val as 'skip' | 'update' | 'error')}
@@ -492,25 +453,25 @@ export const ExcelImportModal = ({
 
                   {/* Filter Valid / Export Errors */}
                   <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11.5px] font-bold text-ink">
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none text-micro font-bold text-ink">
                       <input
                         type="checkbox"
                         checked={onlyValidRows}
                         onChange={(e) => setOnlyValidRows(e.target.checked)}
                         className="rounded border-line text-brand focus:ring-0"
                       />
-                      <span>استيراد الصفوف السليمة وتجاوز الأخطاء ({rowsToImport.length} صنف)</span>
+                      <span>استيراد الصفوف السليمة وتجاوز الأخطاء</span>
                     </label>
 
                     {errorRows.length > 0 && (
                       <button
                         type="button"
                         onClick={() => downloadErrorReport(errorRows)}
-                        className="h-7 px-2.5 rounded bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright text-[10.5px] font-bold flex items-center gap-1 transition-colors border border-danger/20 dark:border-danger-bright/30 cursor-pointer"
+                        className="h-7 px-2.5 rounded bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright text-micro font-bold flex items-center gap-1 transition-colors border border-danger/20 dark:border-danger-bright/30 cursor-pointer"
                         title="تحميل تقرير تفصيلي بأسباب أخطاء الصفوف لتصحيحها"
                       >
                         <Download className="w-3 h-3" />
-                        <span>تصدير تقرير الأخطاء ({errorRows.length})</span>
+                        <span>تصدير تقرير الأخطاء</span>
                       </button>
                     )}
                   </div>
@@ -518,49 +479,7 @@ export const ExcelImportModal = ({
 
                 {/* Search & Status Filter Tabs */}
                 <div className="pt-2 border-t border-line/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-1 text-[11px]">
-                    <span className="text-ink-muted ml-1">تصفية العرض:</span>
-                    <button
-                      type="button"
-                      onClick={() => { setStatusFilter('all'); setCurrentPage(1); }}
-                      className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
-                        statusFilter === 'all' ? 'bg-ink text-surface' : 'bg-surface hairline-all text-ink hover:bg-surface-3'
-                      }`}
-                    >
-                      الكل ({parsedRows.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setStatusFilter('valid'); setCurrentPage(1); }}
-                      className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
-                        statusFilter === 'valid' ? 'bg-paid text-white' : 'bg-surface hairline-all text-paid hover:bg-paid-soft'
-                      }`}
-                    >
-                      سليم ({validRows.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setStatusFilter('warning'); setCurrentPage(1); }}
-                      className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
-                        statusFilter === 'warning' ? 'bg-warn text-white' : 'bg-surface hairline-all text-warn hover:bg-warn-soft'
-                      }`}
-                    >
-                      مكرر ({warningRows.length})
-                    </button>
-                    {errorRows.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => { setStatusFilter('error'); setCurrentPage(1); }}
-                        className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
-                          statusFilter === 'error' ? 'bg-danger text-white' : 'bg-danger-soft text-danger border border-danger/30 hover:bg-danger/20'
-                        }`}
-                      >
-                        أخطاء ({errorRows.length})
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Fast Search Input */}
+                  {/* Fast Search Input (status filters are the summary cards above) */}
                   <div className="relative w-full sm:w-60">
                     <Search className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
@@ -568,7 +487,7 @@ export const ExcelImportModal = ({
                       value={searchQuery}
                       onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                       placeholder="بحث بالاسم أو الباركود أو الكود..."
-                      className="w-full h-7 pr-8 pl-2.5 rounded bg-surface border border-line text-[11px] text-ink placeholder:text-ink-muted/70 focus:outline-none focus:border-brand"
+                      className="w-full h-7 pr-8 pl-2.5 rounded bg-surface border border-line text-micro text-ink placeholder:text-ink-muted/70 focus:outline-none focus:border-brand"
                     />
                   </div>
                 </div>
@@ -577,7 +496,7 @@ export const ExcelImportModal = ({
               {/* Data Preview Table (Paginated to 50 rows - Zero Freeze for 10,000 items) */}
               <div className="hairline-all rounded-md overflow-hidden bg-surface">
                 <div className="max-h-72 overflow-y-auto overflow-x-auto">
-                  <table className="w-full text-right border-collapse text-[11px]">
+                  <table className="w-full text-right border-collapse text-micro">
                     <thead className="bg-surface-2 text-ink-muted font-bold sticky top-0 z-10 hairline-b">
                       <tr>
                         <th className="py-2 px-2.5 w-14 text-center">الصف</th>
@@ -611,22 +530,22 @@ export const ExcelImportModal = ({
                               <td className="py-2 px-2.5 text-center font-mono text-ink-muted font-bold">
                                 <span>#{row.rowIndex}</span>
                                 {row.sheetName && row.sheetName !== 'عام' && (
-                                  <span className="block text-[9px] text-ink-muted/80 truncate max-w-[50px] mx-auto" title={row.sheetName}>
+                                  <span className="block text-micro text-ink-muted/80 truncate max-w-[50px] mx-auto" title={row.sheetName}>
                                     {row.sheetName}
                                   </span>
                                 )}
                               </td>
                               <td className="py-2 px-2.5 text-center">
                                 {row.status === 'valid' ? (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
                                     سليم
                                   </span>
                                 ) : row.status === 'warning' ? (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-micro font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
                                     مكرر
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30">
                                     خطأ
                                   </span>
                                 )}
@@ -637,7 +556,7 @@ export const ExcelImportModal = ({
                               <td className="py-2 px-3 font-bold text-ink">
                                 <span>{row.data.name}</span>
                                 {(row.data.variantColor || row.data.variantSize) && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-brand-soft text-brand font-medium mr-1.5">
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-micro bg-brand-soft text-brand font-medium mr-1.5">
                                     {row.data.variantColor && <span>{row.data.variantColor}</span>}
                                     {row.data.variantColor && row.data.variantSize && <span>/</span>}
                                     {row.data.variantSize && <span>{row.data.variantSize}</span>}
@@ -659,7 +578,7 @@ export const ExcelImportModal = ({
                                   ? <span className="text-ink-muted" title="لا يوجد عمود أو قيمة للرصيد؛ لن يتغير رصيد الصنف القائم">—</span>
                                   : row.data.unit === 'kg' ? (row.payload.stockQuantityMilli / 1000).toFixed(3) : (row.payload.stockQuantityMilli / 1000)}
                               </td>
-                              <td className="py-2 px-3 text-[10.5px]">
+                              <td className="py-2 px-3 text-micro">
                                 {row.errors.length > 0 ? (
                                   <span className="text-danger dark:text-danger-bright font-bold">{row.errors.join(' • ')}</span>
                                 ) : row.warnings.length > 0 ? (
@@ -677,7 +596,7 @@ export const ExcelImportModal = ({
                 </div>
 
                 {/* Pagination Controls Bar */}
-                <div className="bg-surface-2 px-3 py-2 border-t border-line flex items-center justify-between text-[11px] text-ink-muted">
+                <div className="bg-surface-2 px-3 py-2 border-t border-line flex items-center justify-between text-micro text-ink-muted">
                   <div>
                     {filteredRows.length > 0 ? (
                       <span>
@@ -689,14 +608,14 @@ export const ExcelImportModal = ({
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-ink text-[11px] ml-2">
+                    <span className="font-mono text-ink text-micro ml-2">
                       صفحة {currentSafePage} من {totalPages}
                     </span>
                     <button
                       type="button"
                       onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                       disabled={currentSafePage <= 1}
-                      className="h-6 px-2 rounded bg-surface hairline-all text-ink hover:bg-surface-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-[10.5px]"
+                      className="h-6 px-2 rounded bg-surface hairline-all text-ink hover:bg-surface-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-micro"
                     >
                       <ChevronRight className="w-3 h-3" />
                       <span>السابق</span>
@@ -705,7 +624,7 @@ export const ExcelImportModal = ({
                       type="button"
                       onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                       disabled={currentSafePage >= totalPages}
-                      className="h-6 px-2 rounded bg-surface hairline-all text-ink hover:bg-surface-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-[10.5px]"
+                      className="h-6 px-2 rounded bg-surface hairline-all text-ink hover:bg-surface-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-micro"
                     >
                       <span>التالي</span>
                       <ChevronLeft className="w-3 h-3" />
@@ -721,7 +640,7 @@ export const ExcelImportModal = ({
 
         {/* 3. Footer Actions */}
         <div className="flex items-center justify-between px-5 py-3.5 border-t border-line bg-surface-2/60 shrink-0">
-          <div className="text-[11.5px] text-ink-muted">
+          <div className="text-micro text-ink-muted">
             {parsedRows.length > 0 && (
               <span>
                 سيتم استيراد <strong className="text-ink font-mono">{rowsToImport.length}</strong> من إجمالي <strong className="text-ink font-mono">{parsedRows.length}</strong> صنف
@@ -733,7 +652,7 @@ export const ExcelImportModal = ({
               type="button"
               onClick={requestClose}
               disabled={importing}
-              className="h-8 px-4 rounded bg-surface hover:bg-surface-3 hairline-all text-ink font-bold text-[11.5px] transition-colors cursor-pointer"
+              className="h-8 px-4 rounded bg-surface hover:bg-surface-3 hairline-all text-ink font-bold text-micro transition-colors cursor-pointer"
             >
               إلغاء
             </button>
@@ -741,7 +660,7 @@ export const ExcelImportModal = ({
               type="button"
               onClick={() => void handleConfirmImport()}
               disabled={!canImport || importing}
-              className={`h-8 px-5 rounded font-bold text-[11.5px] flex items-center gap-1.5 transition-colors shadow-sm ${
+              className={`h-8 px-5 rounded font-bold text-micro flex items-center gap-1.5 transition-colors shadow-sm ${
                 canImport && !importing
                   ? 'bg-paid hover:bg-paid-dark text-white'
                   : 'bg-surface-3 text-ink-muted border border-line cursor-not-allowed opacity-60'

@@ -254,7 +254,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
               <FlaskConical className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-ink dark:text-ink-dark">إدارة الرسبي والتصنيع وخصم الخامات التلقائي (Recipes / BOM)</h2>
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">إدارة الرسبي والتصنيع وخصم الخامات التلقائي (Recipes / BOM)</h2>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                 ربط المشروبات والوجبات والمنتجات بمكوناتها الخام (بالجرام/المللي) مع الخصم الفوري عند البيع أو بالتصنيع المجمع
               </p>
@@ -277,7 +277,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
             onClick={() => setActiveTab('bom_editor')}
             className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-colors ${
               activeTab === 'bom_editor'
-                ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                 : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
             }`}
           >
@@ -291,7 +291,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
               onClick={() => setActiveTab('batch_production')}
               className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-colors ${
                 activeTab === 'batch_production'
-                  ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                  ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                   : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
@@ -321,7 +321,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
             <form onSubmit={handleSaveRecipe} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left: Product Selection & Depletion Mode */}
               <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4 h-fit">
-                <h3 className="text-sm font-black text-ink dark:text-ink-dark">1. المنتج النهائي وطريقة الخصم</h3>
+                <h3 className="t-card-title text-ink dark:text-ink-dark">1. المنتج النهائي وطريقة الخصم</h3>
 
                 <div>
                   <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اختر الصنف النهائي (المشروب / الوجبة):</label>
@@ -408,11 +408,11 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
 
               {/* Right 2 Columns: Raw Ingredients Builder */}
               <div className="lg:col-span-2 bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
-                <h3 className="text-sm font-black text-ink dark:text-ink-dark">2. المكونات والخامات الداخلة في التحضير ({ingredients.length})</h3>
+                <h3 className="t-card-title text-ink dark:text-ink-dark">2. المكونات والخامات الداخلة في التحضير ({ingredients.length})</h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-surface dark:bg-surface-dark p-3 rounded-xl border border-line dark:border-line-dark">
                   <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1">المكون الخام من المخزون</label>
+                    <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1">المكون الخام من المخزون</label>
                     <CustomSelect
                       value={rawProductId}
                       onChange={(v) => setRawProductId(v)}
@@ -429,7 +429,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
+                    <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                       الكمية (مثال: 0.018 كجم = 18 جم)
                     </label>
                     <input
@@ -515,7 +515,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                 onSubmit={handleRunBatchProduction}
                 className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4 h-fit"
               >
-                <h3 className="text-sm font-black text-ink dark:text-ink-dark flex items-center gap-1.5">
+                <h3 className="t-card-title text-ink dark:text-ink-dark flex items-center gap-1.5">
                   <Factory className="w-4 h-4 text-brand dark:text-brand-bright" />
                   <span>تسجيل أمر إنتاج وتصنيع جديد</span>
                 </h3>
@@ -569,9 +569,9 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
 
               {/* Production Batches Log */}
               <div className="lg:col-span-2 bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
-                <h3 className="text-sm font-black text-ink dark:text-ink-dark flex items-center gap-1.5">
+                <h3 className="t-card-title text-ink dark:text-ink-dark flex items-center gap-1.5">
                   <History className="w-4 h-4 text-brand dark:text-brand-bright" />
-                  <span>سجل أوامر الإنتاج والتصنيع السابقة ({productionLog.length})</span>
+                  <span>سجل أوامر الإنتاج والتصنيع السابقة</span>
                 </h3>
                 <div className="space-y-2 max-h-72 overflow-y-auto">
                   {productionLog.map((b) => (
@@ -583,7 +583,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                         <div className="font-black text-ink dark:text-ink-dark">
                           {b.productName} • الكمية المنتجة: {(b.producedQtyMilli / 1000).toFixed(2)}
                         </div>
-                        <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">
+                        <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
                           بواسطة: {b.producedByName || 'المدير'} • {new Date(b.createdAt).toLocaleString('ar-EG')}
                         </div>
                       </div>
@@ -591,7 +591,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                         <div className="font-black text-brand dark:text-brand-bright">
                           التكلفة الكلية: {formatArabicCurrency(b.totalCostPiasters)}
                         </div>
-                        <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">
+                        <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
                           تكلفة الوحدة: {formatArabicCurrency(b.unitCostPiasters)}
                         </div>
                       </div>

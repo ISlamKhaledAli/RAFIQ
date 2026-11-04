@@ -1,5 +1,4 @@
 import { 
-  ShieldCheck, 
   KeyRound, 
   Sliders, 
   Users, 
@@ -19,18 +18,8 @@ export const SecuritySettingsTab = ({
 }: SecuritySettingsTabProps) => {
   return (
     <div className="bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark shadow-subtle p-5 flex flex-col gap-5 text-xs text-ink dark:text-ink-dark">
-      {/* Header Bar */}
-      <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-3.5">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold">
-            <ShieldCheck className="w-5 h-5 text-brand dark:text-brand-bright" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-ink dark:text-ink-dark m-0">أمان النظام وقفل العمليات الحساسة</h3>
-            <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted m-0">حماية تعديل الأسعار، ومسح الفواتير، وتقارير الأرباح، وتسويات الجرد برقم سري (PIN)</p>
-          </div>
-        </div>
-
+      {/* Actions (page title and description live in the settings page header) */}
+      <div className="flex items-center justify-end border-b border-line dark:border-line-dark pb-3.5">
         <button
           type="button"
           onClick={onOpenPinModal}
@@ -44,7 +33,7 @@ export const SecuritySettingsTab = ({
       {/* Status Overview Card */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
         <div className="p-3.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1.5">
-          <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">حالة الحماية العامة:</span>
+          <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">حالة الحماية العامة:</span>
           <div className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${pinStatus?.isPinSet ? (pinStatus?.isEnabled ? 'bg-paid' : 'bg-warn') : 'bg-line-hover'}`} />
             <span className="text-xs font-bold text-ink dark:text-ink-dark">
@@ -54,19 +43,19 @@ export const SecuritySettingsTab = ({
         </div>
 
         <div className="p-3.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1.5">
-          <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">مستوى التشفير والحماية:</span>
+          <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">مستوى التشفير والحماية:</span>
           <span className="text-xs font-bold text-paid dark:text-paid-bright">حماية وتشفير عالي زي البنوك</span>
         </div>
 
         <div className="p-3.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1.5">
-          <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">الحماية من التخمين واللعب:</span>
+          <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">الحماية من التخمين واللعب:</span>
           <span className="text-xs font-bold text-brand dark:text-brand-bright">قفل تصاعدي تلقائي أول ما حد يكتب غلط</span>
         </div>
       </div>
 
       {/* Protected Actions Preview */}
       <div className="flex flex-col gap-3">
-        <h4 className="text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 m-0">
+        <h4 className="t-label text-ink dark:text-ink-dark flex items-center gap-1.5 m-0">
           <Sliders className="w-4 h-4 text-brand dark:text-brand-bright" />
           <span>العمليات المحمية حالياً بالرقم السري:</span>
         </h4>
@@ -84,7 +73,7 @@ export const SecuritySettingsTab = ({
             return (
               <div key={item.key} className="p-3 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-between">
                 <span className="text-ink dark:text-ink-dark font-medium">{item.label}</span>
-                <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${isItemProtected ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid-dark-border' : 'bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark'}`}>
+                <span className={`px-2.5 py-1 rounded text-micro font-bold border ${isItemProtected ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid-dark-border' : 'bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark'}`}>
                   {isItemProtected ? 'محمي بالرقم السري' : 'متاح من غير رقم'}
                 </span>
               </div>
@@ -100,8 +89,8 @@ export const SecuritySettingsTab = ({
             <Users className="w-5 h-5 text-paid dark:text-paid-bright" />
           </div>
           <div>
-            <h4 className="font-bold text-sm text-brand-dark dark:text-ink-dark m-0">إدارة حسابات الكاشير والموظفين (Multiple Cashiers)</h4>
-            <p className="text-[11.5px] text-brand dark:text-brand-bright m-0 mt-0.5">
+            <h4 className="t-label text-brand-dark dark:text-ink-dark m-0">إدارة حسابات الكاشير والموظفين (Multiple Cashiers)</h4>
+            <p className="text-micro text-brand dark:text-brand-bright m-0 mt-0.5">
               تقدر تسجل كذا كاشير (كاشير 1، كاشير 2، كاشير الوردية المسائية...) وكل واحد ليه رقم سري خاص وصلاحيات محددة للبيع أو الإشراف.
             </p>
           </div>

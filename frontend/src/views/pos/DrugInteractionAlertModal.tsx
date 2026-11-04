@@ -146,7 +146,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
               )}
             </div>
             <div>
-              <h2 id="ddi-modal-title" className="text-base font-bold flex items-center gap-2">
+              <h2 id="ddi-modal-title" className="t-modal-title flex items-center gap-2">
                 {isSevere
                   ? 'تحذير سريري حرج: تعارض دوائي مهدد للحياة (Hard Stop)'
                   : isModerate
@@ -250,7 +250,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
                       <button
                         type="button"
                         onClick={() => onOpenAlternatives(conflict.productAId)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-medium hover:bg-brand-dark transition-colors cursor-pointer text-2xs"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-medium hover:bg-brand-dark transition-colors cursor-pointer text-micro"
                       >
                         <RefreshCw className="w-3 h-3" />
                         عرض البدائل (F8)
@@ -289,7 +289,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
                 <Lock className="w-4 h-4" />
                 حوكمة وتفويض المشرف لتجاوز مانع الصرف الحرج:
               </div>
-              <p className="text-2xs text-ink-muted dark:text-ink-dark-muted leading-relaxed">
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed">
                 في حال وجود بروتوكول علاجي خاص أو موافقة استشاري موثقة، يمكن للصيدلي المشرف تجاوز
                 الإيقاف مع توثيق اسم المشرف وسبب التجاوز في سجل التدقيق المعتمد.
               </p>
@@ -298,7 +298,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   {!canOverrideDirectly && (
                     <div>
-                      <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                      <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
                         رمز PIN للمشرف:
                       </label>
                       <input
@@ -312,7 +312,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
                     </div>
                   )}
                   <div className={canOverrideDirectly ? 'md:col-span-2' : ''}>
-                    <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                    <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
                       مبرر التجاوز الإشرافي (اختياري):
                     </label>
                     <input
@@ -327,7 +327,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
                 </div>
 
                 {overrideError && (
-                  <div className="text-2xs text-danger dark:text-danger-bright font-bold px-1">{overrideError}</div>
+                  <div className="text-micro text-danger dark:text-danger-bright font-bold px-1">{overrideError}</div>
                 )}
 
                 <div className="flex justify-end pt-1">
@@ -347,7 +347,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
 
         {/* Footer */}
         <div className="px-5 py-3.5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between gap-3 shrink-0">
-          <div className="text-2xs text-ink-muted dark:text-ink-dark-muted">
+          <div className="text-micro text-ink-muted dark:text-ink-dark-muted">
             محرك التفاعلات الدوائية السريري المعتمد — نظام رفيق
           </div>
 

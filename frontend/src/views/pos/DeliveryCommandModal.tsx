@@ -320,7 +320,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
               <Bike className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-ink dark:text-ink-dark">مركز إدارة الدليفري والطيارين وتصفية العهدة</h2>
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">مركز إدارة الدليفري والطيارين وتصفية العهدة</h2>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                 توجيه طلبات التوصيل، احتساب رسوم المناطق تلقائياً، إسناد الطيارين، وتحصيل عهدة النقدية
               </p>
@@ -352,7 +352,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
             onClick={() => setActiveTab('order_setup')}
             className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'order_setup'
-                ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                 : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
             }`}
           >
@@ -365,7 +365,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
             onClick={() => setActiveTab('active_orders')}
             className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'active_orders'
-                ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                 : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
             }`}
           >
@@ -379,7 +379,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
               onClick={() => setActiveTab('rider_settlement')}
               className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === 'rider_settlement'
-                  ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                  ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                   : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
@@ -394,7 +394,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
               onClick={() => setActiveTab('zones_riders')}
               className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === 'zones_riders'
-                  ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                  ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                   : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
@@ -569,7 +569,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                       onClick={() => setStatusFilter(st.key)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-all ${
                         statusFilter === st.key
-                          ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                          ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                           : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:text-ink dark:hover:text-ink-dark'
                       }`}
                     >
@@ -663,23 +663,23 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
                 <div className="bg-surface-2 dark:bg-surface-dark-2 p-5 rounded-2xl border border-line dark:border-line-dark space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="p-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
-                      <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">طلبات غير مصفاة</div>
+                      <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">طلبات غير مصفاة</div>
                       <div className="text-lg font-black text-ink dark:text-ink-dark">{settlementSummary.unsettledOrdersCount}</div>
                     </div>
                     <div className="p-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
-                      <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي النقدية مع الطيار</div>
+                      <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي النقدية مع الطيار</div>
                       <div className="text-base font-black text-brand dark:text-brand-bright">
                         {formatArabicCurrency(settlementSummary.totalCashToCollectPiasters)}
                       </div>
                     </div>
                     <div className="p-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
-                      <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">عمولة الطيار المستحقة</div>
+                      <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">عمولة الطيار المستحقة</div>
                       <div className="text-base font-black text-warn dark:text-warn-bright">
                         {formatArabicCurrency(settlementSummary.totalRiderCommissionPiasters)}
                       </div>
                     </div>
                     <div className="p-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
-                      <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">الصافي المورّد لدرج الكاشير</div>
+                      <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">الصافي المورّد لدرج الكاشير</div>
                       <div className="text-base font-black text-paid dark:text-paid-bright">
                         {formatArabicCurrency(settlementSummary.netDrawerAmountPiasters)}
                       </div>
@@ -708,7 +708,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Zones Management */}
               <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
-                <h3 className="text-sm font-black text-ink dark:text-ink-dark">مناطق التوصيل ورسومها ({zones.length})</h3>
+                <h3 className="t-card-title text-ink dark:text-ink-dark">مناطق التوصيل ورسومها ({zones.length})</h3>
                 <form onSubmit={handleAddZone} className="grid grid-cols-3 gap-2">
                   <input
                     type="text"
@@ -756,7 +756,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
 
               {/* Riders Management */}
               <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
-                <h3 className="text-sm font-black text-ink dark:text-ink-dark">الطيارون ومندوبو التوصيل ({riders.length})</h3>
+                <h3 className="t-card-title text-ink dark:text-ink-dark">الطيارون ومندوبو التوصيل ({riders.length})</h3>
                 <form onSubmit={handleAddRider} className="grid grid-cols-2 gap-2">
                   <input
                     type="text"

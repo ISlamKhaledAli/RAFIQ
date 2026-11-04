@@ -128,7 +128,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
               <Pill className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black text-ink dark:text-ink-dark leading-tight">
+              <h2 className="t-modal-title text-ink dark:text-ink-dark leading-tight">
                 طباعة ملصق الجرعة الحراري للعبوات الصيدلانية
               </h2>
               <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-0.5">
@@ -139,7 +139,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 transition-colors"
+            className="p-1.5 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -203,7 +203,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
                 <label className="text-xs font-bold text-ink dark:text-ink-dark">
                   تعليمات وطريقة الجرعة بالعربية الصريحة *
                 </label>
-                <span className="text-[11px] text-ink-muted flex items-center gap-1">
+                <span className="text-micro text-ink-muted flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-brand" />
                   عبارات شائعة سريعة
                 </span>
@@ -223,7 +223,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
                     key={preset}
                     type="button"
                     onClick={() => setInstructions(preset)}
-                    className="text-[11px] px-2 py-1 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted hover:text-brand hover:bg-brand-soft transition-colors border border-line/60"
+                    className="text-micro px-2 py-1 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft transition-colors border border-line/60"
                   >
                     {preset}
                   </button>
@@ -249,7 +249,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
                     key={sp}
                     type="button"
                     onClick={() => setStorageCondition(sp)}
-                    className="text-[10px] px-2 py-0.5 rounded bg-surface-2 text-ink-muted hover:text-brand transition-colors"
+                    className="text-micro px-2 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-colors"
                   >
                     {sp}
                   </button>
@@ -305,7 +305,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
 
           {/* Right/Live Label Simulation (5 Cols) */}
           <div className="lg:col-span-5 flex flex-col items-center justify-center p-6 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
-            <span className="text-[11px] font-bold text-ink-muted uppercase tracking-wider mb-3">
+            <span className="text-micro font-bold text-ink-muted uppercase tracking-wider mb-3">
               معاينة الملصق الحراري الفعلي (Live Preview)
             </span>
 
@@ -313,7 +313,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
             <div className="w-full max-w-[310px] bg-white text-black p-4 rounded-lg shadow-md border-2 border-black/80 font-sans text-right select-none">
               <div className="text-center font-black text-sm pb-1 border-b border-black">
                 صيدلية رفيق
-                <div className="text-[10px] font-normal text-gray-700 mt-0.5">
+                <div className="text-micro font-normal text-gray-700 mt-0.5">
                   ملصق إرشادات الجرعة واستخدام العلاج
                 </div>
               </div>
@@ -321,7 +321,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
               <div className="py-2 space-y-1 text-xs">
                 {patientName.trim() && (
                   <div className="font-bold flex items-center justify-between">
-                    <span className="text-gray-600 text-[11px]">المريض:</span>
+                    <span className="text-gray-600 text-micro">المريض:</span>
                     <span>{patientName}</span>
                   </div>
                 )}
@@ -336,25 +336,25 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
                 </div>
 
                 {storageCondition.trim() && (
-                  <div className="text-[10px] text-gray-700 pt-1">
+                  <div className="text-micro text-gray-700 pt-1">
                     <span className="font-bold">تنبيه الحفظ:</span> {storageCondition}
                   </div>
                 )}
 
                 {doctorName.trim() && (
-                  <div className="text-[10px] text-gray-700">
+                  <div className="text-micro text-gray-700">
                     <span className="font-bold">الطبيب:</span> د/ {doctorName}
                   </div>
                 )}
               </div>
 
-              <div className="pt-2 border-t border-black text-center text-[10px] text-gray-700 space-y-0.5">
+              <div className="pt-2 border-t border-black text-center text-micro text-gray-700 space-y-0.5">
                 <div>تاريخ الصرف: {dispenseDate}</div>
                 <div className="font-bold">مع تمنياتنا لكم بتمام الصحة والشفاء العاجل</div>
               </div>
             </div>
 
-            <p className="text-[11px] text-ink-muted text-center mt-3 max-w-[280px]">
+            <p className="text-micro text-ink-muted text-center mt-3 max-w-[280px]">
               يتم إرسال الملصق مباشرة لطابعة الإيصالات أو ملصقات الباركود الحرارية (ESC/POS) بدون هوامش زائدة.
             </p>
           </div>
@@ -365,7 +365,7 @@ export const DosageLabelModal: React.FC<DosageLabelModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-ink-muted hover:text-ink rounded-lg hover:bg-surface-3 transition-colors"
+            className="px-4 py-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
           >
             إغلاق
           </button>

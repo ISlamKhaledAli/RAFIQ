@@ -79,7 +79,7 @@ namespace RafiqPOS.Services
             var alerts = new List<SystemAlert>();
             var metrics = new SystemHealthMetrics();
 
-            metrics.AppVersion = "نظام رفيق v1.0.0 (أوفلاين)";
+            metrics.AppVersion = "رفيق POS v1.0.0 (أوفلاين)";
             var lic = DatabaseService.License != null ? DatabaseService.License.GetLicenseInfo() : null;
             metrics.LicenseStatus = lic != null ? lic.StatusLabel : "ترخيص دائم نشط (مدى الحياة)";
 

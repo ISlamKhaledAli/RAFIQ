@@ -17,6 +17,7 @@ import { useDataSubscription } from '../../utils/eventBus';
 import type { ProductBatch, BatchSummary } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { CustomSelect } from '../../components/CustomSelect';
+import { SegmentedTabs, type SegmentedTabOption } from '../../components/SegmentedTabs';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
@@ -30,13 +31,24 @@ export interface BatchesTabProps {
   initialSearchQuery?: string;
 }
 
+type BatchStatusFilter = 'all' | 'expiring' | 'expired' | 'active';
+
+const BATCH_STATUS_TABS: SegmentedTabOption<BatchStatusFilter>[] = [
+  { value: 'all', label: 'كافة الدفعات' },
+  { value: 'expiring', label: 'قريبة الانتهاء', icon: Clock, tone: 'warn' },
+  { value: 'expired', label: 'منتهية الصلاحية', icon: AlertTriangle, tone: 'danger' },
+  { value: 'active', label: 'صالحة ومستقرة', tone: 'paid' },
+];
+
+const BATCH_PAGE_SIZE_OPTIONS = [15, 25, 50, 100];
+
 export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialSearchQuery }) => {
   const [batches, setBatches] = useState<ProductBatch[]>([]);
   const [summary, setSummary] = useState<BatchSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const showLoading = useSmoothLoading(loading, 300);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'expiring' | 'expired' | 'active'>('all');
+  const [statusFilter, setStatusFilter] = useState<BatchStatusFilter>('all');
   const [alertDays, setAlertDays] = useState<number>(30);
   const [isCustomDays, setIsCustomDays] = useState(false);
   const [customDaysInput, setCustomDaysInput] = useState('30');
@@ -277,30 +289,27 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
   } = useClientPagination(filteredBatches, 25, `${searchQuery}_${statusFilter}_${alertDays}`);
 
   return (
-    <div className="flex-1 flex flex-col gap-3 overflow-hidden select-none">
+    <div className="flex-1 flex flex-col gap-4 overflow-y-auto select-none">
       {/* Top Metric Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
         {/* 1. Active Batches */}
-        <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark flex items-center justify-between shadow-2xs">
+        <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark flex items-center justify-between gap-3 shadow-2xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center font-bold border border-brand/20 dark:border-brand-bright/20">
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي الدفعات النشطة</div>
-              <div className="text-[18px] font-mono font-bold text-ink dark:text-ink-dark">
+              <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي الدفعات النشطة</div>
+              <div className="text-lg font-mono font-bold text-ink dark:text-ink-dark">
                 {(summary?.totalActiveBatches || 0).toLocaleString('en-US')} دفعة
               </div>
             </div>
           </div>
-          <span className="text-[10px] text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded-full border border-paid/20 dark:border-emerald-800/40 font-bold">
-            نظام الصلاحية نشط
-          </span>
         </div>
 
         {/* 2. Expiring Soon Card */}
         <div
-          className={`p-3.5 rounded-xl border flex items-center justify-between shadow-2xs ${
+          className={`p-4 rounded-xl border flex items-center justify-between gap-3 shadow-2xs ${
             (summary?.expiringSoonCount || 0) > 0
               ? 'bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30'
               : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark'
@@ -311,22 +320,24 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[11px] text-warn dark:text-warn-bright font-bold">
+              <div className="text-micro text-warn dark:text-warn-bright font-bold">
                 أوشكت على الانتهاء ({alertDays} يوم)
               </div>
-              <div className="text-[18px] font-mono font-bold text-warn dark:text-warn-bright">
+              <div className="text-lg font-mono font-bold text-warn dark:text-warn-bright">
                 {(summary?.expiringSoonCount || 0).toLocaleString('en-US')} دفعة
               </div>
             </div>
           </div>
-          <span className="text-[10.5px] font-mono font-bold text-warn dark:text-warn-bright bg-white/80 dark:bg-surface-dark-2 px-2 py-0.5 rounded-full border border-warn/20 dark:border-warn-bright/30">
-            {formatArabicCurrency(summary?.expiringSoonValuePiasters || 0)}
-          </span>
+          {(summary?.expiringSoonCount || 0) > 0 && (
+            <span className="text-micro font-mono font-bold text-warn dark:text-warn-bright bg-white/80 dark:bg-surface-dark-2 px-2 py-0.5 rounded-full border border-warn/20 dark:border-warn-bright/30">
+              {formatArabicCurrency(summary?.expiringSoonValuePiasters || 0)}
+            </span>
+          )}
         </div>
 
         {/* 3. Expired Card */}
         <div
-          className={`p-3.5 rounded-xl border flex items-center justify-between shadow-2xs ${
+          className={`p-4 rounded-xl border flex items-center justify-between gap-3 shadow-2xs ${
             (summary?.expiredCount || 0) > 0
               ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30'
               : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark'
@@ -337,26 +348,28 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[11px] text-danger dark:text-danger-bright font-bold">دفعات منتهية الصلاحية</div>
-              <div className="text-[18px] font-mono font-bold text-danger dark:text-danger-bright">
+              <div className="text-micro text-danger dark:text-danger-bright font-bold">دفعات منتهية الصلاحية</div>
+              <div className="text-lg font-mono font-bold text-danger dark:text-danger-bright">
                 {(summary?.expiredCount || 0).toLocaleString('en-US')} دفعة
               </div>
             </div>
           </div>
-          <span className="text-[10.5px] font-mono font-bold text-danger dark:text-danger-bright bg-white/80 dark:bg-surface-dark-2 px-2 py-0.5 rounded-full border border-danger/20 dark:border-danger-bright/30">
-            هالك: {formatArabicCurrency(summary?.expiredValuePiasters || 0)}
-          </span>
+          {(summary?.expiredCount || 0) > 0 && (
+            <span className="text-micro font-mono font-bold text-danger dark:text-danger-bright bg-white/80 dark:bg-surface-dark-2 px-2 py-0.5 rounded-full border border-danger/20 dark:border-danger-bright/30">
+              هالك: {formatArabicCurrency(summary?.expiredValuePiasters || 0)}
+            </span>
+          )}
         </div>
 
         {/* 4. Total Batch Stock Value */}
-        <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark flex items-center justify-between shadow-2xs">
+        <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark flex items-center justify-between gap-3 shadow-2xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center font-bold border border-paid/20 dark:border-emerald-800/40">
               <DollarSign className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">قيمة مخزون الدفعات</div>
-              <div className="text-[16px] font-mono font-bold text-paid dark:text-paid-bright">
+              <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">قيمة مخزون الدفعات</div>
+              <div className="text-base font-mono font-bold text-paid dark:text-paid-bright">
                 {formatArabicCurrency(summary?.totalBatchStockValuePiasters || 0)}
               </div>
             </div>
@@ -365,62 +378,21 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
       </div>
 
       {/* Filter and Control Bar */}
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-2 flex flex-wrap items-center justify-between gap-2 shrink-0 shadow-xs">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 flex flex-col gap-4 shrink-0 shadow-xs">
         {/* Status Tabs */}
-        <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark">
-          <button
-            type="button"
-            onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              statusFilter === 'all'
-                ? 'bg-brand text-white shadow-xs'
-                : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark'
-            }`}
-          >
-            كافة الدفعات
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('expiring')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-              statusFilter === 'expiring'
-                ? 'bg-warn text-white shadow-xs'
-                : 'text-warn dark:text-warn-bright hover:bg-warn-soft dark:hover:bg-warn-dark-soft'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>قريبة الانتهاء</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('expired')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-              statusFilter === 'expired'
-                ? 'bg-danger text-white shadow-xs'
-                : 'text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft'
-            }`}
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>منتهية الصلاحية</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('active')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              statusFilter === 'active'
-                ? 'bg-paid text-white shadow-xs'
-                : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark'
-            }`}
-          >
-            صالحة ومستقرة
-          </button>
-        </div>
+        <SegmentedTabs
+          ariaLabel="تصفية الدفعات حسب حالة الصلاحية"
+          fullWidth
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={BATCH_STATUS_TABS}
+        />
 
-        {/* Right Search & Alert Threshold */}
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* Search & Alert Threshold */}
+        <div className="flex items-center gap-3 flex-wrap">
           {/* Alert Days Selector */}
-          <div className="flex items-center gap-1.5 bg-surface-2 dark:bg-surface-dark-2 px-2.5 py-1 rounded-xl border border-line dark:border-line-dark">
-            <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold whitespace-nowrap">فترة التنبيه:</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-ink-muted dark:text-ink-dark-muted font-bold whitespace-nowrap">فترة التنبيه:</span>
             {isCustomDays ? (
               <div className="flex items-center gap-1">
                 <div className="relative flex items-center">
@@ -434,16 +406,16 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                       if (e.key === 'Enter') handleApplyCustomDays();
                       if (e.key === 'Escape') setIsCustomDays(false);
                     }}
-                    className="w-16 h-7 px-2 text-xs font-mono font-bold bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none text-center"
+                    className="w-20 h-10 px-2 text-sm font-mono font-bold bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none text-center"
                     placeholder="الأيام"
                     autoFocus
                   />
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mr-1 font-bold">يوم</span>
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted mr-1 font-bold">يوم</span>
                 </div>
                 <button
                   type="button"
                   onClick={handleApplyCustomDays}
-                  className="h-7 px-2 bg-brand text-white rounded-lg text-xs font-bold hover:bg-brand-dark transition-colors cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                  className="h-10 px-3 bg-brand text-white rounded-lg text-xs font-bold hover:bg-brand-dark transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                   title="تطبيق فترة التنبيه"
                 >
                   <Check className="w-3.5 h-3.5" />
@@ -452,7 +424,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                 <button
                   type="button"
                   onClick={() => setIsCustomDays(false)}
-                  className="h-7 px-1.5 bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark border border-line dark:border-line-dark rounded-lg text-xs transition-colors cursor-pointer"
+                  className="h-10 px-2.5 bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark border border-line dark:border-line-dark rounded-lg text-xs transition-colors cursor-pointer"
                   title="إلغاء والعودة للقائمة"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -484,21 +456,21 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                     isAction: true,
                   },
                 ]}
-                className="w-44"
-                size="sm"
+                className="w-56"
+                size="lg"
               />
             )}
           </div>
 
           {/* Search Box */}
-          <div className="relative w-56 h-8 flex items-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-2.5 focus-within:border-brand dark:focus-within:border-brand-bright focus-within:ring-2 focus-within:ring-brand/20 transition-all">
-            <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted ml-1.5 shrink-0" />
+          <div className="relative flex-1 min-w-[14rem] h-10 flex items-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 focus-within:border-brand dark:focus-within:border-brand-bright focus-within:ring-2 focus-within:ring-brand/20 transition-all">
+            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted ml-2 shrink-0" />
             <input
               type="text"
               placeholder="بحث بالصنف أو رقم الدفعة..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
-              className="w-full bg-transparent border-none text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
+              className="w-full bg-transparent border-none text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
             />
             {searchQuery && (
               <button
@@ -516,7 +488,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
       </div>
 
       {/* Batches Table */}
-      <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl overflow-hidden flex flex-col shadow-xs">
+      <div className="flex-1 min-h-[320px] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl overflow-hidden flex flex-col shadow-xs">
         <div className="h-10 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark grid grid-cols-12 px-4 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted shrink-0">
           <div className="col-span-3">اسم الصنف والباركود</div>
           <div className="col-span-2">رقم الدفعة</div>
@@ -559,7 +531,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                   {/* Product Info */}
                   <div className="col-span-3 pr-1">
                     <span className="font-bold text-ink dark:text-ink-dark block truncate">{b.productName}</span>
-                    <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted">
+                    <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
                       كود: {b.productBarcode || '—'}
                     </span>
                   </div>
@@ -570,7 +542,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                       {b.batchNumber}
                     </span>
                     {b.productionDate && (
-                      <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mt-0.5">
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mt-0.5">
                         إنتاج: {b.productionDate}
                       </span>
                     )}
@@ -579,18 +551,22 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                   {/* Expiry Date & Remaining Days */}
                   <div className="col-span-2">
                     <div className="font-mono font-bold text-ink dark:text-ink-dark">{b.expiryDate || '—'}</div>
-                    {b.isExpired ? (
-                      <span className="inline-flex items-center gap-0.5 text-[10.5px] font-bold text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 px-1.5 py-0.2 rounded mt-0.5">
-                        <AlertTriangle className="w-3 h-3" />
-                        منتهي الصلاحية
+                    {typeof b.daysUntilExpiry === 'number' && (
+                      <span
+                        className={`text-micro font-bold ${
+                          b.isExpired
+                            ? 'text-danger dark:text-danger-bright'
+                            : b.isExpiringSoon
+                              ? 'text-warn dark:text-warn-bright'
+                              : 'text-ink-muted dark:text-ink-dark-muted'
+                        }`}
+                      >
+                        {b.daysUntilExpiry < 0
+                          ? `منذ ${Math.abs(b.daysUntilExpiry)} يوم`
+                          : b.daysUntilExpiry === 0
+                            ? 'ينتهي اليوم'
+                            : `باقي ${b.daysUntilExpiry} يوم`}
                       </span>
-                    ) : b.isExpiringSoon ? (
-                      <span className="inline-flex items-center gap-0.5 text-[10.5px] font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-bright/30 px-1.5 py-0.2 rounded mt-0.5">
-                        <Clock className="w-3 h-3" />
-                        أوشك على الانتهاء
-                      </span>
-                    ) : (
-                      <span className="text-[10.5px] text-paid dark:text-paid-bright font-medium">صالح ومستقر</span>
                     )}
                   </div>
 
@@ -612,19 +588,19 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                   {/* Status Badge */}
                   <div className="col-span-1 text-center">
                     {b.status === 'EXPIRED' || b.isExpired ? (
-                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30">
+                      <span className="inline-block px-2 py-0.5 rounded-full text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30">
                         منتهي
                       </span>
                     ) : b.status === 'DEPLETED' ? (
-                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                      <span className="inline-block px-2 py-0.5 rounded-full text-micro font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
                         مستهلك
                       </span>
                     ) : b.isExpiringSoon ? (
-                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30">
+                      <span className="inline-block px-2 py-0.5 rounded-full text-micro font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30">
                         تنبيه
                       </span>
                     ) : (
-                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-emerald-800/40">
+                      <span className="inline-block px-2 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-emerald-800/40">
                         نشط
                       </span>
                     )}
@@ -664,22 +640,20 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
           )}
         </div>
 
-        {/* Table Footer */}
-        <div className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted shrink-0">
-          <span>إجمالي الدفعات المسجلة: {batches.length} دفعة</span>
-        </div>
       </div>
 
-      {/* Pagination Bar */}
-      <PaginationBar
-        currentPage={currentPage}
-        pageSize={pageSize}
-        totalCount={filteredBatches.length}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={setPageSize}
-        pageSizeOptions={[15, 25, 50, 100]}
-        itemLabel="دفعة"
-      />
+      {/* Pagination Bar: only when more than one page is possible */}
+      {filteredBatches.length > BATCH_PAGE_SIZE_OPTIONS[0] && (
+        <PaginationBar
+          currentPage={currentPage}
+          pageSize={pageSize}
+          totalCount={filteredBatches.length}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={BATCH_PAGE_SIZE_OPTIONS}
+          itemLabel="دفعة"
+        />
+      )}
 
       {/* Adjust Batch Quantity Modal */}
       {adjustingBatch && (
@@ -688,7 +662,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
             <div className="px-5 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sliders className="w-5 h-5 text-brand dark:text-brand-bright" />
-                <h3 className="font-bold text-sm text-ink dark:text-ink-dark">تسوية رصيد الدفعة يدويّاً</h3>
+                <h3 className="t-card-title text-ink dark:text-ink-dark">تسوية رصيد الدفعة يدويّاً</h3>
               </div>
               <button
                 type="button"

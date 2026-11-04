@@ -304,7 +304,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   }, []);
 
   const sizeClasses = {
-    sm: 'h-[28px] px-2 text-[11.5px]',
+    sm: 'h-[28px] px-2 text-micro',
     md: 'h-[34px] px-2.5 text-xs',
     lg: 'h-[40px] px-3 text-sm',
   }[size];
@@ -401,7 +401,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                           setViewMonth(idx);
                           setIsMonthSelectOpen(false);
                         }}
-                        className={`px-1.5 py-1 text-[11px] rounded text-center transition-colors cursor-pointer font-medium ${
+                        className={`px-1.5 py-1 text-micro rounded text-center transition-colors cursor-pointer font-medium ${
                           viewMonth === idx
                             ? 'bg-brand text-white font-bold'
                             : 'text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
@@ -465,7 +465,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
           {/* Days of Week Header (Saturday to Friday) */}
           <div className="grid grid-cols-7 gap-1 text-center mb-1">
             {ARABIC_DAYS_SAT_FIRST.map((d) => (
-              <span key={d.short} className="text-[10px] font-bold text-ink-muted dark:text-ink-muted-dark py-0.5">
+              <span key={d.short} className="text-micro font-bold text-ink-muted dark:text-ink-muted-dark py-0.5">
                 {d.short}
               </span>
             ))}
@@ -478,7 +478,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                 return (
                   <span
                     key={`empty-${index}`}
-                    className="h-7 flex items-center justify-center text-[11px] text-ink-muted/30 dark:text-ink-muted-dark/30 font-mono select-none"
+                    className="h-7 flex items-center justify-center text-micro text-ink-muted/30 dark:text-ink-muted-dark/30 font-mono select-none"
                   >
                     {item.day}
                   </span>

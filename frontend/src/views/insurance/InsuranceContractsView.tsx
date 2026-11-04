@@ -322,7 +322,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <Building2 className="w-6 h-6 text-brand dark:text-brand-bright" />
-            <h1 className="text-xl font-bold text-ink dark:text-ink-dark">منظومة التأمين الطبي والتعاقدات ومطالبات الشركات</h1>
+            <h1 className="t-page-title text-ink dark:text-ink-dark">منظومة التأمين الطبي والتعاقدات ومطالبات الشركات</h1>
           </div>
           <p className="text-sm text-ink-muted dark:text-ink-dark-muted mt-1">
             إدارة العقود ونسب التحمل ومطالبات الشركات والفوترة الشهرية وتسوية الرفوضات الطبية
@@ -378,7 +378,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
             <ShieldAlert className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
-          <button onClick={() => setError(null)} className="text-danger hover:opacity-75">
+          <button onClick={() => setError(null)} className="text-danger dark:text-danger-bright hover:opacity-75">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -402,7 +402,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       {activeTab === 'companies' && (
         <div className="flex-1 overflow-auto p-6 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-ink dark:text-ink-dark">دليل شركات التأمين الطبي المتعاقدة</h2>
+            <h2 className="t-section-title text-ink dark:text-ink-dark">دليل شركات التأمين الطبي المتعاقدة</h2>
             {canManageContracts && (
               <button
                 onClick={() => {
@@ -425,7 +425,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                   <div className="p-5">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="font-bold text-ink dark:text-ink-dark text-base">{comp.name}</h3>
+                        <h3 className="t-card-title text-ink dark:text-ink-dark">{comp.name}</h3>
                         {comp.taxNumber && (
                           <div className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">البطاقة الضريبية: {comp.taxNumber}</div>
                         )}
@@ -442,10 +442,6 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                           <span>{comp.phone}</span>
                         </div>
                       )}
-                      <div className="flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>{compContracts.length} عقد تأميني معتمد</span>
-                      </div>
                       <div className="flex items-center gap-1.5 text-brand dark:text-brand-bright font-medium">
                         <AlertCircle className="w-3.5 h-3.5" />
                         <span>مطالبات معلقة: {((comp.pendingClaimsPiasters || 0) / 100).toFixed(2)} ج.م</span>
@@ -463,7 +459,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                             <div key={cnt.id} className="p-2 bg-surface-2 dark:bg-surface-dark-2 rounded-lg text-xs flex items-center justify-between">
                               <div>
                                 <span className="font-medium text-ink dark:text-ink-dark">{cnt.name}</span>
-                                <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                                <div className="text-micro text-ink-muted dark:text-ink-dark-muted">
                                   تحمل المريض: {(cnt.patientShareBps / 100).toFixed(0)}%
                                   {cnt.capPerInvoicePiasters ? ` | سقف: ${(cnt.capPerInvoicePiasters / 100).toFixed(0)} ج.م` : ''}
                                   {cnt.excludesCosmetics ? ' | يستثني التجميل' : ''}
@@ -475,7 +471,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                                     setEditingContract(cnt);
                                     setShowContractModal(true);
                                   }}
-                                  className="text-brand dark:text-brand-bright hover:underline font-medium text-[11px]"
+                                  className="text-brand dark:text-brand-bright hover:underline font-medium text-micro"
                                 >
                                   تعديل
                                 </button>
@@ -592,7 +588,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                       <td className="py-3 px-4 text-xs text-ink dark:text-ink-dark">{mem.phone || '-'}</td>
                       <td className="py-3 px-4 text-xs text-ink dark:text-ink-dark">{mem.validTo || 'غير محدد'}</td>
                       <td className="py-3 px-4 text-center">
-                        <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${mem.isActive ? 'bg-paid-soft text-paid' : 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright'}`}>
+                        <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${mem.isActive ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid' : 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright'}`}>
                           {mem.isActive ? 'نشط' : 'معطل'}
                         </span>
                       </td>
@@ -623,7 +619,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       {activeTab === 'batches' && (
         <div className="flex-1 overflow-auto p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-ink dark:text-ink-dark">دليل المطالبات الشهرية المجمعة للشركات</h2>
+            <h2 className="t-section-title text-ink dark:text-ink-dark">دليل المطالبات الشهرية المجمعة للشركات</h2>
             {canManageClaims && (
               <button
                 onClick={() => {
@@ -681,7 +677,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                         <span
                           className={`px-2 py-0.5 text-xs rounded-full font-medium ${
                             batch.status === 'settled'
-                              ? 'bg-paid-soft text-paid'
+                              ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid'
                               : batch.status === 'partially_settled'
                               ? 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright'
                               : batch.status === 'submitted'
@@ -716,7 +712,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                                 setRejectionReason('');
                                 setShowSettleModal(true);
                               }}
-                              className="px-2.5 py-1 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright hover:bg-brand hover:text-white rounded text-xs font-medium transition-colors"
+                              className="px-2.5 py-1 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright hover:bg-brand hover:text-white dark:hover:text-white rounded text-xs font-medium transition-colors"
                             >
                               تسوية
                             </button>
@@ -750,7 +746,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       {activeTab === 'settlement' && (
         <div className="flex-1 overflow-auto p-6 space-y-4">
           <div className="bg-surface dark:bg-surface-dark p-5 rounded-xl border border-line dark:border-line-dark shadow-sm">
-            <h3 className="font-bold text-ink dark:text-ink-dark text-base mb-2">قواعد وضوابط تسوية الرفوضات الطبية</h3>
+            <h3 className="t-card-title text-ink dark:text-ink-dark mb-2">قواعد وضوابط تسوية الرفوضات الطبية</h3>
             <p className="text-sm text-ink-muted dark:text-ink-dark-muted leading-relaxed">
               وفق المعايير المالية المحاسبية لنقاط البيع، عند استلام إشعار سداد مطالبة شركة التأمين متضمناً خصومات أو
               رفوضات لأدوية غير مطابقة للبروتوكول:
@@ -801,7 +797,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
             <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
-              <h3 className="font-bold text-ink dark:text-ink-dark text-base">
+              <h3 className="t-card-title text-ink dark:text-ink-dark">
                 {editingCompany.id ? 'تعديل بيانات شركة التأمين' : 'إضافة شركة تأمين جديدة'}
               </h3>
               <button onClick={() => setShowCompanyModal(false)} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
@@ -875,7 +871,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
             <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
-              <h3 className="font-bold text-ink dark:text-ink-dark text-base">
+              <h3 className="t-card-title text-ink dark:text-ink-dark">
                 {editingContract.id ? 'تعديل عقد وفئة التأمين' : 'إضافة عقد فئة جديد'}
               </h3>
               <button onClick={() => setShowContractModal(false)} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
@@ -917,7 +913,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                     }}
                     className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
                   />
-                  <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                  <div className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1">
                     تحمل الشركة: {100 - (editingContract.patientShareBps || 0) / 100}%
                   </div>
                 </div>
@@ -977,7 +973,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
             <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
-              <h3 className="font-bold text-ink dark:text-ink-dark text-base">تسجيل مشترك تأمين جديد</h3>
+              <h3 className="t-card-title text-ink dark:text-ink-dark">تسجيل مشترك تأمين جديد</h3>
               <button onClick={() => setShowMemberModal(false)} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
                 <X className="w-5 h-5" />
               </button>
@@ -1061,7 +1057,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh] text-ink dark:text-ink-dark">
             <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
-              <h3 className="font-bold text-ink dark:text-ink-dark text-base">إصدار دفعة مطالبة مجمعة لشركة التأمين</h3>
+              <h3 className="t-card-title text-ink dark:text-ink-dark">إصدار دفعة مطالبة مجمعة لشركة التأمين</h3>
               <button onClick={() => setShowBatchModal(false)} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
                 <X className="w-5 h-5" />
               </button>
@@ -1175,7 +1171,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                               <td className="p-2 font-mono font-bold">#{clm.invoiceNumber}</td>
                               <td className="p-2 font-medium">{clm.patientName}</td>
                               <td className="p-2 font-mono">{clm.memberNo}</td>
-                              <td className="p-2 text-left font-mono font-bold text-brand">
+                              <td className="p-2 text-left font-mono font-bold text-brand dark:text-brand-bright">
                                 {(clm.companyPiasters / 100).toFixed(2)}
                               </td>
                             </tr>
@@ -1215,7 +1211,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
             <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
-              <h3 className="font-bold text-ink dark:text-ink-dark text-base">تسوية مطالبة شركة التأمين</h3>
+              <h3 className="t-card-title text-ink dark:text-ink-dark">تسوية مطالبة شركة التأمين</h3>
               <button onClick={() => setShowSettleModal(false)} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
                 <X className="w-5 h-5" />
               </button>

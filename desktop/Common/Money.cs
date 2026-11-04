@@ -125,12 +125,19 @@ namespace RafiqPOS.Common
             }
 
             long subtotalGross = 0;
-            for (int i = 0; i < itemGrossPiasters.Length; i++)
+            try
             {
-                if (itemGrossPiasters[i] > 0)
+                for (int i = 0; i < itemGrossPiasters.Length; i++)
                 {
-                    subtotalGross += itemGrossPiasters[i];
+                    if (itemGrossPiasters[i] > 0)
+                    {
+                        subtotalGross = checked(subtotalGross + itemGrossPiasters[i]);
+                    }
                 }
+            }
+            catch (OverflowException)
+            {
+                throw new InvalidOperationException("قيمة الفاتورة تتجاوز الحد الأقصى المسموح به لتوزيع الخصم.");
             }
 
             if (subtotalGross <= 0)
@@ -148,9 +155,20 @@ namespace RafiqPOS.Common
             {
                 indices[i] = i;
                 long gross = Math.Max(0, itemGrossPiasters[i]);
-                long rawProduct = gross * actualDiscount;
-                long share = rawProduct / subtotalGross;
-                long rem = rawProduct % subtotalGross;
+                // Exact decimal product: gross x discount can exceed the long range for very large invoices
+                long share;
+                long rem;
+                try
+                {
+                    decimal rawProduct = (decimal)gross * (decimal)actualDiscount;
+                    decimal remDec = decimal.Remainder(rawProduct, (decimal)subtotalGross);
+                    share = (long)((rawProduct - remDec) / (decimal)subtotalGross);
+                    rem = (long)remDec;
+                }
+                catch (OverflowException)
+                {
+                    throw new InvalidOperationException("قيمة الفاتورة تتجاوز الحد الأقصى المسموح به لتوزيع الخصم.");
+                }
 
                 shares[i] = share;
                 remainders[i] = rem;

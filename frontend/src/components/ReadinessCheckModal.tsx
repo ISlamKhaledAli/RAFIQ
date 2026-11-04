@@ -220,12 +220,12 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                    <span className="px-2.5 py-0.5 rounded-full text-micro font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                       لوحة التحقق الشامل
                     </span>
                     <span className="text-xs text-emerald-200/70 font-mono">Rafiq Pre-Flight</span>
                   </div>
-                  <h2 className="text-xl font-black text-white mt-1">جاهزية نقطة البيع والتشغيل</h2>
+                  <h2 className="t-modal-title text-white mt-1">جاهزية نقطة البيع والتشغيل</h2>
                   <p className="text-xs text-emerald-100/80 mt-0.5">
                     التحقق التلقائي من سلامة الطابعة، قارئ الباركود، النسخ الاحتياطي، وبيانات المتجر
                   </p>
@@ -316,9 +316,9 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
 
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2.5 flex-wrap">
-                            <h4 className="text-sm font-black text-ink dark:text-ink-dark">{chk.title}</h4>
+                            <h4 className="t-label text-ink dark:text-ink-dark">{chk.title}</h4>
                             <span
-                              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 border ${
+                              className={`text-micro font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 border ${
                                 isSuccess
                                   ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30'
                                   : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border-warn/20 dark:border-warn-bright/30'
@@ -360,7 +360,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer ${
                               isSuccess
                                 ? 'bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark'
-                                : 'bg-warn hover:bg-warn-dark text-white shadow-sm'
+                                : 'bg-warn hover:bg-warn-dark dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark shadow-sm'
                             }`}
                           >
                             {chk.actionLabel}
@@ -399,16 +399,16 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                     <Barcode className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black text-ink dark:text-ink-dark">
+                    <h4 className="t-label text-ink dark:text-ink-dark">
                       منصة فحص استجابة قارئ الباركود (الماسح الضوئي)
                     </h4>
-                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-normal">
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal">
                       وجّه القارئ وامسح أي سلعة بيدك الآن لتجربة سرعة الالتقاط الفورية
                     </span>
                   </div>
                 </div>
 
-                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark font-mono">
+                <span className="px-2 py-0.5 rounded text-micro font-black uppercase tracking-wider bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark font-mono">
                   USB HID Wedge
                 </span>
               </div>
@@ -446,7 +446,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                       <span className="font-mono font-black text-paid dark:text-paid-bright text-sm">{lastScannedItem.code}</span>
                     </div>
                   </div>
-                  <span className="font-mono text-[11px] text-paid dark:text-paid-bright font-semibold">{lastScannedItem.time}</span>
+                  <span className="font-mono text-micro text-paid dark:text-paid-bright font-semibold">{lastScannedItem.time}</span>
                 </div>
               )}
             </div>
@@ -458,10 +458,10 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                   <div className="w-7 h-7 rounded-lg bg-paid text-white flex items-center justify-center shadow-xs">
                     <Sparkles className="w-4 h-4" />
                   </div>
-                  <h4 className="text-sm font-black text-ink dark:text-ink-dark">
+                  <h4 className="t-label text-ink dark:text-ink-dark">
                     بيعة تجريبية آمنة (Pilot Test Sale)
                   </h4>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
+                  <span className="px-2 py-0.5 rounded text-micro font-black bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
                     آمنة 100%
                   </span>
                 </div>
@@ -497,13 +497,6 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
               <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
               <span>نظام رفيق مصمم للاستقرار التام ويعمل محلياً (Offline-First) بدون إنترنت.</span>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2.5 text-xs font-black text-ink dark:text-ink-dark bg-surface-2 dark:bg-surface-dark-3 hover:bg-surface-3 dark:hover:bg-surface-dark border border-line dark:border-line-dark rounded-xl transition-colors shadow-xs cursor-pointer"
-            >
-              إغلاق النافذة
-            </button>
           </div>
         </div>
       </div>

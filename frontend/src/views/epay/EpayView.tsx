@@ -42,6 +42,7 @@ import type {
   EpayPaymentDestination
 } from '../../types/models';
 import { createAttemptKey } from '../../utils/idempotency';
+import { printReport } from '../../utils/printReport';
 
 export type EpaySubTab = 'pos' | 'terminals' | 'history' | 'analytics';
 
@@ -75,6 +76,21 @@ const SERVICE_PRESETS: ServiceQuickOption[] = [
   { type: 'cash_out', name: 'سحب نقدي من محفظة أو كارت', icon: ArrowUpRight },
   { type: 'other', name: 'خدمات حكومية وجامعات ومصاريف أخرى', icon: FileText },
 ];
+
+const FIELD_LABEL_CLS = 'text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1.5';
+const FIELD_INPUT_CLS = 'w-full h-11 px-3.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all';
+
+const StepHeading: React.FC<{ step: number; title: string; hint?: string }> = ({ step, title, hint }) => (
+  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-3">
+    <div className="flex items-center gap-2.5">
+      <span className="w-6 h-6 rounded-full bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright font-black text-xs flex items-center justify-center shrink-0">
+        {step}
+      </span>
+      <h3 className="t-card-title text-ink dark:text-ink-dark m-0">{title}</h3>
+    </div>
+    {hint && <span className="text-micro font-medium text-ink-muted dark:text-ink-muted-dark">{hint}</span>}
+  </div>
+);
 
 
 export const EpayView: React.FC<EpayViewProps> = ({
@@ -650,24 +666,34 @@ export const EpayView: React.FC<EpayViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-muted-dark">خدمات وماكينات الدفع</span>
+              <span className="text-micro font-bold text-ink-muted dark:text-ink-muted-dark">خدمات وماكينات الدفع</span>
               <span className="text-ink-muted/40 dark:text-ink-muted-dark/40 font-bold">/</span>
-              <h1 className="text-base sm:text-lg font-black text-ink dark:text-ink-dark m-0">
-                {activeTab === 'pos' && 'تنفيذ عملية جديدة'}
+              <h1 className="t-page-title text-ink dark:text-ink-dark m-0">
+                {activeTab === 'pos' && 'تنفيذ عملية دفع جديدة'}
                 {activeTab === 'terminals' && 'أرصدة وماكينات الدفع'}
                 {activeTab === 'history' && 'سجل العمليات والإيصالات'}
-                {activeTab === 'analytics' && 'التحليلات والأرباح المستقلة'}
+                {activeTab === 'analytics' && 'أرباح وتقارير الخدمات الإلكترونية'}
               </h1>
             </div>
             <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-0.5 font-medium">
               {activeTab === 'pos' && 'شحن رصيد، فواتير، وتحويل وسحب محافظ إلكترونية بنظام مالي مستقل'}
               {activeTab === 'terminals' && 'متابعة أرصدة ماكينات الدفع وتغذية الخزينة'}
               {activeTab === 'history' && 'أرشيف العمليات المنفذة وسجلات الإيصالات'}
-              {activeTab === 'analytics' && 'تقارير أرباح وعمولات الخدمات الإلكترونية مفصولة عن بضاعة المحل'}
+              {activeTab === 'analytics' && 'أرباح وعمولات الماكينات وتوزيع النقدية حسب الخدمة، منفصلة عن أرباح بضاعة المحل'}
             </p>
           </div>
         </div>
 
+        {activeTab === 'terminals' && canManageTerminals && terminals.length > 0 && (
+          <button
+            type="button"
+            onClick={openNewTerminalModal}
+            className="h-10 px-4 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>إضافة ماكينة جديدة</span>
+          </button>
+        )}
       </header>
 
       {/* 2. Top Summary 4-KPI Cards (Displayed only on Terminals tab for authorized users) */}
@@ -677,13 +703,13 @@ export const EpayView: React.FC<EpayViewProps> = ({
             {/* Card 1: إجمالي رصيد الماكينات */}
             <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-paid/40 dark:hover:border-paid-bright/40 transition-colors">
               <div className="min-w-0">
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark font-bold block mb-0.5 truncate">إجمالي رصيد الماكينات المتوفر</span>
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-bold block mb-0.5 truncate">إجمالي رصيد الماكينات المتوفر</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-xl sm:text-2xl font-black font-mono text-paid dark:text-paid-bright tabular-nums tracking-tight">
+                  <span className="t-kpi-lg font-mono text-paid dark:text-paid-bright tracking-tight">
                     {formatArabicCurrency(analytics?.totalTerminalsBalancePiasters || 0)}
                   </span>
                 </div>
-                <span className="text-[10px] text-paid dark:text-paid-bright font-medium block mt-0.5">جاهز للشحن والتحويل</span>
+                <span className="text-micro text-paid dark:text-paid-bright font-medium block mt-0.5">جاهز للشحن والتحويل</span>
               </div>
               <div className="w-9 h-9 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-bright/30 flex items-center justify-center text-paid dark:text-paid-bright shadow-2xs shrink-0">
                 <Wallet className="w-4.5 h-4.5" />
@@ -693,13 +719,13 @@ export const EpayView: React.FC<EpayViewProps> = ({
             {/* Card 2: صافي الربح */}
             <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-brand/40 dark:hover:border-brand-bright/40 transition-colors">
               <div className="min-w-0">
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark font-bold block mb-0.5 truncate">صافي أرباح الخدمات</span>
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-bold block mb-0.5 truncate">صافي أرباح الخدمات</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-xl sm:text-2xl font-black font-mono text-brand dark:text-brand-bright tabular-nums tracking-tight">
+                  <span className="t-kpi-lg font-mono text-brand dark:text-brand-bright tracking-tight">
                     {formatArabicCurrency(analytics?.totalNetProfitPiasters || 0)}
                   </span>
                 </div>
-                <span className="text-[10px] text-brand dark:text-brand-bright font-medium block mt-0.5">عمولات ورسوم المحل</span>
+                <span className="text-micro text-brand dark:text-brand-bright font-medium block mt-0.5">عمولات ورسوم المحل</span>
               </div>
               <div className="w-9 h-9 rounded-xl bg-brand-soft dark:bg-brand-bright/15 border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center text-brand dark:text-brand-bright shadow-2xs shrink-0">
                 <TrendingUp className="w-4.5 h-4.5" />
@@ -709,13 +735,13 @@ export const EpayView: React.FC<EpayViewProps> = ({
             {/* Card 3: حجم المعاملات */}
             <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-line-hover dark:hover:border-line-dark-hover transition-colors">
               <div className="min-w-0">
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark font-bold block mb-0.5 truncate">حجم المعاملات الإجمالي</span>
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-bold block mb-0.5 truncate">حجم المعاملات الإجمالي</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-xl sm:text-2xl font-black font-mono text-ink dark:text-ink-dark tabular-nums tracking-tight">
+                  <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark tracking-tight">
                     {formatArabicCurrency(analytics?.totalVolumePiasters || 0)}
                   </span>
                 </div>
-                <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark block mt-0.5">إجمالي المبالغ المنفذة</span>
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">إجمالي المبالغ المنفذة</span>
               </div>
               <div className="w-9 h-9 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-muted-dark shadow-2xs shrink-0">
                 <Layers className="w-4.5 h-4.5" />
@@ -725,14 +751,14 @@ export const EpayView: React.FC<EpayViewProps> = ({
             {/* Card 4: عدد العمليات */}
             <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-line-hover dark:hover:border-line-dark-hover transition-colors">
               <div className="min-w-0">
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark font-bold block mb-0.5 truncate">العمليات الناجحة</span>
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-bold block mb-0.5 truncate">العمليات الناجحة</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-xl sm:text-2xl font-black font-mono text-ink dark:text-ink-dark tabular-nums tracking-tight">
+                  <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark tracking-tight">
                     {analytics?.totalTransactionsCount || 0}
                   </span>
                   <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">عملية</span>
                 </div>
-                <span className="text-[10px] text-paid dark:text-paid-bright font-medium block mt-0.5">معاملات مكتملة بالكامل</span>
+                <span className="text-micro text-paid dark:text-paid-bright font-medium block mt-0.5">معاملات مكتملة بالكامل</span>
               </div>
               <div className="w-9 h-9 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-muted-dark shadow-2xs shrink-0">
                 <Receipt className="w-4.5 h-4.5" />
@@ -785,49 +811,50 @@ export const EpayView: React.FC<EpayViewProps> = ({
             <div className="lg:col-span-7 bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark p-5 sm:p-6 flex flex-col gap-5 shadow-2xs">
               {/* Step 1: Terminal Selection */}
               <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-2">
-                  1. اختيار ماكينة الدفع (Terminal)
-                </label>
+                <StepHeading step={1} title="اختيار ماكينة الدفع" />
                 {terminals.length === 0 ? (
-                  <div className="p-4 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl text-warn dark:text-warn-bright text-xs font-bold flex items-center justify-between">
+                  <div className="p-4 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl text-warn dark:text-warn-bright text-sm font-bold flex flex-wrap items-center justify-between gap-3">
                     <span>لا توجد ماكينات مسجلة حالياً.</span>
                     <button
+                      type="button"
                       onClick={openNewTerminalModal}
-                      className="px-3 py-1.5 bg-warn hover:bg-warn/90 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
+                      className="h-11 px-4 bg-warn hover:bg-warn/90 dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark text-xs font-bold rounded-xl cursor-pointer transition-colors shadow-2xs"
                     >
                       إضافة ماكينة الآن
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {terminals.map((term) => {
                       const isSelected = term.id === selectedTerminalId;
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={term.id}
                           onClick={() => setSelectedTerminalId(term.id)}
-                          className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
+                          className={`cursor-pointer p-4 rounded-xl border text-right transition-all ${
                             isSelected
                               ? 'border-brand dark:border-brand-bright bg-brand-soft dark:bg-brand-bright/15 ring-2 ring-brand/20 dark:ring-brand-bright/20 shadow-2xs'
                               : 'border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark-hover bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
                           }`}
                         >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-bold text-sm text-ink dark:text-ink-dark">{term.name}</span>
-                          </div>
-                          <div className="flex items-center justify-between mt-2">
-                            <span className="text-xs text-ink-muted dark:text-ink-muted-dark">الرصيد المتاح:</span>
-                            <span className={`text-sm font-black font-mono tabular-nums ${term.isLowBalance ? 'text-danger dark:text-danger-bright' : 'text-paid dark:text-paid-bright'}`}>
+                          <span className="font-black text-sm text-ink dark:text-ink-dark block truncate">{term.name}</span>
+                          <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">
+                            {PROVIDER_NAMES[term.provider] || term.provider}
+                          </span>
+                          <div className="flex items-center justify-between mt-3">
+                            <span className="text-xs text-ink-muted dark:text-ink-muted-dark">الرصيد المتاح</span>
+                            <span className={`text-base font-black font-mono tabular-nums ${term.isLowBalance ? 'text-danger dark:text-danger-bright' : 'text-paid dark:text-paid-bright'}`}>
                               {formatArabicCurrency(term.balancePiasters)}
                             </span>
                           </div>
                           {term.isLowBalance && (
-                            <div className="mt-1 text-[11px] text-danger dark:text-danger-bright font-medium flex items-center gap-1">
+                            <div className="mt-1.5 text-micro text-danger dark:text-danger-bright font-bold flex items-center gap-1">
                               <AlertTriangle className="w-3 h-3 text-danger dark:text-danger-bright shrink-0" />
-                              تنبيه: الرصيد منخفض!
+                              الرصيد منخفض
                             </div>
                           )}
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -835,11 +862,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </div>
 
               {/* Step 2: Service Type Selector */}
-              <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-2">
-                  2. نوع الخدمة المطلوب تنفيذها
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="border-t border-line dark:border-line-dark pt-5">
+                <StepHeading step={2} title="نوع الخدمة" />
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   {SERVICE_PRESETS.map((preset) => {
                     const isSelected = serviceType === preset.type;
                     const Icon = preset.icon;
@@ -848,194 +873,165 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         key={preset.type}
                         type="button"
                         onClick={() => handleSelectServicePreset(preset)}
-                        className={`p-3 rounded-xl border text-right transition-all flex flex-col gap-1.5 cursor-pointer active:scale-98 ${
+                        className={`p-3.5 min-h-[88px] rounded-xl border text-right transition-all flex flex-col gap-2 cursor-pointer active:scale-98 ${
                           isSelected
-                            ? 'border-brand dark:border-brand-bright bg-brand dark:bg-brand-bright text-white dark:text-slate-900 shadow-xs'
+                            ? 'border-brand dark:border-brand-bright bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright shadow-xs dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                             : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
                         }`}
                       >
-                        <Icon className={`w-5 h-5 ${isSelected ? 'text-white dark:text-slate-900' : 'text-brand dark:text-brand-bright'}`} />
-                        <span className="text-xs font-bold leading-tight">{preset.name}</span>
+                        <Icon className={`w-5 h-5 shrink-0 ${isSelected ? 'text-white dark:text-brand-bright' : 'text-brand dark:text-brand-bright'}`} />
+                        <span className="text-xs font-bold leading-snug">{preset.name}</span>
                       </button>
                     );
                   })}
                 </div>
-              </div>
-
-              {/* Step 3: Transaction Inputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">
-                    اسم الخدمة المحددة
-                  </label>
+                <div className="mt-3.5">
+                  <label className={FIELD_LABEL_CLS}>اسم الخدمة كما سيظهر في الإيصال</label>
                   <input
                     type="text"
                     value={serviceName}
                     onChange={(e) => setServiceName(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
+                    className={FIELD_INPUT_CLS}
                     placeholder="مثال: شحن فودافون كاش 50 جنيه"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">
-                    رقم الهاتف / كود المشترك / رقم الحساب
-                  </label>
-                  <input
-                    type="text"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-left text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
-                    placeholder="01012345678 أو كود العداد"
-                    dir="ltr"
-                  />
-                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">
-                    اسم العميل (اختياري)
+              {/* Step 3: Amounts (Bill Amount, Machine Commission, Shop Profit) */}
+              <div className="border-t border-line dark:border-line-dark pt-5 flex flex-col gap-3.5">
+                <StepHeading step={3} title="المبلغ والعمولة والربح" hint="المبلغ والعمولة يخصمان من رصيد الماكينة، وربح المحل لا يُخصم" />
+
+                <div className="p-4 sm:p-5 rounded-2xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark transition-all focus-within:border-brand/50 dark:focus-within:border-brand-bright/50 focus-within:bg-surface dark:focus-within:bg-surface-dark">
+                  <label className="text-sm font-black text-ink dark:text-ink-dark flex items-center gap-2 mb-2.5">
+                    <Receipt className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
+                    <span>مبلغ الفاتورة / الرصيد</span>
                   </label>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
-                    placeholder="اسم العميل للرجوع إليه"
+                  <MoneyInput
+                    valuePiasters={billAmountPiasters}
+                    onChangePiasters={setBillAmountPiasters}
+                    placeholder="0.00"
+                    className="h-14 text-3xl font-black"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">
-                    رقم الإيصال / المرجع في الماكينة (Ref No)
-                  </label>
-                  <input
-                    type="text"
-                    value={referenceNumber}
-                    onChange={(e) => setReferenceNumber(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-left text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
-                    placeholder="مثال: 984021"
-                    dir="ltr"
-                  />
-                </div>
-              </div>
 
-              {/* Step 4: 3 Direct Inputs (Bill Amount, Machine Commission, Shop Profit) */}
-              <div className="border-t border-line dark:border-line-dark pt-4 flex flex-col gap-3.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-lg bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright font-black text-xs flex items-center justify-center">
-                      3
-                    </span>
-                    <h3 className="text-xs sm:text-sm font-black text-ink dark:text-ink-dark">
-                      حسابات العملية
-                    </h3>
-                  </div>
-                  <span className="text-[11px] font-medium text-ink-muted dark:text-ink-muted-dark">
-                    المبلغ والعمولة يخصمان من رصيد الماكينة &bull; الربح لا يُخصم
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {/* Card 1: Bill Amount */}
-                  <div className="p-3.5 rounded-xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark flex flex-col justify-between gap-2.5 transition-all focus-within:border-brand/50 dark:focus-within:border-brand-bright/50 focus-within:bg-surface dark:focus-within:bg-surface-dark">
-                    <div className="flex items-center gap-2">
-                      <Receipt className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
-                      <label className="text-xs font-bold text-ink dark:text-ink-dark">
-                        1. مبلغ الفاتورة / الرصيد
-                      </label>
-                    </div>
-                    <MoneyInput
-                      valuePiasters={billAmountPiasters}
-                      onChangePiasters={setBillAmountPiasters}
-                      placeholder="0.00"
-                      className="text-lg font-black"
-                    />
-                  </div>
-
-                  {/* Card 2: Machine Commission */}
-                  <div className="p-3.5 rounded-xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark flex flex-col justify-between gap-2.5 transition-all focus-within:border-brand/50 dark:focus-within:border-brand-bright/50 focus-within:bg-surface dark:focus-within:bg-surface-dark">
-                    <div className="flex items-center gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="p-4 rounded-2xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark transition-all focus-within:border-brand/50 dark:focus-within:border-brand-bright/50 focus-within:bg-surface dark:focus-within:bg-surface-dark">
+                    <label className="text-xs font-black text-ink dark:text-ink-dark flex items-center gap-2 mb-2">
                       <CreditCard className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
-                      <label className="text-xs font-bold text-ink dark:text-ink-dark">
-                        2. عمولة الماكينة
-                      </label>
-                    </div>
+                      <span>عمولة الماكينة</span>
+                    </label>
                     <MoneyInput
                       valuePiasters={machineCommissionPiasters}
                       onChangePiasters={setMachineCommissionPiasters}
                       placeholder="0.00"
-                      className="text-lg font-black"
+                      className="h-12 text-xl font-black"
                     />
                   </div>
 
-                  {/* Card 3: Shop Profit */}
-                  <div className="p-3.5 rounded-xl bg-paid-soft/40 dark:bg-emerald-950/25 border border-paid/25 dark:border-emerald-700/35 flex flex-col justify-between gap-2.5 transition-all focus-within:border-paid dark:focus-within:border-paid-bright">
-                    <div className="flex items-center gap-2">
+                  <div className="p-4 rounded-2xl bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/25 dark:border-paid-bright/30 transition-all focus-within:border-paid dark:focus-within:border-paid-bright">
+                    <label className="text-xs font-black text-paid dark:text-paid-bright flex items-center gap-2 mb-2">
                       <TrendingUp className="w-4 h-4 text-paid dark:text-paid-bright" />
-                      <label className="text-xs font-bold text-paid dark:text-paid-bright">
-                        3. ربح المحل
-                      </label>
-                    </div>
+                      <span>ربح المحل</span>
+                    </label>
                     <MoneyInput
                       valuePiasters={shopProfitPiasters}
                       onChangePiasters={setShopProfitPiasters}
                       placeholder="0.00"
-                      className="text-lg font-black text-paid dark:text-paid-bright"
+                      className="h-12 text-xl font-black text-paid dark:text-paid-bright"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Step 5: Cash Destination & Notes */}
-              <div className="border-t border-line dark:border-line-dark pt-4">
-                <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-2">
-                  أين يتم توريد المبلغ المستلم من الزبون؟
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div
+              {/* Step 4: Customer / phone details */}
+              <div className="border-t border-line dark:border-line-dark pt-5">
+                <StepHeading step={4} title="بيانات الزبون والعملية" hint="رقم الهاتف أو الكود يظهر في الإيصال، والباقي اختياري" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className={FIELD_LABEL_CLS}>رقم الهاتف / كود المشترك / رقم الحساب</label>
+                    <input
+                      type="text"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      className={`${FIELD_INPUT_CLS} font-mono text-left`}
+                      placeholder="01012345678 أو كود العداد"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className={FIELD_LABEL_CLS}>اسم العميل (اختياري)</label>
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className={FIELD_INPUT_CLS}
+                      placeholder="اسم العميل للرجوع إليه"
+                    />
+                  </div>
+                  <div>
+                    <label className={FIELD_LABEL_CLS}>رقم الإيصال / المرجع في الماكينة</label>
+                    <input
+                      type="text"
+                      value={referenceNumber}
+                      onChange={(e) => setReferenceNumber(e.target.value)}
+                      className={`${FIELD_INPUT_CLS} font-mono text-left`}
+                      placeholder="مثال: 984021"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className={FIELD_LABEL_CLS}>ملاحظات (اختياري)</label>
+                    <input
+                      type="text"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className={FIELD_INPUT_CLS}
+                      placeholder="ملاحظات عن العملية"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 5: Cash Destination */}
+              <div className="border-t border-line dark:border-line-dark pt-5">
+                <StepHeading step={5} title="أين يتم توريد المبلغ المستلم من الزبون؟" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
                     onClick={() => setPaymentDestination('terminal_till')}
-                    className={`cursor-pointer p-3 rounded-xl border flex items-center gap-2.5 transition-all ${
+                    className={`cursor-pointer p-3.5 rounded-xl border flex items-center gap-3 text-right transition-all ${
                       paymentDestination === 'terminal_till'
                         ? 'border-brand dark:border-brand-bright bg-brand-soft dark:bg-brand-bright/15 ring-1 ring-brand dark:ring-brand-bright text-brand-dark dark:text-brand-bright'
                         : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
                     }`}
                   >
                     <Wallet className="w-5 h-5 text-brand dark:text-brand-bright shrink-0" />
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold block">درج/محفظة الماكينة المنفصلة</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/30">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs font-bold">درج/محفظة الماكينة المنفصلة</span>
+                        <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/30">
                           الافتراضي
                         </span>
                       </div>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark">مفصول كلياً ومخصص لماكينات الدفع والشحن</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">مفصول كلياً ومخصص لماكينات الدفع والشحن</span>
                     </div>
-                  </div>
+                  </button>
 
-                  <div
+                  <button
+                    type="button"
                     onClick={() => setPaymentDestination('cash_drawer')}
-                    className={`cursor-pointer p-3 rounded-xl border flex items-center gap-2.5 transition-all ${
+                    className={`cursor-pointer p-3.5 rounded-xl border flex items-center gap-3 text-right transition-all ${
                       paymentDestination === 'cash_drawer'
                         ? 'border-brand dark:border-brand-bright bg-brand-soft dark:bg-brand-bright/15 ring-1 ring-brand dark:ring-brand-bright text-brand-dark dark:text-brand-bright'
                         : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
                     }`}
                   >
                     <Landmark className="w-5 h-5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
-                    <div>
+                    <div className="min-w-0">
                       <span className="text-xs font-bold block">درج كاشير المحل</span>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark">يدخل ضمن نقدية وعهدة الكاشير الرئيسية</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">يدخل ضمن نقدية وعهدة الكاشير الرئيسية</span>
                     </div>
-                  </div>
-                </div>
-
-                <div className="mt-3.5">
-                  <input
-                    type="text"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
-                    placeholder="ملاحظات اختيارية عن العملية..."
-                  />
+                  </button>
                 </div>
               </div>
             </div>
@@ -1043,51 +1039,49 @@ export const EpayView: React.FC<EpayViewProps> = ({
             {/* Right 5 Columns: Financial Summary & Confirmation */}
             <div className="lg:col-span-5 flex flex-col gap-5">
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark p-5 sm:p-6 flex flex-col gap-4 shadow-2xs sticky top-4">
-                <h2 className="text-sm sm:text-base font-black text-ink dark:text-ink-dark border-b border-line dark:border-line-dark pb-3 flex items-center gap-2">
+                <h2 className="t-section-title text-ink dark:text-ink-dark border-b border-line dark:border-line-dark pb-3 flex items-center gap-2 m-0">
                   <Receipt className="w-5 h-5 text-brand dark:text-brand-bright" />
-                  ملخص حساب العملية للزبون والمحل
+                  ملخص العملية
                 </h2>
 
-                {/* Calculation List */}
+                {/* Total To Receive From Customer */}
+                <div className="p-5 rounded-2xl bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-bright/30">
+                  <span className="text-xs text-paid dark:text-paid-bright font-black block mb-1.5">
+                    المطلوب تحصيله من الزبون
+                  </span>
+                  <div className="text-4xl font-black font-mono text-paid dark:text-paid-bright tracking-tight tabular-nums">
+                    {formatArabicCurrency(totalReceivedPiasters)}
+                  </div>
+                </div>
+
+                {/* Breakdown of the total */}
                 <div className="flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between text-xs sm:text-sm">
-                    <span className="text-ink-muted dark:text-ink-muted-dark">1. مبلغ الفاتورة / الرصيد:</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-ink-muted dark:text-ink-muted-dark">مبلغ الفاتورة / الرصيد</span>
                     <span className="font-bold font-mono text-ink dark:text-ink-dark tabular-nums">{formatArabicCurrency(billAmountPiasters)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm">
-                    <span className="text-ink-muted dark:text-ink-muted-dark">2. عمولة الماكينة:</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-ink-muted dark:text-ink-muted-dark">عمولة الماكينة</span>
                     <span className="font-bold font-mono text-ink dark:text-ink-dark tabular-nums">{formatArabicCurrency(machineCommissionPiasters)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs sm:text-sm">
-                    <span className="text-ink-muted dark:text-ink-muted-dark">3. ربح المحل من العملية:</span>
-                    <span className="font-bold font-mono text-paid dark:text-paid-bright tabular-nums">{formatArabicCurrency(shopProfitPiasters)}</span>
-                  </div>
-
-                  <div className="h-px bg-line dark:bg-line-dark my-1" />
-
-                  {/* Total To Receive From Customer */}
-                  <div className="p-4 rounded-xl bg-paid-soft dark:bg-emerald-950/40 border border-paid-border dark:border-emerald-500/30">
-                    <span className="text-xs text-paid dark:text-emerald-400 font-black block mb-1">
-                      إجمالي المبلغ المطلوب تحصيله من الزبون:
-                    </span>
-                    <div className="text-2xl font-black font-mono text-paid dark:text-emerald-300 tracking-tight tabular-nums">
-                      {formatArabicCurrency(totalReceivedPiasters)}
+                  <div className="flex items-center justify-between text-sm">
+                    <div>
+                      <span className="text-ink-muted dark:text-ink-muted-dark block">ربح المحل (صافي)</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark">لا يُخصم من رصيد الماكينة</span>
                     </div>
-                    <span className="text-[11px] text-paid/80 dark:text-emerald-400/80 mt-1 block font-medium">
-                      (الفاتورة {formatArabicCurrency(billAmountPiasters)} + العمولة {formatArabicCurrency(machineCommissionPiasters)} + الربح {formatArabicCurrency(shopProfitPiasters)})
-                    </span>
+                    <span className="font-black font-mono text-paid dark:text-paid-bright tabular-nums">{formatArabicCurrency(shopProfitPiasters)}</span>
                   </div>
 
                   {/* Machine Balance Impact */}
-                  <div className={`p-3.5 rounded-xl border ${
+                  <div className={`mt-1 p-3.5 rounded-xl border ${
                     isBalanceInsufficient ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/30 dark:border-danger-bright/30' : 'bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark'
                   }`}>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-ink-muted dark:text-ink-muted-dark font-medium">المخصوم من رصيد الماكينة (المبلغ + العمولة):</span>
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <span className="text-ink-muted dark:text-ink-muted-dark font-medium">المخصوم من رصيد الماكينة (المبلغ + العمولة)</span>
                       <span className="font-bold font-mono text-danger dark:text-danger-bright tabular-nums">{formatArabicCurrency(deductedBalancePiasters)}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-ink-muted dark:text-ink-muted-dark font-medium">الرصيد المتبقي بعد العملية:</span>
+                      <span className="text-ink-muted dark:text-ink-muted-dark font-medium">الرصيد المتبقي بعد العملية</span>
                       <span className={`font-black font-mono tabular-nums ${
                         isBalanceInsufficient ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'
                       }`}>
@@ -1102,19 +1096,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         رصيد الماكينة غير كافٍ لإتمام العملية!
                       </div>
                     )}
-                  </div>
-
-                  {/* Net Store Profit */}
-                  <div className="p-3.5 rounded-xl bg-brand-soft dark:bg-brand-bright/15 border border-brand/20 dark:border-brand-bright/30">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-bold text-brand-dark dark:text-brand-bright block">صافي ربح المحل من هذه العملية:</span>
-                        <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">لا يُخصم من رصيد الماكينة نهائياً</span>
-                      </div>
-                      <span className="text-lg font-black font-mono text-brand dark:text-brand-bright tabular-nums">
-                        {formatArabicCurrency(netProfitPiasters)}
-                      </span>
-                    </div>
                   </div>
                 </div>
 
@@ -1131,7 +1112,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     <div
                       className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
                         autoPrintReceipt
-                          ? 'bg-paid dark:bg-paid-bright text-white dark:text-slate-900 shadow-xs'
+                          ? 'bg-paid dark:bg-paid-bright text-white dark:text-surface-dark shadow-xs'
                           : 'bg-surface dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark'
                       }`}
                     >
@@ -1141,7 +1122,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       <span className="text-xs font-bold text-ink dark:text-ink-dark block">
                         عرض إيصال العملية للطباعة فور التأكيد
                       </span>
-                      <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark">
                         معاينة وطباعة بون حراري للعميل فور نجاح المعاملة
                       </span>
                     </div>
@@ -1158,10 +1139,10 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   type="button"
                   onClick={() => handleCreateTransaction()}
                   disabled={isSubmittingTx || isBalanceInsufficient || billAmountPiasters <= 0}
-                  className={`w-full py-3 px-4 rounded-xl font-black text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  className={`w-full h-12 px-4 rounded-xl font-black text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     isSubmittingTx || isBalanceInsufficient || billAmountPiasters <= 0
                       ? 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark cursor-not-allowed shadow-none'
-                      : 'bg-paid dark:bg-paid-bright hover:bg-paid-dark dark:hover:bg-paid text-white dark:text-slate-900 active:scale-98'
+                      : 'bg-paid dark:bg-paid-bright hover:bg-paid-dark dark:hover:bg-paid-bright-hover text-white dark:text-surface-dark active:scale-98'
                   }`}
                 >
                   <CheckCircle2 className="w-4.5 h-4.5" />
@@ -1175,23 +1156,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
         {/* TAB 2: TERMINALS & FUNDING */}
         {activeTab === 'terminals' && canAccessTerminals && (
           <div className="max-w-6xl mx-auto flex flex-col gap-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base sm:text-lg font-black text-ink dark:text-ink-dark">أرصدة ماكينات الدفع والخدمات</h2>
-                <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-0.5">متابعة دقيقة للأرصدة المتوفرة وسجل التغذية والشحن لكل ماكينة</p>
-              </div>
-              {canManageTerminals && (
-                <button
-                  type="button"
-                  onClick={openNewTerminalModal}
-                  className="px-3.5 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid dark:text-slate-900 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-                >
-                  <PlusCircle className="w-3.5 h-3.5" />
-                  <span>إضافة ماكينة جديدة</span>
-                </button>
-              )}
-            </div>
-
             {/* Terminals Cards Grid */}
             {terminals.length === 0 ? (
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-dashed border-line dark:border-line-dark p-8 flex flex-col items-center justify-center text-center gap-3 shadow-2xs">
@@ -1199,7 +1163,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   <CreditCard className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-ink dark:text-ink-dark">لا توجد ماكينات دفع مسجلة حتى الآن</h3>
+                  <h3 className="t-card-title text-ink dark:text-ink-dark">لا توجد ماكينات دفع مسجلة حتى الآن</h3>
                   <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-1 max-w-sm">
                     قم بإضافة ماكينات الدفع والخدمات الإلكترونية (فوري، أمان، بي، سداد...) لبدء تسجيل العمليات وشحن الأرصدة
                   </p>
@@ -1208,7 +1172,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   <button
                     type="button"
                     onClick={openNewTerminalModal}
-                    className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid dark:text-slate-900 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 mt-1"
+                    className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 mt-1"
                   >
                     <PlusCircle className="w-3.5 h-3.5" />
                     <span>إضافة ماكينة جديدة</span>
@@ -1245,20 +1209,13 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           </div>
                         )}
                       </div>
-                      <h3 className="font-black text-base text-ink dark:text-ink-dark">{term.name}</h3>
+                      <h3 className="t-card-title text-ink dark:text-ink-dark">{term.name}</h3>
                       <p className="text-xs text-ink-muted dark:text-ink-muted-dark font-mono mt-0.5">كود الماكينة: {term.terminalCode || '---'}</p>
 
                       <div className="mt-4 p-3.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
                         <span className="text-xs text-ink-muted dark:text-ink-muted-dark block mb-1">الرصيد المتاح الحالي:</span>
                         <span className={`text-2xl font-black font-mono block tabular-nums ${term.isLowBalance ? 'text-danger dark:text-danger-bright' : 'text-paid dark:text-paid-bright'}`}>
                           {formatArabicCurrency(term.balancePiasters)}
-                        </span>
-                      </div>
-
-                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-                        <span className="font-bold text-ink-muted dark:text-ink-muted-dark">نظام الحساب:</span>
-                        <span className="px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold border border-paid-border dark:border-paid-bright/20">
-                          3 مدخلات مباشرة (المبلغ + العمولة + الربح)
                         </span>
                       </div>
 
@@ -1280,9 +1237,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           void fetchLiveDrawerCash();
                           setIsFundingModalOpen(true);
                         }}
-                        className="w-full py-2.5 px-4 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid dark:text-slate-900 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all duration-150 cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-98 group"
+                        className="w-full py-2.5 px-4 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all duration-150 cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-98 group"
                       >
-                        <Zap className="w-4 h-4 text-emerald-200 dark:text-slate-900 fill-emerald-200/30 dark:fill-slate-900/30 group-hover:fill-white dark:group-hover:fill-slate-900 group-hover:text-white dark:group-hover:text-slate-900 transition-all group-hover:scale-110" />
+                        <Zap className="w-4 h-4 text-emerald-200 dark:text-surface-dark fill-emerald-200/30 dark:fill-surface-dark/30 group-hover:fill-white dark:group-hover:fill-surface-dark group-hover:text-white dark:group-hover:text-surface-dark transition-all group-hover:scale-110" />
                         <span>شحن وتغذية الرصيد</span>
                       </button>
                     )}
@@ -1296,12 +1253,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-line/60 dark:border-line-dark/60">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4.5 h-4.5 text-brand dark:text-brand-bright" />
-                  <h3 className="font-black text-sm sm:text-base text-ink dark:text-ink-dark">
+                  <h3 className="t-card-title text-ink dark:text-ink-dark m-0">
                     سجل شحن وتغذية أرصدة الماكينات
                   </h3>
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright">
-                    {filteredFundings.length} حركة
-                  </span>
                 </div>
               </div>
 
@@ -1365,7 +1319,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-line/70 dark:border-line-dark/70">
                   <table className="w-full text-xs text-right min-w-[850px] border-collapse">
-                    <thead className="bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark text-[11px] font-bold select-none">
+                    <thead className="bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark text-micro font-bold select-none">
                       <tr>
                         <th className="py-3 px-3.5 whitespace-nowrap">التاريخ والوقت</th>
                         <th className="py-3 px-3.5 whitespace-nowrap">الماكينة</th>
@@ -1386,7 +1340,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                             {fnd.terminalName || fnd.terminalId}
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-xs align-middle">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-micro font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark">
                               {fnd.fundingSource === 'cash_drawer' ? 'درج كاشير المحل' :
                                fnd.fundingSource === 'bank_transfer' ? 'تحويل بنكي' : 'كاش خارجي'}
                             </span>
@@ -1512,18 +1466,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
             {/* Transactions Table */}
             <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Receipt className="w-4.5 h-4.5 text-brand dark:text-brand-bright" />
-                  <h3 className="font-black text-sm sm:text-base text-ink dark:text-ink-dark">
-                    سجل العمليات المنفذة
-                  </h3>
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright">
-                    {filteredTransactions.length} عملية
-                  </span>
-                </div>
-              </div>
-
               {filteredTransactions.length === 0 ? (
                 <div className="text-center py-12 text-ink-muted dark:text-ink-muted-dark text-xs bg-surface-2/30 dark:bg-surface-dark-2/30 rounded-xl border border-dashed border-line dark:border-line-dark">
                   {transactions.length === 0
@@ -1532,8 +1474,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-line/70 dark:border-line-dark/70">
-                  <table className="w-full text-xs text-right min-w-[1020px] border-collapse">
-                    <thead className="bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark text-[11px] font-bold select-none">
+                  <table className="w-full text-xs text-right min-w-[860px] border-collapse [&_th]:px-2 [&_td]:px-2">
+                    <thead className="bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark text-micro font-bold select-none">
                       <tr>
                         <th className="py-3 px-3.5 whitespace-nowrap">الوقت</th>
                         <th className="py-3 px-3.5 whitespace-nowrap">الماكينة</th>
@@ -1544,10 +1486,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         <th className="py-3 px-3.5 whitespace-nowrap">3. ربح المحل</th>
                         <th className="py-3 px-3.5 whitespace-nowrap font-bold text-paid dark:text-paid-bright">المستلم من الزبون</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-danger dark:text-danger-bright">مخصوم الماكينة</th>
-                        <th className="py-3 px-3.5 whitespace-nowrap text-center">صافي الربح</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-center">وجهة النقدية</th>
-                        <th className="py-3 px-3.5 whitespace-nowrap text-center">الحالة</th>
-                        <th className="py-3 px-3.5 whitespace-nowrap text-center">إجراءات</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap text-center sticky left-0 z-10 bg-surface-2 dark:bg-surface-dark-2">إجراءات</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line/60 dark:divide-line-dark/60 bg-surface dark:bg-surface-dark">
@@ -1564,8 +1504,13 @@ export const EpayView: React.FC<EpayViewProps> = ({
                               {tx.serviceName}
                             </span>
                             {tx.serviceTypeArabic && (
-                              <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark block mt-0.5 truncate">
+                              <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5 truncate">
                                 {tx.serviceTypeArabic}
+                              </span>
+                            )}
+                            {tx.status === 'cancelled' && (
+                              <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30">
+                                ملغاة
                               </span>
                             )}
                           </td>
@@ -1574,7 +1519,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                               <div className="text-ink dark:text-ink-dark font-semibold tracking-wide font-mono">{tx.customerPhone}</div>
                             ) : null}
                             {tx.referenceNumber ? (
-                              <div className="text-[10px] text-ink-muted dark:text-ink-muted-dark font-mono">مرجع: {tx.referenceNumber}</div>
+                              <div className="text-micro text-ink-muted dark:text-ink-muted-dark font-mono">مرجع: {tx.referenceNumber}</div>
                             ) : null}
                             {!tx.customerPhone && !tx.referenceNumber && (
                               <span className="text-ink-muted/30 dark:text-ink-muted-dark/30 font-mono text-xs">—</span>
@@ -1596,16 +1541,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                             {formatArabicCurrency(tx.machineDeductedPiasters || (tx.serviceType === 'cash_out' ? 0 : (tx.billAmountPiasters + (tx.providerCommissionPiasters || 0))))}
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
-                            <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md font-black font-mono text-xs tabular-nums border shadow-2xs ${
-                              tx.status === 'cancelled'
-                                ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30 line-through'
-                                : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid-bright/20'
-                            }`}>
-                              {formatArabicCurrency(tx.netProfitPiasters)}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold border ${
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-micro font-bold border ${
                               tx.paymentDestination === 'cash_drawer'
                                 ? 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border-line dark:border-line-dark'
                                 : 'bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright border-brand/20 dark:border-brand-bright/30'
@@ -1613,18 +1549,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                               {tx.paymentDestination === 'cash_drawer' ? 'درج المحل' : 'درج الماكينة'}
                             </span>
                           </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
-                            {tx.status === 'cancelled' ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30 line-through">
-                                ملغاة
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/20">
-                                ناجحة
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle sticky left-0 z-10 bg-surface dark:bg-surface-dark">
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 onClick={() => setReceiptTx(tx)}
@@ -1675,66 +1600,49 @@ export const EpayView: React.FC<EpayViewProps> = ({
               <div className="w-12 h-12 rounded-2xl bg-warn/10 text-warn flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-warn" />
               </div>
-              <h3 className="text-sm font-bold text-ink dark:text-ink-dark m-0">غير مصرح لك بعرض أرباح وتحليلات الماكينات</h3>
+              <h3 className="t-card-title text-ink dark:text-ink-dark m-0">غير مصرح لك بعرض أرباح وتحليلات الماكينات</h3>
               <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
                 تحتاج لصلاحية الاطلاع على تحليلات وأرباح ماكينات الدفع والخدمات الإلكترونية من إدارة المحل.
               </p>
             </div>
           ) : (
           <div className="max-w-6xl mx-auto flex flex-col gap-5">
-            <div>
-              <h2 className="text-base sm:text-lg font-black text-ink dark:text-ink-dark">تحليلات وأرباح ماكينات الدفع والخدمات الإلكترونية</h2>
-              <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-0.5">
-                تقرير تحليلي مالي مستقل بالكامل؛ لا يختلط إطلاقاً بأرباح أو مخزون بضاعة المحل
-              </p>
-            </div>
-
             {/* KPI Cards Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-paid/40 dark:hover:border-paid-bright/40 transition-colors">
                 <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">صافي أرباح الخدمات</span>
-                <span className="text-2xl font-black font-mono text-paid dark:text-paid-bright block tabular-nums">
+                <span className="t-kpi-lg font-mono text-paid dark:text-paid-bright block">
                   {formatArabicCurrency(analytics?.totalNetProfitPiasters || 0)}
                 </span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
                   إجمالي مكسب المحل الصافي من العمليات
                 </span>
               </div>
 
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
                 <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">حجم النقدية المتداولة</span>
-                <span className="text-2xl font-black font-mono text-ink dark:text-ink-dark block tabular-nums">
+                <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
                   {formatArabicCurrency(analytics?.totalVolumePiasters ?? analytics?.totalBillVolumePiasters ?? 0)}
                 </span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
                   إجمالي قيمة الفواتير والشحن المنفذة
                 </span>
               </div>
 
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
                 <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">إجمالي عمولات الماكينات</span>
-                <span className="text-2xl font-black font-mono text-ink dark:text-ink-dark block tabular-nums">
+                <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
                   {formatArabicCurrency(analytics?.totalCommissionsPiasters ?? analytics?.totalProviderCommissionsPiasters ?? 0)}
                 </span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
                   المخصومة لصالح شركات وماكينات الدفع
-                </span>
-              </div>
-
-              <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
-                <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">إجمالي أرصدة الماكينات</span>
-                <span className="text-2xl font-black font-mono text-ink dark:text-ink-dark block tabular-nums">
-                  {formatArabicCurrency(analytics?.totalTerminalsBalancePiasters || 0)}
-                </span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                  الرصيد الفعلي المتاح حالياً بالماكينات
                 </span>
               </div>
             </div>
 
             {/* Cash Flow Distribution Card */}
             <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 sm:p-6">
-              <h3 className="font-black text-sm sm:text-base text-ink dark:text-ink-dark mb-4 flex items-center gap-2">
+              <h3 className="t-card-title text-ink dark:text-ink-dark mb-4 flex items-center gap-2">
                 <Landmark className="w-5 h-5 text-brand dark:text-brand-bright" />
                 توزيع النقدية المحصلة من خدمات الدفع
               </h3>
@@ -1744,7 +1652,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     <span className="font-bold text-xs sm:text-sm text-ink dark:text-ink-dark">دخلت في درج كاشير المحل</span>
                     <span className="text-xs px-2 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/20 font-bold">عهدة الكاشير</span>
                   </div>
-                  <span className="text-2xl font-black font-mono text-ink dark:text-ink-dark block tabular-nums">
+                  <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
                     {formatArabicCurrency(analytics?.totalInCashDrawerPiasters || 0)}
                   </span>
                   <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-1">
@@ -1757,7 +1665,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     <span className="font-bold text-xs sm:text-sm text-ink dark:text-ink-dark">بقيت في محفظة/درج الماكينة المنفصلة</span>
                     <span className="text-xs px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 font-bold">مفصولة تماماً</span>
                   </div>
-                  <span className="text-2xl font-black font-mono text-ink dark:text-ink-dark block tabular-nums">
+                  <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
                     {formatArabicCurrency(analytics?.totalInTerminalTillPiasters || 0)}
                   </span>
                   <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-1">
@@ -1769,7 +1677,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
             {/* Service Breakdown Summary */}
             <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 sm:p-6">
-              <h3 className="font-black text-sm sm:text-base text-ink dark:text-ink-dark mb-4 flex items-center gap-2">
+              <h3 className="t-card-title text-ink dark:text-ink-dark mb-4 flex items-center gap-2">
                 <Layers className="w-5 h-5 text-brand dark:text-brand-bright" />
                 تحليل العمليات حسب نوع الخدمة
               </h3>
@@ -1813,7 +1721,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
         <div onClick={handleFundingBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-md w-full p-6 shadow-xl border border-line dark:border-line-dark" dir="rtl">
             <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
-              <h3 className="text-base font-black text-ink dark:text-ink-dark flex items-center gap-2">
+              <h3 className="t-card-title text-ink dark:text-ink-dark flex items-center gap-2">
                 <Zap className="w-5 h-5 text-paid dark:text-paid-bright" />
                 تغذية وشحن رصيد الماكينة
               </h3>
@@ -1862,14 +1770,14 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 {fundingSource === 'cash_drawer' && (
                   <div className="space-y-1.5 mt-2">
                     <div className="p-2.5 rounded-xl border text-xs bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark flex items-center justify-between">
-                      <span className="text-ink-muted dark:text-ink-muted-dark font-bold text-[11px]">كاش الدرج المتوفر حالياً:</span>
+                      <span className="text-ink-muted dark:text-ink-muted-dark font-bold text-micro">كاش الدرج المتوفر حالياً:</span>
                       <span className={`font-mono font-black text-xs ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
                         {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
                       </span>
                     </div>
 
                     {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (fundingAmountPiasters > 0 && fundingAmountPiasters > liveDrawerCashPiasters)) && (
-                      <div className="p-2.5 rounded-xl border text-[11px] bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-1">
+                      <div className="p-2.5 rounded-xl border text-micro bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-1">
                         <div className="flex items-center gap-1.5 font-bold">
                           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                           <span>
@@ -1878,7 +1786,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                               : 'رصيد نقدية الدرج غير كافٍ!'}
                           </span>
                         </div>
-                        <p className="text-[10.5px] leading-relaxed">
+                        <p className="text-micro leading-relaxed">
                           {liveDrawerCashPiasters <= 0
                             ? 'لا يمكن سحب نقدية من درج فارغ. إذا كان الشحن تم من مالك المحل أو نقدية خارجية، يرجى تغيير مصدر التغذية إلى: «كاش خارجي من صاحب المحل».'
                             : `المبلغ المطلوب (${formatArabicCurrency(fundingAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي من صاحب المحل» إذا كان المبلغ مدفوعاً من مالك المحل.`}
@@ -1917,7 +1825,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       liveDrawerCashPiasters !== null &&
                       (liveDrawerCashPiasters <= 0 || fundingAmountPiasters > liveDrawerCashPiasters))
                   }
-                  className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid dark:text-slate-900 rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmittingFunding ? 'جاري الشحن...' : 'تأكيد شحن الرصيد'}
                 </button>
@@ -1932,7 +1840,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
         <div onClick={handleTerminalBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-xl w-full p-6 shadow-xl border border-line dark:border-line-dark max-h-[90vh] overflow-y-auto" dir="rtl">
             <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
-              <h3 className="text-base font-black text-ink dark:text-ink-dark flex items-center gap-2">
+              <h3 className="t-card-title text-ink dark:text-ink-dark flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-paid dark:text-paid-bright" />
                 {editingTerminalId ? 'تعديل بيانات ماكينة الدفع' : 'إضافة ماكينة دفع جديدة'}
               </h3>
@@ -1994,7 +1902,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     {editingTerminalId ? 'الرصيد الحالي للماكينة (تسوية رصيد)' : 'الرصيد الافتتاحي'}
                   </label>
                   {editingTerminalId && (
-                    <span className="text-[10px] text-brand dark:text-brand-bright font-bold bg-brand-soft dark:bg-brand-bright/15 px-2 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/30">
+                    <span className="text-micro text-brand dark:text-brand-bright font-bold bg-brand-soft dark:bg-brand-bright/15 px-2 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/30">
                       تعديل الرصيد يسجل تسوية مالية فورية
                     </span>
                   )}
@@ -2004,7 +1912,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   onChangePiasters={setTermBalancePiasters}
                 />
                 {editingTerminalId && (
-                  <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
+                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
                     يمكنك تعديل الرصيد هنا لتصحيح المبلغ أو تسويته، وسيتم تحديث رصيد الماكينة مباشرة وحفظ حركة تسوية في السجل.
                   </span>
                 )}
@@ -2020,14 +1928,14 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
                             {/* Simple & Clear Pricing Notice */}
               <div className="p-3.5 rounded-xl bg-paid-soft/40 dark:bg-emerald-950/30 border border-paid/20 dark:border-emerald-600/30 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-paid dark:bg-paid-bright text-white dark:text-slate-900 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-paid dark:bg-paid-bright text-white dark:text-surface-dark flex items-center justify-center shrink-0">
                   <CreditCard className="w-4 h-4" />
                 </div>
                 <div>
                   <span className="text-xs font-black text-ink dark:text-ink-dark block">
                     نظام الحساب المباشر (3 مدخلات سريعة)
                   </span>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                     يتم تحديد (مبلغ الفاتورة + عمولة الماكينة + ربح المحل) بحرية ومرونة أثناء كل عملية بيع مباشرة دون تعقيد.
                   </span>
                 </div>
@@ -2057,7 +1965,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   <button
                     type="submit"
                     disabled={isSavingTerminal}
-                    className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid dark:text-slate-900 rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs disabled:opacity-50"
+                    className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs disabled:opacity-50"
                   >
                     {isSavingTerminal ? 'جاري الحفظ...' : 'حفظ الماكينة'}
                   </button>
@@ -2071,11 +1979,11 @@ export const EpayView: React.FC<EpayViewProps> = ({
       {/* MODAL: PRINT RECEIPT */}
       {receiptTx && (
         <div onClick={handleReceiptBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-line dark:border-line-dark font-mono text-ink dark:text-ink-dark" dir="rtl">
+          <div data-print-root className="print-compact bg-surface dark:bg-surface-dark rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-line dark:border-line-dark font-mono text-ink dark:text-ink-dark" dir="rtl">
             <div className="text-center border-b border-dashed border-line dark:border-line-dark pb-3 mb-3">
               <div className="font-black text-base text-ink dark:text-ink-dark">إيصال خدمة دفع إلكتروني</div>
               <div className="text-xs text-ink-muted dark:text-ink-muted-dark font-sans mt-0.5">رفيق لنقاط البيع وإدارة المتاجر</div>
-              <div className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1">
+              <div className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1">
                 {new Date(receiptTx.createdAt).toLocaleString('ar-EG')}
               </div>
             </div>
@@ -2122,15 +2030,15 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </div>
             </div>
 
-            <div className="text-center text-[10px] text-ink-muted dark:text-ink-muted-dark font-sans mb-4">
+            <div className="text-center text-micro text-ink-muted dark:text-ink-muted-dark font-sans mb-4">
               شكراً لتعاملكم معنا! احتفظ بهذا الإيصال للرجوع إليه عند الحاجة.
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="flex-1 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid dark:text-slate-900 rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-98"
+                onClick={() => void printReport({ kind: 'compact' })}
+                className="flex-1 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-98"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>طباعة الإيصال</span>
@@ -2152,7 +2060,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
         <div onClick={handleCancelBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-md w-full p-6 shadow-2xl border border-line dark:border-line-dark" dir="rtl">
             <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
-              <h3 className="text-base font-black text-danger dark:text-danger-bright flex items-center gap-2">
+              <h3 className="t-card-title text-danger dark:text-danger-bright flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-danger dark:text-danger-bright shrink-0" />
                 <span>إلغاء واسترجاع عملية دفع إلكتروني</span>
               </h3>
@@ -2193,7 +2101,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 </div>
               </div>
 
-              <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-xl p-3 text-danger dark:text-danger-bright text-[11px] leading-relaxed">
+              <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-xl p-3 text-danger dark:text-danger-bright text-micro leading-relaxed">
                 تنبيه: سيتم عكس أثر العملية في رصيد الماكينة لحظياً، واستبعاد نقدية وأرباح العملية من تقفيل اليومية وكشف الحساب.
               </div>
 

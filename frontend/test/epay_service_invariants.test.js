@@ -5,7 +5,7 @@ import path from 'node:path';
 
 describe('Milestone 12 — Feature #176 & #177: E-Payment & Payment Terminals Invariants Test Suite', () => {
   const securityServicePath = path.resolve('..', 'desktop', 'Services', 'SecurityService.cs');
-  const userManagerModalPath = path.resolve('src', 'components', 'UserManagerModal.tsx');
+  const userManagerModalPath = path.resolve('src', 'constants', 'permissionGroups.ts');
   const epayRepoPath = path.resolve('..', 'desktop', 'Repositories', 'EpayRepository.cs');
   const dailyClosingServicePath = path.resolve('..', 'desktop', 'Services', 'DailyClosingService.cs');
   const epayViewPath = path.resolve('src', 'views', 'epay', 'EpayView.tsx');

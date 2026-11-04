@@ -260,7 +260,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
   const getSeverityBadge = (sev: string) => {
     if (sev === 'severe') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-danger/10 dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30 dark:border-danger-bright/30">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold bg-danger/10 dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30 dark:border-danger-bright/30">
           <ShieldAlert className="w-3 h-3" />
           حرج
         </span>
@@ -268,14 +268,14 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
     }
     if (sev === 'moderate') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-warn/10 dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/30 dark:border-warn-border/30">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold bg-warn/10 dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/30 dark:border-warn-border/30">
           <AlertTriangle className="w-3 h-3" />
           متوسط
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/30 dark:border-brand-bright/30">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/30 dark:border-brand-bright/30">
         <Info className="w-3 h-3" />
         طفيف
       </span>
@@ -316,7 +316,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               <ShieldAlert className="w-6 h-6" />
             </div>
             <div>
-              <h2 id="ddi-manager-title" className="text-base font-bold flex items-center gap-2">
+              <h2 id="ddi-manager-title" className="t-modal-title flex items-center gap-2">
                 إدارة جدول التفاعلات والتعارضات الدوائية (DDI)
               </h2>
               <p className="text-xs text-white/90">
@@ -490,14 +490,14 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                       <td className="p-3 text-center">{getSeverityBadge(item.severity)}</td>
                       <td className="p-3 space-y-1">
                         <div className="text-ink dark:text-ink-dark leading-relaxed">{item.mechanismAr}</div>
-                        <div className="text-2xs text-danger dark:text-danger-bright font-medium leading-relaxed">
+                        <div className="text-micro text-danger dark:text-danger-bright font-medium leading-relaxed">
                           الخطر: {item.clinicalRiskAr}
                         </div>
                       </td>
                       <td className="p-3 space-y-1">
                         <div className="text-ink dark:text-ink-dark leading-relaxed font-medium">{item.recommendationAr}</div>
                         {item.alternativeAr && (
-                          <div className="text-2xs text-paid dark:text-paid-bright font-bold">
+                          <div className="text-micro text-paid dark:text-paid-bright font-bold">
                             البديل: {item.alternativeAr}
                           </div>
                         )}
@@ -569,7 +569,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-brand dark:bg-brand-dark text-white px-5 py-3.5 flex items-center justify-between shrink-0">
-              <h3 className="text-sm font-bold flex items-center gap-2">
+              <h3 className="t-card-title flex items-center gap-2">
                 <ShieldAlert className="w-5 h-5" />
                 {editingItem ? 'تعديل التفاعل الدوائي' : 'إضافة تفاعل دوائي جديد'}
               </h3>
@@ -591,7 +591,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                  <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
                     المادة الفعالة الأولى (بالإنجليزية): <span className="text-danger dark:text-danger-bright">*</span>
                   </label>
                   <input
@@ -604,7 +604,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                   />
                 </div>
                 <div>
-                  <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                  <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
                     المادة الفعالة الثانية (بالإنجليزية): <span className="text-danger dark:text-danger-bright">*</span>
                   </label>
                   <input
@@ -619,7 +619,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               </div>
 
               <div>
-                <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
                   درجة الخطورة السريرية: <span className="text-danger dark:text-danger-bright">*</span>
                 </label>
                 <CustomSelect
@@ -630,7 +630,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               </div>
 
               <div>
-                <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
                   شرح آلية التفاعل الصيدلانية: <span className="text-danger dark:text-danger-bright">*</span>
                 </label>
                 <textarea
@@ -644,7 +644,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               </div>
 
               <div>
-                <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
                   الخطر السريري على المريض: <span className="text-danger dark:text-danger-bright">*</span>
                 </label>
                 <textarea
@@ -658,7 +658,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               </div>
 
               <div>
-                <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
                   التوصية الطبية العملية للصيدلي: <span className="text-danger dark:text-danger-bright">*</span>
                 </label>
                 <textarea
@@ -672,7 +672,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               </div>
 
               <div>
-                <label className="block text-2xs font-bold text-ink dark:text-ink-dark mb-1">
+                <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
                   البديل الآمن المقترح (اختياري):
                 </label>
                 <input

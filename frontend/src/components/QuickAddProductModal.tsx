@@ -216,7 +216,7 @@ export function QuickAddProductModal({
             </span>
             <div>
               <span className="text-sm font-bold text-ink">إضافة صنف غير مسجل سريعاً</span>
-              <span className="text-[10px] text-ink-muted block leading-none">متابعة البيع الفوري دون مغادرة الشاشة</span>
+              <span className="text-micro text-ink-muted block leading-none">متابعة البيع الفوري دون مغادرة الشاشة</span>
             </div>
           </div>
           <button 
@@ -238,7 +238,7 @@ export function QuickAddProductModal({
               <span className="text-xs text-ink-muted">الباركود الممسوح:</span>
               <span className="font-mono font-bold text-xs text-brand tracking-wider select-all">{barcode}</span>
             </div>
-            <span className="text-[10px] font-semibold bg-brand-soft text-brand px-2 py-0.5 rounded">
+            <span className="text-micro font-semibold bg-brand-soft text-brand px-2 py-0.5 rounded">
               تلقائي
             </span>
           </div>
@@ -325,7 +325,7 @@ export function QuickAddProductModal({
               className="w-full h-9 px-3 text-xs bg-canvas rounded-lg border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono text-left"
               required
             />
-            <p className="mt-1 text-[11px] text-ink-muted">يُسجَّل كرصيد افتتاحي للصنف؛ اكتب 0 إن لم تتوفر كمية.</p>
+            <p className="mt-1 text-micro text-ink-muted">يُسجَّل كرصيد افتتاحي للصنف؛ اكتب 0 إن لم تتوفر كمية.</p>
           </div>
 
           {/* Unit & Category Grid */}
@@ -391,7 +391,7 @@ export function QuickAddProductModal({
                   <button
                     type="button"
                     onClick={() => setShowVariants(false)}
-                    className="text-[11px] text-ink-muted hover:text-danger font-medium hover:underline cursor-pointer"
+                    className="text-micro text-ink-muted hover:text-danger font-medium hover:underline cursor-pointer"
                   >
                     إلغاء وإخفاء
                   </button>
@@ -423,7 +423,7 @@ export function QuickAddProductModal({
               <button
                 type="button"
                 onClick={() => setShowVariants(true)}
-                className="text-[11px] font-bold text-brand hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-micro font-bold text-brand hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <Layers className="w-3 h-3 text-purple-600" />
                 <span>{terminology.quickAddAction}</span>
@@ -461,7 +461,7 @@ export function QuickAddProductModal({
           )}
 
           {/* Incomplete Data Notice (Task 108-3) */}
-          <div className="p-2.5 rounded-lg bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 flex items-start gap-2 text-[11px] text-warn dark:text-warn-bright">
+          <div className="p-2.5 rounded-lg bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 flex items-start gap-2 text-micro text-warn dark:text-warn-bright">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
             <span>
               سيتم وسم هذا الصنف كـ «ناقص البيانات» لكي يراجعه صاحب المحل في شاشة إدارة الأصناف لاحقاً.

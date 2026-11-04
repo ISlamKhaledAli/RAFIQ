@@ -20,7 +20,7 @@ import { useAuth } from '../context/useAuth';
 import { SupervisorPromptModal } from './SupervisorPromptModal';
 
 import { CashPaymentSection } from './payment/CashPaymentSection';
-import { piastersToInputText } from './payment/cashPresets';
+import { buildCashQuickPresetsPiasters, piastersToInputText } from './payment/cashPresets';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -66,8 +66,8 @@ export const PaymentModal = ({
   onConfirmPayment,
   loading = false,
 }: PaymentModalProps) => {
-  const [receivedInput, setReceivedInput] = useState<string>('');
-  const [receivedPiasters, setReceivedPiasters] = useState<number>(0);
+  const [receivedInput, setReceivedInput] = useState<string>(() => piastersToInputText(netTotalPiasters));
+  const [receivedPiasters, setReceivedPiasters] = useState<number>(() => netTotalPiasters);
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(selectedCustomerId || null);
   const [newlyAddedCustomers, setNewlyAddedCustomers] = useState<Customer[]>([]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -115,7 +115,7 @@ export const PaymentModal = ({
   // Reset and synchronize all payment fields cleanly whenever modal opens (Feature #27 / Anti-leak)
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
-      setReceivedInput('');
+      setReceivedInput('0');
       setReceivedPiasters(0);
       setIsFullCreditMode(false);
       setSaveChangeToCustomerAccount(false);
@@ -126,6 +126,7 @@ export const PaymentModal = ({
       setQuickPhone('');
       const timer = setTimeout(() => {
         receivedInputRef.current?.focus();
+        receivedInputRef.current?.select();
       }, 60);
       prevIsOpenRef.current = true;
       return () => clearTimeout(timer);
@@ -235,7 +236,7 @@ export const PaymentModal = ({
       }
     }
 
-    setReceivedInput('');
+    setReceivedInput('0');
     setReceivedPiasters(0);
     setIsFullCreditMode(true);
   };
@@ -452,19 +453,22 @@ export const PaymentModal = ({
 
     const payments: SalePayment[] = [
       {
-        amountPiasters: receivedPiasters,
+        amountPiasters: Math.min(receivedPiasters, netTotalPiasters),
         method: 'cash',
       },
     ];
 
     onConfirmPayment({
       paymentMethod: 'cash',
-      paidPiasters: receivedPiasters,
+      paidPiasters: Math.min(receivedPiasters, netTotalPiasters),
       payments,
       changeDuePiasters,
       customerId: currentCustomerId,
     });
   };
+
+  // Quick cash buttons generator (Exact, next 50, next 100, 200)
+  const quickPresetsPiasters = buildCashQuickPresetsPiasters(netTotalPiasters);
 
   if (!isOpen) return null;
 
@@ -482,10 +486,10 @@ export const PaymentModal = ({
               <Banknote className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-[16px] font-bold text-ink dark:text-ink-dark leading-tight m-0">
+              <h2 className="t-modal-title text-ink dark:text-ink-dark leading-tight m-0">
                 حساب الفاتورة واستلام الفلوس والباقي (نقداً)
               </h2>
-              <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted m-0">
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">
                 استلمت كام نقداً من الزبون في الدرج، احسب الباقي، وسجل الفاتورة بضغطة زر واحدة
               </p>
             </div>
@@ -515,17 +519,19 @@ export const PaymentModal = ({
                 </div>
 
                 {/* Items and Pieces Count */}
-                <div className="text-[11px] text-[#52605d] dark:text-ink-dark-muted font-medium bg-white dark:bg-surface-dark px-2.5 py-0.5 rounded-md border border-[#dce1dc] dark:border-line-dark">
+                <div className="text-micro text-[#52605d] dark:text-ink-dark-muted font-medium bg-white dark:bg-surface-dark px-2.5 py-0.5 rounded-md border border-[#dce1dc] dark:border-line-dark">
                   {itemCount} صنف ({totalItemCount} قطعة)
                 </div>
 
-                {/* Subtotal */}
-                <div className="flex items-center gap-1 text-xs">
-                  <span className="text-[#52605d] dark:text-ink-dark-muted">إجمالي السلة:</span>
-                  <span className="font-bold text-[#0f172a] dark:text-ink-dark font-mono tabular-nums">
-                    {formatArabicCurrency(subtotalPiasters)}
-                  </span>
-                </div>
+                {/* Subtotal: only when a discount makes it differ from the amount due */}
+                {discountPiasters > 0 && (
+                  <div className="flex items-center gap-1 text-xs">
+                    <span className="text-[#52605d] dark:text-ink-dark-muted">إجمالي السلة:</span>
+                    <span className="font-bold text-[#0f172a] dark:text-ink-dark font-mono tabular-nums">
+                      {formatArabicCurrency(subtotalPiasters)}
+                    </span>
+                  </div>
+                )}
 
                 {/* Interactive Discount Field */}
                 <div className="flex items-center gap-1 text-xs">
@@ -546,7 +552,7 @@ export const PaymentModal = ({
               {/* Grand Total Hero Box */}
               <div className="flex items-center gap-2.5 bg-gradient-to-br from-[#00372d] to-[#004d3f] dark:from-[#0B4F42] dark:to-[#178068] text-white px-3.5 py-1.5 rounded-xl shadow-xs">
                 <span className="text-xs text-[#83bfaf] dark:text-brand-bright font-semibold">المطلوب دفعه:</span>
-                <span className="text-xl sm:text-2xl font-black font-mono tabular-nums tracking-tight">
+                <span className="t-kpi-lg font-mono tracking-tight">
                   {formatArabicCurrency(netTotalPiasters)}
                 </span>
               </div>
@@ -620,12 +626,12 @@ export const PaymentModal = ({
                 <button
                   type="button"
                   onClick={() => setShowQuickAdd(false)}
-                  className="px-2.5 h-8 bg-surface-2 dark:bg-surface-dark-3 hover:bg-surface text-ink-muted dark:text-ink-dark-muted text-xs rounded-lg border border-line dark:border-line-dark cursor-pointer"
+                  className="px-2.5 h-8 bg-surface-2 dark:bg-surface-dark-3 hover:bg-surface dark:hover:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted text-xs rounded-lg border border-line dark:border-line-dark cursor-pointer"
                 >
                   إلغاء
                 </button>
                 {duplicateQuickCustomer && (
-                  <span className="text-[11px] text-[#b23a2e] dark:text-danger w-full font-semibold">
+                  <span className="text-micro text-[#b23a2e] dark:text-danger-bright w-full font-semibold">
                     تنبيه: الرقم ده متسجل قبل كده باسم الزبون «{duplicateQuickCustomer.name}»
                   </span>
                 )}
@@ -639,6 +645,7 @@ export const PaymentModal = ({
             onReceivedChange={handleReceivedChange}
             receivedInputRef={receivedInputRef}
             netTotalPiasters={netTotalPiasters}
+            quickPresetsPiasters={quickPresetsPiasters}
             onSetPreset={setPresetReceived}
             isShortPayment={isShortPayment}
             selectedCustomer={selectedCustomer}

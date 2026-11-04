@@ -33,6 +33,10 @@ export interface UserDto {
   createdBy?: string | null;
   canDelegate?: boolean;
   hasPassword?: boolean;
+  /** True when the account has a PIN hash (needed to flag legacy password-only accounts). */
+  hasPin?: boolean;
+  /** True only for the shop owner account (usr_admin_default / 'admin'). */
+  isOwner?: boolean;
   children?: UserDto[];
   createdAt?: string;
   lastLoginAt?: string;
@@ -258,18 +262,7 @@ function ensureListenerAttached() {
           pending.resolve(response.data);
         } else {
           const friendlyMessage = sanitizeBridgeError(response.error?.message);
-          const err = new Error(friendlyMessage);
-          if (response.error?.code) {
-            (err as any).code = response.error.code;
-          }
-          if (response.error?.code === 'LICENSE_EXPIRED') {
-            try {
-              window.dispatchEvent(new CustomEvent('rafiq:open-license'));
-            } catch {
-              // ignore
-            }
-          }
-          pending.reject(err);
+          pending.reject(new Error(friendlyMessage));
         }
       }
     });
@@ -357,6 +350,11 @@ export async function invoke<TResult = any, TPayload = any>(
   return mockRes;
 }
 
+/** Soft-deletes an account (server enforces who may delete whom and blocks accounts with an open shift). */
+export async function deleteUser(id: string): Promise<{ success: boolean }> {
+  return invoke<{ success: boolean }, { id: string }>('users:delete', { id });
+}
+
 /**
  * Mock responses for browser development when not running inside C# WebView2
  */
@@ -375,6 +373,30 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         isWebView2: false,
         dbStatus: 'Connected',
       };
+
+    case 'updates:check': {
+      // Browser-only mock: set localStorage rafiq_mock_update=1 to simulate a newer release, =offline for a network failure
+      let flag = '';
+      try { flag = localStorage.getItem('rafiq_mock_update') || ''; } catch { /* ignore */ }
+      if (flag === 'offline') {
+        return { hasUpdate: false, isEligible: true, currentVersion: '1.0.0', latestVersion: '', errorMessage: 'تعذر الاتصال بخادم التحديثات (تأكد من اتصال الإنترنت).' };
+      }
+      if (flag === '1') {
+        return {
+          hasUpdate: true,
+          isEligible: true,
+          currentVersion: '1.0.0',
+          latestVersion: '1.1.0',
+          releaseDate: '2026-11-01',
+          changelog: 'تحسينات في سرعة البيع\nإصلاح طباعة الإيصالات',
+          downloadUrl: 'https://example.com/RafiqPOS_Setup_v1.1.0.exe',
+          sha256: 'a'.repeat(64),
+          fileSizeBytes: 98765432,
+          isMandatory: false,
+        };
+      }
+      return { hasUpdate: false, isEligible: true, currentVersion: '1.0.0', latestVersion: '1.0.0' };
+    }
 
     case 'db:testTransaction':
       return {
@@ -778,7 +800,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'excel:getTemplate':
       return {
         success: true,
-        fileName: 'قالب_استيراد_المنتجات_نظام_رفيق.xlsx',
+        fileName: 'قالب_استيراد_المنتجات_رفيق_POS.xlsx',
       };
 
     case 'excel:exportProducts':
@@ -944,6 +966,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       mockLockoutUntil = 0;
       const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
       mockRecoveryCode = `RFK-${randomPart}`;
+      const mockOwner = mockUsers.find(x => x.id === 'usr_admin_default');
+      if (mockOwner) mockOwner.mustChangePin = false;
       return {
         success: true,
         message: 'تم حفظ الرقم السري بنجاح.',
@@ -1182,6 +1206,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           throw new Error('غير مصرح: تغيير الرقم السري للكاشير يتطلب صلاحيات مدير النظام.');
         }
       }
+      target.mustChangePin = false;
       return { success: true };
     }
 
@@ -1193,26 +1218,42 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'users:createSubUser': {
-      const { username, displayName, role, canDelegate, maxDepth, parentId } = payload || {};
+      const { username, displayName, role } = payload || {};
       const cleanU = (username || '').trim().toLowerCase();
       if (mockUsers.some(x => x.username.toLowerCase() === cleanU)) {
         throw new Error('اسم المستخدم موجود بالفعل');
       }
+      // Server contract: managers always hang under the owner; cashiers under their creator
       const newUser: UserDto = {
         id: `usr_${Date.now()}`,
         username: cleanU,
         displayName: (displayName || '').trim(),
         role: role || 'cashier',
+        isOwner: false,
         isActive: true,
-        canDelegate: !!canDelegate,
-        maxDepth: maxDepth || 0,
-        parentId: parentId || mockCurrentUserId,
-        hasPassword: !!payload?.password,
+        parentId: role === 'admin' ? 'usr_admin_default' : mockCurrentUserId,
+        hasPassword: false,
+        hasPin: !!payload?.pin,
         permissions: payload?.permissions || getMockPermissionsForRole(role || 'cashier'),
         createdAt: new Date().toISOString(),
       };
       mockUsers.push(newUser);
       return newUser;
+    }
+
+    case 'users:delete': {
+      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
+      const target = mockUsers.find(x => x.id === payload?.id);
+      if (!target) throw new Error('الموظف غير موجود');
+      if (target.id === mockCurrentUserId || target.isOwner || target.role === 'root') {
+        throw new Error('لا يمكن حذف هذا الحساب.');
+      }
+      const callerIsOwner = currentU?.isOwner === true || currentU?.role === 'root';
+      if (!callerIsOwner && target.role !== 'cashier') {
+        throw new Error('ليس لديك صلاحية حذف هذا الحساب.');
+      }
+      mockUsers = mockUsers.filter(x => x.id !== target.id);
+      return { success: true };
     }
 
     case 'users:updatePermissions': {
@@ -2759,7 +2800,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'excel:getCustomerTemplate':
       return {
         success: true,
-        fileName: 'قالب_استيراد_العملاء_نظام_رفيق.xlsx',
+        fileName: 'قالب_استيراد_العملاء_رفيق_POS.xlsx',
         base64: 'UEsDBBQAAAAIA...',
       };
 
@@ -3979,6 +4020,7 @@ const DEFAULT_APP_SETTINGS: Record<string, string> = {
   vodafone_cash_fee_percent: '0',
   default_printer_name: '',
   receipt_paper_width: '80mm',
+  report_paper_size: 'a4',
   printer_auto_print: '1',
   printer_open_drawer: '0',
   scanner_speed_ms: '65',
@@ -4084,6 +4126,7 @@ let mockUsers: UserDto[] = [
     username: 'admin',
     displayName: 'صاحب المحل',
     role: 'admin',
+    isOwner: true,
     isActive: true,
     canDelegate: true,
     maxDepth: 10,

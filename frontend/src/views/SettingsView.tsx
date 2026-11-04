@@ -29,6 +29,7 @@ import { PinSettingsModal } from '../components/PinSettingsModal';
 import { StoreProfileTab } from './settings/StoreProfileTab';
 import { StoreFeaturesTab } from './settings/StoreFeaturesTab';
 import { PrinterSettingsTab } from './settings/PrinterSettingsTab';
+import { invalidateReportPaperCache, normalizeReportPaper, type ReportPaper } from '../utils/printReport';
 import { ScannerSettingsTab } from './settings/ScannerSettingsTab';
 import { SystemDiagnosticsTab } from './settings/SystemDiagnosticsTab';
 import { DemoDataTab } from './settings/DemoDataTab';
@@ -101,6 +102,7 @@ export const SettingsView = ({
   const [printersList, setPrintersList] = useState<{ name: string; isDefault: boolean; isOnline: boolean }[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState<string>('');
   const [paperWidth, setPaperWidth] = useState<'80mm' | '57mm' | 'a4'>('80mm');
+  const [reportPaperSize, setReportPaperSize] = useState<ReportPaper>('a4');
   const [autoPrintOnSale, setAutoPrintOnSale] = useState<boolean>(true);
   const [openDrawerOnSale, setOpenDrawerOnSale] = useState<boolean>(false);
   const [drawerPulseMs, setDrawerPulseMs] = useState<string>('30');
@@ -185,6 +187,7 @@ export const SettingsView = ({
           if (settings.store_wallet_number) setStoreWalletNumber(settings.store_wallet_number);
           if (settings.default_printer_name) setSelectedPrinter(settings.default_printer_name);
           if (settings.receipt_paper_width) setPaperWidth(settings.receipt_paper_width as '80mm' | '57mm' | 'a4');
+          if (settings.report_paper_size) setReportPaperSize(normalizeReportPaper(settings.report_paper_size));
           if (settings.printer_auto_print !== undefined) setAutoPrintOnSale(settings.printer_auto_print === '1');
           if (settings.printer_open_drawer !== undefined) setOpenDrawerOnSale(settings.printer_open_drawer === '1');
           if (settings.drawer_pulse_ms) setDrawerPulseMs(settings.drawer_pulse_ms);
@@ -296,11 +299,13 @@ export const SettingsView = ({
       await invoke('settings:save', {
         default_printer_name: selectedPrinter,
         receipt_paper_width: paperWidth,
+        report_paper_size: reportPaperSize,
         printer_auto_print: autoPrintOnSale ? '1' : '0',
         printer_open_drawer: openDrawerOnSale ? '1' : '0',
         drawer_pulse_ms: drawerPulseMs,
         drawer_pin: drawerPin,
       });
+      invalidateReportPaperCache();
       setPrinterSaveSuccess(true);
       setTimeout(() => setPrinterSaveSuccess(false), 3500);
     } catch (err: unknown) {
@@ -496,22 +501,22 @@ export const SettingsView = ({
   const TabIcon = currentTabConfig.icon;
 
   return (
-    <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-4 gap-3.5 overflow-y-auto select-none">
+    <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-4 sm:p-5 gap-5 overflow-y-auto select-none">
       {/* 1. Top Header */}
-      <div className="h-16 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xs rounded-2xl px-5 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+      <div className="min-h-[4.5rem] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xs rounded-2xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 shrink-0">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-11 h-11 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
             <TabIcon className="w-5 h-5 text-paid dark:text-paid-bright" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-muted-dark">إعدادات المحل والنظام</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">إعدادات المحل والنظام</span>
               <span className="text-ink-muted/40 dark:text-ink-muted-dark/40 font-bold">/</span>
-              <h2 className="text-sm font-black text-ink dark:text-ink-dark leading-tight m-0">
+              <h2 className="t-page-title text-ink dark:text-ink-dark leading-tight m-0">
                 {currentTabConfig.title}
               </h2>
             </div>
-            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5">
+            <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 mt-1">
               {currentTabConfig.subtitle}
             </p>
           </div>
@@ -537,6 +542,8 @@ export const SettingsView = ({
           setSelectedPrinter={setSelectedPrinter}
           paperWidth={paperWidth}
           setPaperWidth={setPaperWidth}
+          reportPaperSize={reportPaperSize}
+          setReportPaperSize={setReportPaperSize}
           autoPrintOnSale={autoPrintOnSale}
           setAutoPrintOnSale={setAutoPrintOnSale}
           onToggleAutoPrint={handleToggleAutoPrint}
@@ -639,15 +646,15 @@ export const SettingsView = ({
       )}
 
       {isRoot && subTab === 'security' && (
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-6 flex flex-col gap-4 shadow-xs animate-in fade-in">
-          <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-5 sm:p-6 flex flex-col gap-5 shadow-xs animate-in fade-in">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-line dark:border-line-dark pb-5">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-11 h-11 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
                 <KeyRound className="w-5 h-5 text-paid dark:text-paid-bright" />
               </div>
-              <div>
-                <h3 className="text-sm font-black text-ink dark:text-ink-dark m-0">حماية الشاشات والعمليات الحساسة بالرقم السري (PIN)</h3>
-                <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5">
+              <div className="min-w-0">
+                <h3 className="t-card-title text-ink dark:text-ink-dark m-0">حماية الشاشات والعمليات الحساسة بالرقم السري (PIN)</h3>
+                <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 mt-1">
                   قفل تعديل الأسعار، ومسح الفواتير، والتقارير المالية، واسترجاع قاعدة البيانات برقم سري مشفر.
                 </p>
               </div>
@@ -655,13 +662,13 @@ export const SettingsView = ({
             <button
               type="button"
               onClick={() => setIsPinModalOpen(true)}
-              className="px-4 py-2 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer flex items-center gap-2"
+              className="h-10 px-5 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer flex items-center gap-2 shrink-0"
             >
               <KeyRound className="w-4 h-4" />
               <span>إعدادات وتغيير الرقم السري</span>
             </button>
           </div>
-          <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+          <p className="text-sm text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0">
             يمكنك تفعيل أو تعطيل الحماية واختيار العمليات المحمية وتوليد كود الطوارئ لحماية متجرك من التلاعب غير المصرح به.
           </p>
         </div>

@@ -72,8 +72,8 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
               <Zap className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-[16px] font-bold text-ink dark:text-ink-dark">فحص سرعة البحث وقارئ الباركود (Benchmark)</h2>
-              <p className="text-[12px] text-ink-muted dark:text-ink-dark-muted">قياس سرعة استجابة البحث على 5000 صنف وتوحيد الحروف العربي</p>
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">فحص سرعة البحث وقارئ الباركود (Benchmark)</h2>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted">قياس سرعة استجابة البحث على 5000 صنف وتوحيد الحروف العربي</p>
             </div>
           </div>
         </div>
@@ -81,18 +81,18 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
         {/* Body */}
         <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh] bg-surface dark:bg-surface-dark">
           {/* Intro Card */}
-          <div className="p-4 rounded-lg bg-surface-2/60 dark:bg-surface-dark-2 border border-line dark:border-line-dark hairline-all text-[13px] leading-relaxed text-ink-muted dark:text-ink-dark-muted">
+          <div className="p-4 rounded-lg bg-surface-2/60 dark:bg-surface-dark-2 border border-line dark:border-line-dark hairline-all text-sm leading-relaxed text-ink-muted dark:text-ink-dark-muted">
             <p>
               الاختبار ده بيعمل ويفهرس <span className="font-bold text-ink dark:text-ink-dark">5000 صنف متنوع</span> في قاعدة البيانات، ويقيس سرعة البحث بالباركود والاسم بجزء من الكلمة، ويتأكد إن توحيد الحروف العربي شغال تمام (أ/إ/آ ← ا، ة ← ه، ى ← ي، وحذف التشكيل)، ويحاكي سرعة قارئ الباركود الواقعي.
             </p>
-            <div className="mt-2 text-[12px] text-brand dark:text-brand-bright font-semibold flex items-center gap-1.5">
+            <div className="mt-2 text-xs text-brand dark:text-brand-bright font-semibold flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4" />
               <span>معيار السرعة: استجابة فورية في أقل من 100 مللي ثانية (&lt; 0.1 ثانية)</span>
             </div>
           </div>
 
           {error && (
-            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 text-danger dark:text-danger-bright text-[13px] rounded-lg flex items-center gap-2">
+            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 text-danger dark:text-danger-bright text-sm rounded-lg flex items-center gap-2">
               <XCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -103,47 +103,47 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
               {/* KPI Grid */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark hairline-all text-center">
-                  <div className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center justify-center gap-1">
+                  <div className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center justify-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                     <span>متوسط زمن البحث</span>
                   </div>
-                  <div className="text-[20px] font-mono font-bold text-brand dark:text-brand-bright">
+                  <div className="text-xl font-mono font-bold text-brand dark:text-brand-bright">
                     {avgLatency.toFixed(2)} ms
                   </div>
-                  <div className="text-[10px] text-paid dark:text-paid-bright font-semibold mt-0.5">
+                  <div className="text-micro text-paid dark:text-paid-bright font-semibold mt-0.5">
                     {meetsSla ? 'أقل من 100ms (فائق السرعة)' : 'بطيء'}
                   </div>
                 </div>
 
                 <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark hairline-all text-center">
-                  <div className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center justify-center gap-1">
+                  <div className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center justify-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
                     <span>توحيد الحروف العربي</span>
                   </div>
-                  <div className="text-[18px] font-bold text-ink dark:text-ink-dark">
+                  <div className="text-lg font-bold text-ink dark:text-ink-dark">
                     {normPassed ? 'ناجح 100%' : 'فشل'}
                   </div>
-                  <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                  <div className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">
                     الهمزات والتاء والتشكيل
                   </div>
                 </div>
 
                 <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark hairline-all text-center">
-                  <div className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center justify-center gap-1">
+                  <div className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center justify-center gap-1">
                     <Barcode className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                     <span>محاكاة قارئ الباركود</span>
                   </div>
-                  <div className="text-[18px] font-bold text-ink dark:text-ink-dark">
+                  <div className="text-lg font-bold text-ink dark:text-ink-dark">
                     {scanPassed ? 'استجابة فورية' : 'غير مكتمل'}
                   </div>
-                  <div className="text-[10px] text-paid dark:text-paid-bright font-semibold mt-0.5">
+                  <div className="text-micro text-paid dark:text-paid-bright font-semibold mt-0.5">
                     إدخال سريع &lt; 50ms
                   </div>
                 </div>
               </div>
 
               {/* Status Banner */}
-              <div className={`p-3 rounded-lg border flex items-center gap-2.5 text-[13px] font-bold ${
+              <div className={`p-3 rounded-lg border flex items-center gap-2.5 text-sm font-bold ${
                 isSuccess 
                   ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-dark-border text-paid dark:text-paid-bright'
                   : 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger/30 text-danger dark:text-danger-bright'
@@ -162,8 +162,8 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
 
               {/* Detailed Test Logs */}
               <div>
-                <h4 className="text-[12px] font-bold text-ink-muted dark:text-ink-dark-muted mb-2">سجل الخطوات والفحص الآلي:</h4>
-                <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hairline-all rounded-lg p-3 space-y-1.5 max-h-[160px] overflow-y-auto text-[11px] font-mono text-ink dark:text-ink-dark">
+                <h4 className="t-label text-ink-muted dark:text-ink-dark-muted mb-2">سجل الخطوات والفحص الآلي:</h4>
+                <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hairline-all rounded-lg p-3 space-y-1.5 max-h-[160px] overflow-y-auto text-micro font-mono text-ink dark:text-ink-dark">
                   {testLogs.map((log, idx) => (
                     <div key={idx} className="flex items-start gap-1.5">
                       <span className="text-ink-muted dark:text-ink-dark-muted">›</span>
@@ -180,7 +180,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
         <div className="px-6 py-3.5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark hairline-t flex items-center justify-between">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-line dark:border-line-dark hairline-all text-[13px] font-bold text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
+            className="px-4 py-2 rounded-lg border border-line dark:border-line-dark hairline-all text-sm font-bold text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
           >
             إغلاق
           </button>
@@ -188,7 +188,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
           <button
             onClick={handleRun}
             disabled={running}
-            className="px-5 py-2 rounded-lg bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand disabled:opacity-50 text-white text-[13px] font-bold flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
+            className="px-5 py-2 rounded-lg bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand disabled:opacity-50 text-white text-sm font-bold flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
           >
             {running ? (
               <>

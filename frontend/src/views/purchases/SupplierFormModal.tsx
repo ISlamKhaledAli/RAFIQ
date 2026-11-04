@@ -64,7 +64,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
             <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center shadow-2xs">
               <Building2 className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-sm text-ink dark:text-ink-dark">
+            <h3 className="t-modal-title text-ink dark:text-ink-dark">
               {form.id ? 'تعديل بيانات المورد والشركة' : 'تسجيل مورد أو شركة جديدة'}
             </h3>
           </div>
@@ -120,7 +120,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
               <div>
                 <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
                   <span>حساب أول المدة (ج.م)</span>
-                  <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-normal block">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal block">
                     (موجب = فلوس ليه عندنا، سالب (-) = دافعينله مقدم)
                   </span>
                 </label>
@@ -172,7 +172,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted block mb-1">
+                  <label className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted block mb-1">
                     نافذة القبول (أيام قبل الانتهاء)
                   </label>
                   <input
@@ -185,7 +185,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted block mb-1">
+                  <label className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted block mb-1">
                     نسبة التعويض المالي (%)
                   </label>
                   <div className="relative">
@@ -207,7 +207,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
           <div className="flex items-center gap-2 pt-3 border-t border-line dark:border-line-dark">
             <button
               type="submit"
-              className="flex-1 h-10 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+              className="flex-1 h-10 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
             >
               حفظ بيانات المورد في المحل
             </button>

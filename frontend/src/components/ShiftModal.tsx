@@ -354,7 +354,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-bold text-ink dark:text-ink-dark">
+                <h2 className="t-modal-title text-ink dark:text-ink-dark">
                   إدارة الوردية والخزينة وحركات الدرج
                 </h2>
                 {activeShift ? (
@@ -368,17 +368,17 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   </span>
                 )}
                 {loading && (
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 font-normal animate-pulse">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 font-normal animate-pulse">
                     <Loader2 className="w-3 h-3 animate-spin text-brand" />
                     جاري التحديث...
                   </span>
                 )}
               </div>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
-                {activeShift
-                  ? `الكاشير المسؤول: ${activeShift.cashierName} | تاريخ اليومية: ${activeShift.businessDate}`
-                  : 'لا توجد وردية مفتوحة حالياً على هذا الجهاز. يرجى فتح وردية للبدء في البيع.'}
-              </p>
+              {activeShift && (
+                <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                  {`الكاشير المسؤول: ${activeShift.cashierName} | تاريخ اليومية: ${activeShift.businessDate}`}
+                </p>
+              )}
             </div>
           </div>
 
@@ -451,7 +451,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
-              <ArrowUpRight className="w-3.5 h-3.5 text-danger" />
+              <ArrowUpRight className="w-3.5 h-3.5 text-danger dark:text-danger-bright" />
               <span>سحب نثري (Cash Out)</span>
             </button>
 
@@ -472,7 +472,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all mr-auto ${
                 activeTab === 'close'
                   ? 'bg-danger text-white shadow-xs'
-                  : 'text-danger hover:bg-danger/10 border border-danger/30'
+                  : 'text-danger dark:text-danger-bright hover:bg-danger/10 border border-danger/30'
               }`}
             >
               <Lock className="w-3.5 h-3.5" />
@@ -490,7 +490,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                 <div className="w-16 h-16 rounded-2xl bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/10 dark:border-brand-bright/20 flex items-center justify-center mx-auto mb-3">
                   <Unlock className="w-8 h-8" />
                 </div>
-                <h3 className="text-lg font-bold text-ink dark:text-ink-dark">
+                <h3 className="t-card-title text-ink dark:text-ink-dark">
                   بدء واستلام وردية كاشير جديدة
                 </h3>
                 <p className="text-xs sm:text-sm text-ink-muted dark:text-ink-dark-muted max-w-md mx-auto mt-1">
@@ -553,7 +553,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               {/* Recent closed shifts archive */}
               {recentShifts.length > 0 && (
                 <div className="space-y-3 pt-4 border-t border-line dark:border-line-dark">
-                  <h4 className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider flex items-center gap-1.5">
+                  <h4 className="t-label text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider flex items-center gap-1.5">
                     <History className="w-4 h-4 text-brand dark:text-brand-bright" />
                     <span>آخر الورديات المغلقة السابقة</span>
                   </h4>
@@ -608,23 +608,6 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                         <p className="text-xs text-brand-soft/80 mt-1">
                           محسوب بدقة القروش = العهدة + المبيعات النقدية + الإيداعات - المرتجعات - السحوبات - المصروفات
                         </p>
-                      </div>
-
-                      <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
-                        <button
-                          onClick={() => setActiveTab('cash_in')}
-                          className="px-4 py-2 bg-paid hover:bg-paid-hover text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                        >
-                          <ArrowDownLeft className="w-4 h-4" />
-                          <span>تغذية الدرج</span>
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('cash_out')}
-                          className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border border-white/20 cursor-pointer"
-                        >
-                          <ArrowUpRight className="w-4 h-4" />
-                          <span>سحب نثري</span>
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -728,8 +711,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   <div className="bg-paid-soft dark:bg-paid-dark-soft p-4 rounded-xl border border-paid/20 dark:border-paid-dark-border flex items-center gap-3">
                     <ArrowDownLeft className="w-6 h-6 text-paid dark:text-paid-bright shrink-0" />
                     <div>
-                      <h4 className="text-sm font-bold text-paid dark:text-paid-bright">تغذية نقدية للدرج (Cash In)</h4>
-                      <p className="text-xs text-paid/80 dark:text-paid-bright/80">
+                      <p className="text-xs font-medium text-paid dark:text-paid-bright">
                         تسجيل مبالغ نقدية إضافية تدخل الدرج كفكة صباحية أو عهدة إضافية.
                       </p>
                     </div>
@@ -793,8 +775,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   <div className="bg-danger/10 dark:bg-danger-dark-soft p-4 rounded-xl border border-danger/20 dark:border-danger-bright/20 flex items-center gap-3">
                     <ArrowUpRight className="w-6 h-6 text-danger dark:text-danger-bright shrink-0" />
                     <div>
-                      <h4 className="text-sm font-bold text-danger dark:text-danger-bright">سحب نقدي من الدرج (Cash Out)</h4>
-                      <p className="text-xs text-danger/80 dark:text-danger-bright/80">
+                      <p className="text-xs font-medium text-danger dark:text-danger-bright">
                         تسجيل مبالغ نقدية مسحوبة من الدرج لتوريدها للخزينة الرئيسية أو الإدارة.
                       </p>
                     </div>
@@ -859,13 +840,10 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               {activeTab === 'history' && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                    <h4 className="t-label text-ink dark:text-ink-dark flex items-center gap-1.5">
                       <History className="w-4 h-4 text-brand dark:text-brand-bright" />
                       <span>حركات الإيداع والسحب النثري للوردية الحالية</span>
                     </h4>
-                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
-                      إجمالي الحركات: {drawerTransactions.length}
-                    </span>
                   </div>
 
                   {drawerTransactions.length === 0 ? (
@@ -909,8 +887,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   <div className="bg-danger/10 dark:bg-danger-dark-soft p-4 rounded-xl border border-danger/30 dark:border-danger-bright/30 flex items-center gap-3">
                     <Lock className="w-6 h-6 text-danger dark:text-danger-bright shrink-0" />
                     <div>
-                      <h4 className="text-sm font-bold text-danger dark:text-danger-bright">إغلاق وتشميع الوردية نهائياً</h4>
-                      <p className="text-xs text-danger/80 dark:text-danger-bright/80">
+                      <p className="text-xs font-medium text-danger dark:text-danger-bright">
                         قم بعد النقدية الفعلية الموجودة في الدرج وإدخالها لاحتساب العجز أو الزيادة وتشميع السجل.
                       </p>
                     </div>
@@ -994,14 +971,6 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             <span className="w-2 h-2 rounded-full bg-paid dark:bg-paid-bright" />
             <span>نظام رفيق المحاسبي - حماية الدرج ضد التلاعب المحاسبي 100%</span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="px-4 py-1.5 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark font-bold text-xs shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer"
-          >
-            إغلاق النافذة
-          </button>
         </div>
       </div>
 

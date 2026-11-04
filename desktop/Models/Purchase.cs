@@ -62,6 +62,10 @@ namespace RafiqPOS.Models
         [JsonProperty("createdByUserId")]
         public string CreatedByUserId { get; set; }
 
+        // Client-generated key; a retry with the same key returns the first invoice instead of posting twice
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

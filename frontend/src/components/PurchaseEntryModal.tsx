@@ -150,7 +150,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
               <Truck className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-ink dark:text-ink-dark leading-tight">تسجيل استلام بضاعة / فاتورة شراء</h3>
+              <h3 className="t-modal-title text-ink dark:text-ink-dark leading-tight">تسجيل استلام بضاعة / فاتورة شراء</h3>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">{product.name}</p>
             </div>
           </div>
@@ -207,7 +207,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
               ) : (
                 <div className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded flex items-center justify-between text-xs text-ink dark:text-ink-dark font-bold">
                   <span>{unitName} (الوحدة الأساسية)</span>
-                  <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">معامل: ×1</span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted text-micro">معامل: ×1</span>
                 </div>
               )}
             </div>
@@ -305,7 +305,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
           {/* Supplier & Invoice Reference Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-line dark:border-line-dark">
             <div>
-              <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center gap-1">
+              <label className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5" />
                 <span>اسم المورد / الشركة</span>
               </label>
@@ -318,7 +318,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center gap-1">
+              <label className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center gap-1">
                 <Receipt className="w-3.5 h-3.5" />
                 <span>رقم الفاتورة / إذن الاستلام</span>
               </label>

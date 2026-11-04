@@ -113,7 +113,8 @@ namespace RafiqPOS.Services
             if (DatabaseService.DailyClosing != null)
             {
                 string targetBDate = DatabaseService.DailyClosing.GetCurrentBusinessDate();
-                if (!string.IsNullOrEmpty(sale.CreatedAt))
+                // The sale is stamped with the server clock below; a client-supplied time never selects the business day checked here
+                if (!string.IsNullOrEmpty(sale.CreatedAt) && sale.IsInternalSeed)
                 {
                     DateTime parsedDate;
                     if (DateTime.TryParse(sale.CreatedAt, out parsedDate))
@@ -152,6 +153,11 @@ namespace RafiqPOS.Services
                     {
                         throw new InvalidOperationException("الوردية المحددة للفاتورة مغلقة أو غير صالحة. لا يمكن تسجيل مبيعات على وردية مغلقة.");
                     }
+                    if (!isTestSale && DatabaseService.DailyClosing != null
+                        && !string.Equals(specifiedShift.BusinessDate, DatabaseService.DailyClosing.GetCurrentBusinessDate(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException(string.Format("الوردية المفتوحة تخص يوم العمل {0} وليس يوم العمل الحالي. يرجى إغلاق الوردية السابقة أولاً ثم فتح وردية جديدة قبل البيع.", specifiedShift.BusinessDate));
+                    }
                 }
                 else
                 {
@@ -165,6 +171,11 @@ namespace RafiqPOS.Services
                     }
                     else
                     {
+                        // A shift left open from an earlier business day must be closed before selling again
+                        if (activeShift.IsDanglingFromPreviousDay && !isTestSale)
+                        {
+                            throw new InvalidOperationException(string.Format("الوردية المفتوحة تخص يوم العمل {0} وليس يوم العمل الحالي. يرجى إغلاق الوردية السابقة أولاً ثم فتح وردية جديدة قبل البيع.", activeShift.BusinessDate));
+                        }
                         sale.ShiftId = activeShift.Id;
                     }
                 }
@@ -287,10 +298,8 @@ namespace RafiqPOS.Services
                 {
                     // Cost always comes from the catalogue, never from the client (Audit F-11)
                     item.UnitCostPiasters = product.CostPiasters;
-                    if (!item.TaxRatePercent.HasValue)
-                    {
-                        item.TaxRatePercent = product.TaxRatePercent;
-                    }
+                    // Tax rate always comes from the catalogue; a client rate is never trusted
+                    item.TaxRatePercent = product.TaxRatePercent;
                     if (string.IsNullOrWhiteSpace(item.ProductName))
                     {
                         item.ProductName = product.Name;
@@ -316,7 +325,7 @@ namespace RafiqPOS.Services
                             {
                                 item.ProductId = product.Id;
                                 item.UnitCostPiasters = product.CostPiasters;
-                                if (!item.TaxRatePercent.HasValue) item.TaxRatePercent = product.TaxRatePercent;
+                                item.TaxRatePercent = product.TaxRatePercent;
                                 if (string.IsNullOrWhiteSpace(item.ProductName)) item.ProductName = product.Name;
                             }
                         }
@@ -327,13 +336,15 @@ namespace RafiqPOS.Services
                             {
                                 item.ProductName = quickItem.Name;
                             }
-                            if (!item.TaxRatePercent.HasValue)
-                            {
-                                item.TaxRatePercent = 0;
-                            }
+                            item.TaxRatePercent = 0;
                             // Standalone services have 0 inventory cost, preserving true 100% operating profit
                             item.UnitCostPiasters = 0;
                         }
+                    }
+                    else
+                    {
+                        // Neither a product nor a quick item: no catalogue tax rate exists, so none is accepted
+                        item.TaxRatePercent = 0;
                     }
                 }
 
@@ -752,13 +763,9 @@ namespace RafiqPOS.Services
                 distributedInvoiceDiscount = Money.DistributeInvoiceDiscount(remainingNetPiasters, invoiceDiscount);
             }
 
-            // Finalize item line totals and calculate tax (Audit F-004: Support inclusive and exclusive pricing)
-            bool pricesIncludeTax = true;
-            if (DatabaseService.Settings != null)
-            {
-                string incSetting = DatabaseService.Settings.Get("prices_include_tax", "1");
-                pricesIncludeTax = (incSetting == "1" || string.Equals(incSetting, "true", StringComparison.OrdinalIgnoreCase));
-            }
+            // Finalize item line totals and calculate tax.
+            // Pricing is always tax-inclusive: the POS UI (utils/money.ts) only supports inclusive prices, so the server
+            // must agree with it. The legacy prices_include_tax setting row is kept but no longer honoured here.
 
             for (int i = 0; i < sale.Items.Count; i++)
             {
@@ -768,7 +775,7 @@ namespace RafiqPOS.Services
 
                 if (it.TaxRatePercent.HasValue && it.TaxRatePercent.Value > 0)
                 {
-                    it.TaxPiasters = Money.CalculateTaxPiasters(it.TotalPiasters, it.TaxRatePercent.Value, pricesIncludeTax);
+                    it.TaxPiasters = Money.CalculateTaxPiasters(it.TotalPiasters, it.TaxRatePercent.Value, true);
                     totalTax = totalTax.Add(Money.FromPiasters(it.TaxPiasters));
                 }
                 else
@@ -786,10 +793,27 @@ namespace RafiqPOS.Services
             if (sale.DeliveryFeePiasters < 0) sale.DeliveryFeePiasters = 0;
             if (string.IsNullOrWhiteSpace(sale.OrderType)) sale.OrderType = "takeaway";
 
-            // F-004: When prices include tax, tax is already part of the item price and must not be added again
-            Money grandTotal = pricesIncludeTax
-                ? subtotal.Subtract(totalDiscount)
-                : subtotal.Subtract(totalDiscount).Add(totalTax);
+            // Service charge (dine-in) and delivery fee (delivery) are only honoured for the matching order type
+            // and a user holding the cafe/delivery permission; any other non-zero fee is rejected (not silently dropped,
+            // otherwise the total the cashier already collected would differ from the saved total and become change).
+            if (SecurityService.CurrentUser != null && DatabaseService.Security != null)
+            {
+                string feeOrderType = sale.OrderType.Trim().ToLowerInvariant();
+                string feeUserId = SecurityService.CurrentUser.Id;
+                if (sale.ServiceChargePiasters > 0
+                    && (feeOrderType != "dine_in" || !DatabaseService.Security.HasPermission(feeUserId, "tables.manage_orders")))
+                {
+                    throw new InvalidOperationException("رسوم الخدمة غير مسموح بها لهذه الفاتورة أو لهذا المستخدم. أزل رسوم الخدمة أو اطلب صلاحية إدارة الطلبات ثم أعد المحاولة.");
+                }
+                if (sale.DeliveryFeePiasters > 0
+                    && (feeOrderType != "delivery" || !DatabaseService.Security.HasPermission(feeUserId, "delivery.orders.manage")))
+                {
+                    throw new InvalidOperationException("رسوم التوصيل غير مسموح بها لهذه الفاتورة أو لهذا المستخدم. أزل رسوم التوصيل أو اطلب صلاحية إدارة التوصيل ثم أعد المحاولة.");
+                }
+            }
+
+            // Prices include tax (see above): tax is already part of the item price and must not be added again
+            Money grandTotal = subtotal.Subtract(totalDiscount);
             sale.TotalPiasters = Math.Max(0, grandTotal.Piasters + sale.ServiceChargePiasters + sale.DeliveryFeePiasters);
 
             // Server-side Cashier Discount Limit Enforcement (Scenario 3 / Audit Security Rule 8 & F-10)
@@ -858,11 +882,8 @@ namespace RafiqPOS.Services
 
             // E-payment service fee: collected from the customer on behalf of the payment provider.
             // It is NOT shop revenue (business decision Q2): kept out of TotalPiasters/revenue, and stored separately in ServiceFeePiasters.
-            if (sale.ServiceFeePiasters < 0) sale.ServiceFeePiasters = 0;
-            if (sale.ServiceFeePiasters == 0)
-            {
-                sale.ServiceFeePiasters = CalculateEpayServiceFee(sale.PaymentMethod, sale.TotalPiasters);
-            }
+            // Always server-computed: a client-supplied value is discarded
+            sale.ServiceFeePiasters = CalculateEpayServiceFee(sale.PaymentMethod, sale.TotalPiasters);
             bool isEpayMethod = sale.ServiceFeePiasters > 0;
             if (isEpayMethod)
             {
@@ -1102,6 +1123,33 @@ namespace RafiqPOS.Services
         /// A line price is accepted without the price-override permission when it matches a configured catalogue
         /// price: the product price, the unit price, or a quick-pick price (open-price quick items allow any price).
         /// </summary>
+        // The base product price is only valid for a base-unit line; a packaged unit has its own catalogue price
+        // (its SellPricePiasters, else base price x factor), mirroring the POS unit price logic.
+        private static bool MatchesUnitCataloguePrice(long price, Product product, ProductUnit matchedUnit, int factor)
+        {
+            if (factor <= 1)
+            {
+                if (price == product.PricePiasters) return true;
+                return matchedUnit != null && matchedUnit.SellPricePiasters > 0 && price == matchedUnit.SellPricePiasters;
+            }
+
+            if (matchedUnit != null && matchedUnit.SellPricePiasters > 0)
+            {
+                return price == matchedUnit.SellPricePiasters;
+            }
+
+            if (price == product.PricePiasters * factor) return true;
+            if (product.Units != null)
+            {
+                for (int i = 0; i < product.Units.Count; i++)
+                {
+                    var baseUnit = product.Units[i];
+                    if (baseUnit != null && baseUnit.IsBaseUnit && baseUnit.SellPricePiasters > 0 && price == baseUnit.SellPricePiasters * factor) return true;
+                }
+            }
+            return false;
+        }
+
         private bool IsCataloguePrice(SaleItem item, Product product, ProductUnit matchedUnit)
         {
             long price = item.UnitPricePiasters;
@@ -1109,9 +1157,7 @@ namespace RafiqPOS.Services
 
             // Products without a catalogue price are sold at an entered price by design
             if (product.PricePiasters <= 0) return true;
-            if (price == product.PricePiasters) return true;
-            if (price == product.PricePiasters * factor) return true;
-            if (matchedUnit != null && matchedUnit.SellPricePiasters > 0 && price == matchedUnit.SellPricePiasters) return true;
+            if (MatchesUnitCataloguePrice(price, product, matchedUnit, factor)) return true;
 
             // Story 140 / Feature #197: Item Modifiers price authority validation
             // If item has modifiers, subtract verified modifier extra prices and check against base catalogue price
@@ -1139,11 +1185,7 @@ namespace RafiqPOS.Services
                 }
 
                 long basePriceWithoutModifiers = price - modifiersExtra;
-                if (basePriceWithoutModifiers == product.PricePiasters || basePriceWithoutModifiers == product.PricePiasters * factor)
-                {
-                    return true;
-                }
-                if (matchedUnit != null && matchedUnit.SellPricePiasters > 0 && basePriceWithoutModifiers == matchedUnit.SellPricePiasters)
+                if (MatchesUnitCataloguePrice(basePriceWithoutModifiers, product, matchedUnit, factor))
                 {
                     return true;
                 }
@@ -1264,6 +1306,8 @@ namespace RafiqPOS.Services
 
             Money subtotal = Money.Zero;
             long[] grossPiasters = new long[sale.Items.Count];
+            long[] remainingNetPiasters = new long[sale.Items.Count];
+            long totalRemainingNet = 0;
             long existingItemDiscountsSum = 0;
 
             for (int i = 0; i < sale.Items.Count; i++)
@@ -1272,37 +1316,40 @@ namespace RafiqPOS.Services
                 item.Id = "test_item_" + (i + 1);
                 item.SaleId = sale.Id;
 
-                Money unitPrice = Money.FromPiasters(item.UnitPricePiasters > 0 ? item.UnitPricePiasters : 1000);
-                long qty = item.QuantityMilli > 0 ? item.QuantityMilli : 1000;
-                Money lineGross = unitPrice.MultiplyByMilliUnits(qty);
+                if (item.UnitPricePiasters <= 0) item.UnitPricePiasters = 1000;
+                if (item.QuantityMilli <= 0) item.QuantityMilli = 1000;
+                Money unitPrice = Money.FromPiasters(item.UnitPricePiasters);
+                Money lineGross = unitPrice.MultiplyByMilliUnits(item.QuantityMilli);
                 grossPiasters[i] = lineGross.Piasters;
+
+                // Same convention as ProcessSaleCore: item.DiscountPiasters is the line discount only
+                if (item.DiscountPiasters < 0) item.DiscountPiasters = 0;
+                if (item.DiscountPiasters > grossPiasters[i]) item.DiscountPiasters = grossPiasters[i];
                 existingItemDiscountsSum += item.DiscountPiasters;
+                remainingNetPiasters[i] = grossPiasters[i] - item.DiscountPiasters;
+                totalRemainingNet += remainingNetPiasters[i];
                 subtotal = subtotal.Add(lineGross);
             }
 
-            if (sale.DiscountPiasters > 0 && existingItemDiscountsSum == 0)
+            // sale.DiscountPiasters is the invoice-level discount only; its per-line share goes into the line total, never item.DiscountPiasters
+            long invoiceDiscount = sale.DiscountPiasters;
+            if (invoiceDiscount < 0) invoiceDiscount = 0;
+            if (invoiceDiscount > totalRemainingNet) invoiceDiscount = totalRemainingNet;
+            sale.DiscountPiasters = invoiceDiscount;
+
+            long[] distributedInvoiceDiscount = new long[sale.Items.Count];
+            if (invoiceDiscount > 0 && totalRemainingNet > 0)
             {
-                long[] distributed = Money.DistributeInvoiceDiscount(grossPiasters, sale.DiscountPiasters);
-                for (int i = 0; i < sale.Items.Count; i++)
-                {
-                    sale.Items[i].DiscountPiasters = distributed[i];
-                }
-            }
-            else if (existingItemDiscountsSum > 0 && sale.DiscountPiasters == 0)
-            {
-                sale.DiscountPiasters = existingItemDiscountsSum;
+                distributedInvoiceDiscount = Money.DistributeInvoiceDiscount(remainingNetPiasters, invoiceDiscount);
             }
 
             for (int i = 0; i < sale.Items.Count; i++)
             {
-                var item = sale.Items[i];
-                Money lineDiscount = Money.FromPiasters(item.DiscountPiasters);
-                Money lineTotal = Money.FromPiasters(grossPiasters[i]).Subtract(lineDiscount);
-                item.TotalPiasters = Math.Max(0, lineTotal.Piasters);
+                sale.Items[i].TotalPiasters = Math.Max(0, remainingNetPiasters[i] - distributedInvoiceDiscount[i]);
             }
 
             sale.SubtotalPiasters = subtotal.Piasters;
-            Money totalDiscount = Money.FromPiasters(sale.DiscountPiasters);
+            Money totalDiscount = Money.FromPiasters(existingItemDiscountsSum + sale.DiscountPiasters);
             sale.TotalPiasters = Math.Max(0, subtotal.Subtract(totalDiscount).Piasters);
             sale.PaidPiasters = sale.TotalPiasters;
 

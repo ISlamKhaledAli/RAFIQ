@@ -178,6 +178,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
       setPin('');
     } finally {
       setLoading(false);
+      inputRef.current?.focus();
     }
   };
 
@@ -250,7 +251,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
               <ShieldCheck className="w-5 h-5 text-white dark:text-brand-bright" />
             </div>
             <div>
-              <h3 className="font-bold text-base leading-tight text-white dark:text-ink-dark">
+              <h3 className="t-modal-title leading-tight text-white dark:text-ink-dark">
                 {isRecoveryMode ? 'استرجاع الرقم السري للطوارئ' : 'الرقم السري للمشرف'}
               </h3>
               <p className="text-xs text-white/80 dark:text-ink-dark-muted">
@@ -277,7 +278,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                 <CheckCircle2 className="w-7 h-7" />
               </div>
               <div>
-                <h4 className="font-bold text-lg text-ink dark:text-ink-dark">تم تعيين الرقم السري بنجاح!</h4>
+                <h4 className="t-label text-ink dark:text-ink-dark">تم تعيين الرقم السري بنجاح!</h4>
                 <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">
                   احفظ رمز الاسترجاع الجديد الموضح أدناه في مكان آمن. لن يظهر لك هذا الرمز مرة أخرى.
                 </p>
@@ -342,7 +343,6 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
                   className="w-full px-3 py-2 text-center font-mono font-bold tracking-widest text-sm rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                  placeholder="••••"
                   required
                 />
               </div>
@@ -358,7 +358,6 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                   value={newPinConfirm}
                   onChange={(e) => setNewPinConfirm(e.target.value.replace(/\D/g, ''))}
                   className="w-full px-3 py-2 text-center font-mono font-bold tracking-widest text-sm rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                  placeholder="••••"
                   required
                 />
               </div>
@@ -403,15 +402,16 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                 </div>
               ) : null}
 
-              {/* Masked PIN Display & Hidden Keyboard Input */}
-              <div className="relative flex justify-center items-center gap-2.5 py-2">
+              {/* Masked PIN input (visible, with caret) */}
+              <div className="flex justify-center items-center py-2">
                 <input
                   ref={inputRef}
                   type="password"
                   inputMode="numeric"
                   pattern="[0-9]*"
+                  maxLength={8}
                   value={pin}
-                  disabled={isLocked || loading}
+                  readOnly={isLocked || loading}
                   onChange={(e) => {
                     const clean = e.target.value.replace(/\D/g, '').slice(0, 8);
                     setPin(clean);
@@ -423,31 +423,10 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                       void handleVerify();
                     }
                   }}
-                  className="sr-only"
+                  className="w-full max-w-[240px] px-4 py-2.5 bg-surface dark:bg-surface-dark-2 rounded-2xl border border-line dark:border-line-dark shadow-2xs text-center text-xl font-mono text-ink dark:text-ink-dark caret-brand dark:caret-brand-bright focus:outline-none focus:border-brand dark:focus:border-brand-bright read-only:opacity-60"
                   aria-label="الرقم السري"
                   autoFocus
                 />
-
-                {/* Bullets Display (Dynamic 4 to 8 digits) */}
-                <div 
-                  onClick={() => inputRef.current?.focus()}
-                  className="flex items-center gap-2.5 px-4 py-2.5 bg-surface dark:bg-surface-dark-2 rounded-2xl border border-line dark:border-line-dark cursor-text shadow-2xs min-w-[200px] justify-center"
-                  dir="ltr"
-                >
-                  {Array.from({ length: Math.max(4, pin.length) }).map((_, idx) => {
-                    const filled = idx < pin.length;
-                    return (
-                      <div
-                        key={idx}
-                        className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
-                          filled
-                            ? 'bg-paid dark:bg-paid-bright scale-110 shadow-xs shadow-paid/50'
-                            : 'border-2 border-line dark:border-line-dark bg-transparent'
-                        }`}
-                      />
-                    );
-                  })}
-                </div>
               </div>
 
               {/* On-Screen Numeric Keypad */}
@@ -518,7 +497,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                     setIsRecoveryMode(true);
                     setError(null);
                   }}
-                  className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-colors flex items-center justify-center gap-1 mx-auto"
+                  className="text-micro font-semibold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-colors flex items-center justify-center gap-1 mx-auto"
                 >
                   <LifeBuoy className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                   <span>نسيت الرقم السري؟ استخدام رمز استرجاع الطوارئ</span>

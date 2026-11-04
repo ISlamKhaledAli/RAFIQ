@@ -148,16 +148,16 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
               <Scale className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-[15px] font-bold text-ink dark:text-ink-dark leading-tight">
+              <h2 className="t-modal-title text-ink dark:text-ink-dark leading-tight">
                 {product.name}
               </h2>
-              <div className="flex items-center gap-2 mt-0.5 text-[11.5px] text-ink-muted dark:text-ink-dark-muted">
+              <div className="flex items-center gap-2 mt-0.5 text-micro text-ink-muted dark:text-ink-dark-muted">
                 <span>سعر الكيلو:</span>
                 <span className="font-bold text-brand dark:text-brand-bright font-mono">
                   {formatArabicCurrency(product.pricePiasters)}
                 </span>
                 {product.barcode && (
-                  <span className="font-mono text-[10.5px] text-ink-muted/80 dark:text-ink-dark-muted/80">
+                  <span className="font-mono text-micro text-ink-muted/80 dark:text-ink-dark-muted/80">
                     ({product.barcode})
                   </span>
                 )}
@@ -181,7 +181,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
             <button
               type="button"
               onClick={() => handleSwitchUnitMode('kg')}
-              className={`flex-1 py-1.5 rounded-md text-[12.5px] font-bold transition-all ${
+              className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${
                 unitMode === 'kg'
                   ? 'bg-brand text-white shadow-xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -192,7 +192,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
             <button
               type="button"
               onClick={() => handleSwitchUnitMode('gram')}
-              className={`flex-1 py-1.5 rounded-md text-[12.5px] font-bold transition-all ${
+              className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${
                 unitMode === 'gram'
                   ? 'bg-brand text-white shadow-xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -204,7 +204,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
 
           {/* Primary Weight Input Box */}
           <div className="relative flex flex-col bg-surface-2/70 dark:bg-surface-dark-2/70 p-3 rounded-xl border-2 border-brand/50 dark:border-brand-bright/50 focus-within:border-brand dark:focus-within:border-brand-bright">
-            <div className="flex justify-between items-center text-[11.5px] text-ink-muted dark:text-ink-dark-muted font-semibold mb-1">
+            <div className="flex justify-between items-center text-micro text-ink-muted dark:text-ink-dark-muted font-semibold mb-1">
               <span>{unitMode === 'kg' ? 'الوزن بالكيلو:' : 'الوزن بالجرام:'}</span>
               <span className="font-mono text-ink dark:text-ink-dark">
                 {unitMode === 'kg'
@@ -226,9 +226,9 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
                   }
                 }}
                 placeholder={unitMode === 'kg' ? '0.350' : '350'}
-                className="w-full bg-transparent border-none text-[32px] font-bold font-mono text-ink dark:text-ink-dark text-center tracking-wider focus:outline-none"
+                className="w-full bg-transparent border-none text-4xl font-bold font-mono text-ink dark:text-ink-dark text-center tracking-wider focus:outline-none"
               />
-              <span className="text-[16px] font-bold text-brand dark:text-brand-bright shrink-0">
+              <span className="text-base font-bold text-brand dark:text-brand-bright shrink-0">
                 {unitMode === 'kg' ? 'كجم' : 'جرام'}
               </span>
             </div>
@@ -239,42 +239,42 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
             <button
               type="button"
               onClick={() => setPresetGrams(100)}
-              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-[11.5px] font-bold transition-colors"
+              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-micro font-bold transition-colors"
             >
               100 جم
             </button>
             <button
               type="button"
               onClick={() => setPresetGrams(250)}
-              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-[11.5px] font-bold transition-colors"
+              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-micro font-bold transition-colors"
             >
               250 جم (ربع)
             </button>
             <button
               type="button"
               onClick={() => setPresetGrams(500)}
-              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-[11.5px] font-bold transition-colors"
+              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-micro font-bold transition-colors"
             >
               500 جم (نصف)
             </button>
             <button
               type="button"
               onClick={() => setPresetGrams(750)}
-              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-[11.5px] font-bold transition-colors"
+              className="px-2.5 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-micro font-bold transition-colors"
             >
               750 جم (إلا ربع)
             </button>
             <button
               type="button"
               onClick={() => setPresetGrams(1000)}
-              className="px-3 py-1.5 rounded bg-brand/10 dark:bg-brand-bright/10 hover:bg-brand/20 dark:hover:bg-brand-bright/20 border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-[11.5px] font-bold transition-colors"
+              className="px-3 py-1.5 rounded bg-brand/10 dark:bg-brand-bright/10 hover:bg-brand/20 dark:hover:bg-brand-bright/20 border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-micro font-bold transition-colors"
             >
               1 كجم
             </button>
             <button
               type="button"
               onClick={() => setPresetGrams(2000)}
-              className="px-3 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-[11.5px] font-bold transition-colors"
+              className="px-3 py-1.5 rounded bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-micro font-bold transition-colors"
             >
               2 كجم
             </button>
@@ -287,7 +287,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
                 key={key}
                 type="button"
                 onClick={() => handleKeypadPress(key)}
-                className="h-[42px] bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 active:bg-brand/10 dark:active:bg-brand-bright/10 border border-line dark:border-line-dark rounded-lg text-[16px] font-bold font-mono text-ink dark:text-ink-dark flex items-center justify-center transition-colors shadow-2xs"
+                className="h-[42px] bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 active:bg-brand/10 dark:active:bg-brand-bright/10 border border-line dark:border-line-dark rounded-lg text-base font-bold font-mono text-ink dark:text-ink-dark flex items-center justify-center transition-colors shadow-2xs"
               >
                 {key === 'BACK' ? <Delete className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted" /> : key}
               </button>
@@ -297,14 +297,14 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
           {/* Live Calculated Price Summary */}
           <div className="p-3 bg-brand/5 dark:bg-surface-dark-3 border border-brand/20 dark:border-line-dark rounded-xl flex items-center justify-between">
             <div>
-              <span className="block text-[11.5px] text-ink-muted dark:text-ink-dark-muted font-semibold">
+              <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-semibold">
                 السعر الإجمالي المطلوب:
               </span>
-              <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-mono">
+              <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">
                 {unitMode === 'kg' ? `${parsedNum || 0} كجم` : `${parsedNum || 0} جم`} × {formatArabicCurrency(product.pricePiasters)}
               </span>
             </div>
-            <div className="text-left font-mono font-bold text-[22px] text-brand dark:text-brand-bright tabular-nums">
+            <div className="text-left font-mono t-kpi-lg text-brand dark:text-brand-bright">
               {formatArabicCurrency(totalPiasters)}
             </div>
           </div>
@@ -315,7 +315,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
           <button
             type="button"
             onClick={() => handleKeypadPress('C')}
-            className="px-3 py-2 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-[12px] font-bold flex items-center gap-1.5 transition-colors"
+            className="px-3 py-2 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>مسح (C)</span>
@@ -325,7 +325,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
             <button
               type="button"
               onClick={requestClose}
-              className="px-4 py-2 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-[12.5px] font-semibold transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-semibold transition-colors cursor-pointer"
             >
               إلغاء (Esc)
             </button>
@@ -333,7 +333,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
               type="button"
               onClick={handleConfirm}
               disabled={weightMilli <= 0}
-              className="px-5 py-2 rounded-lg bg-brand hover:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white text-[12.5px] font-bold flex items-center gap-1.5 shadow-xs transition-colors"
+              className="px-5 py-2 rounded-lg bg-brand hover:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
             >
               <Check className="w-4 h-4" />
               <span>تأكيد الوزن (Enter)</span>

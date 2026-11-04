@@ -272,7 +272,7 @@ namespace RafiqPOS.Common
         }
 
         /// <summary>
-        /// فحص هل الباركود باركود داخلي ينتمي لنظام رفيق
+        /// فحص هل الباركود باركود داخلي ينتمي لنظام رفيق POS
         /// </summary>
         public static bool IsInternalBarcode(string barcode)
         {

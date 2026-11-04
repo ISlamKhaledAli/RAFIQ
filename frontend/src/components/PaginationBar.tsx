@@ -58,7 +58,7 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
         {/* Page Size Selector */}
         {showPageSizeSelector && onPageSizeChange && pageSizeOptions.length > 0 && (
           <div className="flex items-center gap-1.5 ml-3 pl-3 border-l border-line dark:border-line-dark">
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">عرض:</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">عرض:</span>
             {pageSizeOptions.map((size) => (
               <button
                 key={size}
@@ -66,7 +66,7 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
                 onClick={() => {
                   onPageSizeChange(size);
                 }}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-micro font-bold transition-all cursor-pointer ${
                   pageSize === size
                     ? 'bg-brand dark:bg-brand text-white shadow-xs'
                     : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:text-brand dark:hover:text-brand-bright'

@@ -91,7 +91,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
         <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
           <div className="flex items-center gap-2">
             <Tag className="w-5 h-5 text-brand dark:text-brand-bright" />
-            <h3 className="text-base font-bold text-ink dark:text-ink-dark m-0">إضافة خصم على الفاتورة</h3>
+            <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">إضافة خصم على الفاتورة</h3>
           </div>
           <button 
             type="button"
@@ -119,7 +119,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
               }`}
             >
               <Banknote className="w-3.5 h-3.5" />
-              مبلغ نقدي (ج.م)
+              مبلغ نقدي
             </button>
             <button
               type="button"
@@ -134,12 +134,12 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
               }`}
             >
               <Percent className="w-3.5 h-3.5" />
-              نسبة مئوية (%)
+              نسبة مئوية
             </button>
           </div>
 
           <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">
-            {invoiceDiscountType === 'amount' ? 'أدخل قيمة الخصم المالي بالجنيه (ج.م):' : 'أدخل نسبة الخصم المئوية (%):'}
+            {invoiceDiscountType === 'amount' ? 'أدخل قيمة الخصم بالجنيه:' : 'أدخل نسبة الخصم:'}
           </label>
           <div className="relative mb-3">
             <input
@@ -157,13 +157,13 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
               className="w-full text-center text-3xl font-mono font-bold text-brand dark:text-brand-bright bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand/50 dark:border-brand-bright/50 focus:border-brand dark:focus:border-brand-bright rounded-lg p-3 text-ink dark:text-ink-dark focus:outline-none shadow-inner"
             />
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-sans">
-              {invoiceDiscountType === 'amount' ? 'جنيه مصري' : '%'}
+              {invoiceDiscountType === 'amount' ? 'ج.م' : '%'}
             </span>
           </div>
 
           {/* Quick Preset Buttons */}
           <div className="mb-4">
-            <span className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">اختصارات سريعة للخصم:</span>
+            <span className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">اختصارات سريعة للخصم:</span>
             <div className="grid grid-cols-4 gap-1.5">
               {invoiceDiscountType === 'amount' ? (
                 <>
@@ -195,9 +195,9 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
               <button
                 type="button"
                 onClick={() => setDiscountInputEgp('0')}
-                className="col-span-4 h-8 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-danger hover:text-danger hover:bg-danger-soft dark:hover:bg-danger/20 text-ink dark:text-ink-dark text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                className="col-span-4 h-8 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-danger hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger/20 text-ink dark:text-ink-dark text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
               >
-                إلغاء الخصم (0)
+                إلغاء الخصم
               </button>
             </div>
           </div>

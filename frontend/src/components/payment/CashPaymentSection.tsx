@@ -8,6 +8,7 @@ interface CashPaymentSectionProps {
   onReceivedChange: (raw: string) => void;
   receivedInputRef: React.RefObject<HTMLInputElement | null>;
   netTotalPiasters: number;
+  quickPresetsPiasters: number[];
   onSetPreset: (piasters: number) => void;
   isShortPayment: boolean;
   selectedCustomer: Customer | undefined;
@@ -25,6 +26,7 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
   onReceivedChange,
   receivedInputRef,
   netTotalPiasters,
+  quickPresetsPiasters,
   onSetPreset,
   isShortPayment,
   selectedCustomer,
@@ -45,7 +47,7 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
       <div className="flex flex-col gap-2">
         <label className="text-xs font-bold text-ink dark:text-ink-dark flex items-center justify-between whitespace-nowrap">
           <span>المبلغ المستلم من العميل (المدفوع نقداً):</span>
-          <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-normal whitespace-nowrap">اكتب المبلغ أو اضغط على الأزرار السريعة</span>
+          <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal whitespace-nowrap">اضغط على المبالغ الجاهزة أو اكتب المبلغ</span>
         </label>
 
         <div className="relative">
@@ -55,39 +57,49 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
             value={receivedInput}
             onChange={(e) => onReceivedChange(e.target.value)}
             className="w-full h-[52px] px-4 text-2xl font-mono font-black text-brand dark:text-brand-bright bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand/50 dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-lg text-right pl-16 focus:outline-none"
-            placeholder=""
+            placeholder="0.00"
           />
           <div className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm text-ink-muted dark:text-ink-dark-muted">
             ج.م
           </div>
         </div>
 
-        {/* Quick Action Buttons: Exact Cash + Full Credit */}
-        <div className="flex items-center gap-3 mt-2 flex-wrap">
+        {/* Quick Presets Buttons + Quick Full Credit Button */}
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
           <button
             type="button"
             onClick={() => onSetPreset(netTotalPiasters)}
-            className="h-11 px-5 rounded-xl text-sm font-bold bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright hover:bg-brand hover:text-white border border-brand/30 dark:border-line-dark transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 shadow-2xs active:scale-95"
+            className="py-1.5 px-3 rounded text-xs font-bold bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright hover:bg-brand hover:text-white dark:hover:text-white border border-brand/30 dark:border-line-dark transition-colors cursor-pointer whitespace-nowrap active:scale-95"
             title="استلام إجمالي الفاتورة بالضبط نقداً"
           >
-            <Check className="w-4 h-4 shrink-0" />
-            <span>المبلغ بالظبط</span>
+            المبلغ بالظبط
           </button>
 
           {/* Quick Credit Button (Egyptian Retail Wording) */}
           <button
             type="button"
             onClick={onQuickFullCredit}
-            className={`h-11 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 active:scale-95 shadow-2xs ${
+            className={`py-1.5 px-3 rounded text-xs font-bold border transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 active:scale-95 ${
               isCreditActive
-                ? 'bg-warn text-white border-warn shadow-xs'
+                ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border-warn shadow-xs'
                 : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 hover:bg-warn hover:text-white dark:hover:bg-warn dark:hover:text-white'
             }`}
             title="تسجيل الفاتورة على حساب العميل بالكامل (0 كاش مستلم)"
           >
-            <UserCheck className="w-4 h-4 shrink-0" />
+            <UserCheck className="w-3.5 h-3.5 shrink-0" />
             <span>على الحساب بالكامل (بدون كاش)</span>
           </button>
+
+          {quickPresetsPiasters.filter(p => p !== netTotalPiasters).map((amt) => (
+            <button
+              key={amt}
+              type="button"
+              onClick={() => onSetPreset(amt)}
+              className="py-1.5 px-3 rounded text-xs font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark hover:border-brand/50 dark:hover:border-brand-bright/50 transition-colors cursor-pointer whitespace-nowrap active:scale-95"
+            >
+              {(amt / 100).toFixed(2)} ج.م
+            </button>
+          ))}
         </div>
       </div>
 
@@ -101,10 +113,10 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
                 <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
                 <span>خصم من الفلوس اللي سايبها العميل تحت حسابه:</span>
               </span>
-              <span className="text-2xl font-mono font-black mt-1 tabular-nums text-paid dark:text-paid-bright whitespace-nowrap">
+              <span className="t-kpi-lg font-mono mt-1 text-paid dark:text-paid-bright whitespace-nowrap">
                 {formatArabicCurrency(netTotalPiasters)}
               </span>
-              <span className="text-[11px] font-semibold text-paid dark:text-paid-bright mt-0.5 whitespace-nowrap">
+              <span className="text-micro font-semibold text-paid dark:text-paid-bright mt-0.5 whitespace-nowrap">
                 العميل: {selectedCustomer.name} (الفلوس اللي سايبها: {formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))})
               </span>
             </div>
@@ -121,24 +133,24 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
           </div>
         ) : (
           /* Normal full credit debt */
-          <div className="p-4 rounded-xl border border-[#f5deb4] dark:border-warn/30 bg-[#fef7ec] dark:bg-surface-dark-2 text-[#b3720e] dark:text-warn flex flex-col gap-3 transition-all shadow-2xs">
+          <div className="p-4 rounded-xl border border-[#f5deb4] dark:border-warn/30 bg-[#fef7ec] dark:bg-surface-dark-2 text-[#b3720e] dark:text-warn-bright flex flex-col gap-3 transition-all shadow-2xs">
 
             {/* 3-Step Clear Debt Calculation Breakdown */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/90 dark:bg-surface-dark border border-[#f5deb4] dark:border-line-dark text-center font-mono">
               <div className="flex flex-col items-center justify-center p-2 bg-[#fef7ec] dark:bg-surface-dark-3 rounded-lg border border-[#f5deb4]/60 dark:border-line-dark">
-                <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">كان عليه قديم:</span>
+                <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">كان عليه قديم:</span>
                 <span className="text-base font-black text-danger">
                   {formatArabicCurrency(selectedCustomer.balancePiasters)}
                 </span>
               </div>
               <div className="flex flex-col items-center justify-center p-2 bg-[#fef7ec] dark:bg-surface-dark-3 rounded-lg border border-[#f5deb4]/60 dark:border-line-dark">
-                <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">أُضيف عليه (الفاتورة الحالية):</span>
+                <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">أُضيف عليه (الفاتورة الحالية):</span>
                 <span className="text-base font-black text-[#b3720e] dark:text-warn-bright">
                   +{formatArabicCurrency(netTotalPiasters)}
                 </span>
               </div>
               <div className="flex flex-col items-center justify-center p-2 bg-danger-soft/40 dark:bg-danger-dark-soft rounded-lg border border-danger/40 dark:border-danger-bright/30">
-                <span className="text-[11px] font-sans font-bold text-danger dark:text-danger-bright mb-0.5">إجمالي اللي عليه بعد الفاتورة:</span>
+                <span className="text-micro font-sans font-bold text-danger dark:text-danger-bright mb-0.5">إجمالي اللي عليه بعد الفاتورة:</span>
                 <span className="text-lg font-black text-danger dark:text-danger-bright">
                   {formatArabicCurrency(selectedCustomer.balancePiasters + netTotalPiasters)}
                 </span>
@@ -165,8 +177,8 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
                   </span>
                 </div>
                 <div className="text-left font-mono">
-                  <span className="text-[11px] font-sans text-[#8A5200] dark:text-ink-dark-muted block">المتبقي على النوتة:</span>
-                  <span className="text-xl font-black text-[#8A5200] dark:text-warn-bright tabular-nums">
+                  <span className="text-micro font-sans text-[#8A5200] dark:text-ink-dark-muted block">المتبقي على النوتة:</span>
+                  <span className="t-kpi text-[#8A5200] dark:text-warn-bright">
                     +{formatArabicCurrency(shortAmountPiasters)}
                   </span>
                 </div>
@@ -175,19 +187,19 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
               {/* 3-Step Clear Debt Calculation Breakdown */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/90 dark:bg-surface-dark border border-[#F5DEB4] dark:border-line-dark text-center font-mono">
                 <div className="flex flex-col items-center justify-center p-2 bg-[#FEF7EC] dark:bg-surface-dark-3 rounded-lg border border-[#F5DEB4]/60 dark:border-line-dark">
-                  <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">كان عليه قديم:</span>
+                  <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">كان عليه قديم:</span>
                   <span className="text-base font-black text-danger">
                     {formatArabicCurrency(selectedCustomer.balancePiasters)}
                   </span>
                 </div>
                 <div className="flex flex-col items-center justify-center p-2 bg-[#FEF7EC] dark:bg-surface-dark-3 rounded-lg border border-[#F5DEB4]/60 dark:border-line-dark">
-                  <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">أُضيف عليه (باقي الفاتورة):</span>
+                  <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">أُضيف عليه (باقي الفاتورة):</span>
                   <span className="text-base font-black text-[#B3720E] dark:text-warn-bright">
                     +{formatArabicCurrency(shortAmountPiasters)}
                   </span>
                 </div>
                 <div className="flex flex-col items-center justify-center p-2 bg-danger-soft/40 dark:bg-danger-dark-soft rounded-lg border border-danger/40 dark:border-danger-bright/30">
-                  <span className="text-[11px] font-sans font-bold text-danger dark:text-danger-bright mb-0.5">إجمالي اللي عليه الآن:</span>
+                  <span className="text-micro font-sans font-bold text-danger dark:text-danger-bright mb-0.5">إجمالي اللي عليه الآن:</span>
                   <span className="text-lg font-black text-danger dark:text-danger-bright">
                     {formatArabicCurrency(selectedCustomer.balancePiasters + shortAmountPiasters)}
                   </span>
@@ -203,15 +215,15 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
             <>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-[#B23A2E] dark:text-danger whitespace-nowrap">
+                  <span className="text-xs font-bold text-[#B23A2E] dark:text-danger-bright whitespace-nowrap">
                     المبلغ ناقص (دفع جزء):
                   </span>
-                  <span className="text-2xl font-mono font-black mt-1 tabular-nums text-[#B23A2E] dark:text-danger whitespace-nowrap">
+                  <span className="t-kpi-lg font-mono mt-1 text-[#B23A2E] dark:text-danger-bright whitespace-nowrap">
                     -{formatArabicCurrency(shortAmountPiasters)}
                   </span>
                 </div>
                 <div className="text-left text-xs font-bold text-[#8A241A] dark:text-danger-light max-w-[260px] flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-[#B23A2E] dark:text-danger shrink-0" />
+                  <AlertTriangle className="w-4 h-4 text-[#B23A2E] dark:text-danger-bright shrink-0" />
                   <span>مينفعش يدفع جزء من الفاتورة إلا لما تختار اسم العميل عشان نسجل الباقي عليه.</span>
                 </div>
               </div>
@@ -269,18 +281,18 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
                         سيب باقي الفلوس ({formatArabicCurrency(changeDuePiasters)}) في حساب العميل
                       </span>
                       {saveChangeToCustomerAccount ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-paid text-white shadow-2xs">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold bg-paid text-white shadow-2xs">
                           <Check className="w-3 h-3" />
                           مفعّل (خصم من حسابه)
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
                           <X className="w-3 h-3" />
                           غير مفعّل (تسليم كاش باليد)
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">
                       {saveChangeToCustomerAccount
                         ? 'سيتم خصم الباقي من دينه القديم، أو إيداعه كرصيد محفوظ له في المحل.'
                         : 'سيتم تسليم الباقي نقداً باليد للزبون، ويبقى حسابه القديم في النوتة دون تغيير.'}
@@ -310,23 +322,23 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
                       const remainingDebt = oldDebt - changeDuePiasters;
                       return (
                         <div className="flex flex-col gap-1.5">
-                          <div className="text-[11px] font-bold text-paid dark:text-brand-bright flex items-center gap-1">
+                          <div className="text-micro font-bold text-paid dark:text-brand-bright flex items-center gap-1">
                             <Sparkles className="w-3.5 h-3.5 text-paid dark:text-brand-bright shrink-0" />
                             <span>تسوية الباقي وخصمه من حساب الزبون «{selectedCustomer.name}»:</span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center font-mono">
                             <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex flex-col">
-                              <span className="text-[10px] font-sans text-ink-muted dark:text-ink-dark-muted">كان عليه قديم:</span>
-                              <span className="text-sm font-black text-danger">{formatArabicCurrency(oldDebt)}</span>
+                              <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted">كان عليه قديم:</span>
+                              <span className="text-sm font-black text-danger dark:text-danger-bright">{formatArabicCurrency(oldDebt)}</span>
                             </div>
                             <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex flex-col">
-                              <span className="text-[10px] font-sans text-ink-muted dark:text-ink-dark-muted">اتخصم من دينه (الباقي المساب):</span>
+                              <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted">اتخصم من دينه (الباقي المساب):</span>
                               <span className="text-sm font-black text-paid dark:text-brand-bright">-{formatArabicCurrency(changeDuePiasters)}</span>
                             </div>
                             <div className={`p-2 rounded-lg border flex flex-col ${
                               remainingDebt > 0 ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30' : 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid/30'
                             }`}>
-                              <span className="text-[10px] font-sans font-bold text-ink dark:text-ink-dark">
+                              <span className="text-micro font-sans font-bold text-ink dark:text-ink-dark">
                                 {remainingDebt > 0 ? 'بقى عليه الآن في النوتة:' : 'سدد دينه بالكامل وبقى له رصيد:'}
                               </span>
                               <span className={`text-base font-black ${remainingDebt > 0 ? 'text-warn dark:text-warn-bright' : 'text-paid dark:text-paid-bright'}`}>
@@ -343,21 +355,21 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
                       const totalCredit = oldCredit + changeDuePiasters;
                       return (
                         <div className="flex flex-col gap-1.5">
-                          <div className="text-[11px] font-bold text-paid dark:text-brand-bright flex items-center gap-1">
+                          <div className="text-micro font-bold text-paid dark:text-brand-bright flex items-center gap-1">
                             <Sparkles className="w-3.5 h-3.5 text-paid dark:text-brand-bright shrink-0" />
                             <span>رصيد الزبون «{selectedCustomer.name}» المحفوظ في المحل:</span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center font-mono">
                             <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex flex-col">
-                              <span className="text-[10px] font-sans text-ink-muted dark:text-ink-dark-muted">رصيده السابق:</span>
+                              <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted">رصيده السابق:</span>
                               <span className="text-sm font-black text-paid dark:text-brand-bright">{formatArabicCurrency(oldCredit)}</span>
                             </div>
                             <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex flex-col">
-                              <span className="text-[10px] font-sans text-ink-muted dark:text-ink-dark-muted">أُضيف لرصيده (الباقي):</span>
+                              <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted">أُضيف لرصيده (الباقي):</span>
                               <span className="text-sm font-black text-paid dark:text-brand-bright">+{formatArabicCurrency(changeDuePiasters)}</span>
                             </div>
                             <div className="p-2 rounded-lg bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 flex flex-col">
-                              <span className="text-[10px] font-sans font-bold text-paid dark:text-brand-bright">إجمالي رصيده الجديد:</span>
+                              <span className="text-micro font-sans font-bold text-paid dark:text-brand-bright">إجمالي رصيده الجديد:</span>
                               <span className="text-base font-black text-paid dark:text-paid-bright">{formatArabicCurrency(totalCredit)}</span>
                             </div>
                           </div>

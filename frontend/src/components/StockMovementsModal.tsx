@@ -141,12 +141,12 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-[14px] font-bold text-ink leading-tight">كارت حركة المخزون</h3>
-                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-brand text-white">
+                <h3 className="t-modal-title text-ink leading-tight">كارت حركة المخزون</h3>
+                <span className="px-2 py-0.5 rounded text-micro font-mono font-bold bg-brand text-white">
                   الرصيد الحالي: {currentStockDisplay}
                 </span>
               </div>
-              <p className="text-[11px] text-ink-muted leading-tight mt-0.5">{productName}</p>
+              <p className="text-micro text-ink-muted leading-tight mt-0.5">{productName}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -157,7 +157,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                   onClose();
                   onOpenAdjustment();
                 }}
-                className="h-7 px-2.5 rounded bg-brand text-white text-[11px] font-bold flex items-center gap-1 hover:bg-brand-hover transition-colors"
+                className="h-7 px-2.5 rounded bg-brand text-white text-micro font-bold flex items-center gap-1 hover:bg-brand-hover transition-colors"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>تسوية جردية</span>
@@ -175,7 +175,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
 
         {/* Filter Toolbar */}
         <div className="px-5 py-2.5 bg-surface border-b border-line flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 overflow-x-auto text-[11px]">
+          <div className="flex items-center gap-1.5 overflow-x-auto text-micro">
             {[
               { id: 'ALL', label: 'كل الحركات' },
               { id: 'INITIAL', label: 'رصيد افتتاحي' },
@@ -199,7 +199,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
             ))}
           </div>
 
-          <div className="text-[11px] text-ink-muted font-mono shrink-0">
+          <div className="text-micro text-ink-muted font-mono shrink-0">
             {movements.length} حركة مسجلة
           </div>
         </div>
@@ -207,7 +207,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
         {/* Content */}
         <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-3">
           {error && (
-            <div className="p-3 bg-danger-soft border border-danger/30 rounded text-danger text-[12px] flex items-center gap-2">
+            <div className="p-3 bg-danger-soft border border-danger/30 rounded text-danger text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -216,21 +216,21 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted">
               <RefreshCw className="w-6 h-6 animate-spin text-brand" />
-              <span className="text-[12px]">جاري تحميل سجل حركات المخزون...</span>
+              <span className="text-xs">جاري تحميل سجل حركات المخزون...</span>
             </div>
           ) : movements.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted">
               <Boxes className="w-8 h-8 opacity-40 text-brand" />
-              <p className="text-[13px] font-semibold text-ink m-0">لا توجد حركات مخزون مسجلة لهذا الصنف</p>
-              <p className="text-[11px] text-ink-muted m-0">
+              <p className="text-sm font-semibold text-ink m-0">لا توجد حركات مخزون مسجلة لهذا الصنف</p>
+              <p className="text-micro text-ink-muted m-0">
                 تسجل الحركات تلقائياً عند عمليات البيع، الشراء، أو التسويات الجردية.
               </p>
             </div>
           ) : (
             <div className="border border-line rounded overflow-hidden">
-              <table className="w-full text-right border-collapse text-[12px]">
+              <table className="w-full text-right border-collapse text-xs">
                 <thead>
-                  <tr className="bg-surface-2/80 border-b border-line text-ink-muted font-semibold text-[11px]">
+                  <tr className="bg-surface-2/80 border-b border-line text-ink-muted font-semibold text-micro">
                     <th className="py-2.5 px-3">التاريخ والوقت</th>
                     <th className="py-2.5 px-3">نوع الحركة</th>
                     <th className="py-2.5 px-3">الكمية</th>
@@ -243,7 +243,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                     const isPositive = m.quantityMilli >= 0;
                     return (
                       <tr key={m.id} className="hover:bg-surface-2/50 transition-colors">
-                        <td className="py-2.5 px-3 font-mono text-[11px] text-ink whitespace-nowrap">
+                        <td className="py-2.5 px-3 font-mono text-micro text-ink whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
                             <Calendar className="w-3 h-3 text-ink-muted" />
                             <span>{formatDate(m.createdAt)}</span>
@@ -251,7 +251,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                         </td>
 
                         <td className="py-2.5 px-3 whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border inline-block ${getBadgeStyle(m.movementType)}`}>
+                          <span className={`px-2 py-0.5 rounded text-micro font-bold border inline-block ${getBadgeStyle(m.movementType)}`}>
                             {m.movementTypeArabic || m.movementType}
                           </span>
                         </td>
@@ -271,7 +271,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                           {formatArabicCurrency(m.unitCostPiasters)}
                         </td>
 
-                        <td className="py-2.5 px-3 text-ink-muted text-[11px] max-w-sm truncate" title={m.note || ''}>
+                        <td className="py-2.5 px-3 text-ink-muted text-micro max-w-sm truncate" title={m.note || ''}>
                           {m.note ? (
                             <span>{m.note}</span>
                           ) : (
@@ -289,17 +289,10 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-line bg-surface-2/40 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-1.5 text-[11px] text-ink-muted">
+          <div className="flex items-center gap-1.5 text-micro text-ink-muted">
             <FileText className="w-3.5 h-3.5" />
             <span>جميع الحركات مسجلة بقيود ذرية غير قابلة للحذف المادي (قاعدة أمان البيانات #2)</span>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-8 px-4 rounded bg-surface border border-line text-ink hover:bg-surface-2 text-[12px] font-semibold transition-colors"
-          >
-            إغلاق
-          </button>
         </div>
       </div>
     </div>

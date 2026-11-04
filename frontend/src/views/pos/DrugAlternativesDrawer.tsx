@@ -207,17 +207,14 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm md:text-base font-bold text-ink dark:text-ink-dark leading-none">
+                <h3 className="t-modal-title text-ink dark:text-ink-dark leading-none">
                   محرك البدائل والمثائل الدوائية
                 </h3>
-                <span className="text-[11px] px-2 py-0.5 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-mono font-bold border border-brand/20 dark:border-brand-bright/20">
+                <span className="text-micro px-2 py-0.5 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-mono font-bold border border-brand/20 dark:border-brand-bright/20">
                   F8
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-mono font-bold border border-paid/20 dark:border-paid-dark-border">
-                  Pharma Matrix
-                </span>
               </div>
-              <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 truncate">
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 truncate">
                 البحث الذكي عن المثائل والبدائل العلاجية المتوفرة وفروق الأسعار
               </p>
             </div>
@@ -239,7 +236,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
         <div className="p-3.5 mx-4 mt-3 rounded-xl bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2.5 shrink-0 shadow-2xs">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="px-2 py-0.5 rounded bg-brand/10 dark:bg-brand-bright/20 text-brand dark:text-brand-bright text-[11px] font-bold shrink-0 border border-brand/20 dark:border-brand-bright/30">
+              <span className="px-2 py-0.5 rounded bg-brand/10 dark:bg-brand-bright/20 text-brand dark:text-brand-bright text-micro font-bold shrink-0 border border-brand/20 dark:border-brand-bright/30">
                 الصنف المطلوب
               </span>
               <span className="text-sm font-bold text-ink dark:text-ink-dark truncate" title={currentProductName}>
@@ -249,13 +246,13 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
 
             {/* Out-of-stock status & Shortage Action Toolbar */}
             <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-              <span className="px-2 py-0.5 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright text-[11px] font-bold border border-danger-border dark:border-danger/30 flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright text-micro font-bold border border-danger-border dark:border-danger/30 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
-                <span>رصيد 0 (نافد تماماً)</span>
+                <span>نافد تماماً</span>
               </span>
 
               {isRecordedInShortages ? (
-                <span className="px-2.5 py-1 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-[11px] font-bold border border-paid-border dark:border-paid/30 flex items-center gap-1 shadow-2xs">
+                <span className="px-2.5 py-1 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold border border-paid-border dark:border-paid/30 flex items-center gap-1 shadow-2xs">
                   <Check className="w-3.5 h-3.5" />
                   <span>مُسجل في النواقص</span>
                 </span>
@@ -264,7 +261,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
                   type="button"
                   onClick={handleQuickRecordShortage}
                   disabled={shortageSaving}
-                  className="px-2.5 py-1 rounded-lg bg-warn-soft dark:bg-warn-dark-soft hover:bg-warn-border text-warn dark:text-warn-bright text-[11px] font-bold border border-warn-border dark:border-warn-bright/30 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs disabled:opacity-50"
+                  className="px-2.5 py-1 rounded-lg bg-warn-soft dark:bg-warn-dark-soft hover:bg-warn-border text-warn dark:text-warn-bright text-micro font-bold border border-warn-border dark:border-warn-bright/30 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs disabled:opacity-50"
                   title="تسجيل هذا الدواء في كشكول النواقص بنقرة واحدة لطلبه من الموزعين"
                 >
                   <ClipboardList className="w-3.5 h-3.5" />
@@ -276,7 +273,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenShortageModal(productId, currentProductName)}
-                  className="px-2 py-1 rounded-lg bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-[11px] font-medium border border-line dark:border-line-dark flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  className="px-2 py-1 rounded-lg bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-micro font-medium border border-line dark:border-line-dark flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                   title="حجز الصنف باسم ورقم هاتف المريض مع تحديد كمية مخصصة"
                 >
                   <UserPlus className="w-3 h-3" />
@@ -297,7 +294,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
             {data?.originalScientificName ? (
               <div className="flex items-center gap-1.5 min-w-0">
                 <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
-                <span className="font-bold text-ink-muted dark:text-ink-dark-muted text-[11px] shrink-0">المادة الفعالة:</span>
+                <span className="font-bold text-ink-muted dark:text-ink-dark-muted text-micro shrink-0">المادة الفعالة:</span>
                 <span className="font-mono font-bold text-ink dark:text-ink-dark text-xs truncate dir-ltr text-right">
                   {data.originalScientificName}
                 </span>
@@ -306,7 +303,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
 
             {data?.originalPricePiasters ? (
               <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark shrink-0 shadow-2xs">
-                <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">سعر الصنف الأصلي:</span>
+                <span className="text-micro text-ink-muted dark:text-ink-dark-muted">سعر الصنف الأصلي:</span>
                 <span className="font-mono text-xs font-extrabold text-brand dark:text-brand-bright">
                   {formatArabicCurrency(data.originalPricePiasters)}
                 </span>
@@ -327,14 +324,14 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
             }`}
           >
             <div className="flex items-center gap-1">
-              <span className="text-[11px]">مثائل مطابقة</span>
-              <span className={`text-[10px] px-1 rounded-full font-mono font-bold ${
+              <span className="text-micro">مثائل مطابقة</span>
+              <span className={`text-micro px-1 rounded-full font-mono font-bold ${
                 activeTier === 1 ? 'bg-white/25 text-white' : 'bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'
               }`}>
                 {tier1Count}
               </span>
             </div>
-            <span className="text-[9px] opacity-85 leading-tight">نفس المادة والتركيز والشكل</span>
+            <span className="text-micro opacity-85 leading-tight">نفس المادة والتركيز والشكل</span>
           </button>
 
           <button
@@ -347,14 +344,14 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
             }`}
           >
             <div className="flex items-center gap-1">
-              <span className="text-[11px]">أشكال أخرى</span>
-              <span className={`text-[10px] px-1 rounded-full font-mono font-bold ${
+              <span className="text-micro">أشكال أخرى</span>
+              <span className={`text-micro px-1 rounded-full font-mono font-bold ${
                 activeTier === 2 ? 'bg-white/25 text-white' : 'bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'
               }`}>
                 {tier2Count}
               </span>
             </div>
-            <span className="text-[9px] opacity-85 leading-tight">نفس المادة لكن شكل مختلف</span>
+            <span className="text-micro opacity-85 leading-tight">نفس المادة لكن شكل مختلف</span>
           </button>
 
           <button
@@ -362,19 +359,19 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
             onClick={() => setActiveTier(3)}
             className={`py-2 px-1 rounded-lg text-center flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
               activeTier === 3
-                ? 'bg-warn text-white shadow-2xs font-bold'
+                ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-2xs font-bold'
                 : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface dark:hover:bg-surface-dark hover:text-ink dark:hover:text-ink-dark'
             }`}
           >
             <div className="flex items-center gap-1">
-              <span className="text-[11px]">تركيزات أخرى</span>
-              <span className={`text-[10px] px-1 rounded-full font-mono font-bold ${
+              <span className="text-micro">تركيزات أخرى</span>
+              <span className={`text-micro px-1 rounded-full font-mono font-bold ${
                 activeTier === 3 ? 'bg-white/25 text-white' : 'bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'
               }`}>
                 {tier3Count}
               </span>
             </div>
-            <span className="text-[9px] opacity-85 leading-tight">نفس المادة بجرعة مختلفة</span>
+            <span className="text-micro opacity-85 leading-tight">نفس المادة بجرعة مختلفة</span>
           </button>
 
           <button
@@ -387,14 +384,14 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
             }`}
           >
             <div className="flex items-center gap-1">
-              <span className="text-[11px]">بدائل علاجية</span>
-              <span className={`text-[10px] px-1.5 rounded-full font-mono font-bold ${
+              <span className="text-micro">بدائل علاجية</span>
+              <span className={`text-micro px-1.5 rounded-full font-mono font-bold ${
                 activeTier === 4 ? 'bg-white/25 text-white' : 'bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'
               }`}>
                 {tier4Count}
               </span>
             </div>
-            <span className="text-[9px] opacity-85 leading-tight">نفس المجموعة العلاجية</span>
+            <span className="text-micro opacity-85 leading-tight">نفس المجموعة العلاجية</span>
           </button>
         </div>
 
@@ -418,7 +415,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
             <div className="py-16 text-center text-ink-muted dark:text-ink-dark-muted flex flex-col items-center gap-2">
               <Layers className="w-10 h-10 opacity-30 text-brand dark:text-brand-bright" />
               <span className="text-sm font-bold text-ink dark:text-ink-dark">
-                لا توجد بدائل مسجلة في هذا المستوى ({activeTier === 1 ? 'مثائل متطابقة' : activeTier === 2 ? 'أشكال أخرى' : activeTier === 3 ? 'تركيزات أخرى' : 'بدائل علاجية'})
+                لا توجد بدائل مسجلة في هذا المستوى
               </span>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
                 تأكد من تسجيل المواد الفعالة والأشكال الدوائية والتصنيف العلاجي في بطاقة الصنف
@@ -449,31 +446,31 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
                         {drugName}
                       </span>
                       {hasStock ? (
-                        <span className="px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-dark-border text-[11px] font-bold flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-dark-border text-micro font-bold flex items-center gap-1">
                           <Package className="w-3 h-3" />
                           <span>متوفر {stockCount} {unitLabel}</span>
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger/30 text-[11px] font-bold">
-                          غير متوفر (رصيد 0)
+                        <span className="px-2 py-0.5 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger/30 text-micro font-bold">
+                          غير متوفر
                         </span>
                       )}
                     </div>
 
                     {/* Scientific name & dosage form & manufacturer */}
-                    <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted flex items-center gap-2 mt-1.5 flex-wrap">
+                    <div className="text-micro text-ink-muted dark:text-ink-dark-muted flex items-center gap-2 mt-1.5 flex-wrap">
                       {item.scientificName && (
                         <span className="font-mono font-medium text-brand dark:text-brand-bright bg-brand-soft/50 dark:bg-brand-dark-soft px-2 py-0.5 rounded border border-brand/15 dark:border-brand-bright/20">
                           {item.scientificName}
                         </span>
                       )}
                       {item.dosageFormName && (
-                        <span className="px-2 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark text-[10px] font-semibold border border-line/60 dark:border-line-dark">
+                        <span className="px-2 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark text-micro font-semibold border border-line/60 dark:border-line-dark">
                           {item.dosageFormName}
                         </span>
                       )}
                       {item.manufacturerName && (
-                        <span className="flex items-center gap-1 text-[10px] text-ink-muted dark:text-ink-dark-muted">
+                        <span className="flex items-center gap-1 text-micro text-ink-muted dark:text-ink-dark-muted">
                           <Building2 className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                           <span>{item.manufacturerName}</span>
                         </span>
@@ -482,7 +479,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
 
                     {/* Match Reason */}
                     {item.matchReason && (
-                      <div className="text-[10px] text-ink-muted/80 dark:text-ink-dark-muted/80 mt-1 italic">
+                      <div className="text-micro text-ink-muted/80 dark:text-ink-dark-muted/80 mt-1 italic">
                         {item.matchReason}
                       </div>
                     )}
@@ -495,18 +492,18 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
                     </div>
                     {priceDiff !== 0 ? (
                       priceDiff < 0 ? (
-                        <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/25 dark:border-paid-dark-border shadow-2xs">
+                        <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/25 dark:border-paid-dark-border shadow-2xs">
                           <TrendingDown className="w-3.5 h-3.5 shrink-0" />
                           <span>أرخص بـ {formatArabicCurrency(Math.abs(priceDiff))}</span>
                         </div>
                       ) : (
-                        <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/25 dark:border-danger/30 shadow-2xs">
+                        <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/25 dark:border-danger/30 shadow-2xs">
                           <TrendingUp className="w-3.5 h-3.5 shrink-0" />
                           <span>أغلى بـ {formatArabicCurrency(priceDiff)}</span>
                         </div>
                       )
                     ) : (
-                      <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
+                      <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-micro font-bold bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
                         <span>نفس السعر</span>
                       </div>
                     )}
@@ -518,7 +515,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => void handleAction(item, 'add')}
-                    className="h-7.5 px-3 rounded-lg border border-line dark:border-line-dark-strong bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-high text-ink dark:text-ink-dark text-[11px] font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                    className="h-7.5 px-3 rounded-lg border border-line dark:border-line-dark-strong bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-high text-ink dark:text-ink-dark text-micro font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
                   >
                     <Plus className="w-3 h-3 text-brand dark:text-brand-bright" />
                     <span>إضافة للسلة</span>
@@ -527,7 +524,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => void handleAction(item, 'substitute')}
-                    className="h-7.5 px-3.5 rounded-lg bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white border border-brand/40 dark:border-brand-bright/30 text-[11px] font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                    className="h-7.5 px-3.5 rounded-lg bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white border border-brand/40 dark:border-brand-bright/30 text-micro font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
                   >
                     <ArrowRightLeft className="w-3 h-3" />
                     <span>استبدال في السلة</span>
@@ -544,13 +541,6 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
             <Package className="w-3.5 h-3.5 text-brand" />
             <span>يتم ترتيب البدائل بالأصناف المتوفرة أولاً، ثم الأقرب في السعر</span>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-7 px-3 rounded-lg border border-line dark:border-line-dark text-xs font-bold hover:bg-surface text-ink dark:text-ink-dark"
-          >
-            إغلاق
-          </button>
         </div>
       </div>
     </div>

@@ -36,7 +36,7 @@ export const OpenPriceModal: React.FC<OpenPriceModalProps> = ({
     <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-xl border border-line dark:border-line-dark w-full max-w-sm p-5 animate-in fade-in zoom-in duration-150">
         <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
-          <h3 className="text-base font-bold text-ink dark:text-ink-dark flex items-center gap-2">
+          <h3 className="t-modal-title text-ink dark:text-ink-dark flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-brand dark:text-brand-bright" />
             <span>تحديد سعر البيع: {openPriceItem.name}</span>
           </h3>
@@ -50,7 +50,7 @@ export const OpenPriceModal: React.FC<OpenPriceModalProps> = ({
         </div>
         <form onSubmit={onConfirm}>
           <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">
-            أدخل المبلغ بالجنيه (EGP):
+            أدخل المبلغ بالجنيه:
           </label>
           <input
             type="text"

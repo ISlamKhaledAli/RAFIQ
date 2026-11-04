@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { ShieldCheck, ShieldAlert, AlertTriangle, TrendingUp, Info } from 'lucide-react';
+import { Activity, AlertTriangle, Banknote, Hourglass, Info, Percent, ShieldCheck, ShieldAlert } from 'lucide-react';
 
 export interface FinancialGaugeMeterProps {
   score: number; // 0 to 100
@@ -9,6 +9,42 @@ export interface FinancialGaugeMeterProps {
   uncollectedCreditPercent: number;
 }
 
+type Tone = 'brand' | 'paid' | 'warn' | 'danger';
+
+const DANGER_BELOW = 45;
+const WARN_BELOW = 72;
+// Every arc uses pathLength=100, so dash values read directly as score points.
+const ARC_PATH = 'M 14 100 A 86 86 0 0 1 186 100';
+const ZONE_GAP = 1.2;
+
+const TONE_TEXT: Record<Tone, string> = {
+  brand: 'text-brand dark:text-brand-bright',
+  paid: 'text-paid dark:text-paid-bright',
+  warn: 'text-warn dark:text-warn-bright',
+  danger: 'text-danger dark:text-danger-bright',
+};
+
+const TONE_CHIP: Record<Tone, string> = {
+  brand: 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright',
+  paid: 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright',
+  warn: 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright',
+  danger: 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright',
+};
+
+const TONE_DOT: Record<Tone, string> = {
+  brand: 'bg-brand dark:bg-brand-bright',
+  paid: 'bg-paid dark:bg-paid-bright',
+  warn: 'bg-warn dark:bg-warn-bright',
+  danger: 'bg-danger dark:bg-danger-bright',
+};
+
+// Faint zone colours behind the progress arc (same tokens, low opacity).
+const ZONES: ReadonlyArray<{ from: number; to: number; className: string }> = [
+  { from: 0, to: DANGER_BELOW, className: 'text-danger/25 dark:text-danger-bright/25' },
+  { from: DANGER_BELOW, to: WARN_BELOW, className: 'text-warn/25 dark:text-warn-bright/25' },
+  { from: WARN_BELOW, to: 100, className: 'text-paid/25 dark:text-paid-bright/25' },
+];
+
 export const FinancialGaugeMeter: FC<FinancialGaugeMeterProps> = ({
   score,
   title = 'مؤشر صحة التدفق النقدي والأرباح',
@@ -16,139 +52,153 @@ export const FinancialGaugeMeter: FC<FinancialGaugeMeterProps> = ({
   netMarginPercent,
   uncollectedCreditPercent,
 }) => {
-  // Clamped score between 0 and 100
   const clampedScore = Math.max(0, Math.min(100, Math.round(score)));
-
-  // Gauge angles: Semi-circle from -90 deg (far-left/0%) to +90 deg (far-right/100%).
-  // The needle polygon points straight up (12 o'clock, 50%) at angle = 0 deg.
-  const angle = -90 + (clampedScore / 100) * 180;
 
   // Zero sales activity detection
   const isZeroActivity = cashRatioPercent === 0 && netMarginPercent === 0 && uncollectedCreditPercent === 0;
 
-  // Status diagnosis
+  let tone: Tone = 'paid';
+  let statusLabel = 'جيد';
   let statusText = 'سيولة وأرباح ممتازة';
   let StatusIcon = ShieldCheck;
 
   if (isZeroActivity) {
+    tone = 'brand';
+    statusLabel = 'جاهز';
     statusText = 'جاهز للعمل / في انتظار المبيعات';
-    StatusIcon = ShieldCheck;
-  } else if (clampedScore < 45) {
+  } else if (clampedScore < DANGER_BELOW) {
+    tone = 'danger';
+    statusLabel = 'خطر';
     statusText = 'تحذير: سيولة حرجة وضغط ديون';
     StatusIcon = ShieldAlert;
-  } else if (clampedScore < 72) {
+  } else if (clampedScore < WARN_BELOW) {
+    tone = 'warn';
+    statusLabel = 'تحذير';
     statusText = 'وضع تشغيلي متوازن وحذر';
     StatusIcon = AlertTriangle;
   }
 
+  const creditHigh = uncollectedCreditPercent > 30;
+
+  const metrics = [
+    {
+      key: 'cash',
+      label: 'سيولة فورية',
+      value: `${cashRatioPercent}%`,
+      Icon: Banknote,
+      chip: TONE_CHIP.paid,
+      valueClass: TONE_TEXT.paid,
+    },
+    {
+      key: 'margin',
+      label: 'هامش الصافي',
+      value: `${netMarginPercent.toFixed(1)}%`,
+      Icon: Percent,
+      chip: TONE_CHIP.brand,
+      valueClass: TONE_TEXT.brand,
+    },
+    {
+      key: 'credit',
+      label: 'ديون معلقة',
+      value: `${uncollectedCreditPercent}%`,
+      Icon: Hourglass,
+      chip: creditHigh ? TONE_CHIP.danger : TONE_CHIP.warn,
+      valueClass: creditHigh ? TONE_TEXT.danger : 'text-ink dark:text-ink-dark',
+    },
+  ];
+
   return (
-    <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs flex flex-col justify-between select-none">
+    <div className="h-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col gap-4 select-none">
       {/* Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-line/60 dark:border-line-dark/60">
-        <div className="flex items-center gap-1.5">
-          <TrendingUp className="w-4 h-4 text-brand dark:text-brand-bright" />
-          <h3 className="text-sm font-bold text-ink dark:text-ink-dark">{title}</h3>
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
+          <Activity className="w-4 h-4" />
         </div>
-        <div className={`px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 ${
-          isZeroActivity ? 'bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright' :
-          clampedScore < 45 ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright' :
-          clampedScore < 72 ? 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright' :
-          'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
-        }`}>
-          <StatusIcon className="w-3.5 h-3.5" />
-          <span>{statusText}</span>
+        <div className="min-w-0">
+          <h3 className="t-card-title text-ink dark:text-ink-dark leading-snug">{title}</h3>
+          <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
+            تلخص حالة سيولة المحل وأرباحه الآن
+          </p>
         </div>
       </div>
 
-      {/* 3D-Styled Pure SVG Semi-Circular Gauge */}
-      <div className="relative flex flex-col items-center justify-center my-3">
-        <svg viewBox="0 0 200 115" className="w-52 h-28 overflow-visible">
-          <defs>
-            <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#B23A2E" />    {/* Danger red */}
-              <stop offset="45%" stopColor="#B3720E" />   {/* Warning amber */}
-              <stop offset="80%" stopColor="#006D41" />   {/* Paid green */}
-              <stop offset="100%" stopColor="#004D3F" />  {/* Deep brand */}
-            </linearGradient>
-            <filter id="gaugeShadow" x="-10%" y="-10%" width="120%" height="120%">
-              <feDropShadow dx="0" dy="2" stdDeviation="2" floodOpacity="0.15" />
-            </filter>
-          </defs>
+      {/* Semicircle meter */}
+      <div className="flex flex-col items-center">
+        <div dir="ltr" className="relative w-full max-w-[17rem]">
+          <svg viewBox="0 0 200 108" className="w-full h-auto block" role="img" aria-label={`${clampedScore} من 100 - ${statusLabel}`}>
+            {ZONES.map((zone) => (
+              <path
+                key={zone.from}
+                d={ARC_PATH}
+                pathLength={100}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={14}
+                strokeDasharray={`${zone.to - zone.from - ZONE_GAP} 100`}
+                strokeDashoffset={-(zone.from + ZONE_GAP / 2)}
+                className={zone.className}
+              />
+            ))}
+            {clampedScore > 0 && (
+              <path
+                d={ARC_PATH}
+                pathLength={100}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={14}
+                strokeLinecap="round"
+                strokeDasharray={`${clampedScore} 100`}
+                className={`${TONE_TEXT[tone]} transition-all duration-700`}
+              />
+            )}
+          </svg>
+          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
+            <div className={`text-4xl font-black tabular-nums leading-none ${TONE_TEXT[tone]}`}>{clampedScore}</div>
+            <div className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">من 100</div>
+          </div>
+        </div>
 
-          {/* Background Track */}
-          <path
-            d="M 20 100 A 80 80 0 0 1 180 100"
-            fill="none"
-            stroke="#DCE1DC"
-            strokeWidth="14"
-            strokeLinecap="round"
-            className="stroke-[#DCE1DC] dark:stroke-[#2A3532]"
-          />
+        <div className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold ${TONE_CHIP[tone]}`}>
+          <StatusIcon className="w-4 h-4 shrink-0" />
+          <span>{statusLabel}</span>
+        </div>
+        <p className="mt-1.5 text-sm text-center text-ink-muted dark:text-ink-dark-muted">{statusText}</p>
+      </div>
 
-          {/* Colored Gradient Arc */}
-          <path
-            d="M 20 100 A 80 80 0 0 1 180 100"
-            fill="none"
-            stroke="url(#gaugeGradient)"
-            strokeWidth="14"
-            strokeLinecap="round"
-            filter="url(#gaugeShadow)"
-          />
+      {/* Zone legend */}
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-ink-muted dark:text-ink-dark-muted">
+        <span className="inline-flex items-center gap-1">
+          <span className={`w-2 h-2 rounded-full ${TONE_DOT.danger}`} />
+          خطر: أقل من {DANGER_BELOW}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className={`w-2 h-2 rounded-full ${TONE_DOT.warn}`} />
+          تحذير: {DANGER_BELOW} إلى {WARN_BELOW - 1}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className={`w-2 h-2 rounded-full ${TONE_DOT.paid}`} />
+          جيد: {WARN_BELOW} فأكثر
+        </span>
+      </div>
 
-          {/* Scale Tick Marks */}
-          <line x1="20" y1="100" x2="28" y2="100" stroke="#94A3B8" strokeWidth="2" />
-          <line x1="100" y1="20" x2="100" y2="28" stroke="#94A3B8" strokeWidth="2" />
-          <line x1="180" y1="100" x2="172" y2="100" stroke="#94A3B8" strokeWidth="2" />
-
-          {/* Center Pivot Base */}
-          <circle cx="100" cy="100" r="10" fill="#0F172A" className="fill-[#0F172A] dark:fill-[#E6ECEA]" />
-          <circle cx="100" cy="100" r="5" fill="#FFFFFF" className="fill-[#FFFFFF] dark:fill-[#151B1A]" />
-
-          {/* Dynamic Gauge Needle with Smooth Transition */}
-          <g
-            transform={`rotate(${angle} 100 100)`}
-            style={{ transition: 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+      {/* Supporting metrics */}
+      <div className="grid grid-cols-3 gap-2 mt-auto">
+        {metrics.map(({ key, label, value, Icon, chip, valueClass }) => (
+          <div
+            key={key}
+            className="rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark/60 px-2 py-3 flex flex-col items-center gap-1.5 text-center"
           >
-            <polygon
-              points="97,100 103,100 100,28"
-              fill="#0F172A"
-              filter="url(#gaugeShadow)"
-              className="fill-[#0F172A] dark:fill-[#E6ECEA]"
-            />
-            <circle cx="100" cy="30" r="3" fill="#006D41" />
-          </g>
-        </svg>
-
-        {/* Center Score Readout */}
-        <div className="text-center -mt-3">
-          <div className="text-2xl font-black font-mono text-ink dark:text-ink-dark tracking-tight">
-            {clampedScore}
-            <span className="text-xs font-normal text-ink-muted dark:text-ink-dark-muted mr-0.5">/100</span>
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${chip}`}>
+              <Icon className="w-3.5 h-3.5" />
+            </div>
+            <div className={`text-lg font-black tabular-nums leading-none ${valueClass}`}>{value}</div>
+            <div className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">{label}</div>
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-medium">مستوى الأمان المالي اللحظي</div>
-        </div>
+        ))}
       </div>
 
-      {/* Sub-metrics breakdown */}
-      <div className="grid grid-cols-3 gap-2 pt-2.5 border-t border-line/60 dark:border-line-dark/60 text-center text-xs">
-        <div className="p-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2">
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted">سيولة فورية</div>
-          <div className="font-mono font-bold text-paid dark:text-paid-bright mt-0.5">{cashRatioPercent}%</div>
-        </div>
-        <div className="p-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2">
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted">هامش الصافي</div>
-          <div className="font-mono font-bold text-brand dark:text-brand-bright mt-0.5">{netMarginPercent.toFixed(1)}%</div>
-        </div>
-        <div className="p-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2">
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted">ديون معلقة</div>
-          <div className={`font-mono font-bold mt-0.5 ${uncollectedCreditPercent > 30 ? 'text-danger dark:text-danger-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
-            {uncollectedCreditPercent}%
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-2 flex items-center gap-1 text-[10px] text-ink-muted dark:text-ink-dark-muted">
-        <Info className="w-3 h-3 text-brand dark:text-brand-bright shrink-0" />
+      <div className="flex items-start gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted">
+        <Info className="w-3.5 h-3.5 mt-0.5 text-brand dark:text-brand-bright shrink-0" />
         <span>يُحسب بناءً على تدفق النقد بالدرج، نسبة الأرباح، وانضباط سداد الآجل.</span>
       </div>
     </div>

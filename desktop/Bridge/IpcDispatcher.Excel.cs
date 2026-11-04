@@ -19,7 +19,7 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, new
                     {
                         success = true,
-                        fileName = "قالب_استيراد_المنتجات_نظام_رفيق.xlsx",
+                        fileName = "قالب_استيراد_المنتجات_رفيق_POS.xlsx",
                         base64 = tplBase64
                     });
                     return true;
@@ -65,7 +65,7 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, new
                     {
                         success = true,
-                        fileName = "قالب_استيراد_العملاء_نظام_رفيق.xlsx",
+                        fileName = "قالب_استيراد_العملاء_رفيق_POS.xlsx",
                         base64 = custTplBase64
                     });
                     return true;

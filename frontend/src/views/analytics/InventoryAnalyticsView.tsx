@@ -18,6 +18,7 @@ import {
   PackageX
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { printReport } from '../../utils/printReport';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
@@ -26,6 +27,7 @@ import { formatArabicCurrency } from '../../utils/money';
 import { DeadStockRadar } from '../../components/analytics/DeadStockRadar';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
+import { SegmentedTabs, type SegmentedTabOption } from '../../components/SegmentedTabs';
 import type {
   InventoryOverviewReport,
   ShrinkageAnalysisReport,
@@ -42,6 +44,8 @@ const PERIOD_OPTIONS: SelectOption[] = [
   { value: 'year', label: 'هذا العام' },
   { value: 'custom', label: 'فترة مخصصة...' },
 ];
+
+type InventorySection = 'shrinkage' | 'lowstock' | 'purchases' | 'expiry' | 'deadstock';
 
 interface InventoryAnalyticsViewProps {
   isActive?: boolean;
@@ -72,7 +76,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   const [lowStockItems, setLowStockItems] = useState<LowStockReportItem[]>([]);
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
 
-  const [activeSection, setActiveSection] = useState<'shrinkage' | 'lowstock' | 'purchases' | 'expiry' | 'deadstock'>('shrinkage');
+  const [activeSection, setActiveSection] = useState<InventorySection>('shrinkage');
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -120,7 +124,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   );
 
   const handlePrint = () => {
-    window.print();
+    void printReport({ kind: 'a4only' });
   };
 
   if (showLoading && !overview) {
@@ -134,18 +138,26 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
     );
   }
 
+  const sectionTabs: SegmentedTabOption<InventorySection>[] = [
+    { value: 'shrinkage', label: 'تحليل العجز والتوالف والفاقد', icon: TrendingDown },
+    { value: 'lowstock', label: 'النواقص وأمر الشراء المقترح', icon: Package },
+    { value: 'purchases', label: 'تحليل المشتريات والموردين', icon: Truck },
+    { value: 'expiry', label: 'تواريخ الصلاحية والدفعات', icon: ShieldAlert, showDot: (batchSummary?.expiredCount || 0) > 0 },
+    { value: 'deadstock', label: 'رادار الرواكد والسيولة المجمدة', icon: PackageX },
+  ];
+
   return (
-    <div className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark overflow-y-auto select-none p-3 sm:p-5" dir="rtl">
+    <div data-print-root className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark overflow-y-auto select-none p-4 sm:p-6 gap-5" dir="rtl">
       {/* 1. Header & Period Filter Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-line dark:border-line-dark shrink-0">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 shrink-0 bg-surface dark:bg-surface-dark p-4 sm:p-5 rounded-xl border border-line dark:border-line-dark shadow-2xs">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand-dark dark:text-brand-bright flex items-center justify-center font-bold">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-brand-soft dark:bg-brand-soft/20 text-brand-dark dark:text-brand-bright flex items-center justify-center font-bold">
               <Boxes className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-ink dark:text-ink-dark">تحليلات حركة المخزون والفاقد والمشتريات</h1>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
+              <h1 className="t-page-title text-ink dark:text-ink-dark">تحليلات حركة المخزون والفاقد والمشتريات</h1>
+              <p className="text-sm mt-1 text-ink-muted dark:text-ink-dark-muted">
                 تقييم رأس مال البضاعة، كشف أسباب الهوالك والعجز، ومراقبة النواقص ومشتريات الموردين
               </p>
             </div>
@@ -153,9 +165,10 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
         </div>
 
         {/* Filter Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="w-44">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="w-48">
             <CustomSelect
+              size="lg"
               options={PERIOD_OPTIONS}
               value={period}
               onChange={(val) => setPeriod(val)}
@@ -164,6 +177,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
 
           {period === 'custom' && (
             <CustomDateRangePicker
+              size="md"
               startDate={customFrom}
               endDate={customTo}
               onChange={(start, end) => {
@@ -176,55 +190,55 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
           <button
             type="button"
             onClick={handlePrint}
-            className="h-9 px-3 rounded-lg bg-brand-dark dark:bg-brand-bright dark:text-surface-dark hover:bg-brand dark:hover:bg-emerald-400 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+            className="h-10 px-4 rounded-lg bg-brand-dark dark:bg-brand-bright dark:text-surface-dark hover:bg-brand dark:hover:bg-brand-bright/90 text-white text-sm font-bold flex items-center gap-2 transition-colors shadow-2xs cursor-pointer"
             title="طباعة التقرير"
           >
-            <Printer className="w-3.5 h-3.5" />
+            <Printer className="w-4 h-4" />
             <span>طباعة التقرير</span>
           </button>
         </div>
       </div>
 
       {/* 2. Top Inventory Valuation KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 my-4 shrink-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 shrink-0">
         {/* KPI 1: Inventory Cost Valuation */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">قيمة المخزون (بالتكلفة)</span>
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold">قيمة المخزون (بالتكلفة)</span>
             <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-brand-dark dark:text-brand-bright">
+          <div className="t-kpi text-brand-dark dark:text-brand-bright">
             {formatArabicCurrency(overview?.totalInventoryCostPiasters || 0)}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
             رأس المال المجمد في الرفوف
           </div>
         </div>
 
         {/* KPI 2: Inventory Retail Valuation */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">قيمة المخزون (بالبيع)</span>
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold">قيمة المخزون (بالبيع)</span>
             <DollarSign className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-ink dark:text-ink-dark">
+          <div className="t-kpi text-ink dark:text-ink-dark">
             {formatArabicCurrency(overview?.totalInventoryRetailPiasters || 0)}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
             المحصلة المتوقعة عند البيع
           </div>
         </div>
 
         {/* KPI 3: Potential Gross Profit */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">الربح المحتمل بالمخزن</span>
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold">الربح المحتمل بالمخزن</span>
             <Layers className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-paid dark:text-paid-bright">
+          <div className="t-kpi text-paid dark:text-paid-bright">
             {formatArabicCurrency(overview?.potentialGrossProfitPiasters || 0)}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
             فارق البيع عن التكلفة
           </div>
         </div>
@@ -232,16 +246,16 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
         {/* KPI 4: Out of Stock */}
         <div 
           onClick={() => onNavigateToProducts && onNavigateToProducts('catalog', 'outOfStock')}
-          className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-danger/40 dark:hover:border-danger-bright/40 rounded-xl p-3 shadow-2xs flex flex-col justify-between cursor-pointer transition-colors group"
+          className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-danger/40 dark:hover:border-danger-bright/40 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px] cursor-pointer transition-colors group"
         >
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold group-hover:text-danger dark:group-hover:text-danger-bright transition-colors">أصناف رصيدها صفر</span>
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold group-hover:text-danger dark:group-hover:text-danger-bright transition-colors">أصناف رصيدها صفر</span>
             <AlertTriangle className="w-3.5 h-3.5 text-danger dark:text-danger-bright" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-danger dark:text-danger-bright">
+          <div className="t-kpi text-danger dark:text-danger-bright">
             {overview?.outOfStockCount || 0} صنف
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1 flex items-center justify-between">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted flex items-center justify-between">
             <span>نافدة بالكامل</span>
             <ArrowRight className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted group-hover:text-danger dark:group-hover:text-danger-bright" />
           </div>
@@ -250,121 +264,60 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
         {/* KPI 5: Low Stock */}
         <div 
           onClick={() => onNavigateToProducts && onNavigateToProducts('catalog', 'lowStock')}
-          className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-warn/40 dark:hover:border-warn-bright/40 rounded-xl p-3 shadow-2xs flex flex-col justify-between cursor-pointer transition-colors group"
+          className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-warn/40 dark:hover:border-warn-bright/40 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px] cursor-pointer transition-colors group"
         >
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold group-hover:text-warn dark:group-hover:text-warn-bright transition-colors">أصناف تحت حد الطلب</span>
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold group-hover:text-warn dark:group-hover:text-warn-bright transition-colors">أصناف تحت حد الطلب</span>
             <AlertTriangle className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-warn dark:text-warn-bright">
+          <div className="t-kpi text-warn dark:text-warn-bright">
             {overview?.lowStockCount || 0} صنف
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1 flex items-center justify-between">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted flex items-center justify-between">
             <span>تحتاج إعادة طلب</span>
             <ArrowRight className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted group-hover:text-warn dark:group-hover:text-warn-bright" />
           </div>
         </div>
 
         {/* KPI 6: Turnover Rate */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">معدل دوران المخزون</span>
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold">معدل دوران المخزون</span>
             <Clock className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-brand-dark dark:text-brand-bright">
+          <div className="t-kpi text-brand-dark dark:text-brand-bright">
             {overview?.turnoverRate ? `${overview.turnoverRate}x / سنة` : '—'}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
             سرعة تصريف وتبديل البضاعة
           </div>
         </div>
       </div>
 
       {/* 3. Section Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-line dark:border-line-dark pb-3 mb-4 shrink-0 flex-wrap">
-        <button
-          type="button"
-          onClick={() => setActiveSection('shrinkage')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'shrinkage'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <TrendingDown className="w-4 h-4 shrink-0" />
-          <span>تحليل العجز والتوالف والفاقد</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSection('lowstock')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'lowstock'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <Package className="w-4 h-4 shrink-0" />
-          <span>النواقص وأمر الشراء المقترح</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSection('purchases')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'purchases'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <Truck className="w-4 h-4 shrink-0" />
-          <span>تحليل المشتريات والموردين</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSection('expiry')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'expiry'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <ShieldAlert className="w-4 h-4 shrink-0" />
-          <span>تواريخ الصلاحية والدفعات</span>
-          {(batchSummary?.expiredCount || 0) > 0 && (
-            <span className="w-2 h-2 rounded-full bg-danger animate-pulse shrink-0" />
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSection('deadstock')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'deadstock'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <PackageX className="w-4 h-4 shrink-0 text-red-500" />
-          <span>رادار الرواكد والسيولة المجمدة</span>
-        </button>
+      <div className="shrink-0">
+        <SegmentedTabs
+          ariaLabel="أقسام تحليلات المخزون والمشتريات"
+          value={activeSection}
+          onChange={setActiveSection}
+          options={sectionTabs}
+        />
       </div>
 
       {/* 4. Dynamic Tab Content */}
-      <div className="flex-1 pb-6">
+      <div className="flex-1 pb-4">
         {/* SECTION A: Shrinkage & Loss Analysis */}
         {activeSection === 'shrinkage' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Summary Card */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col justify-between">
                 <div>
-                  <h2 className="text-sm font-bold text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5">
+                  <h2 className="t-section-title text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5">
                     <TrendingDown className="w-4 h-4 text-danger dark:text-danger-bright" />
                     <span>معدل فاقد المخزون للمبيعات</span>
                   </h2>
-                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted mb-4">
+                  <p className="text-sm mt-1 text-ink-muted dark:text-ink-dark-muted mb-5">
                     إجمالي الخسائر المالية الناجمة عن التلف وانتهاء الصلاحية والعجز
                   </p>
                   <div className="text-2xl font-bold font-mono text-danger dark:text-danger-bright">
@@ -382,23 +335,23 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                   </div>
                 </div>
 
-                <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted border-t border-line dark:border-line-dark pt-3 mt-4 flex items-center gap-1.5">
+                <div className="text-xs text-ink-muted dark:text-ink-dark-muted border-t border-line dark:border-line-dark pt-3 mt-4 flex items-center gap-1.5">
                   <Info className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                   <span>المعدل الآمن المقبول في قطاع التجزئة والمتاجر هو أقل من 1.2% من إجمالي المبيعات.</span>
                 </div>
               </div>
 
               {/* Breakdown by Reason Bars */}
-              <div className="lg:col-span-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs">
-                <h2 className="text-sm font-bold text-ink dark:text-ink-dark mb-1">تصنيف أسباب العجز والتلف</h2>
-                <p className="text-xs text-ink-muted dark:text-ink-dark-muted mb-3">
+              <div className="lg:col-span-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
+                <h2 className="t-section-title text-ink dark:text-ink-dark">تصنيف أسباب العجز والتلف</h2>
+                <p className="text-sm mt-1 text-ink-muted dark:text-ink-dark-muted mb-5">
                   تحديد مصدر الخسارة الرئيسي لاتخاذ إجراءات وقائية مع الموظفين أو الموردين
                 </p>
 
                 <div className="space-y-3">
                   {shrinkage?.reasons.map((r) => (
-                    <div key={r.reason} className="p-2.5 rounded-lg bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line/60 dark:border-line-dark/60">
-                      <div className="flex items-center justify-between text-xs mb-1">
+                    <div key={r.reason} className="p-4 rounded-xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line/60 dark:border-line-dark/60">
+                      <div className="flex items-center justify-between text-sm mb-2">
                         <span className="font-bold text-ink dark:text-ink-dark">{r.label}</span>
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-ink-muted dark:text-ink-dark-muted">{r.count} عمليات</span>
@@ -407,13 +360,13 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                           </span>
                         </div>
                       </div>
-                      <div className="w-full h-2 bg-surface dark:bg-surface-dark rounded-full overflow-hidden">
+                      <div className="w-full h-2.5 bg-surface dark:bg-surface-dark rounded-full overflow-hidden mb-2">
                         <div
                           className="h-full bg-danger dark:bg-danger-bright rounded-full"
                           style={{ width: `${Math.min(100, r.percentOfTotal)}%` }}
                         />
                       </div>
-                      <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1 font-mono">
+                      <div className="text-xs text-ink-muted dark:text-ink-dark-muted font-mono">
                         {r.percentOfTotal}% من إجمالي خسائر المخزون
                       </div>
                     </div>
@@ -423,22 +376,22 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
             </div>
 
             {/* Top Shrinkage Products Table */}
-            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs">
-              <h2 className="text-sm font-bold text-ink dark:text-ink-dark mb-1">أعلى الأصناف تسجيلاً للعجز والهالك</h2>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted mb-3">
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
+              <h2 className="t-section-title text-ink dark:text-ink-dark">أعلى الأصناف تسجيلاً للعجز والهالك</h2>
+              <p className="text-sm mt-1 text-ink-muted dark:text-ink-dark-muted mb-5">
                 الأصناف التي سببت أعلى أثر مالي سلبي خلال الفترة المحددة
               </p>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-xs">
+                <table className="w-full text-right text-sm">
                   <thead>
                     <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                      <th className="py-2.5 px-3">اسم الصنف</th>
-                      <th className="py-2.5 px-3">الكمية المفقودة</th>
-                      <th className="py-2.5 px-3">سعر التكلفة</th>
-                      <th className="py-2.5 px-3">الخسارة المالية</th>
-                      <th className="py-2.5 px-3">السبب المسجل</th>
-                      <th className="py-2.5 px-3">التاريخ والوقت</th>
+                      <th className="py-3.5 px-3.5">اسم الصنف</th>
+                      <th className="py-3.5 px-3.5">الكمية المفقودة</th>
+                      <th className="py-3.5 px-3.5">سعر التكلفة</th>
+                      <th className="py-3.5 px-3.5">الخسارة المالية</th>
+                      <th className="py-3.5 px-3.5">السبب المسجل</th>
+                      <th className="py-3.5 px-3.5">التاريخ والوقت</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line dark:divide-line-dark">
@@ -451,18 +404,18 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                     ) : (
                       shrinkage.topShrinkageProducts.map((it, idx) => (
                         <tr key={`${it.productId}-${idx}`} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
-                          <td className="py-2.5 px-3 font-bold text-ink dark:text-ink-dark">{it.productName}</td>
-                          <td className="py-2.5 px-3 font-mono text-danger dark:text-danger-bright">
+                          <td className="py-3.5 px-3.5 font-bold text-ink dark:text-ink-dark">{it.productName}</td>
+                          <td className="py-3.5 px-3.5 font-mono text-danger dark:text-danger-bright">
                             {(Math.abs(it.quantityDeltaMilli) / 1000).toLocaleString('en-US')} {it.unit}
                           </td>
-                          <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">
+                          <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                             {formatArabicCurrency(it.unitCostPiasters)}
                           </td>
-                          <td className="py-2.5 px-3 font-mono font-bold text-danger dark:text-danger-bright">
+                          <td className="py-3.5 px-3.5 font-mono font-bold text-danger dark:text-danger-bright">
                             {formatArabicCurrency(it.financialImpactPiasters)}
                           </td>
-                          <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted">{it.reason}</td>
-                          <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">{it.createdAt}</td>
+                          <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-dark-muted">{it.reason}</td>
+                          <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">{it.createdAt}</td>
                         </tr>
                       ))
                     )}
@@ -475,17 +428,14 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
 
         {/* SECTION B: Low Stock & Reorder Roster */}
         {activeSection === 'lowstock' && (
-          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-ink dark:text-ink-dark">تقرير الأصناف الناقصة وأمر الشراء المقترح</h2>
-                <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
-                  حساب تلقائي لكمية الطلب المقترحة بناءً على الحد الأدنى ومخزون الأمان
-                </p>
-              </div>
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+              <p className="text-sm font-bold text-ink dark:text-ink-dark">
+                حساب تلقائي لكمية الطلب المقترحة بناءً على الحد الأدنى ومخزون الأمان
+              </p>
 
               <div className="flex items-center gap-2">
-                <div className="px-3 py-1.5 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-xs font-mono">
+                <div className="px-4 h-10 inline-flex items-center bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-sm font-mono">
                   <span className="text-ink-muted dark:text-ink-dark-muted ml-1">ميزانية الطلب المقدرة:</span>
                   <span className="font-bold text-brand-dark dark:text-brand-bright">{formatArabicCurrency(totalSuggestedOrderBudget)}</span>
                 </div>
@@ -493,16 +443,16 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
+              <table className="w-full text-right text-sm">
                 <thead>
                   <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                    <th className="py-2.5 px-3">اسم الصنف والباركود</th>
-                    <th className="py-2.5 px-3">القسم</th>
-                    <th className="py-2.5 px-3">الرصيد الحالي</th>
-                    <th className="py-2.5 px-3">حد الطلب الأدنى</th>
-                    <th className="py-2.5 px-3">الكمية المقترحة</th>
-                    <th className="py-2.5 px-3">سعر التكلفة</th>
-                    <th className="py-2.5 px-3">التكلفة الإجمالية</th>
+                    <th className="py-3.5 px-3.5">اسم الصنف والباركود</th>
+                    <th className="py-3.5 px-3.5">القسم</th>
+                    <th className="py-3.5 px-3.5">الرصيد الحالي</th>
+                    <th className="py-3.5 px-3.5">حد الطلب الأدنى</th>
+                    <th className="py-3.5 px-3.5">الكمية المقترحة</th>
+                    <th className="py-3.5 px-3.5">سعر التكلفة</th>
+                    <th className="py-3.5 px-3.5">التكلفة الإجمالية</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line dark:divide-line-dark">
@@ -518,24 +468,24 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                   ) : (
                     lowStockItems.map((item) => (
                       <tr key={item.productId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
-                        <td className="py-2.5 px-3">
+                        <td className="py-3.5 px-3.5">
                           <div className="font-bold text-ink dark:text-ink-dark">{item.name}</div>
-                          <div className="font-mono text-[10px] text-ink-muted dark:text-ink-dark-muted">{item.barcode || '—'}</div>
+                          <div className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted">{item.barcode || '—'}</div>
                         </td>
-                        <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-danger dark:text-danger-bright">
+                        <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
+                        <td className="py-3.5 px-3.5 font-mono font-bold text-danger dark:text-danger-bright">
                           {(item.stockMilli / 1000).toLocaleString('en-US')} {item.unit}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">
+                        <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {(item.minStockMilli / 1000).toLocaleString('en-US')} {item.unit}
                         </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-paid dark:text-paid-bright">
+                        <td className="py-3.5 px-3.5 font-mono font-bold text-paid dark:text-paid-bright">
                           +{(item.suggestedOrderMilli / 1000).toLocaleString('en-US')} {item.unit}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">
+                        <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {formatArabicCurrency(item.unitCostPiasters)}
                         </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-ink dark:text-ink-dark">
+                        <td className="py-3.5 px-3.5 font-mono font-bold text-ink dark:text-ink-dark">
                           {formatArabicCurrency(item.estimatedCostPiasters)}
                         </td>
                       </tr>
@@ -549,55 +499,55 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
 
         {/* SECTION C: Purchases & Suppliers Analysis */}
         {activeSection === 'purchases' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs">
-                <div className="text-xs text-ink-muted dark:text-ink-dark-muted mb-1">إجمالي مشتريات الفترة</div>
-                <div className="text-base font-bold font-mono text-ink dark:text-ink-dark">
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col gap-3">
+                <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted">إجمالي مشتريات الفترة</div>
+                <div className="t-kpi text-ink dark:text-ink-dark">
                   {formatArabicCurrency(purchases?.totalPurchasesPiasters || 0)}
                 </div>
-                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1 font-mono">
+                <div className="text-xs text-ink-muted dark:text-ink-dark-muted font-mono">
                   {purchases?.totalInvoicesCount || 0} فاتورة شراء
                 </div>
               </div>
 
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs">
-                <div className="text-xs text-ink-muted dark:text-ink-dark-muted mb-1">المسدد نقداً للموردين</div>
-                <div className="text-base font-bold font-mono text-paid dark:text-paid-bright">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col gap-3">
+                <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted">المسدد نقداً للموردين</div>
+                <div className="t-kpi text-paid dark:text-paid-bright">
                   {formatArabicCurrency(purchases?.totalPaidPiasters || 0)}
                 </div>
-                <div className="text-[10px] text-paid dark:text-paid-bright mt-1">مدفوع نقدياً بالفترة</div>
+                <div className="text-xs text-paid dark:text-paid-bright">مدفوع نقدياً بالفترة</div>
               </div>
 
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs">
-                <div className="text-xs text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center justify-between">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col gap-3">
+                <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted flex items-center justify-between">
                   <span>مديونيات قائمة للموردين</span>
-                  <span className="text-[10px] bg-surface-2 dark:bg-surface-dark-2 px-1 py-0.5 rounded font-mono text-ink-muted dark:text-ink-dark-muted">
+                  <span className="text-xs bg-surface-2 dark:bg-surface-dark-2 px-2 py-1 rounded-lg font-mono text-ink-muted dark:text-ink-dark-muted">
                     {purchases?.debtorSuppliersCount || 0} موردين
                   </span>
                 </div>
-                <div className="text-base font-bold font-mono text-warn dark:text-warn-bright">
+                <div className="t-kpi text-warn dark:text-warn-bright">
                   {formatArabicCurrency(purchases?.totalSupplierDebtsPiasters ?? (purchases?.totalUnpaidPiasters || 0))}
                 </div>
-                <div className="text-[10px] text-warn dark:text-warn-bright mt-1">ديون مستحقة على المحل</div>
+                <div className="text-xs text-warn dark:text-warn-bright">ديون مستحقة على المحل</div>
               </div>
 
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs">
-                <div className="text-xs text-ink-muted dark:text-ink-dark-muted mb-1 flex items-center justify-between">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col gap-3">
+                <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted flex items-center justify-between">
                   <span>رصيد متاح لنا (تحت الحساب)</span>
-                  <span className="text-[10px] bg-paid-soft dark:bg-paid-dark-soft text-paid-dark dark:text-paid-bright px-1 py-0.5 rounded font-mono font-bold">
+                  <span className="text-xs bg-paid-soft dark:bg-paid-dark-soft text-paid-dark dark:text-paid-bright px-2 py-1 rounded-lg font-mono font-bold">
                     {purchases?.creditorSuppliersCount || 0} شركات
                   </span>
                 </div>
-                <div className="text-base font-bold font-mono text-paid dark:text-paid-bright">
+                <div className="t-kpi text-paid dark:text-paid-bright">
                   {formatArabicCurrency(purchases?.totalSupplierCreditsPiasters || 0)}
                 </div>
-                <div className="text-[10px] text-paid-dark dark:text-paid-bright mt-1">دفعات مقدمة لنا عند الموردين</div>
+                <div className="text-xs text-paid-dark dark:text-paid-bright">دفعات مقدمة لنا عند الموردين</div>
               </div>
 
               <div 
                 onClick={() => onNavigateToPurchases && onNavigateToPurchases()}
-                className="bg-brand-soft/50 dark:bg-brand-soft/10 border border-brand/30 dark:border-brand-bright/30 hover:bg-brand-soft dark:hover:bg-brand-soft/20 rounded-xl p-3 shadow-2xs flex flex-col justify-between cursor-pointer transition-colors"
+                className="bg-brand-soft/50 dark:bg-brand-soft/10 border border-brand/30 dark:border-brand-bright/30 hover:bg-brand-soft dark:hover:bg-brand-soft/20 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px] cursor-pointer transition-colors"
               >
                 <div className="text-xs font-bold text-brand-dark dark:text-brand-bright">إدارة فواتير المشتريات</div>
                 <div className="text-xs text-brand dark:text-brand-bright mt-1 flex items-center justify-between">
@@ -607,21 +557,21 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
               </div>
             </div>
 
-            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs">
-              <h2 className="text-sm font-bold text-ink dark:text-ink-dark mb-1">أكبر الموردين حسب حجم المشتريات</h2>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted mb-3">
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
+              <h2 className="t-section-title text-ink dark:text-ink-dark">أكبر الموردين حسب حجم المشتريات</h2>
+              <p className="text-sm mt-1 text-ink-muted dark:text-ink-dark-muted mb-5">
                 تفصيل المبالغ المشتراة من كل شركة موردة مع رصيد الديون المتبقي لهم
               </p>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-xs">
+                <table className="w-full text-right text-sm">
                   <thead>
                     <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                      <th className="py-2.5 px-3">اسم المورد / الشركة</th>
-                      <th className="py-2.5 px-3">عدد الفواتير</th>
-                      <th className="py-2.5 px-3">إجمالي المشتريات</th>
-                      <th className="py-2.5 px-3">المسدد</th>
-                      <th className="py-2.5 px-3">المتبقي (دين على المحل)</th>
+                      <th className="py-3.5 px-3.5">اسم المورد / الشركة</th>
+                      <th className="py-3.5 px-3.5">عدد الفواتير</th>
+                      <th className="py-3.5 px-3.5">إجمالي المشتريات</th>
+                      <th className="py-3.5 px-3.5">المسدد</th>
+                      <th className="py-3.5 px-3.5">المتبقي (دين على المحل)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line dark:divide-line-dark">
@@ -634,19 +584,19 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                     ) : (
                       purchases.topSuppliers.map((sup) => (
                         <tr key={sup.supplierId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
-                          <td className="py-2.5 px-3 font-bold text-ink dark:text-ink-dark">{sup.supplierName}</td>
-                          <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">{sup.invoicesCount}</td>
-                          <td className="py-2.5 px-3 font-mono font-bold text-ink dark:text-ink-dark">
+                          <td className="py-3.5 px-3.5 font-bold text-ink dark:text-ink-dark">{sup.supplierName}</td>
+                          <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">{sup.invoicesCount}</td>
+                          <td className="py-3.5 px-3.5 font-mono font-bold text-ink dark:text-ink-dark">
                             {formatArabicCurrency(sup.totalPurchasePiasters)}
                           </td>
-                          <td className="py-2.5 px-3 font-mono text-paid dark:text-paid-bright">
+                          <td className="py-3.5 px-3.5 font-mono text-paid dark:text-paid-bright">
                             {formatArabicCurrency(sup.paidPiasters)}
                           </td>
-                          <td className="py-2.5 px-3 font-mono font-bold">
+                          <td className="py-3.5 px-3.5 font-mono font-bold">
                             {sup.unpaidPiasters > 0 ? (
                               <span className="text-warn dark:text-warn-bright">{formatArabicCurrency(sup.unpaidPiasters)}</span>
                             ) : (
-                              <span className="text-paid dark:text-paid-bright">خالص (0)</span>
+                              <span className="text-paid dark:text-paid-bright">خالص</span>
                             )}
                           </td>
                         </tr>
@@ -661,39 +611,38 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
 
         {/* SECTION D: Batches & Expiry Monitoring */}
         {activeSection === 'expiry' && (
-          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs">
-            <h2 className="text-sm font-bold text-ink dark:text-ink-dark mb-1">مراقبة تواريخ الصلاحية والدفعات المخزنية</h2>
-            <p className="text-xs text-ink-muted dark:text-ink-dark-muted mb-4">
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
+            <p className="text-sm font-bold text-ink dark:text-ink-dark mb-5">
               نظام الإنذار المبكر للأصناف سريعة التلف لتصريفها قبل انتهاء صلاحيتها
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-              <div className="p-3 rounded-lg bg-danger-soft/40 dark:bg-danger-dark-soft/40 border border-danger/30 dark:border-danger-bright/30">
-                <div className="text-xs font-bold text-danger dark:text-danger-bright mb-1">دفعات منتهية الصلاحية</div>
-                <div className="text-xl font-bold font-mono text-danger dark:text-danger-bright">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-5">
+              <div className="p-5 rounded-xl flex flex-col gap-3 bg-danger-soft/40 dark:bg-danger-dark-soft/40 border border-danger/30 dark:border-danger-bright/30">
+                <div className="text-sm font-bold text-danger dark:text-danger-bright">دفعات منتهية الصلاحية</div>
+                <div className="t-kpi-lg text-danger dark:text-danger-bright">
                   {batchSummary?.expiredCount || overview?.expiredBatchesCount || 0} دفعة
                 </div>
-                <div className="text-[10px] text-danger dark:text-danger-bright mt-1">يجب إتلافها فوراً وسحبها من الرف</div>
+                <div className="text-xs text-danger dark:text-danger-bright">يجب إتلافها فوراً وسحبها من الرف</div>
               </div>
 
-              <div className="p-3 rounded-lg bg-warn-soft/40 dark:bg-warn-dark-soft/40 border border-warn/30 dark:border-warn-bright/30">
-                <div className="text-xs font-bold text-warn dark:text-warn-bright mb-1">تنتهي خلال 7 إلى 30 يوماً</div>
-                <div className="text-xl font-bold font-mono text-warn dark:text-warn-bright">
+              <div className="p-5 rounded-xl flex flex-col gap-3 bg-warn-soft/40 dark:bg-warn-dark-soft/40 border border-warn/30 dark:border-warn-bright/30">
+                <div className="text-sm font-bold text-warn dark:text-warn-bright">تنتهي خلال 7 إلى 30 يوماً</div>
+                <div className="t-kpi-lg text-warn dark:text-warn-bright">
                   {batchSummary?.expiringSoonCount || overview?.expiringSoonBatchesCount || 0} دفعة
                 </div>
-                <div className="text-[10px] text-warn dark:text-warn-bright mt-1">تحتاج عروض تخفيض وتصريف سريع</div>
+                <div className="text-xs text-warn dark:text-warn-bright">تحتاج عروض تخفيض وتصريف سريع</div>
               </div>
 
-              <div className="p-3 rounded-lg bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/30 dark:border-paid/40">
-                <div className="text-xs font-bold text-paid dark:text-paid-bright mb-1">دفعات سليمة ونشطة</div>
-                <div className="text-xl font-bold font-mono text-paid dark:text-paid-bright">
+              <div className="p-5 rounded-xl flex flex-col gap-3 bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/30 dark:border-paid/40">
+                <div className="text-sm font-bold text-paid dark:text-paid-bright">دفعات سليمة ونشطة</div>
+                <div className="t-kpi-lg text-paid dark:text-paid-bright">
                   {batchSummary?.totalActiveBatches || 0} دفعة
                 </div>
-                <div className="text-[10px] text-paid dark:text-paid-bright mt-1">صلاحية آمنة ومستقرة</div>
+                <div className="text-xs text-paid dark:text-paid-bright">صلاحية آمنة ومستقرة</div>
               </div>
             </div>
 
-            <div className="text-xs text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 p-3 rounded-lg border border-line dark:border-line-dark flex items-center gap-1.5 flex-wrap">
+            <div className="text-sm text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-xl border border-line dark:border-line-dark flex items-center gap-1.5 flex-wrap">
               <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
               <span>يمكنك إدارة وطباعة الباركود الخاص بكل دفعة عبر قسم{' '}</span>
               <button

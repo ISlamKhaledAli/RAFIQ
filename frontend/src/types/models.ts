@@ -827,6 +827,7 @@ export interface DailyClosingPreview {
   existingClosing?: DailyClosing | null;
   postClosingSalesCount?: number;
   postClosingSalesPiasters?: number;
+  openShiftsCount?: number;
   isDateSuspicious: boolean;
   dateSuspiciousReason?: string | null;
 }

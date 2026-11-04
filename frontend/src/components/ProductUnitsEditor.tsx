@@ -211,11 +211,11 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
               {terminology.packagingSectionTitle}
             </span>
             {isConfigured ? (
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20">
+              <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20">
                 مفعل ({additionalUnits.length} عبوة)
               </span>
             ) : (
-              <span className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted">
+              <span className="text-micro font-semibold text-ink-muted dark:text-ink-dark-muted">
                 ({effectiveBaseUnitName} فقط)
               </span>
             )}

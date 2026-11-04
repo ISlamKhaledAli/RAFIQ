@@ -41,6 +41,10 @@ export interface CustomersViewProps {
 export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
   const { isEnabled } = useFeatures();
   const { hasPermission } = useAuth();
+  const canCreateCustomer = hasPermission('customers.create');
+  const canEditCustomer = hasPermission('customers.edit');
+  const canRecordPayment = hasPermission('customers.payment');
+  const canViewLedger = hasPermission('customers.ledger');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'debtors' | 'settled'>('all');
@@ -139,7 +143,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
       if (res && res.base64) {
         const link = document.createElement('a');
         link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${res.base64}`;
-        link.download = res.fileName || 'قالب_استيراد_العملاء_نظام_رفيق.xlsx';
+        link.download = res.fileName || 'قالب_استيراد_العملاء_رفيق_POS.xlsx';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -632,14 +636,13 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         {/* Card 1: Total Debts */}
         <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-danger/40 transition-colors">
           <div className="min-w-0">
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5 truncate">إجمالي الفلوس اللي برة (عند الزباين)</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5 truncate">إجمالي الفلوس اللي برة</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-xl sm:text-2xl font-black font-mono text-danger dark:text-danger-bright tabular-nums tracking-tight">
+              <span className="t-kpi-lg font-mono text-danger dark:text-danger-bright tracking-tight">
                 {formatArabicCurrency(totalDebtsPiasters, false)}
               </span>
               <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">ج.م</span>
             </div>
-            <span className="text-[10px] text-danger dark:text-danger-bright font-medium block mt-0.5">فلوس لسه ما اتسددتش</span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 flex items-center justify-center text-danger dark:text-danger-bright shadow-2xs shrink-0">
             <CreditCard className="w-4.5 h-4.5" />
@@ -649,14 +652,13 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         {/* Card 2: Debtor count */}
         <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-warn/40 transition-colors">
           <div className="min-w-0">
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5 truncate">الزبائن اللي عليهم فلوس</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5 truncate">الزبائن اللي عليهم فلوس</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-xl sm:text-2xl font-black font-mono text-ink dark:text-ink-dark tabular-nums tracking-tight">
+              <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark tracking-tight">
                 {debtorsCount}
               </span>
               <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">عميل</span>
             </div>
-            <span className="text-[10px] text-warn dark:text-warn-bright font-bold block mt-0.5">عليهم حساب في النوتة</span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-bright/30 flex items-center justify-center text-warn dark:text-warn-bright shadow-2xs shrink-0">
             <AlertTriangle className="w-4.5 h-4.5" />
@@ -666,14 +668,13 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         {/* Card 3: Total Credit Limit */}
         <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-line-hover dark:hover:border-line-dark transition-colors">
           <div className="min-w-0">
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5 truncate">أعلى حد للشكك مسموح بيه</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5 truncate">إجمالي حدود الشكك</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-xl sm:text-2xl font-black font-mono text-ink dark:text-ink-dark tabular-nums tracking-tight">
+              <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark tracking-tight">
                 {formatArabicCurrency(totalCreditLimitPiasters, false)}
               </span>
               <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">ج.م</span>
             </div>
-            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mt-0.5">سقف الديون المسموح</span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted shadow-2xs shrink-0">
             <FileText className="w-4.5 h-4.5" />
@@ -683,14 +684,13 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         {/* Card 4: Total customers count */}
         <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark p-3 flex items-center justify-between shadow-2xs hover:border-paid/40 transition-colors">
           <div className="min-w-0">
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5 truncate">إجمالي الزبائن المسجلين</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5 truncate">إجمالي الزبائن المسجلين</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-xl sm:text-2xl font-black font-mono text-paid dark:text-paid-bright tabular-nums tracking-tight">
+              <span className="t-kpi-lg font-mono text-paid dark:text-paid-bright tracking-tight">
                 {customers.length}
               </span>
               <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">عميل</span>
             </div>
-            <span className="text-[10px] text-paid dark:text-paid-bright font-bold block mt-0.5">مسجلين في الدفتر</span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-emerald-900/40 flex items-center justify-center text-paid dark:text-paid-bright shadow-2xs shrink-0">
             <Users className="w-4.5 h-4.5" />
@@ -755,6 +755,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
           </div>
 
           {/* Import from Excel Button */}
+          {canCreateCustomer && (
           <button
             type="button"
             onClick={() => { setIsImportModalOpen(true); setImportError(null); setImportResult(null); }}
@@ -762,8 +763,9 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
             title="استيراد عملاء وديونهم الافتتاحية من ملف إكسل"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
-            <span className="hidden md:inline">استيراد إكسل</span>
+            <span className="hidden xl:inline">استيراد إكسل</span>
           </button>
+          )}
 
           {/* Export to Excel Button */}
           <button
@@ -774,17 +776,19 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
             title="تصدير كشف حسابات وأرصدة العملاء والديون إلى ملف إكسل"
           >
             <Download className={`w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0 ${isExportingExcel ? 'animate-bounce' : ''}`} />
-            <span className="hidden md:inline">{isExportingExcel ? 'تصدير...' : 'تصدير إكسل'}</span>
+            <span className="hidden xl:inline">{isExportingExcel ? 'تصدير...' : 'تصدير إكسل'}</span>
           </button>
 
           {/* Add Customer Button */}
+          {canCreateCustomer && (
           <button
             onClick={openAddModal}
-            className="flex items-center gap-1.5 h-8.5 px-3 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-emerald-400 active:scale-[0.98] text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 h-8.5 px-3 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 active:scale-[0.98] text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>عميل جديد</span>
           </button>
+          )}
         </div>
       </div>
 
@@ -793,13 +797,13 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         <div className="flex-1 overflow-auto">
           <table className="w-full text-right text-xs">
             <thead>
-              <tr className="h-10 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold text-[11px] sticky top-0 z-10">
+              <tr className="h-10 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold text-micro sticky top-0 z-10">
                 <th className="px-4">اسم العميل</th>
                 <th className="px-3">رقم الهاتف</th>
                 <th className="px-3">الرصيد الحالي</th>
                 <th className="px-3">الحد الائتماني</th>
-                <th className="px-3">تاريخ الإضافة</th>
-                <th className="px-4 text-center">إجراءات الحساب</th>
+                <th className="px-3 hidden xl:table-cell">تاريخ الإضافة</th>
+                <th className="px-2 xl:px-4 text-center">إجراءات الحساب</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line dark:divide-line-dark">
@@ -820,7 +824,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                 pagedCustomers.map((cust) => {
                   const hasDebt = cust.balancePiasters > 0;
                   return (
-                    <tr key={cust.id} className="h-12 hover:bg-[#F1F5F4]/60 dark:hover:bg-surface-dark-2/60 transition-colors">
+                    <tr key={cust.id} className="h-12 hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                       {/* Name */}
                       <td className="px-4 font-bold text-ink dark:text-ink-dark">
                         {cust.name}
@@ -830,7 +834,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                       <td className="px-3 text-ink-muted dark:text-ink-dark-muted font-mono tabular-nums text-xs">
                         {cust.phone ? (
                           <div className="flex items-center gap-1.5">
-                            <Phone className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
+                            <Phone className="w-3.5 h-3.5 hidden xl:block text-ink-muted dark:text-ink-dark-muted" />
                             <span>{cust.phone}</span>
                           </div>
                         ) : (
@@ -840,31 +844,35 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
 
                       {/* Balance */}
                       <td className="px-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-mono font-bold text-xs tabular-nums ${
+                        <span className={`inline-flex items-center whitespace-nowrap px-2.5 py-0.5 rounded-full font-mono font-bold text-xs tabular-nums ${
                           cust.balancePiasters > 0 
                             ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30' 
                             : cust.balancePiasters < 0
                             ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
                             : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark'
                         }`}>
-                          {formatArabicCurrency(Math.abs(cust.balancePiasters), true)}
-                          {cust.balancePiasters > 0 ? (
-                            <span className="mr-1 text-[10px] font-sans font-bold text-danger dark:text-danger-bright">(عليه فلوس)</span>
-                          ) : cust.balancePiasters < 0 ? (
-                            <span className="mr-1 text-[10px] font-sans font-bold text-paid dark:text-paid-bright">(سايب فلوس)</span>
+                          {cust.balancePiasters === 0 ? (
+                            <span className="font-sans font-normal">حسابه خالص</span>
                           ) : (
-                            <span className="mr-1 text-[10px] font-sans font-normal">(حسابه خالص)</span>
+                            <>
+                              {formatArabicCurrency(Math.abs(cust.balancePiasters), true)}
+                              {cust.balancePiasters > 0 ? (
+                                <span className="mr-1 text-micro font-sans font-bold text-danger dark:text-danger-bright">(عليه فلوس)</span>
+                              ) : (
+                                <span className="mr-1 text-micro font-sans font-bold text-paid dark:text-paid-bright">(سايب فلوس)</span>
+                              )}
+                            </>
                           )}
                         </span>
                       </td>
 
                       {/* Credit Limit */}
                       <td className="px-3">
-                        <div className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
-                          <span className="text-ink dark:text-ink-dark font-bold">{formatArabicCurrency(cust.creditLimitPiasters, true)}</span>
+                        <div className="flex items-center gap-1.5 whitespace-nowrap font-mono text-xs tabular-nums">
+                          <span className="text-ink dark:text-ink-dark font-bold">{cust.creditLimitPiasters > 0 ? formatArabicCurrency(cust.creditLimitPiasters, true) : '—'}</span>
                           {cust.creditLimitPiasters > 0 && cust.balancePiasters > cust.creditLimitPiasters && (
                             <span 
-                              className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-sans font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30"
+                              className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-micro font-sans font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30"
                               title={`عدى الحد المسموح بيه بـ ${formatArabicCurrency(cust.balancePiasters - cust.creditLimitPiasters, true)}`}
                             >
                               <AlertTriangle className="w-3 h-3 text-warn dark:text-warn-bright" />
@@ -875,32 +883,36 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                       </td>
 
                       {/* Date */}
-                      <td className="px-3 text-ink-muted dark:text-ink-dark-muted text-[11px] tabular-nums">
+                      <td className="px-3 hidden xl:table-cell text-ink-muted dark:text-ink-dark-muted text-micro tabular-nums">
                         {cust.createdAt ? new Date(cust.createdAt).toLocaleDateString('ar-EG-u-nu-latn') : '---'}
                       </td>
 
                       {/* Actions */}
-                      <td className="px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td className="px-2 xl:px-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
                           {/* Settle Debt or Deposit Advance Button */}
+                          {canRecordPayment && (
                           <button
                             onClick={() => openPaymentModal(cust)}
                             title={hasDebt ? "تسجيل دفعة سداد دين" : "إيداع دفعة نقدية تحت الحساب (أمانات)"}
-                            className="flex items-center gap-1 h-7.5 px-3 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright hover:bg-paid hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white border border-paid/20 dark:border-emerald-800/40 active:scale-95"
+                            className="flex items-center gap-1 h-7.5 px-2.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright hover:bg-paid hover:text-white dark:hover:bg-paid dark:hover:text-white border border-paid/20 dark:border-emerald-800/40 active:scale-95"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
                             <span>{hasDebt ? 'سداد' : 'إيداع'}</span>
                           </button>
+                          )}
 
                           {/* Statement Button */}
+                          {canViewLedger && (
                           <button
                             onClick={() => void openStatementModal(cust)}
                             title="كشف حساب العميل"
-                            className="flex items-center gap-1 h-7.5 px-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-brand dark:text-brand-bright hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                            className="flex items-center gap-1 h-7.5 px-2.5 whitespace-nowrap rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-brand dark:text-brand-bright hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-xs font-bold transition-all shadow-2xs cursor-pointer"
                           >
                             <FileText className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                            <span>كشف حساب</span>
+                            <span className="hidden xl:inline">كشف حساب</span>
                           </button>
+                          )}
 
                           {/* Patient Profile Button (Story 133 / Feature #190) */}
                           {isEnabled('feature_patient_profiles') && hasPermission('patients.view') && (
@@ -910,11 +922,12 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                               className="flex items-center gap-1 h-7.5 px-2.5 rounded-xl bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright hover:bg-brand hover:text-white dark:hover:bg-brand-bright dark:hover:text-surface-dark text-xs font-bold transition-all shadow-2xs cursor-pointer"
                             >
                               <HeartPulse className="w-3.5 h-3.5" />
-                              <span>الملف الطبي</span>
+                              <span className="hidden xl:inline">الملف الطبي</span>
                             </button>
                           )}
 
                           {/* Edit Button */}
+                          {canEditCustomer && (
                           <button
                             onClick={() => openEditModal(cust)}
                             title="تعديل بيانات العميل"
@@ -922,7 +935,9 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
+                          )}
 
+                          {canEditCustomer && (
                             <button
                               onClick={() => void handleArchiveCustomer(cust)}
                               title={hasDebt ? 'لا يمكن الحذف — يوجد دين مستحق' : archivingCustomerId === cust.id ? 'جاري الحذف...' : 'حذف العميل'}
@@ -931,16 +946,17 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                                 hasDebt
                                   ? 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink-muted/40 dark:text-ink-dark-muted/40 cursor-not-allowed opacity-40'
                                   : archivingCustomerId === cust.id
-                                  ? 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-danger opacity-75 cursor-wait'
-                                  : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark text-danger/80 dark:text-danger-bright hover:text-white hover:bg-danger dark:hover:bg-danger hover:border-danger'
+                                  ? 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-danger dark:text-danger-bright opacity-75 cursor-wait'
+                                  : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark text-danger/80 dark:text-danger-bright hover:text-white dark:hover:text-white hover:bg-danger dark:hover:bg-danger hover:border-danger'
                               }`}
                             >
                               {archivingCustomerId === cust.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-danger" />
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-danger dark:text-danger-bright" />
                               ) : (
                                 <Trash2 className="w-3.5 h-3.5" />
                               )}
                             </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1039,7 +1055,6 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         statementPrintMode={statementPrintMode}
         setStatementPrintMode={setStatementPrintMode}
         isEntryCancelled={isEntryCancelled}
-        onExecutePrint={() => window.print()}
       />
 
       {/* Modal 5: Excel Import Modal */}

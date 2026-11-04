@@ -17,6 +17,7 @@ interface SupplierPaymentModalProps {
   paymentNotes: string;
   setPaymentNotes: (notes: string) => void;
   onConfirmPayment: (e: React.FormEvent, effectiveAmountPiasters?: number, notes?: string, paymentSource?: 'cash_drawer' | 'external_cash') => void;
+  isSubmitting: boolean;
 }
 
 export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
@@ -28,6 +29,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
   paymentNotes,
   setPaymentNotes,
   onConfirmPayment,
+  isSubmitting,
 }) => {
   // 'pay_exact' = سداد المديونية المستحقة فقط وإبقاء الفائض في الخزينة
   // 'advance_credit' = صرف المبلغ كاملاً وترحيل الزيادة دفعة مقدمة تحت الحساب
@@ -112,8 +114,8 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               <Banknote className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-ink dark:text-ink-dark">سداد دفعة نقدية للمورد</h3>
-              <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted block -mt-0.5">{supplier.name}</span>
+              <h3 className="t-modal-title text-ink dark:text-ink-dark">سداد دفعة نقدية للمورد</h3>
+              <span className="text-micro text-ink-muted dark:text-ink-dark-muted block -mt-0.5">{supplier.name}</span>
             </div>
           </div>
           <button
@@ -167,10 +169,10 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setPaymentAmountPiasters(currentBal)}
-                  className="text-[11px] font-bold text-paid dark:text-paid-bright hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-micro font-bold text-paid dark:text-paid-bright hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
-                  <span>سداد كامل الدين بالظبط ({formatMoney(currentBal)})</span>
+                  <span>سداد كامل الدين بالظبط</span>
                 </button>
               )}
             </div>
@@ -207,7 +209,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               >
                 <div className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
                   excessAction === 'pay_exact'
-                    ? 'border-brand dark:border-brand-bright bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                    ? 'border-brand dark:border-brand-bright bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                     : 'border-line dark:border-line-dark'
                 }`}>
                   {excessAction === 'pay_exact' && <Check className="w-2.5 h-2.5" />}
@@ -219,7 +221,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                       <span>صرف المستحق فقط والباقي في الدرج</span>
                     </span>
                   </div>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
                     صرف {formatMoney(currentBal)} لتسوية الحساب، والاحتفاظ بـ {formatMoney(excessPiasters)} في الدرج.
                   </p>
                 </div>
@@ -237,7 +239,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               >
                 <div className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
                   excessAction === 'advance_credit'
-                    ? 'border-paid dark:border-emerald-500 bg-paid dark:bg-emerald-600 text-white'
+                    ? 'border-paid dark:border-paid-bright bg-paid text-white'
                     : 'border-line dark:border-line-dark'
                 }`}>
                   {excessAction === 'advance_credit' && <Check className="w-2.5 h-2.5" />}
@@ -249,7 +251,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                       <span>صرف المبلغ كاملاً وترحيل الباقي كرصيد</span>
                     </span>
                   </div>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
                     صرف {formatMoney(paymentAmountPiasters)} بالكامل، وتسجيل {formatMoney(excessPiasters)} رصيد لنا عنده.
                   </p>
                 </div>
@@ -259,7 +261,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
 
           {/* Supplier had no debt initially */}
           {!isDebt && paymentAmountPiasters > 0 && (
-            <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-emerald-800/40 rounded-xl text-[11px] text-paid-dark dark:text-emerald-200 flex items-start gap-2">
+            <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-emerald-800/40 rounded-xl text-micro text-paid-dark dark:text-emerald-200 flex items-start gap-2">
               <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block">تسجيل دفعة مقدمة تحت الحساب:</span>
@@ -287,14 +289,14 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
             {paymentSource === 'cash_drawer' && (
               <div className="space-y-1 mt-1">
                 <div className="p-2 rounded-xl border text-xs bg-surface dark:bg-surface-dark border-line dark:border-line-dark flex items-center justify-between">
-                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">كاش الدرج المتوفر حالياً:</span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-micro">كاش الدرج المتوفر حالياً:</span>
                   <span className={`font-mono font-black text-xs ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
                     {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
                   </span>
                 </div>
 
                 {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (effectiveAmountPiasters > 0 && effectiveAmountPiasters > liveDrawerCashPiasters)) && (
-                  <div className="p-2 rounded-xl border text-[11px] bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-0.5">
+                  <div className="p-2 rounded-xl border text-micro bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-0.5">
                     <div className="flex items-center gap-1.5 font-bold">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                       <span>
@@ -303,7 +305,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                           : 'رصيد نقدية الدرج غير كافٍ!'}
                       </span>
                     </div>
-                    <p className="text-[10.5px] leading-relaxed">
+                    <p className="text-micro leading-relaxed">
                       {liveDrawerCashPiasters <= 0
                         ? 'لا يمكن صرف نقدية من درج فارغ. إذا كان السداد من مالك المحل، يرجى تغيير مصدر النقدية إلى: «كاش خارجي من صاحب المحل».'
                         : `المبلغ المراد صرفه (${formatArabicCurrency(effectiveAmountPiasters)}) أكبر من نقدية الدرج (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي من صاحب المحل».`}
@@ -316,7 +318,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
 
           {/* Outcome Preview Banner */}
           {paymentAmountPiasters > 0 && (
-            <div className={`p-3 rounded-xl border text-[11.5px] flex items-center justify-between font-medium ${
+            <div className={`p-3 rounded-xl border text-micro flex items-center justify-between font-medium ${
               balanceAfter > 0
                 ? 'bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
                 : balanceAfter < 0
@@ -366,12 +368,13 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
             <button
               type="submit"
               disabled={
+                isSubmitting ||
                 paymentAmountPiasters <= 0 ||
                 (paymentSource === 'cash_drawer' &&
                   liveDrawerCashPiasters !== null &&
                   (liveDrawerCashPiasters <= 0 || effectiveAmountPiasters > liveDrawerCashPiasters))
               }
-              className="px-5 py-2 rounded-xl bg-paid dark:bg-emerald-600 hover:bg-paid-hover dark:hover:bg-emerald-500 text-white font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl bg-paid hover:bg-paid-hover text-white font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
               <span>تأكيد الصرف</span>

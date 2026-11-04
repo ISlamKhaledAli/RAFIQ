@@ -281,7 +281,7 @@ namespace RafiqPOS.Services
                 // 3. Profit calculation from sales (Real revenue excluding VAT - Total cost)
                 string profitSql = @"
                     SELECT 
-                        COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - (si.quantity_milli * si.unit_cost_piasters / 1000)), 0) AS total_profit
+                        COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - ((si.quantity_milli * si.unit_cost_piasters + 500) / 1000)), 0) AS total_profit
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
                     WHERE " + sDateClause + @" 
@@ -741,7 +741,7 @@ namespace RafiqPOS.Services
                 string profitDateClause = dateFilterClause.Replace("created_at", "s.created_at");
                 string profitSql = string.Format(@"
                     SELECT 
-                        COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - (si.quantity_milli * si.unit_cost_piasters / 1000)), 0) AS total_profit,
+                        COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - ((si.quantity_milli * si.unit_cost_piasters + 500) / 1000)), 0) AS total_profit,
                         COUNT(CASE WHEN si.unit_cost_piasters <= 0 THEN 1 END) AS zero_cost_count
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
@@ -2088,7 +2088,7 @@ namespace RafiqPOS.Services
                     FROM (
                         SELECT si.product_id, si.quantity_milli AS qty_milli,
                                (si.total_piasters - COALESCE(si.tax_piasters, 0)) AS revenue,
-                               ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000) AS cost
+                               ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0) + 500) / 1000) AS cost
                         FROM sale_items si
                         INNER JOIN sales s ON si.sale_id = s.id
                         LEFT JOIN products p ON si.product_id = p.id
@@ -2181,7 +2181,7 @@ namespace RafiqPOS.Services
                     FROM (
                         SELECT si.product_id, si.product_name, si.quantity_milli AS qty_milli,
                                (si.total_piasters - COALESCE(si.tax_piasters, 0)) AS revenue,
-                               ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000) AS cost
+                               ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0) + 500) / 1000) AS cost
                         FROM sale_items si
                         INNER JOIN sales s ON si.sale_id = s.id
                         LEFT JOIN products p ON si.product_id = p.id
@@ -2333,7 +2333,7 @@ namespace RafiqPOS.Services
 
                 // Current profit: ex-VAT sales profit minus the ex-VAT profit of returns in the same window
                 string curProfSql = string.Format(@"
-                    SELECT COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000)), 0) AS profit
+                    SELECT COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0) + 500) / 1000)), 0) AS profit
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
                     LEFT JOIN products p ON si.product_id = p.id
@@ -2353,7 +2353,7 @@ namespace RafiqPOS.Services
 
                 // Previous profit: ex-VAT sales profit minus the ex-VAT profit of returns in the same window
                 string prevProfSql = string.Format(@"
-                    SELECT COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000)), 0) AS profit
+                    SELECT COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0) + 500) / 1000)), 0) AS profit
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
                     LEFT JOIN products p ON si.product_id = p.id
@@ -2462,7 +2462,7 @@ namespace RafiqPOS.Services
                 try
                 {
                     string cogsSql = @"
-                        SELECT COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS cogs_30d
+                        SELECT COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0) + 500) / 1000), 0) AS cogs_30d
                         FROM sale_items si
                         INNER JOIN sales s ON si.sale_id = s.id
                         LEFT JOIN products p ON si.product_id = p.id
@@ -3841,7 +3841,7 @@ namespace RafiqPOS.Services
                         COUNT(DISTINCT si.sale_id) AS invoices_count,
                         COALESCE(SUM(si.quantity_milli), 0) AS total_qty_milli,
                         COALESCE(SUM(si.total_piasters), 0) AS total_sales,
-                        COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS total_cost
+                        COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0) + 500) / 1000), 0) AS total_cost
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
                     INNER JOIN products p ON si.product_id = p.id
@@ -3903,7 +3903,7 @@ namespace RafiqPOS.Services
                         COUNT(DISTINCT si.sale_id) AS invoices_count,
                         COALESCE(SUM(si.quantity_milli), 0) AS total_qty_milli,
                         COALESCE(SUM(si.total_piasters), 0) AS total_sales,
-                        COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS total_cost
+                        COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0) + 500) / 1000), 0) AS total_cost
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
                     INNER JOIN products p ON si.product_id = p.id

@@ -21,6 +21,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { printReport } from '../../utils/printReport';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
@@ -28,6 +29,7 @@ import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { formatArabicCurrency } from '../../utils/money';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
+import { SegmentedTabs, type SegmentedTabOption } from '../../components/SegmentedTabs';
 import { FinancialGaugeMeter } from '../../components/analytics/FinancialGaugeMeter';
 import { FinancialWaterfallChart } from '../../components/analytics/FinancialWaterfallChart';
 import { HourlyHeatmapBar } from '../../components/analytics/HourlyHeatmapBar';
@@ -51,6 +53,22 @@ const PERIOD_OPTIONS: SelectOption[] = [
   { value: '3months', label: 'آخر 3 أشهر' },
   { value: 'year', label: 'هذا العام' },
   { value: 'custom', label: 'فترة مخصصة...' },
+];
+
+type RevenueSection = 'overview' | 'traffic' | 'categories' | 'items' | 'closings' | 'vat';
+
+const SECTION_TABS: SegmentedTabOption<RevenueSection>[] = [
+  { value: 'overview', label: 'ملخص التدفق والشلال المالي', icon: PieIcon },
+  { value: 'traffic', label: 'ساعات الذروة ونشاط الكاشير', icon: Flame },
+  { value: 'categories', label: 'أداء الأقسام والتصنيفات', icon: BarChart3 },
+  { value: 'items', label: 'ربحية الأصناف والهوامش', icon: Award },
+  { value: 'closings', label: 'سجل إقفالات الوردية', icon: CheckCircle2 },
+  { value: 'vat', label: 'إقرار وضريبة القيمة المضافة (VAT)', icon: Receipt },
+];
+
+const ITEMS_DIRECTION_TABS: SegmentedTabOption<'desc' | 'asc'>[] = [
+  { value: 'desc', label: 'الأعلى ربحاً', tone: 'paid' },
+  { value: 'asc', label: 'الأقل ربحاً أو خاسرة', tone: 'danger' },
 ];
 
 export interface RevenueAnalyticsViewProps {
@@ -78,7 +96,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   const [comparison, setComparison] = useState<PeriodComparisonReport | null>(null);
   const [hourlyReport, setHourlyReport] = useState<HourlyIntensityReport | null>(null);
 
-  const [activeSection, setActiveSection] = useState<'overview' | 'traffic' | 'categories' | 'items' | 'closings' | 'vat'>('overview');
+  const [activeSection, setActiveSection] = useState<RevenueSection>('overview');
   // Profitability figures are net of returns and ex-VAT, so rows can be negative
   const categoryShares = netSalesSharePercents(categories);
   const orderedItems = sortByProfit(profitableItems, itemsDirection);
@@ -178,7 +196,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
 
   // Print handler
   const handlePrint = () => {
-    window.print();
+    void printReport({ kind: 'a4only' });
   };
 
   if (showLoading && !salesReport) {
@@ -193,17 +211,17 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark overflow-y-auto select-none p-3 sm:p-5" dir="rtl">
+    <div data-print-root className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark overflow-y-auto select-none p-4 sm:p-6 gap-5" dir="rtl">
       {/* 1. Header & Period Filter Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-line dark:border-line-dark shrink-0">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 shrink-0 bg-surface dark:bg-surface-dark p-4 sm:p-5 rounded-xl border border-line dark:border-line-dark shadow-2xs">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center font-bold">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center font-bold">
               <DollarSign className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-ink dark:text-ink-dark">تحليلات الإيرادات ومصادر الأموال والأرباح</h1>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
+              <h1 className="t-page-title text-ink dark:text-ink-dark">تحليلات الإيرادات ومصادر الأموال والأرباح</h1>
+              <p className="text-sm mt-1 text-ink-muted dark:text-ink-dark-muted">
                 تتبع تدفق كل قرش بالكامل: مبيعات، تكلفة بضاعة، عجز جرد، وسجلات الإقفال اليومي
               </p>
             </div>
@@ -211,9 +229,10 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         </div>
 
         {/* Filter Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="w-44">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="w-48">
             <CustomSelect
+              size="lg"
               options={PERIOD_OPTIONS}
               value={period}
               onChange={(val) => setPeriod(val)}
@@ -222,6 +241,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
 
           {period === 'custom' && (
             <CustomDateRangePicker
+              size="md"
               startDate={customFrom}
               endDate={customTo}
               onChange={(start, end) => {
@@ -234,29 +254,29 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
           <button
             type="button"
             onClick={handlePrint}
-            className="h-9 px-3 rounded-lg bg-brand-dark dark:bg-brand-bright dark:text-surface-dark hover:bg-brand dark:hover:bg-emerald-400 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+            className="h-10 px-4 rounded-lg bg-brand-dark dark:bg-brand-bright dark:text-surface-dark hover:bg-brand dark:hover:bg-brand-bright/90 text-white text-sm font-bold flex items-center gap-2 transition-colors shadow-2xs cursor-pointer"
             title="طباعة التقرير"
           >
-            <Printer className="w-3.5 h-3.5" />
+            <Printer className="w-4 h-4" />
             <span>طباعة التقرير</span>
           </button>
         </div>
       </div>
 
       {/* 2. Top Financial KPI Cards (Waterfall of Supermarket Money) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2.5 my-4 shrink-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 shrink-0">
         {/* KPI 1: Gross Sales */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">إجمالي المبيعات</span>
-            <span className="text-[10px] bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded text-ink-muted dark:text-ink-dark-muted font-mono">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold">إجمالي المبيعات</span>
+            <span className="text-xs bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded text-ink-muted dark:text-ink-dark-muted font-mono">
               {salesReport?.invoicesCount || 0} فاتورة
             </span>
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-ink dark:text-ink-dark">
+          <div className="t-kpi text-ink dark:text-ink-dark">
             {formatArabicCurrency(totalSales)}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1 flex items-center justify-between gap-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted flex items-center justify-between gap-1">
             <span>المرتجع: <strong className="font-mono text-danger dark:text-danger-bright font-normal">{formatArabicCurrency(returnsTotal)}</strong></span>
             {totalTax > 0 && (
               <span className="text-paid dark:text-paid-bright font-mono" title="ضريبة القيمة المضافة المحصلة في المبيعات">
@@ -267,182 +287,108 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         </div>
 
         {/* KPI 2: Net Merchant Revenue */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">إيراد المتجر الحقيقي</span>
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold">إيراد المتجر الحقيقي</span>
             <DollarSign className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-brand-dark dark:text-brand-bright">
+          <div className="t-kpi text-brand-dark dark:text-brand-bright">
             {formatArabicCurrency(netSalesExcludingTax)}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
             {totalTax > 0 ? 'صافي المبيعات بدون الضريبة' : 'بعد خصم المرتجعات'}
           </div>
         </div>
 
         {/* KPI 3: COGS */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">تكلفة البضاعة المباعة</span>
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold">تكلفة البضاعة المباعة</span>
             <Layers className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-ink dark:text-ink-dark">
+          <div className="t-kpi text-ink dark:text-ink-dark">
             {formatArabicCurrency(cogs)}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
             تكلفة شراء الأصناف المباعة
           </div>
         </div>
 
         {/* KPI 4: Gross Profit */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">مجمل ربح المبيعات</span>
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold">مجمل ربح المبيعات</span>
             <TrendingUp className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-paid dark:text-paid-bright">
+          <div className="t-kpi text-paid dark:text-paid-bright">
             {formatArabicCurrency(grossProfit)}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
             فارق البيع عن سعر الشراء
           </div>
         </div>
 
         {/* KPI 5: Operational Expenses */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">المصروفات التشغيلية</span>
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold">المصروفات التشغيلية</span>
             <Minus className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-warn dark:text-warn-bright">
+          <div className="t-kpi text-warn dark:text-warn-bright">
             {operationalExpenses > 0 ? `-${formatArabicCurrency(operationalExpenses)}` : formatArabicCurrency(0)}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
             إيجار، فواتير، مرتبات ونثريات
           </div>
         </div>
 
         {/* KPI 5: Inventory Losses & Shrinkage */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">خسائر وعجز المخزون</span>
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+          <div className="flex items-center justify-between gap-2 text-ink-muted dark:text-ink-dark-muted">
+            <span className="text-sm font-bold">خسائر وعجز المخزون</span>
             <AlertTriangle className="w-3.5 h-3.5 text-danger dark:text-danger-bright" />
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-danger dark:text-danger-bright">
+          <div className="t-kpi text-danger dark:text-danger-bright">
             {inventoryLosses > 0 ? `-${formatArabicCurrency(inventoryLosses)}` : formatArabicCurrency(0)}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
             تالف، منتهي، عجز جرد
           </div>
         </div>
 
         {/* KPI 6: Real Net Profit */}
-        <div className={`border rounded-xl p-3 shadow-2xs flex flex-col justify-between ${
+        <div className={`border rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px] sm:col-span-2 xl:col-span-3 ${
           netOperationalProfit >= 0
             ? 'bg-paid-soft/40 dark:bg-paid-dark-soft/40 border-paid/30 dark:border-paid/40 text-paid dark:text-paid-bright'
             : 'bg-danger-soft/40 dark:bg-danger-dark-soft/40 border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
         }`}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-bold">صافي الربح الفعلي</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-white/70 dark:bg-surface-dark/70 text-ink dark:text-ink-dark shadow-2xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-bold">صافي الربح الفعلي</span>
+            <span className="text-sm px-2.5 py-1 rounded-lg font-mono font-bold bg-white/70 dark:bg-surface-dark/70 text-ink dark:text-ink-dark shadow-2xs">
               {netMarginPercent.toFixed(1)}%
             </span>
           </div>
-          <div className="text-base font-bold font-mono tabular-nums">
+          <div className="t-kpi-lg">
             {formatArabicCurrency(netOperationalProfit)}
-          </div>
-          <div className="text-[10px] font-medium mt-1">
-            الربح الصافي النهائي للمحل
           </div>
         </div>
       </div>
 
       {/* 3. Section Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-line dark:border-line-dark pb-3 mb-4 shrink-0 flex-wrap">
-        <button
-          type="button"
-          onClick={() => setActiveSection('overview')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'overview'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <PieIcon className="w-4 h-4 shrink-0" />
-          <span>ملخص التدفق والشلال المالي</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSection('traffic')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'traffic'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <Flame className="w-4 h-4 shrink-0 text-amber-500" />
-          <span>ساعات الذروة ونشاط الكاشير</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSection('categories')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'categories'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4 shrink-0" />
-          <span>أداء الأقسام والتصنيفات</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSection('items')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'items'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <Award className="w-4 h-4 shrink-0" />
-          <span>ربحية الأصناف والهوامش</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSection('closings')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'closings'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>سجل إقفالات الوردية</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSection('vat')}
-          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
-            activeSection === 'vat'
-              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
-              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
-          }`}
-        >
-          <Receipt className="w-4 h-4 shrink-0 text-paid dark:text-paid-bright" />
-          <span>إقرار وضريبة القيمة المضافة (VAT)</span>
-        </button>
+      <div className="shrink-0">
+        <SegmentedTabs
+          ariaLabel="أقسام تحليلات الإيرادات والأرباح"
+          value={activeSection}
+          onChange={setActiveSection}
+          options={SECTION_TABS}
+        />
       </div>
 
       {/* 4. Dynamic Tab Content */}
-      <div className="flex-1 pb-6">
+      <div className="flex-1 pb-4">
         {/* SECTION A: Overview & Breakdown */}
         {activeSection === 'overview' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {/* Visual Micro-Visualizations Row: 3D Gauge Meter & Waterfall Flow */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-1">
@@ -470,13 +416,13 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
             {/* Income Sources Donut & Period Comparison */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Visual Breakdown of Income Sources */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col justify-between">
                 <div>
-                  <h2 className="text-sm font-bold text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5">
+                  <h2 className="t-section-title text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5">
                     <Wallet className="w-4 h-4 text-paid dark:text-paid-bright" />
                     <span>توزيع المبيعات حسب طريقة الدفع</span>
                   </h2>
-                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted mb-3">
+                  <p className="text-sm mt-1 text-ink-muted dark:text-ink-dark-muted mb-5">
                     توزيع نقدي مباشر مقابل آجل وبطاقات بنكية
                   </p>
                 </div>
@@ -486,15 +432,16 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                   <div className="relative w-32 h-32 flex items-center justify-center">
                     <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                       {/* Background circle */}
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#E2E8F0" strokeWidth="4" className="stroke-slate-200 dark:stroke-slate-700" />
+                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="currentColor" strokeWidth="4" className="text-line dark:text-line-dark" />
                       {/* Cash slice (Green) */}
                       <circle
                         cx="18"
                         cy="18"
                         r="15.915"
                         fill="none"
-                        stroke="#006D41"
+                        stroke="currentColor"
                         strokeWidth="4"
+                        className="text-paid dark:text-paid-bright"
                         strokeDasharray={`${cashPct} ${100 - cashPct}`}
                         strokeDashoffset="0"
                       />
@@ -504,8 +451,9 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                         cy="18"
                         r="15.915"
                         fill="none"
-                        stroke="#B3720E"
+                        stroke="currentColor"
                         strokeWidth="4"
+                        className="text-warn dark:text-warn-bright"
                         strokeDasharray={`${creditPct} ${100 - creditPct}`}
                         strokeDashoffset={`${-cashPct}`}
                       />
@@ -550,14 +498,14 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                       )}
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                      <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">نقدي مباشر</span>
+                      <span className="text-xs text-ink-muted dark:text-ink-dark-muted">نقدي مباشر</span>
                       <span className="text-base font-bold font-mono text-paid dark:text-paid-bright">{cashPct}%</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Legend & Details */}
-                <div className="space-y-2 mt-3 pt-3 border-t border-line dark:border-line-dark text-xs">
+                <div className="space-y-3 mt-4 pt-4 border-t border-line dark:border-line-dark text-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full bg-paid dark:bg-paid-bright shrink-0" />
@@ -611,13 +559,13 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
               </div>
 
               {/* Period-over-Period Comparison Widget */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col justify-between">
                 <div>
-                  <h2 className="text-sm font-bold text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5">
+                  <h2 className="t-section-title text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5">
                     <BarChart3 className="w-4 h-4 text-brand dark:text-brand-bright" />
                     <span>مقارنة الأداء ({comparison?.currentPeriodName || 'الحالية'} vs {comparison?.previousPeriodName || 'السابقة'})</span>
                   </h2>
-                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted mb-3">
+                  <p className="text-sm mt-1 text-ink-muted dark:text-ink-dark-muted mb-5">
                     تطور ونمو المبيعات والأرباح مقارنة بالفترة السابقة المماثلة
                   </p>
                 </div>
@@ -628,12 +576,12 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                     <span>جاري حساب ومقارنة الفترات...</span>
                   </div>
                 ) : comparison ? (
-                  <div className="space-y-2.5 flex-1 flex flex-col justify-around my-2">
+                  <div className="space-y-3 flex-1 flex flex-col justify-around my-2">
                     {/* Metric: Sales */}
-                    <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark/60">
-                      <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted">
+                    <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark/60">
+                      <div className="flex items-center justify-between text-sm font-bold text-ink-muted dark:text-ink-dark-muted">
                         <span>إجمالي المبيعات</span>
-                        <span className={`flex items-center gap-0.5 font-bold font-mono text-[11px] ${
+                        <span className={`flex items-center gap-0.5 font-bold font-mono text-sm ${
                           comparison.sales.deltaPiasters >= 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'
                         }`}>
                           {comparison.sales.deltaPiasters >= 0 ? (
@@ -644,21 +592,21 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                           {Math.abs(comparison.sales.percentChange)}%
                         </span>
                       </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="font-mono font-bold text-sm text-ink dark:text-ink-dark">
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="t-kpi text-ink dark:text-ink-dark">
                           {formatArabicCurrency(comparison.sales.current)}
                         </span>
-                        <span className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted">
+                        <span className="font-mono text-sm text-ink-muted dark:text-ink-dark-muted">
                           السابق: {formatArabicCurrency(comparison.sales.previous)}
                         </span>
                       </div>
                     </div>
 
                     {/* Metric: Profit */}
-                    <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark/60">
-                      <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted">
+                    <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark/60">
+                      <div className="flex items-center justify-between text-sm font-bold text-ink-muted dark:text-ink-dark-muted">
                         <span>مجمل الأرباح</span>
-                        <span className={`flex items-center gap-0.5 font-bold font-mono text-[11px] ${
+                        <span className={`flex items-center gap-0.5 font-bold font-mono text-sm ${
                           comparison.profit.deltaPiasters >= 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'
                         }`}>
                           {comparison.profit.deltaPiasters >= 0 ? (
@@ -669,21 +617,21 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                           {Math.abs(comparison.profit.percentChange)}%
                         </span>
                       </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="font-mono font-bold text-sm text-paid dark:text-paid-bright">
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="t-kpi text-paid dark:text-paid-bright">
                           {formatArabicCurrency(comparison.profit.current)}
                         </span>
-                        <span className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted">
+                        <span className="font-mono text-sm text-ink-muted dark:text-ink-dark-muted">
                           السابق: {formatArabicCurrency(comparison.profit.previous)}
                         </span>
                       </div>
                     </div>
 
                     {/* Metric: Average Basket */}
-                    <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark/60">
-                      <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted">
+                    <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark/60">
+                      <div className="flex items-center justify-between text-sm font-bold text-ink-muted dark:text-ink-dark-muted">
                         <span>متوسط الفاتورة الواحدة</span>
-                        <span className={`flex items-center gap-0.5 font-bold font-mono text-[11px] ${
+                        <span className={`flex items-center gap-0.5 font-bold font-mono text-sm ${
                           comparison.avgInvoicePiasters.deltaPiasters >= 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'
                         }`}>
                           {comparison.avgInvoicePiasters.deltaPiasters >= 0 ? (
@@ -694,11 +642,11 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                           {Math.abs(comparison.avgInvoicePiasters.percentChange)}%
                         </span>
                       </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="font-mono font-bold text-sm text-ink dark:text-ink-dark">
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="t-kpi text-ink dark:text-ink-dark">
                           {formatArabicCurrency(comparison.avgInvoicePiasters.current)}
                         </span>
-                        <span className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted">
+                        <span className="font-mono text-sm text-ink-muted dark:text-ink-dark-muted">
                           {comparison.invoiceCount.current} فاتورة
                         </span>
                       </div>
@@ -708,7 +656,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                   <div className="text-center text-xs text-ink-muted dark:text-ink-dark-muted py-6 flex flex-col items-center justify-center gap-2 my-auto">
                     <BarChart3 className="w-7 h-7 text-line dark:text-line-dark" />
                     <span className="font-bold text-ink dark:text-ink-dark">لا توجد مبيعات سابقة كافية للمقارنة</span>
-                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">ستظهر نسب النمو ومقارنة الإيرادات تلقائياً عند وجود فترات سابقة</span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted">ستظهر نسب النمو ومقارنة الإيرادات تلقائياً عند وجود فترات سابقة</span>
                   </div>
                 )}
               </div>
@@ -718,7 +666,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
 
         {/* SECTION TRAFFIC: Peak Hours & Cashier Performance */}
         {activeSection === 'traffic' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <HourlyHeatmapBar report={hourlyReport} isLoading={isLoading} />
             <CashierPerformanceCard
               period={period}
@@ -731,33 +679,30 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
 
         {/* SECTION B: Category Performance Table */}
         {activeSection === 'categories' && (
-          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs">
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
             <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-ink dark:text-ink-dark">أداء ومبيعات الأقسام والتصنيفات</h2>
-                <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
-                  صافي مبيعات كل قسم (بدون ضريبة القيمة المضافة وبعد خصم المرتجعات) ومساهمته في الأرباح
-                </p>
-              </div>
-              <span className="text-xs font-mono font-semibold px-2 py-1 bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
+              <p className="text-sm font-bold text-ink dark:text-ink-dark">
+                صافي مبيعات كل قسم (بدون ضريبة القيمة المضافة وبعد خصم المرتجعات) ومساهمته في الأرباح
+              </p>
+              <span className="text-sm font-mono font-bold px-3 py-1.5 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
                 {categories.length} أقسام
               </span>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
+              <table className="w-full text-right text-sm">
                 <thead>
                   <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                    <th className="py-2.5 px-3">القسم / التصنيف</th>
-                    <th className="py-2.5 px-3" title="بدون ضريبة القيمة المضافة وبعد خصم المرتجعات">
+                    <th className="py-3.5 px-3.5">القسم / التصنيف</th>
+                    <th className="py-3.5 px-3.5" title="بدون ضريبة القيمة المضافة وبعد خصم المرتجعات">
                       <span>صافي المبيعات</span>
-                      <span className="block text-[10px] font-normal">بدون ضريبة، بعد المرتجعات</span>
+                      <span className="block text-xs font-normal">بدون ضريبة، بعد المرتجعات</span>
                     </th>
-                    <th className="py-2.5 px-3">حصة المبيعات (%)</th>
-                    <th className="py-2.5 px-3">تكلفة الشراء</th>
-                    <th className="py-2.5 px-3">مجمل الربح</th>
-                    <th className="py-2.5 px-3">هامش الربح (%)</th>
-                    <th className="py-2.5 px-3">القطع المباعة</th>
+                    <th className="py-3.5 px-3.5">حصة المبيعات (%)</th>
+                    <th className="py-3.5 px-3.5">تكلفة الشراء</th>
+                    <th className="py-3.5 px-3.5">مجمل الربح</th>
+                    <th className="py-3.5 px-3.5">هامش الربح (%)</th>
+                    <th className="py-3.5 px-3.5">القطع المباعة</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line dark:divide-line-dark">
@@ -770,14 +715,14 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                   ) : (
                     categories.map((cat, catIndex) => (
                       <tr key={cat.categoryId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
-                        <td className="py-2.5 px-3 font-bold text-ink dark:text-ink-dark flex items-center gap-2">
+                        <td className="py-3.5 px-3.5 font-bold text-ink dark:text-ink-dark flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-brand dark:bg-brand-bright shrink-0" />
                           <span>{cat.categoryName}</span>
                         </td>
-                        <td className={`py-2.5 px-3 font-mono font-bold ${cat.totalSalesPiasters < 0 ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'}`}>
+                        <td className={`py-3.5 px-3.5 font-mono font-bold ${cat.totalSalesPiasters < 0 ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'}`}>
                           {formatArabicCurrency(cat.totalSalesPiasters)}
                         </td>
-                        <td className="py-2.5 px-3">
+                        <td className="py-3.5 px-3.5">
                           {cat.totalSalesPiasters > 0 ? (
                             <div className="flex items-center gap-2">
                               <div className="w-16 h-2 bg-surface-2 dark:bg-surface-dark-2 rounded-full overflow-hidden">
@@ -786,24 +731,24 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                                   style={{ width: `${categoryShares[catIndex]}%` }}
                                 />
                               </div>
-                              <span className="font-mono text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                              <span className="font-mono text-sm text-ink-muted dark:text-ink-dark-muted">
                                 {categoryShares[catIndex]}%
                               </span>
                             </div>
                           ) : (
-                            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted" title="المرتجعات تساوي أو تتجاوز المبيعات في هذه الفترة">
+                            <span className="text-xs text-ink-muted dark:text-ink-dark-muted" title="المرتجعات تساوي أو تتجاوز المبيعات في هذه الفترة">
                               لا حصة
                             </span>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">
+                        <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {formatArabicCurrency(cat.totalCostPiasters)}
                         </td>
-                        <td className={`py-2.5 px-3 font-mono font-bold ${cat.grossProfitPiasters < 0 ? 'text-danger dark:text-danger-bright' : 'text-paid dark:text-paid-bright'}`}>
+                        <td className={`py-3.5 px-3.5 font-mono font-bold ${cat.grossProfitPiasters < 0 ? 'text-danger dark:text-danger-bright' : 'text-paid dark:text-paid-bright'}`}>
                           {formatArabicCurrency(cat.grossProfitPiasters)}
                         </td>
-                        <td className="py-2.5 px-3">
-                          <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold ${
+                        <td className="py-3.5 px-3.5">
+                          <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${
                             cat.profitMarginPercent >= 20
                               ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
                               : cat.profitMarginPercent >= 10
@@ -813,7 +758,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                             {cat.profitMarginPercent}%
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-ink dark:text-ink-dark">
+                        <td className="py-3.5 px-3.5 font-mono text-ink dark:text-ink-dark">
                           {cat.itemsSoldQty} قطعة
                         </td>
                       </tr>
@@ -827,56 +772,35 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
 
         {/* SECTION C: Item Profitability Roster */}
         {activeSection === 'items' && (
-          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-ink dark:text-ink-dark">ربحية الأصناف ومراقبة الهوامش</h2>
-                <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
-                  كشف الأصناف الأعلى مساهمة في الأرباح مقابل الأصناف الخاسرة أو التي تباع بأقل من التكلفة
-                </p>
-              </div>
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+              <p className="text-sm font-bold text-ink dark:text-ink-dark">
+                كشف الأصناف الأعلى مساهمة في الأرباح مقابل الأصناف الخاسرة أو التي تباع بأقل من التكلفة
+              </p>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setItemsDirection('desc')}
-                  className={`px-2.5 py-1 rounded text-xs font-bold transition-colors cursor-pointer ${
-                    itemsDirection === 'desc'
-                      ? 'bg-paid dark:bg-emerald-600 text-white shadow-2xs'
-                      : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                  }`}
-                >
-                  الأعلى ربحاً
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setItemsDirection('asc')}
-                  className={`px-2.5 py-1 rounded text-xs font-bold transition-colors cursor-pointer ${
-                    itemsDirection === 'asc'
-                      ? 'bg-danger dark:bg-danger text-white shadow-2xs'
-                      : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                  }`}
-                >
-                  الأقل ربحاً أو خاسرة
-                </button>
-              </div>
+              <SegmentedTabs
+                ariaLabel="اتجاه ترتيب ربحية الأصناف"
+                value={itemsDirection}
+                onChange={setItemsDirection}
+                options={ITEMS_DIRECTION_TABS}
+              />
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
+              <table className="w-full text-right text-sm">
                 <thead>
                   <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                    <th className="py-2.5 px-3">اسم الصنف والباركود</th>
-                    <th className="py-2.5 px-3">القسم</th>
-                    <th className="py-2.5 px-3">سعر البيع</th>
-                    <th className="py-2.5 px-3">التكلفة</th>
-                    <th className="py-2.5 px-3">الكمية المباعة</th>
-                    <th className="py-2.5 px-3" title="بدون ضريبة القيمة المضافة وبعد خصم المرتجعات">
+                    <th className="py-3.5 px-3.5">اسم الصنف والباركود</th>
+                    <th className="py-3.5 px-3.5">القسم</th>
+                    <th className="py-3.5 px-3.5">سعر البيع</th>
+                    <th className="py-3.5 px-3.5">التكلفة</th>
+                    <th className="py-3.5 px-3.5">الكمية المباعة</th>
+                    <th className="py-3.5 px-3.5" title="بدون ضريبة القيمة المضافة وبعد خصم المرتجعات">
                       <span>صافي المبيعات</span>
-                      <span className="block text-[10px] font-normal">بدون ضريبة، بعد المرتجعات</span>
+                      <span className="block text-xs font-normal">بدون ضريبة، بعد المرتجعات</span>
                     </th>
-                    <th className="py-2.5 px-3">صافي الربح</th>
-                    <th className="py-2.5 px-3">نسبة الهامش</th>
+                    <th className="py-3.5 px-3.5">صافي الربح</th>
+                    <th className="py-3.5 px-3.5">نسبة الهامش</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line dark:divide-line-dark">
@@ -889,34 +813,34 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                   ) : (
                     orderedItems.map((item) => (
                       <tr key={item.productId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
-                        <td className="py-2.5 px-3">
+                        <td className="py-3.5 px-3.5">
                           <div className="font-bold text-ink dark:text-ink-dark">{item.productName}</div>
-                          <div className="font-mono text-[10px] text-ink-muted dark:text-ink-dark-muted">{item.barcode || 'بدون باركود'}</div>
+                          <div className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted">{item.barcode || 'بدون باركود'}</div>
                         </td>
-                        <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
-                        <td className="py-2.5 px-3 font-mono font-semibold text-ink dark:text-ink-dark">
+                        <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
+                        <td className="py-3.5 px-3.5 font-mono font-semibold text-ink dark:text-ink-dark">
                           {formatArabicCurrency(item.unitPricePiasters)}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">
+                        <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {item.isZeroCost ? (
                             <span className="text-warn dark:text-warn-bright font-semibold">غير محددة</span>
                           ) : (
                             formatArabicCurrency(item.unitCostPiasters)
                           )}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-ink dark:text-ink-dark">
+                        <td className="py-3.5 px-3.5 font-mono text-ink dark:text-ink-dark">
                           {(item.quantitySoldMilli / 1000).toLocaleString('en-US')}
                         </td>
-                        <td className={`py-2.5 px-3 font-mono font-bold ${item.totalSalesPiasters < 0 ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'}`}>
+                        <td className={`py-3.5 px-3.5 font-mono font-bold ${item.totalSalesPiasters < 0 ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'}`}>
                           {formatArabicCurrency(item.totalSalesPiasters)}
                         </td>
-                        <td className="py-2.5 px-3 font-mono font-bold">
+                        <td className="py-3.5 px-3.5 font-mono font-bold">
                           <span className={item.grossProfitPiasters >= 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}>
                             {formatArabicCurrency(item.grossProfitPiasters)}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3">
-                          <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold ${
+                        <td className="py-3.5 px-3.5">
+                          <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${
                             item.isNegativeMargin
                               ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright'
                               : item.marginPercent >= 25
@@ -937,32 +861,29 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
 
         {/* SECTION D: Z-Reports & Closing History */}
         {activeSection === 'closings' && (
-          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs">
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
             <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-ink dark:text-ink-dark">سجل إقفالات الوردية اليومية</h2>
-                <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
-                  مراجعة فوارق الدرج النقدية بين الحساب الدفتري والمعدود الفعلي عند كل إقفال
-                </p>
-              </div>
-              <span className="text-xs font-mono font-semibold px-2 py-1 bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
+              <p className="text-sm font-bold text-ink dark:text-ink-dark">
+                مراجعة فوارق الدرج النقدية بين الحساب الدفتري والمعدود الفعلي عند كل إقفال
+              </p>
+              <span className="text-sm font-mono font-bold px-3 py-1.5 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
                 {closings.length} إقفالات
               </span>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
+              <table className="w-full text-right text-sm">
                 <thead>
                   <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                    <th className="py-2.5 px-3">تاريخ اليومية</th>
-                    <th className="py-2.5 px-3">الكاشير / المستخدم</th>
-                    <th className="py-2.5 px-3">إجمالي المبيعات</th>
-                    <th className="py-2.5 px-3">المرتجعات</th>
-                    <th className="py-2.5 px-3">صافي المبيعات</th>
-                    <th className="py-2.5 px-3">المتوقع بالدرج</th>
-                    <th className="py-2.5 px-3">الفعلي المعدود</th>
-                    <th className="py-2.5 px-3">الفارق (عجز/زيادة)</th>
-                    <th className="py-2.5 px-3">الحالة والملاحظة</th>
+                    <th className="py-3.5 px-2.5">تاريخ اليومية</th>
+                    <th className="py-3.5 px-2.5">الكاشير / المستخدم</th>
+                    <th className="py-3.5 px-2.5">إجمالي المبيعات</th>
+                    <th className="py-3.5 px-2.5">المرتجعات</th>
+                    <th className="py-3.5 px-2.5">صافي المبيعات</th>
+                    <th className="py-3.5 px-2.5">المتوقع بالدرج</th>
+                    <th className="py-3.5 px-2.5">الفعلي المعدود</th>
+                    <th className="py-3.5 px-2.5">الفارق (عجز/زيادة)</th>
+                    <th className="py-3.5 px-2.5">الحالة والملاحظة</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line dark:divide-line-dark">
@@ -975,31 +896,31 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                   ) : (
                     closings.map((cl) => (
                       <tr key={cl.id} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
-                        <td className="py-2.5 px-3">
+                        <td className="py-3.5 px-2.5">
                           <div className="font-bold text-ink dark:text-ink-dark font-mono">{cl.closingDate}</div>
-                          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono">{cl.createdAt}</div>
+                          <div className="text-xs text-ink-muted dark:text-ink-dark-muted font-mono">{cl.createdAt.replace(cl.closingDate, '').replace('T', ' ').trim() || cl.createdAt}</div>
                         </td>
-                        <td className="py-2.5 px-3 font-semibold text-ink dark:text-ink-dark">{cl.cashierName}</td>
-                        <td className="py-2.5 px-3 font-mono text-ink dark:text-ink-dark">
+                        <td className="py-3.5 px-2.5 font-semibold text-ink dark:text-ink-dark">{cl.cashierName}</td>
+                        <td className="py-3.5 px-2.5 font-mono text-ink dark:text-ink-dark">
                           {formatArabicCurrency(cl.totalSalesPiasters)}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-danger dark:text-danger-bright">
+                        <td className="py-3.5 px-2.5 font-mono text-danger dark:text-danger-bright">
                           {formatArabicCurrency(cl.returnsPiasters)}
                         </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-brand-dark dark:text-brand-bright">
+                        <td className="py-3.5 px-2.5 font-mono font-bold text-brand-dark dark:text-brand-bright">
                           {formatArabicCurrency(cl.netSalesPiasters)}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">
+                        <td className="py-3.5 px-2.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {formatArabicCurrency(cl.expectedCashPiasters)}
                         </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-ink dark:text-ink-dark">
+                        <td className="py-3.5 px-2.5 font-mono font-bold text-ink dark:text-ink-dark">
                           {formatArabicCurrency(cl.actualCashPiasters)}
                         </td>
-                        <td className="py-2.5 px-3 font-mono font-bold">
+                        <td className="py-3.5 px-2.5 font-mono font-bold">
                           {cl.differencePiasters === 0 ? (
                             <span className="text-paid dark:text-paid-bright flex items-center gap-1">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>مطابق (0)</span>
+                              <span>مطابق</span>
                             </span>
                           ) : cl.differencePiasters < 0 ? (
                             <span className="text-danger dark:text-danger-bright">
@@ -1011,7 +932,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                             </span>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted max-w-[180px] truncate" title={cl.notes}>
+                        <td className="py-3.5 px-2.5 text-ink-muted dark:text-ink-dark-muted max-w-[120px] truncate" title={cl.notes}>
                           {cl.notes || '—'}
                         </td>
                       </tr>
@@ -1025,18 +946,15 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
 
         {/* SECTION F: VAT & Tax Authority Declaration */}
         {activeSection === 'vat' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {/* Legal / Accounting Notice Banner */}
-            <div className="bg-paid-soft/50 dark:bg-paid-dark-soft/40 border border-paid/30 dark:border-paid/40 rounded-xl p-4 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-paid dark:bg-emerald-700 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+            <div className="bg-paid-soft/50 dark:bg-paid-dark-soft/40 border border-paid/30 dark:border-paid/40 rounded-xl p-5 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-paid dark:bg-paid-dark-soft text-white dark:text-paid-bright flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
                 <ShieldCheck className="w-4 h-4" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <h3 className="text-sm font-bold text-ink dark:text-ink-dark">
-                    إقرار وضريبة القيمة المضافة (VAT) — مصلحة الضرائب المصرية
-                  </h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20">
                     مفصولة بالكامل عن إيرادات المتجر والأرباح
                   </span>
                 </div>
@@ -1047,81 +965,81 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
             </div>
 
             {/* 6 Key VAT Declaration Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {/* 1. Gross Sales Base */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-                <div className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+                <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                   إجمالي مبيعات الفترة
                 </div>
-                <div className="text-base font-bold font-mono text-ink dark:text-ink-dark tabular-nums">
+                <div className="t-kpi text-ink dark:text-ink-dark">
                   {formatArabicCurrency(vatReport?.grossSalesPiasters || 0)}
                 </div>
-                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
                   شامل كافة الضرائب
                 </div>
               </div>
 
               {/* 2. Taxable Sales */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-                <div className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+                <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                   المبيعات الخاضعة للضريبة
                 </div>
-                <div className="text-base font-bold font-mono text-ink dark:text-ink-dark tabular-nums">
+                <div className="t-kpi text-ink dark:text-ink-dark">
                   {formatArabicCurrency(vatReport?.taxableSalesPiasters || 0)}
                 </div>
-                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
                   وعاء الأصناف الخاضعة
                 </div>
               </div>
 
               {/* 3. Tax-Exempt Sales */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-                <div className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+                <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                   المبيعات المعفاة من الضريبة
                 </div>
-                <div className="text-base font-bold font-mono text-ink dark:text-ink-dark tabular-nums">
+                <div className="t-kpi text-ink dark:text-ink-dark">
                   {formatArabicCurrency(vatReport?.taxExemptSalesPiasters || 0)}
                 </div>
-                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
                   سلع معفاة قانوناً (0%)
                 </div>
               </div>
 
               {/* 4. Output VAT */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-                <div className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+                <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                   ضريبة المخرجات المحصلة
                 </div>
                 <div className="text-base font-bold font-mono text-brand-dark dark:text-brand-bright tabular-nums">
                   {formatArabicCurrency(vatReport?.totalTaxPiasters || 0)}
                 </div>
-                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
                   من فواتير المبيعات
                 </div>
               </div>
 
               {/* 5. Returns VAT */}
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-                <div className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+                <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                   ضريبة المرتجعات المخصومة
                 </div>
                 <div className="text-base font-bold font-mono text-danger dark:text-danger-bright tabular-nums">
                   -{formatArabicCurrency(vatReport?.returnsTaxPiasters || 0)}
                 </div>
-                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
                   مردودات مبيعات معتمدة
                 </div>
               </div>
 
               {/* 6. Net VAT Payable */}
-              <div className="bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/30 dark:border-paid/40 rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-                <div className="text-[11px] font-bold text-paid dark:text-paid-bright mb-1">
+              <div className="bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/30 dark:border-paid/40 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-3 min-h-[124px]">
+                <div className="text-xs font-bold text-paid dark:text-paid-bright mb-1">
                   صافي الضريبة واجبة التوريد
                 </div>
                 <div className="text-base font-bold font-mono text-paid dark:text-paid-bright tabular-nums">
                   {formatArabicCurrency(vatReport?.netVatPayablePiasters || 0)}
                 </div>
-                <div className="text-[10px] text-paid dark:text-paid-bright font-medium mt-1">
+                <div className="text-xs text-paid dark:text-paid-bright font-medium mt-1">
                   مستحقة لمصلحة الضرائب
                 </div>
               </div>
@@ -1129,30 +1047,30 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
 
             {/* Tax Rates Breakdown Table */}
             <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
-              <div className="p-3.5 border-b border-line dark:border-line-dark flex items-center justify-between">
+              <div className="p-5 border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-xs font-bold text-ink dark:text-ink-dark">
+                  <h3 className="t-card-title text-ink dark:text-ink-dark">
                     تفصيل الوعاء الضريبي حسب شرائح ونسب الضريبة (VAT Rates Breakdown)
                   </h3>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                  <p className="text-sm text-ink-muted dark:text-ink-dark-muted mt-1">
                     تفكيك مبيعات الأصناف الخاضعة والمعفاة ومبالغ الضريبة المحسوبة بدقة
                   </p>
                 </div>
-                <div className="text-xs font-mono font-bold text-ink-muted dark:text-ink-dark-muted">
+                <div className="text-sm font-mono font-bold text-ink-muted dark:text-ink-dark-muted">
                   {vatReport?.taxableInvoicesCount || 0} فاتورة ضريبية
                 </div>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-xs">
+                <table className="w-full text-right text-sm">
                   <thead>
                     <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                      <th className="py-2.5 px-3">الشريحة الضريبية</th>
-                      <th className="py-2.5 px-3">نسبة الضريبة</th>
-                      <th className="py-2.5 px-3">عدد الأصناف المباعة</th>
-                      <th className="py-2.5 px-3">أساس المبيعات الخاضعة</th>
-                      <th className="py-2.5 px-3">مبلغ الضريبة المحسوبة</th>
-                      <th className="py-2.5 px-3">نسبة المساهمة</th>
+                      <th className="py-3.5 px-3.5">الشريحة الضريبية</th>
+                      <th className="py-3.5 px-3.5">نسبة الضريبة</th>
+                      <th className="py-3.5 px-3.5">عدد الأصناف المباعة</th>
+                      <th className="py-3.5 px-3.5">أساس المبيعات الخاضعة</th>
+                      <th className="py-3.5 px-3.5">مبلغ الضريبة المحسوبة</th>
+                      <th className="py-3.5 px-3.5">نسبة المساهمة</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line dark:divide-line-dark">
@@ -1168,22 +1086,22 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                         const sharePct = totalTaxAmount > 0 ? (item.taxAmountPiasters * 100) / totalTaxAmount : 0;
                         return (
                           <tr key={idx} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
-                            <td className="py-2.5 px-3 font-bold text-ink dark:text-ink-dark">
-                              {item.taxRatePercent > 0 ? `شريحة السلع الخاضعة (${item.taxRatePercent}%)` : 'شريحة السلع المعفاة قانوناً (0%)'}
+                            <td className="py-3.5 px-3.5 font-bold text-ink dark:text-ink-dark">
+                              {item.taxRatePercent > 0 ? 'شريحة السلع الخاضعة' : 'شريحة السلع المعفاة قانوناً'}
                             </td>
-                            <td className="py-2.5 px-3 font-mono font-bold text-brand-dark dark:text-brand-bright">
+                            <td className="py-3.5 px-3.5 font-mono font-bold text-brand-dark dark:text-brand-bright">
                               {item.taxRatePercent}%
                             </td>
-                            <td className="py-2.5 px-3 font-mono text-ink dark:text-ink-dark">
+                            <td className="py-3.5 px-3.5 font-mono text-ink dark:text-ink-dark">
                               {item.itemsCount.toLocaleString()} صنف
                             </td>
-                            <td className="py-2.5 px-3 font-mono text-ink dark:text-ink-dark">
+                            <td className="py-3.5 px-3.5 font-mono text-ink dark:text-ink-dark">
                               {formatArabicCurrency(item.taxableAmountPiasters)}
                             </td>
-                            <td className="py-2.5 px-3 font-mono font-bold text-paid dark:text-paid-bright">
+                            <td className="py-3.5 px-3.5 font-mono font-bold text-paid dark:text-paid-bright">
                               {formatArabicCurrency(item.taxAmountPiasters)}
                             </td>
-                            <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">
+                            <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                               {sharePct.toFixed(1)}%
                             </td>
                           </tr>
@@ -1196,26 +1114,26 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
             </div>
 
             {/* Reconciliation Proof Card */}
-            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs">
-              <h4 className="text-xs font-bold text-ink dark:text-ink-dark mb-2 flex items-center gap-1.5">
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs">
+              <h4 className="t-label text-ink dark:text-ink-dark mb-4 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright" />
                 <span>برهان المطابقة المحاسبية والضريبية المعتمد:</span>
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                  <div className="text-ink-muted dark:text-ink-dark-muted text-[10px]">معادلة الإيراد الحقيقي:</div>
-                  <div className="font-bold text-ink dark:text-ink-dark mt-1">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 text-sm">
+                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                  <div className="text-ink-muted dark:text-ink-dark-muted text-xs font-bold">معادلة الإيراد الحقيقي:</div>
+                  <div className="font-bold text-ink dark:text-ink-dark mt-2 leading-relaxed">
                     إجمالي المبيعات ({formatArabicCurrency(vatReport?.grossSalesPiasters || 0)}) = صافي إيراد المتجر ({formatArabicCurrency(vatReport?.netSalesExcludingTaxPiasters || 0)}) + إجمالي الضريبة ({formatArabicCurrency(vatReport?.totalTaxPiasters || 0)})
                   </div>
                 </div>
-                <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                  <div className="text-ink-muted dark:text-ink-dark-muted text-[10px]">معادلة التوريد الضريبي:</div>
+                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                  <div className="text-ink-muted dark:text-ink-dark-muted text-xs font-bold">معادلة التوريد الضريبي:</div>
                   <div className="font-bold text-ink dark:text-ink-dark mt-1">
                     صافي الضريبة الواجبة ({formatArabicCurrency(vatReport?.netVatPayablePiasters || 0)}) = ضريبة المبيعات ({formatArabicCurrency(vatReport?.totalTaxPiasters || 0)}) - ضريبة المرتجعات ({formatArabicCurrency(vatReport?.returnsTaxPiasters || 0)})
                   </div>
                 </div>
-                <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                  <div className="text-ink-muted dark:text-ink-dark-muted text-[10px]">أمان الأرباح التشغيلية:</div>
+                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                  <div className="text-ink-muted dark:text-ink-dark-muted text-xs font-bold">أمان الأرباح التشغيلية:</div>
                   <div className="font-bold text-paid dark:text-paid-bright mt-1">
                     مستبعدة 100% من حساب مجمل وصافي الربح لضمان عدم احتساب أمانات الدولة كأرباح شخصية
                   </div>

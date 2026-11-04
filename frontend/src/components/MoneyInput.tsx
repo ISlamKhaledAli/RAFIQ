@@ -211,13 +211,13 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(({
           } text-ink dark:text-ink-dark font-mono font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright transition-colors text-right tabular-nums ${className}`}
         />
         {!hideCurrency && (
-          <span className="absolute left-2.5 text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted pointer-events-none select-none">
+          <span className="absolute left-2.5 text-micro font-bold text-ink-muted dark:text-ink-dark-muted pointer-events-none select-none">
             {currencyLabel}
           </span>
         )}
       </div>
       {showTafqeetHint && valuePiasters !== 0 && (
-        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-0.5 truncate text-right font-medium">
+        <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 truncate text-right font-medium">
           {tafqeetText}
         </span>
       )}

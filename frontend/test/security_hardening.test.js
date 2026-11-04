@@ -41,7 +41,7 @@ describe('Security hardening: forced PIN change and PIN policy', () => {
     const idx = app.indexOf("invoke<{ isConfirmed: boolean; recoveryCode?: string }>('backup:getRecoveryStatus')");
     assert.ok(idx > 0, 'recovery status request must exist');
     const before = app.slice(Math.max(0, idx - 400), idx);
-    assert.ok(before.includes('if (!isAdmin'), 'recovery status must be requested only for admin sessions');
+    assert.ok(before.includes('if (!isOwnerOrRoot'), 'recovery status must be requested only for owner or root sessions');
   });
 
   it('line discounts never leak into the invoice-level discount (R1)', () => {

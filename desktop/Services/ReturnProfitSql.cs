@@ -18,13 +18,14 @@ namespace RafiqPOS.Services
 
         public const string ReturnedNetRevenueExpr = "(ri.total_piasters - " + ReturnedTaxExpr + ")";
 
-        // Same cost basis the sale line was charged with; product cost only for returns without an invoice line
+        // Same cost basis the sale line was charged with; product cost only for returns without an invoice line.
+        // Cost = qty x unit cost / 1000 rounded half up (values are non-negative), identically for sale and return lines.
         public const string ReturnedCostExpr =
-            "((ri.quantity_milli * COALESCE(si.unit_cost_piasters, p.cost_piasters, 0)) / 1000)";
+            "((ri.quantity_milli * COALESCE(si.unit_cost_piasters, p.cost_piasters, 0) + 500) / 1000)";
 
         // Item/category reports charge zero-cost sale lines at the catalog cost, so returns must recover the same
         public const string ReturnedCatalogCostExpr =
-            "((ri.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000)";
+            "((ri.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0) + 500) / 1000)";
 
         // Damaged goods never come back to stock, so only the revenue is lost
         public static string CostRecovered(string costExpr)

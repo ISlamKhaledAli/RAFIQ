@@ -286,10 +286,10 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
               <Laptop className="w-5 h-5 text-brand" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-ink m-0">
+              <h2 className="t-modal-title text-ink m-0">
                 نقل بيانات المحل لجهاز جديد (عبر الفلاشة)
               </h2>
-              <p className="text-[11.5px] text-ink-muted m-0 mt-0.5">
+              <p className="text-micro text-ink-muted m-0 mt-0.5">
                 انقل كل شغلك (البضاعة، الفواتير، الحسابات، والعملاء) للكمبيوتر الجديد في خطوة واحدة وبأمان تام
               </p>
             </div>
@@ -307,7 +307,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
           {/* Error Banner */}
           {errorMessage && (
-            <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-[12.5px] flex items-center gap-2 animate-in fade-in">
+            <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs flex items-center gap-2 animate-in fade-in">
               <AlertTriangle className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
               <span>{errorMessage}</span>
             </div>
@@ -320,7 +320,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                 <span className="inline-block px-3 py-1 rounded-full bg-brand-soft text-brand text-xs font-bold">
                   نقل المحل
                 </span>
-                <h3 className="text-lg font-bold text-ink m-0">انت قاعد على أنهي جهاز دلوقتي؟</h3>
+                <h3 className="t-card-title text-ink m-0">انت قاعد على أنهي جهاز دلوقتي؟</h3>
                 <p className="text-xs text-ink-muted leading-relaxed m-0">
                   اختار الخطوة المناسبة حسب الكمبيوتر اللي انت فاتح من عليه البرنامج دلوقتي:
                 </p>
@@ -338,7 +338,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       <Download className="w-6 h-6 text-brand" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-ink m-0">1. على جهازك القديم (نسخ المحل على الفلاشة)</h4>
+                      <h4 className="t-label text-ink m-0">1. على جهازك القديم (نسخ المحل على الفلاشة)</h4>
                       <p className="text-xs text-ink-muted mt-1 leading-relaxed m-0">
                         اضغط هنا وإنت على جهازك القديم.. البرنامج هيجمعلك كل بضاعة المحل وحساباته ويحفظهملك في ملف واحد على الفلاشة.
                       </p>
@@ -361,7 +361,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       <Upload className="w-6 h-6 text-paid" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-ink m-0">2. على جهازك الجديد (تنزيل المحل من الفلاشة)</h4>
+                      <h4 className="t-label text-ink m-0">2. على جهازك الجديد (تنزيل المحل من الفلاشة)</h4>
                       <p className="text-xs text-ink-muted mt-1 leading-relaxed m-0">
                         اضغط هنا وإنت على جهازك الجديد.. البرنامج هيقرأ الملف من الفلاشة وينزل كل بضاعتك وحساباتك هنا بضغطة واحدة.
                       </p>
@@ -379,23 +379,23 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                 <div className="p-4 rounded-xl bg-surface-2 border border-line space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-ink">البيانات المتسجلة على الجهاز ده حالياً:</span>
-                    <span className="text-[11px] text-ink-muted">تأكيد الأرقام الموجودة عندك</span>
+                    <span className="text-micro text-ink-muted">تأكيد الأرقام الموجودة عندك</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                     <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">أصناف البضاعة</span>
+                      <span className="text-ink-muted block text-micro">أصناف البضاعة</span>
                       <span className="font-bold text-ink">{currentMetrics.productsCount} صنف</span>
                     </div>
                     <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">الزبائن المسجلين</span>
+                      <span className="text-ink-muted block text-micro">الزبائن المسجلين</span>
                       <span className="font-bold text-ink">{currentMetrics.customersCount} عميل</span>
                     </div>
                     <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">فواتير المبيعات</span>
+                      <span className="text-ink-muted block text-micro">فواتير المبيعات</span>
                       <span className="font-bold text-ink">{currentMetrics.invoicesCount} فاتورة</span>
                     </div>
                     <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">إجمالي حسابات الشكك والديون</span>
+                      <span className="text-ink-muted block text-micro">إجمالي حسابات الشكك والديون</span>
                       <span className="font-bold text-paid">{formatPiasters(currentMetrics.totalCustomerDebtPiasters)}</span>
                     </div>
                   </div>
@@ -409,7 +409,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
             <div className="space-y-5 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-ink m-0">حفظ بيانات المحل على الفلاشة (من جهازك القديم)</h3>
+                  <h3 className="t-card-title text-ink m-0">حفظ بيانات المحل على الفلاشة (من جهازك القديم)</h3>
                   <p className="text-xs text-ink-muted m-0 mt-0.5">
                     اختار الفلاشة واضغط "حفظ البيانات" عشان تاخد نسخة كاملة من المحل في جيبك.
                   </p>
@@ -449,13 +449,13 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                         )}
                         <div className="truncate">
                           <span className="font-bold text-xs block truncate">{d.name} {d.label}</span>
-                          <span className="text-[10px] text-ink-muted font-mono block">
+                          <span className="text-micro text-ink-muted font-mono block">
                             متاح: {formatBytes(d.freeSpaceBytes)}
                           </span>
                         </div>
                       </div>
                       {d.isRemovable && (
-                        <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-brand text-white font-bold shrink-0">
+                        <span className="text-micro px-1.5 py-0.5 rounded bg-brand text-white font-bold shrink-0">
                           فلاشة USB
                         </span>
                       )}
@@ -486,7 +486,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   <span className="font-bold text-xs text-brand block">
                     نسخة شاملة بضغطة واحدة (البضاعة + الفواتير + الحسابات والإعدادات)
                   </span>
-                  <p className="text-[11px] text-ink-muted m-0">
+                  <p className="text-micro text-ink-muted m-0">
                     البرنامج بيقفل كل الحسابات بدقة لضمان إن مفيش مليم أو صنف يضيع أثناء النقل.
                   </p>
                 </div>
@@ -533,7 +533,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       </span>
                     </div>
                   </div>
-                  <div className="p-2.5 rounded bg-paid/10 text-paid text-[11.5px] leading-relaxed flex items-center gap-2">
+                  <div className="p-2.5 rounded bg-paid/10 text-paid text-micro leading-relaxed flex items-center gap-2">
                     <Info className="w-4 h-4 text-paid shrink-0" />
                     <span><strong>الخطوة الجاية:</strong> خد الفلاشة وركّبها في جهازك الجديد، وافتح نفس الشاشة دي واختار «2. على جهازك الجديد (تنزيل المحل من الفلاشة)».</span>
                   </div>
@@ -547,7 +547,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
             <div className="space-y-5 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-ink m-0">تنزيل وتشغيل بيانات المحل (على جهازك الجديد)</h3>
+                  <h3 className="t-card-title text-ink m-0">تنزيل وتشغيل بيانات المحل (على جهازك الجديد)</h3>
                   <p className="text-xs text-ink-muted m-0 mt-0.5">
                     اختار ملف المحل من الفلاشة، والبرنامج هيراجع كل البضاعة والأرقام الأول قبل التثبيت.
                   </p>
@@ -607,12 +607,12 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                         <span className="font-bold text-xs text-ink block">
                           بيانات المحل في الملف: {inspectResult.manifest.storeName}
                         </span>
-                        <span className="text-[10px] text-ink-muted">
+                        <span className="text-micro text-ink-muted">
                           تاريخ النسخ: {inspectResult.manifest.createdAtLocal} — من جهاز: {inspectResult.manifest.sourceMachineName} ({inspectResult.manifest.sourceOsName})
                         </span>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-paid-soft text-paid text-[11px] font-bold">
+                    <span className="px-2.5 py-1 rounded-full bg-paid-soft text-paid text-micro font-bold">
                       الملف سليم ومطابق 100%
                     </span>
                   </div>
@@ -620,25 +620,25 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   {/* Numbers in package */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                     <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">أصناف البضاعة</span>
+                      <span className="text-ink-muted text-micro block">أصناف البضاعة</span>
                       <span className="font-bold text-ink">{inspectResult.manifest.metrics.productsCount} صنف</span>
                     </div>
                     <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">الزبائن المسجلين</span>
+                      <span className="text-ink-muted text-micro block">الزبائن المسجلين</span>
                       <span className="font-bold text-ink">{inspectResult.manifest.metrics.customersCount} عميل</span>
                     </div>
                     <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">إجمالي الفواتير</span>
+                      <span className="text-ink-muted text-micro block">إجمالي الفواتير</span>
                       <span className="font-bold text-ink">{inspectResult.manifest.metrics.invoicesCount} فاتورة</span>
                     </div>
                     <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">حسابات الشكك والديون</span>
+                      <span className="text-ink-muted text-micro block">حسابات الشكك والديون</span>
                       <span className="font-bold text-paid">{formatPiasters(inspectResult.manifest.metrics.totalCustomerDebtPiasters)}</span>
                     </div>
                   </div>
 
                   {/* Safety note */}
-                  <div className="p-2.5 rounded bg-brand-soft/50 border border-brand/20 text-ink text-[11px] flex items-center justify-between gap-2">
+                  <div className="p-2.5 rounded bg-brand-soft/50 border border-brand/20 text-ink text-micro flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-brand shrink-0" />
                       <span><strong>أمان وحماية تامة:</strong> البرنامج بياخد نسخة أمان تلقائية قبل أي خطوة عشان مفيش حاجة تضيع.</span>
@@ -675,7 +675,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   <CheckCircle2 className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-paid m-0">
+                  <h3 className="t-card-title text-paid m-0">
                     تم نقل وتثبيت بيانات المحل بنجاح على الجهاز الجديد!
                   </h3>
                   <p className="text-xs text-ink-muted m-0 mt-0.5">
@@ -710,12 +710,12 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                         </td>
                         <td className="py-2.5 px-4 text-center">
                           {c.isMatched ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold text-[11px] border border-paid/20 dark:border-paid/30">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold text-micro border border-paid/20 dark:border-paid/30">
                               <CheckCircle2 className="w-3 h-3 text-paid dark:text-paid-bright" />
                               <span>100% متطابق</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright font-bold text-[11px] border border-danger/20 dark:border-danger-bright/30">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright font-bold text-micro border border-danger/20 dark:border-danger-bright/30">
                               <AlertTriangle className="w-3 h-3 text-danger dark:text-danger-bright" />
                               <span>يوجد اختلاف</span>
                             </span>
@@ -748,13 +748,6 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
         {/* Footer */}
         <div className="px-6 py-3 border-t border-line bg-surface-2 flex items-center justify-between text-xs text-ink-muted">
           <span>نظام رفيق — إصدار معتمد لويندوز 7 و 10 و 11</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-lg border border-line hover:bg-surface text-ink transition-colors cursor-pointer"
-          >
-            إغلاق
-          </button>
         </div>
       </div>
     </div>

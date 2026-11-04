@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Printer, X, FileText } from 'lucide-react';
 import type { Customer, CustomerLedgerEntry } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
+import { printCompactReport } from '../../utils/printReport';
 
 export interface CustomerReceiptVoucherModalProps {
   isOpen: boolean;
@@ -33,7 +34,7 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
   if (!isOpen || !customer || !entry) return null;
 
   const handlePrint = () => {
-    window.print();
+    void printCompactReport(printMode);
   };
 
   const voucherNumber = entry.id.replace('led_', '').toUpperCase();
@@ -61,7 +62,7 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
               <button
                 type="button"
                 onClick={() => setPrintMode('thermal')}
-                className={`px-2.5 py-1 rounded font-semibold text-[11px] cursor-pointer ${
+                className={`px-2.5 py-1 rounded font-semibold text-micro cursor-pointer ${
                   printMode === 'thermal' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs' : 'text-ink-muted dark:text-ink-dark-muted'
                 }`}
               >
@@ -70,7 +71,7 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
               <button
                 type="button"
                 onClick={() => setPrintMode('a4')}
-                className={`px-2.5 py-1 rounded font-semibold text-[11px] cursor-pointer ${
+                className={`px-2.5 py-1 rounded font-semibold text-micro cursor-pointer ${
                   printMode === 'a4' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs' : 'text-ink-muted dark:text-ink-dark-muted'
                 }`}
               >
@@ -87,8 +88,9 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
         {/* Printable Preview Sheet */}
         <div className="flex-1 overflow-y-auto p-4 bg-canvas dark:bg-canvas-dark flex justify-center print:p-0 print:bg-white">
           <div
+            data-print-root
             className={`bg-white text-black p-5 shadow-md border border-neutral-300 font-sans ${
-              printMode === 'thermal' ? 'w-[320px] text-xs' : 'w-full text-sm'
+              printMode === 'thermal' ? 'w-[320px] text-xs print-compact' : 'w-full text-sm'
             } print:w-full print:shadow-none print:border-none`}
           >
             {/* Store Header */}
@@ -97,7 +99,7 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
               <div className="inline-block px-3 py-1 bg-neutral-100 border border-neutral-300 rounded font-bold text-xs mt-1">
                 سند قبض نقدية #{voucherNumber}
               </div>
-              <p className="text-[10px] text-neutral-500 font-mono mt-1">
+              <p className="text-micro text-neutral-500 font-mono mt-1">
                 التاريخ: {new Date(entry.createdAt).toLocaleString('ar-EG-u-nu-latn')}
               </p>
             </div>
@@ -145,13 +147,13 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
                     ? `${formatArabicCurrency(balanceAfterPiasters)} (عليه)`
                     : balanceAfterPiasters < 0
                     ? `${formatArabicCurrency(Math.abs(balanceAfterPiasters))} (له)`
-                    : 'خالص تماماً (0.00 ج.م)'}
+                    : 'خالص تماماً'}
                 </span>
               </div>
             </div>
 
             {/* Signatures */}
-            <div className="pt-3 border-t border-neutral-300 grid grid-cols-2 gap-4 text-center text-[11px] text-neutral-600">
+            <div className="pt-3 border-t border-neutral-300 grid grid-cols-2 gap-4 text-center text-micro text-neutral-600">
               <div>
                 <span className="block font-bold">المستلم (الكاشير)</span>
                 <span className="block mt-6 border-b border-neutral-400 w-24 mx-auto"></span>
@@ -162,35 +164,22 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
               </div>
             </div>
 
-            <div className="mt-4 pt-2 border-t border-dashed border-neutral-300 text-center text-[9px] text-neutral-400">
+            <div className="mt-4 pt-2 border-t border-dashed border-neutral-300 text-center text-micro text-neutral-400">
               نظام رفيق للأنظمة والحلول البرمجية | م. إسلام خالد (01097782965) - سند موثق بدفتر الأستاذ
             </div>
           </div>
         </div>
 
         {/* Footer Actions (Hidden in Print) */}
-        <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0 print:hidden">
-          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-mono">
-            رقم السند: #{voucherNumber}
-          </span>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="px-4 py-1.5 rounded-lg bg-paid text-white text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>طباعة سند القبض</span>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-1.5 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-semibold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer"
-            >
-              إغلاق
-            </button>
-          </div>
+        <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-line dark:border-line-dark px-4 flex items-center justify-end shrink-0 print:hidden">
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="px-4 py-1.5 rounded-lg bg-paid text-white text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 shadow-xs cursor-pointer"
+          >
+            <Printer className="w-4 h-4" />
+            <span>طباعة سند القبض</span>
+          </button>
         </div>
       </div>
     </div>

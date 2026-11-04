@@ -188,9 +188,6 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           await fetchLicense();
         }
         if (onLicenseUpdated) onLicenseUpdated();
-        try {
-          window.dispatchEvent(new CustomEvent('rafiq:license-updated', { detail: res.license }));
-        } catch {}
         void rafiqAlert({
           title: 'تهانينا!',
           message: res.message || 'تم تفعيل ترخيص نظام رفيق السحابي بنجاح!',
@@ -229,9 +226,6 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           await fetchLicense();
         }
         if (onLicenseUpdated) onLicenseUpdated();
-        try {
-          window.dispatchEvent(new CustomEvent('rafiq:license-updated', { detail: res.license }));
-        } catch {}
         void rafiqAlert({
           title: 'تفعيل أوفلاين ناجح!',
           message: res.message || 'تم تفعيل ترخيص نظام رفيق بنجاح بدون إنترنت عبر كود الدعم المعتمد!',
@@ -328,7 +322,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
 
   return (
     <div 
-      className="fixed inset-0 z-[10020] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
       onClick={handleBackdropClick}
     >
       <div 
@@ -345,7 +339,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-ink dark:text-ink-dark font-sans m-0">ترخيص وتفعيل برنامج رفيق</h2>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20">
+                <span className="px-2 py-0.5 rounded-md text-micro font-black bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20">
                   نسخة المحل
                 </span>
               </div>
@@ -427,7 +421,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                   ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark' 
                   : isAlreadyActive 
                   ? 'bg-paid text-white' 
-                  : 'bg-warn text-white'
+                  : 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40'
               }`}>
                 {isTransferred ? (
                   <ShieldAlert className="w-6 h-6" />
@@ -440,7 +434,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 )}
               </div>
               <div>
-                <div className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">حالة ترخيص البرنامج الحالية</div>
+                <div className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">حالة ترخيص البرنامج الحالية</div>
                 <div className="text-sm font-black text-ink dark:text-ink-dark">
                   {license?.statusLabel || (isAlreadyActive ? 'ترخيص دائم نشط (مدى الحياة)' : 'نسخة تجريبية / بانتظار التفعيل')}
                 </div>
@@ -452,7 +446,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                     <span>ينتهي في: <span className="font-mono font-bold text-ink dark:text-ink-dark">{license.expiresAt.split('T')[0]}</span></span>
                   )}
                   {countdownStr && (
-                    <span className="inline-flex items-center gap-1 bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger/30 px-2 py-0.5 rounded-full font-mono text-[11px] font-bold">
+                    <span className="inline-flex items-center gap-1 bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger/30 px-2 py-0.5 rounded-full font-mono text-micro font-bold">
                       <Clock className="w-3 h-3 text-danger dark:text-danger-bright animate-pulse" />
                       متبقي {countdownStr}
                     </span>
@@ -484,7 +478,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 <div className="text-xs font-black text-ink dark:text-ink-dark">
                   النسخة التجريبية تعمل بكافة خصائصها بدون أي قيود!
                 </div>
-                <p className="text-[11.5px] text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0">
+                <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0">
                   تقدر تسجل أصنافك وبضاعتك وتصدر فواتيرك براحتك خالص. ولما تشتري البرنامج وتدخل كود التفعيل، نسختك هتتحول لنسخة دائمة فوراً من غير ما تفقد أي فاتورة أو صنف مسجل.
                 </p>
               </div>
@@ -515,7 +509,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
               <button 
                 type="button"
                 onClick={handleCopyFp}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all cursor-pointer ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-micro font-black border transition-all cursor-pointer ${
                   copiedFp 
                     ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid-border dark:border-paid-dark-border' 
                     : 'bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-brand dark:text-brand-bright border-line dark:border-line-dark'
@@ -540,7 +534,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
               </div>
               <a 
                 href="tel:01097782965"
-                className="font-mono text-sm font-black text-paid dark:text-paid-bright hover:text-paid-hover tracking-wider px-3 py-1 rounded-lg bg-surface dark:bg-surface-dark border border-paid-border dark:border-paid-dark-border hover:bg-paid hover:text-white transition-all shadow-2xs cursor-pointer dir-ltr flex items-center gap-1.5" 
+                className="font-mono text-sm font-black text-paid dark:text-paid-bright hover:text-paid-hover dark:hover:text-paid-bright tracking-wider px-3 py-1 rounded-lg bg-surface dark:bg-surface-dark border border-paid-border dark:border-paid-dark-border hover:bg-paid hover:text-white transition-all shadow-2xs cursor-pointer dir-ltr flex items-center gap-1.5" 
                 title="انقر للاتصال بفريق الدعم"
               >
                 <span>01097782965</span>
@@ -561,7 +555,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 placeholder="RFQ-PERM-XXXX-XXXX"
                 className="w-full h-12 bg-surface dark:bg-surface-dark-2 border-2 border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-2xl px-4 text-sm font-mono tracking-widest font-black text-ink dark:text-ink-dark placeholder:text-ink-muted/40 dark:placeholder:text-ink-dark-muted/40 text-center dir-ltr shadow-2xs focus:outline-none transition-all"
               />
-              <div className="flex items-center gap-1.5 text-[11px] text-ink-muted dark:text-ink-dark-muted">
+              <div className="flex items-center gap-1.5 text-micro text-ink-muted dark:text-ink-dark-muted">
                 <Wifi className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                 <span>بيحتاج اتصال بالإنترنت لثانية واحدة فقط لتأكيد التفعيل، وبعدها بيشتغل بدون نت نهائياً.</span>
               </div>
@@ -586,7 +580,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-micro font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>استيراد كود من ملف (.txt)</span>
@@ -609,7 +603,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
               </div>
               <div className="bg-paid-soft/50 dark:bg-paid-dark-soft/50 border border-paid-border dark:border-paid-dark-border p-3 rounded-xl flex items-start gap-2.5 text-xs text-paid dark:text-paid-bright">
                 <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright shrink-0 mt-0.5" />
-                <p className="text-[11.5px] text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0">
+                <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0">
                   <strong className="text-ink dark:text-ink-dark block mb-0.5">تفعيل أوفلاين فوري:</strong>
                   فريق الدعم بيبعتلك الكود ده على الواتساب أو التليفون بعد ما تديهم بصمة جهازك، وبيفعل البرنامج فوراً بدون أي اتصال بالإنترنت.
                 </p>
@@ -644,7 +638,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                     {copiedRel ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     <span>{copiedRel ? 'تم النسخ!' : 'نسخ كود النقل لإرساله للدعم'}</span>
                   </button>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted m-0">
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">
                     أرسل الكود ده مع بصمة الجهاز الجديد للدعم الفني لتفعيل رفيق على جهازك الجديد فوراً.
                   </p>
                 </div>
@@ -657,15 +651,15 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                     </div>
                     <div className="space-y-1.5 text-xs text-ink-muted dark:text-ink-dark-muted pr-1">
                       <div className="flex items-start gap-2">
-                        <span className="w-4 h-4 rounded-full bg-warn/15 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+                        <span className="w-4 h-4 rounded-full bg-warn/15 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-mono font-bold text-micro flex items-center justify-center shrink-0 mt-0.5">1</span>
                         <span>إلغاء التفعيل على الجهاز القديم ده واستخراج كود إثبات النقل.</span>
                       </div>
                       <div className="flex items-start gap-2">
-                        <span className="w-4 h-4 rounded-full bg-warn/15 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+                        <span className="w-4 h-4 rounded-full bg-warn/15 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-mono font-bold text-micro flex items-center justify-center shrink-0 mt-0.5">2</span>
                         <span>تسطيب رفيق على الجهاز الجديد وأخذ بصمة الجهاز الجديد.</span>
                       </div>
                       <div className="flex items-start gap-2">
-                        <span className="w-4 h-4 rounded-full bg-warn/15 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+                        <span className="w-4 h-4 rounded-full bg-warn/15 dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-mono font-bold text-micro flex items-center justify-center shrink-0 mt-0.5">3</span>
                         <span>إرسال كود النقل وبصمة الجهاز الجديد للدعم الفني لاستلام كود التفعيل للجهاز الجديد.</span>
                       </div>
                     </div>

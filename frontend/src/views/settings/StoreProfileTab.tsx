@@ -1,12 +1,13 @@
 import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
-import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, ShieldCheck, Info, ShieldAlert, Smartphone } from 'lucide-react';
+import { Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, ShieldCheck, Info, Wand2, ShieldAlert, Smartphone } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useTheme } from '../../context/useTheme';
-import { processUploadedLogo } from '../../utils/thermalImageOptimizer';
-import { rafiqAlert } from '../../utils/dialogService';
+import { optimizeImageForThermal } from '../../utils/thermalImageOptimizer';
 import { invoke } from '../../bridge/ipc';
 import { useFeatures } from '../../context/useFeatures';
 import type { ControlledMandatoryFields } from '../../types/pharma';
+import { ReceiptPaper } from '../../components/ReceiptPaper';
+import { buildReceiptModel, buildSampleReceiptSale } from '../../utils/receiptLayout';
 
 interface StoreProfileTabProps {
   storeName: string;
@@ -123,99 +124,68 @@ export const StoreProfileTab = ({
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    // تفريغ القيمة للسماح بإعادة اختيار نفس الملف إذا رغب المستخدم
-    e.target.value = '';
-
     if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      void rafiqAlert({
-        title: 'صيغة غير مدعومة',
-        message: 'يرجى اختيار ملف صورة صالح (PNG أو JPG أو WEBP).',
-        variant: 'warning',
-      });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      void rafiqAlert({
-        title: 'حجم الصورة كبير',
-        message: 'حجم ملف الشعار يتجاوز 5 ميجابايت. يرجى اختيار صورة أصغر حجماً لتفادي بطء الطباعة.',
-        variant: 'warning',
-      });
-      return;
-    }
-
-    setIsOptimizing(true);
+    if (!file.type.startsWith('image/')) return;
     const reader = new FileReader();
     reader.onload = async () => {
       if (typeof reader.result === 'string' && setStoreLogoUrl) {
         try {
-          // المعالجة الاحترافية: ضبط الأبعاد بنسب متناسقة حتى 240×240 دون مط أو تشويه ألوان
-          const processed = await processUploadedLogo(reader.result, 240);
-          setStoreLogoUrl(processed);
+          // Auto-optimize to recommended thermal dimensions (200x70) & pure high contrast monochrome
+          const optimized = await optimizeImageForThermal(reader.result, 200, 70);
+          setStoreLogoUrl(optimized);
         } catch {
           setStoreLogoUrl(reader.result);
-        } finally {
-          setIsOptimizing(false);
         }
-      } else {
-        setIsOptimizing(false);
       }
-    };
-    reader.onerror = () => {
-      setIsOptimizing(false);
-      void rafiqAlert({
-        title: 'فشل قراءة الملف',
-        message: 'تعذر قراءة ملف الصورة المختارة. يرجى إعادة المحاولة.',
-        variant: 'error',
-      });
     };
     reader.readAsDataURL(file);
   };
 
-  const handleResetLogo = () => {
+  const handleOptimizeCurrentLogo = async () => {
+    if (!storeLogoUrl || !setStoreLogoUrl || isOptimizing) return;
+    setIsOptimizing(true);
+    try {
+      const optimized = await optimizeImageForThermal(storeLogoUrl, 200, 70);
+      setStoreLogoUrl(optimized);
+    } catch (err) {
+      console.error('Failed to optimize logo:', err);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  const handleResetLogo = (variant: 'wide' | 'square' = 'square') => {
     if (setStoreLogoUrl) {
-      setStoreLogoUrl('/receipt_logo_square.png');
+      setStoreLogoUrl(variant === 'wide' ? '/receipt_logo.png' : '/receipt_logo_square.png');
     }
   };
 
   return (
     <div className="grid grid-cols-12 gap-5 flex-1 items-start">
       {/* RIGHT COLUMN: Store Profile Form (7 cols) */}
-      <div className="col-span-12 lg:col-span-7 flex flex-col gap-4">
+      <div className="col-span-12 xl:col-span-7 flex flex-col gap-5">
         <form 
           onSubmit={handleSave} 
-          className="bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark shadow-subtle p-5 flex flex-col gap-4 text-xs"
+          className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-subtle p-5 sm:p-6 flex flex-col gap-5 text-xs"
         >
-          {/* Header Card */}
-          <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-3.5">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded bg-brand/10 dark:bg-brand-bright/15 text-brand dark:text-brand-bright flex items-center justify-center font-bold">
-                <Store className="w-4 h-4 text-brand dark:text-brand-bright" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-ink dark:text-ink-dark m-0">بيانات وتفاصيل المحل</h3>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">بتظهر في وصل الكاشير الحراري وفواتير البيع للزبائن</span>
-              </div>
-            </div>
-            {isRoot && onOpenWizard && (
+          {isRoot && onOpenWizard && (
+            <div className="flex justify-end border-b border-line dark:border-line-dark pb-5">
               <button
                 type="button"
                 onClick={onOpenWizard}
-                className="px-3 py-1.5 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand/20 dark:hover:bg-brand-bright/25 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="h-10 px-4 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand/20 dark:hover:bg-brand-bright/25 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                 <span>معالج تهيئة المحل والنشاط</span>
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Section: Basic Identity */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-            <div className="flex flex-col gap-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="flex flex-col gap-2 md:col-span-2">
               <label className="text-xs font-semibold text-ink dark:text-ink-dark">
-                اسم المحل أو المنشأة <span className="text-danger">*</span>
+                اسم المحل أو المنشأة <span className="text-danger dark:text-danger-bright">*</span>
               </label>
               <input
                 type="text"
@@ -227,7 +197,7 @@ export const StoreProfileTab = ({
               />
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-ink dark:text-ink-dark">اسم الكاشير أو الوردية</label>
               <input
                 type="text"
@@ -238,7 +208,7 @@ export const StoreProfileTab = ({
               />
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-ink dark:text-ink-dark">رقم الهاتف للتواصل</label>
               <input
                 type="text"
@@ -252,8 +222,8 @@ export const StoreProfileTab = ({
           </div>
 
           {/* Section: Address & Tax */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            <div className="flex flex-col gap-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-ink dark:text-ink-dark">العنوان والفرع</label>
               <input
                 type="text"
@@ -264,7 +234,7 @@ export const StoreProfileTab = ({
               />
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-ink dark:text-ink-dark">الرقم الضريبي / السجل التجاري (اختياري)</label>
               <input
                 type="text"
@@ -278,24 +248,24 @@ export const StoreProfileTab = ({
           </div>
 
           {/* Section: Direct Store Electronic Payments (InstaPay & Wallets) */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-xl border border-line dark:border-line-dark flex flex-col gap-3">
-            <div className="flex items-center justify-between">
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 sm:p-5 rounded-xl border border-line dark:border-line-dark flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <div className="flex items-center gap-2">
-                <Smartphone className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" />
                 <span className="font-bold text-ink dark:text-ink-dark text-xs">
                   المدفوعات الإلكترونية المباشرة للمحل (إنستاباي ومحافظ كاش)
                 </span>
               </div>
-              <span className="text-[10px] text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 px-2 py-0.5 rounded font-bold">
+              <span className="text-micro text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 px-2 py-0.5 rounded font-bold">
                 دفع سريع في الكاشير
               </span>
             </div>
-            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
+            <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
               تظهر هذه البيانات للكاشير في شاشة الدفع عند رغبة الزبون بالتحويل المباشر، وتتيح البيع السريع بإنستاباي والمحافظ دون الحاجة لتشغيل قسم خدمات وكالة سحب وإيداع المحافظ.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div className="flex flex-col gap-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-ink dark:text-ink-dark">
                   عنوان إنستاباي للمحل (IPA أو رقم الهاتف)
                 </label>
@@ -309,7 +279,7 @@ export const StoreProfileTab = ({
                 />
               </div>
 
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-ink dark:text-ink-dark">
                   رقم محفظة كاش للمحل (فودافون كاش / أورانج / اتصالات / وي)
                 </label>
@@ -326,7 +296,7 @@ export const StoreProfileTab = ({
           </div>
 
           {/* Section: Receipt Header & Footer */}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-2">
             <label className="text-xs font-semibold text-ink dark:text-ink-dark">كلام الترحيب أول الوصل (الترويسة)</label>
             <input
               type="text"
@@ -337,10 +307,10 @@ export const StoreProfileTab = ({
             />
           </div>
 
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-2">
             <label className="text-xs font-semibold text-ink dark:text-ink-dark">كلام تذييل الوصل (سياسة الاسترجاع ورسالة الشكر)</label>
             <textarea
-              rows={2}
+              rows={3}
               value={receiptFooter}
               onChange={(e) => setReceiptFooter(e.target.value)}
               placeholder="مثلاً: شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بالفاتورة."
@@ -349,8 +319,8 @@ export const StoreProfileTab = ({
           </div>
 
           {/* Section: Receipt Logo Customization & Technical Guidance */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">
-            <div className="flex items-center justify-between">
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 sm:p-5 rounded-xl border border-line dark:border-line-dark flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-brand dark:text-brand-bright" />
                 <span className="font-bold text-ink dark:text-ink-dark text-xs">شعار المتجر أعلى الإيصال الحراري</span>
@@ -363,11 +333,11 @@ export const StoreProfileTab = ({
             </div>
 
             {showReceiptLogo && (
-              <div className="flex flex-col gap-3 pt-1 border-t border-line dark:border-line-dark">
+              <div className="flex flex-col gap-4 pt-4 border-t border-line dark:border-line-dark">
                 {/* Controls and current preview */}
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-surface dark:bg-surface-dark p-3 rounded-lg border border-line dark:border-line-dark shadow-2xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-lg border border-line dark:border-line-dark bg-white dark:bg-surface-dark-3 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                <div className="flex flex-wrap items-center justify-between gap-4 bg-surface dark:bg-surface-dark p-4 rounded-lg border border-line dark:border-line-dark">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-12 rounded border border-line dark:border-line-dark bg-white dark:bg-surface-dark-3 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
                       <img
                         src={storeLogoUrl}
                         alt="معاينة الشعار"
@@ -378,59 +348,101 @@ export const StoreProfileTab = ({
                       />
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-bold text-ink dark:text-ink-dark">
-                        {storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/logo.png'
-                          ? 'شعار المتجر (يظهر في الإيصالات وفواتير البيع)'
-                          : 'شعار رفيق المعتمد (الافتراضي)'}
+                      <span className="text-xs font-semibold text-ink dark:text-ink-dark">
+                        {storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/logo.png'
+                          ? 'شعار مخصص للمتجر (مجهّز حرارياً)'
+                          : 'شعار رفيق المعتمد للطابعات الحرارية (Monochrome)'}
                       </span>
-                      <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                        {storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/logo.png'
-                          ? 'يتم الحفاظ على الألوان والتفاصيل الطبيعية للشعار بدقة عالية متوافقة مع الطباعة'
-                          : 'الشعار الرسمي المعتمد لنظام رفيق بكامل ألوانه الطبيعية'}
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark">
+                        أبيض وأسود نقي عالي التباين بدقة 203 DPI بدون بهتان
                       </span>
                     </div>
                   </div>
 
                   <div className="flex items-center flex-wrap gap-2">
-                    <label className="px-3.5 py-2 bg-brand text-white hover:bg-brand-hover rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors">
+                    {/* Default Rafiq Variants Toggle */}
+                    {(storeLogoUrl === '/receipt_logo.png' || storeLogoUrl === '/receipt_logo_square.png' || storeLogoUrl === '/logo.png') && (
+                      <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-0.5 rounded border border-line dark:border-line-dark text-micro">
+                        <button
+                          type="button"
+                          onClick={() => handleResetLogo('square')}
+                          className={`px-3 py-2 rounded transition-colors ${
+                            storeLogoUrl === '/receipt_logo_square.png'
+                              ? 'bg-brand text-white font-bold'
+                              : 'text-ink-muted hover:text-ink dark:hover:text-ink-dark dark:text-ink-muted-dark'
+                          }`}
+                        >
+                          شعار مربع (120×120) • الافتراضي
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleResetLogo('wide')}
+                          className={`px-3 py-2 rounded transition-colors ${
+                            storeLogoUrl === '/receipt_logo.png' || storeLogoUrl === '/logo.png'
+                              ? 'bg-brand text-white font-bold'
+                              : 'text-ink-muted hover:text-ink dark:hover:text-ink-dark dark:text-ink-muted-dark'
+                          }`}
+                        >
+                          شعار عريض (200×60)
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Optimize custom logo button */}
+                    {storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/logo.png' && (
+                      <button
+                        type="button"
+                        onClick={handleOptimizeCurrentLogo}
+                        disabled={isOptimizing}
+                        className="px-2.5 py-1.5 bg-paid-soft dark:bg-paid-dark/30 text-paid dark:text-paid-bright border border-paid/30 hover:bg-paid/20 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="تحسين ومعالجة الشعار تلقائياً إلى أبيض وأسود عالي التباين وأبعاد 200×70"
+                      >
+                        <Wand2 className="w-3.5 h-3.5" />
+                        <span>{isOptimizing ? 'جاري المعالجة...' : 'تحسين حراري'}</span>
+                      </button>
+                    )}
+
+                    <label className="px-3 py-1.5 bg-brand text-white hover:bg-brand-hover rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors">
                       <Upload className="w-3.5 h-3.5" />
-                      <span>{isOptimizing ? 'جاري الرفع...' : 'رفع شعار جديد'}</span>
+                      <span>رفع شعار جديد</span>
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
                         className="hidden"
                         onChange={handleLogoUpload}
-                        disabled={isOptimizing}
                       />
                     </label>
 
-                    {storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/logo.png' && (
+                    {storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/logo.png' && (
                       <button
                         type="button"
-                        onClick={handleResetLogo}
-                        className="px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark border border-line dark:border-line-dark rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="استعادة شعار رفيق الافتراضي المعتمد"
+                        onClick={() => handleResetLogo('square')}
+                        className="px-2.5 py-1.5 bg-surface-2 dark:bg-surface-dark-2 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark border border-line dark:border-line-dark rounded text-xs font-medium flex items-center gap-1 transition-colors"
+                        title="استعادة الشعار الافتراضي لنظام رفيق"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
-                        <span>استعادة الشعار الافتراضي</span>
+                        <span>الافتراضي</span>
                       </button>
                     )}
                   </div>
                 </div>
 
                 {/* Technical Recommended Dimensions Banner */}
-                <div className="bg-brand-soft/40 dark:bg-brand-dark/20 border border-brand/20 dark:border-brand-bright/20 rounded-lg p-2.5 text-[11px] leading-relaxed text-ink dark:text-ink-dark flex items-start gap-2">
+                <div className="bg-brand-soft/40 dark:bg-brand-dark/20 border border-brand/20 dark:border-brand-bright/20 rounded p-2.5 text-micro leading-relaxed text-ink dark:text-ink-dark flex items-start gap-2">
                   <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
                   <div className="flex-1 space-y-1">
                     <div className="font-bold text-brand dark:text-brand-bright">
-                      إرشادات شعار الإيصال وفواتير البيع:
+                      المقاسات والمواصفات الفنية الموصى بها للطابعات الحرارية:
                     </div>
-                    <ul className="list-disc list-inside space-y-0.5 text-ink-muted dark:text-ink-muted-dark text-[10.5px]">
+                    <ul className="list-disc list-inside space-y-0.5 text-ink-muted dark:text-ink-muted-dark text-micro">
                       <li>
-                        <strong className="text-ink dark:text-ink-dark">المقاس القياسي الموصى به:</strong> تصميم مربع بدقة <span dir="ltr" className="font-mono font-semibold">120 × 120</span> حتى <span dir="ltr" className="font-mono font-semibold">240 × 240</span> بكسل لملاءمة مثالية لورق 80 مم و 57 مم.
+                        <strong className="text-ink dark:text-ink-dark">ورق قياسي 80 مم:</strong> الأبعاد المثالية هي <span dir="ltr" className="font-mono font-semibold">200 × 70</span> بكسل (أو مربع حتى <span dir="ltr" className="font-mono font-semibold">120 × 120</span> بكسل).
                       </li>
                       <li>
-                        <strong className="text-ink dark:text-ink-dark">نقاء الألوان والجودة:</strong> يحتفظ النظام بكامل ألوان الشعار الطبيعية ونقاء خطوطه وتفاصيله؛ وتقوم الطابعة الحرارية بتدريج الظلال تلقائياً بأعلى نقاء ممكن.
+                        <strong className="text-ink dark:text-ink-dark">ورق مضغوط 57 مم:</strong> الأبعاد المثالية هي <span dir="ltr" className="font-mono font-semibold">150 × 50</span> بكسل.
+                      </li>
+                      <li>
+                        <strong className="text-ink dark:text-ink-dark">نقاء الطباعة:</strong> يُفضل دائماً ملف <span className="font-semibold">PNG</span> بخلفية بيضاء نقية أو مفرغة، مع تصميم أبيض وأسود عالي التباين (High Contrast / Grayscale) وبدقة 203 DPI لتجنب أي بهتان في رأس الطباعة الحراري.
                       </li>
                     </ul>
                   </div>
@@ -441,8 +453,8 @@ export const StoreProfileTab = ({
 
           {/* Section: Developer Signature & Branding (Root Protected) */}
           {isRoot && (
-            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 sm:p-5 rounded-xl border border-line dark:border-line-dark flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright" />
                   <span className="font-bold text-ink dark:text-ink-dark text-xs">
@@ -450,21 +462,21 @@ export const StoreProfileTab = ({
                   </span>
                 </div>
 
-                <span className="text-[10px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark/30 border border-paid/30 px-2 py-0.5 rounded flex items-center gap-1">
+                <span className="text-micro font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark/30 border border-paid/30 px-2 py-0.5 rounded flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" />
                   <span>صلاحية روت مفعّلة (المطور)</span>
                 </span>
               </div>
 
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-2">
                 <input
                   type="text"
                   value={developerSignature}
                   onChange={(e) => setDeveloperSignature && setDeveloperSignature(e.target.value)}
                   placeholder="نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965"
-                  className="w-full rounded h-9 px-3 text-xs font-medium transition-colors bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  className="w-full rounded h-10 px-3 text-xs font-medium transition-colors bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                   بصفتك المطور (روت)، يمكنك تخصيص عبارة الدعاية والتوقيع البرمجي التي تظهر في سطر أسفل جميع فواتير البيع.
                 </span>
               </div>
@@ -475,10 +487,10 @@ export const StoreProfileTab = ({
           {canEditStorePolicies && (
             <>
             {/* Feature #30: Negative Stock Policy */}
-            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
-              <div className="flex flex-col gap-0.5">
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 sm:p-5 rounded-xl border border-line dark:border-line-dark flex items-center justify-between gap-5">
+              <div className="flex flex-col gap-1">
                 <span className="font-bold text-ink dark:text-ink-dark text-xs">السماح بالبيع بالسالب لما البضاعة تخلص</span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                   مفيد في أول التشغيل عشان حركة البيع والزبائن في الطابور ما تقفش لو لسه ما خلصتش جرد المحل.
                 </span>
               </div>
@@ -493,10 +505,10 @@ export const StoreProfileTab = ({
             </div>
 
             {/* Feature: Require Open Shift to Sell */}
-            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
-              <div className="flex flex-col gap-0.5">
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 sm:p-5 rounded-xl border border-line dark:border-line-dark flex items-center justify-between gap-5">
+              <div className="flex flex-col gap-1">
                 <span className="font-bold text-ink dark:text-ink-dark text-xs">إلزام فتح وردية واستلام الدرج لإتمام البيع</span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                   عند التفعيل: يمنع الكاشير من البيع إلا بعد فتح وردية واستلام عهدة الدرج لحماية أموال المحل ضد التلاعب. عند الإيقاف: يتيح البيع السريع المباشر في المحلات الفردية دون الحاجة لفتح وردية.
                 </span>
               </div>
@@ -511,21 +523,21 @@ export const StoreProfileTab = ({
             </div>
 
             {/* Feature #110: Default Customer Credit Limit */}
-            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
-              <div className="flex flex-col gap-0.5">
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 sm:p-5 rounded-xl border border-line dark:border-line-dark flex items-center justify-between gap-5">
+              <div className="flex flex-col gap-1">
                 <span className="font-bold text-ink dark:text-ink-dark text-xs">حد الشكك والتنبيه الافتراضي للزبائن الجدد</span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                   المبلغ بالجنيه لأقصى دين للزبون الجديد. أول ما حسابه يتعدى الرقم ده يظهر تنبيه للكاشير وقت البيع الآجل.
                 </span>
               </div>
-              <div className="w-32 shrink-0 flex items-center gap-1.5">
+              <div className="w-36 shrink-0 flex items-center gap-2">
                 <input
                   type="number"
                   min="0"
                   step="50"
                   value={defaultCustomerCreditLimitEgp}
                   onChange={(e) => setDefaultCustomerCreditLimitEgp(Number(e.target.value) || 0)}
-                  className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-9 px-2 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright text-center font-bold tabular-nums font-mono"
+                  className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-10 px-2 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright text-center font-bold tabular-nums font-mono"
                 />
                 <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-semibold shrink-0">ج.م</span>
               </div>
@@ -535,27 +547,27 @@ export const StoreProfileTab = ({
 
           {/* Pharmacy Controlled Drugs Mandatory Fields (Story 131 / Task 188-3) */}
           {isEnabled('feature_pharmacy') && (
-            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">
-              <div className="flex items-center justify-between">
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 sm:p-5 rounded-xl border border-line dark:border-line-dark flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 <div className="flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-warn" />
+                  <ShieldAlert className="w-4 h-4 text-warn dark:text-warn-bright" />
                   <span className="font-bold text-ink dark:text-ink-dark text-xs">
                     ضوابط الرقابة والتسجيل الإلزامي لأدوية الجدول والمهدئات (صيدليات)
                   </span>
                 </div>
-                <span className="text-[10px] text-warn bg-warn/15 border border-warn/30 px-2 py-0.5 rounded font-bold">
+                <span className="text-micro text-warn dark:text-warn-bright bg-warn/15 border border-warn/30 px-2 py-0.5 rounded font-bold">
                   تفتيش صيدلي
                 </span>
               </div>
-              <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
+              <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
                 حدد البيانات التي يُلزم الكاشير بإدخالها وتوثيقها رسمياً في شاشة البيع ودفتر التفتيش قبل السماح بصرف أي صنف خاضع للجدول.
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                   <div>
                     <div className="text-xs font-bold text-ink dark:text-ink-dark">الرقم القومي للمريض (14 رقماً)</div>
-                    <div className="text-[10px] text-ink-muted">إلزام إدخال بطاقة الرقم القومي للمريض المستلم</div>
+                    <div className="text-micro text-ink-muted dark:text-ink-muted-dark">إلزام إدخال بطاقة الرقم القومي للمريض المستلم</div>
                   </div>
                   <ToggleSwitch
                     checked={mandatoryFields.requirePatientNationalId}
@@ -567,7 +579,7 @@ export const StoreProfileTab = ({
                 <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                   <div>
                     <div className="text-xs font-bold text-ink dark:text-ink-dark">اسم الطبيب المعالج</div>
-                    <div className="text-[10px] text-ink-muted">إلزام إدخال اسم الطبيب محرر الوصفة الطبية</div>
+                    <div className="text-micro text-ink-muted dark:text-ink-muted-dark">إلزام إدخال اسم الطبيب محرر الوصفة الطبية</div>
                   </div>
                   <ToggleSwitch
                     checked={mandatoryFields.requireDoctorName}
@@ -579,7 +591,7 @@ export const StoreProfileTab = ({
                 <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                   <div>
                     <div className="text-xs font-bold text-ink dark:text-ink-dark">رقم قيد / ترخيص الطبيب</div>
-                    <div className="text-[10px] text-ink-muted">إلزام إدخال رقم القيد بالنقابة أو ترخيص العيادة</div>
+                    <div className="text-micro text-ink-muted dark:text-ink-muted-dark">إلزام إدخال رقم القيد بالنقابة أو ترخيص العيادة</div>
                   </div>
                   <ToggleSwitch
                     checked={mandatoryFields.requireDoctorLicense}
@@ -591,7 +603,7 @@ export const StoreProfileTab = ({
                 <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                   <div>
                     <div className="text-xs font-bold text-ink dark:text-ink-dark">رقم الروشتة الطبية</div>
-                    <div className="text-[10px] text-ink-muted">إلزام إدخال رقم إذن الصرف أو الروشتة</div>
+                    <div className="text-micro text-ink-muted dark:text-ink-muted-dark">إلزام إدخال رقم إذن الصرف أو الروشتة</div>
                   </div>
                   <ToggleSwitch
                     checked={mandatoryFields.requirePrescriptionNo}
@@ -603,7 +615,7 @@ export const StoreProfileTab = ({
                 <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                   <div>
                     <div className="text-xs font-bold text-ink dark:text-ink-dark">تاريخ تحرير الروشتة</div>
-                    <div className="text-[10px] text-ink-muted">إلزام إدخال تاريخ توقيع الكشف الطبي</div>
+                    <div className="text-micro text-ink-muted dark:text-ink-muted-dark">إلزام إدخال تاريخ توقيع الكشف الطبي</div>
                   </div>
                   <ToggleSwitch
                     checked={mandatoryFields.requirePrescriptionDate}
@@ -615,7 +627,7 @@ export const StoreProfileTab = ({
                 <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                   <div>
                     <div className="text-xs font-bold text-ink dark:text-ink-dark">هاتف المريض / المستلم</div>
-                    <div className="text-[10px] text-ink-muted">إلزام تسجيل رقم الهاتف للتواصل والمتابعة</div>
+                    <div className="text-micro text-ink-muted dark:text-ink-muted-dark">إلزام تسجيل رقم الهاتف للتواصل والمتابعة</div>
                   </div>
                   <ToggleSwitch
                     checked={mandatoryFields.requirePatientPhone}
@@ -628,23 +640,23 @@ export const StoreProfileTab = ({
           )}
 
           {/* Feature: Theme Mode (Light / Dark / System) */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">
-            <div className="flex items-center justify-between">
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 sm:p-5 rounded-xl border border-line dark:border-line-dark flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <div className="flex items-center gap-2">
                 <Palette className="w-4 h-4 text-paid dark:text-paid-bright" />
                 <span className="font-bold text-ink dark:text-ink-dark text-xs">مظهر البرنامج والسمة البصرية (الوضع النهاري والداكن)</span>
               </div>
-              <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark px-2 py-0.5 rounded font-medium">
+              <span className="text-micro text-ink-muted dark:text-ink-muted-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark px-2 py-0.5 rounded font-medium">
                 {theme === 'system' ? `تلقائي (${resolvedTheme === 'dark' ? 'داكن' : 'نهاري'})` : theme === 'dark' ? 'الوضع الليلي' : 'الوضع النهاري'}
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Option 1: Light Mode */}
               <button
                 type="button"
                 onClick={() => setTheme('light')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border transition-all text-right cursor-pointer ${
+                className={`flex items-center gap-3 p-3.5 rounded-lg border transition-all text-right cursor-pointer ${
                   theme === 'light'
                     ? 'bg-surface dark:bg-surface-dark border-paid dark:border-paid-bright shadow-xs ring-2 ring-paid/30 dark:ring-paid-bright/30'
                     : 'bg-surface/60 dark:bg-surface-dark/60 hover:bg-surface dark:hover:bg-surface-dark border-line dark:border-line-dark'
@@ -658,7 +670,7 @@ export const StoreProfileTab = ({
                     <span className="text-xs font-bold text-ink dark:text-ink-dark">نهاري (فاتح)</span>
                     {theme === 'light' && <CheckCircle2 className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />}
                   </div>
-                  <p className="text-[10px] text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5 leading-snug">
+                  <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 mt-1 leading-snug">
                     الوضع الافتراضي عالي الإشراق
                   </p>
                 </div>
@@ -668,7 +680,7 @@ export const StoreProfileTab = ({
               <button
                 type="button"
                 onClick={() => setTheme('dark')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border transition-all text-right cursor-pointer ${
+                className={`flex items-center gap-3 p-3.5 rounded-lg border transition-all text-right cursor-pointer ${
                   theme === 'dark'
                     ? 'bg-surface dark:bg-surface-dark border-paid dark:border-paid-bright shadow-xs ring-2 ring-paid/30 dark:ring-paid-bright/30'
                     : 'bg-surface/60 dark:bg-surface-dark/60 hover:bg-surface dark:hover:bg-surface-dark border-line dark:border-line-dark'
@@ -682,7 +694,7 @@ export const StoreProfileTab = ({
                     <span className="text-xs font-bold text-ink dark:text-ink-dark">ليلي (داكن)</span>
                     {theme === 'dark' && <CheckCircle2 className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />}
                   </div>
-                  <p className="text-[10px] text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5 leading-snug">
+                  <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 mt-1 leading-snug">
                     مريح للعينين في الإضاءة المنخفضة
                   </p>
                 </div>
@@ -692,7 +704,7 @@ export const StoreProfileTab = ({
               <button
                 type="button"
                 onClick={() => setTheme('system')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border transition-all text-right cursor-pointer ${
+                className={`flex items-center gap-3 p-3.5 rounded-lg border transition-all text-right cursor-pointer ${
                   theme === 'system'
                     ? 'bg-surface dark:bg-surface-dark border-paid dark:border-paid-bright shadow-xs ring-2 ring-paid/30 dark:ring-paid-bright/30'
                     : 'bg-surface/60 dark:bg-surface-dark/60 hover:bg-surface dark:hover:bg-surface-dark border-line dark:border-line-dark'
@@ -706,7 +718,7 @@ export const StoreProfileTab = ({
                     <span className="text-xs font-bold text-ink dark:text-ink-dark">تلقائي (الويندوز)</span>
                     {theme === 'system' && <CheckCircle2 className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />}
                   </div>
-                  <p className="text-[10px] text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5 leading-snug">
+                  <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 mt-1 leading-snug">
                     يتوافق تلقائياً مع نظام التشغيل
                   </p>
                 </div>
@@ -718,7 +730,7 @@ export const StoreProfileTab = ({
           <button
             type="submit"
             disabled={saveLoading}
-            className="mt-1 h-11 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-muted-dark text-white dark:text-slate-900 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
+            className="mt-1 h-11 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid-bright-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-muted-dark text-white dark:text-surface-dark rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
           >
             <Save className="w-4 h-4" />
             <span>{saveLoading ? 'جاري حفظ البيانات...' : 'حفظ وتطبيق بيانات المحل في البرنامج'}</span>
@@ -727,131 +739,28 @@ export const StoreProfileTab = ({
       </div>
 
       {/* LEFT COLUMN: Real 80mm Live Thermal Receipt Preview */}
-      <div className="col-span-12 lg:col-span-5 flex flex-col items-center justify-start sticky top-2">
+      <div className="col-span-12 xl:col-span-5 flex flex-col items-center justify-start xl:sticky xl:top-2">
         <div className="w-full max-w-[320px] flex items-center justify-between mb-2">
           <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">معاينة وصل الكاشير الحراري (80 مم)</span>
-          <span className="text-[10px] font-mono bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark px-2 py-0.5 rounded text-ink-muted dark:text-ink-muted-dark">
+          <span className="text-micro font-mono bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark px-2 py-0.5 rounded text-ink-muted dark:text-ink-muted-dark">
             203 DPI • ESC/POS
           </span>
         </div>
 
-        {/* Realistic Receipt Canvas Paper */}
-        <div className="w-full max-w-[320px] bg-white text-ink font-mono text-[11.5px] p-5 shadow-card border border-line dark:border-line-dark rounded flex flex-col relative select-text">
-          {/* Top Zigzag Cut */}
-          <div className="w-full h-2 receipt-zigzag mb-2 opacity-30"></div>
-
-          {/* Receipt Header & Logo */}
-          <div className="text-center flex flex-col gap-0.5 items-center">
-            {showReceiptLogo && (
-              <div className="flex justify-center mb-1">
-                <img
-                  src={storeLogoUrl}
-                  alt="شعار المتجر"
-                  className="max-h-11 max-w-[150px] object-contain"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = '/receipt_logo_square.png';
-                  }}
-                />
-              </div>
-            )}
-            <h4 className="text-base font-bold m-0 font-sans text-black">{storeName || 'متجر رفيق'}</h4>
-            {address ? <p className="text-[11px] text-gray-700 m-0">{address}</p> : null}
-            {phone && <p className="text-[11px] text-gray-700 m-0 dir-ltr text-center">تليفون: {phone}</p>}
-            {taxNumber && <p className="text-[10px] text-gray-500 m-0">ر.ض: {taxNumber}</p>}
-            {receiptHeader && (
-              <p className="text-[11px] font-semibold text-gray-800 mt-1 border-t border-b border-dashed border-gray-400 py-1 font-sans">
-                {receiptHeader}
-              </p>
-            )}
-          </div>
-
-          {/* Meta Row */}
-          <div className="flex justify-between text-[10px] text-gray-600 my-2 border-b border-dashed border-gray-300 pb-1">
-            <span>فاتورة: #1042</span>
-            <span>2026/09/27 19:35</span>
-          </div>
-
-          {/* Table Line Items */}
-          <div className="pt-0.5 pb-1 flex flex-col gap-1 text-[11px]">
-            <div className="flex justify-between font-bold text-[10px] text-gray-600 pb-0.5 border-b border-gray-300">
-              <span>الصنف</span>
-              <span>الكمية × السعر</span>
-              <span>الإجمالي</span>
-            </div>
-            <div className="flex justify-between pt-1">
-              <span className="truncate max-w-[130px]">جبنة عبور لاند 500 جم</span>
-              <span>1 × 38.00</span>
-              <span className="font-bold">38.00</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="truncate max-w-[130px]">شاي العروسة 100 جم</span>
-              <span>2 × 15.00</span>
-              <span className="font-bold">30.00</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="truncate max-w-[130px]">سكر حر 1 كجم</span>
-              <span>1 × 27.00</span>
-              <span className="font-bold">27.00</span>
-            </div>
-          </div>
-
-          {/* Totals */}
-          <div className="border-t border-dashed border-black pt-1.5 flex flex-col gap-1 text-xs">
-            <div className="flex justify-between text-gray-700">
-              <span>المجموع الفرعي:</span>
-              <span>95.00 ج.م</span>
-            </div>
-            <div className="flex justify-between text-gray-600">
-              <span>الخصم:</span>
-              <span>0.00 ج.م</span>
-            </div>
-            <div className="flex justify-between font-bold text-sm border-t border-black pt-1 mt-0.5 text-black">
-              <span>الإجمالي المطلوب:</span>
-              <span>95.00 ج.م</span>
-            </div>
-            <div className="flex justify-between text-[11px] text-gray-700">
-              <span>المدفوع كاش:</span>
-              <span>100.00 ج.م</span>
-            </div>
-            <div className="flex justify-between text-[11px] font-bold text-black">
-              <span>الباقي للزبون:</span>
-              <span>5.00 ج.م</span>
-            </div>
-          </div>
-
-          {/* Barcode Simulation */}
-          <div className="my-3 flex flex-col items-center">
-            <div className="h-8 w-44 bg-black flex items-center justify-center text-white text-[8px] font-mono tracking-widest">
-              ||| | |||| | ||| |||| | ||
-            </div>
-            <span className="text-[9px] text-gray-500 mt-0.5">2026104200095</span>
-          </div>
-
-          {/* Receipt Footer */}
-          {receiptFooter && (
-            <div className="text-center text-[10px] text-gray-700 border-t border-dashed border-gray-400 pt-1.5 font-sans leading-relaxed">
-              {receiptFooter}
-            </div>
-          )}
-
-          {/* Developer Branding Signature */}
-          <div className="border-t border-dotted border-gray-400 pt-1.5 mt-2 text-center text-[9px] text-gray-500 font-sans tracking-tight leading-relaxed">
-            {developerSignature.includes('\n') ? (
-              developerSignature.split('\n').map((line, i) => (
-                <div key={i}>{line.trim()}</div>
-              ))
-            ) : developerSignature.includes(' | ') ? (
-              developerSignature.split(' | ').map((line, i) => (
-                <div key={i}>{line.trim()}</div>
-              ))
-            ) : (
-              <div>{developerSignature}</div>
-            )}
-          </div>
-
-          {/* Bottom Zigzag Cut */}
-          <div className="w-full h-2 receipt-zigzag mt-3 opacity-30"></div>
-        </div>
+        {/* Receipt paper: built by the same layout code the printer follows, with a sample basket */}
+        <ReceiptPaper
+          model={buildReceiptModel(buildSampleReceiptSale(), {
+            name: storeName,
+            phone,
+            address,
+            taxNumber,
+            header: receiptHeader,
+            footer: receiptFooter,
+            signature: developerSignature,
+          })}
+          paper="80mm"
+          logoUrl={showReceiptLogo ? storeLogoUrl : null}
+        />
       </div>
     </div>
   );

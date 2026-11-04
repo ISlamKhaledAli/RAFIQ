@@ -150,6 +150,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isRoot = currentUser?.role === 'root';
   const isAdmin = isRoot || currentUser?.role === 'admin';
+  const isOwner = currentUser?.isOwner === true;
+  const isOwnerOrRoot = isRoot || isOwner;
 
   return (
     <AuthContext.Provider
@@ -162,6 +164,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshUser,
         isRoot,
         isAdmin,
+        isOwner,
+        isOwnerOrRoot,
       }}
     >
       {children}

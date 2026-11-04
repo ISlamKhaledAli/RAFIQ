@@ -6,6 +6,7 @@ import { SupervisorPromptModal } from './SupervisorPromptModal';
 import { ShieldCheck, Keyboard, ShieldAlert } from 'lucide-react';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { ForcedPinChangeForm } from './ForcedPinChangeForm';
+import { getRoleLabel } from '../utils/roleLabels';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -112,18 +113,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     if (isLocked || loading || pin.length >= 8) return;
     setPin((prev) => prev + digit);
     setError('');
+    inputRef.current?.focus();
   };
 
   const handleBackspace = () => {
     if (isLocked || loading) return;
     setPin((prev) => prev.slice(0, -1));
     setError('');
+    inputRef.current?.focus();
   };
 
   const handleClear = () => {
     if (isLocked || loading) return;
     setPin('');
     setError('');
+    inputRef.current?.focus();
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -233,7 +237,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               )}
             </div>
             <div>
-              <h2 className="text-lg font-black text-ink dark:text-ink-dark">
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">
                 {forceChangePinUser ? 'تحديث أمني إلزامي: تعيين رقم سري جديد' : 'تسجيل دخول الكاشير والموظفين'}
               </h2>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">
@@ -302,17 +306,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                         </div>
                         <div className="min-w-0">
                           <div className="font-bold text-ink dark:text-ink-dark text-sm whitespace-nowrap truncate">{user.displayName}</div>
-                          <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-mono whitespace-nowrap truncate">@{user.username}</div>
+                          <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono whitespace-nowrap truncate">@{user.username}</div>
                         </div>
                       </div>
                       <span
-                        className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0 ${
+                        className={`text-micro px-2.5 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0 ${
                           isAdmin
                             ? 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-dark-soft'
                             : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
                         }`}
                       >
-                        {isAdmin ? 'صاحب المحل' : 'كاشير'}
+                        {getRoleLabel(user)}
                       </span>
                     </button>
                   );
@@ -331,7 +335,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     setIsSupervisorPromptOpen(true);
                   }
                 }}
-                className="w-full py-2 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                className="w-full py-2 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright text-micro font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
                 title="تتطلب إدخال الرقم السري لمدير النظام"
               >
                 <svg className="w-3.5 h-3.5 text-warn dark:text-warn-bright shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -351,13 +355,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   الرقم السري لـ: <span className="text-brand dark:text-brand-bright font-bold">{selectedUser?.displayName || 'الكاشير'}</span>
                 </span>
                 {selectedUser?.role && (
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
-                    الصلاحية: {selectedUser.role === 'admin' ? 'مدير محل (كامل الصلاحيات)' : 'كاشير (شاشة البيع فقط)'}
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
+                    الصلاحية: {getRoleLabel(selectedUser)}
                   </span>
                 )}
               </div>
 
-              {/* Secret Dots Display */}
+              {/* Masked PIN input */}
               <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-xl p-3.5 flex items-center justify-center h-14 mb-3">
                 {isLocked ? (
                   <div className="flex items-center gap-2 text-danger dark:text-danger-bright font-bold text-sm">
@@ -367,21 +371,32 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     <span>الحساب موقوف مؤقتاً: استنى {lockoutSec} ثانية</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2.5" dir="ltr">
-                    {Array.from({ length: Math.max(4, pin.length) }).map((_, idx) => {
-                      const filled = idx < pin.length;
-                      return (
-                        <div
-                          key={idx}
-                          className={`w-3.5 h-3.5 rounded-full transition-all duration-150 ${
-                            filled
-                              ? 'bg-paid dark:bg-paid-bright scale-110 shadow-xs shadow-paid/50'
-                              : 'border-2 border-line dark:border-line-dark bg-transparent'
-                          }`}
-                        />
-                      );
-                    })}
-                  </div>
+                  <input
+                    ref={inputRef}
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    autoFocus
+                    autoComplete="off"
+                    aria-label="الرقم السري (PIN)"
+                    value={pin}
+                    readOnly={loading}
+                    onChange={(e) => {
+                      setPin(e.target.value.replace(/\D/g, '').slice(0, 8));
+                      setError('');
+                    }}
+                    onKeyDown={(e) => {
+                      // Only stop keys the global handler would double-count; Escape and F-keys must still bubble
+                      if (/^[0-9]$/.test(e.key) || e.key === 'Backspace' || e.key === 'Enter') {
+                        e.stopPropagation();
+                      }
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void handleSubmit();
+                      }
+                    }}
+                    className="w-full h-full bg-transparent text-center text-ink dark:text-ink-dark text-xl font-mono caret-brand dark:caret-brand-bright focus:outline-none"
+                  />
                 )}
               </div>
 

@@ -22,6 +22,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { printReport } from '../utils/printReport';
 import type { DataQualityReport, DataQualityIssueItem, DataQualityIssueType, BulkGenerateBarcodesResult, AssignBarcodeResult, DataQualityRepairResult } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { rafiqAlert } from '../utils/dialogService';
@@ -190,7 +191,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
   }, [report, activeFilter, searchQuery]);
 
   const handlePrint = () => {
-    window.print();
+    void printReport({ kind: 'a4only' });
   };
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
@@ -211,6 +212,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
       onClick={handleBackdropClick}
     >
       <div 
+        data-print-root
         className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:max-h-none print:w-full"
         onClick={(e) => e.stopPropagation()}
       >
@@ -224,7 +226,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold tracking-tight">تقرير فحص صحة وجودة بيانات الكتالوج</h2>
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-white/15 text-white">
+                <span className="text-micro px-2 py-0.5 rounded-full font-bold bg-white/15 text-white">
                   فحص تلقائي شامل
                 </span>
               </div>
@@ -283,7 +285,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                 isExcellent 
                   ? 'bg-paid text-white border-paid' 
                   : isFair 
-                  ? 'bg-warn text-white border-warn' 
+                  ? 'bg-warn text-white dark:bg-warn-bright dark:text-surface-dark border-warn' 
                   : 'bg-danger text-white border-danger'
               }`}>
                 {score}%
@@ -293,11 +295,11 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                   <h3 className="font-bold text-sm text-ink dark:text-ink-dark">
                     مؤشر اكتمال وصحة البيانات بالمحل
                   </h3>
-                  <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${
+                  <span className={`text-micro font-bold px-2 py-0.5 rounded-full ${
                     isExcellent 
                       ? 'bg-paid text-white' 
                       : isFair 
-                      ? 'bg-warn text-white' 
+                      ? 'bg-warn text-white dark:bg-warn-bright dark:text-surface-dark' 
                       : 'bg-danger text-white'
                   }`}>
                     {isExcellent ? 'بيانات ممتازة ومكتملة' : isFair ? 'بيانات مقبولة وبحاجة لمراجعة' : 'تتطلب تصحيحاً عاجلاً'}
@@ -311,15 +313,15 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
 
             <div className="flex items-center gap-3 text-xs shrink-0 font-medium">
               <div className="bg-surface px-3 py-2 rounded-xl border border-line shadow-2xs text-center min-w-[90px]">
-                <span className="block text-[10px] text-ink-muted">إجمالي الأصناف</span>
+                <span className="block text-micro text-ink-muted">إجمالي الأصناف</span>
                 <span className="font-mono font-bold text-sm text-ink">{report?.totalProductsAudited ?? 0}</span>
               </div>
               <div className="bg-surface px-3 py-2 rounded-xl border border-line shadow-2xs text-center min-w-[90px]">
-                <span className="block text-[10px] text-paid font-bold">أصناف سليمة</span>
+                <span className="block text-micro text-paid font-bold">أصناف سليمة</span>
                 <span className="font-mono font-bold text-sm text-paid">{report?.healthyProductsCount ?? 0}</span>
               </div>
               <div className="bg-surface px-3 py-2 rounded-xl border border-line shadow-2xs text-center min-w-[90px]">
-                <span className="block text-[10px] text-[#b23a2e] font-bold">ملاحظات ومشاكل</span>
+                <span className="block text-micro text-[#b23a2e] font-bold">ملاحظات ومشاكل</span>
                 <span className="font-mono font-bold text-sm text-[#b23a2e]">{report?.totalIssuesCount ?? 0}</span>
               </div>
             </div>
@@ -368,7 +370,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               onClick={() => setActiveFilter('orphan_product')}
               className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                 activeFilter === 'orphan_product'
-                  ? 'bg-warn text-white border-warn shadow-xs'
+                  ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border-warn shadow-xs'
                   : 'bg-surface border-line text-ink hover:border-warn'
               }`}
             >
@@ -440,7 +442,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               onClick={() => setActiveFilter('missing_barcode')}
               className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                 activeFilter === 'missing_barcode'
-                  ? 'bg-warn text-white border-warn shadow-xs'
+                  ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border-warn shadow-xs'
                   : 'bg-surface border-line text-ink hover:border-warn'
               }`}
             >
@@ -458,7 +460,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               onClick={() => setActiveFilter('missing_cost')}
               className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                 activeFilter === 'missing_cost'
-                  ? 'bg-warn text-white border-warn shadow-xs'
+                  ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border-warn shadow-xs'
                   : 'bg-surface border-line text-ink hover:border-warn'
               }`}
             >
@@ -573,7 +575,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                   <h4 className="text-xs font-bold text-ink leading-tight">
                     يوجد <strong className="font-mono text-brand font-black">{report?.missingBarcodeCount}</strong> صنف بدون باركود في الكتالوج
                   </h4>
-                  <p className="text-[11px] text-ink-muted mt-0.5">
+                  <p className="text-micro text-ink-muted mt-0.5">
                     يمكنك توليد باركودات داخلية قياسية موحدة (EAN-13 مع بادئة GS1: 200 ورقم تحقق Modulo 10) لجميع الأصناف الناقصة دفعة واحدة.
                   </p>
                 </div>
@@ -643,14 +645,14 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                           </td>
                           <td className="py-3 px-4">
                             <div className="font-bold text-ink">{issue.productName}</div>
-                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-ink-muted font-mono">
+                            <div className="flex items-center gap-2 mt-0.5 text-micro text-ink-muted font-mono">
                               <span>باركود: {issue.barcode || 'بلا باركود'}</span>
                               <span>•</span>
                               <span>قسم: {issue.categoryName || 'غير محدد'}</span>
                             </div>
                           </td>
                           <td className="py-3 px-4">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-micro font-bold border ${
                               isCritical
                                 ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30'
                                 : isWarning
@@ -660,11 +662,11 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                               {isCritical && <AlertTriangle className="w-3 h-3 shrink-0" />}
                               <span>{issue.issueTitle}</span>
                             </span>
-                            <div className="text-[10.5px] text-ink-muted mt-1 leading-tight max-w-xs">
+                            <div className="text-micro text-ink-muted mt-1 leading-tight max-w-xs">
                               {issue.issueDescription}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-[11px] font-mono tabular-nums">
+                          <td className="py-3 px-4 text-micro font-mono tabular-nums">
                             <div>الرصيد: <strong className={issue.stockMilli < 0 ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'}>{(issue.stockMilli / 1000).toFixed( issue.unit === 'kg' ? 3 : 0 )} {issue.unit === 'kg' ? 'كجم' : 'ق'}</strong></div>
                             <div>التكلفة: <strong className={issue.costPiasters <= 0 ? 'text-warn dark:text-warn-bright font-bold' : 'text-ink dark:text-ink-dark'}>{formatArabicCurrency(issue.costPiasters)}</strong></div>
                             <div>البيع: <strong className="text-ink dark:text-ink-dark">{formatArabicCurrency(issue.pricePiasters)}</strong></div>
@@ -730,14 +732,6 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
             <span className="w-2 h-2 rounded-full bg-paid animate-pulse" />
             <span>الفحص يضمن سلامة الحسابات والأرباح ودقة قراءة الماسح الضوئي بنسبة 100%</span>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-surface-2 hover:bg-surface border border-line text-ink rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-          >
-            إغلاق
-          </button>
         </div>
 
       </div>

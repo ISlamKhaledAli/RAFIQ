@@ -44,8 +44,8 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
       <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-sm p-5 animate-in fade-in zoom-in-95 duration-150 text-right select-none">
         <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
           <div>
-            <h3 className="text-base font-bold text-ink dark:text-ink-dark m-0">تعديل كمية الصنف</h3>
-            <p className="text-[12px] font-bold text-brand dark:text-brand-bright m-0 truncate max-w-[260px]">
+            <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">تعديل كمية الصنف</h3>
+            <p className="text-xs font-bold text-brand dark:text-brand-bright m-0 truncate max-w-[260px]">
               {quantityModalItem.name}
             </p>
           </div>

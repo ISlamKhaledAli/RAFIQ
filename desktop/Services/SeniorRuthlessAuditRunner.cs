@@ -2221,6 +2221,7 @@ namespace RafiqPOS.Services
                 Notes = "تقفيل نظامي بدون أي عجز أو زيادة",
                 ConfirmSuspiciousDate = true
             };
+            ChaosEngineeringTestRunner.CloseOpenShiftsWithExpectedCash(_connStr, closingService);
             var savedClosing = closingService.SaveClosing(closingReq);
             AssertCondition(savedClosing != null && savedClosing.DifferencePiasters == 0,
                 "إقفال وتشميع اليومية بنجاح مع تسجيل فارق الدرج = 0 (مطابقة تامة بدون أي عجز أو زيادة)",
@@ -3781,6 +3782,7 @@ namespace RafiqPOS.Services
             // Perform formal daily closing if not already closed
             if (!closingService.IsDayClosed(bDate))
             {
+                ChaosEngineeringTestRunner.CloseOpenShiftsWithExpectedCash(_connStr, closingService);
                 closingService.SaveClosing(new DailyClosingSaveRequest
                 {
                     BusinessDate = bDate,

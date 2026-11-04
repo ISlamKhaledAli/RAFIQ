@@ -411,7 +411,7 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public void AdjustBalance(string supplierId, long deltaPiasters, string transactionType, string referenceId, string notes, SQLiteConnection conn = null, SQLiteTransaction trans = null, string paymentSource = "cash_drawer")
+        public void AdjustBalance(string supplierId, long deltaPiasters, string transactionType, string referenceId, string notes, SQLiteConnection conn = null, SQLiteTransaction trans = null, string paymentSource = "cash_drawer", string idempotencyKey = null, string idempotencyFingerprint = null)
         {
             if (string.IsNullOrWhiteSpace(supplierId)) return;
             string now = DateTime.UtcNow.ToString("o");
@@ -443,14 +443,18 @@ namespace RafiqPOS.Repositories
                 string insertSql = @"
                     INSERT INTO supplier_transactions (
                         id, supplier_id, transaction_type, reference_id,
-                        amount_piasters, payment_source, balance_after_piasters, notes, created_at
+                        amount_piasters, payment_source, balance_after_piasters, notes, created_at,
+                        idempotency_key, idempotency_fingerprint
                     ) VALUES (
                         @id, @supplierId, @transType, @refId,
-                        @amount, @paymentSource, @balanceAfter, @notes, @createdAt
+                        @amount, @paymentSource, @balanceAfter, @notes, @createdAt,
+                        @idemKey, @idemFp
                     );
                 ";
                 using (var cmd = new SQLiteCommand(insertSql, c, t))
                 {
+                    cmd.Parameters.AddWithValue("@idemKey", (object)Common.IdempotencyGuard.NormalizeKey(idempotencyKey) ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@idemFp", (object)idempotencyFingerprint ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@id", "st_" + Guid.NewGuid().ToString("N"));
                     cmd.Parameters.AddWithValue("@supplierId", supplierId);
                     cmd.Parameters.AddWithValue("@transType", transactionType);
@@ -493,16 +497,28 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public void RecordPayment(string supplierId, long amountPiasters, string notes, string userId = null, string paymentSource = "cash_drawer")
+        public void RecordPayment(string supplierId, long amountPiasters, string notes, string userId = null, string paymentSource = "cash_drawer", string idempotencyKey = null)
         {
             if (string.IsNullOrWhiteSpace(supplierId)) throw new ArgumentException("معرف المورد مطلوب");
             if (amountPiasters <= 0) throw new ArgumentException("مبلغ السداد يجب أن يكون أكبر من الصفر");
+
+            string idemKey = Common.IdempotencyGuard.NormalizeKey(idempotencyKey);
+            string idemFingerprint = idemKey != null
+                ? Common.IdempotencyGuard.Fingerprint("supplier_payment", supplierId, amountPiasters, paymentSource)
+                : null;
 
             lock (SaleService.FinancialWriteLock)
             {
                 using (var conn = new SQLiteConnection(_connectionString))
                 {
                     conn.Open();
+
+                    // Same key and payload: the payment was already recorded, nothing is posted twice
+                    if (Common.IdempotencyGuard.FindExisting(conn, null, "supplier_transactions", "id", idemKey, idemFingerprint) != null)
+                    {
+                        return;
+                    }
+
                     using (var trans = conn.BeginTransaction())
                     {
                     try
@@ -540,7 +556,7 @@ namespace RafiqPOS.Repositories
                         }
 
                         // Payment to supplier reduces what we owe (delta is negative balance)
-                        AdjustBalance(supplierId, -amountPiasters, "PAYMENT", null, notes, conn, trans, paymentSource);
+                        AdjustBalance(supplierId, -amountPiasters, "PAYMENT", null, notes, conn, trans, paymentSource, idemKey, idemFingerprint);
 
                         _auditRepo.Log(conn, trans, new AuditLog
                         {

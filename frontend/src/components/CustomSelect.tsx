@@ -115,7 +115,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   };
 
   const sizeClasses = {
-    sm: 'min-h-[26px] h-[26px] px-2 py-0 text-[11px]',
+    sm: 'min-h-[26px] h-[26px] px-2 py-0 text-micro',
     md: 'min-h-[32px] px-2.5 py-1.5 text-xs',
     lg: 'min-h-[40px] px-3 py-2 text-sm',
   }[size];
@@ -192,8 +192,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     <button
                       type="button"
                       onClick={() => handleSelect(opt.value)}
-                      className={`w-full px-3 py-2 text-xs font-bold text-brand dark:text-brand-bright hover:bg-brand dark:hover:bg-brand-bright hover:text-white dark:hover:text-ink flex items-center justify-between gap-1.5 transition-colors text-right ${
-                        isSelected ? 'bg-brand dark:bg-brand-bright text-white dark:text-ink' : 'bg-brand-soft/20 dark:bg-brand-dark-soft'
+                      className={`w-full px-3 py-2 text-xs font-bold text-brand dark:text-brand-bright hover:bg-brand dark:hover:bg-brand-container hover:text-white dark:hover:text-white flex items-center justify-between gap-1.5 transition-colors text-right ${
+                        isSelected ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40' : 'bg-brand-soft/20 dark:bg-brand-dark-soft'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 truncate">
@@ -224,7 +224,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     {opt.badge && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
+                      <span className="text-micro px-1.5 py-0.5 rounded font-mono bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
                         {opt.badge}
                       </span>
                     )}

@@ -1,0 +1,207 @@
+import { layoutReceiptTable, RECEIPT_CURRENCY } from '../utils/receiptLayout';
+import type { ReceiptModel, ReceiptPaperWidth, ReceiptRow } from '../utils/receiptLayout';
+
+interface ReceiptPaperProps {
+  model: ReceiptModel;
+  paper: ReceiptPaperWidth;
+  logoUrl?: string | null;
+  id?: string;
+}
+
+// The paper simulation is always black on white (it mimics thermal paper), independent of the app theme.
+function Rows({ rows, small = false }: { rows: ReceiptRow[]; small?: boolean }) {
+  return (
+    <>
+      {rows.map((row, index) => (
+        <div
+          key={`${row.label}-${index}`}
+          className={`flex flex-wrap items-baseline justify-between gap-x-2 ${row.emphasis ? 'font-bold' : ''} ${small ? 'text-micro' : ''}`}
+        >
+          <span className="break-words">{row.label}</span>
+          <span dir="ltr" className="font-mono tabular-nums">{row.value}</span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+export function ReceiptPaper({ model, paper, logoUrl, id }: ReceiptPaperProps) {
+  const is57mm = paper === '57mm';
+  const table = layoutReceiptTable(model.lines, paper);
+  const numbersGrid = 'grid gap-x-2 justify-start font-mono tabular-nums shrink-0';
+  const numbersStyle = { gridTemplateColumns: `${table.qtyChars}ch ${table.priceChars}ch ${table.totalChars}ch` };
+
+  return (
+    <div
+      id={id}
+      className={`${is57mm ? 'w-[220px] p-2.5 text-micro' : 'w-[302px] p-4 text-micro'} bg-white text-black font-sans leading-relaxed shadow-sm select-text border border-line transition-all duration-200`}
+      dir="rtl"
+    >
+      {/* Store header */}
+      {logoUrl && (
+        <div className="flex justify-center mb-1.5">
+          <img
+            src={logoUrl}
+            alt="شعار المتجر"
+            className={`object-contain max-h-[48px] ${is57mm ? 'max-w-[90px]' : 'max-w-[130px]'}`}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = '/receipt_logo_square.png';
+            }}
+          />
+        </div>
+      )}
+      <div className={`text-center font-bold break-words ${is57mm ? 'text-sm' : 'text-base'}`}>{model.storeName}</div>
+      {model.address && <div className="text-center text-micro break-words">{model.address}</div>}
+      {model.phone && <div className="text-center text-micro break-words">هاتف: {model.phone}</div>}
+      {model.taxNumber && <div className="text-center text-micro break-words">الرقم الضريبي: {model.taxNumber}</div>}
+      {model.headerText && <div className="text-center text-micro mt-1 break-words">{model.headerText}</div>}
+
+      <div className="border-t border-dashed border-black my-1.5"></div>
+
+      {/* Invoice number + date/time, cashier, order meta, customer */}
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-bold break-words">{model.invoiceLabel}</span>
+        <span dir="ltr" className="text-micro font-mono tabular-nums whitespace-nowrap">{model.dateTime}</span>
+      </div>
+      {model.cashier && <div className="text-micro break-words">{model.cashier}</div>}
+      {model.orderMeta && <div className="text-micro break-words">{model.orderMeta}</div>}
+      {model.customer && <div className="text-micro break-words">{model.customer}</div>}
+
+      {model.badges.map((badge) => (
+        <div key={badge} className="bg-black text-white text-center font-bold py-0.5 my-1 mx-2">{badge}</div>
+      ))}
+
+      <div className="border-t border-dashed border-black my-1.5"></div>
+
+      {/* Items: name takes its own full-width line when long; numbers sit on the left (qty | price | total) */}
+      {model.lines.length > 0 && (
+        <div>
+          <div className="flex items-baseline justify-between gap-2 font-bold border-b-2 border-black pb-0.5 mb-1">
+            <span>الصنف</span>
+            {table.columns ? (
+              <span className={numbersGrid} style={numbersStyle}>
+                <span>الكمية</span>
+                <span className="text-right" dir="ltr">السعر</span>
+                <span className="text-right" dir="ltr">الإجمالي</span>
+              </span>
+            ) : (
+              <span className="flex gap-2">
+                <span>الكمية × السعر</span>
+                <span>الإجمالي</span>
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            {model.lines.map((line, index) => (
+              <div key={index}>
+                {table.columns && table.inline[index] ? (
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-bold whitespace-nowrap shrink-0">{line.name}</span>
+                    <span className={numbersGrid} style={numbersStyle}>
+                      <span dir="rtl">{line.qty}</span>
+                      <span dir="ltr" className="text-right">{line.price}</span>
+                      <span dir="ltr" className="text-right font-bold">{line.total}</span>
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="font-bold break-words">{line.name}</div>
+                    {table.columns ? (
+                      <div className="flex justify-end">
+                        <span className={numbersGrid} style={numbersStyle}>
+                          <span dir="rtl">{line.qty}</span>
+                          <span dir="ltr" className="text-right">{line.price}</span>
+                          <span dir="ltr" className="text-right font-bold">{line.total}</span>
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                        <span dir="rtl" className="font-mono tabular-nums">{line.qty} × {line.price}</span>
+                        <span dir="ltr" className="font-mono tabular-nums font-bold">{line.total}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                {line.discount && (
+                  <div className="flex justify-between text-micro">
+                    <span>خصم</span>
+                    <span dir="ltr" className="font-mono tabular-nums">-{line.discount}</span>
+                  </div>
+                )}
+                {line.details.map((detail, detailIndex) => (
+                  <div key={detailIndex} className="text-micro pr-2 break-words">{detail}</div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-dashed border-black my-1.5"></div>
+
+      {/* Totals */}
+      <div className="flex justify-between text-micro">
+        <span>{model.itemsCountText}</span>
+        {model.piecesCountText && <span>{model.piecesCountText}</span>}
+      </div>
+      <div className="space-y-0.5 mt-0.5">
+        <Rows rows={model.adjustmentRows} />
+      </div>
+
+      <div className="border-t-2 border-black my-1.5"></div>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+        <span className="font-bold">الإجمالي النهائي</span>
+        <span dir="ltr" className={`font-mono font-bold tabular-nums ${is57mm ? 'text-sm' : 'text-base'}`}>
+          {model.grandTotal} {RECEIPT_CURRENCY}
+        </span>
+      </div>
+      {model.taxText && (
+        <div className="flex justify-between text-micro">
+          <span>منها ضريبة القيمة المضافة</span>
+          <span dir="ltr" className="font-mono tabular-nums">{model.taxText}</span>
+        </div>
+      )}
+      {model.epayFeeText && (
+        <>
+          <div className="flex justify-between">
+            <span>رسوم خدمة الدفع الإلكتروني</span>
+            <span dir="ltr" className="font-mono tabular-nums">{model.epayFeeText}</span>
+          </div>
+          <div className="flex justify-between font-bold">
+            <span>المطلوب سداده</span>
+            <span dir="ltr" className="font-mono tabular-nums">{model.payableText}</span>
+          </div>
+        </>
+      )}
+
+      {/* Payments: only the methods used, change and the credit remainder */}
+      {model.paymentRows.length > 0 && (
+        <>
+          <div className="border-t border-dashed border-black my-1.5"></div>
+          <div className="space-y-0.5">
+            <Rows rows={model.paymentRows} />
+          </div>
+        </>
+      )}
+
+      {/* Delivery slip */}
+      {model.deliveryTitle && (
+        <>
+          <div className="border-t-2 border-black my-1.5"></div>
+          <div className="font-bold break-words">{model.deliveryTitle}</div>
+          {model.deliveryLines.map((line) => (
+            <div key={line} className="text-micro break-words">{line}</div>
+          ))}
+        </>
+      )}
+
+      <div className="border-t border-dashed border-black my-1.5"></div>
+      {model.coldChainNotice && <div className="text-center font-bold break-words mb-0.5">{model.coldChainNotice}</div>}
+      {model.notes && <div className="text-center text-micro break-words mb-0.5">{model.notes}</div>}
+      <div className="text-center text-micro break-words">{model.footer}</div>
+
+      <div className="border-t border-dashed border-black mt-1.5 pt-1 text-center text-micro break-words">{model.signature}</div>
+    </div>
+  );
+}

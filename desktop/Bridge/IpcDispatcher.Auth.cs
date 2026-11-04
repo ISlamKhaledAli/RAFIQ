@@ -403,8 +403,13 @@ namespace RafiqPOS.Bridge
 
                     string updId = updateUObj != null && updateUObj["id"] != null ? updateUObj["id"].ToString() : "";
                     string updName = updateUObj != null && updateUObj["displayName"] != null ? updateUObj["displayName"].ToString() : "";
-                    string updRole = updateUObj != null && updateUObj["role"] != null ? updateUObj["role"].ToString() : "cashier";
-                    bool updActive = updateUObj != null && updateUObj["isActive"] != null ? updateUObj["isActive"].Value<bool>() : true;
+                    // Absent role / isActive keep the account's current values (never silently demote or re-enable)
+                    string updRole = updateUObj != null && updateUObj["role"] != null && updateUObj["role"].Type != JTokenType.Null ? updateUObj["role"].ToString() : null;
+                    bool? updActive = null;
+                    if (updateUObj != null && updateUObj["isActive"] != null && updateUObj["isActive"].Type != JTokenType.Null)
+                    {
+                        updActive = updateUObj["isActive"].Value<bool>();
+                    }
                     try
                     {
                         DatabaseService.Security.UpdateUser(updId, updName, updRole, updActive);
@@ -413,6 +418,30 @@ namespace RafiqPOS.Bridge
                     catch (Exception uEx)
                     {
                         response = BridgeResponse.Fail(request.Id, "USER_UPDATE_ERROR", uEx.Message);
+                    }
+                    return true;
+
+                case "users:delete":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات حذف الموظف فارغة");
+                        return true;
+                    }
+                    JObject delUserObj = request.Payload as JObject;
+                    string deleteUserId = "";
+                    if (delUserObj != null)
+                    {
+                        if (delUserObj["id"] != null) deleteUserId = delUserObj["id"].ToString();
+                        else if (delUserObj["userId"] != null) deleteUserId = delUserObj["userId"].ToString();
+                    }
+                    try
+                    {
+                        DatabaseService.Security.DeleteUser(deleteUserId);
+                        response = BridgeResponse.Ok(request.Id, new { success = true });
+                    }
+                    catch (Exception uEx)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "USER_DELETE_ERROR", uEx.Message);
                     }
                     return true;
 

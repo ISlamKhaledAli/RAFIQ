@@ -344,7 +344,7 @@ export const DEFAULT_FLAGS: Record<string, boolean> = {
   feature_insurance: false,
   feature_expiry_returns: false,
   feature_drug_reference: false,
-  feature_drug_interactions: true,
+  feature_drug_interactions: false,
   feature_cafe_restaurant: false,
   feature_table_management: false,
   feature_kitchen_printer: false,

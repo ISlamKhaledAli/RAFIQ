@@ -346,17 +346,23 @@ namespace RafiqPOS.Bridge
                     if (printObj != null)
                     {
                         if (printObj["printerName"] != null) printPName = printObj["printerName"].ToString();
-                        if (printObj["closing"] != null)
+
+                        // الإقفال المختوم يُحمَّل من قاعدة البيانات بمعرّفه؛ أرقام العميل لا يُوثق بها إلا في طباعة المعاينة بلا معرّف
+                        string sealedClosingId = null;
+                        JObject clientClosingObj = printObj["closing"] as JObject;
+                        if (printObj["closingId"] != null) sealedClosingId = printObj["closingId"].ToString();
+                        if (clientClosingObj != null)
                         {
-                            var cObj = printObj["closing"] as JObject;
-                            if (cObj != null)
+                            closingToPrint = clientClosingObj.ToObject<DailyClosing>();
+                            if (string.IsNullOrWhiteSpace(sealedClosingId) && closingToPrint != null)
                             {
-                                closingToPrint = cObj.ToObject<DailyClosing>();
+                                sealedClosingId = closingToPrint.Id;
                             }
                         }
-                        else if (printObj["closingId"] != null)
+
+                        if (!string.IsNullOrWhiteSpace(sealedClosingId))
                         {
-                            closingToPrint = DatabaseService.DailyClosing.GetById(printObj["closingId"].ToString());
+                            closingToPrint = DatabaseService.DailyClosing.GetById(sealedClosingId);
                         }
                     }
                     if (closingToPrint == null)

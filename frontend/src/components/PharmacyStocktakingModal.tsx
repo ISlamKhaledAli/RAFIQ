@@ -14,6 +14,7 @@ import {
   Minus 
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { printReport } from '../utils/printReport';
 import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from './CustomSelect';
 import { formatArabicCurrency } from '../utils/money';
@@ -330,6 +331,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
       <div 
+        data-print-root
         className="w-full max-w-6xl bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark flex flex-col h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
@@ -344,7 +346,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                 <h2 className="text-base font-black text-ink dark:text-ink-dark leading-tight">
                   شاشة الجرد الصيدلي المتقدم والتسويات المخزنية
                 </h2>
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-brand-soft text-brand font-bold">
+                <span className="text-micro px-2 py-0.5 rounded-full bg-brand-soft text-brand font-bold">
                   على مستوى الرف والتشغيلة
                 </span>
               </div>
@@ -357,18 +359,18 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-3 transition-colors"
+              onClick={() => void printReport({ kind: 'a4only' })}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
               title="طباعة كشف الجرد الورقي"
             >
-              <Printer className="w-3.5 h-3.5 text-ink-muted" />
+              <Printer className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
               <span>طباعة الكشف</span>
             </button>
 
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 transition-colors"
+              className="p-1.5 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -379,7 +381,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
         <div className="p-4 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
           {/* Location Filter */}
           <div>
-            <label className="block text-[11px] font-bold text-ink-muted mb-1">
+            <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
               الموقع / الرف / الدرج
             </label>
             <CustomSelect
@@ -397,7 +399,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
 
           {/* Manufacturer Filter */}
           <div>
-            <label className="block text-[11px] font-bold text-ink-muted mb-1">
+            <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
               الشركة المصنعة
             </label>
             <CustomSelect
@@ -415,7 +417,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
 
           {/* Search Query */}
           <div>
-            <label className="block text-[11px] font-bold text-ink-muted mb-1">
+            <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
               بحث بالاسم التجاري أو العلمي
             </label>
             <div className="relative">
@@ -464,11 +466,11 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-paid-soft text-paid font-bold">
+            <span className="text-micro px-2 py-0.5 rounded-full bg-paid-soft text-paid font-bold">
               مطابق: {stats.matchingCount}
             </span>
             {stats.diffCount > 0 && (
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-danger/10 text-danger font-bold">
+              <span className="text-micro px-2 py-0.5 rounded-full bg-danger/10 text-danger font-bold">
                 فروقات بحاجة لتسوية: {stats.diffCount}
               </span>
             )}
@@ -516,7 +518,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-line/60">
                       <div className="flex items-center gap-2">
                         {item.locationCode && (
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-brand-soft text-brand font-mono font-bold">
+                          <span className="text-micro px-2 py-0.5 rounded bg-brand-soft text-brand font-mono font-bold">
                             رف: {item.locationCode}
                           </span>
                         )}
@@ -529,7 +531,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                           </span>
                         )}
                         {item.dosageForm && (
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-surface-2 text-ink-muted">
+                          <span className="text-micro px-2 py-0.5 rounded bg-surface-2 text-ink-muted">
                             {item.dosageForm}
                           </span>
                         )}
@@ -537,13 +539,13 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
 
                       <div className="flex items-center gap-4 text-xs font-mono">
                         <div>
-                          <span className="text-ink-muted text-[11px]">الرصيد الدفتري:</span>{' '}
+                          <span className="text-ink-muted text-micro">الرصيد الدفتري:</span>{' '}
                           <strong className="text-ink dark:text-ink-dark">
                             {(item.bookQuantityMilli / 1000).toFixed(0)}
                           </strong>
                         </div>
                         <div>
-                          <span className="text-ink-muted text-[11px]">التكلفة:</span>{' '}
+                          <span className="text-ink-muted text-micro">التكلفة:</span>{' '}
                           <strong className="text-ink dark:text-ink-dark">
                             {formatArabicCurrency(item.costPricePiasters)}
                           </strong>
@@ -553,7 +555,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
 
                     {/* Packaging Units Indicators */}
                     {units.length > 1 && (
-                      <div className="py-2 flex items-center gap-2 text-[11px] text-ink-muted">
+                      <div className="py-2 flex items-center gap-2 text-micro text-ink-muted">
                         <span className="font-bold text-ink">مستويات التعبئة:</span>
                         {units.map((u, ui) => (
                           <span key={u.unitId} className="px-2 py-0.5 rounded bg-surface-2 border border-line/60 font-mono">
@@ -602,13 +604,13 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                                           onChange={(e) => handleCompoundUnitChange(batch.batchId, u.unitId, e.target.value, units)}
                                           className="w-14 px-2 py-1 text-center font-mono font-bold rounded border border-line bg-surface text-ink text-xs focus:border-brand focus:outline-hidden"
                                         />
-                                        <span className="text-[10px] text-ink-muted">{u.unitName}</span>
+                                        <span className="text-micro text-ink-muted">{u.unitName}</span>
                                       </div>
                                     ))}
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-ink-muted text-[11px]">الفعلي:</span>
+                                    <span className="text-ink-muted text-micro">الفعلي:</span>
                                     <input
                                       type="number"
                                       min={0}
@@ -622,15 +624,15 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                                 {/* Delta badge */}
                                 <div className="min-w-[90px] text-left">
                                   {deltaMilli === 0 ? (
-                                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-paid-soft text-paid font-bold">
+                                    <span className="inline-flex items-center gap-1 text-micro px-2 py-0.5 rounded-full bg-paid-soft text-paid font-bold">
                                       <Minus className="w-3 h-3" /> مطابق
                                     </span>
                                   ) : deltaMilli < 0 ? (
-                                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-danger/10 text-danger font-bold">
+                                    <span className="inline-flex items-center gap-1 text-micro px-2 py-0.5 rounded-full bg-danger/10 text-danger font-bold">
                                       <ArrowDownLeft className="w-3 h-3" /> عجز {deltaUnits}
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-brand-soft text-brand font-bold">
+                                    <span className="inline-flex items-center gap-1 text-micro px-2 py-0.5 rounded-full bg-brand-soft text-brand font-bold">
                                       <ArrowUpRight className="w-3 h-3" /> زيادة +{deltaUnits}
                                     </span>
                                   )}
@@ -657,7 +659,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                                     onChange={(e) => handleCompoundUnitChange(item.productId, u.unitId, e.target.value, units)}
                                     className="w-14 px-2 py-1 text-center font-mono font-bold rounded border border-line bg-surface text-ink text-xs focus:border-brand focus:outline-hidden"
                                   />
-                                  <span className="text-[10px] text-ink-muted">{u.unitName}</span>
+                                  <span className="text-micro text-ink-muted">{u.unitName}</span>
                                 </div>
                               ))}
                             </div>
@@ -681,15 +683,15 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                             return (
                               <div className="min-w-[90px] text-left">
                                 {dMilli === 0 ? (
-                                  <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-paid-soft text-paid font-bold">
+                                  <span className="inline-flex items-center gap-1 text-micro px-2 py-0.5 rounded-full bg-paid-soft text-paid font-bold">
                                     <Minus className="w-3 h-3" /> مطابق
                                   </span>
                                 ) : dMilli < 0 ? (
-                                  <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-danger/10 text-danger font-bold">
+                                  <span className="inline-flex items-center gap-1 text-micro px-2 py-0.5 rounded-full bg-danger/10 text-danger font-bold">
                                     <ArrowDownLeft className="w-3 h-3" /> عجز {dUnits}
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-brand-soft text-brand font-bold">
+                                  <span className="inline-flex items-center gap-1 text-micro px-2 py-0.5 rounded-full bg-brand-soft text-brand font-bold">
                                     <ArrowUpRight className="w-3 h-3" /> زيادة +{dUnits}
                                   </span>
                                 )}
@@ -722,7 +724,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-ink-muted hover:text-ink rounded-lg hover:bg-surface-3 transition-colors"
+              className="px-4 py-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
             >
               إلغاء وتراجع
             </button>

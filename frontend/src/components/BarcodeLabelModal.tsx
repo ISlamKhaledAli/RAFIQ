@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
 import { invoke } from '../bridge/ipc';
+import { printReport } from '../utils/printReport';
 import type { 
   Product, 
   Category, 
@@ -407,7 +408,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   // Browser Print Preview (Standard A4 Print Dialog)
   const handleBrowserPrint = () => {
     if (queue.length === 0) return;
-    window.print();
+    void printReport({ kind: 'a4only' });
   };
 
   const isDirty = queue.length > 0;
@@ -424,7 +425,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
 
   return (
     <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+      <div data-print-root className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="bg-brand text-white px-6 py-4 flex items-center justify-between shadow-sm">
@@ -436,7 +437,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold m-0 leading-tight">طباعة ملصقات الباركود والأسعار</h2>
                 {sourceTitle && (
-                  <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-micro bg-white/20 px-2 py-0.5 rounded-full font-bold">
                     {sourceTitle}
                   </span>
                 )}
@@ -476,7 +477,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
             <div className="bg-surface p-4 rounded-xl border border-line shadow-xs flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-ink">اختيار الأصناف المراد طباعتها</span>
-                <span className="text-[11px] text-ink-muted">{allProducts.length} صنف متاح</span>
+                <span className="text-micro text-ink-muted">{allProducts.length} صنف متاح</span>
               </div>
 
               <div className="relative">
@@ -514,7 +515,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                     >
                       <div className="flex-1 min-w-0 pr-1">
                         <div className="font-semibold text-ink truncate">{p.name}</div>
-                        <div className="text-[10px] text-ink-muted font-mono">{p.barcode} • {formatArabicCurrency(p.pricePiasters)}</div>
+                        <div className="text-micro text-ink-muted font-mono">{p.barcode} • {formatArabicCurrency(p.pricePiasters)}</div>
                       </div>
                       <button
                         type="button"
@@ -522,7 +523,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                           e.stopPropagation();
                           addProductToQueue(p);
                         }}
-                        className="px-2 py-1 bg-brand-soft text-brand rounded text-[11px] font-bold flex items-center gap-1 hover:bg-brand hover:text-white transition-colors cursor-pointer"
+                        className="px-2 py-1 bg-brand-soft text-brand rounded text-micro font-bold flex items-center gap-1 hover:bg-brand hover:text-white transition-colors cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         إضافة
@@ -538,7 +539,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-ink">قائمة الملصقات المطلوبة</span>
-                  <span className="px-2 py-0.5 bg-brand/10 text-brand text-[11px] font-bold rounded-full">
+                  <span className="px-2 py-0.5 bg-brand/10 text-brand text-micro font-bold rounded-full">
                     {queue.length} أصناف ({totalLabelsCount} ملصق)
                   </span>
                 </div>
@@ -546,7 +547,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                   <button
                     onClick={fillCopiesFromStock}
                     title="تعبئة عدد النسخ برصيد المخزن الحالي لكل صنف"
-                    className="px-2 py-1 bg-surface-2 hover:bg-line border border-line rounded text-[10px] font-bold text-ink flex items-center gap-1"
+                    className="px-2 py-1 bg-surface-2 hover:bg-line border border-line rounded text-micro font-bold text-ink flex items-center gap-1"
                   >
                     <Layers className="w-3 h-3 text-brand" />
                     رصيد المخزن
@@ -554,7 +555,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                   <button
                     onClick={resetCopiesToOne}
                     title="تصفير كل النسخ إلى 1"
-                    className="px-2 py-1 bg-surface-2 hover:bg-line border border-line rounded text-[10px] text-ink-muted"
+                    className="px-2 py-1 bg-surface-2 hover:bg-line border border-line rounded text-micro text-ink-muted"
                   >
                     1 لكل صنف
                   </button>
@@ -580,12 +581,12 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                         <div className="font-semibold text-ink truncate flex items-center gap-1.5">
                           <span>{item.productName}</span>
                           {item.variantInfo && (
-                            <span className="text-[10px] bg-line px-1 rounded text-ink-muted">
+                            <span className="text-micro bg-line px-1 rounded text-ink-muted">
                               {item.variantInfo}
                             </span>
                           )}
                         </div>
-                        <div className="text-[10px] text-ink-muted flex items-center gap-2 mt-0.5 font-mono">
+                        <div className="text-micro text-ink-muted flex items-center gap-2 mt-0.5 font-mono">
                           <span>{item.barcode}</span>
                           <span>•</span>
                           <span className="font-bold text-paid">{formatArabicCurrency(item.pricePiasters)}</span>
@@ -640,7 +641,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                   <span className="text-xs font-bold text-ink">معاينة الملصق الحية</span>
                 </div>
                 {queue.length > 1 && (
-                  <div className="flex items-center gap-1 text-[11px] text-ink-muted font-bold">
+                  <div className="flex items-center gap-1 text-micro text-ink-muted font-bold">
                     <button
                       onClick={() => setPreviewIndex((p) => Math.max(0, p - 1))}
                       disabled={previewIndex === 0}
@@ -677,7 +678,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                     {/* 1. Store Header */}
                     {config.showStoreName && config.storeName && (
                       <div className="w-full shrink-0 border-b border-line/60 pb-0.5">
-                        <span className="block text-[9.5px] font-bold text-ink-muted truncate leading-tight tracking-tight">
+                        <span className="block text-micro font-bold text-ink-muted truncate leading-tight tracking-tight">
                           {config.storeName}
                         </span>
                       </div>
@@ -687,7 +688,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                     <div className="w-full shrink-0 my-0.5 px-0.5">
                       <div
                         className={`font-bold text-ink leading-tight line-clamp-2 ${
-                          isSmallLabel ? 'text-[10.5px]' : (isMediumLabel ? 'text-[11.5px]' : 'text-xs')
+                          isSmallLabel ? 'text-micro' : (isMediumLabel ? 'text-micro' : 'text-xs')
                         }`}
                         title={currentPreviewItem.productName}
                       >
@@ -705,7 +706,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                         }`}
                       >
                         {currentPreviewItem.variantInfo && (
-                          <span className="text-[8.5px] font-bold text-brand bg-brand-soft border border-brand/20 px-1.5 py-0.5 rounded truncate max-w-[55%] leading-none">
+                          <span className="text-micro font-bold text-brand bg-brand-soft border border-brand/20 px-1.5 py-0.5 rounded truncate max-w-[55%] leading-none">
                             {currentPreviewItem.variantInfo}
                           </span>
                         )}
@@ -734,7 +735,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
 
                     {/* 5. Expiry Date */}
                     {config.showExpiryDate && (
-                      <div className="w-full shrink-0 text-[7.5px] font-mono text-ink-muted leading-none mt-0.5">
+                      <div className="w-full shrink-0 text-micro font-mono text-ink-muted leading-none mt-0.5">
                         صلاحية: {currentPreviewItem.expiryDate || DEFAULT_EXPIRY_FALLBACK}
                       </div>
                     )}
@@ -748,7 +749,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               </div>
 
               {/* Dimensions specs label */}
-              <div className="mt-3 text-center text-[11px] text-ink-muted flex items-center justify-center gap-2 flex-wrap">
+              <div className="mt-3 text-center text-micro text-ink-muted flex items-center justify-center gap-2 flex-wrap">
                 <span>المقاس: <strong className="font-mono text-ink font-bold">{selectedPaper.widthMm} × {selectedPaper.heightMm} مم</strong></span>
                 <span className="text-line-hover">•</span>
                 <span className="font-semibold text-brand">
@@ -771,7 +772,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-ink-muted mb-1">مقاس ورق الملصقات</label>
+                <label className="block text-micro font-bold text-ink-muted mb-1">مقاس ورق الملصقات</label>
                 <CustomSelect
                   value={config.paperSize}
                   onChange={(val) => setConfig((prev) => ({ ...prev, paperSize: val }))}
@@ -782,10 +783,10 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
 
               {config.paperSize === 'custom' && (
                 <div className="p-2.5 bg-surface-2 rounded-lg border border-line flex flex-col gap-2">
-                  <span className="text-[11px] font-bold text-ink">الأبعاد المخصصة (بالمليمتر):</span>
+                  <span className="text-micro font-bold text-ink">الأبعاد المخصصة (بالمليمتر):</span>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[10px] text-ink-muted mb-0.5">العرض (مم)</label>
+                      <label className="block text-micro text-ink-muted mb-0.5">العرض (مم)</label>
                       <input
                         type="number"
                         min="15"
@@ -799,7 +800,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-ink-muted mb-0.5">الارتفاع (مم)</label>
+                      <label className="block text-micro text-ink-muted mb-0.5">الارتفاع (مم)</label>
                       <input
                         type="number"
                         min="10"
@@ -817,7 +818,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               )}
 
               <div>
-                <label className="block text-[11px] font-bold text-ink-muted mb-1">طابعة الملصقات المستهدفة</label>
+                <label className="block text-micro font-bold text-ink-muted mb-1">طابعة الملصقات المستهدفة</label>
                 <CustomSelect
                   value={config.printerName || ''}
                   onChange={(val) => setConfig((prev) => ({ ...prev, printerName: val }))}
@@ -833,7 +834,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-ink-muted mb-1">اسم المحل على الملصق</label>
+                <label className="block text-micro font-bold text-ink-muted mb-1">اسم المحل على الملصق</label>
                 <input
                   type="text"
                   value={config.storeName || ''}

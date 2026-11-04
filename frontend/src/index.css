@@ -200,6 +200,13 @@
     cursor: pointer !important;
   }
 
+  /* App-wide text size: --rafiq-text-scale is set by utils/textScale.ts. Screen only, so print keeps 100%. */
+  @media screen {
+    html {
+      font-size: calc(100% * var(--rafiq-text-scale, 1));
+    }
+  }
+
   body {
     margin: 0;
     padding: 0;
@@ -216,6 +223,30 @@
     text-rendering: optimizeLegibility;
     letter-spacing: 0;
   }
+}
+
+/* =========================================================================
+   Typography roles (rem-based, so the app-wide text-size control scales them).
+   Use one role class per element instead of ad-hoc text-* / font-* combinations:
+     .t-page-title     view header title (h1)               18px bold
+     .t-modal-title    dialog title (h2 inside a modal)      16px bold
+     .t-section-title  main section heading (h2 in a view)   16px bold
+     .t-card-title     card / panel heading (h3)             14px bold
+     .t-label          form label, sub-heading (h4)          12px bold
+     .t-kpi / .t-kpi-lg  numeric figures on stat cards       20px / 24px bold
+   Plain text uses the Tailwind tokens directly: text-sm (body, comfortable lists), text-xs (helper
+   text, dense tables, secondary buttons), text-micro (badges, chips, dense captions; 11px is the floor).
+   Never use arbitrary text-[Npx] sizes: they do not scale with the text-size control.
+   Colour is NOT part of these roles; add colour tokens next to them.
+   ========================================================================= */
+@layer components {
+  .t-page-title { @apply text-lg font-black; }
+  .t-modal-title { @apply text-base font-black; }
+  .t-section-title { @apply text-base font-bold; }
+  .t-card-title { @apply text-sm font-black; }
+  .t-label { @apply text-xs font-bold; }
+  .t-kpi { @apply text-xl font-black tabular-nums; }
+  .t-kpi-lg { @apply text-2xl font-black tabular-nums; }
 }
 
 /* International Arabic Typography Standards:
@@ -292,6 +323,16 @@ html.dark body {
 html.dark select option {
   background-color: #151B1A;
   color: #E6ECEA;
+}
+
+/* Dark native select: bright chevron and focus ring (the light-mode chevron/border are dark green) */
+html.dark select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235FBFA2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+html.dark select:focus {
+  border-color: #5FBFA2 !important;
+  box-shadow: 0 0 0 1px rgba(95, 191, 162, 0.25);
 }
 
 html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([class*="text-white"]):not([class*="text-amber-"]):not([class*="text-emerald-"]):not([class*="text-danger"]),
@@ -433,19 +474,28 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
 }
 
 /* =========================================================================
-   PRINT MEDIA RULES (80mm Thermal Receipt & A4 Statement Printing)
+   PRINT MEDIA RULES (reports on A4 or 80/58mm rolls)
+   Page size comes from <style id="print-page-size"> injected by utils/printReport.ts.
+   The printed root is the element printReport() marks with [data-print-target]
+   (picked from [data-print-root]); everything outside its ancestor chain is removed.
    ========================================================================= */
 @media print {
+  /* Fallback for print paths that do not go through printReport() */
   @page {
-    margin: 0;
-    size: auto;
+    margin: 10mm;
   }
 
-  body {
+  html,
+  body,
+  #root {
     background: #FFFFFF !important;
     color: #000000 !important;
     overflow: visible !important;
     height: auto !important;
+    min-height: 0 !important;
+  }
+
+  body {
     width: auto !important;
   }
 
@@ -466,6 +516,150 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     box-shadow: none !important;
     border: none !important;
     margin: 0 auto !important;
+  }
+
+  /* No marked root: still release the h-screen / overflow-hidden app shell so content is not clipped to one page */
+  body:not(:has([data-print-target])) :is(.h-screen, .w-screen, .overflow-hidden, .overflow-y-auto, .overflow-auto, main) {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Marked root: drop every element that is neither the root, inside it, nor one of its ancestors */
+  body:has([data-print-target]) *:not([data-print-target]):not([data-print-target] *):not(:has([data-print-target])) {
+    display: none !important;
+  }
+
+  /* Ancestors of the root (app shell, modal overlay, canvas) become plain flow blocks */
+  body:has([data-print-target]) :has([data-print-target]) {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+    animation: none !important;
+  }
+
+  [data-print-target] {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    transform: none !important;
+    animation: none !important;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+
+  /* Scroll containers inside the root must show all their content */
+  [data-print-target] [class*="overflow-"],
+  [data-print-target] [class*="max-h-"] {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  [data-print-target] .sticky {
+    position: static !important;
+  }
+
+  [data-print-target] * {
+    box-shadow: none !important;
+    animation: none !important;
+  }
+
+  /* Dark theme must not print light text */
+  html.dark [data-print-target] * {
+    color: #000000 !important;
+    text-shadow: none !important;
+  }
+
+  /* Long tables: repeat the header on every page and never split a row */
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Compact (80mm / 58mm roll) layouts: single column, 11px minimum, nothing wider than the paper */
+  html[data-print-paper="80mm"] .print-compact,
+  html[data-print-paper="58mm"] .print-compact {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+  }
+
+  html[data-print-paper="80mm"] .print-compact *,
+  html[data-print-paper="58mm"] .print-compact * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  html[data-print-paper="80mm"] .print-compact [class*="text-[9px]"],
+  html[data-print-paper="58mm"] .print-compact [class*="text-[9px]"],
+  html[data-print-paper="80mm"] .print-compact [class*="text-[10px]"],
+  html[data-print-paper="58mm"] .print-compact [class*="text-[10px]"] {
+    font-size: 11px !important;
+  }
+
+  html[data-print-paper="80mm"] .print-compact [class*="grid-cols-"]:not(.print-keep-cols),
+  html[data-print-paper="58mm"] .print-compact [class*="grid-cols-"]:not(.print-keep-cols) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-print-paper="80mm"] .print-compact [class*="justify-between"],
+  html[data-print-paper="58mm"] .print-compact [class*="justify-between"] {
+    flex-wrap: wrap;
+    column-gap: 4px;
+  }
+
+  html[data-print-paper="80mm"] .print-compact table,
+  html[data-print-paper="58mm"] .print-compact table {
+    width: 100% !important;
+    table-layout: fixed;
+  }
+
+  html[data-print-paper="80mm"] .print-compact img,
+  html[data-print-paper="80mm"] .print-compact svg,
+  html[data-print-paper="80mm"] .print-compact canvas,
+  html[data-print-paper="58mm"] .print-compact img,
+  html[data-print-paper="58mm"] .print-compact svg,
+  html[data-print-paper="58mm"] .print-compact canvas {
+    max-width: 100% !important;
+    height: auto;
   }
 }
 

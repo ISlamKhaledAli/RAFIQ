@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ShoppingCart,
   ArrowRight,
@@ -24,6 +24,7 @@ import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
 import { type PurchasesSubView, type NewPurchaseLineItem } from './purchases/types';
 import { normalizeArabicNumerals } from '../utils/money';
+import { createAttemptKey, isIdempotencyMismatchError } from '../utils/idempotency';
 import { computePurchaseLine, purchaseLinesTotal } from './purchases/purchaseLineMath';
 
 export { type PurchasesSubView } from './purchases/types';
@@ -37,6 +38,8 @@ interface PurchasesViewProps {
 export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, subView, onSubViewChange }) => {
   const { isEnabled } = useFeatures();
   const { hasPermission } = useAuth();
+  const canViewPurchases = hasPermission('purchases.view');
+  const canManageSuppliers = hasPermission('suppliers.manage');
   const [internalTab, setInternalTab] = useState<PurchasesSubView>('new_invoice');
   const activeTab = subView ?? internalTab;
   const setActiveTab = (view: PurchasesSubView) => {
@@ -77,6 +80,13 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const [paymentSource, setPaymentSource] = useState<'cash_drawer' | 'external_cash'>('cash_drawer');
   const [customPaidAmountPiasters, setCustomPaidAmountPiasters] = useState<number | null>(null);
   const [lineItems, setLineItems] = useState<NewPurchaseLineItem[]>([]);
+  // One key per invoice attempt; a retry reuses it so the server never posts the invoice twice
+  const purchaseAttemptRef = useRef(createAttemptKey('pur'));
+  const purchaseInFlightRef = useRef(false);
+  const [isSavingPurchase, setIsSavingPurchase] = useState<boolean>(false);
+  const paymentAttemptRef = useRef(createAttemptKey('spay'));
+  const paymentInFlightRef = useRef(false);
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
 
   // Product Search / Scanner for new purchase
   const [productSearchQuery, setProductSearchQuery] = useState<string>('');
@@ -130,6 +140,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
 
   // Fetch Suppliers
   const loadSuppliers = useCallback(async () => {
+    if (!canManageSuppliers) return;
     setLoading(true);
     try {
       const res = await invoke<Supplier[]>('suppliers:getAll', { includeInactive: showArchivedSuppliers });
@@ -141,10 +152,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     } finally {
       setLoading(false);
     }
-  }, [showArchivedSuppliers, showToast]);
+  }, [showArchivedSuppliers, showToast, canManageSuppliers]);
 
   // Fetch Purchases
   const loadPurchases = useCallback(async () => {
+    if (!canViewPurchases) return;
     setLoading(true);
     try {
       const res = await invoke<Purchase[]>('purchases:getAll', { limit: 150 });
@@ -156,7 +168,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, canViewPurchases]);
 
   useEffect(() => {
     let isMounted = true;
@@ -164,8 +176,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       setLoading(true);
       try {
         const [sups, purs] = await Promise.all([
-          invoke<Supplier[]>('suppliers:getAll', { includeInactive: showArchivedSuppliers }),
-          invoke<Purchase[]>('purchases:getAll', { limit: 150 }),
+          canManageSuppliers ? invoke<Supplier[]>('suppliers:getAll', { includeInactive: showArchivedSuppliers }) : Promise.resolve(null),
+          canViewPurchases ? invoke<Purchase[]>('purchases:getAll', { limit: 150 }) : Promise.resolve(null),
         ]);
         if (isMounted) {
           if (sups) setSuppliers(sups);
@@ -181,7 +193,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     return () => {
       isMounted = false;
     };
-  }, [showArchivedSuppliers, showToast]);
+  }, [showArchivedSuppliers, showToast, canManageSuppliers, canViewPurchases]);
 
   useEffect(() => {
     if (isActive) {
@@ -368,6 +380,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       }
     }
 
+    if (purchaseInFlightRef.current) return;
+    purchaseInFlightRef.current = true;
+    setIsSavingPurchase(true);
+
     try {
       const itemsPayload: Partial<PurchaseItem>[] = lineItems.map((item) => {
         const amounts = computePurchaseLine(item);
@@ -420,6 +436,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           paymentSource,
           status: 'COMPLETED',
           notes: purchaseNotes.trim() || null,
+          idempotencyKey: purchaseAttemptRef.current.current(),
           items: itemsPayload,
         },
         costingMethod,
@@ -427,6 +444,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
 
       const result = await invoke<Purchase>('purchases:create', payload);
       if (result) {
+        purchaseAttemptRef.current.complete();
         showToast(`تم تسجيل فاتورة الشراء رقم #${result.invoiceNumber} وزيادة المخزون بنجاح!`, 'success');
         // Reset form
         setLineItems([]);
@@ -461,8 +479,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         }
       }
     } catch (err: unknown) {
+      if (isIdempotencyMismatchError(err)) purchaseAttemptRef.current.complete();
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء حفظ فاتورة الشراء';
       showToast(msg, 'error');
+    } finally {
+      purchaseInFlightRef.current = false;
+      setIsSavingPurchase(false);
     }
   };
 
@@ -565,6 +587,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     setSelectedSupplierForModal(sup);
     setPaymentAmountPiasters(sup.balancePiasters > 0 ? sup.balancePiasters : 0);
     setPaymentNotes('');
+    paymentAttemptRef.current.complete();
     setIsPaymentModalOpen(true);
   };
 
@@ -582,19 +605,29 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       return;
     }
 
+    if (paymentInFlightRef.current) return;
+    paymentInFlightRef.current = true;
+    setIsSubmittingPayment(true);
+
     try {
       await invoke('suppliers:recordPayment', {
         supplierId: selectedSupplierForModal.id,
         amountPiasters: finalAmount,
         notes: customNotes || paymentNotes.trim() || 'سداد دفعة نقدية للمورد',
         paymentSource,
+        idempotencyKey: paymentAttemptRef.current.current(),
       });
+      paymentAttemptRef.current.complete();
       showToast('تم تسجيل سداد الدفعة بنجاح وتحديث رصيد المورد');
       setIsPaymentModalOpen(false);
       loadSuppliers();
     } catch (err: unknown) {
+      if (isIdempotencyMismatchError(err)) paymentAttemptRef.current.complete();
       const msg = err instanceof Error ? err.message : 'تعذر تسجيل السداد';
       showToast(msg, 'error');
+    } finally {
+      paymentInFlightRef.current = false;
+      setIsSubmittingPayment(false);
     }
   };
 
@@ -742,8 +775,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
             <ShoppingCart className="w-4 h-4" />
           </div>
           <div>
-            <h1 className="text-sm sm:text-base font-bold text-ink dark:text-ink-dark leading-tight">إدارة المشتريات والموردين</h1>
-            <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted hidden sm:block">
+            <h1 className="t-page-title text-ink dark:text-ink-dark leading-tight">إدارة المشتريات والموردين</h1>
+            <p className="text-micro text-ink-muted dark:text-ink-dark-muted hidden sm:block">
               {activeTab === 'invoices' && 'سجل واستعراض فواتير الشراء، متابعة التكاليف، وحالات السداد'}
               {activeTab === 'new_invoice' && 'تسجيل استلام بضائع وتحديث تكلفة الشراء والمخزون الفوري'}
               {activeTab === 'suppliers' && 'دليل الموردين، حسابات المديونية الآجلة، وكشوف الحساب'}
@@ -833,6 +866,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
             onAddProduct={handleAddProductToPurchase}
             onOpenAddSupplier={handleOpenAddSupplier}
             onSavePurchase={handleSavePurchase}
+            isSaving={isSavingPurchase}
             onRequestCancel={handleRequestCancelNewPurchase}
           />
         )}
@@ -942,6 +976,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         paymentNotes={paymentNotes}
         setPaymentNotes={setPaymentNotes}
         onConfirmPayment={handleConfirmPayment}
+        isSubmitting={isSubmittingPayment}
       />
 
       <SupplierStatementModal

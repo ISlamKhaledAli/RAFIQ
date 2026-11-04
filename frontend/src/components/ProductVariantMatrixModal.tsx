@@ -342,7 +342,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-ink dark:text-ink-dark flex items-center gap-2">
+              <h2 className="t-modal-title text-ink dark:text-ink-dark flex items-center gap-2">
                 {parentProduct ? `تعديل مصفوفة: ${parentProduct.name}` : 'إضافة منتج متعدد المقاسات والألوان'}
                 <span className="text-xs px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-medium">
                   {activeCells.length} تركيبة مفعلة
@@ -374,7 +374,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
 
           {/* Section 1: Base Product Info */}
           <div className="bg-surface-2/40 dark:bg-surface-dark-2/40 border border-line dark:border-line-dark rounded-xl p-4 space-y-4">
-            <h3 className="text-sm font-bold text-ink dark:text-ink-dark flex items-center gap-2">
+            <h3 className="t-card-title text-ink dark:text-ink-dark flex items-center gap-2">
               <Package className="w-4 h-4 text-brand dark:text-brand-bright" />
               بيانات المنتج الأساسي
             </h3>
@@ -465,18 +465,18 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                   المقاسات المتاحة ({sizes.length})
                 </label>
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">نماذج:</span>
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">نماذج:</span>
                   <button
                     type="button"
                     onClick={() => setSizes([...PRESET_SIZES.clothing])}
-                    className="text-[11px] text-brand dark:text-brand-bright hover:underline px-1 cursor-pointer"
+                    className="text-micro text-brand dark:text-brand-bright hover:underline px-1 cursor-pointer"
                   >
                     ملابس
                   </button>
                   <button
                     type="button"
                     onClick={() => setSizes([...PRESET_SIZES.shoes])}
-                    className="text-[11px] text-brand dark:text-brand-bright hover:underline px-1 cursor-pointer"
+                    className="text-micro text-brand dark:text-brand-bright hover:underline px-1 cursor-pointer"
                   >
                     أحذية
                   </button>
@@ -539,13 +539,13 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                   الألوان المتاحة ({colors.length})
                 </label>
                 <div className="flex items-center gap-1 flex-wrap">
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">سريعة:</span>
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">سريعة:</span>
                   {PRESET_COLORS.slice(0, 5).map((pc) => (
                     <button
                       key={pc}
                       type="button"
                       onClick={() => handleAddColor(pc)}
-                      className="text-[11px] text-brand dark:text-brand-bright hover:underline px-1 cursor-pointer"
+                      className="text-micro text-brand dark:text-brand-bright hover:underline px-1 cursor-pointer"
                     >
                       {pc}
                     </button>

@@ -14,7 +14,7 @@ test('Feature #138: System Health Indicator & Dashboard Alert Logic (Story 62)',
   }) => {
     const alerts = [];
     const metrics = {
-      appVersion: 'نظام رفيق v1.0.0 (أوفلاين)',
+      appVersion: 'رفيق POS v1.0.0 (أوفلاين)',
       licenseStatus: 'ترخيص دائم نشط (مدى الحياة)',
       databaseStatus: dbExists ? 'سليمة (وضع WAL الفائق)' : 'غير منشأة',
       diskFreeBytes: freeDiskBytes,

@@ -110,10 +110,10 @@ export const DatabaseRecoveryModal = ({
               <AlertTriangle className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="text-[15px] font-bold m-0 leading-tight">
+              <h3 className="t-modal-title m-0 leading-tight">
                 {status.isCorrupt ? 'استرجاع قاعدة البيانات (طوارئ سلامة البيانات)' : 'استرجاع نسخة احتياطية للمحل'}
               </h3>
-              <p className="text-[11px] text-white/90 m-0 mt-0.5">
+              <p className="text-micro text-white/90 m-0 mt-0.5">
                 {status.isCorrupt 
                   ? 'وقفنا التسجيل مؤقتاً لحماية حسابات وفواتير المحل'
                   : 'استرجاع بيانات المحل من نسخة احتياطية سليمة'}
@@ -133,14 +133,14 @@ export const DatabaseRecoveryModal = ({
         </div>
 
         {/* 2. Content Body */}
-        <div className="p-5 flex flex-col gap-4 text-[12.5px] text-ink dark:text-ink-dark overflow-y-auto max-h-[80vh]">
+        <div className="p-5 flex flex-col gap-4 text-xs text-ink dark:text-ink-dark overflow-y-auto max-h-[80vh]">
           {/* Explanation Banner */}
           <div className="p-3.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-[6px] text-danger dark:text-danger-bright leading-relaxed font-sans">
             <span className="font-bold block mb-1">تفاصيل الحالة الفنية:</span>
             {status.isCorrupt ? (
               <>
                 حصل خلل في ملف قاعدة البيانات (زي انقطاع الكهرباء فجأة والجهاز شغال بيسجل).
-                <div className="mt-1 font-mono text-[11px] bg-danger-soft/80 dark:bg-danger-dark-soft/80 border border-danger/10 dark:border-danger-bright/20 p-1.5 rounded text-danger dark:text-danger-bright break-all">
+                <div className="mt-1 font-mono text-micro bg-danger-soft/80 dark:bg-danger-dark-soft/80 border border-danger/10 dark:border-danger-bright/20 p-1.5 rounded text-danger dark:text-danger-bright break-all">
                   سبب التنبيه: {status.message}
                 </div>
               </>
@@ -151,12 +151,12 @@ export const DatabaseRecoveryModal = ({
 
           {/* Reassurance Banner regarding Quarantined File (Task 124-2) */}
           {status.corruptBackupSavedPath && (
-            <div className="p-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-[6px] flex items-start gap-2.5 text-warn dark:text-warn-bright text-[11.5px]">
+            <div className="p-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-[6px] flex items-start gap-2.5 text-warn dark:text-warn-bright text-micro">
               <FileArchive className="w-4 h-4 text-warn dark:text-warn-bright shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block">اطمن، مفيش أي بيانات ضاعت:</span>
                 شيلنا نسخة معزولة ومحفوظة بالكامل من الملف الحالي في المسار ده لو احتجتها:
-                <div className="mt-0.5 font-mono text-[10.5px] text-warn dark:text-warn-bright break-all select-text">
+                <div className="mt-0.5 font-mono text-micro text-warn dark:text-warn-bright break-all select-text">
                   {status.corruptBackupSavedPath}
                 </div>
               </div>
@@ -165,13 +165,13 @@ export const DatabaseRecoveryModal = ({
 
           {/* Feedback Toasts */}
           {errorMessage && (
-            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright rounded font-semibold text-[12px]">
+            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright rounded font-semibold text-xs">
               {errorMessage}
             </div>
           )}
 
           {successMessage && (
-            <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright rounded font-bold text-[12px] flex items-center gap-2">
+            <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright rounded font-bold text-xs flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
               <span>{successMessage}</span>
             </div>
@@ -179,7 +179,7 @@ export const DatabaseRecoveryModal = ({
 
           {/* Owner recovery code: the only restore authorisation (works without a login session) */}
           <div className="p-2.5 bg-surface border border-line rounded flex flex-col gap-1.5">
-            <label htmlFor="db-recovery-code" className="text-[11.5px] font-bold text-ink flex items-center gap-1.5">
+            <label htmlFor="db-recovery-code" className="text-micro font-bold text-ink flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-brand" />
               <span>أدخل كود استرجاع المالك (Recovery Code) لتأكيد الاسترجاع:</span>
             </label>
@@ -190,10 +190,10 @@ export const DatabaseRecoveryModal = ({
               onChange={(e) => setRecoveryCode(e.target.value)}
               placeholder="RFK-XXXX-XXXX-XXXX"
               autoComplete="off"
-              className="w-full bg-surface-2 border border-line rounded h-[36px] px-3 text-[13px] font-mono text-center tracking-widest text-ink focus:outline-none focus:border-brand"
+              className="w-full bg-surface-2 border border-line rounded h-[36px] px-3 text-sm font-mono text-center tracking-widest text-ink focus:outline-none focus:border-brand"
               dir="ltr"
             />
-            <span className="text-[10.5px] text-ink-muted">
+            <span className="text-micro text-ink-muted">
               الكود اللي اتسلم لصاحب المحل عند إعداد النسخ الاحتياطي، وهو اللي بيفتح النسخة المشفرة.
             </span>
           </div>
@@ -202,16 +202,16 @@ export const DatabaseRecoveryModal = ({
           {status.latestValidBackupFile ? (
             <div className="p-4 rounded-[6px] border border-brand/40 bg-brand-soft/20 flex flex-col gap-2.5">
               <div className="flex items-center justify-between border-b border-line pb-2">
-                <span className="font-bold text-brand text-[13px] flex items-center gap-1.5">
+                <span className="font-bold text-brand text-sm flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4" />
                   <span>أحدث نسخة احتياطية سليمة ومضمونة:</span>
                 </span>
-                <span className="text-[10.5px] font-bold text-paid bg-paid-soft px-2 py-0.5 rounded border border-paid-border">
+                <span className="text-micro font-bold text-paid bg-paid-soft px-2 py-0.5 rounded border border-paid-border">
                   تم التحقق من سلامتها
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-[11.5px]">
+              <div className="grid grid-cols-2 gap-2 text-micro">
                 <div className="flex items-center gap-1.5 text-ink-muted">
                   <Clock className="w-3.5 h-3.5 text-brand" />
                   <span>التاريخ: {status.latestValidBackupDate || 'غير محدد'}</span>
@@ -222,7 +222,7 @@ export const DatabaseRecoveryModal = ({
                 </div>
               </div>
 
-              <div className="text-[10.5px] font-mono text-ink-muted break-all bg-surface-2 p-1.5 rounded border border-line">
+              <div className="text-micro font-mono text-ink-muted break-all bg-surface-2 p-1.5 rounded border border-line">
                 {status.latestValidBackupFile}
               </div>
 
@@ -231,7 +231,7 @@ export const DatabaseRecoveryModal = ({
                 type="button"
                 onClick={() => void handleRestore(status.latestValidBackupFile)}
                 disabled={restoring || !recoveryCode.trim()}
-                className="mt-1 h-[42px] bg-brand hover:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted text-white rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm text-[13px]"
+                className="mt-1 h-[42px] bg-brand hover:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted text-white rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm text-sm"
               >
                 {restoring ? (
                   <>
@@ -257,7 +257,7 @@ export const DatabaseRecoveryModal = ({
             <button
               type="button"
               onClick={() => setUseCustomFile(!useCustomFile)}
-              className="text-brand hover:underline font-semibold text-[12px] flex items-center gap-1 self-start"
+              className="text-brand hover:underline font-semibold text-xs flex items-center gap-1 self-start"
             >
               <FolderOpen className="w-3.5 h-3.5" />
               <span>{useCustomFile ? 'إخفاء تحديد الملف يدوياً' : 'أو اختر ملف نسخة احتياطية من فلاشة يدوياً'}</span>
@@ -270,7 +270,7 @@ export const DatabaseRecoveryModal = ({
                   value={customFile}
                   onChange={(e) => setCustomFile(e.target.value)}
                   placeholder="مثال: E:\RafiqBackups\rafiq_backup_20260924_120000.db"
-                  className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[12px] text-ink focus:outline-none focus:border-brand font-mono"
+                  className="w-full bg-surface border border-line rounded h-[38px] px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
                 />
                 <button
                   type="button"
@@ -287,7 +287,7 @@ export const DatabaseRecoveryModal = ({
         </div>
 
         {/* 3. Modal Footer */}
-        <div className="p-3 bg-surface-2 border-t border-line flex items-center justify-between text-[11px] text-ink-muted">
+        <div className="p-3 bg-surface-2 border-t border-line flex items-center justify-between text-micro text-ink-muted">
           <span className="flex items-center gap-1.5">
             <span>بنحفظ نسخة أمان من الوضع الحالي قبل أي استرجاع • للدعم الفني المباشر:</span>
             <a href="tel:01097782965" className="font-mono font-bold text-paid hover:underline" dir="ltr">01097782965</a>

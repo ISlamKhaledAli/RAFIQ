@@ -303,7 +303,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
             <div>
-              <h3 className="text-xs font-bold text-ink dark:text-ink-dark m-0">
+              <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">
                 اختيار أيقونة للقسم: <span className="text-brand dark:text-brand-bright font-extrabold">{categoryName}</span>
               </h3>
             </div>
@@ -330,13 +330,13 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
                   <span className="font-bold text-ink dark:text-ink-dark">الأيقونة الذكية المقترحة:</span>
                   <span className="font-mono text-brand dark:text-brand-bright font-bold">{smartSuggestedKey}</span>
                   {isAutoMode && (
-                    <span className="text-[10px] bg-brand dark:bg-brand-container text-white font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
+                    <span className="text-micro bg-brand dark:bg-brand-container text-white font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
                       <Sparkles className="w-2.5 h-2.5" />
                       <span>نشطة حالياً</span>
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">
                   تم تحديدها تلقائياً بناءً على نشاط المحل واسم القسم بدقة لمنع التشتيت.
                 </p>
               </div>
@@ -346,7 +346,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
               <button
                 type="button"
                 onClick={() => handleSelectIcon(null)}
-                className="px-2.5 py-1.5 rounded-lg bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark text-[11px] font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark text-micro font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer"
                 title="إعادة التعيين للاقتراح الذكي"
               >
                 <RotateCcw className="w-3 h-3 text-brand dark:text-brand-bright" />
@@ -379,7 +379,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
                     setSelectedTabId(tab.id);
                     setSearchQuery('');
                   }}
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  className={`px-2.5 py-1 rounded text-micro font-bold transition-all whitespace-nowrap cursor-pointer ${
                     selectedTabId === tab.id && !searchQuery
                       ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs border border-line dark:border-line-dark'
                       : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -418,17 +418,17 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
                   >
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                       isCustomCurrent
-                        ? 'bg-brand dark:bg-brand-bright text-white dark:text-brand-dark'
+                        ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                         : 'bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-brand dark:text-brand-bright group-hover:bg-brand-soft dark:group-hover:bg-brand-dark-soft'
                     }`}>
                       <IconComponent className="w-4 h-4" />
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11.5px] truncate leading-tight">
+                      <div className="text-micro truncate leading-tight">
                         {item.name}
                       </div>
-                      <div className="text-[9.5px] text-ink-muted dark:text-ink-dark-muted truncate font-mono mt-0.5">
+                      <div className="text-micro text-ink-muted dark:text-ink-dark-muted truncate font-mono mt-0.5">
                         {item.key}
                       </div>
                     </div>
@@ -444,15 +444,8 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
         </div>
 
         {/* Footer */}
-        <div className="h-11 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted">
+        <div className="h-11 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted">
           <span>يتم تطبيق الأيقونة فوراً في شريط الكاشير وكافة شاشات المتجر.</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark text-xs font-bold cursor-pointer"
-          >
-            إغلاق
-          </button>
         </div>
       </div>
     </div>

@@ -185,10 +185,10 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
               <ClipboardList className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-ink dark:text-ink-dark leading-tight">
+              <h2 className="t-modal-title text-ink dark:text-ink-dark leading-tight">
                 تسجيل صنف ناقص في الدفتر
               </h2>
-              <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted">
                 توثيق طلب العميل لعدم ضياع المبيعات وإدراجه في طلبيات الموردين
               </p>
             </div>
@@ -196,7 +196,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -227,7 +227,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
               />
               <Search className="w-4 h-4 text-ink-muted absolute right-3 top-3 pointer-events-none" />
               {isSearching && (
-                <div className="absolute left-3 top-3 text-[11px] text-brand dark:text-brand-bright font-bold animate-pulse pointer-events-none">
+                <div className="absolute left-3 top-3 text-micro text-brand dark:text-brand-bright font-bold animate-pulse pointer-events-none">
                   جاري البحث...
                 </div>
               )}
@@ -236,7 +236,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
             {/* Suggestions list */}
             {searchResults.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
-                <div className="p-1.5 text-[10px] font-bold text-ink-muted bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark">
+                <div className="p-1.5 text-micro font-bold text-ink-muted bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark">
                   أصناف مطابقة من الكتالوج:
                 </div>
                 {searchResults.map((prod) => (
@@ -247,10 +247,10 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                     className="w-full text-right px-3 py-2 text-xs hover:bg-brand-soft/40 dark:hover:bg-brand-soft/10 border-b border-line/40 dark:border-line-dark/40 last:border-0 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-2">
-                      <Package className="w-3.5 h-3.5 text-brand" />
+                      <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                       <span className="font-bold text-ink dark:text-ink-dark">{prod.name}</span>
                     </div>
-                    <span className="text-[11px] text-ink-muted font-mono">
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">
                       رصيد: {prod.stockQuantityMilli / 1000} {prod.unit}
                     </span>
                   </button>
@@ -259,7 +259,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
             )}
 
             {selectedProduct && (
-              <div className="mt-1.5 px-3 py-1.5 rounded-lg bg-brand-soft/50 dark:bg-brand-soft/20 border border-brand/20 flex items-center justify-between text-[11px]">
+              <div className="mt-1.5 px-3 py-1.5 rounded-lg bg-brand-soft/50 dark:bg-brand-soft/20 border border-brand/20 flex items-center justify-between text-micro">
                 <span className="text-brand dark:text-brand-bright font-bold">
                   مرتبط بالصنف: {selectedProduct.name}
                 </span>
@@ -294,22 +294,22 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setUrgency('normal')}
-                  className={`flex items-center justify-center gap-1 rounded-lg text-[11px] font-bold transition-all ${
+                  className={`flex items-center justify-center gap-1 rounded-lg text-micro font-bold transition-all ${
                     urgency === 'normal'
                       ? 'bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark shadow-2xs border border-line dark:border-line-dark'
-                      : 'text-ink-muted hover:text-ink'
+                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                   }`}
                 >
-                  <Clock className="w-3 h-3 text-ink-muted" />
+                  <Clock className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                   <span>عادي</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setUrgency('urgent')}
-                  className={`flex items-center justify-center gap-1 rounded-lg text-[11px] font-bold transition-all ${
+                  className={`flex items-center justify-center gap-1 rounded-lg text-micro font-bold transition-all ${
                     urgency === 'urgent'
-                      ? 'bg-warn text-white shadow-2xs'
-                      : 'text-warn hover:bg-warn-soft/50'
+                      ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-2xs'
+                      : 'text-warn dark:text-warn-bright hover:bg-warn-soft/50 dark:hover:bg-warn-dark-soft/50'
                   }`}
                 >
                   <AlertTriangle className="w-3 h-3" />
@@ -318,10 +318,10 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setUrgency('critical')}
-                  className={`flex items-center justify-center gap-1 rounded-lg text-[11px] font-bold transition-all ${
+                  className={`flex items-center justify-center gap-1 rounded-lg text-micro font-bold transition-all ${
                     urgency === 'critical'
                       ? 'bg-danger text-white shadow-2xs'
-                      : 'text-danger hover:bg-danger-soft/50'
+                      : 'text-danger dark:text-danger-bright hover:bg-danger-soft/50 dark:hover:bg-danger-dark-soft/50'
                   }`}
                 >
                   <Flame className="w-3 h-3" />
@@ -342,8 +342,8 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                 onClick={() => setSource('manual_pos')}
                 className={`flex items-center justify-center gap-2 h-9 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                   source === 'manual_pos'
-                    ? 'border-brand bg-brand-soft/40 dark:bg-brand-soft/20 text-brand dark:text-brand-bright'
-                    : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted'
+                    ? 'border-brand bg-brand-soft/40 dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
+                    : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
                 }`}
               >
                 <ClipboardList className="w-3.5 h-3.5" />
@@ -354,8 +354,8 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                 onClick={() => setSource('customer_request')}
                 className={`flex items-center justify-center gap-2 h-9 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                   source === 'customer_request'
-                    ? 'border-brand bg-brand-soft/40 dark:bg-brand-soft/20 text-brand dark:text-brand-bright'
-                    : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted'
+                    ? 'border-brand bg-brand-soft/40 dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
+                    : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
                 }`}
               >
                 <User className="w-3.5 h-3.5" />
@@ -367,7 +367,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
           {/* Conditional Customer Info vs Cashier Auto-Identity */}
           {source === 'customer_request' ? (
             <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2.5 animate-in fade-in">
-              <div className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+              <div className="text-micro font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                 <span>بيانات العميل للاتصال به عند توافر الصنف (اختياري)</span>
               </div>

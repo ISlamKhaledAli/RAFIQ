@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Key, Copy, Check, AlertTriangle, ShieldCheck, Printer } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { printReport } from '../utils/printReport';
 
 interface RecoveryCodeModalProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    void printReport({ kind: 'compact' });
   };
 
   const handleConfirm = async () => {
@@ -64,7 +65,7 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5">
+        <div data-print-root className="p-6 space-y-5 print-compact">
           {/* Warning Banner */}
           <div className="bg-warn/10 dark:bg-warn-dark-soft border border-warn/25 dark:border-warn-dark-soft rounded-xl p-4 flex gap-3 text-right">
             <AlertTriangle className="w-5 h-5 text-warn dark:text-warn-bright shrink-0 mt-0.5" />
@@ -110,14 +111,14 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
                 <Printer className="w-4 h-4" />
               </button>
 
-              <div className="flex-1 text-center font-mono font-bold text-lg text-brand dark:text-brand-bright tracking-widest select-all">
+              <div className="flex-1 text-center font-mono font-bold text-lg text-brand dark:text-brand-bright tracking-widest select-all break-all print:text-base print:tracking-normal">
                 {recoveryCode}
               </div>
             </div>
           </div>
 
           {/* Checkbox Acknowledgment */}
-          <label className="flex items-start gap-3 cursor-pointer bg-surface-2/60 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark rounded-xl p-3.5 hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors">
+          <label className="print:hidden flex items-start gap-3 cursor-pointer bg-surface-2/60 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark rounded-xl p-3.5 hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors">
             <input
               type="checkbox"
               checked={hasAcknowledged}

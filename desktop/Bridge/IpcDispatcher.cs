@@ -203,6 +203,8 @@ namespace RafiqPOS.Bridge
             new System.Threading.ReaderWriterLockSlim(System.Threading.LockRecursionPolicy.SupportsRecursion);
 
         private const string REQUIRE_ADMIN = "__admin__";
+        // Store owner or developer root only; managers (other admins) are refused
+        private const string REQUIRE_OWNER = "__owner__";
         private const string REQUIRE_SESSION = "__session_required__";
         // Store, printer and barcode-scanner screens all persist through the generic settings actions
         private const string REQUIRE_ANY_SETTINGS = "__any_settings__";
@@ -253,6 +255,25 @@ namespace RafiqPOS.Bridge
 
             // Login Screen employee quick selection
             "auth:getActiveUsers"
+        };
+
+        // Actions that several screens call with different permission keys: allowed with the mapped key OR any key listed here.
+        // Everything not listed keeps strict default-deny on its single mapped key.
+        private static readonly Dictionary<string, string[]> ACTION_PERMISSION_ALTERNATES = new Dictionary<string, string[]>
+        {
+            // Sales history (invoices.view) loads invoices through the same actions the POS reprint uses
+            { "sales:getRecent", new string[] { "invoices.view" } },
+            { "sales:getById", new string[] { "invoices.view" } },
+            { "sales:getByInvoiceNumber", new string[] { "invoices.view" } },
+            // The handler itself enforces customers.create for a new customer and customers.edit for an existing one
+            { "customers:save", new string[] { "customers.edit" } },
+            // Dialogs opened with a create/open permission must be able to load their own read-only data
+            { "expenses:getToday", new string[] { "expenses.create" } },
+            { "expenses:getCategories", new string[] { "expenses.create" } },
+            { "shifts:getActive", new string[] { "shifts.open" } },
+            { "shifts:getSummary", new string[] { "shifts.open" } },
+            { "drawer:getMovements", new string[] { "shifts.open" } },
+            { "drawer:getBalance", new string[] { "shifts.open" } }
         };
 
         // Sensitive actions -> required permission key (server-side RBAC, Audit F-01).
@@ -584,27 +605,27 @@ namespace RafiqPOS.Bridge
             { "backup:configure", "settings.backup" },
             { "backup:verify", "settings.backup" },
             { "backup:getRecoveryStatus", REQUIRE_SESSION },
-            { "backup:confirmRecoveryCode", REQUIRE_ADMIN },
-            { "backup:revealRecoveryCode", REQUIRE_ADMIN },
+            { "backup:confirmRecoveryCode", REQUIRE_OWNER },
+            { "backup:revealRecoveryCode", REQUIRE_OWNER },
             { "database:checkIntegrity", "settings.backup" },
-            { "database:restore", "settings.restore" },
+            { "database:restore", REQUIRE_OWNER },
             { "migration:getMetrics", "settings.backup" },
             { "migration:export", "settings.backup" },
             { "migration:browseFolder", "settings.backup" },
-            { "migration:inspect", "settings.restore" },
+            { "migration:inspect", REQUIRE_OWNER },
             { "migration:browseFile", "settings.restore" },
-            { "migration:restore", "settings.restore" },
-            { "license:activate", REQUIRE_ADMIN },
-            { "license:activateSupportCode", REQUIRE_ADMIN },
-            { "license:generateSupportCode", REQUIRE_ADMIN },
-            { "license:deactivateForTransfer", "settings.license" },
+            { "migration:restore", REQUIRE_OWNER },
+            { "license:activate", REQUIRE_OWNER },
+            { "license:activateSupportCode", REQUIRE_OWNER },
+            { "license:generateSupportCode", REQUIRE_OWNER },
+            { "license:deactivateForTransfer", REQUIRE_OWNER },
             { "updates:check", REQUIRE_ADMIN },
 
             // Security & Users
-            { "security:setPin", REQUIRE_ADMIN },
-            { "security:disablePin", REQUIRE_ADMIN },
-            { "security:enablePin", REQUIRE_ADMIN },
-            { "security:saveProtectedActions", REQUIRE_ADMIN },
+            { "security:setPin", REQUIRE_OWNER },
+            { "security:disablePin", REQUIRE_OWNER },
+            { "security:enablePin", REQUIRE_OWNER },
+            { "security:saveProtectedActions", REQUIRE_OWNER },
             { "security:setIdleTimeout", REQUIRE_ADMIN },
             { "security:getDeviceFingerprint", REQUIRE_ADMIN },
             { "users:getAll", "users.view" },
@@ -615,10 +636,11 @@ namespace RafiqPOS.Bridge
             { "users:updatePermissions", "users.edit" },
             { "users:setDelegation", "users.delegate" },
             { "users:setPassword", "users.reset_pin" },
+            { "users:delete", "users.deactivate" },
             { "users:changePin", REQUIRE_SESSION },
 
             // Admin system & Test tools
-            { "system:factoryReset", REQUIRE_ADMIN },
+            { "system:factoryReset", REQUIRE_OWNER },
             { "support:createBundle", REQUIRE_ADMIN },
             { "templates:apply", REQUIRE_ADMIN },
             { "templates:seedProducts", REQUIRE_ADMIN },
@@ -1002,13 +1024,7 @@ namespace RafiqPOS.Bridge
             // 3. Initial onboarding: when setting up the store before login, applying store template and saving initial settings is allowed ONLY when first run is needed
             if (DatabaseService.Templates != null && DatabaseService.Templates.IsFirstRunNeeded())
             {
-                if (request.Action == "templates:apply" ||
-                    request.Action == "settings:save" ||
-                    request.Action == "products:importBatch" ||
-                    request.Action == "products:getAll" ||
-                    request.Action == "products:list" ||
-                    request.Action == "categories:getAll" ||
-                    request.Action == "excel:getTemplate")
+                if (request.Action == "templates:apply" || request.Action == "settings:save")
                 {
                     return null;
                 }
@@ -1044,6 +1060,15 @@ namespace RafiqPOS.Bridge
             {
                 allowed = DatabaseService.Security.IsCurrentSessionAdmin();
             }
+            else if (requiredPermission == REQUIRE_OWNER)
+            {
+                allowed = DatabaseService.Security.IsCurrentSessionOwner();
+                if (!allowed)
+                {
+                    Logger.Warn(string.Format("رفض تنفيذ إجراء خاص بصاحب المحل: {0} للمستخدم {1}", request.Action, sessionUser.Username));
+                    return BridgeResponse.Fail(request.Id, "FORBIDDEN", "هذه العملية متاحة لصاحب المحل فقط");
+                }
+            }
             else if (requiredPermission == REQUIRE_ANY_SETTINGS)
             {
                 allowed = DatabaseService.Security.HasPermission(sessionUser.Id, "settings.store")
@@ -1059,6 +1084,14 @@ namespace RafiqPOS.Bridge
             else
             {
                 allowed = DatabaseService.Security.HasPermission(sessionUser.Id, requiredPermission);
+                string[] alternateKeys;
+                if (!allowed && ACTION_PERMISSION_ALTERNATES.TryGetValue(request.Action, out alternateKeys))
+                {
+                    for (int a = 0; a < alternateKeys.Length && !allowed; a++)
+                    {
+                        allowed = DatabaseService.Security.HasPermission(sessionUser.Id, alternateKeys[a]);
+                    }
+                }
             }
 
             if (!allowed)

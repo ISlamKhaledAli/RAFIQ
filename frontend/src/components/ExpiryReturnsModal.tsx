@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   RotateCcw, 
   Trash2, 
@@ -13,7 +13,9 @@ import {
   Search,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { printReport } from '../utils/printReport';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
+import { createAttemptKey } from '../utils/idempotency';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { CustomSelect } from './CustomSelect';
 import { useDataSubscription } from '../utils/eventBus';
@@ -47,6 +49,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
   const [returnNotes, setReturnNotes] = useState('');
   const [isLoadingReturns, setIsLoadingReturns] = useState(false);
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+  const returnAttemptRef = useRef(createAttemptKey('xret'));
 
   // Tab 2: Write-off execution
   const [expiredBatches, setExpiredBatches] = useState<ExpiryReturnableBatch[]>([]);
@@ -204,17 +207,19 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
         return {
           batchId: b.batchId,
           quantityMilli: Math.round(qty * 1000),
-          agreedCreditBps: b.creditBps,
+          creditBps: b.creditBps,
         };
       });
 
-      const res = await invoke<{ returnNumber: string; totalPiasters: number }>('pharma:createExpiryReturn', {
+      const res = await invoke<{ returnNumber: number; totalCostPiasters: number }>('pharma:createExpiryReturn', {
         supplierId: targetSupplierId,
         notes: returnNotes.trim() || undefined,
         items: itemsPayload,
+        idempotencyKey: returnAttemptRef.current.current(),
       });
+      returnAttemptRef.current.complete();
 
-      const msg = `تم إنشاء مرتجع المشتريات رقم #${res.returnNumber} بقيمة مستردة ${formatArabicCurrency(res.totalPiasters)} وخصمها من رصيد المورد.`;
+      const msg = `تم إنشاء مرتجع المشتريات رقم #${res.returnNumber} بقيمة مستردة ${formatArabicCurrency(res.totalCostPiasters)} وخصمها من رصيد المورد.`;
       showStatus(msg, 'success');
       if (onSuccess) onSuccess(msg);
       void loadReturnableBatches();
@@ -287,7 +292,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
   };
 
   const handlePrintCertificate = () => {
-    window.print();
+    void printReport({ kind: 'a4only' });
   };
 
   const isDirty = selectedReturnItems.length > 0 || selectedWriteOffItems.length > 0;
@@ -330,6 +335,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
       dir="rtl"
     >
       <div 
+        data-print-root
         className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[94vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150 print:border-none print:shadow-none print:max-h-none print:w-full"
         onClick={(e) => e.stopPropagation()}
       >
@@ -344,7 +350,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                 <h2 className="text-base font-bold text-ink dark:text-ink-dark print:text-xl print:font-black">
                   مرتجعات الصلاحية ومحاضر الإعدام الصيدلي
                 </h2>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-soft text-brand dark:bg-brand-soft/20 dark:text-brand-bright border border-brand/20 print:hidden">
+                <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-brand-soft text-brand dark:bg-brand-soft/20 dark:text-brand-bright border border-brand/20 print:hidden">
                   نظام الصيدلية المعتمد
                 </span>
               </div>
@@ -362,8 +368,8 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                 onClick={() => { setActiveTab('returns'); setCurrentCertificate(null); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'returns'
-                    ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark shadow-xs'
-                    : 'text-ink-muted hover:text-ink'
+                    ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright shadow-xs dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -374,8 +380,8 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                 onClick={() => setActiveTab('writeoff')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'writeoff'
-                    ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark shadow-xs'
-                    : 'text-ink-muted hover:text-ink'
+                    ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright shadow-xs dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -386,8 +392,8 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                 onClick={() => { setActiveTab('history'); setCurrentCertificate(null); }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'history'
-                    ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark shadow-xs'
-                    : 'text-ink-muted hover:text-ink'
+                    ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright shadow-xs dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" />
@@ -398,7 +404,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
             <button
               type="button"
               onClick={() => void requestClose()}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
               title="إغلاق"
             >
               <X className="w-4 h-4" />
@@ -429,7 +435,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
               <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   <div className="w-56">
-                    <label className="text-[11px] font-bold text-ink-muted block mb-1">تصفية حسب المورد:</label>
+                    <label className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">تصفية حسب المورد:</label>
                     <CustomSelect
                       value={selectedSupplierId}
                       onChange={(val) => setSelectedSupplierId(val)}
@@ -441,13 +447,13 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                 {/* Return Summary Badges */}
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                   <div className="px-3.5 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-left">
-                    <span className="text-[10px] text-ink-muted block">الأصناف المحددة</span>
+                    <span className="text-micro text-ink-muted block">الأصناف المحددة</span>
                     <span className="text-xs font-bold font-mono text-ink dark:text-ink-dark">
                       {returnSummary.count} تشغيلة ({returnSummary.totalQty.toFixed(0)} علبة)
                     </span>
                   </div>
                   <div className="px-3.5 py-2 rounded-xl bg-paid-soft/50 dark:bg-paid-soft/10 border border-paid/20 text-left">
-                    <span className="text-[10px] text-paid block font-bold">القيمة المستردة المقدرة</span>
+                    <span className="text-micro text-paid block font-bold">القيمة المستردة المقدرة</span>
                     <span className="text-sm font-bold font-mono text-paid dark:text-paid-bright">
                       {formatArabicCurrency(returnSummary.totalEstimatedRefund)}
                     </span>
@@ -458,7 +464,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
               {/* Table of Returnable Batches */}
               <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden max-h-[50vh] overflow-y-auto">
                 <table className="w-full text-right text-xs">
-                  <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted sticky top-0 border-b border-line dark:border-line-dark text-[11px]">
+                  <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted sticky top-0 border-b border-line dark:border-line-dark text-micro">
                     <tr>
                       <th className="p-3 w-10 text-center">
                         <input
@@ -495,7 +501,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                       return (
                         <tr 
                           key={b.batchId} 
-                          className={`hover:bg-surface-2/40 transition-colors ${
+                          className={`hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40 transition-colors ${
                             isSelected ? 'bg-brand-soft/20 dark:bg-brand-soft/10' : ''
                           }`}
                         >
@@ -517,28 +523,28 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                           </td>
                           <td className="p-3">
                             <span className="font-bold text-ink dark:text-ink-dark block">{b.productName}</span>
-                            <span className="text-[10px] text-ink-muted flex items-center gap-1">
+                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
                               <Building2 className="w-3 h-3" />
                               {b.supplierName || 'مورد غير مسجل'}
                             </span>
                           </td>
                           <td className="p-3 font-mono font-bold text-ink dark:text-ink-dark">{b.batchNumber}</td>
                           <td className="p-3 font-mono">
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                            <span className={`px-2 py-0.5 rounded-full text-micro font-bold ${
                               b.daysUntilExpiry <= 0
                                 ? 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300' 
                                 : b.daysUntilExpiry <= (b.windowDays || 30)
                                 ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-                                : 'bg-surface-2 text-ink-muted'
+                                : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted'
                             }`}>
                               {b.expiryDate}
                             </span>
                           </td>
-                          <td className="p-3 text-[11px]">
+                          <td className="p-3 text-micro">
                             {b.daysUntilExpiry <= 0 ? (
-                              <span className="text-danger font-bold">منتهي منذ {Math.abs(b.daysUntilExpiry)} يوم</span>
+                              <span className="text-danger dark:text-danger-bright font-bold">منتهي منذ {Math.abs(b.daysUntilExpiry)} يوم</span>
                             ) : (
-                              <span className="text-warn font-medium flex items-center gap-1">
+                              <span className="text-warn dark:text-warn-bright font-medium flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
                                 باقي {b.daysUntilExpiry} يوم (نافذة {b.windowDays} يوم)
                               </span>
@@ -561,10 +567,10 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                                 }}
                                 className="w-16 h-8 text-center bg-surface dark:bg-surface-dark border border-line rounded-lg font-mono font-bold text-xs disabled:opacity-50"
                               />
-                              <span className="text-[10px] text-ink-muted">/ {maxQty}</span>
+                              <span className="text-micro text-ink-muted dark:text-ink-dark-muted">/ {maxQty}</span>
                             </div>
                           </td>
-                          <td className="p-3 font-mono text-ink-muted">
+                          <td className="p-3 font-mono text-ink-muted dark:text-ink-dark-muted">
                             {formatArabicCurrency(b.unitCostPiasters)}
                           </td>
                           <td className="p-3 font-mono font-bold text-ink dark:text-ink-dark">
@@ -635,7 +641,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                       <button
                         type="button"
                         onClick={() => setCurrentCertificate(null)}
-                        className="h-9 px-3 rounded-xl bg-surface dark:bg-surface-dark border border-line text-xs font-bold text-ink-muted hover:text-ink cursor-pointer"
+                        className="h-9 px-3 rounded-xl bg-surface dark:bg-surface-dark border border-line text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
                       >
                         محضر جديد
                       </button>
@@ -690,7 +696,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                             <td className="border border-black p-2 text-left font-mono font-bold">
                               {formatArabicCurrency(item.totalCostPiasters)}
                             </td>
-                            <td className="border border-black p-2 text-[11px]">{item.reason}</td>
+                            <td className="border border-black p-2 text-micro">{item.reason}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -730,12 +736,12 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                       <h4 className="font-bold text-xs text-ink dark:text-ink-dark">
                         تشغيلات الأدوية المنتهية الصلاحية تماماً بالمخزن
                       </h4>
-                      <p className="text-[11px] text-ink-muted">
+                      <p className="text-micro text-ink-muted">
                         حدد الأدوية المراد إعدامها وتوثيق محضرها لإسقاطها نهائياً من المخزون بقيد معاكس
                       </p>
                     </div>
                     <div className="px-3.5 py-2 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 text-left">
-                      <span className="text-[10px] text-danger block font-bold">خسارة الإعدام المقدرة</span>
+                      <span className="text-micro text-danger block font-bold">خسارة الإعدام المقدرة</span>
                       <span className="text-sm font-bold font-mono text-danger dark:text-danger-bright">
                         {formatArabicCurrency(writeOffSummary.totalCost)}
                       </span>
@@ -745,7 +751,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                   {/* Table of Expired Batches */}
                   <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden max-h-64 overflow-y-auto">
                     <table className="w-full text-right text-xs">
-                      <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted sticky top-0 border-b border-line dark:border-line-dark text-[11px]">
+                      <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted sticky top-0 border-b border-line dark:border-line-dark text-micro">
                         <tr>
                           <th className="p-3 w-10 text-center">
                             <input
@@ -815,7 +821,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                                     }}
                                     className="w-16 h-8 text-center bg-surface dark:bg-surface-dark border border-line rounded-lg font-mono font-bold text-xs disabled:opacity-50"
                                   />
-                                  <span className="text-[10px] text-ink-muted">/ {maxQty}</span>
+                                  <span className="text-micro text-ink-muted">/ {maxQty}</span>
                                 </div>
                               </td>
                               <td className="p-3 font-mono text-ink-muted">{formatArabicCurrency(b.unitCostPiasters)}</td>
@@ -840,7 +846,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-                          أعضاء لجنة الإعدام القانونية <span className="text-danger">*</span>
+                          أعضاء لجنة الإعدام القانونية <span className="text-danger dark:text-danger-bright">*</span>
                         </label>
                         <input
                           type="text"
@@ -909,7 +915,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
               {/* Table of History */}
               <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden max-h-[55vh] overflow-y-auto">
                 <table className="w-full text-right text-xs">
-                  <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted sticky top-0 border-b border-line dark:border-line-dark text-[11px]">
+                  <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted sticky top-0 border-b border-line dark:border-line-dark text-micro">
                     <tr>
                       <th className="p-3 w-28">رقم المحضر</th>
                       <th className="p-3 w-28">التاريخ</th>
@@ -922,16 +928,16 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                   </thead>
                   <tbody className="divide-y divide-line dark:divide-line-dark">
                     {filteredHistory.map((item) => (
-                      <tr key={item.id} className="hover:bg-surface-2/40">
+                      <tr key={item.id} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40">
                         <td className="p-3 font-mono font-bold text-brand dark:text-brand-bright">{item.writeOffNumber}</td>
-                        <td className="p-3 font-mono text-ink-muted text-[11px]">{item.createdAt.slice(0, 10)}</td>
+                        <td className="p-3 font-mono text-ink-muted dark:text-ink-dark-muted text-micro">{item.createdAt.slice(0, 10)}</td>
                         <td className="p-3 font-bold text-ink dark:text-ink-dark">{item.productName}</td>
                         <td className="p-3 font-mono">{item.batchNumber || '-'}</td>
                         <td className="p-3 text-center font-mono font-bold">{(item.quantityMilli / 1000).toFixed(0)}</td>
-                        <td className="p-3 font-mono font-bold text-danger text-left">
+                        <td className="p-3 font-mono font-bold text-danger dark:text-danger-bright text-left">
                           {formatArabicCurrency(item.totalCostPiasters)}
                         </td>
-                        <td className="p-3 text-ink-muted text-[11px]">{item.committeeMembers || '-'}</td>
+                        <td className="p-3 text-ink-muted dark:text-ink-dark-muted text-micro">{item.committeeMembers || '-'}</td>
                       </tr>
                     ))}
                     {filteredHistory.length === 0 && !isLoadingHistory && (
@@ -951,7 +957,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
 
         {/* 3. Footer (Print Hidden) */}
         <div className="px-6 py-3.5 border-t border-line dark:border-line-dark bg-surface-2/40 dark:bg-surface-dark-2/40 flex items-center justify-between shrink-0 print:hidden">
-          <div className="text-[11px] text-ink-muted flex items-center gap-1.5">
+          <div className="text-micro text-ink-muted flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5" />
             <span>نظام إثبات محاضر الإعدام معتمد لدى التفتيش الصيدلي وتتبع الصلاحيات</span>
           </div>
@@ -959,7 +965,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="px-4 h-9 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold hover:bg-surface-2 transition-colors cursor-pointer"
+            className="px-4 h-9 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
           >
             إغلاق
           </button>

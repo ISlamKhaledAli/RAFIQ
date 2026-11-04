@@ -193,7 +193,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
               )}
             </div>
             <div>
-              <h2 className="text-base font-black leading-tight m-0 text-white">
+              <h2 className="t-modal-title leading-tight m-0 text-white">
                 {isInstapay 
                   ? 'سداد الفاتورة عبر انستاباي (InstaPay)' 
                   : 'سداد الفاتورة عبر المحفظة الإلكترونية'}
@@ -231,14 +231,14 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                   </span>
                 </div>
 
-                <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-medium bg-surface dark:bg-surface-dark-3 px-2.5 py-0.5 rounded-md border border-line dark:border-line-dark flex items-center gap-1.5">
+                <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-medium bg-surface dark:bg-surface-dark-3 px-2.5 py-0.5 rounded-md border border-line dark:border-line-dark flex items-center gap-1.5">
                   <Receipt className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
                   <span>{itemCount} صنف ({totalItemCount} قطعة)</span>
                 </div>
               </div>
 
               {discountPiasters > 0 && (
-                <span className="text-danger dark:text-danger-bright font-bold bg-danger-soft dark:bg-danger-dark-soft px-2.5 py-0.5 rounded-md border border-danger-border dark:border-danger-bright/30 text-[11px]">
+                <span className="text-danger dark:text-danger-bright font-bold bg-danger-soft dark:bg-danger-dark-soft px-2.5 py-0.5 rounded-md border border-danger-border dark:border-danger-bright/30 text-micro">
                   خصم: −{formatArabicCurrency(discountPiasters)}
                 </span>
               )}
@@ -273,7 +273,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
               }`}>
                 {/* 1. كان عليه قديم */}
                 <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                  <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">
+                  <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">
                     {selectedCustomer.balancePiasters > 0
                       ? 'كان عليه قديم:'
                       : selectedCustomer.balancePiasters < 0
@@ -297,13 +297,13 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                 <div className={`flex flex-col items-center justify-center p-2 rounded-lg border ${
                   isInstapay ? 'bg-purple-50/60 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/30' : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30'
                 }`}>
-                  <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">
+                  <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">
                     الفاتورة الحالية ({isInstapay ? 'انستاباي' : 'محفظة'}):
                   </span>
                   <span className={`text-base font-black ${isInstapay ? 'text-[#582C83] dark:text-purple-300' : 'text-danger dark:text-danger-bright'}`}>
                     {formatArabicCurrency(netTotalPiasters)}
                   </span>
-                  <span className="text-[10px] font-sans font-bold text-paid dark:text-brand-bright mt-0.5">
+                  <span className="text-micro font-sans font-bold text-paid dark:text-brand-bright mt-0.5">
                     مسددة بالكامل • لا تضاف للشكك
                   </span>
                 </div>
@@ -316,7 +316,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                       ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright'
                       : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark'
                 }`}>
-                  <span className="text-[11px] font-sans font-bold mb-0.5">
+                  <span className="text-micro font-sans font-bold mb-0.5">
                     {selectedCustomer.balancePiasters > 0
                       ? 'إجمالي اللي عليه بعد الفاتورة:'
                       : selectedCustomer.balancePiasters < 0
@@ -329,7 +329,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                       : formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))}
                   </span>
                   {selectedCustomer.balancePiasters > 0 && (
-                    <span className="text-[10px] font-sans font-medium text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                    <span className="text-micro font-sans font-medium text-ink-muted dark:text-ink-dark-muted mt-0.5">
                       ديونه القديمة تظل بدون تغيير
                     </span>
                   )}
@@ -374,7 +374,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                       {matchedAccount.name}
                     </span>
                     {matchedAccount.identifier && (
-                      <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded border border-line dark:border-line-dark shrink-0">
+                      <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded border border-line dark:border-line-dark shrink-0">
                         {matchedAccount.identifier}
                       </span>
                     )}
@@ -383,9 +383,9 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
 
                 {/* Balance & Projection Badge */}
                 <div className="flex items-center gap-1.5 font-mono text-xs shrink-0 mr-auto sm:mr-0 self-end sm:self-auto bg-emerald-50/70 dark:bg-emerald-950/30 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
-                  <span className="font-sans font-medium text-ink-muted dark:text-ink-dark-muted text-[11px]">الرصيد:</span>
+                  <span className="font-sans font-medium text-ink-muted dark:text-ink-dark-muted text-micro">الرصيد:</span>
                   <span className="font-bold text-ink dark:text-ink-dark">{formatArabicCurrency(matchedAccount.balancePiasters)}</span>
-                  <span className="font-sans font-bold text-[11px] text-paid dark:text-brand-bright whitespace-nowrap">
+                  <span className="font-sans font-bold text-micro text-paid dark:text-brand-bright whitespace-nowrap">
                     (سيزداد +{formatArabicCurrency(netTotalPiasters)})
                   </span>
                 </div>
@@ -419,7 +419,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                       setTimeout(() => setCopied(false), 2000);
                     }
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 self-end sm:self-auto transition-all active:scale-95 ${
+                  className={`px-3 py-1.5 rounded-lg text-white text-micro font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 self-end sm:self-auto transition-all active:scale-95 ${
                     isInstapay 
                       ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800' 
                       : 'bg-[#e60000] hover:bg-[#cc0000] active:bg-[#b30000]'
@@ -435,7 +435,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                   <Smartphone className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
                   <span>تحويل مباشر على {isInstapay ? 'إنستاباي' : 'المحفظة'}:</span>
                 </div>
-                <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
+                <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
                   اطلب من الزبون إتمام التحويل إلى {isInstapay ? 'حساب إنستاباي' : 'محفظة كاش'} التابع للمحل، ثم اضغط «تأكيد واستلام الفاتورة» لتسجيلها وإصدار الإيصال الحراري.
                 </p>
                 {onNavigateToWallets && (
@@ -446,7 +446,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                         onClose();
                         onNavigateToWallets('accounts');
                       }}
-                      className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
+                      className="text-micro font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3 h-3" />
                       <span>ربط حساب رسمي بمكتب المحافظ لمتابعة الأرصدة</span>
@@ -456,7 +456,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
               </div>
             )}
 
-            <p className="text-[11.5px] text-ink-muted dark:text-ink-dark-muted font-medium mt-1 mb-0 flex items-center justify-center gap-1.5 text-center flex-wrap">
+            <p className="text-micro text-ink-muted dark:text-ink-dark-muted font-medium mt-1 mb-0 flex items-center justify-center gap-1.5 text-center flex-wrap">
               <ShieldCheck className="w-4 h-4 text-paid dark:text-brand-bright shrink-0" />
               <span>تأكد من وصول إشعار التحويل المالي على الحساب قبل تأكيد الفاتورة</span>
             </p>

@@ -16,7 +16,6 @@ import {
 import type { Sale, Return, Product } from '../types/models';
 import { extractProducts } from '../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
-import { parseInvoiceBarcode } from '../utils/invoiceBarcode';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { useAuth } from '../context/useAuth';
@@ -75,6 +74,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   const [supervisorPin, setSupervisorPin] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [printNotice, setPrintNotice] = useState<{ ok: boolean; msg: string } | null>(null);
   const [completedReturn, setCompletedReturn] = useState<Return | null>(null);
   // A retry after a timeout reuses the key so the server never refunds the same return twice
   const returnAttemptRef = useRef(createAttemptKey('ret'));
@@ -170,6 +170,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         setMode('withInvoice');
         setInvoiceQuery(initialSale.invoiceNumber ? String(initialSale.invoiceNumber) : '');
         setCompletedReturn(null);
+        setPrintNotice(null);
         setSubmitError(null);
         setSaleError(null);
 
@@ -184,6 +185,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         setLoadedSale(null);
         setDraftItems([]);
         setCompletedReturn(null);
+        setPrintNotice(null);
         setSubmitError(null);
         setSaleError(null);
       }
@@ -198,14 +200,10 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
     setSearchingSale(true);
     setSaleError(null);
     try {
-      const invMatch = parseInvoiceBarcode(query);
-      const num = invMatch?.invoiceNumber || parseInt(query, 10);
+      const num = parseInt(query, 10);
       let sale: Sale | null = null;
       if (!isNaN(num) && num > 0) {
         sale = await invoke<Sale>('sales:getByInvoiceNumber', { invoiceNumber: num });
-      }
-      if (!sale && invMatch?.rawId) {
-        sale = await invoke<Sale>('sales:getById', { id: invMatch.rawId });
       }
       if (!sale) {
         const found = await invoke<Sale[]>('sales:search', { query, limit: 1 });
@@ -345,8 +343,10 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         // Automatically attempt receipt print
         try {
           await invoke('returns:printReceipt', { returnId: result.id });
-        } catch {
-          // print failure non-fatal
+        } catch (printErr: unknown) {
+          // The return is already saved: a print failure is shown as a warning, never as a save error
+          const printMsg = printErr instanceof Error ? printErr.message : 'تعذر إرسال أمر الطباعة';
+          setPrintNotice({ ok: false, msg: `تم حفظ المرتجع لكن فشلت الطباعة: ${printMsg}` });
         }
       } else {
         throw new Error('تعذر حفظ المرتجع في قاعدة البيانات');
@@ -361,11 +361,13 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
   const handlePrintReceipt = async () => {
     if (!completedReturn) return;
+    setPrintNotice(null);
     try {
       await invoke('returns:printReceipt', { returnId: completedReturn.id });
+      setPrintNotice({ ok: true, msg: 'تم إرسال وصل المرتجع للطابعة.' });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'تعذر إرسال أمر الطباعة';
-      setSubmitError(msg);
+      setPrintNotice({ ok: false, msg });
     }
   };
 
@@ -397,7 +399,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         <div className="h-[52px] px-4 border-b border-warn/20 dark:border-warn-bright/30 flex items-center justify-between bg-warn-soft dark:bg-warn-dark-soft shrink-0">
           <div className="flex items-center gap-2">
             <RotateCcw className="w-5 h-5 text-warn dark:text-warn-bright" />
-            <h2 className="text-[17px] font-bold text-ink dark:text-ink-dark m-0">مرتجع بضاعة واسترجاع فلوس</h2>
+            <h2 className="t-modal-title text-ink dark:text-ink-dark m-0">مرتجع بضاعة واسترجاع فلوس</h2>
           </div>
           <button 
             type="button"
@@ -418,7 +420,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 <Check className="w-7 h-7 stroke-[3]" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-ink-dark">تم تسجيل المرتجع ورجعت البضاعة بنجاح</h3>
+                <h3 className="t-card-title text-slate-900 dark:text-ink-dark">تم تسجيل المرتجع ورجعت البضاعة بنجاح</h3>
                 <p className="text-xs text-slate-500 dark:text-ink-dark-muted font-mono mt-1">
                   إيصال مرتجع رقم: <strong className="text-slate-800 dark:text-ink-dark font-bold">#{completedReturn.returnNumber}</strong>
                 </p>
@@ -443,6 +445,20 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 </div>
               </div>
 
+              {printNotice && (
+                <div
+                  className={`max-w-sm mx-auto p-3 rounded-lg border text-xs font-bold flex items-center gap-2 ${
+                    printNotice.ok
+                      ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-dark-border text-paid dark:text-paid-bright'
+                      : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
+                  }`}
+                  role="status"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{printNotice.msg}</span>
+                </div>
+              )}
+
               <div className="flex justify-center gap-3 pt-3">
                 <button
                   type="button"
@@ -451,13 +467,6 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 >
                   <Printer className="w-4 h-4" />
                   <span>طباعة وصل المرتجع</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="h-10 px-5 border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-2 font-bold text-xs text-ink dark:text-ink-dark rounded-lg transition-colors"
-                >
-                  إغلاق
                 </button>
               </div>
             </div>
@@ -473,7 +482,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                     mode === 'withInvoice' ? 'bg-white dark:bg-surface-dark text-slate-900 dark:text-ink-dark shadow-xs' : 'text-slate-500 dark:text-ink-dark-muted hover:text-slate-800 dark:hover:text-ink-dark'
                   }`}
                 >
-                  <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-warn" />
+                  <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-warn-bright" />
                   <span>مرتجع برقم الفاتورة (الأفضل)</span>
                 </button>
                 <button
@@ -495,7 +504,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                   }`}
                   title={!canReturnWithoutInvoice ? 'يتطلب صلاحية المرتجع بدون فاتورة' : undefined}
                 >
-                  <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-warn" />
+                  <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-warn-bright" />
                   <span>مرتجع حر بدون فاتورة (مشرف)</span>
                 </button>
               </div>
@@ -514,7 +523,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                     <div className="relative flex-1">
                       <input
                         type="text"
-                        placeholder="امسح باركود الفاتورة (RFQ-INV-...) أو اكتب رقمها..."
+                        placeholder="اكتب رقم الفاتورة هنا..."
                         value={invoiceQuery}
                         onChange={(e) => setInvoiceQuery(e.target.value)}
                         className="w-full h-10 px-3 pr-9 bg-slate-50 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-ink-dark focus:outline-none focus:border-amber-500 dark:focus:border-warn focus:bg-white dark:focus:bg-surface-dark"
@@ -524,7 +533,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                     <button
                       type="submit"
                       disabled={searchingSale || !invoiceQuery.trim()}
-                      className="h-10 px-4 bg-warn hover:bg-warn-dark disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                      className="h-10 px-4 bg-warn hover:bg-warn-dark dark:hover:bg-warn-bright/90 disabled:opacity-50 text-white dark:bg-warn-bright dark:text-surface-dark font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
                     >
                       <span>{searchingSale ? 'بندور عليها...' : 'هات الفاتورة'}</span>
                     </button>
@@ -549,7 +558,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                           </>
                         )}
                       </div>
-                      <span className="text-[11px] font-mono text-slate-400">
+                      <span className="text-micro font-mono text-slate-400">
                         {loadedSale.createdAt ? new Date(loadedSale.createdAt).toLocaleDateString('ar-EG-u-nu-latn') : ''}
                       </span>
                     </div>
@@ -570,7 +579,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                   </div>
 
                   {searchingCatalog && (
-                    <div className="text-[11px] text-slate-400">بندور في بضاعة المحل...</div>
+                    <div className="text-micro text-slate-400">بندور في بضاعة المحل...</div>
                   )}
 
                   {catalogResults.length > 0 && (
@@ -583,7 +592,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                         >
                           <div>
                             <span className="font-bold text-ink dark:text-ink-dark">{p.name}</span>
-                            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block font-mono">{p.barcode}</span>
+                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted block font-mono">{p.barcode}</span>
                           </div>
                           <span className="font-bold font-mono text-warn dark:text-warn-bright">{formatArabicCurrency(p.pricePiasters)}</span>
                         </div>
@@ -598,7 +607,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden shadow-2xs">
                   <table className="w-full text-right border-collapse text-xs">
                     <thead>
-                      <tr className="h-8 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">
+                      <tr className="h-8 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold text-micro">
                         <th className="px-3">اسم الصنف</th>
                         <th className="px-2 text-center">سعر البيع</th>
                         <th className="px-2 text-center">العدد في الفاتورة</th>
@@ -660,7 +669,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => toggleItemDamaged(idx)}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors inline-flex items-center gap-1 ${
+                                className={`px-2 py-0.5 rounded text-micro font-bold border transition-colors inline-flex items-center gap-1 ${
                                   item.isDamaged
                                     ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/30'
                                     : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid-border dark:border-paid/30'
@@ -680,7 +689,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                                 )}
                               </button>
                             </td>
-                            <td className="px-3 text-left font-mono font-bold text-amber-700 dark:text-warn">
+                            <td className="px-3 text-left font-mono font-bold text-amber-700 dark:text-warn-bright">
                               {formatArabicCurrency(lineTotal)}
                             </td>
                           </tr>
@@ -702,11 +711,11 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-line-dark">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-bold text-slate-700 dark:text-ink-dark">
+                    <label className="text-micro font-bold text-slate-700 dark:text-ink-dark">
                       هترجع الفلوس إزاي؟:
                     </label>
                     {drawerBalance !== null && (
-                      <span className="text-[10px] font-medium text-ink-muted dark:text-ink-dark-muted bg-slate-100 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-slate-200 dark:border-line-dark">
+                      <span className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted bg-slate-100 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-slate-200 dark:border-line-dark">
                         كاش الدرج: <strong className={drawerBalance < totalRefundPiasters ? 'text-danger dark:text-danger-bright font-mono' : 'text-paid dark:text-brand-bright font-mono'}>{formatArabicCurrency(drawerBalance)}</strong>
                       </span>
                     )}
@@ -742,7 +751,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                     </button>
                   </div>
                   {refundMethod === 'cash' && !isUnpaidCreditSale && drawerBalance !== null && totalRefundPiasters > drawerBalance && (
-                    <div className="mt-2 p-2 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/40 text-danger dark:text-danger-bright text-[11px] flex items-center gap-1.5">
+                    <div className="mt-2 p-2 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/40 text-danger dark:text-danger-bright text-micro flex items-center gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                       <span>كاش الدرج المتاح ({formatArabicCurrency(drawerBalance)}) غير كافٍ لصرف المرتجع نقداً.</span>
                     </div>
@@ -750,7 +759,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-ink-dark mb-1">
+                  <label className="block text-micro font-bold text-slate-700 dark:text-ink-dark mb-1">
                     سبب الترجيع (ملاحظة):
                   </label>
                   <input
@@ -770,12 +779,11 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                     <Lock className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
                     <div>
                       <span className="text-xs font-bold text-ink dark:text-ink-dark block">لازم موافقة المشرف (رقم سري)</span>
-                      <span className="text-[10px] text-warn dark:text-warn-bright block">اكتب الرقم السري للمشرف عشان تصرف المرتجع ده من غير فاتورة</span>
+                      <span className="text-micro text-warn dark:text-warn-bright block">اكتب الرقم السري للمشرف عشان تصرف المرتجع ده من غير فاتورة</span>
                     </div>
                   </div>
                   <input
                     type="password"
-                    placeholder="••••"
                     value={supervisorPin}
                     onChange={(e) => setSupervisorPin(e.target.value)}
                     className="w-24 h-8 px-2 text-center text-sm font-bold font-mono tracking-widest bg-surface dark:bg-surface-dark-3 border border-warn/30 dark:border-warn-bright/40 rounded-lg focus:outline-none focus:border-warn text-ink dark:text-ink-dark"
@@ -809,7 +817,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 type="button"
                 onClick={() => void handleSubmitReturn()}
                 disabled={loading || activeReturnItems.length === 0 || (refundMethod === 'cash' && !isUnpaidCreditSale && drawerBalance !== null && totalRefundPiasters > drawerBalance)}
-                className="h-9 px-5 bg-warn hover:bg-warn-dark active:bg-warn/90 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                className="h-9 px-5 bg-warn hover:bg-warn-dark dark:hover:bg-warn-bright/90 active:bg-warn/90 disabled:opacity-50 text-white dark:bg-warn-bright dark:text-surface-dark font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>{loading ? 'بنحفظ المرتجع...' : 'تأكيد وصرف فلوس المرتجع'}</span>

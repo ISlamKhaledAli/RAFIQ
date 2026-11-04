@@ -20,6 +20,7 @@ import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { CustomerReceiptVoucherModal } from './CustomerReceiptVoucherModal';
 import { PaginationBar } from '../../components/PaginationBar';
 import { formatArabicCurrency } from '../../utils/money';
+import { usePermission } from '../../utils/usePermission';
 
 export interface CustomerStatementModalProps {
   isOpen: boolean;
@@ -84,6 +85,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   onConfirmCancelPayment,
   onOpenPrintStatement,
 }) => {
+  const canCancelPayment = usePermission('customers.payment_cancel');
   const [viewingReceiptEntry, setViewingReceiptEntry] = React.useState<CustomerLedgerEntry | null>(null);
   const [currentPage, setCurrentPage] = React.useState<number>(1);
   const [pageSize, setPageSize] = React.useState<number>(25);
@@ -137,24 +139,11 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <span className="text-sm font-bold text-ink dark:text-ink-dark">
                 كشف حساب الزبون: {selectedCustomer.name}
               </span>
-              <span className={`text-[11px] px-2.5 py-0.5 rounded font-bold border ${
-                selectedCustomer.balancePiasters > 0
-                  ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/30'
-                  : selectedCustomer.balancePiasters < 0
-                  ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid-border dark:border-emerald-800/40'
-                  : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark'
-              }`}>
-                {selectedCustomer.balancePiasters > 0
-                  ? `عليه فلوس: ${formatArabicCurrency(selectedCustomer.balancePiasters, true)}`
-                  : selectedCustomer.balancePiasters < 0
-                  ? `سايب فلوس في المحل: ${formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters), true)}`
-                  : 'حسابه خالص تماماً (0.00 ج.م)'}
-              </span>
               <button
                 type="button"
                 onClick={() => void onVerifyBalance(selectedCustomer.id)}
                 disabled={isVerifyingBalance || isFixingBalance}
-                className="h-6 px-2 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[10.5px] font-bold flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
+                className="h-6 px-2 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-micro font-bold flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
                 title="مراجعة وتدقيق مطابقة الرصيد الحالي مع مجموع حركات الديون والمدفوعات"
               >
                 <ShieldCheck className={`w-3.5 h-3.5 text-brand dark:text-brand-bright ${isVerifyingBalance ? 'animate-spin' : ''}`} />
@@ -187,7 +176,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   type="button"
                   onClick={() => void onFixBalance(selectedCustomer.id)}
                   disabled={isFixingBalance}
-                  className="px-2.5 py-1 bg-danger hover:bg-danger/90 text-white rounded text-[11px] font-bold flex items-center gap-1 transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
+                  className="px-2.5 py-1 bg-danger hover:bg-danger/90 text-white rounded text-micro font-bold flex items-center gap-1 transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
                 >
                   <span>{isFixingBalance ? 'جاري التصحيح...' : 'إعادة حساب وتصحيح الرصيد'}</span>
                 </button>
@@ -206,7 +195,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           {/* Filter Bar & Quick Dates (Story 69 / Feature #43) */}
           <div className="bg-surface-2 dark:bg-surface-dark-2 hairline-b border-line dark:border-line-dark px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-ink-muted dark:text-ink-dark-muted text-[11px] font-semibold">الفترة:</span>
+              <span className="text-ink-muted dark:text-ink-dark-muted text-micro font-semibold">الفترة:</span>
               <CustomDateRangePicker
                 startDate={statementStartDate}
                 endDate={statementEndDate}
@@ -222,7 +211,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <button
                 type="button"
                 onClick={() => { setStatementStartDate(''); setStatementEndDate(''); }}
-                className="px-2 py-1 rounded text-[11px] bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
+                className="px-2 py-1 rounded text-micro bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
               >
                 الكل
               </button>
@@ -233,7 +222,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   setStatementStartDate(todayStr);
                   setStatementEndDate(todayStr);
                 }}
-                className="px-2 py-1 rounded text-[11px] bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
+                className="px-2 py-1 rounded text-micro bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
               >
                 النهاردة
               </button>
@@ -245,7 +234,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   setStatementStartDate(d.toISOString().slice(0, 10));
                   setStatementEndDate(new Date().toISOString().slice(0, 10));
                 }}
-                className="px-2 py-1 rounded text-[11px] bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
+                className="px-2 py-1 rounded text-micro bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
               >
                 آخر أسبوع
               </button>
@@ -257,7 +246,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   setStatementStartDate(d.toISOString().slice(0, 10));
                   setStatementEndDate(new Date().toISOString().slice(0, 10));
                 }}
-                className="px-2 py-1 rounded text-[11px] bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
+                className="px-2 py-1 rounded text-micro bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
               >
                 الشهر ده
               </button>
@@ -284,30 +273,17 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-ink dark:text-ink-dark">
-                    {statementPeriodSummary.closingBalancePiasters > 0
-                      ? 'حساب الزبون: عليه فلوس للمحل (شكك)'
-                      : statementPeriodSummary.closingBalancePiasters < 0
-                      ? 'حساب الزبون: سايب فلوس في المحل (له رصيد)'
-                      : 'حساب الزبون: حسابه خالص بالمليم (0.00 ج.م)'}
-                  </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                    statementPeriodSummary.closingBalancePiasters > 0
-                      ? 'bg-danger text-white'
-                      : statementPeriodSummary.closingBalancePiasters < 0
-                      ? 'bg-paid text-white'
-                      : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted'
-                  }`}>
-                    {statementPeriodSummary.closingBalancePiasters > 0
-                      ? 'عليه فلوس'
-                      : statementPeriodSummary.closingBalancePiasters < 0
-                      ? 'له فلوس'
-                      : 'خالص'}
-                  </span>
-                </div>
+                <span className="text-xs font-bold text-ink dark:text-ink-dark">
+                  {statementPeriodSummary.closingBalancePiasters > 0
+                    ? 'حساب الزبون: عليه فلوس للمحل (شكك)'
+                    : statementPeriodSummary.closingBalancePiasters < 0
+                    ? 'حساب الزبون: سايب فلوس في المحل (له رصيد)'
+                    : 'حساب الزبون: حسابه خالص بالمليم'}
+                </span>
                 <div className="text-lg font-black font-mono tracking-tight mt-0.5">
-                  {formatArabicCurrency(Math.abs(statementPeriodSummary.closingBalancePiasters), true)}
+                  {statementPeriodSummary.closingBalancePiasters === 0
+                    ? '—'
+                    : formatArabicCurrency(Math.abs(statementPeriodSummary.closingBalancePiasters), true)}
                 </div>
               </div>
             </div>
@@ -316,7 +292,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             <div className="flex items-center gap-2 shrink-0">
               {/* Period Purchases */}
               <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[130px]">
-                <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold">أخد بضاعة (على الحساب)</span>
+                <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold">أخد بضاعة (على الحساب)</span>
                 <span className="font-mono text-xs font-bold text-danger dark:text-danger-bright">
                   {formatArabicCurrency(statementPeriodSummary.periodDebitsPiasters, true)}
                 </span>
@@ -324,7 +300,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
 
               {/* Period Payments */}
               <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[130px]">
-                <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold">سدد فلوس (دفع كاش)</span>
+                <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold">سدد فلوس (دفع كاش)</span>
                 <span className="font-mono text-xs font-bold text-paid dark:text-paid-bright">
                   {formatArabicCurrency(statementPeriodSummary.periodCreditsPiasters, true)}
                 </span>
@@ -333,7 +309,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               {/* Period Refunds if any */}
               {Boolean(statementPeriodSummary.periodRefundsPiasters && statementPeriodSummary.periodRefundsPiasters > 0) && (
                 <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[130px]">
-                  <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold">مرتجع بضاعة (خصم)</span>
+                  <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold">مرتجع بضاعة (خصم)</span>
                   <span className="font-mono text-xs font-bold text-paid dark:text-paid-bright">
                     -{formatArabicCurrency(statementPeriodSummary.periodRefundsPiasters!, true)}
                   </span>
@@ -342,14 +318,14 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
 
               {/* Prior Balance */}
               <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[135px]">
-                <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold">حسابه القديم (اللي فات)</span>
+                <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold">حسابه القديم (اللي فات)</span>
                 <span className="font-mono text-xs font-bold text-ink dark:text-ink-dark">
                   {formatArabicCurrency(Math.abs(statementPeriodSummary.openingBalancePiasters), true)}
                   {statementPeriodSummary.openingBalancePiasters > 0 && (
-                    <span className="text-[9px] text-danger dark:text-danger-bright mr-1 font-sans font-medium">(كان عليه)</span>
+                    <span className="text-micro text-danger dark:text-danger-bright mr-1 font-sans font-medium">(كان عليه)</span>
                   )}
                   {statementPeriodSummary.openingBalancePiasters < 0 && (
-                    <span className="text-[9px] text-paid dark:text-paid-bright mr-1 font-sans font-medium">(كان سايب فلوس)</span>
+                    <span className="text-micro text-paid dark:text-paid-bright mr-1 font-sans font-medium">(كان سايب فلوس)</span>
                   )}
                 </span>
               </div>
@@ -371,7 +347,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <div className="bg-surface dark:bg-surface-dark rounded border border-line dark:border-line-dark overflow-hidden shadow-xs">
                 <table className="w-full text-right text-xs">
                   <thead>
-                    <tr className="h-8 bg-surface-2 dark:bg-surface-dark-2 hairline-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">
+                    <tr className="h-8 bg-surface-2 dark:bg-surface-dark-2 hairline-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold text-micro">
                       <th className="px-3">الوقت والتاريخ</th>
                       <th className="px-3">نوع الحركة</th>
                       <th className="px-3">المبلغ</th>
@@ -391,11 +367,11 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
 
                       return (
                         <tr key={entry.id} className="h-9 hover:bg-surface-2 dark:hover:bg-surface-dark-2">
-                          <td className="px-3 text-ink-muted dark:text-ink-dark-muted text-[11px] font-mono">
+                          <td className="px-3 text-ink-muted dark:text-ink-dark-muted text-micro font-mono">
                             <div className="flex items-center gap-1">
                               <Clock className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                               <span>{new Date(entry.createdAt).toLocaleDateString('ar-EG-u-nu-latn')}</span>
-                              <span className="text-[10px] text-ink-muted/70 dark:text-ink-dark-muted/70">
+                              <span className="text-micro text-ink-muted/70 dark:text-ink-dark-muted/70">
                                 {new Date(entry.createdAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
@@ -404,36 +380,36 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                           <td className="px-3">
                             {isPayment ? (
                               alreadyCancelled ? (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted line-through text-[10px] font-bold border border-line dark:border-line-dark">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted line-through text-micro font-bold border border-line dark:border-line-dark">
                                   سداد اتلغى
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-[10px] font-bold border border-paid-border dark:border-emerald-800/40">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold border border-paid-border dark:border-emerald-800/40">
                                   سداد كاش
                                 </span>
                               )
                             ) : isCancel ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-[10px] font-bold border border-warn-border dark:border-warn-bright/30">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold border border-warn-border dark:border-warn-bright/30">
                                 <RotateCcw className="w-3 h-3" />
                                 إلغاء سداد (قيد عكسي)
                               </span>
                             ) : isDeposit ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-[10px] font-bold border border-paid-border dark:border-emerald-800/40">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold border border-paid-border dark:border-emerald-800/40">
                                 <Sparkles className="w-3 h-3 text-paid dark:text-paid-bright" />
                                 سايب فلوس تحت الحساب
                               </span>
                             ) : isSale ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright text-[10px] font-bold border border-danger-border dark:border-danger-bright/30">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright text-micro font-bold border border-danger-border dark:border-danger-bright/30">
                                 <Receipt className="w-3 h-3" />
                                 فاتورة شكك (على النوتة)
                               </span>
                             ) : isRefund ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-[10px] font-bold border border-paid-border dark:border-emerald-800/40">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold border border-paid-border dark:border-emerald-800/40">
                                 <RotateCcw className="w-3 h-3 text-paid dark:text-paid-bright" />
                                 مرتجع بضاعة (خصم)
                               </span>
                             ) : (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted text-[10px] font-bold border border-line dark:border-line-dark">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted text-micro font-bold border border-line dark:border-line-dark">
                                 حساب قديم (رصيد افتتاحي)
                               </span>
                             )}
@@ -451,7 +427,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                             {formatArabicCurrency(entry.balanceAfterPiasters, true)}
                           </td>
 
-                          <td className="px-3 text-ink-muted dark:text-ink-dark-muted text-[11px]">
+                          <td className="px-3 text-ink-muted dark:text-ink-dark-muted text-micro">
                             {entry.notes || '---'}
                           </td>
 
@@ -461,18 +437,18 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setViewingReceiptEntry(entry)}
-                                  className="inline-flex items-center gap-1 text-[11px] text-brand dark:text-brand-bright hover:underline font-semibold cursor-pointer"
+                                  className="inline-flex items-center gap-1 text-micro text-brand dark:text-brand-bright hover:underline font-semibold cursor-pointer"
                                   title="عرض وطباعة سند القبض المالي للدفعة"
                                 >
                                   <Receipt className="w-3 h-3" />
                                   <span>سند قبض</span>
                                 </button>
                               )}
-                              {isPayment && !alreadyCancelled && (
+                              {isPayment && !alreadyCancelled && canCancelPayment && (
                                 <button
                                   type="button"
                                   onClick={() => setCancellingEntry(entry)}
-                                  className="inline-flex items-center gap-1 text-[11px] text-danger dark:text-danger-bright hover:text-red-700 dark:hover:text-red-300 hover:underline font-semibold cursor-pointer"
+                                  className="inline-flex items-center gap-1 text-micro text-danger dark:text-danger-bright hover:text-red-700 dark:hover:text-red-300 hover:underline font-semibold cursor-pointer"
                                   title="إلغاء دفعة السداد بقيد معاكس دون حذف"
                                 >
                                   <RotateCcw className="w-3 h-3" />
@@ -505,28 +481,15 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
-              إجمالي الحركات: {filteredStatementEntries.length}
-            </span>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onOpenPrintStatement}
-                className="px-3.5 py-1.5 rounded bg-brand text-white text-xs font-bold hover:bg-brand-hover flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>طباعة كشف الحساب</span>
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-1.5 rounded bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-semibold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer"
-              >
-                رجوع
-              </button>
-            </div>
+          <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-line dark:border-line-dark px-4 flex items-center justify-end shrink-0">
+            <button
+              type="button"
+              onClick={onOpenPrintStatement}
+              className="px-3.5 py-1.5 rounded bg-brand text-white text-xs font-bold hover:bg-brand-hover flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>طباعة كشف الحساب</span>
+            </button>
           </div>
         </div>
       </div>
@@ -553,13 +516,13 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 </div>
                 <div className="flex justify-between text-ink dark:text-ink-dark">
                   <span className="text-ink-muted dark:text-ink-dark-muted font-medium">المبلغ اللي هيتلغى:</span>
-                  <span className="font-bold font-mono text-danger dark:text-danger-bright text-[13px]">
+                  <span className="font-bold font-mono text-danger dark:text-danger-bright text-sm">
                     {formatArabicCurrency(cancellingEntry.amountPiasters, true)}
                   </span>
                 </div>
                 <div className="flex justify-between text-ink dark:text-ink-dark">
                   <span className="text-ink-muted dark:text-ink-dark-muted font-medium">وقت السداد:</span>
-                  <span className="font-mono text-[11px]">
+                  <span className="font-mono text-micro">
                     {new Date(cancellingEntry.createdAt).toLocaleString('ar-EG-u-nu-latn')}
                   </span>
                 </div>
@@ -568,7 +531,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               {/* Accounting explanation alert */}
               <div className="p-2.5 bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-bright/30 rounded flex items-start gap-2 text-ink dark:text-ink-dark">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
-                <div className="text-[11px] leading-relaxed">
+                <div className="text-micro leading-relaxed">
                   <strong className="text-warn dark:text-warn-bright">ملاحظة أمان:</strong> السيستم مش هيمسح الحركة من الدفاتر، بس هيسجل قيد عكسي عشان يرجع الفلوس على حساب الزبون فوراً زي ما كانت بالظبط (
                   <span className="font-bold font-mono text-danger dark:text-danger-bright">
                     {formatArabicCurrency(selectedCustomer.balancePiasters + cancellingEntry.amountPiasters, true)}

@@ -30,7 +30,7 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
             <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center shadow-2xs">
               <Receipt className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-sm text-ink dark:text-ink-dark">
+            <h3 className="t-modal-title text-ink dark:text-ink-dark">
               تفاصيل فاتورة الشراء رقم #{purchase.invoiceNumber}
             </h3>
           </div>
@@ -84,7 +84,7 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
                 <tr key={item.id} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                   <td className="p-3 font-semibold text-ink dark:text-ink-dark">
                     <span>{item.productName}</span>
-                    <div className="flex items-center gap-1.5 text-[10.5px] text-ink-muted dark:text-ink-dark-muted mt-0.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 flex-wrap">
                       {item.barcode && <span className="font-mono">باركود: {item.barcode}</span>}
                       {item.batchNumber && (
                         <span className="bg-brand-soft/80 dark:bg-brand-soft/20 text-brand-dark dark:text-brand-bright px-1.5 py-0.2 rounded font-mono font-bold">
@@ -169,8 +169,8 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
           </div>
         </div>
 
-        <div className="p-3.5 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex justify-between items-center shrink-0">
-          {onPrintLabels ? (
+        {onPrintLabels && (
+          <div className="p-3.5 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex items-center shrink-0">
             <button
               type="button"
               onClick={() => onPrintLabels(purchase)}
@@ -180,15 +180,8 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
               <Tag className="w-4 h-4" />
               <span>طباعة ملصقات الباركود</span>
             </button>
-          ) : <div />}
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="px-5 h-9 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
-          >
-            إغلاق
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

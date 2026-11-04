@@ -94,7 +94,6 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
                 setError('');
               }}
               className={pinInputClass}
-              placeholder="••••"
               autoFocus
             />
           </div>
@@ -113,7 +112,6 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
               setError('');
             }}
             className={pinInputClass}
-            placeholder="••••"
             autoFocus={!needsOldPin}
           />
         </div>
@@ -131,7 +129,6 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
               setError('');
             }}
             className={pinInputClass}
-            placeholder="••••"
           />
         </div>
 

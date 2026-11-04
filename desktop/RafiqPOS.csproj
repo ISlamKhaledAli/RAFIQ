@@ -277,6 +277,7 @@
     <Compile Include="Services\DrugInteractionService.cs" />
     <Compile Include="Database\MigrationRunner.Cafe.cs" />
     <Compile Include="Database\MigrationRunner.Idempotency.cs" />
+    <Compile Include="Database\MigrationRunner.UserHierarchy.cs" />
     <Compile Include="Models\CafeModels.cs" />
     <Compile Include="Repositories\TableRepository.cs" />
     <Compile Include="Services\TableManagementService.cs" />

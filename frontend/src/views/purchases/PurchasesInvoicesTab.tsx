@@ -19,6 +19,7 @@ import type { Purchase } from '../../types/models';
 import { formatMoney } from './types';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
+import { usePermission } from '../../utils/usePermission';
 
 interface PurchasesInvoicesTabProps {
   purchases: Purchase[];
@@ -48,6 +49,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
   onPrintLabels,
 }) => {
   const showLoading = useSmoothLoading(loading, 300);
+  const canCreatePurchase = usePermission('purchases.create');
   const filteredPurchases = useMemo(() => {
     const q = purchaseSearchQuery.trim().toLowerCase();
     return purchases.filter((p) => {
@@ -85,7 +87,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
         <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
           <div>
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block">إجمالي فواتير شراء البضاعة</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block">إجمالي فواتير شراء البضاعة</span>
             <span className="text-lg sm:text-xl font-bold font-mono text-ink dark:text-ink-dark mt-0.5 block">
               {formatMoney(totalPurchasesAmount)}
             </span>
@@ -97,7 +99,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
 
         <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
           <div>
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block">فواتير لسه ما كملتش دفع</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block">فواتير لسه ما كملتش دفع</span>
             <span className="text-lg sm:text-xl font-bold font-mono text-danger dark:text-danger-bright mt-0.5 block">
               {totalUnpaidPurchasesCount} فاتورة
             </span>
@@ -109,7 +111,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
 
         <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
           <div>
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block">
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block">
               {totalSupplierCreditsAmount > 0 ? 'فلوس علينا للموردين / رصيد لنا' : 'فلوس علينا للموردين والشركات'}
             </span>
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -117,7 +119,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
                 {formatMoney(totalSupplierDebtsAmount)}
               </span>
               {totalSupplierCreditsAmount > 0 && (
-                <span className="text-[10px] font-mono font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-paid/40" title="رصيد لصالحنا عند الموردين تحت الحساب">
+                <span className="text-micro font-mono font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-paid/40" title="رصيد لصالحنا عند الموردين تحت الحساب">
                   +{formatMoney(totalSupplierCreditsAmount)} لنا
                 </span>
               )}
@@ -172,14 +174,16 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
             <HelpCircle className="w-4 h-4" />
           </button>
 
+          {canCreatePurchase && (
           <button
             type="button"
             onClick={onOpenNewInvoice}
-            className="h-10 px-4 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-emerald-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+            className="h-10 px-4 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />
             <span>فاتورة شراء جديدة</span>
           </button>
+          )}
         </div>
       </div>
 
@@ -238,27 +242,27 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
                       {formatMoney(pur.remainingAmountPiasters)}
                     </span>
                   ) : (
-                    <span className="text-paid dark:text-paid-bright font-medium">0.00 ج.م</span>
+                    <span className="text-ink-muted dark:text-ink-dark-muted font-medium">—</span>
                   )}
                 </div>
                 <div className="col-span-1 text-center">
                   {pur.paymentStatus === 'PAID' && (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-emerald-800/40">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-emerald-800/40">
                       خالصة
                     </span>
                   )}
                   {pur.paymentStatus === 'OVERPAID' && (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid dark:bg-emerald-600 text-white border border-paid dark:border-emerald-500 shadow-2xs">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-paid text-white border border-paid dark:border-paid-bright shadow-2xs">
                       زيادة
                     </span>
                   )}
                   {pur.paymentStatus === 'CREDIT' && (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30">
                       آجل
                     </span>
                   )}
                   {pur.paymentStatus === 'PARTIAL' && (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30">
                       جزء مدفوع
                     </span>
                   )}

@@ -516,6 +516,15 @@ namespace RafiqPOS.Services
                 // =========================================================================
                 // Close اليوم الأول officially with Shortage of 200 piasters (عجز 2 جنيه)
                 long expectedCash18 = previewDay18.ExpectedCashPiasters;
+                // A day cannot be sealed while one of its shifts is open: close the night shift with its exact expected cash
+                var nightShiftSummary = shiftService.GetShiftSummary(nightShift.Id);
+                shiftService.CloseShift(new CloseShiftRequest
+                {
+                    ShiftId = nightShift.Id,
+                    CashierId = nightShift.CashierId,
+                    CashierName = nightShift.CashierName,
+                    ActualCashPiasters = nightShiftSummary.ExpectedCashPiasters
+                });
                 var closing18 = closingService.SaveClosing(new DailyClosingSaveRequest
                 {
                     BusinessDate = nightDay1,

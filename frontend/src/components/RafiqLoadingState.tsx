@@ -43,7 +43,7 @@ export const RafiqLoadingState: React.FC<RafiqLoadingStateProps> = ({
           {label}
         </h4>
         {sublabel && (
-          <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted max-w-sm leading-relaxed">
+          <p className="text-micro text-ink-muted dark:text-ink-dark-muted max-w-sm leading-relaxed">
             {sublabel}
           </p>
         )}

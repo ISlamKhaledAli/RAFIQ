@@ -81,7 +81,7 @@ export const UndoToast: React.FC<UndoToastProps> = ({
           <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center shrink-0">
             <Info className="w-4 h-4" />
           </div>
-          <span className="text-[13px] font-semibold text-ink dark:text-ink-dark truncate" title={message}>{message}</span>
+          <span className="text-sm font-semibold text-ink dark:text-ink-dark truncate" title={message}>{message}</span>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">

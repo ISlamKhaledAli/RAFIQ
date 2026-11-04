@@ -1,6 +1,7 @@
 using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Services;
 
@@ -30,7 +31,7 @@ namespace RafiqPOS.Bridge
                         if (tPayload["paperWidth"] != null) tWidth = tPayload["paperWidth"].ToString();
                     }
                     var testPrintResult = DatabaseService.Printer.PrintTestReceipt(tPrinter, tWidth);
-                    response = BridgeResponse.Ok(request.Id, testPrintResult);
+                    response = ToPrintResponse(request.Id, testPrintResult);
                     return true;
 
                 case "barcode:printLabel":
@@ -78,43 +79,7 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "printer:printReceipt":
-                    if (request.Payload == null)
-                    {
-                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الفاتورة المراد طباعتها فارغة");
-                        return true;
-                    }
-                    Sale saleToPrint = null;
-                    string pPrinter = null;
-                    string pWidth = null;
-                    bool? pDrawer = null;
-                    bool pIsCopy = false;
-
-                    JObject printPayload = request.Payload as JObject;
-                    if (printPayload != null && printPayload["sale"] != null)
-                    {
-                        saleToPrint = JsonConvert.DeserializeObject<Sale>(printPayload["sale"].ToString());
-                        if (printPayload["printerName"] != null) pPrinter = printPayload["printerName"].ToString();
-                        if (printPayload["paperWidth"] != null) pWidth = printPayload["paperWidth"].ToString();
-                        if (printPayload["openDrawer"] != null) pDrawer = printPayload["openDrawer"].Value<bool>();
-                        if (printPayload["isCopy"] != null) pIsCopy = printPayload["isCopy"].Value<bool>();
-                    }
-                    else
-                    {
-                        saleToPrint = JsonConvert.DeserializeObject<Sale>(request.Payload.ToString());
-                        if (printPayload != null && printPayload["isCopy"] != null)
-                        {
-                            pIsCopy = printPayload["isCopy"].Value<bool>();
-                        }
-                    }
-
-                    if (saleToPrint == null)
-                    {
-                        response = BridgeResponse.Fail(request.Id, "INVALID_SALE", "تعذر تحليل بيانات الفاتورة المراد طباعتها");
-                        return true;
-                    }
-
-                    var printReceiptResult = DatabaseService.Printer.PrintSaleReceipt(saleToPrint, pPrinter, pWidth, pDrawer, pIsCopy);
-                    response = BridgeResponse.Ok(request.Id, printReceiptResult);
+                    response = HandlePrintReceipt(request);
                     return true;
 
                 case "printer:kickDrawer":
@@ -137,7 +102,7 @@ namespace RafiqPOS.Bridge
                         }
                     }
                     var kickRes = DatabaseService.Printer.KickDrawer(kickPrinter, kickPulse, kickPin);
-                    response = BridgeResponse.Ok(request.Id, kickRes);
+                    response = ToPrintResponse(request.Id, kickRes);
                     return true;
 
                 case "printer:cutPaper":
@@ -148,7 +113,7 @@ namespace RafiqPOS.Bridge
                         cutPrinter = cpPayload["printerName"].ToString();
                     }
                     var cutRes = DatabaseService.Printer.CutPaper(cutPrinter);
-                    response = BridgeResponse.Ok(request.Id, cutRes);
+                    response = ToPrintResponse(request.Id, cutRes);
                     return true;
 
                 case "printer:printDosageLabel":
@@ -180,6 +145,138 @@ namespace RafiqPOS.Bridge
                 default:
                     return false;
             }
+        }
+
+        private static BridgeResponse ToPrintResponse(string requestId, PrintResult result)
+        {
+            if (result == null)
+            {
+                return BridgeResponse.Fail(requestId, "PRINT_FAILED", "تعذر تنفيذ أمر الطباعة (لم تصل نتيجة من خدمة الطباعة).");
+            }
+            if (!result.Success)
+            {
+                string message = string.IsNullOrWhiteSpace(result.Message) ? "فشل أمر الطباعة." : result.Message;
+                return BridgeResponse.Fail(requestId, "PRINT_FAILED", message, new { printerUsed = result.PrinterUsed });
+            }
+            return BridgeResponse.Ok(requestId, result);
+        }
+
+        private static string ReadPayloadString(JObject payload, string key)
+        {
+            JToken token = payload[key];
+            if (token == null || token.Type == JTokenType.Null) return null;
+            string value = token.ToString();
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static bool? ReadPayloadBool(JObject payload, string key)
+        {
+            JToken token = payload[key];
+            if (token == null || token.Type == JTokenType.Null) return null;
+            if (token.Type == JTokenType.Boolean) return token.Value<bool>();
+            bool parsed;
+            if (bool.TryParse(token.ToString(), out parsed)) return parsed;
+            return null;
+        }
+
+        /// <summary>
+        /// printer:printReceipt: الفاتورة المخزنة تُحمّل من قاعدة البيانات بواسطة saleId (لا يُوثق بالمبالغ القادمة من العميل)،
+        /// ونسخة/أصل الإيصال تُحدد في الخادم. الكائن الكامل مقبول فقط للشيك المبدئي وفواتير التدريب.
+        /// </summary>
+        private static BridgeResponse HandlePrintReceipt(BridgeRequest request)
+        {
+            JObject payload = request.Payload as JObject;
+            if (payload == null)
+            {
+                return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الفاتورة المراد طباعتها فارغة أو غير صالحة");
+            }
+            if (DatabaseService.Printer == null)
+            {
+                return BridgeResponse.Fail(request.Id, "PRINTER_ERROR", "خدمة الطباعة غير مهيأة.");
+            }
+
+            string printerName = ReadPayloadString(payload, "printerName");
+            string paperWidth = ReadPayloadString(payload, "paperWidth");
+            bool? openDrawer = ReadPayloadBool(payload, "openDrawer");
+            bool clientIsCopy = ReadPayloadBool(payload, "isCopy") ?? false;
+
+            Sale sale = null;
+            string saleId = ReadPayloadString(payload, "saleId");
+            bool isTransient = false;
+
+            if (saleId != null)
+            {
+                sale = DatabaseService.Sales != null ? DatabaseService.Sales.GetSaleById(saleId) : null;
+                if (sale == null)
+                {
+                    return BridgeResponse.Fail(request.Id, "SALE_NOT_FOUND", "لم يتم العثور على الفاتورة المطلوب طباعتها.");
+                }
+            }
+            else
+            {
+                JToken saleToken = payload["sale"];
+                Sale clientSale;
+                try
+                {
+                    clientSale = (saleToken != null && saleToken.Type != JTokenType.Null)
+                        ? saleToken.ToObject<Sale>()
+                        : payload.ToObject<Sale>();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn("تعذر تحليل بيانات الفاتورة المرسلة للطباعة: " + ex.Message);
+                    return BridgeResponse.Fail(request.Id, "INVALID_SALE", "تعذر تحليل بيانات الفاتورة المراد طباعتها");
+                }
+
+                if (clientSale == null)
+                {
+                    return BridgeResponse.Fail(request.Id, "INVALID_SALE", "تعذر تحليل بيانات الفاتورة المراد طباعتها");
+                }
+
+                Sale storedSale = null;
+                if (!string.IsNullOrWhiteSpace(clientSale.Id) && DatabaseService.Sales != null)
+                {
+                    storedSale = DatabaseService.Sales.GetSaleById(clientSale.Id);
+                }
+
+                if (storedSale == null && PrinterService.IsTransientReceiptSale(clientSale))
+                {
+                    // Only unsaved pre-bills and test receipts are printed as sent; a real sale id always wins
+                    sale = clientSale;
+                    isTransient = true;
+                }
+                else if (storedSale != null)
+                {
+                    sale = storedSale;
+                }
+                else if (string.IsNullOrWhiteSpace(clientSale.Id))
+                {
+                    return BridgeResponse.Fail(request.Id, "INVALID_SALE", "لا يمكن طباعة فاتورة غير محفوظة. أرسل رقم الفاتورة (saleId) لطباعتها من قاعدة البيانات.");
+                }
+                else
+                {
+                    return BridgeResponse.Fail(request.Id, "SALE_NOT_FOUND", "لم يتم العثور على الفاتورة المطلوب طباعتها.");
+                }
+            }
+
+            string validationError;
+            if (!PrinterService.TryValidateSaleForPrint(sale, out validationError))
+            {
+                return BridgeResponse.Fail(request.Id, "INVALID_SALE", validationError);
+            }
+
+            bool isCopy = clientIsCopy;
+            if (isTransient)
+            {
+                openDrawer = false;
+            }
+            else if (!isCopy && DatabaseService.Printer.HasSaleReceiptBeenPrinted(sale.Id))
+            {
+                isCopy = true;
+            }
+
+            PrintResult printResult = DatabaseService.Printer.PrintSaleReceipt(sale, printerName, paperWidth, openDrawer, isCopy);
+            return ToPrintResponse(request.Id, printResult);
         }
     }
 }

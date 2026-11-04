@@ -573,31 +573,18 @@ export const HelpCenterModal = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-wide">مركز المساعدة والدعم الفني</h2>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                <h2 className="t-modal-title text-white tracking-wide">مركز المساعدة والدعم الفني</h2>
+                <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                   يعمل بدون إنترنت (Offline)
                 </span>
               </div>
-              <p className="text-[11px] text-emerald-100/80 m-0">
+              <p className="text-micro text-emerald-100/80 m-0">
                 شروحات مصورة، إجابات على الأسئلة الشائعة، وطلب الدعم الفني المباشر
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveSection('support')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeSection === 'support'
-                  ? 'bg-amber-400 text-brand-dark shadow-sm'
-                  : 'bg-white/10 hover:bg-white/20 text-emerald-100'
-              }`}
-            >
-              <PhoneCall className="w-3.5 h-3.5" />
-              <span>طلب الدعم المباشر</span>
-            </button>
-
             <button
               type="button"
               onClick={onClose}
@@ -638,7 +625,7 @@ export const HelpCenterModal = ({
           {/* Navigation Sidebar */}
           <div className="w-64 bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark p-2 flex flex-col gap-1 overflow-y-auto shrink-0 select-none">
             {allowedArticles.length > 0 && (
-              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted px-2 py-1">
+              <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted px-2 py-1">
                 شروحات شاشات البرنامج
               </span>
             )}
@@ -657,7 +644,7 @@ export const HelpCenterModal = ({
                   <ShoppingCart className="w-4 h-4" />
                   <span>نقطة البيع والكاشير</span>
                 </div>
-                <span className={`text-[10px] font-mono px-1 rounded ${activeSection === 'pos' ? 'bg-white/20 text-white' : 'bg-surface-3 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'}`}>
+                <span className={`text-micro font-mono px-1 rounded ${activeSection === 'pos' ? 'bg-white/20 text-white' : 'bg-surface-3 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'}`}>
                   F1
                 </span>
               </button>
@@ -750,7 +737,7 @@ export const HelpCenterModal = ({
 
             <div className="h-px bg-line dark:bg-line-dark my-2" />
 
-            <span className="text-[11px] font-bold text-[#52605d] px-2 py-1">
+            <span className="text-micro font-bold text-[#52605d] px-2 py-1">
               المساعدة التفاعلية
             </span>
 
@@ -767,7 +754,7 @@ export const HelpCenterModal = ({
                 <FileQuestion className="w-4 h-4" />
                 <span>الأسئلة الشائعة (FAQ)</span>
               </div>
-              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-surface-3 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted">
+              <span className="text-micro font-bold px-1.5 py-0.2 rounded-full bg-surface-3 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted">
                 {FAQS.length}
               </span>
             </button>
@@ -778,7 +765,7 @@ export const HelpCenterModal = ({
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer mt-auto border ${
                 activeSection === 'support'
                   ? 'bg-brand dark:bg-brand-container text-amber-300 border-brand dark:border-brand-container shadow-xs'
-                  : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid-dark-border hover:bg-paid-soft/80'
+                  : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid-dark-border hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -819,7 +806,7 @@ export const HelpCenterModal = ({
                 {/* Matching Guides */}
                 {filteredArticles.length > 0 && (
                   <div className="flex flex-col gap-3">
-                    <h3 className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
+                    <h3 className="t-card-title text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
                       شروحات الشاشات والخطوات
                     </h3>
                     {filteredArticles.map((art) => (
@@ -828,7 +815,7 @@ export const HelpCenterModal = ({
                         className="p-4 rounded-xl border border-line dark:border-line-dark hover:border-paid/50 dark:hover:border-paid-bright/50 bg-surface-2 dark:bg-surface-dark-2 transition-all flex flex-col gap-2"
                       >
                         <div className="flex items-center justify-between">
-                          <h4 className="font-bold text-sm text-brand dark:text-brand-bright">{art.title}</h4>
+                          <h4 className="t-label text-brand dark:text-brand-bright">{art.title}</h4>
                           <button
                             type="button"
                             onClick={() => {
@@ -850,7 +837,7 @@ export const HelpCenterModal = ({
                 {/* Matching FAQs */}
                 {filteredFaqs.length > 0 && (
                   <div className="flex flex-col gap-3 mt-2">
-                    <h3 className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
+                    <h3 className="t-card-title text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
                       الأسئلة الشائعة المطابقة
                     </h3>
                     {filteredFaqs.map((faq) => (
@@ -858,10 +845,10 @@ export const HelpCenterModal = ({
                         key={faq.id}
                         className="p-4 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-2"
                       >
-                        <span className="text-[10px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded-md w-fit border border-paid/20 dark:border-paid-dark-border">
+                        <span className="text-micro font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded-md w-fit border border-paid/20 dark:border-paid-dark-border">
                           {faq.category} • {faq.tag}
                         </span>
-                        <h4 className="font-bold text-xs text-ink dark:text-ink-dark m-0">{faq.question}</h4>
+                        <h4 className="t-label text-ink dark:text-ink-dark m-0">{faq.question}</h4>
                         <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 leading-relaxed">{faq.answer}</p>
                       </div>
                     ))}
@@ -879,7 +866,7 @@ export const HelpCenterModal = ({
                     {/* Title banner */}
                     <div className="flex flex-col gap-1.5 pb-4 border-b border-line dark:border-line-dark">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-brand dark:text-brand-bright m-0">
+                        <h3 className="t-card-title text-brand dark:text-brand-bright m-0">
                           {activeArticle.title}
                         </h3>
                         <span className="text-xs font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2.5 py-1 rounded-lg border border-paid/20 dark:border-paid-dark-border flex items-center gap-1">
@@ -923,19 +910,19 @@ export const HelpCenterModal = ({
                                 <span className="w-6 h-6 rounded-lg bg-brand dark:bg-brand-container text-white text-xs font-bold flex items-center justify-center shrink-0">
                                   {st.badge}
                                 </span>
-                                <h4 className="font-bold text-xs text-ink dark:text-ink-dark m-0">
+                                <h4 className="t-label text-ink dark:text-ink-dark m-0">
                                   {st.title}
                                 </h4>
                               </div>
 
                               {st.shortcut && (
-                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-brand dark:text-brand-bright shadow-2xs">
+                                <span className="text-micro font-mono font-bold px-2 py-0.5 rounded-md bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark text-brand dark:text-brand-bright shadow-2xs">
                                   {st.shortcut}
                                 </span>
                               )}
                             </div>
 
-                            <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0 font-sans">
+                            <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0 font-sans">
                               {st.description}
                             </p>
                           </div>
@@ -972,7 +959,7 @@ export const HelpCenterModal = ({
                   <div className="flex flex-col gap-4 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                       <div>
-                        <h3 className="text-base font-bold text-brand dark:text-brand-bright m-0">
+                        <h3 className="t-card-title text-brand dark:text-brand-bright m-0">
                           الأسئلة الشائعة وحلول المشاكل الواقعية
                         </h3>
                         <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0">
@@ -1002,7 +989,7 @@ export const HelpCenterModal = ({
                               className="w-full p-3.5 text-right flex items-center justify-between gap-3 cursor-pointer select-none"
                             >
                               <div className="flex items-center gap-2.5">
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-dark-border shrink-0">
+                                <span className="text-micro font-bold px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-dark-border shrink-0">
                                   {faq.tag}
                                 </span>
                                 <span className="font-bold text-xs text-ink dark:text-ink-dark leading-tight">
@@ -1036,7 +1023,7 @@ export const HelpCenterModal = ({
                   <div className="flex flex-col gap-4 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                       <div>
-                        <h3 className="text-base font-bold text-brand dark:text-brand-bright m-0">
+                        <h3 className="t-card-title text-brand dark:text-brand-bright m-0">
                           طلب الدعم الفني المباشر وبيانات الجهاز
                         </h3>
                         <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0">
@@ -1044,7 +1031,7 @@ export const HelpCenterModal = ({
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-2.5 py-1 rounded-lg border border-paid/20 dark:border-paid-dark-border">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-paid-bright" />
                         <span>دعم فني معتمد</span>
                       </div>
                     </div>
@@ -1058,7 +1045,7 @@ export const HelpCenterModal = ({
                             <PhoneCall className="w-4 h-4 text-amber-300" />
                             <span className="text-xs font-bold text-white">الهاتف وخدمة العملاء المباشرة</span>
                           </div>
-                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-400/20 font-bold">
+                          <span className="text-micro bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-400/20 font-bold">
                             متاح طوال الأسبوع
                           </span>
                         </div>
@@ -1083,7 +1070,7 @@ export const HelpCenterModal = ({
                           </button>
                         </div>
 
-                        <p className="text-[11px] text-emerald-100/70 m-0">
+                        <p className="text-micro text-emerald-100/70 m-0">
                           يمكنك أيضاً مراسلتنا عبر الواتساب على نفس الرقم لإرسال حزمة الدعم أو الاستفسار.
                         </p>
                       </div>
@@ -1095,7 +1082,7 @@ export const HelpCenterModal = ({
                             <KeyRound className="w-4 h-4 text-paid dark:text-paid-bright" />
                             <span>بصمة هذا الجهاز (Machine ID)</span>
                           </div>
-                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">مطلوبة لتفعيل الترخيص</span>
+                          <span className="text-micro text-ink-muted dark:text-ink-dark-muted">مطلوبة لتفعيل الترخيص</span>
                         </div>
 
                         <div className="flex items-center justify-between bg-surface dark:bg-surface-dark-3 p-2.5 rounded-lg border border-line dark:border-line-dark">
@@ -1108,13 +1095,13 @@ export const HelpCenterModal = ({
                             onClick={() => void handleCopyFingerprint()}
                             className="text-xs px-2.5 py-1 rounded bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface-3 dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0"
                           >
-                            {copiedFingerprint ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedFingerprint ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-paid-bright" /> : <Copy className="w-3.5 h-3.5" />}
                             <span>{copiedFingerprint ? 'تم النسخ' : 'نسخ'}</span>
                           </button>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted">
-                          <span>اسم المحل: <strong>{licenseInfo?.shopName || 'متجر رفيق'}</strong></span>
+                        <div className="flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted">
+                          <span>اسم المحل: <strong>{licenseInfo?.shopName || 'نظام رفيق'}</strong></span>
                           <span>الترخيص: <strong className="text-paid dark:text-paid-bright">{licenseInfo?.statusLabel || 'مفعّل'}</strong></span>
                         </div>
                       </div>
@@ -1129,19 +1116,19 @@ export const HelpCenterModal = ({
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                         <div className="p-2 rounded bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark">
-                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">إصدار البرنامج</span>
+                          <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">إصدار البرنامج</span>
                           <span className="font-mono font-bold text-brand dark:text-brand-bright">{sysInfo?.version || 'v1.0.0'}</span>
                         </div>
                         <div className="p-2 rounded bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark">
-                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">نظام التشغيل</span>
+                          <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">نظام التشغيل</span>
                           <span className="font-bold text-ink dark:text-ink-dark truncate block">{sysInfo?.osVersion || 'Windows'}</span>
                         </div>
                         <div className="p-2 rounded bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark">
-                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">قاعدة البيانات</span>
+                          <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">قاعدة البيانات</span>
                           <span className="font-bold text-paid dark:text-paid-bright">{sysInfo?.dbStatus ? 'نشطة ومؤمنة' : 'متصلة'}</span>
                         </div>
                         <div className="p-2 rounded bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark">
-                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">نوع الترخيص</span>
+                          <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">نوع الترخيص</span>
                           <span className="font-bold text-ink dark:text-ink-dark">{licenseInfo?.licenseType || 'دائم'}</span>
                         </div>
                       </div>
@@ -1156,7 +1143,7 @@ export const HelpCenterModal = ({
                             توليد حزمة معلومات الدعم الفني وسجل الأخطاء (Support Bundle)
                           </span>
                         </div>
-                        <span className="text-[10px] text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded-md">
+                        <span className="text-micro text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded-md">
                           محمية وخالية من بيانات الزبائن والأسعار
                         </span>
                       </div>
@@ -1181,7 +1168,7 @@ export const HelpCenterModal = ({
                             </button>
                           </div>
                           {supportSavedPath && (
-                            <span className="font-mono text-[11px] text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-lowest p-1.5 rounded break-all" dir="ltr">
+                            <span className="font-mono text-micro text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-lowest p-1.5 rounded break-all" dir="ltr">
                               {supportSavedPath}
                             </span>
                           )}
@@ -1214,19 +1201,8 @@ export const HelpCenterModal = ({
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright" />
             <span className="font-medium">
-              نظام رفيق — لإدارة نقاط البيع والمتاجر ومحلات التجزئة
+              نظام رفيق — نظام إدارة نقاط البيع والمتاجر ومحلات التجزئة
             </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px]">مساعدة F1</span>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-1.5 rounded-lg bg-surface-3 dark:bg-surface-dark-3 hover:bg-line dark:hover:bg-surface-dark-high text-ink dark:text-ink-dark font-bold text-xs transition-colors cursor-pointer"
-            >
-              إغلاق
-            </button>
           </div>
         </div>
       </div>

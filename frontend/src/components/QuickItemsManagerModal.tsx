@@ -1,29 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Sparkles, 
-  Plus, 
-  X, 
-  Edit2, 
-  Trash2, 
-  ArrowUp, 
-  ArrowDown, 
+import {
+  Sparkles,
+  Plus,
+  X,
+  Edit2,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  GripVertical,
   AlertCircle,
   Package,
   Search,
   Check,
   Tag,
-  FolderPlus
+  FolderPlus,
+  Scale,
+  Boxes,
+  Link2,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { extractProducts, type QuickItem, type Product } from '../types/models';
 import { CustomSelect } from './CustomSelect';
+import { SegmentedTabs } from './SegmentedTabs';
+import { ToggleSwitch } from './ToggleSwitch';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import {
+  QUICK_FIELD,
+  QUICK_BTN,
+  QUICK_BTN_SECONDARY,
+  QUICK_BTN_PRIMARY,
+  FieldLabel,
+  FormSection,
+  ExtrasSection,
+  PriceInput,
+  InlineNotice,
+  SmallChip,
+} from './QuickItemFormParts';
 
 interface QuickItemsManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onItemsChanged?: () => void;
 }
+
+const ROW_ICON_BTN =
+  'w-9 h-9 shrink-0 rounded-lg inline-flex items-center justify-center border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed';
 
 export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ isOpen, onClose, onItemsChanged }) => {
   const [items, setItems] = useState<QuickItem[]>([]);
@@ -59,6 +80,10 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
 
   // Delete Confirmation
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Drag-to-reorder
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   const fetchItems = React.useCallback(async () => {
     setLoading(true);
@@ -277,7 +302,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
       isOpenPrice: formIsOpenPrice,
       unit: formUnit,
       categoryName: finalCategory,
-      displayOrder: editingId 
+      displayOrder: editingId
         ? (items.find((i) => i.id === editingId)?.displayOrder || 1)
         : (filteredItems.length + 1)
     };
@@ -318,6 +343,17 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
     }
   };
 
+  const persistOrder = async (reordered: QuickItem[]) => {
+    const orderedIds = reordered.map((i) => i.id);
+    try {
+      await invoke('quickItems:reorder', { orderedIds });
+      await fetchItems();
+      if (onItemsChanged) onItemsChanged();
+    } catch (err: unknown) {
+      console.error(err);
+    }
+  };
+
   const handleMove = async (index: number, direction: 'up' | 'down') => {
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === filteredItems.length - 1) return;
@@ -327,15 +363,18 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
     const temp = reordered[index];
     reordered[index] = reordered[targetIndex];
     reordered[targetIndex] = temp;
+    await persistOrder(reordered);
+  };
 
-    const orderedIds = reordered.map((i) => i.id);
-    try {
-      await invoke('quickItems:reorder', { orderedIds });
-      await fetchItems();
-      if (onItemsChanged) onItemsChanged();
-    } catch (err: unknown) {
-      console.error(err);
-    }
+  const handleDropOn = async (targetIndex: number) => {
+    const from = dragIndex;
+    setDragIndex(null);
+    setOverIndex(null);
+    if (from === null || from === targetIndex) return;
+    const reordered = [...filteredItems];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(targetIndex, 0, moved);
+    await persistOrder(reordered);
   };
 
   const isDirty = isFormOpen && Boolean(formName.trim() || formPriceEgp.trim() || formProductId);
@@ -358,28 +397,34 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
 
   if (!isOpen) return null;
 
+  const activeCount = filteredItems.length;
+  const formCategoryLabel = formCategory === '__new__' ? formNewCategory.trim() || 'تبويب جديد' : formCategory;
+  const formExtrasSummary = `${formCategoryLabel} · ${formUnit === 'kg' ? 'بالوزن' : 'بالقطعة'}${formProductId ? ' · مربوط بالمخزن' : ''}`;
+
   return (
     <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div 
+      <div
         className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-2xl w-full max-w-5xl h-[88vh] max-h-[850px] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95 duration-150"
         dir="rtl"
       >
         {/* Header */}
-        <div className="p-4 hairline-b flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
-              <Sparkles className="w-4 h-4" />
+        <div className="h-16 px-5 flex items-center justify-between gap-3 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-base font-bold text-ink dark:text-ink-dark leading-tight">إدارة الأصناف السريعة (Fast Picks)</h2>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">
-                تخصيص أزرار الكاشير السريعة للأصناف بدون باركود الأكثر طلباً
+            <div className="min-w-0">
+              <h2 className="t-modal-title text-ink dark:text-ink-dark leading-tight m-0 truncate">إدارة وترتيب الأزرار السريعة</h2>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5 m-0 truncate">
+                اسحب الصنف من المقبض أو استخدم الأسهم لترتيبه في شاشة الكاشير
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={requestClose}
-            className="p-1.5 rounded hover:bg-surface dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
+            className="w-10 h-10 rounded-lg hover:bg-surface dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer flex items-center justify-center shrink-0"
+            title="إغلاق"
           >
             <X className="w-5 h-5" />
           </button>
@@ -387,538 +432,550 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
 
         {/* Alerts */}
         {errorMessage && (
-          <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border-b border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs flex items-center gap-2">
+          <div role="alert" className="px-5 py-3 bg-danger-soft dark:bg-danger-dark-soft border-b border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright text-sm font-semibold flex items-center gap-2 shrink-0">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
         {successMessage && (
-          <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border-b border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright text-xs flex items-center gap-2">
+          <div role="status" className="px-5 py-3 bg-paid-soft dark:bg-paid-dark-soft border-b border-paid-border dark:border-paid-dark-border text-paid dark:text-paid-bright text-sm font-semibold flex items-center gap-2 shrink-0">
             <Check className="w-4 h-4 shrink-0" />
             <span>{successMessage}</span>
           </div>
         )}
 
         {/* Content Area */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex min-h-0">
           {/* Main List */}
-          <div className="flex-1 flex flex-col p-4 overflow-y-auto">
-            {/* Action Bar & Categories */}
-            <div className="flex flex-col gap-2 mb-3 pb-2 hairline-b">
-              <div className="flex items-center justify-between gap-2">
-                {/* Category Pills & Add Category Button */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 flex-1">
-                  {categories.map((cat) => {
-                    const count = items.filter((i) => (i.categoryName || 'عام') === cat).length;
-                    const isActive = activeCategory === cat;
-                    return (
-                      <button
-                        key={cat}
-                        onClick={() => {
-                          setActiveCategory(cat);
-                          setIsFormOpen(false);
-                          setIsAddingCategory(false);
-                          setIsRenamingCategory(false);
-                          setDeleteCategoryConfirm(null);
-                        }}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 flex items-center gap-1.5 shadow-2xs border ${
-                          isActive 
-                            ? 'bg-brand dark:bg-brand text-white border-brand shadow-sm ring-2 ring-brand/20' 
-                            : 'bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark border-line dark:border-line-dark hover:border-brand/70 dark:hover:border-brand-bright/70 hover:bg-brand-soft/40 dark:hover:bg-brand-dark-soft/40 hover:text-brand dark:hover:text-brand-bright hover:shadow-xs hover:-translate-y-0.5'
-                        }`}
-                      >
-                        <span>{cat}</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                          isActive 
-                            ? 'bg-white/25 text-white' 
-                            : 'bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark'
-                        }`}>
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
+          <div className="flex-1 min-w-0 flex flex-col p-4 gap-3 overflow-y-auto bg-surface dark:bg-surface-dark">
+            {/* Category tabs + primary action */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                {categories.map((cat) => {
+                  const count = items.filter((i) => (i.categoryName || 'عام') === cat).length;
+                  const isActive = activeCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => {
+                        setActiveCategory(cat);
+                        setIsFormOpen(false);
+                        setIsAddingCategory(false);
+                        setIsRenamingCategory(false);
+                        setDeleteCategoryConfirm(null);
+                      }}
+                      className={`h-10 px-3 text-sm font-bold rounded-lg border transition-colors flex items-center gap-2 cursor-pointer ${
+                        isActive
+                          ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border-brand dark:border-brand-bright'
+                          : 'bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark border-line dark:border-line-dark hover:border-brand/50 dark:hover:border-brand-bright/50 hover:bg-surface-2 dark:hover:bg-surface-dark-3'
+                      }`}
+                    >
+                      <span>{cat}</span>
+                      <span className="min-w-6 h-6 px-1.5 rounded-md bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark text-xs font-mono font-extrabold tabular-nums flex items-center justify-center">
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
 
-                  {/* Add Category Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingCategory(!isAddingCategory);
+                    setIsRenamingCategory(false);
+                    setDeleteCategoryConfirm(null);
+                    setNewCategoryName('');
+                  }}
+                  className={`h-10 px-3 text-sm font-bold rounded-lg border border-dashed flex items-center gap-2 transition-colors cursor-pointer ${
+                    isAddingCategory
+                      ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border-brand dark:border-brand-bright'
+                      : 'border-line-hover dark:border-line-dark-strong text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft'
+                  }`}
+                  title="إضافة قسم أو تصنيف جديد للأصناف السريعة"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                  <span>تصنيف جديد</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={openAddForm}
+                className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY} shrink-0`}
+              >
+                <Plus className="w-4 h-4" />
+                <span>إضافة صنف</span>
+              </button>
+            </div>
+
+            {/* Active category strip */}
+            {activeCategory && (
+              <div className="flex items-center justify-between gap-2 bg-surface-2 dark:bg-surface-dark-2 px-3 py-2 rounded-xl border border-line dark:border-line-dark">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs text-ink-muted dark:text-ink-dark-muted">القسم المحدد</span>
+                  <span className="text-sm font-bold text-ink dark:text-ink-dark truncate">{activeCategory}</span>
+                  <SmallChip tone="neutral">
+                    <span className="font-mono tabular-nums">{activeCount}</span>
+                    <span>صنف</span>
+                  </SmallChip>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
-                      setIsAddingCategory(!isAddingCategory);
-                      setIsRenamingCategory(false);
+                      setRenamedCategoryName(activeCategory);
+                      setIsRenamingCategory(!isRenamingCategory);
+                      setIsAddingCategory(false);
                       setDeleteCategoryConfirm(null);
-                      setNewCategoryName('');
                     }}
-                    className={`h-[32px] px-3 text-xs font-bold rounded-lg border-2 flex items-center gap-1.5 shrink-0 transition-all shadow-2xs ${
-                      isAddingCategory 
-                        ? 'bg-brand text-white border-brand shadow-sm' 
-                        : 'border-dashed border-brand/60 bg-brand-soft/30 text-brand hover:bg-brand hover:text-white hover:border-brand hover:shadow-xs hover:-translate-y-0.5'
-                    }`}
-                    title="إضافة قسم أو تصنيف جديد للأصناف السريعة"
+                    className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}
+                    title="تعديل اسم هذا القسم"
                   >
-                    <FolderPlus className="w-3.5 h-3.5" />
-                    <span>إضافة تصنيف</span>
+                    <Edit2 className="w-4 h-4 text-brand dark:text-brand-bright" />
+                    <span>تعديل الاسم</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteCategoryConfirm(activeCategory);
+                      setIsAddingCategory(false);
+                      setIsRenamingCategory(false);
+                    }}
+                    className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY} hover:border-danger/40 dark:hover:border-danger-bright/40`}
+                    title="حذف هذا القسم بالكامل"
+                  >
+                    <Trash2 className="w-4 h-4 text-danger dark:text-danger-bright" />
+                    <span>حذف التصنيف</span>
                   </button>
                 </div>
-
-                {/* Main Action: Add Quick Item */}
-                <button
-                  onClick={openAddForm}
-                  className="h-8 px-3 text-xs font-bold rounded bg-brand text-white hover:bg-brand-hover transition-colors flex items-center gap-1 shrink-0 shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>إضافة صنف</span>
-                </button>
               </div>
+            )}
 
-              {/* Active Category Controls Strip */}
-              {activeCategory && (
-                <div className="flex items-center justify-between bg-surface-2 px-2.5 py-1.5 rounded border border-line text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-ink-muted">القسم المحدد:</span>
-                    <span className="font-bold text-ink">{activeCategory}</span>
-                    <span className="text-[10px] text-ink-muted font-mono">
-                      ({items.filter((i) => (i.categoryName || 'عام') === activeCategory).length} صنف)
-                    </span>
-                  </div>
+            {/* Inline Add Category Form */}
+            {isAddingCategory && (
+              <form onSubmit={handleAddCategorySubmit} className="p-3 bg-brand-soft dark:bg-brand-dark-soft border border-brand/30 dark:border-brand-bright/30 rounded-xl flex items-center gap-2 animate-in fade-in duration-100">
+                <FolderPlus className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="اسم التصنيف الجديد: مشروبات ساخنة، عصائر، إكسسوارات..."
+                  className={`${QUICK_FIELD} flex-1`}
+                  autoFocus
+                />
+                <button type="submit" className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY}`}>
+                  <Check className="w-4 h-4" />
+                  <span>إضافة القسم</span>
+                </button>
+                <button type="button" onClick={() => setIsAddingCategory(false)} className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}>
+                  إلغاء
+                </button>
+              </form>
+            )}
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRenamedCategoryName(activeCategory);
-                        setIsRenamingCategory(!isRenamingCategory);
-                        setIsAddingCategory(false);
-                        setDeleteCategoryConfirm(null);
-                      }}
-                      className="px-2.5 py-1 rounded-md bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 flex items-center gap-1.5 text-[11px] font-bold shadow-2xs transition-all hover:-translate-y-0.5"
-                      title="تعديل اسم هذا القسم"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 text-brand" />
-                      <span>تعديل الاسم</span>
-                    </button>
+            {/* Inline Rename Category Form */}
+            {isRenamingCategory && (
+              <form onSubmit={handleRenameCategorySubmit} className="p-3 bg-surface-2 dark:bg-surface-dark-2 border border-brand/30 dark:border-brand-bright/30 rounded-xl flex items-center gap-2 animate-in fade-in duration-100">
+                <Edit2 className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                <input
+                  type="text"
+                  value={renamedCategoryName}
+                  onChange={(e) => setRenamedCategoryName(e.target.value)}
+                  aria-label={`تعديل اسم ${activeCategory}`}
+                  className={`${QUICK_FIELD} flex-1`}
+                  autoFocus
+                />
+                <button type="submit" disabled={loading} className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY}`}>
+                  <Check className="w-4 h-4" />
+                  <span>حفظ الاسم</span>
+                </button>
+                <button type="button" onClick={() => setIsRenamingCategory(false)} className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}>
+                  إلغاء
+                </button>
+              </form>
+            )}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDeleteCategoryConfirm(activeCategory);
-                        setIsAddingCategory(false);
-                        setIsRenamingCategory(false);
-                      }}
-                      className="px-2.5 py-1 rounded-md bg-surface border border-slate-300 hover:border-danger hover:text-danger hover:bg-danger-soft/40 text-slate-700 flex items-center gap-1.5 text-[11px] font-bold shadow-2xs transition-all hover:-translate-y-0.5"
-                      title="حذف هذا القسم بالكامل"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-danger" />
-                      <span>حذف التصنيف</span>
-                    </button>
-                  </div>
+            {/* Delete Category Confirmation */}
+            {deleteCategoryConfirm && (
+              <div role="alert" className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 rounded-xl flex items-center justify-between gap-3 animate-in fade-in duration-100">
+                <div className="flex items-center gap-2 text-danger dark:text-danger-bright text-sm font-semibold min-w-0">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>
+                    هل أنت متأكد من حذف قسم <b className="font-extrabold">&quot;{deleteCategoryConfirm}&quot;</b>؟
+                    {(() => {
+                      const cnt = items.filter((i) => (i.categoryName || 'عام') === deleteCategoryConfirm).length;
+                      return cnt > 0 ? ` (سيتم حذف ${cnt} صنف سريع تابع له من شاشة الكاشير)` : ' (القسم فارغ)';
+                    })()}
+                  </span>
                 </div>
-              )}
-
-              {/* Inline Add Category Form */}
-              {isAddingCategory && (
-                <form onSubmit={handleAddCategorySubmit} className="p-2.5 bg-brand-soft/40 border border-brand/40 rounded flex items-center gap-2 animate-in fade-in duration-100">
-                  <FolderPlus className="w-4 h-4 text-brand shrink-0" />
-                  <span className="text-xs font-bold text-brand shrink-0">اسم التصنيف الجديد:</span>
-                  <input
-                    type="text"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="مثال: مشروبات ساخنة، عصائر فريش، إكسسوارات..."
-                    className="flex-1 h-7 px-2.5 text-xs bg-surface border border-line rounded focus:outline-none focus:border-brand font-semibold text-ink"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    className="h-7 px-3 bg-brand hover:bg-brand-hover text-white text-xs font-bold rounded flex items-center gap-1 shadow-xs"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>إضافة القسم</span>
-                  </button>
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => setIsAddingCategory(false)}
-                    className="h-7 px-2.5 bg-surface hover:bg-surface-2 text-ink-muted text-xs rounded border border-line"
-                  >
-                    إلغاء
-                  </button>
-                </form>
-              )}
-
-              {/* Inline Rename Category Form */}
-              {isRenamingCategory && (
-                <form onSubmit={handleRenameCategorySubmit} className="p-2.5 bg-surface-2 border border-brand/40 rounded flex items-center gap-2 animate-in fade-in duration-100">
-                  <Edit2 className="w-4 h-4 text-brand shrink-0" />
-                  <span className="text-xs font-bold text-ink shrink-0">تعديل اسم ({activeCategory}):</span>
-                  <input
-                    type="text"
-                    value={renamedCategoryName}
-                    onChange={(e) => setRenamedCategoryName(e.target.value)}
-                    className="flex-1 h-7 px-2.5 text-xs bg-surface border border-line rounded focus:outline-none focus:border-brand font-semibold text-ink"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
                     disabled={loading}
-                    className="h-7 px-3 bg-brand hover:bg-brand-hover text-white text-xs font-bold rounded flex items-center gap-1 shadow-xs disabled:opacity-50"
+                    onClick={() => handleDeleteCategory(deleteCategoryConfirm)}
+                    className={`${QUICK_BTN} bg-danger hover:bg-danger-ink text-white dark:bg-danger-dark-fill dark:hover:bg-danger-dark-fill/90`}
                   >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>حفظ الاسم</span>
+                    <Trash2 className="w-4 h-4" />
+                    <span>نعم، حذف القسم</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsRenamingCategory(false)}
-                    className="h-7 px-2.5 bg-surface hover:bg-surface-2 text-ink-muted text-xs rounded border border-line"
-                  >
+                  <button type="button" onClick={() => setDeleteCategoryConfirm(null)} className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}>
                     إلغاء
                   </button>
-                </form>
-              )}
-
-              {/* Delete Category Confirmation Alert */}
-              {deleteCategoryConfirm && (
-                <div className="p-3 bg-danger-soft border border-danger-border rounded flex flex-col sm:flex-row sm:items-center justify-between gap-2 animate-in fade-in duration-100">
-                  <div className="flex items-center gap-2 text-danger text-xs font-semibold">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>
-                      هل أنت متأكد من حذف قسم <b className="font-bold text-ink">"{deleteCategoryConfirm}"</b>؟
-                      {(() => {
-                        const cnt = items.filter((i) => (i.categoryName || 'عام') === deleteCategoryConfirm).length;
-                        return cnt > 0 ? ` (سيتم حذف ${cnt} صنف سريع تابع له من شاشة الكاشير)` : ' (القسم فارغ)';
-                      })()}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => handleDeleteCategory(deleteCategoryConfirm)}
-                      className="h-7 px-3 bg-danger hover:bg-red-700 text-white text-xs font-bold rounded flex items-center gap-1 shadow-xs disabled:opacity-50"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span>نعم، حذف القسم</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteCategoryConfirm(null)}
-                      className="h-7 px-2.5 bg-surface hover:bg-surface-2 text-ink text-xs font-semibold rounded border border-line"
-                    >
-                      إلغاء
-                    </button>
-                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Items Table / Cards */}
+            {/* Items list */}
             {loading && items.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center text-xs text-ink-muted">
+              <div className="flex-1 flex items-center justify-center text-sm text-ink-muted dark:text-ink-dark-muted">
                 جاري التحميل...
               </div>
             ) : filteredItems.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center py-12 text-ink-muted border border-dashed border-line rounded">
-                <Package className="w-8 h-8 opacity-40 mb-2" />
-                <p className="text-xs font-medium">لا توجد أصناف في هذا التبويب بعد</p>
-                <button
-                  onClick={openAddForm}
-                  className="mt-3 text-xs font-bold text-brand hover:underline"
-                >
-                  اضغط هنا لإضافة أول صنف
+              <div className="flex-1 min-h-[220px] flex flex-col items-center justify-center gap-3 p-8 text-center border border-dashed border-line-hover dark:border-line-dark-strong rounded-xl bg-surface-2 dark:bg-surface-dark-2">
+                <div className="w-14 h-14 rounded-2xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
+                  <Package className="w-7 h-7" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <p className="text-base font-extrabold text-ink dark:text-ink-dark m-0">مفيش أزرار سريعة في هذا القسم لسه</p>
+                  <p className="text-sm text-ink-muted dark:text-ink-dark-muted m-0 max-w-sm leading-relaxed">
+                    الأزرار السريعة بتظهر في شاشة البيع وتنزل السلة بنقرة واحدة، مناسبة للأصناف اللي من غير باركود زي الخبز والخضار.
+                  </p>
+                </div>
+                <button type="button" onClick={openAddForm} className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY}`}>
+                  <Plus className="w-4 h-4" />
+                  <span>إضافة أول صنف</span>
                 </button>
               </div>
             ) : (
-              <div className={isFormOpen ? "flex flex-col gap-2.5" : "grid grid-cols-1 md:grid-cols-2 gap-3"}>
-                {filteredItems.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className="p-3 bg-surface border border-slate-200 rounded-lg flex items-center justify-between hover:border-brand/60 hover:shadow-xs transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      {/* Reorder Buttons */}
-                      <div className="flex flex-col gap-1">
-                        <button
-                          onClick={() => handleMove(index, 'up')}
-                          disabled={index === 0}
-                          className="p-1 rounded bg-surface border border-slate-200 text-slate-600 hover:text-brand hover:border-brand disabled:opacity-20 shadow-2xs transition-all"
-                          title="تحريك لأعلى"
-                        >
-                          <ArrowUp className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={() => handleMove(index, 'down')}
-                          disabled={index === filteredItems.length - 1}
-                          className="p-1 rounded bg-surface border border-slate-200 text-slate-600 hover:text-brand hover:border-brand disabled:opacity-20 shadow-2xs transition-all"
-                          title="تحريك لأسفل"
-                        >
-                          <ArrowDown className="w-3 h-3" />
-                        </button>
-                      </div>
+              <ul className="flex flex-col gap-2 m-0 p-0 list-none">
+                {filteredItems.map((item, index) => {
+                  const isDropTarget = dragIndex !== null && overIndex === index && dragIndex !== index;
+                  const isBundle = Boolean(item.bundleItemsJson) || Boolean(item.bundleItems && item.bundleItems.length > 0);
+                  return (
+                    <li
+                      key={item.id}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', item.id);
+                        setDragIndex(index);
+                      }}
+                      onDragOver={(e) => {
+                        if (dragIndex === null) return;
+                        e.preventDefault();
+                        if (overIndex !== index) setOverIndex(index);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        void handleDropOn(index);
+                      }}
+                      onDragEnd={() => {
+                        setDragIndex(null);
+                        setOverIndex(null);
+                      }}
+                      className={`min-h-[64px] px-3 py-2 rounded-xl border flex items-center gap-3 transition-colors ${
+                        isDropTarget
+                          ? 'border-brand dark:border-brand-bright bg-brand-soft dark:bg-brand-dark-soft'
+                          : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:border-brand/50 dark:hover:border-brand-bright/50'
+                      } ${dragIndex === index ? 'opacity-50' : ''}`}
+                    >
+                      <span
+                        className="shrink-0 cursor-grab active:cursor-grabbing text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright"
+                        title="اسحب لإعادة الترتيب"
+                        aria-hidden="true"
+                      >
+                        <GripVertical className="w-5 h-5" />
+                      </span>
+
+                      <span className="w-7 h-7 shrink-0 rounded-md bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted text-xs font-mono font-extrabold tabular-nums flex items-center justify-center">
+                        {index + 1}
+                      </span>
 
                       {/* Item Details */}
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-ink">{item.name}</span>
-                          {item.productId && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-medium">
-                              مربوط بالمخزن
-                            </span>
-                          )}
-                          {item.unit === 'kg' && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 font-medium">
-                              بالميزان (كجم)
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-ink-muted mt-0.5">
-                          {item.isOpenPrice ? (
-                            <span className="text-warn dark:text-warn-bright font-bold">سعر مفتوح عند البيع</span>
-                          ) : (
-                            <span className="font-mono text-brand font-bold">
-                              {(item.pricePiasters / 100).toFixed(2)} ج.م
-                            </span>
-                          )}
-                        </div>
+                      <div className="flex-1 min-w-0 flex flex-col gap-1">
+                        <span className="text-sm font-bold text-ink dark:text-ink-dark truncate" title={item.name}>{item.name}</span>
+                        {(item.productId || item.unit === 'kg' || isBundle) && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {item.productId && (
+                              <SmallChip tone="brand">
+                                <Link2 className="w-3 h-3" />
+                                <span>مربوط بالمخزن</span>
+                              </SmallChip>
+                            )}
+                            {item.unit === 'kg' && (
+                              <SmallChip tone="warn">
+                                <Scale className="w-3 h-3" />
+                                <span>بالوزن</span>
+                              </SmallChip>
+                            )}
+                            {isBundle && (
+                              <SmallChip tone="ok">
+                                <Boxes className="w-3 h-3" />
+                                <span>عرض كومبو</span>
+                              </SmallChip>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-1.5">
-                      {deleteConfirmId === item.id ? (
-                        <div className="flex items-center gap-1 bg-danger-soft dark:bg-danger-dark-soft p-1 rounded border border-danger/20 dark:border-danger-bright/30">
-                          <span className="text-[11px] text-danger dark:text-danger-bright font-bold px-1">تأكيد الحذف؟</span>
-                          <button
-                            onClick={() => handleDeleteItem(item.id)}
-                            className="px-2 py-0.5 bg-danger hover:bg-red-700 text-white rounded text-[10px] font-bold"
-                          >
-                            نعم
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirmId(null)}
-                            className="px-2 py-0.5 bg-surface text-ink rounded text-[10px] font-bold border border-line"
-                          >
-                            إلغاء
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => openEditForm(item)}
-                            className="p-1.5 rounded-md bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-600 shadow-2xs transition-all hover:-translate-y-0.5"
-                            title="تعديل"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirmId(item.id)}
-                            className="p-1.5 rounded-md bg-surface border border-slate-300 hover:border-danger hover:text-danger hover:bg-danger-soft/40 text-slate-600 shadow-2xs transition-all hover:-translate-y-0.5"
-                            title="حذف"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      {/* Price */}
+                      <div className="shrink-0 text-left min-w-[84px]">
+                        {item.isOpenPrice ? (
+                          <SmallChip tone="warn">سعر حر</SmallChip>
+                        ) : (
+                          <span className="font-mono tabular-nums font-extrabold text-base text-paid dark:text-paid-bright">
+                            {(item.pricePiasters / 100).toFixed(2)} <span className="text-xs font-bold">ج.م</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {deleteConfirmId === item.id ? (
+                          <div className="flex items-center gap-1.5 bg-danger-soft dark:bg-danger-dark-soft px-2 py-1 rounded-lg border border-danger-border dark:border-danger-bright/30">
+                            <span className="text-xs text-danger dark:text-danger-bright font-bold">تأكيد الحذف؟</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteItem(item.id)}
+                              className="h-8 px-3 bg-danger hover:bg-danger-ink dark:bg-danger-dark-fill text-white rounded-md text-xs font-bold cursor-pointer"
+                            >
+                              نعم
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="h-8 px-3 bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark rounded-md text-xs font-bold border border-line dark:border-line-dark cursor-pointer"
+                            >
+                              إلغاء
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleMove(index, 'up')}
+                              disabled={index === 0}
+                              className={`${ROW_ICON_BTN} hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright`}
+                              title="تحريك لأعلى"
+                            >
+                              <ArrowUp className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMove(index, 'down')}
+                              disabled={index === filteredItems.length - 1}
+                              className={`${ROW_ICON_BTN} hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright`}
+                              title="تحريك لأسفل"
+                            >
+                              <ArrowDown className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openEditForm(item)}
+                              className={`${ROW_ICON_BTN} hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft`}
+                              title="تعديل"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmId(item.id)}
+                              className={`${ROW_ICON_BTN} hover:text-danger dark:hover:text-danger-bright hover:border-danger dark:hover:border-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft`}
+                              title="حذف"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
 
           {/* Form Sidebar (Add / Edit) */}
           {isFormOpen && (
-            <div className="w-[360px] hairline-r bg-surface-2 p-5 flex flex-col justify-between overflow-y-auto shrink-0 animate-in slide-in-from-left-2 duration-150">
-              <form onSubmit={handleSaveItem} className="space-y-3">
-                <div className="flex items-center justify-between pb-2 hairline-b">
-                  <span className="text-xs font-bold text-ink">
+            <aside className="w-[380px] shrink-0 border-r border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col min-h-0 animate-in slide-in-from-left-2 duration-150">
+              <form key={editingId ?? 'new'} onSubmit={handleSaveItem} className="flex-1 min-h-0 flex flex-col">
+                <div className="h-14 px-5 flex items-center justify-between border-b border-line dark:border-line-dark shrink-0">
+                  <span className="text-sm font-extrabold text-ink dark:text-ink-dark">
                     {editingId ? 'تعديل الصنف السريع' : 'إضافة صنف سريع جديد'}
                   </span>
                   <button
                     type="button"
                     onClick={() => setIsFormOpen(false)}
-                    className="p-1 rounded text-ink-muted hover:text-ink"
+                    className="w-10 h-10 -ml-2 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
+                    title="إغلاق النموذج"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* Option to Link Product from Inventory */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setIsSearchingProduct(!isSearchingProduct)}
-                    className="w-full text-xs font-semibold py-1.5 px-2.5 rounded bg-surface border border-line hover:border-brand text-brand flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <Package className="w-3.5 h-3.5" />
-                    <span>{formProductId ? 'تغيير الربط بالمخزن' : 'ربط بمنتج مسجل بالمخزن'}</span>
-                  </button>
+                <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
+                  <FormSection title="الأساسيات">
+                    {formProductId && (
+                      <InlineNotice tone="brand" icon={<Link2 className="w-4 h-4 shrink-0 mt-0.5" />}>
+                        الزر مربوط بصنف من المخزن (بيتخصم من رصيده عند البيع).
+                      </InlineNotice>
+                    )}
 
-                  {/* Autocomplete Product Search Box */}
-                  {isSearchingProduct && (
-                    <div className="mt-2 p-2 bg-surface border border-brand/30 rounded space-y-2">
+                    <label className="block">
+                      <FieldLabel required>اسم الزر الظاهر للكاشير</FieldLabel>
                       <div className="relative">
-                        <Search className="w-3.5 h-3.5 absolute right-2.5 top-2.5 text-ink-muted" />
+                        <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                         <input
                           type="text"
-                          value={productSearchQuery}
-                          onChange={(e) => handleProductSearch(e.target.value)}
-                          placeholder="ابحث بالاسم أو الباركود..."
-                          className="w-full pr-8 pl-2 py-1.5 text-xs bg-surface-2 border border-line rounded focus:outline-none focus:border-brand"
-                          autoFocus
+                          value={formName}
+                          onChange={(e) => setFormName(e.target.value)}
+                          placeholder="مثال: خبز بلدي طازج"
+                          className={`${QUICK_FIELD} pr-9 font-semibold`}
+                          required
                         />
                       </div>
-                      {searchingLoading && (
-                        <div className="text-[11px] text-ink-muted text-center py-1">جاري البحث...</div>
-                      )}
-                      <div className="max-h-36 overflow-y-auto space-y-1">
-                        {searchResults.map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => selectProductToLink(p)}
-                            className="w-full text-right p-1.5 rounded hover:bg-brand/10 text-xs flex items-center justify-between transition-colors border border-transparent hover:border-brand/20"
-                          >
-                            <span className="font-semibold text-ink truncate max-w-[170px]">{p.name}</span>
-                            <span className="font-mono text-[10px] text-brand font-bold">
-                              {(p.pricePiasters / 100).toFixed(2)} ج.م
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Name */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-ink-muted mb-1">
-                    اسم الزر الظاهر للكاشير *
-                  </label>
-                  <input
-                    type="text"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder="مثال: خبز بلدي طازج"
-                    className="w-full px-2.5 py-1.5 text-xs bg-surface border border-line rounded focus:outline-none focus:border-brand text-ink font-semibold"
-                    required
-                  />
-                </div>
-
-                {/* Category Selection */}
-                <div>
-                  <label className="text-[11px] font-semibold text-ink-muted mb-1 flex items-center gap-1">
-                    <Tag className="w-3 h-3" />
-                    <span>التبويب (القسم) *</span>
-                  </label>
-                  <CustomSelect
-                    value={formCategory}
-                    onChange={(val) => setFormCategory(val)}
-                    options={[
-                      ...categories.map((c) => ({ value: c, label: c })),
-                      { value: '__new__', label: '+ إضافة تبويب جديد...', isAction: true }
-                    ]}
-                  />
-                  {formCategory === '__new__' && (
-                    <input
-                      type="text"
-                      value={formNewCategory}
-                      onChange={(e) => setFormNewCategory(e.target.value)}
-                      placeholder="اكتب اسم التبويب الجديد..."
-                      className="w-full mt-1 px-2.5 py-1.5 text-xs bg-surface border border-brand rounded focus:outline-none text-ink font-semibold"
-                      required
-                    />
-                  )}
-                </div>
-
-                {/* Price */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-semibold text-ink-muted">
-                      السعر (جنيه) *
                     </label>
-                    <label className="flex items-center gap-1 text-[11px] text-amber-600 font-bold cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formIsOpenPrice}
-                        onChange={(e) => setFormIsOpenPrice(e.target.checked)}
-                        className="rounded border-line text-brand focus:ring-0"
+
+                    <label className="block">
+                      <FieldLabel required={!formIsOpenPrice}>السعر (جنيه)</FieldLabel>
+                      <PriceInput
+                        value={formPriceEgp}
+                        onChange={setFormPriceEgp}
+                        step="0.25"
+                        min="0"
+                        required={!formIsOpenPrice}
+                        disabled={formIsOpenPrice}
+                        placeholder={formIsOpenPrice ? 'سعر حر' : '0.00'}
                       />
-                      <span>سعر مفتوح</span>
                     </label>
-                  </div>
-                  {!formIsOpenPrice && (
-                    <input
-                      type="number"
-                      step="0.25"
-                      min="0"
-                      value={formPriceEgp}
-                      onChange={(e) => setFormPriceEgp(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full px-2.5 py-1.5 text-xs bg-surface border border-line rounded focus:outline-none focus:border-brand text-ink font-mono font-bold text-left"
-                      required={!formIsOpenPrice}
+                    <ToggleSwitch
+                      size="sm"
+                      checked={formIsOpenPrice}
+                      onChange={setFormIsOpenPrice}
+                      label="سعر حر"
+                      description="الكاشير يكتب السعر عند البيع"
                     />
-                  )}
+                  </FormSection>
+
+                  <ExtrasSection summary={formExtrasSummary}>
+                    <div>
+                      <FieldLabel>ربط بالمخزن</FieldLabel>
+                      <button
+                        type="button"
+                        onClick={() => setIsSearchingProduct(!isSearchingProduct)}
+                        className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY} w-full`}
+                      >
+                        <Package className="w-4 h-4 text-brand dark:text-brand-bright" />
+                        <span>{formProductId ? 'تغيير الربط بالمخزن' : 'ربط بمنتج مسجل بالمخزن'}</span>
+                      </button>
+
+                      {isSearchingProduct && (
+                        <div className="mt-2 p-2 bg-surface dark:bg-surface-dark-3 border border-brand/30 dark:border-brand-bright/30 rounded-lg flex flex-col gap-2">
+                          <div className="relative">
+                            <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted pointer-events-none" />
+                            <input
+                              type="text"
+                              value={productSearchQuery}
+                              onChange={(e) => handleProductSearch(e.target.value)}
+                              placeholder="ابحث بالاسم أو الباركود..."
+                              className={`${QUICK_FIELD} pr-9`}
+                              autoFocus
+                            />
+                          </div>
+                          {searchingLoading && (
+                            <div className="text-xs text-ink-muted dark:text-ink-dark-muted text-center py-1">جاري البحث...</div>
+                          )}
+                          {searchResults.length > 0 && (
+                            <div className="max-h-40 overflow-y-auto flex flex-col gap-1">
+                              {searchResults.map((p) => (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={() => selectProductToLink(p)}
+                                  className="w-full min-h-10 text-right px-2 py-1.5 rounded-md hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-sm flex items-center justify-between gap-2 transition-colors cursor-pointer"
+                                >
+                                  <span className="font-semibold text-ink dark:text-ink-dark truncate">{p.name}</span>
+                                  <span className="font-mono tabular-nums text-xs text-brand dark:text-brand-bright font-bold shrink-0">
+                                    {(p.pricePiasters / 100).toFixed(2)} ج.م
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <FieldLabel required>التبويب (القسم)</FieldLabel>
+                      <CustomSelect
+                        value={formCategory}
+                        onChange={(val) => setFormCategory(val)}
+                        options={[
+                          ...categories.map((c) => ({ value: c, label: c })),
+                          { value: '__new__', label: '+ إضافة تبويب جديد...', isAction: true }
+                        ]}
+                      />
+                      {formCategory === '__new__' && (
+                        <input
+                          type="text"
+                          value={formNewCategory}
+                          onChange={(e) => setFormNewCategory(e.target.value)}
+                          placeholder="اكتب اسم التبويب الجديد..."
+                          className={`${QUICK_FIELD} mt-2 border-brand dark:border-brand-bright`}
+                          required
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <FieldLabel>طريقة البيع (الوحدة)</FieldLabel>
+                      <SegmentedTabs
+                        ariaLabel="وحدة الصنف السريع"
+                        fullWidth
+                        value={formUnit === 'kg' ? 'kg' : 'piece'}
+                        onChange={setFormUnit}
+                        options={[
+                          { value: 'piece', label: 'بالقطعة / بالعدد', icon: Package },
+                          { value: 'kg', label: 'بالميزان (كجم)', icon: Scale },
+                        ]}
+                      />
+                    </div>
+                  </ExtrasSection>
                 </div>
 
-                {/* Unit */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-ink-muted mb-1">
-                    طريقة البيع (الوحدة)
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setFormUnit('piece')}
-                      className={`py-1.5 text-xs font-semibold rounded border transition-colors ${
-                        formUnit === 'piece' 
-                          ? 'bg-brand text-white border-brand' 
-                          : 'bg-surface text-ink-muted border-line hover:text-ink'
-                      }`}
-                    >
-                      بالقطعة / بالعدد
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormUnit('kg')}
-                      className={`py-1.5 text-xs font-semibold rounded border transition-colors ${
-                        formUnit === 'kg' 
-                          ? 'bg-brand text-white border-brand' 
-                          : 'bg-surface text-ink-muted border-line hover:text-ink'
-                      }`}
-                    >
-                      بالميزان (كجم)
-                    </button>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex items-center gap-2">
+                <div className="px-5 py-3 border-t border-line dark:border-line-dark flex items-center gap-2 shrink-0">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 py-2 text-xs font-bold rounded bg-brand text-white hover:bg-brand-hover transition-colors shadow-sm disabled:opacity-50"
+                    className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY} flex-1`}
                   >
                     {editingId ? 'حفظ التعديلات' : 'إضافة الصنف'}
                   </button>
                   <button
                     type="button"
                     onClick={requestClose}
-                    className="px-3 py-2 text-xs font-bold rounded bg-surface border border-line text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+                    className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}
                   >
                     إلغاء
                   </button>
                 </div>
               </form>
-            </div>
+            </aside>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-3 hairline-t bg-surface-2 flex items-center justify-between text-xs text-ink-muted">
-          <span>إجمالي الأصناف السريعة المسجلة: {items.length} صنف</span>
-          <button
-            onClick={requestClose}
-            className="px-4 py-1.5 rounded bg-surface border border-line text-ink font-bold hover:bg-surface-2 transition-colors cursor-pointer"
-          >
-            إغلاق
-          </button>
+        <div className="h-14 px-5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between text-sm text-ink-muted dark:text-ink-dark-muted shrink-0">
+          <span className="flex items-center gap-2">
+            <span>إجمالي الأصناف السريعة المسجلة</span>
+            <span className="min-w-7 h-7 px-2 rounded-lg bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark text-sm font-mono font-extrabold tabular-nums flex items-center justify-center">
+              {items.length}
+            </span>
+          </span>
         </div>
       </div>
     </div>
