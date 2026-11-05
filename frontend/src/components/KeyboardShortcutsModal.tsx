@@ -64,10 +64,10 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
   const isWeighing = storeType === 'produce_butchery' || isEnabled('feature_scale_weight');
 
   const storeBadge = useMemo(() => {
-    if (isPharmacy) return { label: 'صيدلية وأدوية', icon: <Pill className="w-3.5 h-3.5 text-paid" /> };
-    if (isClothing) return { label: 'محلات الملابس والأحذية', icon: <Shirt className="w-3.5 h-3.5 text-purple-600" /> };
-    if (isWeighing) return { label: 'أصناف وميزان إلكتروني', icon: <Scale className="w-3.5 h-3.5 text-warn" /> };
-    return { label: 'أنشطة التجزئة العامة', icon: <Sparkles className="w-3.5 h-3.5 text-brand" /> };
+    if (isPharmacy) return { label: 'صيدلية وأدوية', icon: <Pill className="w-3.5 h-3.5 text-paid dark:text-paid-bright" /> };
+    if (isClothing) return { label: 'محلات الملابس والأحذية', icon: <Shirt className="w-3.5 h-3.5 text-brand dark:text-brand-bright" /> };
+    if (isWeighing) return { label: 'أصناف وميزان إلكتروني', icon: <Scale className="w-3.5 h-3.5 text-warn dark:text-warn-bright" /> };
+    return { label: 'أنشطة التجزئة العامة', icon: <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright" /> };
   }, [isPharmacy, isClothing, isWeighing]);
 
   useEffect(() => {
@@ -81,7 +81,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // All Defined Shortcuts with contextual inclusion
+  // Every key below is wired in the code: usePosShortcuts.ts (cashier screen), App.tsx (global), UndoToast.tsx, ReceiptModal.tsx
   const allShortcuts: ShortcutGroup[] = useMemo(() => {
     const groups: ShortcutGroup[] = [
       {
@@ -91,162 +91,142 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
         shortcuts: [
           {
             key: 'F2',
-            label: 'الوقوف الفوري في خانة البحث / الباركود',
-            desc: 'يرجع المؤشر لخانة البحث مباشرة لمسح باركود جديد أو كتابة اسم الصنف بدون ماوس',
+            label: 'الذهاب لخانة البحث / الباركود',
+            desc: 'يرجع المؤشر لخانة البحث ويحدد ما فيها، لتمسح باركود جديد أو تكتب اسم الصنف.',
             category: 'pos',
           },
           {
             key: 'Enter',
-            label: 'إضافة الصنف للسلة / تأكيد الاختيار',
-            desc: 'إضافة الصنف الممسوح بالباركود أو المختار من نتائج البحث إلى الفاتورة فوراً',
+            label: 'إضافة الصنف للسلة',
+            desc: 'يضيف الصنف المكتوب أو الممسوح، أو الصنف المحدد في نتائج البحث.',
             category: 'pos',
           },
           {
-            key: 'F8',
-            label: 'ضبط واختبار قارئ الباركود والسرعة',
-            desc: 'فتح نافذة اختبار قارئ الباركود، سرعة القراءة، ومطابقة الحروف الإنجليزية والعربية',
+            key: '↑ / ↓',
+            label: 'التنقل بين نتائج البحث',
+            desc: 'تحرّك بالأسهم بين الأصناف الظاهرة تحت الخانة ثم اضغط Enter لإضافة الصنف المحدد.',
             category: 'pos',
           },
           {
             key: 'Esc',
-            label: 'إلغاء / إغلاق النوافذ المفتوحة',
-            desc: 'قفل أي نافذة منبثقة أو قائمة مفتوحة والعودة الفورية لحقل البيع والباركود',
+            label: 'إغلاق القائمة أو النافذة المفتوحة',
+            desc: 'يقفل نتائج البحث أو أي نافذة مفتوحة ويرجع لشاشة البيع.',
             category: 'pos',
           },
+          isPharmacy
+            ? {
+                key: 'F8',
+                label: 'البدائل والمثائل الدوائية',
+                desc: 'يقترح بدائل الدواء الناقص بنفس المادة الفعالة مع السعر والمخزون. لإعدادات قارئ الباركود اضغط Ctrl + F8.',
+                category: 'pos' as const,
+                badge: 'صيدلية',
+              }
+            : {
+                key: 'F8',
+                label: 'إعدادات واختبار قارئ الباركود',
+                desc: 'يفتح نافذة ضبط قارئ الباركود واختبار سرعة القراءة (تحتاج صلاحية إعدادات الباركود).',
+                category: 'pos' as const,
+              },
         ],
       },
       {
         id: 'cart_items',
-        title: 'إدارة السلة والكميات والأصناف',
+        title: 'السلة والكميات',
         icon: <ShoppingCart className="w-4 h-4 text-brand dark:text-brand-bright" />,
         shortcuts: [
           {
             key: 'F3',
-            label: 'تعديل كمية أو وزن الصنف الأخير',
-            desc: 'فتح نافذة تغيير كمية الصنف الأخير بسرعة دون الحاجة للنقر عليه بالماوس',
+            label: 'تعديل كمية أو وزن آخر صنف',
+            desc: 'يفتح نافذة الكمية لآخر صنف في السلة (للأصناف بالوزن تفتح نافذة الوزن).',
             category: 'pos',
           },
           {
-            key: '+ / -',
-            label: 'زيادة أو إنقاص الكمية بوحدة واحدة',
-            desc: 'الضغط على زر + يزيد كمية آخر صنف، وزر - يقلل كميته بنقرة كيبورد واحدة',
+            key: '/',
+            label: 'تغيير وحدة البيع لآخر صنف',
+            desc: 'يبدّل آخر صنف بين قطعة / علبة / كرتونة. يعمل والخانة فاضية، وكذلك بزر / في لوحة الأرقام.',
             category: 'pos',
           },
           {
-            key: 'Del',
-            label: 'مسح وحذف آخر صنف من الفاتورة',
-            desc: 'إزالة الصنف الأخير من السلة فوراً في حالة مسح باركود بالخطأ',
+            key: 'F7',
+            label: 'تفريغ السلة وبدء فاتورة جديدة',
+            desc: 'يمسح كل أصناف الفاتورة بعد رسالة تأكيد. لا يفعل شيئاً إذا كانت السلة فاضية.',
+            category: 'pos',
+          },
+          {
+            key: 'Ctrl + Z',
+            label: 'التراجع عن حذف صنف',
+            desc: 'يرجّع الصنف المحذوف قبل ما يختفي شريط "تراجع" أسفل الشاشة.',
             category: 'pos',
           },
           {
             key: 'Ctrl + Q',
-            label: 'تسجيل نواقص سريع في الدفتر',
-            desc: 'فتح نافذة تسجيل صنف ناقص أو طلب مريض مباشرة مع ربطه بالكتالوج ودرجة الأولوية',
+            label: 'تسجيل نواقص سريع',
+            desc: 'يفتح نافذة تسجيل صنف ناقص بسرعة. يعمل أيضاً بالمفتاحين Alt + N.',
             category: 'pos',
             badge: 'النواقص',
-          },
-          {
-            key: 'Ctrl + F',
-            label: 'إظهار شبكة الأصناف السريعة',
-            desc: 'عرض شبكة الأزرار السريعة شائعة البيع بدون باركود (العيش، المشروبات، السجائر)',
-            category: 'pos',
           },
         ],
       },
       {
         id: 'payment_checkout',
-        title: 'المالية والدفع وتقفيل الفاتورة',
+        title: 'الدفع والفاتورة',
         icon: <DollarSign className="w-4 h-4 text-paid dark:text-paid-bright" />,
         shortcuts: [
           {
             key: 'F9',
-            label: 'الدفع الكاش وحساب باقي الزبون',
-            desc: 'فتح شاشة السداد النقدي وحساب المبلغ المدفوع وباقي العميل بدقة متناهية',
+            label: 'شاشة الدفع النقدي',
+            desc: 'يفتح الدفع النقدي وحساب الباقي. والسلة فاضية يعرض آخر فاتورة لإعادة طباعتها (تحتاج صلاحية إعادة الطباعة).',
             category: 'payment',
           },
           {
             key: 'F12',
-            label: 'سداد كاش فوري وطباعة الإيصال',
-            desc: 'تقفيل الفاتورة كاش فوراً وطباعة الوصل بدون فتح أي نوافذ أو لمس الماوس',
+            label: 'بيع كاش فوري وطباعة الإيصال',
+            desc: 'يقفل الفاتورة كاش مباشرة ويطبع الإيصال بدون فتح أي نافذة.',
             category: 'payment',
             badge: 'الأسرع',
           },
           {
             key: 'F10',
-            label: 'سداد فوري بالفيزا / البطاقة البنكية',
-            desc: 'تسجيل عملية البيع كدفع إلكتروني بالفيزا وطباعة إيصال الاستلام مباشرة',
-            category: 'payment',
-          },
-          {
-            key: 'Space',
-            label: 'شاشة الدفع المتعدد (كاش / فيزا / آجل)',
-            desc: 'المسطرة تفتح شاشة خيارات السداد الشاملة لاختيار السداد بالآجل أو تقسيم المبلغ',
+            label: 'دفع فوري بإنستاباي',
+            desc: 'والسلة فيها أصناف: يفتح الدفع بإنستاباي مباشرة. والسلة فاضية: يبدّل بين البيع النقدي والآجل.',
             category: 'payment',
           },
           {
             key: 'F4',
-            label: 'خصم نقدي على إجمالي الفاتورة',
-            desc: 'فتح نافذة عمل خصم مالي بالجنيه أو كنسبة مئوية على إجمالي الفاتورة',
+            label: 'خصم على الفاتورة',
+            desc: 'يفتح نافذة الخصم بالجنيه أو بالنسبة المئوية (تحتاج صلاحية الخصم).',
             category: 'payment',
           },
           {
             key: 'F6',
-            label: 'تعليق الفاتورة واسترجاعها',
-            desc: 'تعليق حساب الزبون الحالي لخدمة زبون آخر، واسترجاع الفاتورة المعلقة بنقرة زر',
-            category: 'payment',
-          },
-          {
-            key: 'F7',
-            label: 'إلغاء الفاتورة والبدء من جديد',
-            desc: 'تصفير السلة بالكامل وبدء فاتورة بيع جديدة بعد التأكيد لمنع أخطاء التصفير',
+            label: 'تعليق الفاتورة أو استرجاع معلقة',
+            desc: 'والسلة فيها أصناف: يعلّقها لخدمة عميل آخر. والسلة فاضية: يفتح قائمة الفواتير المعلقة.',
             category: 'payment',
           },
           {
             key: 'F11',
-            label: 'مرتجع مبيعات (بفاتورة أو بدونها)',
-            desc: 'تسجيل بضاعة مرتجعة من العميل وحساب المبلغ المسترد وخصمه من الدرج',
+            label: 'مرتجع مبيعات',
+            desc: 'يفتح نافذة المرتجع (بفاتورة أو بدونها) ويحسب المبلغ المسترد.',
+            category: 'payment',
+          },
+          {
+            key: 'F9 / Esc',
+            label: 'داخل معاينة الإيصال',
+            desc: 'F9 يطبع الإيصال، وEsc يقفل المعاينة.',
             category: 'payment',
           },
         ],
       },
     ];
 
-    // Store-Specific Shortcuts
+    // Store-specific notes (only keys/buttons that really exist)
     const storeShortcuts: ShortcutItem[] = [];
 
     if (isPharmacy) {
       storeShortcuts.push({
-        key: 'زر البدائل / Alt+B',
-        label: 'محرك البدائل والمثائل الدوائية',
-        desc: 'اقتراح البدائل والمثائل المتطابقة في المادة الفعالة والتركيز للأدوية الناقصة مع الأسعار والمخزون',
-        category: 'store_specific',
-        badge: 'صيدلية',
-      });
-      storeShortcuts.push({
-        key: 'Ctrl + Q',
-        label: 'كشكول النواقص وطلبات المرضى',
-        desc: 'تسجيل الأدوية الناقصة فور طلب العميل وتحديد أولوية الطلب واسم المريض لتحويلها لطلبيات شراء',
-        category: 'store_specific',
-        badge: 'صيدلية',
-      });
-      storeShortcuts.push({
-        key: 'زر تأمين / Alt+I',
-        label: 'التأمين الطبي وروشتات التعاقدات',
-        desc: 'تطبيق نسب التحمل وخصم الأدوية المغطاة تأمينياً وربط الفاتورة بشركة التأمين الطبية',
-        category: 'store_specific',
-        badge: 'صيدلية',
-      });
-      storeShortcuts.push({
-        key: 'زر علاج شهري',
-        label: 'صرف أدوية الأمراض المزمنة للمرضى',
-        desc: 'استدعاء وتنزيل الروشتة الشهرية للمريض المسجل بنقرة زر واحدة دون إعادة مسح كل دواء',
-        category: 'store_specific',
-        badge: 'صيدلية',
-      });
-      storeShortcuts.push({
-        key: 'F8 / كود التشغيلة',
-        label: 'تواريخ الصلاحية وتشغيلات الأدوية',
-        desc: 'تطبيق سياسة FEFO (صرف الأقدم صلاحية أولاً) وحوكمة تشغيلات الباتشات على الرف',
+        key: 'زر',
+        label: 'التأمين الطبي وعلاج شهري',
+        desc: 'زر "تأمين" يطبق نسب التحمل ويربط الفاتورة بالشركة، وزر "علاج شهري" يصرف روشتة المريض المزمن. بالماوس فقط، بدون مفتاح.',
         category: 'store_specific',
         badge: 'صيدلية',
       });
@@ -254,9 +234,9 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
 
     if (isClothing) {
       storeShortcuts.push({
-        key: 'مقاسات وألوان / Alt+M',
-        label: 'مصفوفة المقاسات والألوان للملابس والأحذية',
-        desc: 'اختيار المقاس واللون المتاح في المخزن لكل موديل وتوليد باركود فرعي لكل قياس',
+        key: 'زر',
+        label: 'مصفوفة المقاسات والألوان',
+        desc: 'عند اختيار صنف له مقاسات وألوان تفتح نافذة اختيار المقاس واللون المتاح في المخزن. بالماوس فقط، بدون مفتاح.',
         category: 'store_specific',
         badge: 'ملابس وأحذية',
       });
@@ -264,51 +244,51 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
 
     if (isWeighing) {
       storeShortcuts.push({
-        key: 'مسح باركود الميزان',
-        label: 'قراءة باركود الميزان الإلكتروني التلقائي',
-        desc: 'قراءة باركود الجبن واللحوم والخضار وتفكيك الوزن بالجرام والسعر وإضافته للسلة فوراً',
+        key: 'مسح',
+        label: 'باركود الميزان الإلكتروني',
+        desc: 'امسح باركود الميزان وسيُضاف الصنف بالوزن والسعر المقروئين منه مباشرة.',
         category: 'store_specific',
         badge: 'ميزان',
-      });
-    }
-
-    if (isEnabled('feature_digital_wallets') || isEnabled('feature_epay_services')) {
-      storeShortcuts.push({
-        key: 'Alt + 6 / Alt + 7',
-        label: 'ماكينات فوري والمحافظ الإلكترونية',
-        desc: 'الوصول السريع لماكينات الدفع والتحويلات النقدية وإنستاباي من داخل شاشات العمل',
-        category: 'store_specific',
-        badge: 'خدمات',
       });
     }
 
     if (storeShortcuts.length > 0) {
       groups.push({
         id: 'store_specific',
-        title: `ميزات واختصارات خاصة بنشاطك (${storeBadge.label})`,
+        title: `خاص بنشاطك (${storeBadge.label})`,
         icon: <Zap className="w-4 h-4 text-warn dark:text-warn-bright" />,
         shortcuts: storeShortcuts,
       });
     }
 
-    // Navigation Shortcuts
+    // Navigation shortcuts: only the screens this shop actually has
+    const navShortcuts: ShortcutItem[] = [
+      { key: 'F1', label: 'الرجوع لشاشة البيع', desc: 'من أي شاشة أخرى يرجعك للكاشير. وفي شاشة البيع يفتح هذا الدليل.', category: 'navigation' },
+      { key: 'Alt + 1', label: 'الكاشير وشاشة البيع', desc: 'الرجوع الفوري لشاشة البيع من أي مكان.', category: 'navigation' },
+      { key: 'Alt + 2', label: 'سجل وفواتير البيع', desc: 'استعراض الفواتير السابقة وإعادة طباعتها وعمل مرتجع.', category: 'navigation' },
+      { key: 'Alt + 3', label: 'العملاء وحسابات الشكك', desc: 'كشوف حسابات العملاء وسندات سداد الآجل.', category: 'navigation' },
+      { key: 'Alt + 4', label: 'الأصناف والمخزن', desc: 'الأصناف والأسعار وحركات وجرد المخزن.', category: 'navigation' },
+      { key: 'Alt + 5', label: 'فواتير الشراء والموردين', desc: 'فواتير الاستلام والموردين والنواقص.', category: 'navigation' },
+    ];
+    if (isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets')) {
+      navShortcuts.push({ key: 'Alt + 6', label: 'المحافظ وإنستاباي', desc: 'حسابات المحافظ والتحويلات وإنستاباي.', category: 'navigation' });
+    }
+    if (isEnabled('feature_epay_services')) {
+      navShortcuts.push({ key: 'Alt + 7', label: 'خدمات وماكينات الدفع', desc: 'ماكينات فوري والخدمات المدفوعة.', category: 'navigation' });
+    }
+    if (isEnabled('feature_insurance')) {
+      navShortcuts.push({ key: 'Alt + 8', label: 'التأمين الطبي والتعاقدات', desc: 'الأعضاء والمطالبات والتعاقدات.', category: 'navigation' });
+    }
+    navShortcuts.push(
+      { key: 'Alt + 9', label: 'المتابعة والتقارير', desc: 'لوحة اليوم والوردية وتحليلات الإيرادات والمخزن والعملاء.', category: 'navigation' },
+      { key: 'F5', label: 'تحديث البيانات', desc: 'يحدّث كل البيانات على الشاشة بدون إعادة تشغيل. يعمل أيضاً بـ Ctrl + R.', category: 'navigation' },
+      { key: 'F11', label: 'ملء الشاشة (خارج شاشة البيع)', desc: 'في شاشة البيع F11 هو المرتجع، وملء الشاشة من الزر في الشريط العلوي.', category: 'navigation' },
+    );
     groups.push({
       id: 'navigation',
-      title: 'التنقل السريع بين أقسام النظام (Alt + 1..9)',
+      title: 'التنقل بين الشاشات',
       icon: <Compass className="w-4 h-4 text-brand dark:text-brand-bright" />,
-      shortcuts: [
-        { key: 'Alt + 1', label: 'الكاشير وشاشة البيع (POS)', desc: 'الرجوع الفوري لشاشة البيع الرئيسية من أي مكان', category: 'navigation' },
-        { key: 'Alt + 2', label: 'سجل وفواتير البيع', desc: 'استعراض وطباعة الفواتير السابقة وعمل المرتجعات', category: 'navigation' },
-        { key: 'Alt + 3', label: 'العملاء وحسابات الشكك', desc: 'فتح كشوف حسابات العملاء وسندات السداد الآجل', category: 'navigation' },
-        { key: 'Alt + 4', label: 'الأصناف والمخزن', desc: 'فتح قائمة المنتجات وجرد المخزون وتعديل الأسعار', category: 'navigation' },
-        { key: 'Alt + 5', label: 'فواتير الشراء والموردين', desc: 'فتح شاشات المشتريات وفواتير الاستلام ودليل الشركات', category: 'navigation' },
-        { key: 'Alt + 6', label: 'المحافظ وإنستاباي', desc: 'فتح شاشة حسابات المحافظ والسحب والإيداع', category: 'navigation' },
-        { key: 'Alt + 7', label: 'خدمات وماكينات الدفع', desc: 'فتح شاشة ماكينات فوري والخدمات', category: 'navigation' },
-        { key: 'Alt + 8', label: 'التأمين الطبي والتعاقدات', desc: 'فتح شاشات الأعضاء والمطالبات والتعاقدات', category: 'navigation' },
-        { key: 'Alt + 9', label: 'المتابعة والتقارير', desc: 'لوحة اليوم والوردية وتحليلات الإيرادات والمخزن والعملاء', category: 'navigation' },
-        { key: 'F5', label: 'تحديث شامل لكافة البيانات والعمليات', desc: 'تحديث فوري لقواعد البيانات والمزامنة دون إعادة تشغيل', category: 'navigation' },
-        { key: 'F11', label: 'وضع ملء الشاشة الكامل (Kiosk Mode)', desc: 'تكبير البرنامج بكامل مساحة الشاشة وإخفاء شريط ويندوز', category: 'navigation' },
-      ],
+      shortcuts: navShortcuts,
     });
 
     return groups;
@@ -479,7 +459,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
         </div>
 
         {/* Content Body: Grid of Shortcut Groups */}
-        <div className="p-4 sm:p-5 flex-1 overflow-y-auto max-h-[65vh] flex flex-col gap-4">
+        <div className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
           {filteredGroups.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-center text-ink-muted">
               <Search className="w-8 h-8 text-line-hover" />
@@ -541,7 +521,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
         <div className="h-[48px] bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-between shrink-0 text-xs">
           <div className="flex items-center gap-2 text-ink-muted dark:text-ink-dark-muted hidden sm:flex">
             <span className="w-2 h-2 rounded-full bg-paid animate-pulse" />
-            <span>تقدر تبيع وتقفل الفاتورة 100% من الكيبورد بدون ما تلمس الماوس نهائياً</span>
+            <span>بيع سريع من الكيبورد: F2 للبحث، Enter للإضافة، ثم F12 للدفع كاش وطباعة الإيصال</span>
           </div>
 
           <div className="flex items-center gap-2 mr-auto sm:mr-0">

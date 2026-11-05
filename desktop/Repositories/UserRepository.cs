@@ -227,9 +227,8 @@ namespace RafiqPOS.Repositories
         {
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("id");
 
-            // The full id tail (ids are unique) makes a username collision impossible
-            string idTail = id.StartsWith("usr_", StringComparison.Ordinal) ? id.Substring(4) : id;
-            string suffix = idTail;
+            // The full id without the usr_ prefix (ids are unique) makes a collision on the UNIQUE username impossible
+            string suffix = id.StartsWith("usr_", StringComparison.Ordinal) ? id.Substring(4) : id;
             string now = DateTime.UtcNow.ToString("o");
 
             using (var conn = new SQLiteConnection(_connectionString))

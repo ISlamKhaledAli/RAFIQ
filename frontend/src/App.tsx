@@ -58,6 +58,7 @@ import { useSystemNotifications } from './utils/useSystemNotifications';
 import { useTheme } from './context/useTheme';
 import { invoke } from './bridge/ipc';
 import { useDataSubscription, emitDataChanged } from './utils/eventBus';
+import { PANEL_TOGGLE_BUTTON_CLASS, PANEL_TOGGLE_ICON_CLASS } from './utils/panelToggle';
 import { PosView } from './views/PosView';
 import { EpayView, type EpaySubTab } from './views/epay/EpayView';
 import { WalletsView, type WalletsSubTab } from './views/wallets/WalletsView';
@@ -970,8 +971,9 @@ export default function App() {
         return;
       }
 
-      // 2. F11 for Fullscreen Toggle (always global)
+      // 2. F11 toggles fullscreen everywhere except the cashier screen, where F11 is the sales-return key (header button still works there)
       if (e.key === 'F11') {
+        if (activeTab === 'pos') return;
         e.preventDefault();
         void handleToggleFullscreen();
         return;
@@ -1419,7 +1421,7 @@ export default function App() {
             type="button"
             onClick={handleToggleFullscreen}
             className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
-            title={isFullscreen ? 'الخروج من ملء الشاشة (F11)' : 'ملء الشاشة بالكامل (F11)'}
+            title={isFullscreen ? 'الخروج من ملء الشاشة (F11 خارج شاشة البيع)' : 'ملء الشاشة بالكامل (F11 خارج شاشة البيع)'}
           >
             {isFullscreen ? (
               <Minimize2 className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
@@ -1513,10 +1515,10 @@ export default function App() {
 
       {/* 2. MAIN APP SHELL (Sidebar Navigation + Dynamic Content Canvas) */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Navigation Sidebar (RTL Right side, Perfectly Balanced: 64px collapsed / 240px expanded) */}
+        {/* Navigation Sidebar (RTL Right side, Perfectly Balanced: 64px collapsed / 256px expanded) */}
         <aside 
           className={`${
-            isSidebarCollapsed ? 'w-[64px] px-1.5 py-2.5 items-center' : 'w-[240px] p-2.5'
+            isSidebarCollapsed ? 'w-[64px] px-1.5 py-2.5 items-center' : 'w-[256px] p-2.5'
           } bg-surface dark:bg-surface-dark hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden shadow-2xs`}
         >
           {/* Top Header of Sidebar: Title + Toggle Icon Button */}
@@ -1542,12 +1544,12 @@ export default function App() {
                 });
               }}
               title={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'تصغير القائمة الجانبية'}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft transition-colors cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0"
+              className={PANEL_TOGGLE_BUTTON_CLASS}
             >
               {isSidebarCollapsed ? (
-                <PanelRightOpen className="w-4 h-4 text-brand-dark dark:text-brand-bright" />
+                <PanelRightOpen className={PANEL_TOGGLE_ICON_CLASS} />
               ) : (
-                <PanelRightClose className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright" />
+                <PanelRightClose className={PANEL_TOGGLE_ICON_CLASS} />
               )}
             </button>
           </div>
@@ -1668,7 +1670,7 @@ export default function App() {
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:dark:text-white'}`} />
-                      <span className="truncate whitespace-nowrap">{item.label}</span>
+                      <span className="truncate whitespace-nowrap" title={item.label}>{item.label}</span>
                     </div>
 
                     {(isEpayItem || isWalletsItem || isInsuranceItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem || isRootItem) && (

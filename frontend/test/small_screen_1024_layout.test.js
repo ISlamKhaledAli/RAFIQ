@@ -131,3 +131,14 @@ describe('Story 53 — Feature #159: Small Screen Support (1024×768) (Tasks 159
   });
 
 });
+
+describe('Main sidebar width keeps the longest label fully visible', () => {
+  it('is 256px expanded (64px collapsed) and each top-level label carries a hover title', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const app = readFileSync(fileURLToPath(new URL('../src/App.tsx', import.meta.url)), 'utf8');
+    assert.match(app, /'w-\[64px\] px-1\.5 py-2\.5 items-center' : 'w-\[256px\] p-2\.5'/);
+    assert.match(app, /<span className="truncate whitespace-nowrap" title=\{item\.label\}>\{item\.label\}<\/span>/);
+  });
+});
+

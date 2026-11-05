@@ -19,24 +19,26 @@ describe('POS catalog panel (أصناف المحل) is collapsible like the cate
   });
 
   it('uses the same animation and toggle icons as the categories rail', () => {
-    assert.match(categories, /w-\[4\.75rem\] min-w-\[4\.75rem\]/);
-    assert.match(panel, /flex-none w-\[3\.625rem\] min-w-\[3\.625rem\]/);
+    assert.match(categories, /w-\[3\.625rem\] min-w-\[3\.625rem\]/);
+    assert.match(panel, /flex-none w-\[3\.625rem\] min-w-\[3\.625rem\]'/);
     assert.match(panel, /'flex-1 min-w-\[300px\] p-2\.5 sm:p-3'/);
     assert.match(panel, /transition-all duration-150/);
-    assert.match(panel, /PanelLeftOpen/);
+    assert.ok(!panel.includes('PanelLeftOpen'), 'no icon in the collapsed catalog strip');
     assert.match(panel, /PanelLeftClose/);
     assert.match(panel, /writingMode: 'vertical-rl', transform: 'rotate\(180deg\)'/, 'the vertical title reads bottom-to-top, the Arabic spine direction');
   });
 
-  it('both controls are 40px, titled, labelled and expose aria-expanded', () => {
+  it('the expand strip and the collapse button are titled, labelled and expose aria-expanded', () => {
     assert.match(panel, /aria-expanded=\{false\}\s*aria-label="توسيع أصناف المحل"\s*title="توسيع أصناف المحل"/);
     assert.match(panel, /aria-expanded=\{true\}\s*aria-label="طي أصناف المحل"\s*title="طي أصناف المحل"/);
-    assert.equal((panel.match(/w-10 h-10/g) || []).length, 2);
+    assert.equal((panel.match(/w-10 h-10/g) || []).length, 0, 'the collapse button uses the shared panel toggle size');
   });
 
-  it('the rail shows the real count of the active tab with readable, dark-paired colours', () => {
-    assert.match(panel, /\{displayedCatalogItems\.length\}/);
-    assert.match(panel, /text-sm font-mono font-extrabold[^"]*dark:text-paid-bright/);
+  it('the collapsed strip is only the title text: no icon and no count', () => {
+    const start = panel.indexOf('{isCollapsed && (');
+    const strip = panel.slice(start, panel.indexOf("<div className={isCollapsed ? 'hidden' : 'contents'}>"));
+    assert.ok(start > 0 && strip.includes('أصناف المحل') && strip.includes('onClick={toggleCollapsed}'));
+    assert.ok(!/<Sparkles|<PanelLeft|displayedCatalogItems/.test(strip), 'no icon and no count while collapsed');
     assert.doesNotMatch(panel, /text-\[\d+px\]/);
   });
 
@@ -58,16 +60,47 @@ describe('POS catalog panel (أصناف المحل) is collapsible like the cate
   });
 });
 
-describe('collapsed categories rail shows names, not icons', () => {
-  it('renders RailItem text labels with the count and no icon in the collapsed branch', () => {
-    assert.match(categories, /const RailItem: React\.FC<RailItemProps>/);
-    assert.match(categories, /line-clamp-2/);
-    assert.match(categories, /label="الكل"/);
-    assert.match(categories, /label="الأكثر طلباً"/);
-    assert.match(categories, /label="المفضلة"/);
-    assert.match(categories, /label=\{cat\.name\}/);
-    const rail = categories.slice(categories.indexOf('const RailItem'), categories.indexOf('export const PosCategoriesPanel'));
-    assert.ok(!/IconComponent|<Flame|<Star|<LayoutGrid/.test(rail), 'the rail item has no icon');
+describe('collapsed categories rail shows only the title text', () => {
+  it('collapsed state returns one text-only strip that expands on click: no icons, no items', () => {
+    const start = categories.indexOf('if (isCollapsed) {');
+    const strip = categories.slice(start, categories.indexOf('\n  }\n', start));
+    assert.ok(start > 0 && strip.includes('أقسام المتجر') && strip.includes('onClick={toggleCollapsed}'));
+    assert.match(strip, /writingMode: 'vertical-rl', transform: 'rotate\(180deg\)'/);
+    assert.ok(!/<[A-Z][A-Za-z]*\s+className="w-\d/.test(strip), 'no lucide icon inside the collapsed strip');
+    assert.ok(!/IconComponent|RailItem|onSelectCategory/.test(strip), 'no section items while collapsed');
+  });
+
+  it('the old item rail is gone and the expanded list is unconditional', () => {
+    assert.ok(!categories.includes('RailItem'));
+    assert.ok(!categories.includes('PanelLeftOpen'));
+    assert.equal((categories.match(/isCollapsed/g) || []).length, 3, 'only the state, the toggle and the early-return guard remain');
+  });
+});
+
+describe('expanding the sections rail opens the catalog with it', () => {
+  it('categories call onExpand only when expanding; PosView bumps a signal the catalog panel reacts to', () => {
+    assert.match(categories, /if \(!next\) onExpand\?\.\(\);/);
+    assert.match(posView, /onExpand=\{\(\) => setCatalogExpandSignal\(\(n\) => n \+ 1\)\}/);
+    assert.match(posView, /expandSignal=\{catalogExpandSignal\}/);
+    assert.match(panel, /expandSignal = 0,/);
+    const effect = panel.slice(panel.indexOf('if (expandSignal === 0) return;'), panel.indexOf('const toggleCollapsed'));
+    assert.match(effect, /setIsCollapsed\(false\)/);
+    assert.match(effect, /localStorage\.setItem\(CATALOG_COLLAPSED_KEY, 'false'\)/);
+  });
+});
+
+describe('the three panel toggles share one size', () => {
+  const toggle = read('src', 'utils', 'panelToggle.ts');
+  const app = read('src', 'App.tsx');
+
+  it('one 28px button class and one 16px icon class, no leftover local sizes', () => {
+    assert.match(toggle, /PANEL_TOGGLE_BUTTON_CLASS =\s*'w-7 h-7 /);
+    assert.match(toggle, /PANEL_TOGGLE_ICON_CLASS = 'w-4 h-4'/);
+    for (const [name, src] of [['App', app], ['catalog', panel], ['categories', categories]]) {
+      assert.ok(src.includes('PANEL_TOGGLE_BUTTON_CLASS') && src.includes('PANEL_TOGGLE_ICON_CLASS'), `${name} uses the shared toggle style`);
+    }
+    assert.ok(!/<PanelLeftClose className="w-/.test(panel + categories), 'no local icon size on the panel toggles');
+    assert.ok(!/<PanelRight(Open|Close) className="w-/.test(app), 'no local icon size on the sidebar toggle');
   });
 });
 

@@ -709,17 +709,25 @@ namespace RafiqPOS.Tests.Scenarios
             LoginAs(OwnerId);
             var tree = SecurityService.GetUserTree();
 
-            int rootIndex = -1;
-            int ownerIndex = -1;
             UserDto ownerNode = null;
             for (int i = 0; i < tree.Count; i++)
             {
-                if (tree[i].Role == "root") rootIndex = i;
-                if (tree[i].Id == OwnerId) { ownerIndex = i; ownerNode = tree[i]; }
+                Assert.AreNotEqual("root", tree[i].Role, "حساب المطور مخفي عن المالك في الشجرة");
+                if (tree[i].Id == OwnerId) { ownerNode = tree[i]; }
             }
             Assert.IsNotNull(ownerNode, "المالك جذر الشجرة");
-            Assert.GreaterOrEqual(rootIndex, 0, "حساب المطور ظاهر في الشجرة");
-            Assert.Greater(ownerIndex, rootIndex, "حساب المطور يسبق المالك");
+
+            LoginAs(RootId);
+            var rootTree = SecurityService.GetUserTree();
+            int rootIndex = -1;
+            int ownerIndexForRoot = -1;
+            for (int i = 0; i < rootTree.Count; i++)
+            {
+                if (rootTree[i].Role == "root") rootIndex = i;
+                if (rootTree[i].Id == OwnerId) ownerIndexForRoot = i;
+            }
+            Assert.GreaterOrEqual(rootIndex, 0, "حساب المطور ظاهر في الشجرة لحساب المطور نفسه");
+            Assert.Greater(ownerIndexForRoot, rootIndex, "حساب المطور يسبق المالك");
 
             bool seenCashier = false;
             bool managerFound = false;
