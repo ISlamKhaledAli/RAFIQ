@@ -26,6 +26,7 @@ import { invoke } from '../bridge/ipc';
 import { formatArabicCurrency } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { useFeatures } from '../context/useFeatures';
 
 interface ExcelImportModalProps {
   isOpen: boolean;
@@ -42,6 +43,7 @@ export const ExcelImportModal = ({
   existingProducts,
   categories
 }: ExcelImportModalProps) => {
+  const { isEnabled } = useFeatures();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -555,7 +557,10 @@ export const ExcelImportModal = ({
                               </td>
                               <td className="py-2 px-3 font-bold text-ink dark:text-ink-dark">
                                 <span>{row.data.name}</span>
-                                {(row.data.variantColor || row.data.variantSize) && (
+                                {isEnabled('feature_matrix_variants') &&
+                                 (row.data.variantColor || row.data.variantSize) &&
+                                 !(row.data.variantColor && /^[-—–_./\\]+$/.test(row.data.variantColor.trim())) &&
+                                 !(row.data.variantSize && /^[-—–_./\\]+$/.test(row.data.variantSize.trim())) && (
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-micro bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-medium mr-1.5">
                                     {row.data.variantColor && <span>{row.data.variantColor}</span>}
                                     {row.data.variantColor && row.data.variantSize && <span>/</span>}
