@@ -42,23 +42,56 @@ set "FIXED_DIR_NAME=Microsoft.WebView2.FixedVersionRuntime.109.0.1518.140.x86"
 set "FIXED_VERSION=109.0.1518.140"
 set "WV2_BOOTSTRAPPER=MicrosoftEdgeWebview2Setup.exe"
 set "RELEASE_DIR=%ROOT%desktop\bin\Release"
-set "SETUP_EXE=%ROOT%installer\Output\RafiqPOS_Setup_v1.0.0.exe"
 set "STAGING="
 set "SIGN_ENABLED="
 
-rem Auto-detect pre-existing extracted WebView2 Fixed Runtime 109 if CAB is not present
-if not defined RAFIQ_FIXED109_DIR if not exist "%PREREQ%\%FIXED_CAB%" (
-    if exist "%ROOT%desktop\bin\Debug\runtimes\fixed109\msedgewebview2.exe" (
-        set "RAFIQ_FIXED109_DIR=%ROOT%desktop\bin\Debug\runtimes\fixed109"
-        set "RAFIQ_ALLOW_UNVERIFIED_FIXED109=YES"
-    ) else if exist "%RELEASE_DIR%\runtimes\fixed109\msedgewebview2.exe" (
-        set "RAFIQ_FIXED109_DIR=%RELEASE_DIR%\runtimes\fixed109"
-        set "RAFIQ_ALLOW_UNVERIFIED_FIXED109=YES"
+rem --- Setup Edition Selection (Full Offline vs Slim Modern) ---
+set "BUILD_MODE=FULL"
+if /i "%~1"=="slim" set "BUILD_MODE=SLIM"
+if /i "%~1"=="lite" set "BUILD_MODE=SLIM"
+if /i "%~1"=="full" set "BUILD_MODE=FULL"
+if /i "%RAFIQ_BUILD_SLIM%"=="1" set "BUILD_MODE=SLIM"
+
+if "%~1"=="" if not defined RAFIQ_NO_PAUSE goto :ask_edition
+goto :edition_chosen
+:ask_edition
+echo ========================================================
+echo         اختر نوع ملف التثبيت / Choose Build Edition
+echo ========================================================
+echo  [1] النسخة الشاملة الأوفلاين (Full Offline - Win 7 SP1 .. 11) [الافتراضي]
+echo  [2] النسخة الخفيفة الحديثة (Slim Edition - Win 10 & 11) ~13MB
+echo ========================================================
+set /p "USER_EDITION=أدخل رقم الخيار (1 أو 2) [الافتراضي: 1]: "
+if "%USER_EDITION%"=="2" set "BUILD_MODE=SLIM"
+echo.
+:edition_chosen
+
+if /i "%BUILD_MODE%"=="SLIM" (
+    set "SETUP_EXE=%ROOT%installer\Output\RafiqPOS_Setup_Slim_v1.0.0.exe"
+    set "ISCC_EDITION_FLAG=/DSlim=1"
+    set "EDITION_TITLE=Slim Modern Edition (Windows 10 and 11)"
+) else (
+    set "SETUP_EXE=%ROOT%installer\Output\RafiqPOS_Setup_v1.0.0.exe"
+    set "ISCC_EDITION_FLAG="
+    set "EDITION_TITLE=Full Offline Edition (Windows 7 SP1 .. 11)"
+)
+
+rem Auto-detect pre-existing extracted WebView2 Fixed Runtime 109 if CAB is not present (Full build only)
+if /i not "%BUILD_MODE%"=="SLIM" (
+    if not defined RAFIQ_FIXED109_DIR if not exist "%PREREQ%\%FIXED_CAB%" (
+        if exist "%ROOT%desktop\bin\Debug\runtimes\fixed109\msedgewebview2.exe" (
+            set "RAFIQ_FIXED109_DIR=%ROOT%desktop\bin\Debug\runtimes\fixed109"
+            set "RAFIQ_ALLOW_UNVERIFIED_FIXED109=YES"
+        ) else if exist "%RELEASE_DIR%\runtimes\fixed109\msedgewebview2.exe" (
+            set "RAFIQ_FIXED109_DIR=%RELEASE_DIR%\runtimes\fixed109"
+            set "RAFIQ_ALLOW_UNVERIFIED_FIXED109=YES"
+        )
     )
 )
 
 echo ========================================================
-echo        Rafiq POS - Single Setup Builder (Inno Setup)
+echo        Rafiq POS - Setup Builder (Inno Setup)
+echo        Edition: %EDITION_TITLE%
 echo ========================================================
 echo.
 
@@ -115,13 +148,19 @@ if not defined SIGN_ENABLED echo       Signing : disabled (RAFIQ_SIGN_THUMBPRINT
 
 rem ---------------------------------------------------------------------
 echo.
-echo [2/8] Verifying downloaded prerequisites (SHA256 + Microsoft signature) in: %PREREQ%
+echo [2/8] Verifying downloaded prerequisites in: %PREREQ%
 rem ---------------------------------------------------------------------
 if not exist "%SUMS%" goto :err_sums
-call :check_hash "%PREREQ%\%DOTNET_FILE%" "%DOTNET_FILE%" || goto :fail
-call :check_sig "%PREREQ%\%DOTNET_FILE%" || goto :fail
 call :check_hash "%PREREQ%\%WV2_BOOTSTRAPPER%" "%WV2_BOOTSTRAPPER%" || goto :fail
 call :check_sig "%PREREQ%\%WV2_BOOTSTRAPPER%" || goto :fail
+
+if /i "%BUILD_MODE%"=="SLIM" (
+    echo       Slim build selected - skipping .NET 4.8 and Fixed 109 prerequisites verification.
+    goto :early_done
+)
+
+call :check_hash "%PREREQ%\%DOTNET_FILE%" "%DOTNET_FILE%" || goto :fail
+call :check_sig "%PREREQ%\%DOTNET_FILE%" || goto :fail
 if defined RAFIQ_FIXED109_DIR goto :early_fixed_dir
 call :check_hash "%PREREQ%\%FIXED_CAB%" "%FIXED_CAB%" || goto :fail
 goto :early_done
@@ -173,10 +212,11 @@ if exist "%RELEASE_DIR%\dist" rmdir /S /Q "%RELEASE_DIR%\dist"
 "%XCOPY%" /E /I /Y /Q "%ROOT%frontend\dist" "%RELEASE_DIR%\dist" >nul
 if errorlevel 1 goto :err_dist
 if not exist "%RELEASE_DIR%\dist\index.html" goto :err_dist
+if exist "%RELEASE_DIR%\dist\videos" rmdir /S /Q "%RELEASE_DIR%\dist\videos"
 
 rem ---------------------------------------------------------------------
 echo.
-echo [7/8] Staging prerequisites and bundling WebView2 Fixed Runtime 109 x86...
+echo [7/8] Staging prerequisites and dependencies...
 rem  npm/MSBuild ran third-party code since step 2, so the files are copied into a fresh staging folder and
 rem  re-verified there; ISCC and the CAB extraction only use the verified staged copies.
 rem ---------------------------------------------------------------------
@@ -186,12 +226,18 @@ mkdir "%STAGING%" 2>nul
 if errorlevel 1 goto :err_staging
 if not exist "%STAGING%\" goto :err_staging
 
-copy /Y /B "%PREREQ%\%DOTNET_FILE%" "%STAGING%\%DOTNET_FILE%" >nul || goto :err_staging_copy
 copy /Y /B "%PREREQ%\%WV2_BOOTSTRAPPER%" "%STAGING%\%WV2_BOOTSTRAPPER%" >nul || goto :err_staging_copy
-call :check_hash "%STAGING%\%DOTNET_FILE%" "%DOTNET_FILE%" || goto :fail
-call :check_sig "%STAGING%\%DOTNET_FILE%" || goto :fail
 call :check_hash "%STAGING%\%WV2_BOOTSTRAPPER%" "%WV2_BOOTSTRAPPER%" || goto :fail
 call :check_sig "%STAGING%\%WV2_BOOTSTRAPPER%" || goto :fail
+
+if /i "%BUILD_MODE%"=="SLIM" (
+    echo       Slim build: .NET 4.8 offline installer and Fixed 109 runtime omitted.
+    goto :staging_cleanup
+)
+
+copy /Y /B "%PREREQ%\%DOTNET_FILE%" "%STAGING%\%DOTNET_FILE%" >nul || goto :err_staging_copy
+call :check_hash "%STAGING%\%DOTNET_FILE%" "%DOTNET_FILE%" || goto :fail
+call :check_sig "%STAGING%\%DOTNET_FILE%" || goto :fail
 
 set "FIXED_SOURCE="
 if defined RAFIQ_FIXED109_DIR goto :fixed_from_dir
@@ -220,6 +266,7 @@ if errorlevel 1 goto :err_fixed_copy
 rem Re-verify the copy that ISCC will pack
 call :check_tree "%RELEASE_DIR%\runtimes\fixed109" || goto :fail
 
+:staging_cleanup
 rem Never package developer data (Audit F-33): remove any database/WAL/backup files from the Release folder
 if exist "%RELEASE_DIR%\data" del /F /Q "%RELEASE_DIR%\data\*.db" "%RELEASE_DIR%\data\*.db-wal" "%RELEASE_DIR%\data\*.db-shm" 2>nul
 if exist "%RELEASE_DIR%\data\backups" rmdir /S /Q "%RELEASE_DIR%\data\backups"
@@ -237,11 +284,11 @@ echo [8/8] Packaging Single Executable via Inno Setup...
 rem ---------------------------------------------------------------------
 if exist "%SETUP_EXE%" del /F /Q "%SETUP_EXE%"
 if defined SIGN_ENABLED goto :iscc_signed
-"%RAFIQ_ISCC%" "/DPrereqDir=%STAGING%" "installer\RafiqPOS_Setup.iss"
+"%RAFIQ_ISCC%" "/DPrereqDir=%STAGING%" %ISCC_EDITION_FLAG% "installer\RafiqPOS_Setup.iss"
 if errorlevel 1 goto :err_iscc_failed
 goto :iscc_done
 :iscc_signed
-"%RAFIQ_ISCC%" "/DPrereqDir=%STAGING%" "/DSignEnabled=1" "/Srafiqsign=$q%RAFIQ_SIGNTOOL%$q sign /sha1 %RAFIQ_SIGN_THUMBPRINT% /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d $qRafiq POS$q $f" "installer\RafiqPOS_Setup.iss"
+"%RAFIQ_ISCC%" "/DPrereqDir=%STAGING%" %ISCC_EDITION_FLAG% "/DSignEnabled=1" "/Srafiqsign=$q%RAFIQ_SIGNTOOL%$q sign /sha1 %RAFIQ_SIGN_THUMBPRINT% /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d $qRafiq POS$q $f" "installer\RafiqPOS_Setup.iss"
 if errorlevel 1 goto :err_sign_failed
 "%RAFIQ_SIGNTOOL%" verify /pa /q "%SETUP_EXE%"
 if errorlevel 1 goto :err_sign_failed
@@ -255,7 +302,8 @@ echo.
 echo ========================================================
 echo   [SUCCESS] Rafiq POS Setup Created Successfully!
 echo   تم إنشاء ملف التثبيت بنجاح
-echo   Location: installer\Output\RafiqPOS_Setup_v1.0.0.exe
+echo   Edition : %EDITION_TITLE%
+echo   Location: %SETUP_EXE%
 echo   Size    : %SETUP_SIZE% bytes
 if not defined SIGN_ENABLED echo   Signed  : NO
 if defined SIGN_ENABLED echo   Signed  : YES

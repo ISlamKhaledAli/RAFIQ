@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$Version = "1.1.0"
 )
 
@@ -56,12 +56,23 @@ if (Test-Path (Join-Path $releaseBin "x86")) {
     Copy-Item (Join-Path $releaseBin "x86") -Destination $stagingDir -Recurse -Force
 }
 
-robocopy (Join-Path $releaseBin "dist") (Join-Path $stagingDir "dist") /E | Out-Null
+# Exclude heavy static assets (videos and offline drug catalog) from lightweight OTA updates.
+# These assets are delivered in the initial offline Setup and do not need re-downloading on code updates.
+robocopy (Join-Path $releaseBin "dist") (Join-Path $stagingDir "dist") /E /XD "videos" /XF "دليل_الأدوية_المصرية_الشامل.xlsx" | Out-Null
 
 # Strict Database Inviolability: Remove any accidental DB files
 Get-ChildItem -Path $stagingDir -Include "*.db", "*.db-wal", "*.db-shm" -Recurse | Remove-Item -Force
 if (Test-Path (Join-Path $stagingDir "data")) {
     Remove-Item (Join-Path $stagingDir "data") -Recurse -Force
+}
+
+# Strict Clean-up: Ensure videos and large drug catalog are not present in staging
+if (Test-Path (Join-Path $stagingDir "dist\videos")) {
+    Remove-Item (Join-Path $stagingDir "dist\videos") -Recurse -Force
+}
+$drugExcelStaging = Join-Path $stagingDir "dist\دليل_الأدوية_المصرية_الشامل.xlsx"
+if (Test-Path $drugExcelStaging) {
+    Remove-Item $drugExcelStaging -Force
 }
 
 # 5. Compress into ZIP archive
