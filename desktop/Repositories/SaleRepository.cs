@@ -106,8 +106,9 @@ namespace RafiqPOS.Repositories
                         int nextInvoiceNumber = (int)_counters.GetNextInvoiceNumber(conn, trans);
                         sale.InvoiceNumber = nextInvoiceNumber;
 
-                        // Story 139: Calculate daily Order Call Number (1..999)
-                        if (sale.OrderCallNumber <= 0)
+                        // Story 139: Calculate daily Order Call Number (1..999); supermarket sales (order type 'retail') have no call number and must not consume the counter
+                        bool isRetailSale = string.Equals((sale.OrderType ?? "").Trim(), "retail", StringComparison.OrdinalIgnoreCase);
+                        if (sale.OrderCallNumber <= 0 && !isRetailSale)
                         {
                             try
                             {

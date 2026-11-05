@@ -70,7 +70,10 @@ describe('Security hardening: forced PIN change and PIN policy', () => {
     assert.deepEqual(getAllowedSettingsSubTabs({ isRoot: false, isAdmin: false, hasPermission: only(['settings.printer']) }), ['printer']);
     assert.deepEqual(getAllowedSettingsSubTabs({ isRoot: false, isAdmin: true, hasPermission: only([]) }), ['profile', 'policies', 'printer', 'backup']);
     assert.equal(getAllowedSettingsSubTabs({ isRoot: false, isAdmin: false, hasPermission: only(['settings.store', 'settings.printer']) }).includes('policies'), false, 'policies are admin-only on the server');
-    assert.ok(getAllowedSettingsSubTabs({ isRoot: true, isAdmin: true, hasPermission: only([]) }).includes('security'));
+    for (const rootOnly of ['features', 'scanner', 'security', 'system', 'demo']) {
+      assert.equal(getAllowedSettingsSubTabs({ isRoot: true, isAdmin: true, hasPermission: () => true }).includes(rootOnly), false, `${rootOnly} moved to the root console, not a settings tab`);
+    }
+    assert.deepEqual(getAllowedSettingsSubTabs({ isRoot: true, isAdmin: true, hasPermission: only([]) }), ['profile', 'policies', 'printer', 'backup']);
   });
 
   it('forced PIN change uses security:setPin only for the store owner account (R4)', () => {

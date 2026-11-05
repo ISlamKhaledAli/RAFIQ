@@ -14,12 +14,17 @@ import {
   buildReceiptModel,
   buildSampleReceiptSale,
   computeReceiptTotals,
+  encodeInvoiceBarcode,
+  cleanReceiptItemName,
+  formatInvoiceBarcodeValue,
   formatReceiptDateTime,
   formatReceiptMoney,
   formatReceiptQuantity,
   formatReceiptQuantityWithUnit,
   groupThousands,
+  layoutReceiptBarcode,
   layoutReceiptTable,
+  normalizeInvoiceSearchText,
   normalizeReceiptText,
   receiptLineGross,
   receiptTextLimitError,
@@ -33,7 +38,7 @@ import { pickSignatureImageIndex } from '../src/utils/signatureImage.ts';
 
 /**
  * Supermarket receipt layout (preview twin of PrinterService.cs): integer money, measured table layout,
- * totals straight from the stored sale, no internal ids / barcode / emoji.
+ * totals straight from the stored sale, a real invoice barcode (digits only), no internal ids / emoji.
  */
 
 const STORE = { name: 'سوبر ماركت الأمل', phone: '01012345678', address: 'القاهرة', taxNumber: '123-456-789', header: '', footer: '', signature: '' };
@@ -120,10 +125,33 @@ test('totals: displayed gross lines add up to the stored subtotal and the identi
   assert.equal(totals.subtotal - totals.discountTotal, totals.total);
   assert.equal(totals.total, sale.totalPiasters); // straight from the model
   assert.equal(lines[1].qty, '1.250 كجم');
-  assert.equal(lines[1].discount, '5.00');
-  assert.equal(lines[0].discount, '');
-  assert.equal(totals.itemCount, 3);
-  assert.equal(totals.pieceCount, 2 + 12); // the weighed line is not counted as pieces
+  assert.ok(!('discount' in lines[1]), 'a line discount is never printed under its product');
+  assert.ok(!('itemCount' in totals) && !('pieceCount' in totals), 'no item / piece counts on the invoice');
+});
+
+test('money: printed gross lines add up to the pre-discount row, then ONE total discount row, then the final total', () => {
+  // two line discounts + an invoice discount + a weighed line
+  const items = [
+    item('لبن', 2000, 4200, { discountPiasters: 300 }),
+    item('جبنة', 1250, 16400, { unit: 'kg', discountPiasters: 500 }),
+    item('سكر', 12000, 2700),
+  ];
+  const sale = makeSale(items, { invoiceDiscount: 1500 });
+  const model = buildReceiptModel(sale, STORE);
+
+  const cents = (text) => Number(text.replace(/,/g, '').replace('.', ''));
+  const printedLineSum = model.lines.reduce((sum, line) => sum + cents(line.total), 0);
+  const rows = Object.fromEntries(model.adjustmentRows.map((r) => [r.label, cents(r.value)]));
+
+  assert.equal(printedLineSum, rows['الإجمالي قبل الخصم'], 'printed line totals sum to the pre-discount subtotal');
+  assert.equal(rows['إجمالي الخصم'], -(300 + 500 + 1500), 'one row sums line + invoice discounts');
+  assert.equal(model.adjustmentRows.filter((r) => /الخصم/.test(r.label) && r.label !== 'الإجمالي قبل الخصم').length, 1, 'exactly one discount row');
+  assert.equal(rows['الإجمالي قبل الخصم'] + rows['إجمالي الخصم'], cents(model.grandTotal), 'total = subtotal - total discount');
+
+  // with service charge and delivery fee the identity still reads top to bottom
+  const fees = buildReceiptModel(makeSale(items, { invoiceDiscount: 1500, serviceCharge: 1200, deliveryFee: 2000 }), STORE);
+  const feeRows = Object.fromEntries(fees.adjustmentRows.map((r) => [r.label, cents(r.value)]));
+  assert.equal(feeRows['الإجمالي قبل الخصم'] + feeRows['إجمالي الخصم'] + feeRows['خدمة الصالة'] + feeRows['رسوم التوصيل'], cents(fees.grandTotal));
 });
 
 test('payments: mixed cash + card with change, credit remainder, e-payment fee, deposit to account', () => {
@@ -166,7 +194,7 @@ test('payments: mixed cash + card with change, credit remainder, e-payment fee, 
   assert.equal(walkIn.deposited, 0);
 });
 
-test('model sections: only what is needed, no zero lines, no internal ids, no barcode', () => {
+test('model sections: only what is needed, no zero lines, no internal ids, a real invoice barcode', () => {
   const plain = buildReceiptModel(makeSale([item('خبز', 5000, 100)]), STORE);
   assert.equal(plain.adjustmentRows.length, 0, 'no discount/fees: no "before discount" duplicate of the total');
   assert.equal(plain.taxText, '');
@@ -185,7 +213,7 @@ test('model sections: only what is needed, no zero lines, no internal ids, no ba
 
   const serialized = JSON.stringify(plain);
   assert.ok(!serialized.includes('sale_internal_guid_123'), 'internal sale id must never reach the paper');
-  assert.ok(!/barcode|00001042/i.test(serialized), 'no invoice barcode block');
+  assert.deepEqual(plain.barcode, { value: '00001042' }, 'the invoice number as 8 digits is the barcode');
   assert.ok(!/\p{Extended_Pictographic}/u.test(serialized), 'no emoji / symbol glyphs on thermal paper');
 });
 
@@ -199,7 +227,7 @@ test('model: discount, fees, VAT, e-payment fee and credit rows', () => {
     paidPiasters: 0,
   };
   const model = buildReceiptModel(sale, STORE);
-  assert.deepEqual(model.adjustmentRows.map((r) => r.label), ['الإجمالي قبل الخصم', 'الخصم', 'خدمة الصالة', 'رسوم التوصيل']);
+  assert.deepEqual(model.adjustmentRows.map((r) => r.label), ['الإجمالي قبل الخصم', 'إجمالي الخصم', 'خدمة الصالة', 'رسوم التوصيل']);
   assert.equal(model.adjustmentRows[1].value, '-15.00');
   assert.equal(model.taxText, '40.00');
   assert.equal(model.epayFeeText, '0.70');
@@ -233,7 +261,6 @@ test('long names are never cut and a huge basket has no cap', () => {
   for (let i = 1; i <= 250; i += 1) many.push(item(`صنف ${i}`, 1000, 100 + i));
   const manySale = makeSale(many);
   assert.equal(buildReceiptModel(manySale, STORE).lines.length, 250);
-  assert.equal(computeReceiptTotals(manySale).itemCount, 250);
 });
 
 test('table layout: short names share the row on 80mm, long names and huge amounts fall back', () => {
@@ -274,6 +301,14 @@ test('labels, footer and signature resolution', () => {
 test('order meta only appears for dine-in / delivery / table / call number', () => {
   assert.equal(buildOrderMetaText({ totalPiasters: 0, orderType: 'takeaway' }), '');
   assert.equal(buildOrderMetaText({ totalPiasters: 0, orderType: 'dine_in', tableName: '5', waiterName: 'علي', orderCallNumber: 12, guestsCount: 3 }), 'نداء 12 - طاولة 5 - الكابتن: علي - ضيوف: 3');
+  // the cafe call number never reaches a supermarket sale, even when the host stored one
+  assert.equal(buildOrderMetaText({ totalPiasters: 0, orderType: 'retail', orderCallNumber: 12 }), '');
+  assert.equal(buildOrderMetaText({ totalPiasters: 0, orderCallNumber: 12 }), '');
+  assert.equal(buildOrderMetaText({ totalPiasters: 0, orderType: 'takeaway', orderCallNumber: 7 }), 'نداء 7');
+  assert.equal(buildOrderMetaText({ totalPiasters: 0, orderType: 'delivery', orderCallNumber: 7 }), 'نداء 7 - توصيل');
+  const retail = buildReceiptModel({ ...makeSale([item('خبز', 1000, 100)]), orderType: 'retail', orderCallNumber: 41 }, STORE);
+  assert.equal(retail.orderMeta, '');
+  assert.ok(!JSON.stringify(retail).includes('نداء'), 'no call number anywhere on a supermarket invoice');
 });
 
 test('sample sale used by the store-profile preview is internally consistent', () => {
@@ -296,6 +331,71 @@ test('ReceiptModal prints the stored sale by id and no longer truncates names or
   const paper = fs.readFileSync(path.resolve('src', 'components', 'ReceiptPaper.tsx'), 'utf8');
   assert.ok(!paper.includes('truncate'), 'product names wrap, they are never cut');
   assert.ok(!/bg-black h-full/.test(paper), 'no simulated barcode strip');
+  assert.ok(paper.includes('encodeInvoiceBarcode(value)') && paper.includes('model.barcode &&'), 'the preview draws the real Code 128 bars of the model barcode');
+  assert.ok(paper.indexOf('model.barcode &&') > paper.indexOf('model.paymentRows.length') && paper.indexOf('model.barcode &&') < paper.indexOf('model.coldChainNotice &&'), 'barcode sits after the payments and before the footer');
+});
+
+test('invoice barcode value: 8 digits, digits only, one formatter (C# twin asserted in S53)', () => {
+  const table = [[1, '00000001'], [42, '00000042'], [1042, '00001042'], [99999999, '99999999'], [100000000, '100000000'], [2147483647, '2147483647'], [0, ''], [-5, ''], [null, ''], [undefined, ''], [Number.NaN, '']];
+  for (const [input, expected] of table) assert.equal(formatInvoiceBarcodeValue(input), expected, String(input));
+  assert.equal(formatInvoiceBarcodeValue(1042.9), '00001042', 'fractions are cut, never rounded up to another invoice');
+  assert.ok(/^\d+$/.test(formatInvoiceBarcodeValue(1042)), 'digits only: Arabic keyboard layouts garble letters');
+});
+
+test('model barcode: only a valid invoice number on a real sale (original or reprint)', () => {
+  const sale = makeSale([item('خبز', 1000, 100)]);
+  assert.deepEqual(buildReceiptModel(sale, STORE).barcode, { value: '00001042' });
+  assert.deepEqual(buildReceiptModel(sale, STORE, { isCopy: true }).barcode, { value: '00001042' }, 'a reprint carries the same barcode');
+  assert.deepEqual(buildReceiptModel({ ...sale, invoiceNumber: 123456789 }, STORE).barcode, { value: '123456789' }, 'longer numbers use the full number');
+  for (const invoiceNumber of [0, -1, null, undefined]) {
+    assert.equal(buildReceiptModel({ ...sale, invoiceNumber }, STORE).barcode, null, `invoiceNumber ${invoiceNumber}`);
+  }
+  assert.equal(buildReceiptModel({ ...sale, id: 'PRE-BILL' }, STORE).barcode, null, 'pre-bill is not an invoice');
+  assert.equal(buildReceiptModel({ ...sale, status: 'TEST_PILOT' }, STORE).barcode, null, 'a training receipt is not stored, nothing to find');
+});
+
+test('invoice barcode bits: Code 128 subset C, golden strings shared with the C# encoder (S53)', () => {
+  assert.equal(encodeInvoiceBarcode('00001042'), '1101001110011011001100110110011001100100010010110111000111101010001100011101011');
+  assert.equal(encodeInvoiceBarcode('12345678'), '1101001110010110011100100010110001110001011011000010100100011101101100011101011');
+  assert.equal(encodeInvoiceBarcode('00001042').length, 79);
+  assert.equal(encodeInvoiceBarcode('1234567890').length, 90);
+  assert.equal(encodeInvoiceBarcode('123456789').length, 101);
+  assert.equal(encodeInvoiceBarcode(''), '');
+});
+
+test('invoice barcode layout: whole-dot modules, quiet zones, inside the printable width (C# twin asserted in S53)', () => {
+  const table = [[79, '80mm', 5], [79, '57mm', 3], [90, '80mm', 5], [90, '57mm', 3], [101, '80mm', 4], [101, '57mm', 3]];
+  for (const [modules, paper, moduleDots] of table) {
+    const layout = layoutReceiptBarcode(modules, paper);
+    assert.equal(layout.moduleDots, moduleDots, `${modules} / ${paper}`);
+    assert.ok(Number.isInteger(layout.moduleDots), 'never a fractional module (blurry bars)');
+    assert.equal(layout.widthDots, modules * moduleDots);
+    const paperDots = paper === '80mm' ? 576 : 384;
+    assert.ok((modules + 20) * moduleDots <= paperDots - 20, 'bars plus a 10-module quiet zone on each side fit the paper');
+  }
+  assert.equal(layoutReceiptBarcode(79, '80mm').heightDots, 68, '8.4 mm on 80mm paper');
+  assert.equal(layoutReceiptBarcode(79, '57mm').heightDots, 60, '7.4 mm on 57mm paper');
+});
+
+test('invoice search text: a scanned 8-digit barcode finds the invoice, other searches are untouched', () => {
+  assert.equal(normalizeInvoiceSearchText('00001042'), '1042');
+  assert.equal(normalizeInvoiceSearchText(' 00001042 '), '1042');
+  assert.equal(normalizeInvoiceSearchText('#00001042'), '1042');
+  assert.equal(normalizeInvoiceSearchText('12345678'), '12345678');
+  assert.equal(normalizeInvoiceSearchText('1042'), '1042');
+  assert.equal(normalizeInvoiceSearchText('#1042'), '1042');
+  assert.equal(normalizeInvoiceSearchText('00000000'), '00000000', 'no invoice zero');
+  assert.equal(normalizeInvoiceSearchText('01012345678'), '01012345678', 'a phone number keeps its leading zero');
+  assert.equal(normalizeInvoiceSearchText('أحمد'), 'أحمد');
+  assert.equal(normalizeInvoiceSearchText(String(formatInvoiceBarcodeValue(42))), '42', 'round trip with the barcode value');
+});
+
+test('SalesHistoryView resolves a scan: keeps the search box focused, Enter searches, the padded value is normalised', () => {
+  const view = fs.readFileSync(path.resolve('src', 'views', 'SalesHistoryView.tsx'), 'utf8');
+  assert.ok(view.includes('ref={searchInputRef}') && view.includes('searchInputRef.current?.focus()'), 'the search box takes the scanner input');
+  assert.ok(/e\.key === 'Enter'[\s\S]{0,60}handleSearchInvoice\(\)/.test(view), 'the Enter a wedge scanner sends runs the search');
+  assert.ok(view.includes('const raw = normalizeInvoiceSearchText(searchQuery)'), 'the search strips the padding zeros before parseInt / sales:search');
+  assert.ok(view.includes('normalizeInvoiceSearchText(searchQuery).toLowerCase()'), 'the list filter uses the same normalised text');
 });
 
 test('developer signature default: three lines, no emoji, every older default migrates', () => {
@@ -391,7 +491,7 @@ test('thermal printer: resolves the signature image per receipt and draws it abo
   assert.ok(body.includes('DrawSignatureBanner(p, store.SignatureImage, pickKey)'), 'the invoice (or return) id picks the image');
   assert.ok(/DrawReceiptSignature\(p, store, hasFooterBlock, isPreBill \? "" : sale\.Id\)/.test(cs) && cs.includes('DrawReceiptSignature(p, store, true, returnObj.Id)'), 'both call sites pass their id (the pre-bill passes an empty key)');
   assert.ok(body.includes('p.WrapLines(store.Signature, p.Small, p.Center'), 'all signature lines are plain small text, measured then drawn');
-  assert.ok(body.indexOf('p.Y += p.LineH(p.Small) * 1.5f;') < body.indexOf('DrawSignatureBanner'), 'the one-and-a-half line gap comes before the image');
+  assert.ok(body.indexOf('p.Y += p.LineH(p.Small);') < body.indexOf('DrawSignatureBanner'), 'the one-line gap comes before the image');
   const draw = cs.slice(cs.indexOf('private static void DrawSignatureBanner'), start);
   assert.ok(draw.includes('p.G.DrawImage(banner') && draw.includes('p.Y += drawH + 3f;'), 'advances p.Y so the measure pass and the draw pass agree');
   assert.ok(draw.includes('p.Usable * 0.70f / banner.Width') && draw.includes('p.LineH(p.Small) * 4.5f / banner.Height'), 'width 70% and height capped at 4.5 small lines');
@@ -501,9 +601,12 @@ test('ReceiptPaper renders every line as its own element and the editors are mul
   assert.ok(paper.includes('model.headerLines.map') && paper.includes('model.footerLines.map') && paper.includes('model.signatureLines.map'));
 
   const tab = fs.readFileSync(path.resolve('src', 'views', 'settings', 'StoreProfileTab.tsx'), 'utf8');
-  assert.ok(tab.includes('<textarea'), 'header / footer / signature are textareas');
-  assert.ok(tab.includes('اضغط Enter للانتقال لسطر جديد'), 'the Enter hint is shown');
-  assert.ok(!tab.includes('تطوير: م. إسلام خالد'), 'no stale single-line signature in the editor');
+  const parts = fs.readFileSync(path.resolve('src', 'views', 'settings', 'settingsParts.tsx'), 'utf8');
+  assert.ok(parts.includes('<textarea') && tab.includes('<ReceiptTextField'), 'header / footer are textareas (the shared ReceiptTextField)');
+  const rootReceipt = fs.readFileSync(path.resolve('src', 'views', 'root', 'RootReceiptPage.tsx'), 'utf8');
+  assert.ok(rootReceipt.includes('<ReceiptTextField') && rootReceipt.includes('rows={4}'), 'the signature is a multi-line textarea on the root receipt page');
+  assert.ok(parts.includes('اضغط Enter') || tab.includes('اضغط Enter للانتقال لسطر جديد'), 'the Enter hint is shown');
+  assert.ok(!tab.includes('تطوير: م. إسلام خالد') && !rootReceipt.includes('تطوير: م. إسلام خالد'), 'no stale single-line signature in the editor');
 });
 
 test('store profile tab keeps identity + receipt only; policies live in their own admin screen', () => {
@@ -521,4 +624,105 @@ test('store profile tab keeps identity + receipt only; policies live in their ow
     const idx = view.indexOf(key + ':');
     assert.ok(idx > view.indexOf('handleSavePolicies'), `${key} is saved by the policies save`);
   }
+});
+
+test('GDI invoice: no per-line discount, no counts, one total discount row, call number gated by order type', () => {
+  const cs = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'PrinterService.cs'), 'utf8');
+  for (const gone of ['عدد الأصناف', 'عدد القطع', 'line.Discount', 'public string Discount', 'ItemCount', 'PieceCount', 'IsMeasureUnitLabel', 'LabelValue("خصم"']) {
+    assert.ok(!cs.includes(gone), `${gone} is removed from the printer`);
+  }
+  assert.ok(cs.includes('"إجمالي الخصم", "-" + FormatReceiptMoney(t.DiscountTotal)'), 'the single discount row is labelled and signed');
+  assert.ok(!cs.includes('("الخصم", "-"'), 'the old unlabelled discount row is gone');
+  assert.ok(cs.includes('line.Total = FormatReceiptMoney(GetReceiptLineGross(item));'), 'printed line totals stay gross (qty x unit price)');
+  assert.ok(cs.includes('if (rows.Count > 0) p.Separator(p.Dashed, 0f, 3f);'), 'the dashed rule before the adjustment rows exists only when there are rows (no double rule)');
+  assert.ok(cs.includes('bool hasCall = sale.OrderCallNumber > 0 && (orderType == "dine_in" || orderType == "takeaway" || orderType == "delivery");'), 'a retail sale never prints the call number');
+
+  const paper = fs.readFileSync(path.resolve('src', 'components', 'ReceiptPaper.tsx'), 'utf8');
+  assert.ok(!/itemsCountText|piecesCountText|line\.discount/.test(paper), 'the preview has no counts row and no per-line discount');
+  assert.ok(paper.includes('model.adjustmentRows.length > 0 &&'), 'the preview draws the rule + rows only when there are rows');
+
+  const repo = fs.readFileSync(path.resolve('..', 'desktop', 'Repositories', 'SaleRepository.cs'), 'utf8');
+  assert.ok(repo.includes('if (sale.OrderCallNumber <= 0 && !isRetailSale)'), 'a retail sale does not consume the order_call_number counter');
+});
+
+test('GDI columns: every cell is measured with the family it is drawn with, plus a safety pad, and never clipped', () => {
+  const cs = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'PrinterService.cs'), 'utf8');
+  assert.ok(cs.includes('public const float CellPad = 3f;'));
+  const cell = cs.slice(cs.indexOf('public float CellW('), cs.indexOf('public float LineH('));
+  assert.ok(cell.includes('MeasureString(text, font, new PointF(0f, 0f), RtlNoWrap)'), 'Arabic cells are measured with the RtlNoWrap format they are drawn with');
+  assert.ok(cell.includes('+ CellPad'));
+  for (const name of ['RtlNoWrap', 'Left', 'Right']) {
+    const line = cs.split('\n').find((l) => l.includes(`${name} = new StringFormat`) || l.includes(`${name}.FormatFlags |=`));
+    assert.ok(line && line.includes('StringFormatFlags.NoClip'), `${name} never clips glyph overhang`);
+  }
+  const lines = cs.slice(cs.indexOf('private static void DrawReceiptLines'), cs.indexOf('private static List<ReceiptLine> BuildSaleReceiptLines'));
+  assert.ok(lines.includes('float qtyW = p.CellW("الكمية", p.Bold);'), 'the qty header column is measured like it is drawn');
+  assert.ok(lines.includes('Math.Max(qtyW, p.CellW(lines[i].Qty, p.Regular))'));
+  assert.ok(lines.includes('p.TextW("السعر", p.Bold) + ReceiptPainter.CellPad') && lines.includes('p.TextW("الإجمالي", p.Bold) + ReceiptPainter.CellPad'));
+  assert.ok(lines.includes('p.CellW(line.Name, p.Bold) <= nameAvail') && lines.includes('p.CellW("الصنف", p.Bold)'), 'the name decision uses the drawn family too');
+  assert.ok(!/p\.TextW\(lines\[i\]\.Qty/.test(lines), 'no typographic measure for the RTL qty cells');
+  // the only table helper is shared by the sale and the return receipt
+  assert.equal(cs.split('DrawReceiptLines(p, ').length - 1, 2, 'sale and return receipts share the one fixed table');
+  const labelValue = cs.slice(cs.indexOf('public void LabelValue('), cs.indexOf('private void DrawValue('));
+  assert.ok(labelValue.includes('float labelW = CellW(label, labelFont);'));
+});
+
+test('receipt margins: one top constant, one bottom constant, trimmed page slack, preview padding matches', () => {
+  const cs = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'PrinterService.cs'), 'utf8');
+  assert.ok(cs.includes('public const float TopPad = 2f;') && cs.includes('Y = TopPad;'));
+  assert.ok(cs.includes('public const float BottomPad = 5f;'));
+  assert.equal(cs.split('p.Y += ReceiptPainter.BottomPad;').length - 1, 2, 'sale and return receipts end with the same small bottom pad');
+  assert.ok(!cs.includes('p.Y += 8f;'), 'the old 8-unit bottom margin is gone');
+  assert.ok(cs.includes('private const int ReceiptPageSlackHundredths = 3;') && cs.includes('+ ReceiptPageSlackHundredths;'));
+  assert.ok(cs.includes('measured * job.Scale) + 2);'), 'height is still measured by the same paint pass the print uses');
+
+  const paper = fs.readFileSync(path.resolve('src', 'components', 'ReceiptPaper.tsx'), 'utf8');
+  assert.ok(paper.includes('w-[302px] px-4 py-2') && paper.includes('w-[220px] px-2.5 py-2'), '80mm and 57mm previews use a slim vertical padding');
+  assert.ok(!/\bp-4\b|\bp-2\.5\b/.test(paper), 'no full-size padding on the paper');
+});
+
+test('the barcode preview has no digits under the bars (the invoice number is already in the header)', () => {
+  const paper = fs.readFileSync(path.resolve('src', 'components', 'ReceiptPaper.tsx'), 'utf8');
+  const fn = paper.slice(paper.indexOf('function InvoiceBarcode'), paper.indexOf('export function ReceiptPaper'));
+  assert.ok(fn.includes('<svg') && !/tabular-nums|\{value\}</.test(fn), 'only the bars are rendered');
+  const cs = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'PrinterService.cs'), 'utf8');
+  const draw = cs.slice(cs.indexOf('private static void DrawInvoiceBarcode'), cs.indexOf('private static void DrawReceiptLines'));
+  assert.ok(!draw.includes('DrawString'), 'the printed receipt draws no text under the bars');
+});
+
+// Shared with S54_ReceiptItemNameTest.cs (same rows): the printed product name is one clean line.
+const NAME_CLEANING_TABLE = [
+  ['لبن جهينة', 'لبن جهينة'],
+  ['  لبن   جهينة  ', 'لبن جهينة'],
+  ['أرز مصري\nعبوة 10 كجم', 'أرز مصري عبوة 10 كجم'],
+  ['شاي\t\tليبتون\r\nأصفر', 'شاي ليبتون أصفر'],
+  ['عصير 🍊 برتقال', 'عصير برتقال'],
+  ['حلوى ❤ شوكولاتة ✓', 'حلوى شوكولاتة'],
+  ['عبوة\u200Bكبيرة', 'عبوةكبيرة'],
+  ['\u202Eمنتج\u202C عادي', 'منتج عادي'],
+  ['Pampers® 5 Pack × 3', 'Pampers® 5 Pack × 3'],
+  ['🍊🍋', ''],
+  ['   ', ''],
+  ['', ''],
+];
+
+test('cleanReceiptItemName: one clean printable line, nothing legitimate is lost', () => {
+  for (const [input, expected] of NAME_CLEANING_TABLE) {
+    assert.equal(cleanReceiptItemName(input), expected, JSON.stringify(input));
+  }
+  assert.equal(cleanReceiptItemName(null), '');
+  assert.equal(cleanReceiptItemName(undefined), '');
+});
+
+test('the receipt model uses the cleaned name and falls back to "صنف" when nothing printable is left', () => {
+  const sale = {
+    id: 's1', invoiceNumber: 5, status: 'completed', paymentMethod: 'cash', totalPiasters: 2000, paidPiasters: 2000,
+    items: [
+      { productName: 'حلوى 🍬\nبالفراولة', quantityMilli: 1000, unitPricePiasters: 1000, unit: 'piece' },
+      { productName: '🍬🍬', quantityMilli: 1000, unitPricePiasters: 1000, unit: 'piece' },
+    ],
+  };
+  const model = buildReceiptModel(sale, { storeName: 'متجر' }, {});
+  assert.equal(model.lines[0].name, 'حلوى بالفراولة');
+  assert.equal(model.lines[1].name, 'صنف');
 });

@@ -89,6 +89,17 @@ import type {
   DeliveryOrderCreateInfo,
 } from '../types/cafe';
 import { enforcesOwnStock } from './pos/stockGuard';
+import {
+  LIVE_SEARCH_DEBOUNCE_MS,
+  LIVE_SEARCH_LIMIT,
+  createRequestGate,
+  pickDropdownProduct,
+  shouldRunLiveSearch,
+} from './pos/liveSearch';
+
+const CATALOG_REFRESH_DEBOUNCE_MS = 400;
+const SHIFT_REQUIRED_MESSAGE = 'لازم تفتح وردية قبل البيع';
+const SHIFT_NOTICE_FLASH_MS = 2500;
 
 export interface PosViewProps {
   isActive?: boolean;
@@ -153,6 +164,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [currentShift, setCurrentShift] = useState<Shift | null>(null);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [isShiftStatusKnown, setIsShiftStatusKnown] = useState(false);
+  const [isShiftNoticeFlashing, setIsShiftNoticeFlashing] = useState(false);
   const [requireOpenShiftToSell, setRequireOpenShiftToSell] = useState<boolean>(true);
   const [unregisteredBarcode, setUnregisteredBarcode] = useState('');
   const [quickAddInitialName, setQuickAddInitialName] = useState('');
@@ -304,6 +317,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const [selectedDropdownIndex, setSelectedDropdownIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  // Only the newest live-search request may touch the dropdown; the ref remembers which query the shown results answer
+  const liveSearchGate = useMemo(() => createRequestGate(), []);
+  const liveSearchResultsQueryRef = useRef('');
 
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -323,6 +339,31 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       if (statusTimerRef.current) {
         clearTimeout(statusTimerRef.current);
       }
+    };
+  }, []);
+
+  const hasOpenShift = Boolean(currentShift) && currentShift?.status !== 'closed';
+  const canOpenShift = isAdmin || hasPermission('shifts.open');
+
+  // The shift modal lives in App and listens for this event (the header shift button opens the same modal)
+  const openShiftModal = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('rafiq:open-shift-modal'));
+  }, []);
+
+  const shiftFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notifyShiftRequired = useCallback(() => {
+    showStatus(SHIFT_REQUIRED_MESSAGE, 'warning');
+    setIsShiftNoticeFlashing(true);
+    if (shiftFlashTimerRef.current) clearTimeout(shiftFlashTimerRef.current);
+    shiftFlashTimerRef.current = setTimeout(() => {
+      setIsShiftNoticeFlashing(false);
+      shiftFlashTimerRef.current = null;
+    }, SHIFT_NOTICE_FLASH_MS);
+  }, [showStatus]);
+
+  useEffect(() => {
+    return () => {
+      if (shiftFlashTimerRef.current) clearTimeout(shiftFlashTimerRef.current);
     };
   }, []);
 
@@ -1079,6 +1120,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setCurrentShift(active);
     } catch {
       // Offline fallback
+    } finally {
+      setIsShiftStatusKnown(true);
     }
   }, []);
 
@@ -1093,6 +1136,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     const handleShiftUpdated = (e: Event) => {
       const customEvent = e as CustomEvent<Shift | null>;
       setCurrentShift(customEvent.detail);
+      setIsShiftStatusKnown(true);
     };
 
     window.addEventListener('rafiq:open-shift-modal', handleOpen);
@@ -1122,10 +1166,13 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     void loadCategories();
   }, [loadCategories]);
 
-  // Load Quick Items & Inventory Products (Smart Catalog)
+  // Load Quick Items & Inventory Products (Smart Catalog); only the newest request may apply its answer
+  const catalogLoadSeqRef = useRef(0);
   const loadSmartCatalog = useCallback(async () => {
+    const seq = ++catalogLoadSeqRef.current;
     try {
-      const res = await invoke<{ products?: Product[]; customQuickItems?: QuickItem[] }>('products:getSmartCatalog', { limit: 50000 }).catch(() => null);
+      const res = await invoke<{ products?: Product[]; customQuickItems?: QuickItem[] }>('products:getSmartCatalog', { limit: 1000 }).catch(() => null);
+      if (seq !== catalogLoadSeqRef.current) return;
       if (res && Array.isArray(res.products)) {
         setCatalogProducts(res.products);
         if (Array.isArray(res.customQuickItems)) {
@@ -1133,9 +1180,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         }
       } else {
         const [pData, qData] = await Promise.all([
-          invoke<Product[]>('products:getAll', { limit: 50000 }).catch(() => []),
+          invoke<Product[]>('products:getAll', { limit: 1000 }).catch(() => []),
           invoke<QuickItem[]>('quickItems:getAll').catch(() => [])
         ]);
+        if (seq !== catalogLoadSeqRef.current) return;
         if (Array.isArray(pData)) setCatalogProducts(pData);
         if (Array.isArray(qData)) setQuickItems(qData);
       }
@@ -1144,7 +1192,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
   }, []);
 
-  const loadQuickItems = loadSmartCatalog;
+  useEffect(() => {
+    void loadSmartCatalog();
+  }, [loadSmartCatalog]);
 
   // Load Digital Accounts (InstaPay & Wallets) to verify linkage in POS
   const loadDigitalAccounts = useCallback(async () => {
@@ -1162,14 +1212,35 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     void loadDigitalAccounts();
   }, [loadDigitalAccounts]);
 
-  // Automatic real-time subscriptions across all views
-  useDataSubscription(['products', 'all'], () => {
-    void loadSmartCatalog();
-  });
-  useDataSubscription(['categories', 'all'], () => {
-    void loadCategories();
-    void loadSmartCatalog();
-  });
+  // The cashier screen stays mounted while hidden. Products/categories changes made elsewhere (import, product card,
+  // purchases, a sale) refresh the sections + tiles once, shortly after the last change; while hidden we skip it
+  // and reload when the cashier view becomes visible again.
+  const isActiveRef = useRef(isActive);
+  const catalogRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleCatalogRefresh = useCallback(() => {
+    if (!isActiveRef.current) return;
+    if (catalogRefreshTimerRef.current) clearTimeout(catalogRefreshTimerRef.current);
+    catalogRefreshTimerRef.current = setTimeout(() => {
+      catalogRefreshTimerRef.current = null;
+      void loadCategories();
+      void loadSmartCatalog();
+    }, CATALOG_REFRESH_DEBOUNCE_MS);
+  }, [loadCategories, loadSmartCatalog]);
+  useDataSubscription(['products', 'categories', 'all'], scheduleCatalogRefresh);
+
+  useEffect(() => {
+    const wasActive = isActiveRef.current;
+    isActiveRef.current = isActive;
+    if (isActive && !wasActive) {
+      void loadCategories();
+      void loadSmartCatalog();
+    }
+  }, [isActive, loadCategories, loadSmartCatalog]);
+
+  useEffect(() => () => {
+    if (catalogRefreshTimerRef.current) clearTimeout(catalogRefreshTimerRef.current);
+  }, []);
+
   useDataSubscription(['customers', 'all'], () => {
     void loadCustomers();
   });
@@ -1179,35 +1250,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   useDataSubscription(['wallets', 'all'], () => {
     void loadDigitalAccounts();
   });
-
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const res = await invoke<{ products: Product[]; customQuickItems: QuickItem[] }>('products:getSmartCatalog', { limit: 50000 }).catch(() => null);
-        if (!active) return;
-        if (res && Array.isArray(res.products)) {
-          setCatalogProducts(res.products);
-          if (Array.isArray(res.customQuickItems)) {
-            setQuickItems(res.customQuickItems);
-          }
-        } else {
-          const [pData, qData] = await Promise.all([
-            invoke<Product[]>('products:getAll', { limit: 50000 }).catch(() => []),
-            invoke<QuickItem[]>('quickItems:getAll').catch(() => [])
-          ]);
-          if (!active) return;
-          if (Array.isArray(pData)) setCatalogProducts(pData);
-          if (Array.isArray(qData)) setQuickItems(qData);
-        }
-      } catch {
-        // Offline fallback
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   // Feature #131: Load scanner and POS settings on mount
   const loadAppSettings = useCallback(async () => {
@@ -1300,9 +1342,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setIsDdiModalOpen(true);
       return;
     }
-    if (requireOpenShiftToSell && !currentShift) {
-      showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
-      setIsShiftModalOpen(true);
+    if (requireOpenShiftToSell && !hasOpenShift) {
+      notifyShiftRequired();
       return;
     }
     if (forcedMethod === 'vodafone_cash' || forcedMethod === 'instapay') {
@@ -1316,7 +1357,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setPaymentMethod('cash');
     }
     setIsPaymentModalOpen(true);
-  }, [cart, currentShift, requireOpenShiftToSell, showStatus, isDdiActive, ddiResult, isDdiOverridden]);
+  }, [cart, hasOpenShift, requireOpenShiftToSell, showStatus, notifyShiftRequired, isDdiActive, ddiResult, isDdiOverridden]);
 
   const handleConfirmPayment = useCallback(async (paymentData: {
     paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash' | 'insurance';
@@ -1329,9 +1370,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     supervisorPin?: string;
   }) => {
     if (isCheckingOutRef.current) return;
-    if (requireOpenShiftToSell && !currentShift) {
-      showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
-      setIsShiftModalOpen(true);
+    if (requireOpenShiftToSell && !hasOpenShift) {
+      notifyShiftRequired();
       return;
     }
     isCheckingOutRef.current = true;
@@ -1466,6 +1506,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     loadCafeStats,
     resetCartSession,
     currentShift,
+    hasOpenShift,
+    notifyShiftRequired,
     requireOpenShiftToSell,
     isEnabled,
     showCafeMode,
@@ -1528,58 +1570,79 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     barcodeInputRef.current?.focus();
   }, []);
 
-  // Debounced Live Search for POS Barcode & Name Box (Task 22-4 & 22-2)
+  // Debounced live name search. Barcode-like input (scanner bursts) never searches here; Enter resolves it.
+  // A response is applied only while it is still the newest request, so a late answer can never reopen the dropdown.
   useEffect(() => {
     const q = barcodeQuery.trim();
-    if (!q || q.length < 2) {
+    if (!shouldRunLiveSearch(q)) {
+      liveSearchGate.invalidate();
+      setIsSearching(false);
+      setLiveSearchResults((prev) => (prev.length === 0 ? prev : []));
+      setIsSearchDropdownOpen(false);
       return;
     }
 
+    const requestId = liveSearchGate.begin();
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await invoke<unknown>('products:search', { query: q, limit: 8 });
+        const res = await invoke<unknown>('products:search', { query: q, limit: LIVE_SEARCH_LIMIT });
+        if (!liveSearchGate.isCurrent(requestId)) return;
         const results = extractProducts(res);
-        if (results.length > 0) {
-          setLiveSearchResults(results);
-          setIsSearchDropdownOpen(true);
-          setSelectedDropdownIndex(0);
-        } else {
+        liveSearchResultsQueryRef.current = q;
+        setLiveSearchResults(results);
+        setIsSearchDropdownOpen(results.length > 0);
+        setSelectedDropdownIndex(0);
+      } catch {
+        if (liveSearchGate.isCurrent(requestId)) {
           setLiveSearchResults([]);
           setIsSearchDropdownOpen(false);
         }
-      } catch {
-        setLiveSearchResults([]);
       } finally {
-        setIsSearching(false);
+        if (liveSearchGate.isCurrent(requestId)) setIsSearching(false);
       }
-    }, 180);
+    }, LIVE_SEARCH_DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
-  }, [barcodeQuery]);
+    return () => {
+      clearTimeout(timer);
+      liveSearchGate.invalidate();
+    };
+  }, [barcodeQuery, liveSearchGate]);
 
   // Close live search dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        liveSearchGate.invalidate();
+        setIsSearching(false);
         setIsSearchDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [liveSearchGate]);
+
+  // Drops any pending/in-flight live search and hides the dropdown (used before a barcode is resolved or a modal opens)
+  const dismissLiveSearch = useCallback(() => {
+    liveSearchGate.invalidate();
+    setIsSearching(false);
+    setIsSearchDropdownOpen(false);
+    setLiveSearchResults([]);
+    setSelectedDropdownIndex(0);
+  }, [liveSearchGate]);
 
   const handleQuickProductCreated = useCallback((newProd: Product) => {
     addProductToCart(newProd);
     setBarcodeQuery('');
-    setIsSearchDropdownOpen(false);
+    dismissLiveSearch();
     showStatus(`تم تسجيل الصنف وإضافته للسلة: ${newProd.name}`, 'success');
     void loadSmartCatalog();
     barcodeInputRef.current?.focus();
-  }, [addProductToCart, showStatus, loadSmartCatalog]);
+  }, [addProductToCart, showStatus, loadSmartCatalog, dismissLiveSearch]);
 
   const handleFastBarcodeScan = useCallback(async (scannedBarcode: string) => {
     if (!scannedBarcode) return;
+    dismissLiveSearch();
     try {
       setLoading(true);
       const scaleInfo = isEnabled('feature_scale_weight') ? parseScaleBarcode(scannedBarcode) : null;
@@ -1652,6 +1715,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000.0).toFixed(3)} كجم - ميزان)` : '';
         showStatus(`تمت إضافة: ${exactMatch.name}${unitSuffix}${weightDesc}`, 'success');
       } else {
+        setBarcodeQuery('');
+        dismissLiveSearch();
         setUnregisteredBarcode(scannedBarcode);
         setIsQuickAddModalOpen(true);
         showStatus(`الباركود الممسوح غير مسجل: "${scannedBarcode}" - يمكنك إضافته سريعاً الآن`, 'warning');
@@ -1663,7 +1728,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setLoading(false);
       barcodeInputRef.current?.focus();
     }
-  }, [addProductToCart, showStatus, catalogProducts, isEnabled]);
+  }, [addProductToCart, showStatus, catalogProducts, isEnabled, dismissLiveSearch]);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
@@ -1679,40 +1744,35 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         setSelectedDropdownIndex((prev) => (prev - 1 + liveSearchResults.length) % liveSearchResults.length);
       }
     } else if (e.key === 'Escape') {
-      setIsSearchDropdownOpen(false);
-      setLiveSearchResults([]);
+      dismissLiveSearch();
     }
   };
 
   const handleBarcodeSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const query = convertArabicLayoutToBarcode(barcodeQuery.trim());
+    const typed = barcodeQuery.trim();
+    const query = convertArabicLayoutToBarcode(typed);
     if (!query) return;
 
-    // Priority 1: Check liveSearchResults for an exact barcode match (fast in-memory path)
-    if (isSearchDropdownOpen && liveSearchResults.length > 0) {
-      const exactMatch = liveSearchResults.find((p) => {
-        if (isBarcodeMatch(p.barcode, query)) return true;
-        if (p.barcodes && p.barcodes.some(bc => isBarcodeMatch(bc, query))) return true;
-        if (p.units && p.units.some((u) => isBarcodeMatch(u.barcode, query))) return true;
-        return false;
-      });
-
-      if (exactMatch) {
-        let matchedUnit: ProductUnit | undefined;
-        if (exactMatch.units && exactMatch.units.length > 0) {
-          matchedUnit = exactMatch.units.find((u) => isBarcodeMatch(u.barcode, query));
-        }
-        const added = addProductToCart(exactMatch, undefined, matchedUnit);
-        setBarcodeQuery('');
-        setIsSearchDropdownOpen(false);
-        setLiveSearchResults([]);
-        if (added) {
-          showStatus(`تمت إضافة: ${exactMatch.name}`, 'success');
-        }
-        barcodeInputRef.current?.focus();
-        return;
+    // Priority 1 (in memory): an exact barcode match in the dropdown always wins over the highlighted row;
+    // the highlighted row is used only while the dropdown still answers what is typed now
+    const picked = pickDropdownProduct({
+      results: liveSearchResults,
+      isOpen: isSearchDropdownOpen,
+      resultsQuery: liveSearchResultsQueryRef.current,
+      currentQuery: typed,
+      submitted: query,
+      selectedIndex: selectedDropdownIndex,
+    });
+    if (picked) {
+      const added = addProductToCart(picked.product, undefined, picked.unit);
+      setBarcodeQuery('');
+      dismissLiveSearch();
+      if (added) {
+        showStatus(`تمت إضافة: ${picked.product.name}`, 'success');
       }
+      barcodeInputRef.current?.focus();
+      return;
     }
 
     try {
@@ -1720,8 +1780,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const scaleInfo = isEnabled('feature_scale_weight') ? parseScaleBarcode(query) : null;
       let scaleWeightMilli: number | undefined;
 
-      let res = await invoke<unknown>('products:search', { query, limit: 10 });
+      // The layout conversion garbles Arabic names, so a name is searched as typed and only then as a mistyped barcode
+      const hasArabicLetters = /[\u0621-\u064A]/.test(typed);
+      let res = await invoke<unknown>('products:search', { query: hasArabicLetters ? typed : query, limit: 10 });
       let results = extractProducts(res);
+      if (results.length === 0 && hasArabicLetters && query !== typed) {
+        res = await invoke<unknown>('products:search', { query, limit: 10 });
+        results = extractProducts(res);
+      }
 
       if ((!results || results.length === 0) && scaleInfo) {
         // Try matching: 1) Prefix+PLU (e.g. 2100045, 9900045, 2000045), 2) Trimmed PLU (e.g. 45), 3) 5-digit PLU (e.g. 00045)
@@ -1782,21 +1848,15 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
         const added = addProductToCart(targetProd, scaleWeightMilli, matchedUnit);
         setBarcodeQuery('');
-        setIsSearchDropdownOpen(false);
+        dismissLiveSearch();
         if (added) {
           const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
           const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000.0).toFixed(3)} كجم - ميزان)` : '';
           showStatus(`تمت إضافة: ${targetProd.name}${unitSuffix}${weightDesc}`, 'success');
         }
-      } else if (isSearchDropdownOpen && liveSearchResults.length > 0 && liveSearchResults[selectedDropdownIndex]) {
-        // Fallback to dropdown selection only if backend exact search returned no matches
-        const selected = liveSearchResults[selectedDropdownIndex];
-        const added = addProductToCart(selected);
-        setBarcodeQuery('');
-        setIsSearchDropdownOpen(false);
-        if (added) {
-          showStatus(`تمت إضافة: ${selected.name}`, 'success');
-        }
+      } else if (hasArabicLetters) {
+        // A name that matches nothing is not a barcode: never open "add product" with a garbled barcode
+        showStatus(`لا يوجد صنف باسم "${typed}"`, 'warning');
       } else {
         let matchedDrugRef: DrugReferenceItem | null = null;
         if (isEnabled('feature_drug_reference')) {
@@ -1806,6 +1866,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             matchedDrugRef = null;
           }
         }
+
+        // Clear the input first so the unregistered barcode does not linger once the add-product modal closes
+        setBarcodeQuery('');
+        dismissLiveSearch();
 
         if (matchedDrugRef) {
           const formattedName = matchedDrugRef.tradeName + (matchedDrugRef.form ? ` ${matchedDrugRef.form}` : '') + (matchedDrugRef.strength ? ` ${matchedDrugRef.strength}` : '');
@@ -1895,6 +1959,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     categoryTabs,
     customItemsCount,
     popularItemsCount,
+    isPopularFallback,
     displayedCatalogItems,
     catalogSearchQuery,
     setCatalogSearchQuery,
@@ -2247,9 +2312,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setIsDdiModalOpen(true);
       return;
     }
-    if (!currentShift) {
-      showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
-      setIsShiftModalOpen(true);
+    if (requireOpenShiftToSell && !hasOpenShift) {
+      notifyShiftRequired();
       return;
     }
     if (paymentMethod === 'credit' && !selectedCustomerId) {
@@ -2265,7 +2329,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       changeDuePiasters: 0,
       customerId: selectedCustomerId || undefined
     });
-  }, [loading, cart, paymentMethod, selectedCustomerId, netTotalPiasters, activeInsuranceClaim, handleConfirmPayment, showStatus, currentShift, isDdiActive, ddiResult, isDdiOverridden]);
+  }, [loading, cart, paymentMethod, selectedCustomerId, netTotalPiasters, activeInsuranceClaim, handleConfirmPayment, showStatus, requireOpenShiftToSell, hasOpenShift, notifyShiftRequired, isDdiActive, ddiResult, isDdiOverridden]);
 
   // Fast direct digital checkouts (InstaPay & Vodafone Cash)
   const handleInstapayCheckout = useCallback(async () => {
@@ -2466,14 +2530,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             setLiveSearchResults={setLiveSearchResults}
             selectedDropdownIndex={selectedDropdownIndex}
             setSelectedDropdownIndex={setSelectedDropdownIndex}
-            onSelectProduct={(prod, specificUnit) => {
-              const added = addProductToCart(prod, undefined, specificUnit);
+            onSelectProduct={(prod) => {
+              const added = addProductToCart(prod);
               setBarcodeQuery('');
-              setIsSearchDropdownOpen(false);
-              setLiveSearchResults([]);
-              setSelectedDropdownIndex(0);
+              dismissLiveSearch();
               if (added) {
-                showStatus(`تمت إضافة: ${prod.name}${specificUnit ? ` (${specificUnit.unitName})` : ''}`, 'success');
+                showStatus(`تمت إضافة: ${prod.name}`, 'success');
               }
               barcodeInputRef.current?.focus();
             }}
@@ -2651,6 +2713,13 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             hasWalletAccount={digitalAccounts.some((a) => a.accountType === 'wallet' && a.isActive) || Boolean(storeWalletNumber) || !isEnabled('feature_digital_wallets')}
             onNavigateToWallets={isEnabled('feature_digital_wallets') ? onNavigateToWallets : undefined}
             ddiResult={isDdiActive ? ddiResult : null}
+            shiftBlock={requireOpenShiftToSell && isShiftStatusKnown && !hasOpenShift ? {
+              message: SHIFT_REQUIRED_MESSAGE,
+              canOpenShift,
+              isFlashing: isShiftNoticeFlashing,
+              onOpenShift: openShiftModal,
+              onBlockedAttempt: notifyShiftRequired,
+            } : null}
           />
         </section>
 
@@ -2659,6 +2728,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           <PosCatalogPanel
             customItemsCount={customItemsCount}
             popularItemsCount={popularItemsCount}
+            isPopularFallback={isPopularFallback}
             catalogSearchQuery={catalogSearchQuery}
             setCatalogSearchQuery={setCatalogSearchQuery}
             activeCatalogTab={activeCatalogTab}
@@ -2688,6 +2758,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             isCartEmpty={cart.length === 0}
             totalCatalogProductsCount={catalogProducts.length}
             categories={allPosCategories}
+            onAfterToggle={() => barcodeInputRef.current?.focus()}
           />
         )}
 
@@ -2699,6 +2770,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             onSelectCategory={setActiveCatalogTab}
             totalProductsCount={smartItems.length}
             popularItemsCount={popularItemsCount}
+            isPopularFallback={isPopularFallback}
             customItemsCount={customItemsCount}
             categoryProductCounts={categoryProductCounts}
           />
@@ -2761,7 +2833,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           setIsQuickItemsManagerOpen(false);
           barcodeInputRef.current?.focus();
         }}
-        onItemsChanged={loadQuickItems}
+        onItemsChanged={loadSmartCatalog}
       />
 
       {/* 8. QUICK FAST ITEM MODAL (Direct creation without inventory overhead); mounted only while open so every open starts with a blank form */}
@@ -2773,7 +2845,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             barcodeInputRef.current?.focus();
           }}
           onItemAdded={(savedItem) => {
-            void loadQuickItems();
+            void loadSmartCatalog();
             setActiveCatalogTab('__CUSTOM__');
             showStatus(`تمت إضافة الصنف السريع "${savedItem.name}"`, 'success');
           }}

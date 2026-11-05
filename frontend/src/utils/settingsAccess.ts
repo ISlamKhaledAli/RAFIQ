@@ -8,7 +8,8 @@ interface SettingsAccess {
 
 /**
  * Settings sub-screens visible to the current user, in menu order. Mirrors the server allowlists
- * (settings.store / settings.printer / settings.backup / settings.features); root-only screens stay root-only.
+ * (settings.store / settings.printer / settings.backup). Everything reserved for root (features, scanner, PIN,
+ * diagnostics, demo data, receipt signature) lives in the root console, see utils/rootAccess.ts.
  */
 export function getAllowedSettingsSubTabs({ isRoot, isAdmin, hasPermission }: SettingsAccess): SettingsSubTab[] {
   const can = (perm: string) => isRoot || isAdmin || hasPermission(perm);
@@ -16,10 +17,12 @@ export function getAllowedSettingsSubTabs({ isRoot, isAdmin, hasPermission }: Se
   if (can('settings.store')) tabs.push('profile');
   // Sale/stock policies are admin-only on the server (allow-lists + pharma:saveControlledMandatoryFields), so the screen is too
   if (isRoot || isAdmin) tabs.push('policies');
-  if (isRoot || hasPermission('settings.features')) tabs.push('features');
   if (can('settings.printer')) tabs.push('printer');
-  if (isRoot) tabs.push('scanner', 'security');
   if (can('settings.backup')) tabs.push('backup');
-  if (isRoot) tabs.push('system', 'demo');
   return tabs;
+}
+
+/** The requested screen when allowed; a stale or foreign request (e.g. a root-only tab id kept in state) lands on the first allowed one. */
+export function resolveSettingsSubTab(requested: string, allowed: readonly SettingsSubTab[]): SettingsSubTab {
+  return (allowed as readonly string[]).includes(requested) ? (requested as SettingsSubTab) : (allowed[0] ?? 'profile');
 }

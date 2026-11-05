@@ -2,12 +2,60 @@ import type { ComponentType, ReactNode } from 'react';
 import { AlertTriangle, Lock } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { RequiredMark } from '../../components/RequiredMark';
+import { normalizeReceiptText, RECEIPT_TEXT_MAX_CHARS } from '../../utils/receiptLayout';
 
 type IconType = ComponentType<{ className?: string }>;
 
 /** Shared look of every text field on the store settings screens (44px high). */
 export const FIELD_INPUT_CLASS =
   'w-full h-11 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg px-3 text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-muted-dark/70 focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors';
+
+/** Shared 44px buttons of the settings and root screens. */
+export const PRIMARY_BUTTON_CLASS =
+  'h-11 px-5 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid-bright-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-muted-dark disabled:cursor-not-allowed text-white dark:text-surface-dark rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors cursor-pointer';
+export const SECONDARY_BUTTON_CLASS =
+  'h-11 px-4 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-60 disabled:cursor-not-allowed text-ink dark:text-ink-dark rounded-lg text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer';
+export const DANGER_BUTTON_CLASS =
+  'h-11 px-5 bg-danger hover:bg-danger-hover disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer';
+
+interface ReceiptTextFieldProps {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  rows: number;
+  placeholder: string;
+  hint?: string;
+  error: string;
+}
+
+/** Multi-line receipt text: Enter starts a new line and the line breaks are printed as typed. */
+export const ReceiptTextField = ({ label, value, onChange, rows, placeholder, hint, error }: ReceiptTextFieldProps) => (
+  <label className="flex flex-col gap-2">
+    <span className="t-label text-ink dark:text-ink-dark">{label}</span>
+    <textarea
+      rows={rows}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      aria-invalid={error !== ''}
+      className={`w-full bg-surface dark:bg-surface-dark-2 border rounded-lg px-3 py-2.5 text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-muted-dark/70 focus:outline-none focus:ring-1 transition-colors resize-none leading-relaxed ${
+        error
+          ? 'border-danger dark:border-danger-bright focus:border-danger dark:focus:border-danger-bright focus:ring-danger dark:focus:ring-danger-bright'
+          : 'border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-brand dark:focus:ring-brand-bright'
+      }`}
+    />
+    <span className="flex flex-wrap items-center justify-between gap-x-3 text-xs leading-relaxed">
+      {error ? (
+        <span className="text-danger dark:text-danger-bright font-semibold">{error}</span>
+      ) : (
+        <span className="text-ink-muted dark:text-ink-muted-dark">{hint ?? ''}</span>
+      )}
+      <span dir="ltr" className="text-ink-muted dark:text-ink-muted-dark tabular-nums">
+        {normalizeReceiptText(value).length} / {RECEIPT_TEXT_MAX_CHARS}
+      </span>
+    </span>
+  </label>
+);
 
 interface SettingsCardProps {
   icon: IconType;
@@ -92,8 +140,8 @@ export const ToggleRow = ({ icon: Icon, title, description, checked, onChange, w
         <span className="t-label text-ink dark:text-ink-dark">{title}</span>
         <span className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">{description}</span>
         {warning && (
-          <span className="flex items-start gap-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg px-3 py-2 text-xs font-semibold text-warn dark:text-warn-bright leading-relaxed">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
+          <span className="flex items-start gap-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg px-3 py-2 text-xs font-semibold text-ink dark:text-warn-bright leading-relaxed">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-px text-warn dark:text-warn-bright" />
             <span>{warning}</span>
           </span>
         )}

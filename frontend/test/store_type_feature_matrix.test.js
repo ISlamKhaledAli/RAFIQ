@@ -11,7 +11,7 @@ describe('Store Type Features & First Startup Wizard Verification', () => {
   const databaseServiceCsPath = path.resolve('..', 'desktop', 'Services', 'DatabaseService.cs');
   const appTsxPath = path.resolve('src', 'App.tsx');
   const posCartCheckoutBarPath = path.resolve('src', 'views', 'pos', 'PosCartCheckoutBar.tsx');
-  const systemDiagnosticsTabPath = path.resolve('src', 'views', 'settings', 'SystemDiagnosticsTab.tsx');
+  const rootFeaturesPagePath = path.resolve('src', 'views', 'root', 'RootFeaturesPage.tsx');
 
   it('1. Each store type template in frontend has tailored feature flags', () => {
     assert.ok(fs.existsSync(storeTemplatesTsPath), 'storeTemplates.ts must exist');
@@ -124,7 +124,7 @@ describe('Store Type Features & First Startup Wizard Verification', () => {
   it('5. Frontend views honor feature flags and RBAC controls', () => {
     const appContent = fs.readFileSync(appTsxPath, 'utf8');
     const posBarContent = fs.readFileSync(posCartCheckoutBarPath, 'utf8');
-    const diagContent = fs.readFileSync(systemDiagnosticsTabPath, 'utf8');
+    const featuresPage = fs.readFileSync(rootFeaturesPagePath, 'utf8');
 
     // Epay sidebar tab guarded by feature_epay_services
     assert.ok(appContent.includes("isEnabled('feature_epay_services')"), 'Sidebar epay tab must be guarded by feature flag');
@@ -132,9 +132,10 @@ describe('Store Type Features & First Startup Wizard Verification', () => {
     // Checkout bar wallets guarded by feature_digital_wallets
     assert.ok(posBarContent.includes("isEnabled('feature_digital_wallets')"), 'InstaPay/wallets in POS must be guarded by feature flag');
 
-    // Diagnostics tab disables toggles if !canManageFeatures
-    assert.ok(diagContent.includes('canManageFeatures'), 'Diagnostics tab must receive canManageFeatures');
-    assert.ok(diagContent.includes('disabled={!canManageFeatures}'), 'Feature toggles must be disabled if user lacks permission');
-    assert.ok(diagContent.includes('ShieldAlert'), 'Must show alert icon when features are read-only');
+    // Feature toggles live on the root-only features page (settings.features is root-only on the server), once
+    assert.ok(featuresPage.includes('toggleFlag') && featuresPage.includes('ToggleSwitch'), 'The root features page owns the feature toggles');
+    assert.ok(!featuresPage.includes('canManageFeatures'), 'No read-only variant: only root can open the page');
+    assert.ok(!fs.existsSync(path.resolve('src', 'views', 'settings', 'SystemDiagnosticsTab.tsx')), 'No second copy of the toggles in a diagnostics tab');
+    assert.ok(!fs.readFileSync(path.resolve('src', 'views', 'SettingsView.tsx'), 'utf8').includes('toggleFlag'), 'Owner settings carry no feature toggles');
   });
 });

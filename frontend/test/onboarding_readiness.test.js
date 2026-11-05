@@ -59,19 +59,19 @@ describe('Onboarding & Production Readiness Verification', () => {
 
     // Step 1: Store type templates
     assert.ok(wizardContent.includes('templates.map'), 'Step 1: must render store template cards');
-    assert.ok(wizardContent.includes('handleSelectTemplate'), 'Step 1: must allow template selection');
+    assert.ok(wizardContent.includes('setSelectedTemplateId'), 'Step 1: must allow template selection');
 
-    // Step 2: Store profile with live 80mm preview
+    // Step 2: only the data needed to start selling
     assert.ok(wizardContent.includes('storeName'), 'Step 2: must capture store name');
     assert.ok(wizardContent.includes('phone'), 'Step 2: must capture store phone');
-    assert.ok(wizardContent.includes('معاينة حية لإيصال الكاشير (80 مم)'), 'Step 2: must include live 80mm receipt preview');
+    assert.ok(!wizardContent.includes('معاينة حية لإيصال الكاشير'), 'Receipt preview lives in settings, not in the wizard');
 
-    // Step 3: Hardware & Backup
-    assert.ok(wizardContent.includes('CustomSelect'), 'Step 3: must use CustomSelect for printer selection');
-    assert.ok(wizardContent.includes('backupFolder'), 'Step 3: must configure backup directory');
+    // Printer and backup are a post-setup checklist (deep links), not wizard steps
+    assert.ok(wizardContent.includes('SetupChecklist'), 'Finish screen must show the post-setup checklist');
+    assert.ok(!wizardContent.includes('backupFolder'), 'Backup folder is configured in settings');
 
-    // Step 4: Review and confirm
-    assert.ok(wizardContent.includes('تجهيز النظام'), 'Step 4: must have confirmation action');
+    // Final confirmation applies everything in one call
+    assert.ok(wizardContent.includes('إنهاء التجهيز'), 'Last step: must have confirmation action');
     assert.ok(wizardContent.includes('templates:apply'), 'Must call templates:apply on backend');
   });
 

@@ -567,10 +567,65 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.AreEqual(2000, t["DiscountTotal"]);
             Assert.AreEqual(42900, t["Total"]);
             Assert.AreEqual(t["Total"], t["Subtotal"] - t["DiscountTotal"]);
-            Assert.AreEqual(14, t["PieceCount"], "the weighed line is not counted as pieces");
+            Assert.IsFalse(t.ContainsKey("PieceCount") || t.ContainsKey("ItemCount"), "the invoice no longer prints item / piece counts");
             Assert.AreEqual(50000, t["Paid"]);
             Assert.AreEqual(7100, t["Change"]);
             Assert.AreEqual(0, t["Remaining"]);
+        }
+
+        private static long ParsePrintedMoney(string text)
+        {
+            return long.Parse(text.Replace(",", "").Replace(".", ""), System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        [Test]
+        public void SaleReceipt_PrintedGrossLinesSumToSubtotal_ThenOneTotalDiscount_ThenTotal()
+        {
+            // line discounts (500 + 300) + invoice discount 1500 + a weighed line: lines print GROSS, the one discount row sums all of them
+            Sale sale = new Sale
+            {
+                Id = "s",
+                SubtotalPiasters = 44900,
+                DiscountPiasters = 1500,
+                PaidPiasters = 50000,
+                PaymentMethod = "cash",
+                Items = new List<SaleItem>
+                {
+                    new SaleItem { ProductName = "a", QuantityMilli = 2000, UnitPricePiasters = 4200, DiscountPiasters = 300, Unit = "piece" },
+                    new SaleItem { ProductName = "b", QuantityMilli = 1250, UnitPricePiasters = 16400, DiscountPiasters = 500, Unit = "kg" },
+                    new SaleItem { ProductName = "c", QuantityMilli = 12000, UnitPricePiasters = 2700, Unit = "piece" }
+                }
+            };
+            sale.TotalPiasters = sale.SubtotalPiasters - (300 + 500 + 1500);
+
+            MethodInfo build = typeof(PrinterService).GetMethod("BuildSaleReceiptLines", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(build, "PrinterService.BuildSaleReceiptLines was renamed or removed");
+            System.Collections.IEnumerable lines = (System.Collections.IEnumerable)build.Invoke(null, new object[] { sale });
+
+            long printedSum = 0;
+            foreach (object line in lines)
+            {
+                Assert.IsNull(line.GetType().GetField("Discount"), "no per-line discount sub-line exists any more");
+                printedSum += ParsePrintedMoney((string)line.GetType().GetField("Total").GetValue(line));
+            }
+
+            Dictionary<string, long> t = ReceiptTotals(sale);
+            Assert.AreEqual(t["Subtotal"], printedSum, "printed line totals add up to the pre-discount subtotal row");
+            Assert.AreEqual(2300, t["DiscountTotal"], "ONE discount row = line discounts + invoice discount");
+            Assert.AreEqual(t["Total"], printedSum - t["DiscountTotal"] + t["ServiceCharge"] + t["DeliveryFee"], "subtotal - total discount (+ fees) = final total");
+        }
+
+        [TestCase("retail", 41, "")]
+        [TestCase("", 41, "")]
+        [TestCase("takeaway", 7, "نداء 7")]
+        [TestCase("dine_in", 7, "نداء 7 - صالة")]
+        [TestCase("delivery", 7, "نداء 7 - توصيل")]
+        public void BuildOrderMetaText_CallNumberIsForCafeOrdersOnly(string orderType, int callNumber, string expected)
+        {
+            MethodInfo meta = typeof(PrinterService).GetMethod("BuildOrderMetaText", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(meta, "PrinterService.BuildOrderMetaText was renamed or removed");
+            Sale sale = new Sale { Id = "s", OrderType = orderType, OrderCallNumber = callNumber };
+            Assert.AreEqual(expected, (string)meta.Invoke(null, new object[] { sale }));
         }
 
         [Test]
