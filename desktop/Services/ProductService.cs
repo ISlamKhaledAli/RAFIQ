@@ -527,7 +527,7 @@ namespace RafiqPOS.Services
             }
         }
 
-        public List<Product> GetSmartCatalog(int limit = 1000)
+        public List<Product> GetSmartCatalog(int limit = 50000)
         {
             return _repo.GetSmartCatalog(limit);
         }

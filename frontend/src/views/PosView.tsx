@@ -1125,7 +1125,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   // Load Quick Items & Inventory Products (Smart Catalog)
   const loadSmartCatalog = useCallback(async () => {
     try {
-      const res = await invoke<{ products?: Product[]; customQuickItems?: QuickItem[] }>('products:getSmartCatalog', { limit: 1000 }).catch(() => null);
+      const res = await invoke<{ products?: Product[]; customQuickItems?: QuickItem[] }>('products:getSmartCatalog', { limit: 50000 }).catch(() => null);
       if (res && Array.isArray(res.products)) {
         setCatalogProducts(res.products);
         if (Array.isArray(res.customQuickItems)) {
@@ -1133,7 +1133,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         }
       } else {
         const [pData, qData] = await Promise.all([
-          invoke<Product[]>('products:getAll', { limit: 1000 }).catch(() => []),
+          invoke<Product[]>('products:getAll', { limit: 50000 }).catch(() => []),
           invoke<QuickItem[]>('quickItems:getAll').catch(() => [])
         ]);
         if (Array.isArray(pData)) setCatalogProducts(pData);
@@ -1184,7 +1184,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     let active = true;
     void (async () => {
       try {
-        const res = await invoke<{ products: Product[]; customQuickItems: QuickItem[] }>('products:getSmartCatalog', { limit: 1000 }).catch(() => null);
+        const res = await invoke<{ products: Product[]; customQuickItems: QuickItem[] }>('products:getSmartCatalog', { limit: 50000 }).catch(() => null);
         if (!active) return;
         if (res && Array.isArray(res.products)) {
           setCatalogProducts(res.products);
@@ -1193,7 +1193,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           }
         } else {
           const [pData, qData] = await Promise.all([
-            invoke<Product[]>('products:getAll', { limit: 1000 }).catch(() => []),
+            invoke<Product[]>('products:getAll', { limit: 50000 }).catch(() => []),
             invoke<QuickItem[]>('quickItems:getAll').catch(() => [])
           ]);
           if (!active) return;

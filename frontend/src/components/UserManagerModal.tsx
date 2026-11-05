@@ -93,6 +93,7 @@ interface UserManagerModalProps {
   onClose: () => void;
   onUsersChanged?: () => void;
   currentUser?: UserDto | null;
+  supervisorPin?: string;
 }
 
 // Builds the hierarchy locally from the flat list: owner on top, managers directly beneath the owner,
