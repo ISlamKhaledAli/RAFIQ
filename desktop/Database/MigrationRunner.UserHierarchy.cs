@@ -20,6 +20,39 @@ namespace RafiqPOS.Database
                 BackupDatabaseBeforeMigration(dbPath);
                 ApplyMigration64(conn);
             }
+
+            // 68. Apply Migration 65: Clean placeholder dash variants from products (e.g. '—' or '-')
+            if (currentVersion < 65)
+            {
+                BackupDatabaseBeforeMigration(dbPath);
+                ApplyMigration65(conn);
+            }
+        }
+
+        private static void ApplyMigration65(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    using (var cmd = new SQLiteCommand(@"
+                        UPDATE products SET variant_color = NULL WHERE variant_color IN ('—', '–', '-', '_', '/', '.', '\', 'N/A', 'na', 'none', 'null', 'nil', 'لا يوجد', 'لايوجد', 'بدون', 'غير محدد');
+                        UPDATE products SET variant_size = NULL WHERE variant_size IN ('—', '–', '-', '_', '/', '.', '\', 'N/A', 'na', 'none', 'null', 'nil', 'لا يوجد', 'لايوجد', 'بدون', 'غير محدد');
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (65, 'Clean placeholder dash variants from products', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
         }
 
         private static void ApplyMigration64(SQLiteConnection conn)
@@ -93,6 +126,15 @@ namespace RafiqPOS.Database
                 {
                     EnsureUserHierarchyColumns(conn, trans);
                     EnsureDigitalAccountHolderColumn(conn, trans);
+
+                    using (var cleanCmd = new SQLiteCommand(@"
+                        UPDATE products SET variant_color = NULL WHERE variant_color IN ('—', '–', '-', '_', '/', '.', '\', 'N/A', 'na', 'none', 'null', 'nil', 'لا يوجد', 'لايوجد', 'بدون', 'غير محدد');
+                        UPDATE products SET variant_size = NULL WHERE variant_size IN ('—', '–', '-', '_', '/', '.', '\', 'N/A', 'na', 'none', 'null', 'nil', 'لا يوجد', 'لايوجد', 'بدون', 'غير محدد');
+                    ", conn, trans))
+                    {
+                        cleanCmd.ExecuteNonQuery();
+                    }
+
                     trans.Commit();
                 }
                 catch
