@@ -1,35 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Store, 
-  ShoppingCart, 
-  Milk, 
-  Printer, 
-  HardDrive, 
-  ArrowLeft, 
-  ArrowRight, 
-  Loader2, 
-  ShieldCheck, 
-  X,
-  Smartphone,
+import React, { useEffect, useRef, useState } from 'react';
+import {
   Apple,
+  ArrowLeft,
+  ArrowRight,
   BookOpen,
-  Flame,
-  Shirt,
   Check,
-  Info,
-  Pill,
   Coffee,
-  Upload,
-  RotateCcw,
-  Image as ImageIcon
+  Flame,
+  Loader2,
+  Milk,
+  Package,
+  Pill,
+  Power,
+  Shirt,
+  ShoppingCart,
+  Smartphone,
+  Store,
+  X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import { CustomSelect } from './CustomSelect';
-import { ToggleSwitch } from './ToggleSwitch';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { rafiqConfirm } from '../utils/dialogService';
 import { RequiredMark } from './RequiredMark';
+import { SetupChecklist } from './SetupChecklist';
+import type { SetupChecklistTarget } from './SetupChecklist';
 import { INITIAL_STORE_TEMPLATES, type StoreTemplateDto } from '../constants/storeTemplates';
-import { DEFAULT_DEVELOPER_SIGNATURE, splitReceiptText } from '../utils/receiptLayout';
 export type { StoreTemplateDto };
 
 export interface FirstRunWizardModalProps {
@@ -37,331 +33,156 @@ export interface FirstRunWizardModalProps {
   onClose: () => void;
   onCompleted: () => void;
   isFirstRun?: boolean;
+  /** Opens a settings sub-screen after setup; the host app must refresh (features changed) and close the wizard. */
+  onNavigateToSettings?: (subTab: SetupChecklistTarget) => void;
 }
+
+type WizardStep = 1 | 2;
+
+interface WizardDraft {
+  step: WizardStep;
+  selectedTemplateId: string;
+  storeName: string;
+  phone: string;
+  address: string;
+}
+
+interface ApplyTemplateResponse {
+  success?: boolean;
+  message?: string;
+}
+
+const WIZARD_STORAGE_KEY = 'rafiq_wizard_state';
+const DEFAULT_TEMPLATE_ID = 'supermarket';
+const TOTAL_STEPS = 2;
+const INPUT_CLASS =
+  'w-full h-11 px-3.5 bg-surface dark:bg-surface-dark-2 border rounded-[6px] text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted outline-none focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors';
+
+const TEMPLATE_ICONS: Record<string, LucideIcon> = {
+  'shopping-cart': ShoppingCart,
+  smartphone: Smartphone,
+  milk: Milk,
+  apple: Apple,
+  book: BookOpen,
+  flame: Flame,
+  shirt: Shirt,
+  pill: Pill,
+  coffee: Coffee,
+  package: Package,
+};
+
+const readDraft = (): Partial<WizardDraft> => {
+  try {
+    const raw = localStorage.getItem(WIZARD_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
+    return {
+      step: parsed.step === 2 ? 2 : 1,
+      selectedTemplateId: text(parsed.selectedTemplateId),
+      storeName: text(parsed.storeName),
+      phone: text(parsed.phone),
+      address: text(parsed.address),
+    };
+  } catch {
+    return {};
+  }
+};
 
 export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   isOpen,
   onClose,
   onCompleted,
   isFirstRun = false,
+  onNavigateToSettings,
 }) => {
-  const WIZARD_STORAGE_KEY = 'rafiq_wizard_state';
-
-  // Read saved state if available
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.step && [1, 2, 3, 4].includes(parsed.step)) return parsed.step;
-      }
-    } catch {
-      // ignore
-    }
-    return 1;
-  });
-  const [loading, setLoading] = useState(false);
+  // The draft only survives first-run sessions; reopening from settings starts from the saved store data
+  const [draft] = useState<Partial<WizardDraft>>(() => (isFirstRun ? readDraft() : {}));
+  const [step, setStep] = useState<WizardStep>(draft.step ?? 1);
+  const [completed, setCompleted] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [templates, setTemplates] = useState<StoreTemplateDto[]>(INITIAL_STORE_TEMPLATES);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(draft.selectedTemplateId ?? DEFAULT_TEMPLATE_ID);
+  const [storeName, setStoreName] = useState(draft.storeName ?? '');
+  const [phone, setPhone] = useState(draft.phone ?? '');
+  const [address, setAddress] = useState(draft.address ?? '');
+  const prefilledRef = useRef(false);
+
+  const handleDismiss = () => {
+    if (completed) onCompleted();
+    else onClose();
+  };
   const { requestClose, handleBackdropClick } = useModalDismiss({
-    isOpen: isOpen && !isFirstRun && !loading,
-    onDismiss: onClose,
+    isOpen: isOpen && !isFirstRun && !isApplying,
+    onDismiss: handleDismiss,
     isDirty: false,
   });
 
-  // Templates
-  const [templates, setTemplates] = useState<StoreTemplateDto[]>(INITIAL_STORE_TEMPLATES);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.selectedTemplateId) return parsed.selectedTemplateId;
-      }
-    } catch {
-      // ignore
-    }
-    return 'supermarket';
-  });
-
-  // Step 2: Store Profile
-  const [storeName, setStoreName] = useState(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.storeName) return parsed.storeName;
-      }
-    } catch {
-      // ignore
-    }
-    return 'متجر رفيق';
-  });
-  const [phone, setPhone] = useState(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.phone) return parsed.phone;
-      }
-    } catch {
-      // ignore
-    }
-    return '01012345678';
-  });
-  const [address, setAddress] = useState(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.address) return parsed.address;
-      }
-    } catch {
-      // ignore
-    }
-    return 'الشارع الرئيسي - وسط البلد';
-  });
-  const [receiptHeader, setReceiptHeader] = useState(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.receiptHeader) return parsed.receiptHeader;
-      }
-    } catch {
-      // ignore
-    }
-    return 'أهلاً بكم في متجرنا';
-  });
-  const [receiptFooter, setReceiptFooter] = useState(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.receiptFooter) return parsed.receiptFooter;
-      }
-    } catch {
-      // ignore
-    }
-    return 'شكراً لزيارتكم — الاستبدال خلال 3 أيام بالإيصال';
-  });
-
-  const [showReceiptLogo, setShowReceiptLogo] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.showReceiptLogo !== undefined) return Boolean(parsed.showReceiptLogo);
-      }
-    } catch {
-      // ignore
-    }
-    return true;
-  });
-
-  const [storeLogoUrl, setStoreLogoUrl] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.storeLogoUrl) return parsed.storeLogoUrl;
-      }
-    } catch {
-      // ignore
-    }
-    return '/logo.png';
-  });
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 2 * 1024 * 1024) {
-      alert('حجم الصورة كبير جداً. يرجى اختيار صورة أقل من 2 ميجابايت.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setStoreLogoUrl(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleResetLogo = () => {
-    setStoreLogoUrl('/logo.png');
-  };
-
-  // Step 3: Hardware & Backup
-  const [printers, setPrinters] = useState<{ name: string; isDefault: boolean }[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.selectedPrinter) return parsed.selectedPrinter;
-      }
-    } catch {
-      // ignore
-    }
-    return '';
-  });
-  const [backupFolder, setBackupFolder] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.backupFolder) return parsed.backupFolder;
-      }
-    } catch {
-      // ignore
-    }
-    return 'D:\\RafiqBackups';
-  });
-
-  // Sync to localStorage
+  // Keep an unfinished first run resumable if the app is closed midway
   useEffect(() => {
+    if (!isFirstRun || completed) return;
     try {
-      const data = {
-        step,
-        selectedTemplateId,
-        storeName,
-        phone,
-        address,
-        receiptHeader,
-        receiptFooter,
-        showReceiptLogo,
-        storeLogoUrl,
-        selectedPrinter,
-        backupFolder,
-      };
+      const data: WizardDraft = { step, selectedTemplateId, storeName, phone, address };
       localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(data));
     } catch {
-      // ignore
+      // storage unavailable: the draft is a convenience only
     }
-  }, [step, selectedTemplateId, storeName, phone, address, receiptHeader, receiptFooter, showReceiptLogo, storeLogoUrl, selectedPrinter, backupFolder]);
-
-  // Result state
-  const [appliedStats, setAppliedStats] = useState<{ categoriesCount: number; quickItemsCount: number; productsCount: number } | null>(null);
+  }, [isFirstRun, completed, step, selectedTemplateId, storeName, phone, address]);
 
   useEffect(() => {
     if (!isOpen) return;
-
     let active = true;
+    let available: StoreTemplateDto[] = INITIAL_STORE_TEMPLATES;
     (async () => {
       try {
-        setLoading(true);
-        const [tplList, printerList, appSettings] = await Promise.all([
-          invoke<StoreTemplateDto[]>('templates:getAll'),
-          invoke<{ name: string; isDefault: boolean }[]>('printer:list'),
-          invoke<Record<string, string>>('settings:getAll').catch(() => ({} as Record<string, string>)),
-        ]);
-
-        if (active) {
-          if (appSettings) {
-            if (appSettings.show_receipt_logo !== undefined && !localStorage.getItem(WIZARD_STORAGE_KEY)) {
-              setShowReceiptLogo(appSettings.show_receipt_logo !== '0');
-            }
-            if (appSettings.store_logo_url && !localStorage.getItem(WIZARD_STORAGE_KEY)) {
-              setStoreLogoUrl(appSettings.store_logo_url);
-            }
-          }
-          if (Array.isArray(tplList) && tplList.length > 0) {
-            const cleanList = tplList.filter((t) => t.id !== 'accessories_gifts');
-            if (cleanList.length > 0) {
-              setTemplates(cleanList);
-              setSelectedTemplateId((prev) => cleanList.some((t) => t.id === prev) ? prev : cleanList[0].id);
-            }
-          }
-          if (Array.isArray(printerList)) {
-            setPrinters(printerList);
-            const def = printerList.find((p) => p.isDefault);
-            setSelectedPrinter(def ? def.name : (printerList.length > 0 ? printerList[0].name : ''));
-          }
+        const tplList = await invoke<StoreTemplateDto[]>('templates:getAll');
+        if (!active || !Array.isArray(tplList)) return;
+        const cleanList = tplList.filter((t) => t.id !== 'accessories_gifts');
+        if (cleanList.length > 0) {
+          available = cleanList;
+          setTemplates(cleanList);
+          setSelectedTemplateId((prev) => (cleanList.some((t) => t.id === prev) ? prev : cleanList[0].id));
         }
       } catch (err: unknown) {
-        console.error('Failed to load initial wizard data:', err);
-      } finally {
-        if (active) setLoading(false);
+        console.error('Failed to load store templates:', err);
+      }
+      if (isFirstRun || prefilledRef.current) return;
+      try {
+        const saved = await invoke<Record<string, string>>('settings:getAll');
+        if (!active || !saved) return;
+        prefilledRef.current = true;
+        setStoreName((prev) => prev || saved.store_name || '');
+        setPhone((prev) => prev || saved.store_phone || '');
+        setAddress((prev) => prev || saved.store_address || '');
+        if (saved.store_type) {
+          const savedType = saved.store_type;
+          setSelectedTemplateId((prev) => (available.some((t) => t.id === savedType) ? savedType : prev));
+        }
+      } catch (err: unknown) {
+        console.error('Failed to load saved store data:', err);
       }
     })();
-
     return () => {
       active = false;
     };
-  }, [isOpen]);
+  }, [isOpen, isFirstRun]);
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0];
 
-  // Update receipt defaults when template changes
-  const handleSelectTemplate = (id: string) => {
-    setSelectedTemplateId(id);
-    const tpl = templates.find((t) => t.id === id);
-    if (tpl) {
-      if (tpl.defaultSettings?.receipt_header) {
-        setReceiptHeader(tpl.defaultSettings.receipt_header);
-      }
-      if (tpl.defaultSettings?.receipt_footer) {
-        setReceiptFooter(tpl.defaultSettings.receipt_footer);
-      }
-      if (storeName === 'متجر رفيق' || storeName === 'سوبر ماركت النور' || storeName.includes('رفيق')) {
-        if (id === 'phones_electronics') setStoreName('متجر رفيق للهواتف والإلكترونيات');
-        else if (id === 'dairy_bakery') setStoreName('ألبان ومخبوزات رفيق');
-        else if (id === 'produce_butchery') setStoreName('أسواق رفيق للخضار والفاكهة');
-        else if (id === 'stationery_gifts') setStoreName('مكتبة رفيق للقرطاسية والهدايا');
-        else if (id === 'toys_kids') setStoreName('متجر عالم الألعاب والهدايا');
-        else if (id === 'spices_roastery') setStoreName('عطارة ومحامص رفيق');
-        else if (id === 'clothing_apparel') setStoreName('متاجر رفيق للأزياء');
-        else if (id === 'supermarket') setStoreName('سوبر ماركت النور');
-        else if (id === 'pharmacy') setStoreName('صيدلية رفيق الحديثة');
-        else if (id === 'cafe_restaurant') setStoreName('كافيه ومطعم رفيق');
-        else setStoreName('متجر رفيق');
-      }
-    }
-  };
-
   const handleApply = async () => {
-    setLoading(true);
+    setIsApplying(true);
     setError(null);
     try {
-      const res: any = await invoke('templates:apply', {
+      const res = await invoke<ApplyTemplateResponse>('templates:apply', {
         templateId: selectedTemplateId,
         storeName: storeName.trim(),
         storePhone: phone.trim(),
         storeAddress: address.trim(),
-        receiptHeader: receiptHeader.trim(),
-        receiptFooter: receiptFooter.trim(),
-        showReceiptLogo: showReceiptLogo ? '1' : '0',
-        storeLogoUrl: storeLogoUrl,
-        defaultPrinter: selectedPrinter,
-        backupFolder: backupFolder.trim(),
         seedInitialProducts: false,
       });
-
-      try {
-        await invoke('settings:save', {
-          store_name: storeName.trim(),
-          store_phone: phone.trim(),
-          store_address: address.trim(),
-          receipt_header: receiptHeader.trim(),
-          receipt_footer: receiptFooter.trim(),
-          show_receipt_logo: showReceiptLogo ? '1' : '0',
-          store_logo_url: storeLogoUrl,
-          default_printer_name: selectedPrinter,
-          backup_target_folder: backupFolder.trim(),
-        });
-      } catch {
-        // ignore
-      }
-
       if (res && res.success) {
-        setAppliedStats({
-          categoriesCount: 0,
-          quickItemsCount: 0,
-          productsCount: 0,
-        });
         try {
           localStorage.setItem('rafiq_first_run_completed', 'true');
           if (isFirstRun) {
@@ -369,969 +190,329 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           }
           localStorage.removeItem(WIZARD_STORAGE_KEY);
         } catch {
-          // ignore
+          // the host already recorded completion; the local cache is only a shortcut
         }
-        setTimeout(() => {
-          onCompleted();
-        }, 1800);
+        setCompleted(true);
       } else {
         setError(res?.message || 'فشل تطبيق القالب');
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      setIsApplying(false);
     }
   };
 
-  const getTemplateIcon = (iconName: string, isSelected: boolean) => {
-    const iconClass = isSelected ? 'w-6 h-6 text-brand dark:text-brand-bright' : 'w-6 h-6 text-ink-muted dark:text-ink-dark-muted';
-    switch (iconName) {
-      case 'shopping-cart':
-      case 'storefront':
-        return <ShoppingCart className={iconClass} />;
-      case 'smartphone':
-      case 'phone':
-        return <Smartphone className={iconClass} />;
-      case 'milk':
-      case 'bakery_dining':
-        return <Milk className={iconClass} />;
-      case 'apple':
-      case 'produce':
-      case 'nutrition':
-        return <Apple className={iconClass} />;
-      case 'book':
-      case 'stationery':
-      case 'menu_book':
-        return <BookOpen className={iconClass} />;
-      case 'flame':
-      case 'spices':
-      case 'local_fire_department':
-        return <Flame className={iconClass} />;
-      case 'shirt':
-      case 'clothing':
-      case 'checkroom':
-        return <Shirt className={iconClass} />;
-      case 'pill':
-      case 'pharmacy':
-        return <Pill className={iconClass} />;
-      case 'coffee':
-      case 'cafe':
-      case 'cafe_restaurant':
-        return <Coffee className={iconClass} />;
-      default:
-        return <Store className={iconClass} />;
+  const handleNext = () => {
+    if (isApplying) return;
+    if (step === 1) {
+      setError(null);
+      setStep(2);
+      return;
+    }
+    if (!storeName.trim()) {
+      setError('اسم المحل مطلوب للمتابعة.');
+      return;
+    }
+    void handleApply();
+  };
+
+  const handleExitApp = async () => {
+    const confirmed = await rafiqConfirm({
+      title: 'إغلاق البرنامج',
+      message: completed
+        ? 'تم تجهيز النظام وحفظ إعداداتك.\nهل تريد إغلاق برنامج رفيق الآن؟'
+        : 'لم يكتمل تجهيز النظام بعد.\nيمكنك إغلاق البرنامج الآن وسيظهر معالج التجهيز مجدداً عند فتحه في المرة القادمة لاستكمال الإعداد.',
+      confirmText: 'نعم، إغلاق البرنامج',
+      cancelText: 'العودة للتجهيز',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    try {
+      await invoke('window:close');
+    } catch {
+      window.close();
     }
   };
 
   if (!isOpen) return null;
 
-  // STEP RENDERER HELPER
-  const renderStepBody = () => {
-    if (step === 1) {
-      return (
-        <div className="flex flex-col gap-4">
-          {/* Info banner */}
-          <div className="bg-brand-soft dark:bg-brand-dark-soft border border-brand/50 dark:border-brand/40 rounded-[6px] p-3.5 flex items-center gap-3 shrink-0">
-            <Info className="w-5 h-5 text-brand dark:text-brand-bright shrink-0" />
-            <span className="text-sm text-brand dark:text-brand-bright font-medium">
-              اختر نشاط محلك لضبط ميزات البيع والخصائص التشغيلية المناسبة لطبيعة تجارتك
+  const stepTitle = completed ? 'النظام جاهز للعمل' : step === 1 ? 'اختر نوع نشاط محلك' : 'بيانات المحل';
+  const stepHint = completed
+    ? 'تم ضبط ميزات نشاطك وحفظ بيانات المحل.'
+    : step === 1
+      ? 'سيضبط رفيق ميزات البيع المناسبة لنشاطك تلقائياً.'
+      : 'اسم المحل هو المطلوب للبدء، وباقي بيانات الفاتورة تُضبط لاحقاً من الإعدادات.';
+
+  const renderTemplates = () => (
+    <div role="radiogroup" aria-label="نوع النشاط" className="grid grid-cols-2 gap-3.5">
+      {templates.map((tpl) => {
+        const isSelected = tpl.id === selectedTemplateId;
+        const Icon = TEMPLATE_ICONS[tpl.icon] || Store;
+        const features = tpl.featuresSummary || [];
+        return (
+          <button
+            key={tpl.id}
+            type="button"
+            role="radio"
+            aria-checked={isSelected}
+            autoFocus={isSelected}
+            onClick={() => setSelectedTemplateId(tpl.id)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              setSelectedTemplateId(tpl.id);
+              setError(null);
+              setStep(2);
+            }}
+            className={`relative min-h-[132px] p-4 flex flex-col items-start gap-2 text-start rounded-[6px] border-2 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand dark:focus-visible:ring-brand-bright ${
+              isSelected
+                ? 'bg-brand-soft dark:bg-brand-dark-soft border-brand dark:border-brand-bright'
+                : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright'
+            }`}
+          >
+            {isSelected && (
+              <span className="absolute top-3 end-3 w-5 h-5 rounded-full bg-brand dark:bg-brand-bright text-white dark:text-surface-dark flex items-center justify-center">
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+              </span>
+            )}
+            <span className="flex items-center gap-2.5 pe-7">
+              <Icon className={`w-5 h-5 shrink-0 ${isSelected ? 'text-brand dark:text-brand-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
+              <span className="text-sm font-bold text-ink dark:text-ink-dark">{tpl.name}</span>
             </span>
-          </div>
-
-          {/* 2-column grid of template cards, 16px gap */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
-            {templates.map((tpl) => {
-              const isSelected = tpl.id === selectedTemplateId;
-              return (
-                <div
-                  key={tpl.id}
-                  onClick={() => handleSelectTemplate(tpl.id)}
-                  className={`relative rounded-[6px] p-4 flex flex-col gap-2.5 cursor-pointer transition-colors ${
-                    isSelected
-                      ? 'bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright shadow-2xs'
-                      : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand shadow-2xs'
-                  }`}
-                >
-                  {/* Selected badge in top-left corner */}
-                  {isSelected && (
-                    <div className="absolute top-3.5 left-3.5 flex items-center gap-1 text-brand dark:text-brand-bright text-xs font-semibold bg-white/90 dark:bg-surface-dark-2/90 px-2 py-0.5 rounded-[4px] border border-brand/20 dark:border-brand-bright/20 shadow-2xs">
-                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                      <span>تم الاختيار</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3">
-                    {getTemplateIcon(tpl.icon, isSelected)}
-                    <span className="text-base font-bold text-ink dark:text-ink-dark">
-                      {tpl.name}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-relaxed">
-                    {tpl.description}
-                  </p>
-
-                  {/* Summary Feature Badges */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    {tpl.featuresSummary?.map((feat, idx) => (
-                      <span key={idx} className="text-xs text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark rounded-[6px] px-2 py-0.5 bg-white dark:bg-surface-dark-2 font-medium">
-                        {feat}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      );
-    }
-
-    if (step === 2) {
-      return (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pb-2">
-          {/* LEFT FORM CARD (7 columns in RTL) */}
-          <div className="lg:col-span-7 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-6 flex flex-col gap-4 shadow-2xs">
-            <h2 className="text-lg font-semibold text-ink dark:text-ink-dark leading-tight">
-              معلومات المنشأة وعناوين الإيصال
-            </h2>
-            <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 -mt-2">الحقول المميزة بعلامة * مطلوبة</p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">
-                  اسم المحل / المنشأة <RequiredMark />
-                </label>
-                <input
-                  type="text"
-                  value={storeName}
-                  onChange={(e) => setStoreName(e.target.value)}
-                  className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-sm text-ink dark:text-ink-dark font-semibold outline-none focus:border-brand dark:focus:border-brand-bright"
-                  placeholder="مثال: متجر رفيق / مؤسسة النور"
-                  required
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">
-                  رقم الهاتف / خدمة العملاء <RequiredMark />
-                </label>
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-sm text-ink dark:text-ink-dark font-mono outline-none focus:border-brand dark:focus:border-brand-bright"
-                  placeholder="01012345678"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">
-                العنوان بالتفصيل
-              </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-sm text-ink dark:text-ink-dark outline-none focus:border-brand dark:focus:border-brand-bright"
-                placeholder="الشارع الرئيسي - وسط البلد"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">
-                رسالة الترحيب أعلى الفاتورة (رأس الإيصال)
-              </label>
-              <input
-                type="text"
-                value={receiptHeader}
-                onChange={(e) => setReceiptHeader(e.target.value)}
-                className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-sm text-ink dark:text-ink-dark outline-none focus:border-brand dark:focus:border-brand-bright"
-                placeholder="أهلاً بكم في متجرنا"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">
-                شروط الاستبدال أسفل الفاتورة (تذييل الإيصال)
-              </label>
-              <input
-                type="text"
-                value={receiptFooter}
-                onChange={(e) => setReceiptFooter(e.target.value)}
-                className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-sm text-ink dark:text-ink-dark outline-none focus:border-brand dark:focus:border-brand-bright"
-                placeholder="شكراً لزيارتكم — الاستبدال خلال 3 أيام بالإيصال"
-              />
-            </div>
-
-            {/* Section: Store Logo Customization & Toggle */}
-            <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col gap-3 mt-1">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-brand dark:text-brand-bright" />
-                  <span className="font-bold text-ink dark:text-ink-dark text-sm">
-                    شعار المتجر أعلى الإيصال والفاتورة
+            <span className="text-xs text-ink-muted dark:text-ink-dark-muted leading-relaxed line-clamp-2">{tpl.description}</span>
+            {features.length > 0 && (
+              <span className="flex flex-wrap items-center gap-1.5 mt-auto">
+                {features.slice(0, 3).map((feat) => (
+                  <span
+                    key={feat}
+                    className="text-micro text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark rounded-[4px] px-1.5 py-0.5 bg-surface dark:bg-surface-dark-2"
+                  >
+                    {feat}
                   </span>
-                </div>
-                <ToggleSwitch
-                  checked={showReceiptLogo}
-                  onChange={(next) => setShowReceiptLogo(next)}
-                  title={showReceiptLogo ? 'مفعّل (طباعة الشعار أعلى الوصل)' : 'معطّل (إلغاء طباعة الشعار)'}
-                />
-              </div>
-
-              {showReceiptLogo ? (
-                <div className="flex flex-col gap-3 pt-2 border-t border-line dark:border-line-dark">
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-surface dark:bg-surface-dark p-3 rounded-[6px] border border-line dark:border-line-dark">
-                    <div className="flex items-center gap-3">
-                      <div className="w-14 h-11 rounded border border-line dark:border-line-dark bg-white dark:bg-surface-dark-2 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
-                        <img
-                          src={storeLogoUrl}
-                          alt="معاينة الشعار"
-                          className="max-h-full max-w-full object-contain"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src = '/logo.png';
-                          }}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-semibold text-ink dark:text-ink-dark">
-                          {storeLogoUrl !== '/logo.png' ? 'شعار مخصص للمتجر' : 'شعار رفيق الافتراضي'}
-                        </span>
-                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
-                          يظهر مطبوعاً في ترويسة جميع فواتير الكاشير والمرتجعات
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <label className="px-3 py-1.5 bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:opacity-90 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-opacity">
-                        <Upload className="w-3.5 h-3.5" />
-                        <span>رفع شعار جديد</span>
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          className="hidden"
-                          onChange={handleLogoUpload}
-                        />
-                      </label>
-
-                      {storeLogoUrl !== '/logo.png' && (
-                        <button
-                          type="button"
-                          onClick={handleResetLogo}
-                          className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark border border-line dark:border-line-dark rounded text-xs font-medium flex items-center gap-1 transition-colors"
-                          title="استعادة الشعار الافتراضي لنظام رفيق"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>الافتراضي</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Technical Guidance */}
-                  <div className="bg-brand-soft/50 dark:bg-brand-dark-soft/50 border border-brand/20 dark:border-brand-bright/20 rounded p-2.5 text-micro leading-relaxed text-ink dark:text-ink-dark flex items-start gap-2">
-                    <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
-                    <div className="flex-1 text-micro text-ink-muted dark:text-ink-dark-muted">
-                      <strong className="text-ink dark:text-ink-dark font-semibold">المقاسات الموصى بها للطابعات الحرارية:</strong> أبعاد <span dir="ltr" className="font-mono font-semibold">200 × 70</span> بكسل (أو مربع حتى <span dir="ltr" className="font-mono font-semibold">120 × 120</span> بكسل) بصيغة PNG وخلفية بيضاء أو مفرغة عالية التباين لضمان نقاء وسرعة الطباعة الحرارية.
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-micro text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark p-2.5 rounded border border-line dark:border-line-dark text-center">
-                  تم إلغاء طباعة الشعار — سيتم إصدار الإيصال باسم المتجر والعناوين مباشرة دون صورة في الترويسة.
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* RIGHT CARD (5 columns in RTL): Live Receipt Preview (80 mm) */}
-          <div className="lg:col-span-5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-6 flex flex-col gap-4 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-ink dark:text-ink-dark leading-tight">
-                معاينة حية لإيصال الكاشير (80 مم)
-              </h2>
-              <span className="text-micro text-brand dark:text-brand-bright border border-brand/40 dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-dark-soft px-2 py-0.5 rounded-[6px] font-medium">
-                تحديث فوري
-              </span>
-            </div>
-
-            {/* Preview background container */}
-            <div className="bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex justify-center items-start overflow-hidden">
-              {/* Receipt Sheet (280px wide, paper) */}
-              <div className="w-[280px] bg-white border border-line rounded-t-[4px] p-4 text-micro font-mono leading-relaxed text-ink relative pb-6 select-none shadow-sm">
-                {/* Centered Header Block */}
-                <div className="text-center flex flex-col gap-0.5 items-center">
-                  {showReceiptLogo && (
-                    <div className="flex justify-center mb-1">
-                      <img
-                        src={storeLogoUrl}
-                        alt="شعار المتجر"
-                        className="h-9 object-contain"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = '/logo.png';
-                        }}
-                      />
-                    </div>
-                  )}
-                  <div className="font-bold text-sm text-ink font-sans">
-                    {storeName || 'متجر رفيق'}
-                  </div>
-                  <div className="text-micro tabular-nums font-mono">
-                    هاتف: {phone || '01012345678'}
-                  </div>
-                  {address && <div className="text-micro">{address}</div>}
-                  <div className="text-micro font-sans text-ink-muted mt-0.5">
-                    {receiptHeader || 'أهلاً بكم في متجرنا'}
-                  </div>
-                </div>
-
-                {/* Dotted separator */}
-                <div className="border-b border-dashed border-ink/40 my-2.5" />
-
-                {/* Invoice meta */}
-                <div className="flex justify-between items-center tabular-nums text-micro">
-                  <span className="font-semibold">فاتورة: #000101</span>
-                  <span>{new Date().toLocaleDateString('ar-EG-u-nu-latn')}</span>
-                </div>
-
-                {/* Dotted separator */}
-                <div className="border-b border-dashed border-ink/40 my-2.5" />
-
-                {/* Item lines */}
-                <div className="flex flex-col gap-1 text-micro tabular-nums">
-                  <div className="flex justify-between items-center font-sans">
-                    <span className="truncate max-w-[160px]">لبن جهينة كامل الدسم 1 لتر</span>
-                    <span className="font-mono">32.00 ج.م</span>
-                  </div>
-                  <div className="flex justify-between items-center font-sans">
-                    <span className="truncate max-w-[160px]">شيبسي 30 جم</span>
-                    <span className="font-mono">10.00 ج.م</span>
-                  </div>
-                </div>
-
-                {/* Dotted separator */}
-                <div className="border-b border-dashed border-ink/40 my-2.5" />
-
-                {/* Total line in bold */}
-                <div className="flex justify-between items-center font-bold text-xs tabular-nums">
-                  <span className="font-sans">الإجمالي:</span>
-                  <span>42.00 ج.م</span>
-                </div>
-
-                {/* Dotted separator */}
-                <div className="border-b border-dashed border-ink/40 my-2.5" />
-
-                {/* Return policy centered: nothing is printed when the footer is left empty */}
-                {receiptFooter.trim() && (
-                  <div className="text-center font-sans text-micro text-ink-muted leading-tight px-1 mt-1">
-                    {receiptFooter}
-                  </div>
+                ))}
+                {features.length > 3 && (
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted tabular-nums">+{features.length - 3}</span>
                 )}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
 
-                {/* Developer signature */}
-                {receiptFooter.trim() && <div className="border-t border-dashed border-ink/40 my-2 pt-1.5" />}
-                <div className="text-center font-sans text-micro text-ink-muted leading-tight px-1">
-                  {splitReceiptText(DEFAULT_DEVELOPER_SIGNATURE).map((line, i) => (
-                    <div key={i}>{line}</div>
-                  ))}
-                </div>
+  const renderStoreData = () => (
+    <div className="w-full max-w-[520px] mx-auto flex flex-col gap-5 py-2">
+      <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">الحقول المميزة بعلامة * مطلوبة</p>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="wizard-store-name" className="text-xs font-semibold text-ink dark:text-ink-dark">
+          اسم المحل أو المنشأة <RequiredMark />
+        </label>
+        <input
+          id="wizard-store-name"
+          type="text"
+          autoFocus
+          value={storeName}
+          onChange={(e) => {
+            setStoreName(e.target.value);
+            if (error) setError(null);
+          }}
+          aria-invalid={error !== null && !storeName.trim()}
+          placeholder="مثلاً: سوبر ماركت النور"
+          className={`${INPUT_CLASS} font-semibold ${
+            error !== null && !storeName.trim()
+              ? 'border-danger dark:border-danger-bright'
+              : 'border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright'
+          }`}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="wizard-store-phone" className="text-xs font-semibold text-ink dark:text-ink-dark">
+          رقم الهاتف
+        </label>
+        <input
+          id="wizard-store-phone"
+          type="tel"
+          inputMode="tel"
+          dir="ltr"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="01000000000"
+          className={`${INPUT_CLASS} text-right tabular-nums border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright`}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="wizard-store-address" className="text-xs font-semibold text-ink dark:text-ink-dark">
+          العنوان
+        </label>
+        <input
+          id="wizard-store-address"
+          type="text"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="مثلاً: 23 شارع الجمهورية - وسط البلد"
+          className={`${INPUT_CLASS} border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright`}
+        />
+      </div>
+    </div>
+  );
 
-                {/* Zigzag torn bottom edge */}
-                <div className="absolute -bottom-2.5 left-0 right-0 h-2.5 zigzag-bottom" />
-              </div>
-            </div>
-
-            {/* Note under preview */}
-            <p className="text-xs text-ink-muted dark:text-ink-dark-muted text-center">
-              معاينة تقريبية على ورق حراري قياسي 80 مم مع محاذاة تلقائية للنصوص
-            </p>
-          </div>
+  const renderFinish = () => (
+    <div className="w-full max-w-[640px] mx-auto flex flex-col gap-5 py-1">
+      <div className="flex items-center gap-4 p-4 rounded-[6px] bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border">
+        <span className="w-12 h-12 shrink-0 rounded-[6px] bg-paid dark:bg-paid-bright text-white dark:text-surface-dark flex items-center justify-center">
+          <Check className="w-7 h-7 stroke-[2.5]" />
+        </span>
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <h2 className="text-base font-bold text-ink dark:text-ink-dark m-0">
+            تم تجهيز نشاط «{selectedTemplate?.name}» بنجاح
+          </h2>
+          <p className="text-sm text-ink-muted dark:text-ink-dark-muted m-0 leading-relaxed">
+            يمكنك البدء بإضافة أصنافك الآن، وكل الإعدادات قابلة للتعديل في أي وقت.
+          </p>
         </div>
-      );
-    }
+      </div>
+      {onNavigateToSettings && <SetupChecklist onNavigate={onNavigateToSettings} />}
+    </div>
+  );
 
-    if (step === 3) {
-      return (
-        <div className="flex flex-col gap-4 max-w-[800px] mx-auto w-full py-2">
-          {/* Card 1: Thermal Receipt Printer */}
-          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-6 flex flex-col shadow-2xs">
-            <div className="flex items-start gap-3.5 mb-5">
-              <div className="w-10 h-10 rounded-[6px] border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted shrink-0 bg-canvas dark:bg-canvas-dark">
-                <Printer className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted" />
-              </div>
-              <div>
-                <h3 className="text-ink dark:text-ink-dark text-base font-semibold">
-                  طابعة الفواتير الافتراضية (Thermal Receipt Printer)
-                </h3>
-                <p className="text-ink-muted dark:text-ink-dark-muted text-sm mt-1">
-                  حدد الطابعة المتصلة بجهاز الكاشير للطباعة السريعة فور الضغط على زر الدفع
-                </p>
-              </div>
-            </div>
+  const progressSegment = (index: number) =>
+    completed || step >= index ? 'bg-brand dark:bg-brand-bright' : 'bg-line dark:bg-line-dark';
 
-            <div>
-              <label className="block text-ink-muted dark:text-ink-dark-muted text-xs font-medium mb-1.5">
-                طابعة الكاشير المعتمدة
-              </label>
-              <CustomSelect
-                value={selectedPrinter}
-                onChange={(val) => setSelectedPrinter(val)}
-                placeholder="-- بدون طابعة افتراضية (معاينة فقط) --"
-                size="lg"
-                options={[
-                  { value: '', label: '-- بدون طابعة افتراضية (معاينة فقط) --' },
-                  ...printers.map((p) => ({
-                    value: p.name,
-                    label: p.name,
-                    badge: p.isDefault ? 'الافتراضية في ويندوز' : undefined
-                  }))
-                ]}
-              />
-            </div>
-          </div>
-
-          {/* Card 2: Backup Folder */}
-          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-6 flex flex-col shadow-2xs">
-            <div className="flex items-start gap-3.5 mb-5">
-              <div className="w-10 h-10 rounded-[6px] border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted shrink-0 bg-canvas dark:bg-canvas-dark">
-                <HardDrive className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted" />
-              </div>
-              <div>
-                <h3 className="text-ink dark:text-ink-dark text-base font-semibold">
-                  مسار النسخ الاحتياطي التلقائي للبيانات (Backup Folder)
-                </h3>
-                <p className="text-ink-muted dark:text-ink-dark-muted text-sm mt-1">
-                  يُفضل اختيار مسار على قرص غير قرص النظام (مثل القرص D أو فلاشة USB) لحماية قاعدة بياناتك من مشاكل الويندوز
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-ink-muted dark:text-ink-dark-muted text-xs font-medium mb-1.5">
-                مجلد النسخ الاحتياطي التلقائي
-              </label>
-              <input
-                type="text"
-                value={backupFolder}
-                onChange={(e) => setBackupFolder(e.target.value)}
-                className="w-full h-[44px] px-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] text-sm font-mono text-ink dark:text-ink-dark outline-none focus:border-brand dark:focus:border-brand-bright"
-                placeholder="D:\RafiqBackups"
-              />
-            </div>
-          </div>
+  const card = (
+    <form
+      className="w-[880px] max-w-full h-[640px] max-h-full bg-surface dark:bg-surface-dark rounded-[8px] border border-line dark:border-line-dark shadow-card flex flex-col overflow-hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-label="معالج تجهيز النظام"
+      noValidate
+      onClick={(e) => e.stopPropagation()}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!completed) handleNext();
+      }}
+    >
+      <header className="h-[80px] px-6 flex items-center gap-4 shrink-0 border-b border-line dark:border-line-dark">
+        <img src="/logo_full.png" alt="نظام رفيق" className="h-9 object-contain dark:hidden" />
+        <img src="/logo_full_dark.png" alt="نظام رفيق" className="h-9 object-contain hidden dark:block" />
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5 ps-4 border-s border-line dark:border-line-dark">
+          <h1 className="text-lg font-bold text-ink dark:text-ink-dark m-0 leading-tight truncate">{stepTitle}</h1>
+          <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 truncate">{stepHint}</p>
         </div>
-      );
-    }
+        {!completed && (
+          <span className="shrink-0 text-xs font-medium text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft border border-brand/40 dark:border-brand-bright/40 rounded-[6px] px-2.5 py-1 tabular-nums">
+            الخطوة {step} من {TOTAL_STEPS}
+          </span>
+        )}
+        {isFirstRun ? (
+          <button
+            type="button"
+            onClick={() => void handleExitApp()}
+            disabled={isApplying}
+            className="h-11 px-4 shrink-0 flex items-center gap-2 text-sm font-semibold rounded-[6px] border border-danger dark:border-danger-bright text-danger dark:text-danger-bright bg-surface dark:bg-surface-dark hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Power className="w-4 h-4" />
+            <span>إغلاق البرنامج</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void requestClose()}
+            disabled={isApplying}
+            title="إغلاق المعالج"
+            aria-label="إغلاق المعالج"
+            className="w-11 h-11 shrink-0 flex items-center justify-center rounded-[6px] border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-canvas dark:hover:bg-canvas-dark transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </header>
 
-    if (step === 4) {
-      return (
-        <div className="flex flex-col gap-5 max-w-[860px] mx-auto w-full py-2">
-          {/* 3-Column Summary Grid (6 cards) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Card 1 */}
-            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted dark:text-ink-dark-muted text-xs font-medium">النشاط التجاري المختار</span>
-              <span className="text-brand dark:text-brand-bright text-base font-semibold mt-2">
-                {selectedTemplate?.name}
-              </span>
-            </div>
+      <div className="flex shrink-0 gap-1 h-1" aria-hidden="true">
+        <div className={`flex-1 ${progressSegment(1)}`} />
+        <div className={`flex-1 ${progressSegment(2)}`} />
+      </div>
 
-            {/* Card 2 */}
-            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted dark:text-ink-dark-muted text-xs font-medium">اسم المنشأة</span>
-              <span className="text-ink dark:text-ink-dark text-base font-semibold mt-2 truncate">
-                {storeName}
-              </span>
-            </div>
+      <div className="flex-1 overflow-y-auto p-6 bg-canvas dark:bg-canvas-dark">
+        {completed ? renderFinish() : step === 1 ? renderTemplates() : renderStoreData()}
+      </div>
 
-            {/* Card 3 */}
-            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted dark:text-ink-dark-muted text-xs font-medium">طابعة الفواتير</span>
-              <span className="text-ink dark:text-ink-dark text-base font-semibold mt-2 font-mono truncate">
-                {selectedPrinter || 'معاينة فقط'}
-              </span>
-            </div>
+      <footer className="h-[80px] px-6 flex items-center gap-4 shrink-0 border-t border-line dark:border-line-dark">
+        {step === 2 && !completed ? (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setStep(1);
+            }}
+            disabled={isApplying}
+            className="h-11 px-5 shrink-0 flex items-center gap-2 text-sm font-medium rounded-[6px] border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-canvas dark:hover:bg-canvas-dark transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <ArrowRight className="w-4 h-4" />
+            <span>السابق</span>
+          </button>
+        ) : (
+          <span className="shrink-0" />
+        )}
+        <p role="alert" className="flex-1 min-w-0 m-0 text-xs font-semibold text-danger dark:text-danger-bright text-center truncate">
+          {error}
+        </p>
+        {completed ? (
+          <button
+            type="button"
+            autoFocus
+            onClick={onCompleted}
+            className="h-11 px-7 shrink-0 flex items-center gap-2 text-sm font-bold rounded-[6px] bg-paid dark:bg-paid-bright hover:bg-paid-hover dark:hover:bg-paid-bright-hover text-white dark:text-surface-dark transition-colors cursor-pointer"
+          >
+            <Check className="w-4 h-4 stroke-[2.5]" />
+            <span>{isFirstRun ? 'ابدأ البيع الآن' : 'إنهاء'}</span>
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={isApplying}
+            className={`h-11 px-7 shrink-0 flex items-center gap-2 text-sm font-bold rounded-[6px] text-white dark:text-surface-dark transition-colors cursor-pointer disabled:opacity-50 ${
+              step === 1
+                ? 'bg-brand dark:bg-brand-bright hover:bg-brand-hover dark:hover:bg-paid-bright-hover'
+                : 'bg-paid dark:bg-paid-bright hover:bg-paid-hover dark:hover:bg-paid-bright-hover'
+            }`}
+          >
+            {step === 1 ? (
+              <>
+                <span>التالي</span>
+                <ArrowLeft className="w-4 h-4" />
+              </>
+            ) : (
+              <>
+                {isApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[2.5]" />}
+                <span>إنهاء التجهيز</span>
+              </>
+            )}
+          </button>
+        )}
+      </footer>
+    </form>
+  );
 
-            {/* Card 4 */}
-            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted dark:text-ink-dark-muted text-xs font-medium">حالة قاعدة البيانات</span>
-              <span className="text-paid dark:text-paid-bright text-base font-bold mt-2 flex items-center gap-1.5">
-                <Check className="w-4 h-4 text-paid dark:text-paid-bright" />
-                <span>جاهزة لتسجيل بضاعتك</span>
-              </span>
-            </div>
-
-            {/* Card 5 */}
-            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted dark:text-ink-dark-muted text-xs font-medium">الأقسام والأصناف المسبقة</span>
-              <span className="text-ink dark:text-ink-dark text-base font-semibold mt-2 font-mono">
-                0 أقسام · 0 أصناف
-              </span>
-            </div>
-
-            {/* Card 6 (Special Highlighted) */}
-            <div className="bg-brand-soft dark:bg-brand-dark-soft border border-brand dark:border-brand-bright rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-brand dark:text-brand-bright text-xs font-medium">إدخال بضاعتك وأقسامك</span>
-                <span className="text-micro font-semibold text-brand dark:text-brand-bright bg-white dark:bg-surface-dark border border-brand/40 dark:border-brand-bright/40 px-1.5 py-0.5 rounded-[3px]">
-                  تسجيل حر
-                </span>
-              </div>
-              <span className="text-brand dark:text-brand-bright text-sm font-semibold mt-2">
-                إدخال يدوي أو استيراد ملفات Excel
-              </span>
-            </div>
-          </div>
-
-          {/* Clean Slate Reassurance Card */}
-          <div className="bg-paid-soft dark:bg-paid-dark-soft border border-paid/40 dark:border-paid/40 rounded-[6px] p-5 flex items-start gap-4 shadow-2xs">
-            <div className="w-8 h-8 rounded-[6px] bg-paid text-white flex items-center justify-center shrink-0 mt-0.5">
-              <Check className="w-5 h-5 stroke-[2.5]" />
-            </div>
-            <div className="flex flex-col">
-              <h4 className="text-ink dark:text-ink-dark text-base font-semibold">
-                جاهز تماماً لبدء تسجيل أصناف وبضاعة محلك
-              </h4>
-              <p className="text-ink-muted dark:text-ink-dark-muted text-sm mt-1 leading-relaxed">
-                تم ضبط وتفعيل ميزات البيع المناسبة لنشاطك، ويمكنك الآن البدء مباشرة في إضافة بضاعتك وترتيب أقسامك أو استيرادها بكل حرية وسهولة.
-              </p>
-            </div>
-          </div>
-
-          {/* Reassurance Line */}
-          <div className="flex items-center gap-2.5 px-1 text-ink-muted dark:text-ink-dark-muted text-sm">
-            <ShieldCheck className="w-5 h-5 text-paid dark:text-paid-bright shrink-0" />
-            <span>يمكنك في أي وقت تفعيل أو إيقاف أي ميزة وإضافة وتعديل أقسامك وبضاعتك</span>
-          </div>
-        </div>
-      );
-    }
-
-    return null;
-  };
-
-  // --------------------------------------------------------------------------
-  // FULL SCREEN WORKSPACE VIEW (FOR FIRST RUN ONBOARDING - Matching 1_2_pos & 3_4_pos)
-  // --------------------------------------------------------------------------
   if (isFirstRun) {
     return (
-      <div className="fixed inset-0 z-[9999] flex flex-row bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-hidden font-sans" dir="rtl">
-        {/* RIGHT SIDE PANEL (360px wide, solid #0B4F42, matching designs) */}
-        <aside className="w-[360px] h-full bg-[#0B4F42] text-white flex flex-col justify-between p-8 shrink-0 relative z-20 select-none">
-          <div className="flex flex-col">
-            {/* RAFIQ Brand Header: Clean transparent emblem on #0B4F42 */}
-            <div className="mb-6 flex items-center">
-              <img 
-                src="/logo_full_white.png" 
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo_white.png'; }} 
-                alt="RAFIQ Point of Sale Logo" 
-                className="w-[160px] h-auto object-contain block drop-shadow-sm" 
-              />
-            </div>
-
-            {/* Welcome block */}
-            <div className="border border-white/20 rounded-[6px] p-4 mb-8 bg-white/[0.04]">
-              <h2 className="text-white text-base font-semibold mb-1">تخصيص النظام وتجهيز المحل</h2>
-              <p className="text-white/75 text-sm">4 خطوات سهلة وتبقى جاهز تبيع</p>
-            </div>
-
-            {/* Vertical Stepper (4 steps) */}
-            <div className="relative flex flex-col gap-6 pr-1">
-              {/* Continuous vertical line behind badges */}
-              <div className="absolute top-4 right-[13px] bottom-4 w-[1px] bg-white/25 -z-0 pointer-events-none" />
-
-              {[
-                { num: 1, title: 'نوع النشاط والميزات التشغيلية', desc: 'تحديد نشاط المحل وضبط الميزات التشغيلية' },
-                { num: 2, title: 'بيانات المحل والفاتورة', desc: 'الاسم، الهاتف، وترويسة الإيصال' },
-                { num: 3, title: 'الأجهزة وحفظ البيانات', desc: 'طابعة الكاشير ومسار النسخ الاحتياطي' },
-                { num: 4, title: 'المراجعة وتأكيد البدء', desc: 'اعتماد التجهيزات والانتقال للكاشير' },
-              ].map((s) => {
-                const isPassed = appliedStats ? true : step > s.num;
-                const isActive = !appliedStats && step === s.num;
-
-                return (
-                  <div key={s.num} className="flex items-start gap-3.5 relative z-10">
-                    {/* Badge */}
-                    {isPassed ? (
-                      <div className="w-7 h-7 rounded-[4px] border border-white flex items-center justify-center shrink-0 bg-[#0B4F42] text-white">
-                        <Check className="w-4 h-4 stroke-[2.5]" />
-                      </div>
-                    ) : isActive ? (
-                      <div className="w-7 h-7 rounded-[4px] bg-white text-brand font-bold text-sm flex items-center justify-center shrink-0 tabular-nums shadow-sm">
-                        {s.num}
-                      </div>
-                    ) : (
-                      <div className="w-7 h-7 rounded-[4px] border border-white/40 text-white/60 font-semibold text-sm flex items-center justify-center shrink-0 tabular-nums bg-[#0B4F42]">
-                        {s.num}
-                      </div>
-                    )}
-
-                    {/* Step Title & Subtitle */}
-                    <div className="flex flex-col gap-0.5 pt-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-semibold ${
-                          isActive ? 'text-white' : isPassed ? 'text-white' : 'text-white/60'
-                        }`}>
-                          {s.title}
-                        </span>
-                      </div>
-                      <span className={`text-xs leading-relaxed ${
-                        isActive ? 'text-white/70' : isPassed ? 'text-white/75' : 'text-white/50'
-                      }`}>
-                        {s.desc}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Bottom Assurance items */}
-          <div className="pt-6 border-t border-white/15 flex flex-col gap-2.5">
-            <div className="flex items-center gap-2.5 text-white">
-              <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
-              <span className="text-sm text-white/90">يعمل أوفلاين 100% بدون أي إنترنت</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-white">
-              <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
-              <span className="text-sm text-white/90">حماية مالية فائقة وتخزين محلي آمن</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-white">
-              <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
-              <span className="text-sm text-white/90">جميع الإعدادات والأسعار قابلة للتعديل لاحقاً</span>
-            </div>
-          </div>
-        </aside>
-
-        {/* LEFT WORKING AREA (Matching 1_2_pos & 3_4_pos) */}
-        {appliedStats ? (
-          /* SUCCESS WORKING AREA (Replacing whole working area when completed) */
-          <main className="flex-1 h-full bg-canvas dark:bg-canvas-dark flex flex-col items-center justify-center p-12 select-none">
-            <div className="w-[520px] flex flex-col items-center text-center">
-              {/* 64px Outline Check in --paid */}
-              <div className="w-16 h-16 rounded-[8px] border-2 border-paid/30 bg-white dark:bg-surface-dark flex items-center justify-center text-paid dark:text-paid-bright mb-6 shadow-sm">
-                <Check className="w-10 h-10 text-paid dark:text-paid-bright stroke-[2.5]" />
-              </div>
-
-              {/* Title */}
-              <h1 className="text-ink dark:text-ink-dark text-3xl font-semibold mb-3">
-                النظام جاهز للعمل
-              </h1>
-
-              {/* Description */}
-              <p className="text-ink-muted dark:text-ink-dark-muted text-sm leading-relaxed mb-8">
-                تم ضبط ميزات نشاطك وقاعدة البيانات جاهزة. جاري نقلك لشاشة نقطة البيع…
-              </p>
-
-              {/* 44px Progress Strip */}
-              <div className="w-full h-[44px] bg-brand-soft dark:bg-brand-dark-soft border border-brand dark:border-brand-bright rounded-[6px] px-4 flex items-center justify-between relative overflow-hidden shadow-2xs">
-                <span className="text-ink dark:text-ink-dark text-sm font-medium z-10">جاري تحميل بيانات المتجر الجديد…</span>
-                <div className="flex items-center gap-2 z-10 font-mono text-xs text-brand dark:text-brand-bright font-semibold">
-                  <span className="tabular-nums">100%</span>
-                </div>
-                {/* Indeterminate Animated Progress Bar at Bottom of Strip */}
-                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-brand/20 dark:bg-brand-bright/20 overflow-hidden">
-                  <div className="h-full bg-brand dark:bg-brand-bright w-2/3 rounded-full animate-pulse" />
-                </div>
-              </div>
-            </div>
-          </main>
-        ) : (
-          <main className="flex-1 h-full flex flex-col bg-canvas dark:bg-canvas-dark overflow-hidden">
-            {/* STEP HEADER (72px, --surface, 1px bottom border) */}
-            <header className="h-[72px] px-8 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex items-center justify-between shrink-0 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-brand dark:text-brand-bright border border-brand/40 dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-dark-soft px-2.5 py-0.5 rounded-[6px] font-medium">
-                  الخطوة {step} من 4
-                </span>
-                <div>
-                  <h1 className="text-lg font-semibold text-ink dark:text-ink-dark leading-tight">
-                    {step === 1 && 'اختر نوع نشاط محلك التجاري'}
-                    {step === 2 && 'بيانات المتجر وهوية الفاتورة'}
-                    {step === 3 && 'طابعة الفواتير والنسخ الاحتياطي'}
-                    {step === 4 && 'مراجعة التجهيزات والبدء الفعلي'}
-                  </h1>
-                  <p className="text-sm text-ink-muted dark:text-ink-dark-muted mt-0.5">
-                    {step === 1 && 'سيقوم رفيق بضبط خصائص وميزات البيع المناسبة لنشاطك التجاري للبدء الفوري'}
-                    {step === 2 && 'المعلومات اللي هتظهر في رأس وتذييل إيصال الكاشير للزبون'}
-                    {step === 3 && 'حدد طابعة الإيصالات الحرارية ومسار النسخ الاحتياطي التلقائي لحماية بياناتك'}
-                    {step === 4 && 'تأكيد الخيارات واعتماد التجهيز لفتح شاشة الكاشير وبدء البيع فوراً'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="hidden sm:block">
-                {step === 1 && (
-                  <span className="text-xs text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark rounded-[6px] px-2.5 py-1 bg-surface dark:bg-surface-dark tabular-nums">
-                    {templates.length} قوالب متخصصة
-                  </span>
-                )}
-                {step === 2 && (
-                  <span className="text-xs text-brand dark:text-brand-bright border border-brand/40 dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-dark-soft px-2.5 py-1 rounded-[6px] font-medium">
-                    معاينة حية للإيصال (80 مم)
-                  </span>
-                )}
-                {step === 3 && (
-                  <span className="text-xs text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark rounded-[6px] px-2.5 py-1 bg-surface dark:bg-surface-dark tabular-nums">
-                    {printers.length} طابعة مكتشفة
-                  </span>
-                )}
-                {step === 4 && (
-                  <span className="text-xs text-brand dark:text-brand-bright border border-brand/40 dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-dark-soft px-2.5 py-1 rounded-[6px] font-medium">
-                    جاهز للاعتماد والتشغيل
-                  </span>
-                )}
-              </div>
-            </header>
-
-            {/* STEP BODY (scrolls internally, 24px padding) */}
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
-              {error && (
-                <div className="p-3.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger/40 dark:border-danger/40 rounded-[6px] text-xs text-danger dark:text-danger-bright flex items-center gap-2">
-                  <span className="font-bold">تنبيه:</span>
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {renderStepBody()}
-            </div>
-
-            {/* STEP FOOTER (80px, --surface, 1px top border) */}
-            <footer className="h-[80px] px-8 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex items-center justify-between shrink-0 shadow-2xs">
-              <div className="text-ink-muted dark:text-ink-dark-muted text-sm">
-                <span>النشاط المختار: </span>
-                <span className="font-semibold text-ink dark:text-ink-dark">{selectedTemplate?.name}</span>
-                <span className="mx-2">·</span>
-                <span className="font-semibold text-paid dark:text-paid-bright">جاهز للبدء والبيع</span>
-              </div>
-
-              <div className="flex items-center gap-4">
-                {step > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setStep((prev) => (prev - 1) as any)}
-                    disabled={loading}
-                    className="h-[44px] px-5 border border-line dark:border-line-dark rounded-[6px] bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark text-sm font-medium flex items-center gap-2 hover:bg-canvas dark:hover:bg-canvas-dark cursor-pointer transition-colors"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                    <span>السابق</span>
-                  </button>
-                )}
-
-                {step < 4 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (step === 2 && !storeName.trim()) {
-                        setError('اسم المحل مطلوب للمتابعة.');
-                        return;
-                      }
-                      setError(null);
-                      setStep((prev) => (prev + 1) as any);
-                    }}
-                    className="h-[44px] px-6 bg-brand hover:bg-brand-hover text-white text-sm font-semibold rounded-[6px] flex items-center gap-2 cursor-pointer transition-colors shadow-sm"
-                  >
-                    <span>
-                      {step === 1 && 'المتابعة لبيانات الفاتورة'}
-                      {step === 2 && 'المتابعة لإعدادات الأجهزة'}
-                      {step === 3 && 'المتابعة للمراجعة والبدء'}
-                    </span>
-                    <ArrowLeft className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => void handleApply()}
-                    disabled={loading}
-                    className="h-[44px] px-7 bg-paid hover:bg-paid-hover text-white text-sm font-bold rounded-[6px] flex items-center gap-2 cursor-pointer transition-colors shadow-sm disabled:opacity-50"
-                  >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[2.5]" />}
-                    <span>تجهيز النظام وبدء نقطة البيع فوراً</span>
-                  </button>
-                )}
-              </div>
-            </footer>
-          </main>
-        )}
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-hidden font-sans"
+        dir="rtl"
+      >
+        {card}
       </div>
     );
   }
 
-  // --------------------------------------------------------------------------
-  // MODAL DIALOG VIEW (WHEN OPENED FROM SETTINGS - Matching 1_4 design)
-  // --------------------------------------------------------------------------
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-ink dark:text-ink-dark select-none font-sans" 
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-ink dark:text-ink-dark select-none font-sans"
       dir="rtl"
       onClick={handleBackdropClick}
     >
-      {/* MODAL CONTAINER (896px wide, max 85vh, 8px radius, 1px line border, modal-shadow) */}
-      <div 
-        className="w-[896px] max-h-[85vh] bg-surface dark:bg-surface-dark rounded-[8px] border border-line dark:border-line-dark shadow-2xl flex flex-col overflow-hidden"
-        role="dialog"
-        aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* 1. MODAL HEADER (72px, --surface, 1px bottom border) */}
-        <div className="h-[72px] bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-6 flex items-center justify-between shrink-0">
-          <div>
-            <h2 className="text-xl font-semibold text-ink dark:text-ink-dark">معالج التجهيز السريع للنظام</h2>
-            <p className="text-sm text-ink-muted dark:text-ink-dark-muted mt-0.5">تهيئة وتجهيز النظام حسب نشاط محلك</p>
-          </div>
-          {/* 44px dismiss button */}
-          <button
-            type="button"
-            onClick={requestClose}
-            className="w-11 h-11 border border-line dark:border-line-dark rounded-[6px] bg-surface dark:bg-surface-dark hover:bg-canvas dark:hover:bg-canvas-dark text-ink dark:text-ink-dark flex items-center justify-center transition-colors cursor-pointer"
-            title="إغلاق المعالج"
-          >
-            <X className="w-5 h-5 text-ink dark:text-ink-dark" />
-          </button>
-        </div>
-
-        {/* 2. HORIZONTAL STEPPER (64px, --surface-2, 1px bottom border) */}
-        <div className="h-[64px] bg-[#F9FAFA] dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-8 flex items-center justify-between shrink-0">
-          {/* Step 1: نوع المحل */}
-          <div className="flex items-center gap-2.5">
-            {step > 1 ? (
-              <div className="w-6 h-6 rounded-[4px] border border-brand dark:border-brand-bright bg-white dark:bg-surface-dark text-brand dark:text-brand-bright flex items-center justify-center font-bold text-xs">
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-            ) : (
-              <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
-                step === 1 ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40' : 'border border-line dark:border-line-dark bg-white dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
-              }`}>
-                1
-              </div>
-            )}
-            <span className={`text-sm ${step === 1 ? 'font-bold text-brand dark:text-brand-bright' : step > 1 ? 'font-medium text-brand dark:text-brand-bright' : 'font-medium text-ink-muted dark:text-ink-dark-muted'}`}>
-              نوع المحل
-            </span>
-          </div>
-
-          {/* Connector 1-2 */}
-          <div className={`flex-1 h-px mx-4 ${step > 1 ? 'bg-brand/40 dark:bg-brand-bright/40' : 'bg-line dark:bg-line-dark'}`} />
-
-          {/* Step 2: بيانات الفاتورة */}
-          <div className="flex items-center gap-2.5">
-            {step > 2 ? (
-              <div className="w-6 h-6 rounded-[4px] border border-brand dark:border-brand-bright bg-white dark:bg-surface-dark text-brand dark:text-brand-bright flex items-center justify-center font-bold text-xs">
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-            ) : (
-              <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
-                step === 2 ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40' : 'border border-line dark:border-line-dark bg-white dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
-              }`}>
-                2
-              </div>
-            )}
-            <span className={`text-sm ${step === 2 ? 'font-bold text-brand dark:text-brand-bright' : step > 2 ? 'font-medium text-brand dark:text-brand-bright' : 'font-medium text-ink-muted dark:text-ink-dark-muted'}`}>
-              بيانات الفاتورة
-            </span>
-          </div>
-
-          {/* Connector 2-3 */}
-          <div className={`flex-1 h-px mx-4 ${step > 2 ? 'bg-brand/40 dark:bg-brand-bright/40' : 'bg-line dark:bg-line-dark'}`} />
-
-          {/* Step 3: الأجهزة */}
-          <div className="flex items-center gap-2.5">
-            {step > 3 ? (
-              <div className="w-6 h-6 rounded-[4px] border border-brand dark:border-brand-bright bg-white dark:bg-surface-dark text-brand dark:text-brand-bright flex items-center justify-center font-bold text-xs">
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-            ) : (
-              <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
-                step === 3 ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40' : 'border border-line dark:border-line-dark bg-white dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
-              }`}>
-                3
-              </div>
-            )}
-            <span className={`text-sm ${step === 3 ? 'font-bold text-brand dark:text-brand-bright' : step > 3 ? 'font-medium text-brand dark:text-brand-bright' : 'font-medium text-ink-muted dark:text-ink-dark-muted'}`}>
-              الأجهزة
-            </span>
-          </div>
-
-          {/* Connector 3-4 */}
-          <div className={`flex-1 h-px mx-4 ${step > 3 ? 'bg-brand/40 dark:bg-brand-bright/40' : 'bg-line dark:bg-line-dark'}`} />
-
-          {/* Step 4: المراجعة */}
-          <div className="flex items-center gap-2.5">
-            <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
-              step === 4 ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40' : 'border border-line dark:border-line-dark bg-white dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
-            }`}>
-              4
-            </div>
-            <span className={`text-sm ${step === 4 ? 'font-bold text-brand dark:text-brand-bright' : 'font-medium text-ink-muted dark:text-ink-dark-muted'}`}>
-              المراجعة
-            </span>
-          </div>
-        </div>
-
-        {/* 3. MODAL BODY (Scrolls internally, 24px padding) */}
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 bg-canvas dark:bg-canvas-dark">
-          {error && (
-            <div className="p-3.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger/40 dark:border-danger/40 rounded-[6px] text-xs text-danger dark:text-danger-bright flex items-center gap-2">
-              <span className="font-bold">تنبيه:</span>
-              <span>{error}</span>
-            </div>
-          )}
-
-          {renderStepBody()}
-        </div>
-
-        {/* 4. MODAL FOOTER (72px, --surface, 1px top border) */}
-        <div className="h-[72px] bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark px-6 flex items-center justify-between shrink-0">
-          {step > 1 ? (
-            <button
-              type="button"
-              onClick={() => setStep((prev) => (prev - 1) as any)}
-              disabled={loading}
-              className="h-[44px] px-5 border border-line dark:border-line-dark rounded-[6px] bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark text-sm font-medium flex items-center gap-2 hover:bg-canvas dark:hover:bg-canvas-dark cursor-pointer transition-colors"
-            >
-              <ArrowRight className="w-4 h-4" />
-              <span>السابق</span>
-            </button>
-          ) : (
-            <div />
-          )}
-
-          {step < 4 ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (step === 2 && !storeName.trim()) {
-                  setError('اسم المحل مطلوب للمتابعة.');
-                  return;
-                }
-                setError(null);
-                setStep((prev) => (prev + 1) as any);
-              }}
-              className="h-[44px] px-6 bg-brand hover:bg-brand-hover text-white text-sm font-semibold rounded-[6px] flex items-center gap-2 cursor-pointer transition-colors shadow-sm"
-            >
-              <span>التالي</span>
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void handleApply()}
-              disabled={loading}
-              className="h-[44px] px-7 bg-paid hover:bg-paid-hover text-white text-sm font-bold rounded-[6px] flex items-center gap-2 cursor-pointer transition-colors shadow-sm disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[2.5]" />}
-              <span>تجهيز النظام والبدء الآن</span>
-            </button>
-          )}
-        </div>
-      </div>
+      {card}
     </div>
   );
 };

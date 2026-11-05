@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   FileText, 
   RefreshCw, 
@@ -23,6 +23,7 @@ import { useDataSubscription } from '../utils/eventBus';
 import { openHelpCenter } from '../utils/helpService';
 import type { Sale, Return } from '../types/models';
 import { formatArabicCurrency, totalSaleDiscountPiasters } from '../utils/money';
+import { normalizeInvoiceSearchText } from '../utils/receiptLayout';
 import { VoidInvoiceModal } from '../components/VoidInvoiceModal';
 import { ReturnModal } from '../components/ReturnModal';
 import { CustomDatePicker } from '../components/CustomDatePicker';
@@ -67,6 +68,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
   });
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'cancelled' | 'refunded'>('all');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'custom'>('all');
@@ -144,7 +146,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
     setSearchError(null);
     try {
       const res = await invoke<Sale[]>('sales:getRecent', { limit: 100 });
-      setSales(res || []);
+      setSales(Array.isArray(res) ? res : []);
     } catch (err: unknown) {
       console.error(err);
       setSearchError('تعذر تحميل قائمة الفواتير من قاعدة البيانات');
@@ -158,6 +160,11 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
       void loadSales();
     }
   }, [isActive]);
+
+  // A wedge barcode scanner types into the focused field: keep the search box focused so a receipt barcode can be scanned right away
+  useEffect(() => {
+    if (isActive !== false && !selectedSale) searchInputRef.current?.focus();
+  }, [isActive, selectedSale]);
 
   useDataSubscription(['sales', 'all'], () => {
     void loadSales();
@@ -209,7 +216,8 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
   };
 
   const handleSearchInvoice = async () => {
-    const raw = searchQuery.trim().replace(/^#/, '');
+    // The receipt barcode is the invoice number padded to 8 digits: "00001042" searches invoice 1042
+    const raw = normalizeInvoiceSearchText(searchQuery);
     setSearchError(null);
     if (!raw) {
       await loadSales();
@@ -328,7 +336,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
     // 3. Search Query (Invoice #, customer name/phone, notes, amount)
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase().replace(/^#/, '');
+      const q = normalizeInvoiceSearchText(searchQuery).toLowerCase();
       const invMatch = String(s.invoiceNumber || '').includes(q);
       const notesMatch = (s.notes || '').toLowerCase().includes(q);
       const custMatch = (s.customerName || '').toLowerCase().includes(q) || (s.customerPhone || '').includes(q);
@@ -435,9 +443,11 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         <div className="flex items-center gap-2 flex-1 min-w-[240px] max-w-lg relative">
           <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted" />
           <input
+            ref={searchInputRef}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 void handleSearchInvoice();

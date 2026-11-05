@@ -117,9 +117,12 @@ describe('owner-grade gating in the UI', () => {
     const backup = read('src', 'components', 'BackupManager.tsx');
     assert.ok(backup.includes("hasPermission('settings.restore')") && backup.includes("hasPermission('settings.license')"));
     assert.ok(!backup.includes('isOwnerOrRoot'));
-    const diag = read('src', 'views', 'settings', 'SystemDiagnosticsTab.tsx');
-    assert.ok(diag.includes("hasPermission('system.updates')"));
+    // One home for the update check: the top bar menu (owner/root always, manager by grant); the root console has no copy of it
+    for (const page of ['RootStatusPage.tsx', 'RootDataPage.tsx', 'RootConsoleView.tsx']) {
+      assert.ok(!read('src', 'views', 'root', page).includes('AppUpdateModal'), `${page} must not duplicate the update check`);
+    }
     const app = read('src', 'App.tsx');
+    assert.ok(app.includes("id: 'updates'") && app.includes('headerAccess.showUpdates'));
     assert.ok(app.includes("hasPermission('system.updates')") && app.includes("hasPermission('settings.license')"));
     const lock = read('src', 'components', 'LicenseExpiredLockScreen.tsx');
     assert.ok(lock.includes("hasPermission('settings.license')") && !lock.includes('isOwnerOrRoot'));

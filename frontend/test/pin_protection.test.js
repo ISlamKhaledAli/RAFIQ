@@ -72,10 +72,10 @@ describe('Story 58: Sensitive Screens PIN Code Protection (Feature #52)', () => 
     assert.ok(serviceContent.includes('defaultActions["stock_adjust"] = true;'), 'Manual stock adjustment must be protected by default');
     assert.ok(serviceContent.includes('defaultActions["db_recovery"] = true;'), 'Database recovery/reset must be protected by default');
 
-    // Check integration in SettingsView
-    const settingsViewContent = fs.readFileSync(settingsViewPath, 'utf8');
-    assert.ok(settingsViewContent.includes('PinSettingsModal'), 'SettingsView must integrate PinSettingsModal');
-    assert.ok(settingsViewContent.includes("subTab === 'security'"), 'SettingsView must include security subtab');
+    // Check integration: the PIN protection screen lives in the root console, not in the owner settings
+    const devicesPage = fs.readFileSync(path.resolve('src', 'views', 'root', 'RootDevicesPage.tsx'), 'utf8');
+    assert.ok(devicesPage.includes('PinSettingsModal'), 'The root devices page must integrate PinSettingsModal');
+    assert.ok(!fs.readFileSync(settingsViewPath, 'utf8').includes('PinSettingsModal'), 'SettingsView (owner) must not host the PIN screen');
 
     // DatabaseRecoveryModal runs without a login session (corrupt database): it must send the owner recovery code
     // to database:restore for server-side verification instead of a session-bound PIN check

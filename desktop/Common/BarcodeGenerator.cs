@@ -26,8 +26,50 @@ namespace RafiqPOS.Common
             10111101110L, 11101011110L, 11110101110L, 11010000100L, 11010010000L, 11010011100L, 1100011101011L
         };
 
+        private const int CODE_B = 100;
         private const int START_B = 104;
+        private const int START_C = 105;
         private const int STOP = 106;
+
+        /// <summary>
+        /// Code 128 للأرقام فقط بـ Subset C (رقمان في كل رمز): أقصر بنحو الثلث من Subset B فيتسع بموديول أعرض على ورق 57mm.
+        /// العدد الفردي من الأرقام يُنهى برمز تحويل إلى B لآخر رقم؛ أي نص آخر أو أقل من رقمين يرجع إلى EncodeCode128
+        /// </summary>
+        public static string EncodeCode128Digits(string digits)
+        {
+            if (string.IsNullOrEmpty(digits) || digits.Length < 2) return EncodeCode128(digits);
+            for (int i = 0; i < digits.Length; i++)
+            {
+                if (digits[i] < '0' || digits[i] > '9') return EncodeCode128(digits);
+            }
+
+            var sb = new StringBuilder();
+            sb.Append(BARS[START_C].ToString().PadLeft(11, '0'));
+            int checksum = START_C;
+            int position = 1;
+            int pairs = digits.Length / 2;
+            for (int i = 0; i < pairs; i++)
+            {
+                int code = (digits[2 * i] - '0') * 10 + (digits[2 * i + 1] - '0');
+                checksum += code * position;
+                position++;
+                sb.Append(BARS[code].ToString().PadLeft(11, '0'));
+            }
+
+            if (digits.Length % 2 == 1)
+            {
+                checksum += CODE_B * position;
+                position++;
+                sb.Append(BARS[CODE_B].ToString().PadLeft(11, '0'));
+                int last = digits[digits.Length - 1] - 32;
+                checksum += last * position;
+                sb.Append(BARS[last].ToString().PadLeft(11, '0'));
+            }
+
+            sb.Append(BARS[checksum % 103].ToString().PadLeft(11, '0'));
+            sb.Append(BARS[STOP].ToString().PadLeft(13, '0'));
+            return sb.ToString();
+        }
 
         /// <summary>
         /// تحويل نص الباركود إلى سلسلة بتات ثنائية (1 = خط أسود، 0 = فراغ أبيض)

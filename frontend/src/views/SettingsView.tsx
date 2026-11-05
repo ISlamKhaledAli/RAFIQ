@@ -2,44 +2,27 @@ import { useState, useEffect, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { 
   Printer, 
-  Activity, 
   Store, 
   HardDrive, 
-  Barcode, 
-  KeyRound, 
-  FlaskConical,
-  SlidersHorizontal,
   ClipboardList,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
-import { getAllowedSettingsSubTabs } from '../utils/settingsAccess';
-import type { SystemInfo } from '../App';
+import { DRAWER_PULSE_DEFAULT_MS, normalizeDrawerPulse } from '../utils/drawerPulse';
+import { getAllowedSettingsSubTabs, resolveSettingsSubTab } from '../utils/settingsAccess';
 import { BackupManager } from '../components/BackupManager';
 import { rafiqAlert } from '../utils/dialogService';
-import { BarcodeScannerSettingsModal } from '../components/BarcodeScannerSettingsModal';
-import { FirstRunWizardModal } from '../components/FirstRunWizardModal';
-import { DemoDataModal } from '../components/DemoDataModal';
-import { GuidedTourModal } from '../components/GuidedTourModal';
-import { SearchBenchmarkModal } from '../components/SearchBenchmarkModal';
-
-import { PinSettingsModal } from '../components/PinSettingsModal';
 
 import { StoreProfileTab } from './settings/StoreProfileTab';
-import { StoreFeaturesTab } from './settings/StoreFeaturesTab';
 import { SalesPoliciesTab } from './settings/SalesPoliciesTab';
 import { PrinterSettingsTab } from './settings/PrinterSettingsTab';
 import { DEFAULT_DEVELOPER_SIGNATURE, normalizeReceiptText, receiptTextLimitError, resolveReceiptFooter, resolveReceiptSignature } from '../utils/receiptLayout';
 import { invalidateReportPaperCache, normalizeReportPaper, type ReportPaper } from '../utils/printReport';
-import { ScannerSettingsTab } from './settings/ScannerSettingsTab';
-import { SystemDiagnosticsTab } from './settings/SystemDiagnosticsTab';
-import { DemoDataTab } from './settings/DemoDataTab';
 
-export type SettingsSubTab = 'profile' | 'policies' | 'features' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
+/** Owner-facing screens only: everything reserved for the root account lives in the root console (views/root). */
+export type SettingsSubTab = 'profile' | 'policies' | 'backup' | 'printer';
 
 export interface SettingsViewProps {
-  sysInfo?: SystemInfo | null;
   activeSubTab?: SettingsSubTab;
   onSubTabChange?: (tab: SettingsSubTab) => void;
   initialSubTab?: SettingsSubTab;
@@ -47,23 +30,13 @@ export interface SettingsViewProps {
 }
 
 export const SettingsView = ({ 
-  sysInfo, 
   activeSubTab = 'profile', 
   onSubTabChange,
   onOpenLicenseModal, 
 }: SettingsViewProps) => {
-  const { flags, toggleFlag } = useFeatures();
   const { isRoot, isAdmin, hasPermission } = useAuth();
-  const canManageFeatures = isRoot || hasPermission('settings.features');
   const allowedSubTabs = getAllowedSettingsSubTabs({ isRoot, isAdmin, hasPermission });
-  const subTab: SettingsSubTab = allowedSubTabs.includes(activeSubTab) ? activeSubTab : (allowedSubTabs[0] || 'profile');
-  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
-  const [isTourModalOpen, setIsTourModalOpen] = useState(false);
-  const [isBenchmarkModalOpen, setIsBenchmarkModalOpen] = useState(false);
-  const [demoStatus, setDemoStatus] = useState<any>(null);
+  const subTab: SettingsSubTab = resolveSettingsSubTab(activeSubTab, allowedSubTabs);
   const [storeName, setStoreName] = useState('متجر رفيق');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -73,15 +46,13 @@ export const SettingsView = ({
   const [showReceiptLogo, setShowReceiptLogo] = useState(true);
   const [showReceiptCashier, setShowReceiptCashier] = useState(true);
   const [storeLogoUrl, setStoreLogoUrl] = useState('/receipt_logo_square.png');
+  // Developer signature: edited on the root console, only read here to draw the receipt preview
   const [developerSignature, setDeveloperSignature] = useState(DEFAULT_DEVELOPER_SIGNATURE);
-  // Root-only receipt signature switches: visible by default, '' = the built-in banner image
   const [developerSignatureVisible, setDeveloperSignatureVisible] = useState(true);
   const [developerSignatureImage, setDeveloperSignatureImage] = useState('');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [requireOpenShiftToSell, setRequireOpenShiftToSell] = useState(true);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
-  const [storeInstapayAddress, setStoreInstapayAddress] = useState('');
-  const [storeWalletNumber, setStoreWalletNumber] = useState('');
 
   // Which screen just saved (drives the "saved" confirmation on that screen only)
   const [savedTab, setSavedTab] = useState<SettingsSubTab | null>(null);
@@ -100,11 +71,6 @@ export const SettingsView = ({
     showReceiptLogo,
     showReceiptCashier,
     storeLogoUrl,
-    storeInstapayAddress.trim(),
-    storeWalletNumber.trim(),
-    isRoot ? normalizeReceiptText(developerSignature) : '',
-    isRoot ? developerSignatureVisible : true,
-    isRoot ? developerSignatureImage : '',
   ]);
   // Until the stored values are known the screen stays saveable (never blocks a save by mistake)
   const profileDirty = profileBaseline === null || profileSnapshot !== profileBaseline;
@@ -120,7 +86,7 @@ export const SettingsView = ({
   const [reportPaperSize, setReportPaperSize] = useState<ReportPaper>('a4');
   const [autoPrintOnSale, setAutoPrintOnSale] = useState<boolean>(true);
   const [openDrawerOnSale, setOpenDrawerOnSale] = useState<boolean>(false);
-  const [drawerPulseMs, setDrawerPulseMs] = useState<string>('30');
+  const [drawerPulseMs, setDrawerPulseMs] = useState<string>(String(DRAWER_PULSE_DEFAULT_MS));
   const [drawerPin, setDrawerPin] = useState<string>('0');
   const [printersLoading, setPrintersLoading] = useState<boolean>(false);
   const [testPrinting, setTestPrinting] = useState<boolean>(false);
@@ -197,14 +163,12 @@ export const SettingsView = ({
               setSavedCreditLimitEgp(lim);
             }
           }
-          if (settings.store_instapay_address) setStoreInstapayAddress(settings.store_instapay_address);
-          if (settings.store_wallet_number) setStoreWalletNumber(settings.store_wallet_number);
           if (settings.default_printer_name) setSelectedPrinter(settings.default_printer_name);
           if (settings.receipt_paper_width) setPaperWidth(settings.receipt_paper_width as '80mm' | '57mm' | 'a4');
           if (settings.report_paper_size) setReportPaperSize(normalizeReportPaper(settings.report_paper_size));
           if (settings.printer_auto_print !== undefined) setAutoPrintOnSale(settings.printer_auto_print === '1');
           if (settings.printer_open_drawer !== undefined) setOpenDrawerOnSale(settings.printer_open_drawer === '1');
-          if (settings.drawer_pulse_ms) setDrawerPulseMs(settings.drawer_pulse_ms);
+          if (settings.drawer_pulse_ms) setDrawerPulseMs(String(normalizeDrawerPulse(settings.drawer_pulse_ms)));
           if (settings.drawer_pin) setDrawerPin(settings.drawer_pin);
         }
         setSettingsLoaded(true);
@@ -217,10 +181,6 @@ export const SettingsView = ({
           });
         }
 
-        const dRes: any = await invoke('demo:getStatus');
-        if (active && dRes) {
-          setDemoStatus(dRes);
-        }
       } catch (err: unknown) {
         console.error('Failed to load settings or printers from SQLite:', err);
       } finally {
@@ -232,36 +192,10 @@ export const SettingsView = ({
     };
   }, []);
 
-  const loadDemoStatus = useCallback(async () => {
-    try {
-      const res: any = await invoke('demo:getStatus');
-      setDemoStatus(res);
-    } catch (err) {
-      console.error('Failed to load demo status:', err);
-    }
-  }, []);
-
-  // Auto-fetch data on subTab changes
-  useEffect(() => {
-    let isMounted = true;
-    if (subTab === 'demo') {
-      void invoke('demo:getStatus').then((res) => {
-        if (isMounted && res) setDemoStatus(res);
-      }).catch(() => {});
-    }
-    return () => {
-      isMounted = false;
-    };
-  }, [subTab]);
-
-  // Maintenance & Diagnostics state
-  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
-  const [diagnosticResult, setDiagnosticResult] = useState<string | null>(null);
-
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
-    if (receiptTextLimitError(receiptHeader) || receiptTextLimitError(receiptFooter) || (isRoot && receiptTextLimitError(developerSignature))) {
-      void rafiqAlert({ title: 'نص الوصل طويل', message: 'قصّر نصوص الترحيب أو التذييل أو التوقيع (الحد الأقصى 300 حرف و4 أسطر) ثم احفظ مرة أخرى.', variant: 'error' });
+    if (receiptTextLimitError(receiptHeader) || receiptTextLimitError(receiptFooter)) {
+      void rafiqAlert({ title: 'نص الوصل طويل', message: 'قصّر نصوص الترحيب أو التذييل (الحد الأقصى 300 حرف و4 أسطر) ثم احفظ مرة أخرى.', variant: 'error' });
       return;
     }
     setSaveLoading(true);
@@ -276,15 +210,6 @@ export const SettingsView = ({
         show_receipt_logo: showReceiptLogo ? '1' : '0',
         receipt_show_cashier: showReceiptCashier ? '1' : '0',
         store_logo_url: storeLogoUrl,
-        store_instapay_address: storeInstapayAddress.trim(),
-        store_wallet_number: storeWalletNumber.trim(),
-        ...(isRoot
-          ? {
-              developer_signature: normalizeReceiptText(developerSignature),
-              developer_signature_visible: developerSignatureVisible ? '1' : '0',
-              developer_signature_image: developerSignatureImage,
-            }
-          : {}),
       };
       await invoke('settings:save', payload);
       setProfileBaseline(profileSnapshot);
@@ -418,72 +343,6 @@ export const SettingsView = ({
     }
   };
 
-  const runSqliteTest = async () => {
-    setDiagnosticsLoading(true);
-    try {
-      const res: any = await invoke('db:testTransaction', { count: 10 });
-      setDiagnosticResult(`نجاح المعاملة: ${res.message}`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setDiagnosticResult(`خطأ في المعاملة: ${msg}`);
-    } finally {
-      setDiagnosticsLoading(false);
-    }
-  };
-
-  const runPrinterTest = async () => {
-    setDiagnosticsLoading(true);
-    try {
-      const res: any = await invoke('printer:test');
-      setDiagnosticResult(res.message);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setDiagnosticResult(`خطأ في الطابعة: ${msg}`);
-    } finally {
-      setDiagnosticsLoading(false);
-    }
-  };
-
-  const runPingTest = async () => {
-    setDiagnosticsLoading(true);
-    const start = performance.now();
-    try {
-      await invoke('system:ping', { timestamp: Date.now() });
-      const latency = Math.round(performance.now() - start);
-      setDiagnosticResult(`سرعة استجابة النظام الداخلي: تم الرد في ${latency} مللي ثانية`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setDiagnosticResult(`خطأ في الاتصال الداخلي: ${msg}`);
-    } finally {
-      setDiagnosticsLoading(false);
-    }
-  };
-
-  const [supportLoading, setSupportLoading] = useState(false);
-  const [supportMessage, setSupportMessage] = useState<string | null>(null);
-
-  const runCreateSupportBundle = async () => {
-    setSupportLoading(true);
-    setSupportMessage(null);
-    try {
-      const res: any = await invoke('support:createBundle');
-      if (res && res.success) {
-        setSupportMessage(res.message);
-      } else {
-        setSupportMessage(res?.message || 'تعذر استخراج حزمة الدعم الفني');
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setSupportMessage(`خطأ في استخراج الحزمة: ${msg}`);
-    } finally {
-      setSupportLoading(false);
-    }
-  };
-
-  const runBenchmarkTest = () => {
-    setIsBenchmarkModalOpen(true);
-  };
-
   const SUB_TAB_CONFIG: Record<SettingsSubTab, { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }> = {
     profile: {
       title: 'بيانات المحل وتفاصيل الفاتورة',
@@ -495,11 +354,6 @@ export const SettingsView = ({
       subtitle: 'البيع بالسالب، إلزام الوردية، حد الدين للزبائن الجدد، وبيانات صرف أدوية الجدول للصيدليات',
       icon: ClipboardList,
     },
-    features: {
-      title: 'ميزات ونشاط المحل وتخصيص الواجهات',
-      subtitle: 'تفعيل أو تعطيل الأقسام والخدمات والميزات المتقدمة حسب طبيعة ونشاط متجرك الفعلي',
-      icon: SlidersHorizontal,
-    },
     backup: {
       title: 'النسخ الاحتياطي وحماية البيانات',
       subtitle: 'حفظ نسخة من بيانات المحل على فلاشة أو قرص خارجي، واسترجاعها بأمان بدون إنترنت',
@@ -509,26 +363,6 @@ export const SettingsView = ({
       title: 'إعدادات طابعة الفواتير والدرج',
       subtitle: 'اختيار طابعة الكاشير الحرارية، مقاس البكرة (80مم / 57مم)، وفتح درج النقدية تلقائياً',
       icon: Printer,
-    },
-    system: {
-      title: 'فحص سرعة النظام ومفاتيح الميزات',
-      subtitle: 'اختبار سرعة الجهاز وقاعدة البيانات وتفعيل ميزات المحل الإضافية',
-      icon: Activity,
-    },
-    scanner: {
-      title: 'قارئ الباركود والماسح الضوئي',
-      subtitle: 'فحص استجابة قارئ الباركود وضبط سرعة الالتقاط والمسح السريع',
-      icon: Barcode,
-    },
-    security: {
-      title: 'أمان النظام وأرقام السر (PIN)',
-      subtitle: 'حماية تعديل الأسعار، ومسح الفواتير، وتقارير الأرباح، وحسابات المستخدمين برقم سري',
-      icon: KeyRound,
-    },
-    demo: {
-      title: 'بيانات تجريبية وتدريب الكاشير',
-      subtitle: 'تجربة برنامج رفيق وتدريب الكاشير ببيانات وهمية جاهزة ومسحها بضغطة زر دون لمس الحسابات الحقيقية',
-      icon: FlaskConical,
     },
   };
 
@@ -546,7 +380,7 @@ export const SettingsView = ({
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">إعدادات المحل والنظام</span>
-              <span className="text-ink-muted/40 dark:text-ink-muted-dark/40 font-bold">/</span>
+              <span aria-hidden="true" className="text-ink-muted dark:text-ink-muted-dark font-bold">/</span>
               <h2 className="t-page-title text-ink dark:text-ink-dark leading-tight m-0">
                 {currentTabConfig.title}
               </h2>
@@ -594,10 +428,6 @@ export const SettingsView = ({
         />
       )}
 
-      {subTab === 'scanner' && (
-        <ScannerSettingsTab onOpenScannerModal={() => setIsScannerModalOpen(true)} />
-      )}
-
       {subTab === 'profile' && (
         <StoreProfileTab
           storeName={storeName}
@@ -619,22 +449,13 @@ export const SettingsView = ({
           storeLogoUrl={storeLogoUrl}
           setStoreLogoUrl={setStoreLogoUrl}
           developerSignature={developerSignature}
-          setDeveloperSignature={setDeveloperSignature}
           developerSignatureVisible={developerSignatureVisible}
-          setDeveloperSignatureVisible={setDeveloperSignatureVisible}
           developerSignatureImage={developerSignatureImage}
-          setDeveloperSignatureImage={setDeveloperSignatureImage}
-          storeInstapayAddress={storeInstapayAddress}
-          setStoreInstapayAddress={setStoreInstapayAddress}
-          storeWalletNumber={storeWalletNumber}
-          setStoreWalletNumber={setStoreWalletNumber}
           paperWidth={paperWidth}
-          isRoot={isRoot}
           dirty={profileDirty}
           saved={savedTab === 'profile'}
           saveLoading={saveLoading}
           handleSave={handleSave}
-          onOpenWizard={isRoot ? () => setIsWizardOpen(true) : undefined}
           onOpenPrinterSettings={onSubTabChange && allowedSubTabs.includes('printer') ? () => onSubTabChange('printer') : undefined}
         />
       )}
@@ -651,117 +472,8 @@ export const SettingsView = ({
           saveLoading={saveLoading}
           saved={savedTab === 'policies'}
           onSave={(e) => void handleSavePolicies(e)}
-          hasTaxNumber={Boolean(taxNumber && taxNumber.trim())}
         />
       )}
-
-      {subTab === 'features' && (
-        <StoreFeaturesTab
-          flags={flags}
-          toggleFlag={toggleFlag}
-          canManageFeatures={canManageFeatures}
-          onOpenWizard={isRoot ? () => setIsWizardOpen(true) : undefined}
-        />
-      )}
-
-      {isRoot && subTab === 'system' && (
-        <SystemDiagnosticsTab
-          sysInfo={sysInfo}
-          flags={flags}
-          toggleFlag={toggleFlag}
-          canManageFeatures={canManageFeatures}
-          diagnosticsLoading={diagnosticsLoading}
-          diagnosticResult={diagnosticResult}
-          setDiagnosticResult={setDiagnosticResult}
-          runPrinterTest={runPrinterTest}
-          runSqliteTest={runSqliteTest}
-          runPingTest={runPingTest}
-          runBenchmarkTest={runBenchmarkTest}
-          supportLoading={supportLoading}
-          supportMessage={supportMessage}
-          setSupportMessage={setSupportMessage}
-          runCreateSupportBundle={runCreateSupportBundle}
-          onOpenWizard={isRoot ? () => setIsWizardOpen(true) : undefined}
-        />
-      )}
-
-      {isRoot && subTab === 'security' && (
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-5 sm:p-6 flex flex-col gap-5 shadow-xs animate-in fade-in">
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-line dark:border-line-dark pb-5">
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="w-11 h-11 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
-                <KeyRound className="w-5 h-5 text-paid dark:text-paid-bright" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="t-card-title text-ink dark:text-ink-dark m-0">حماية الشاشات والعمليات الحساسة بالرقم السري (PIN)</h3>
-                <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 mt-1">
-                  قفل تعديل الأسعار، ومسح الفواتير، والتقارير المالية، واسترجاع قاعدة البيانات برقم سري مشفر.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsPinModalOpen(true)}
-              className="h-10 px-5 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer flex items-center gap-2 shrink-0"
-            >
-              <KeyRound className="w-4 h-4" />
-              <span>إعدادات وتغيير الرقم السري</span>
-            </button>
-          </div>
-          <p className="text-sm text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0">
-            يمكنك تفعيل أو تعطيل الحماية واختيار العمليات المحمية وتوليد كود الطوارئ لحماية متجرك من التلاعب غير المصرح به.
-          </p>
-        </div>
-      )}
-
-      {isRoot && subTab === 'demo' && (
-        <DemoDataTab
-          demoStatus={demoStatus}
-          onOpenTourModal={() => setIsTourModalOpen(true)}
-          onOpenDemoModal={() => setIsDemoModalOpen(true)}
-        />
-      )}
-
-      {/* Modals */}
-      <PinSettingsModal
-        isOpen={isPinModalOpen}
-        onClose={() => setIsPinModalOpen(false)}
-      />
-
-      <BarcodeScannerSettingsModal
-        isOpen={isScannerModalOpen}
-        onClose={() => setIsScannerModalOpen(false)}
-      />
-
-      <FirstRunWizardModal
-        isOpen={isWizardOpen}
-        onClose={() => setIsWizardOpen(false)}
-        onCompleted={() => {
-          setIsWizardOpen(false);
-          void loadDemoStatus();
-          window.location.reload();
-        }}
-      />
-
-      <DemoDataModal
-        isOpen={isDemoModalOpen}
-        onClose={() => setIsDemoModalOpen(false)}
-        onStartTour={() => setIsTourModalOpen(true)}
-        onDataChanged={loadDemoStatus}
-      />
-
-      <GuidedTourModal
-        isOpen={isTourModalOpen}
-        onClose={() => setIsTourModalOpen(false)}
-        onLoadDemoData={() => setIsDemoModalOpen(true)}
-        hasDemoData={demoStatus?.hasDemoData}
-      />
-
-      <SearchBenchmarkModal
-        isOpen={isBenchmarkModalOpen}
-        onClose={() => setIsBenchmarkModalOpen(false)}
-      />
-
     </div>
   );
 };

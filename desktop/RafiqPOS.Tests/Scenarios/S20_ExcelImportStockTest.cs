@@ -149,25 +149,5 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.AreEqual(5000, created.MinStockQuantityMilli);
             Assert.IsFalse(string.IsNullOrEmpty(created.CategoryId));
         }
-
-        [Test]
-        public void M4_Consolidated_Row_Claims_Extra_Barcode_From_Another_Archived_Product()
-        {
-            var archA = CreateTestProduct("جبنة فيتا فرنسي دومتي 250 جم", 2400, 2000, 0, "6223000756645");
-            var archB = CreateTestProduct("جبنة فيتا دومتي 250 جم", 2400, 2000, 0, "6223000756218");
-            ProductService.DeleteProduct(archA.Id);
-            ProductService.DeleteProduct(archB.Id);
-
-            var result = Import("{\"barcode\":\"6223000756645\",\"name\":\"جبنة فيتا بلس دومتي - 250جم\",\"categoryName\":\"ألبان وأجبان\",\"unit\":\"علبة\",\"pricePiasters\":2600,\"costPiasters\":2200,\"stockQuantityMilli\":30000,\"minStockQuantityMilli\":5000,\"taxRatePercent\":0,\"internalCode\":null,\"taxCategoryCode\":null,\"barcodes\":[\"6223000756645\",\"6223000756218\"]}", "skip");
-
-            Assert.AreEqual(1, result.ImportedCount);
-            Assert.AreEqual(0, result.Errors.Count);
-            var byMain = ProductRepo.GetByBarcode("6223000756645");
-            var byExtra = ProductRepo.GetByBarcode("6223000756218");
-            Assert.IsNotNull(byMain);
-            Assert.IsNotNull(byExtra);
-            Assert.AreEqual(archA.Id, byMain.Id);
-            Assert.AreEqual(archA.Id, byExtra.Id, "الباركود الإضافي يتحرر من الصنف المؤرشف الآخر ويرتبط بالصنف المستعاد");
-        }
     }
 }

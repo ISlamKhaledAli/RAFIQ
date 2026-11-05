@@ -254,10 +254,10 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
             <span>فاتورة <span className="font-mono font-bold text-brand dark:text-brand-bright">#{String(details.invoiceNumber || '')}</span>:</span>
             <span className="text-ink-muted dark:text-ink-muted-dark line-through font-mono">{sub} ج.م</span>
             <span className="text-warn dark:text-warn-bright font-bold font-mono">خصم {disc} ج.م {pct && `(${pct})`}</span>
-            <ArrowRightLeft className="w-3 h-3 text-ink-muted" />
+            <ArrowRightLeft className="w-3 h-3 text-ink-muted dark:text-ink-muted-dark" />
             <span className="text-paid dark:text-paid-bright font-bold font-mono">{total} ج.م</span>
             {Boolean(details.authorizedBy) && (
-              <span className="text-micro text-ink-muted bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-line">
+              <span className="text-micro text-ink-muted dark:text-ink-muted-dark bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
                 اعتماد: {String(details.authorizedBy)}
               </span>
             )}
@@ -348,7 +348,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
       if (log.action === 'sale_reprint') {
         return (
           <div className="text-xs text-ink dark:text-ink-dark font-sans flex items-center gap-1">
-            <Printer className="w-3.5 h-3.5 text-ink-muted" />
+            <Printer className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark" />
             <span>إعادة طباعة نسخة طبق الأصل لفاتورة رقم <span className="font-mono font-bold text-brand dark:text-brand-bright">#{String(details.invoiceNumber || '')}</span></span>
           </div>
         );
@@ -366,7 +366,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
                   {c.key}: <span className="text-danger line-through">{c.oldValue || 'فارغ'}</span> {'->'} <span className="text-paid font-bold">{c.newValue || 'فارغ'}</span>
                 </span>
               ))}
-              {changes.length > 2 && <span className="text-micro text-ink-muted font-bold">+{changes.length - 2} إعدادات أخرى</span>}
+              {changes.length > 2 && <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-bold">+{changes.length - 2} إعدادات أخرى</span>}
             </div>
           );
         }
@@ -379,7 +379,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         return (
           <div className="text-xs font-sans text-ink dark:text-ink-dark flex items-center gap-1.5">
             <span className="font-mono font-bold">{amt} ج.م</span>
-            {reason && <span className="text-ink-muted">- {reason}</span>}
+            {reason && <span className="text-ink-muted dark:text-ink-muted-dark">- {reason}</span>}
           </div>
         );
       }
@@ -391,7 +391,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
           <div className="text-xs text-ink dark:text-ink-dark font-sans flex items-center gap-1.5">
             <span>فاتورة #{String(details.invoiceNumber || '')}</span>
             <span className="text-danger font-bold">تجاوز ائتمان بمقدار {exceeded} ج.م</span>
-            <span className="text-ink-muted">باعتماد: {String(details.authorizedBy || '')}</span>
+            <span className="text-ink-muted dark:text-ink-muted-dark">باعتماد: {String(details.authorizedBy || '')}</span>
           </div>
         );
       }
@@ -540,7 +540,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
           </div>
           <div>
             <h2 className="t-page-title text-ink dark:text-ink-dark leading-tight m-0">
-              سجل التدقيق الرقابي والعمليات الحساسة (Audit Log)
+              سجل التدقيق الرقابي والعمليات الحساسة
             </h2>
             <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 hidden sm:block">
               توثيق شامل ومحصّن ضد التعديل لفتح الدرج والخصومات وتعديل الأسعار وحركات الأمان
@@ -567,7 +567,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
       <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-2.5 flex items-center gap-2 flex-wrap shrink-0">
         {/* Action Type Filter */}
         <div className="flex items-center gap-1.5 flex-1 min-w-[170px] sm:max-w-xs">
-          <Filter className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+          <Filter className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
           <CustomSelect
             value={selectedAction}
             onChange={(val) => setSelectedAction(val)}
@@ -579,7 +579,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
 
         {/* User Filter */}
         <div className="flex items-center gap-1.5 flex-1 min-w-[150px] sm:max-w-[200px]">
-          <User className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+          <User className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
           <CustomSelect
             value={selectedUserId}
             onChange={(val) => setSelectedUserId(val)}
@@ -591,7 +591,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
 
         {/* Date Filter */}
         <div className="flex items-center gap-1.5 flex-1 min-w-[120px] sm:max-w-[150px]">
-          <Calendar className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+          <Calendar className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
           <CustomSelect
             value={selectedDateFilter}
             onChange={(val) => setSelectedDateFilter(val)}
@@ -603,7 +603,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
 
         {/* Search Input */}
         <div className="relative flex-1 min-w-[180px]">
-          <Search className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}

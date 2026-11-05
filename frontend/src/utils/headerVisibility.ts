@@ -18,7 +18,6 @@ export interface HeaderVisibility {
   showUpdates: boolean;
   showShift: boolean;
   showEmployees: boolean;
-  showReadiness: boolean;
 }
 
 export function getHeaderVisibility(input: HeaderAccessInput): HeaderVisibility {
@@ -29,7 +28,6 @@ export function getHeaderVisibility(input: HeaderAccessInput): HeaderVisibility 
     showUpdates: isAdminTier && input.canUpdateApp,
     showShift: input.canOpenShiftPanel,
     showEmployees: isAdminTier || input.canManageUsers,
-    showReadiness: kind === 'root',
   };
 }
 
@@ -93,8 +91,11 @@ export function filterNotificationsForAudience(
         if (isAdminTier && audience.canUpdateApp) out.push(item);
         break;
       case 'backup_overdue':
-      case 'demo_data_active':
         if (isAdminTier) out.push(item);
+        break;
+      case 'demo_data_active':
+        // Demo data is managed from the root console only, so every other role gets the notice without the action
+        if (isAdminTier) out.push(kind === 'root' ? item : WITHOUT_ACTION(item));
         break;
       case 'low_stock':
         if (audience.canViewProducts) out.push(item);

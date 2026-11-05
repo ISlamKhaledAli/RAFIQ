@@ -8,7 +8,7 @@ import {
   Clock,
   LayoutDashboard,
   Users,
-  ShieldAlert,
+  Wrench,
   ChevronDown,
   ChevronLeft,
   Tag,
@@ -22,9 +22,6 @@ import {
   Store,
   HardDrive,
   Printer,
-  Activity,
-  Barcode,
-  FlaskConical,
   Power,
   Truck,
   Receipt,
@@ -36,9 +33,7 @@ import {
   Smartphone,
   Wallet,
   Layers,
-  KeyRound,
   RefreshCw,
-  SlidersHorizontal,
   Database,
   BarChart3,
   Sun,
@@ -77,14 +72,14 @@ import { ProductsView } from './views/ProductsView';
 import { PurchasesView } from './views/PurchasesView';
 import type { PurchasesSubView } from './views/PurchasesView';
 import { SalesHistoryView } from './views/SalesHistoryView';
-import { AuditLogView } from './views/AuditLogView';
 import { SettingsView } from './views/SettingsView';
 import type { SettingsSubTab } from './views/SettingsView';
+import { RootConsoleView } from './views/root/RootConsoleView';
+import { ROOT_SUB_TAB_META } from './views/root/rootSubTabMeta';
 import { DatabaseRecoveryModal } from './components/DatabaseRecoveryModal';
 import type { DatabaseIntegrityStatus } from './components/DatabaseRecoveryModal';
 import { FirstRunWizardModal } from './components/FirstRunWizardModal';
 import { GuidedTourModal } from './components/GuidedTourModal';
-import { ReadinessCheckModal } from './components/ReadinessCheckModal';
 import { RafiqLoadingState } from './components/RafiqLoadingState';
 import { RafiqDialogContainer } from './components/RafiqDialog';
 import { rafiqConfirm, rafiqAlert } from './utils/dialogService';
@@ -101,8 +96,17 @@ import { useFeatures } from './context/useFeatures';
 import { useAuth } from './context/useAuth';
 import { LoginScreen } from './views/LoginScreen';
 import { ForcedPinChangeForm } from './components/ForcedPinChangeForm';
+import { ExitAppButton } from './components/ExitAppButton';
 import { requiresForcedPinChange } from './utils/pinPolicy';
+import {
+  INITIAL_PRODUCT_FILTER_REQUEST,
+  nextProductFilterRequest,
+  withClearedStockFilter,
+  type ProductFilterRequest,
+  type ProductStockFilter,
+} from './utils/productFilterRequest';
 import { getAllowedSettingsSubTabs } from './utils/settingsAccess';
+import { canAccessRootConsole, getAllowedRootSubTabs, resolveRootSubTab, type RootSubTab } from './utils/rootAccess';
 import { getRoleLabel, getRoleNameClasses } from './utils/roleLabels';
 import { APP_TITLE, getShopSubtitle } from './utils/appBranding';
 import { AppUpdateModal } from './components/AppUpdateModal';
@@ -116,7 +120,21 @@ export interface SystemInfo {
   dbStatus: string;
 }
 
-export type TabType = 'pos' | 'epay' | 'wallets' | 'insurance' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'audit' | 'settings';
+export type TabType = 'pos' | 'epay' | 'wallets' | 'insurance' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'settings' | 'root';
+
+/** Help center section for a tab: the root console shares the settings page (backup and security). */
+const helpSectionOf = (tab: TabType): string => (tab === 'root' ? 'settings' : tab);
+
+// The setup wizard's finish checklist reloads the app and leaves the settings sub-tab to open here (read once, at module load).
+const POST_SETUP_SETTINGS_TAB: SettingsSubTab | null = (() => {
+  try {
+    const value = sessionStorage.getItem('rafiq_post_setup_settings_tab');
+    sessionStorage.removeItem('rafiq_post_setup_settings_tab');
+    return value === 'printer' || value === 'backup' || value === 'profile' ? value : null;
+  } catch {
+    return null;
+  }
+})();
 
 const HeaderClock: FC = memo(() => {
   const [time, setTime] = useState('');
@@ -156,7 +174,7 @@ export default function App() {
   const { isEnabled } = useFeatures();
   const { currentUser, isLoading, logout, hasPermission, isRoot, isAdmin, isOwnerOrRoot, refreshUser } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<TabType>('pos');
+  const [activeTab, setActiveTab] = useState<TabType>(POST_SETUP_SETTINGS_TAB ? 'settings' : 'pos');
   // Effects key on stable primitives, never on the user object, so a user refresh cannot re-trigger them.
   const currentUserId = currentUser?.id ?? null;
   const mustChangePinNow = requiresForcedPinChange(currentUser);
@@ -172,7 +190,7 @@ export default function App() {
   const canAccessProducts = isRoot || hasPermission('products.view') || hasPermission('products');
   const canAccessPurchases = isRoot || hasPermission('purchases.view');
   const canAccessSales = isRoot || hasPermission('invoices.view');
-  const canAccessAudit = isRoot && hasPermission('audit_log.view');
+  const canAccessRoot = canAccessRootConsole({ isRoot, canViewAudit: hasPermission('audit_log.view') });
   const canAccessSettings = isRoot || hasPermission('settings.store') || hasPermission('settings');
   const canCheckBackup = hasPermission('settings.backup');
   const canViewShifts = hasPermission('shifts.view');
@@ -208,11 +226,11 @@ export default function App() {
       case 'products': return canAccessProducts;
       case 'purchases': return canAccessPurchases;
       case 'sales': return canAccessSales;
-      case 'audit': return canAccessAudit;
+      case 'root': return canAccessRoot;
       case 'settings': return canAccessSettings;
       default: return true;
     }
-  }, [canAccessPos, canAccessEpay, canAccessWallets, canAccessInsurance, canAccessDashboard, canAccessCustomers, canAccessProducts, canAccessPurchases, canAccessSales, canAccessAudit, canAccessSettings]);
+  }, [canAccessPos, canAccessEpay, canAccessWallets, canAccessInsurance, canAccessDashboard, canAccessCustomers, canAccessProducts, canAccessPurchases, canAccessSales, canAccessRoot, canAccessSettings]);
 
   const effectiveActiveTab: TabType = canAccessTab(activeTab) ? activeTab : 'pos';
 
@@ -233,8 +251,10 @@ export default function App() {
   const effectivePurchasesSubView: PurchasesSubView =
     purchasesSubView === 'new_invoice' && !hasPermission('purchases.create') ? defaultPurchasesSubView : purchasesSubView;
   const [isPurchasesMenuExpanded, setIsPurchasesMenuExpanded] = useState(false);
-  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
-  const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(false);
+  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>(POST_SETUP_SETTINGS_TAB ?? 'profile');
+  const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(POST_SETUP_SETTINGS_TAB !== null);
+  const [rootSubTab, setRootSubTab] = useState<RootSubTab>('status');
+  const [isRootMenuExpanded, setIsRootMenuExpanded] = useState(false);
   const [isAppUpdateModalOpen, setIsAppUpdateModalOpen] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState<AppUpdateInfo | null>(null);
   const handleUpdateInfoChange = useCallback((info: AppUpdateInfo | null) => {
@@ -314,7 +334,7 @@ export default function App() {
   const [corruptDbStatus, setCorruptDbStatus] = useState<DatabaseIntegrityStatus | null>(null);
   const [lowStockCount, setLowStockCount] = useState<number>(0);
   const [lowStockDismissed, setLowStockDismissed] = useState<boolean>(false);
-  const [initialProductFilter, setInitialProductFilter] = useState<'all' | 'lowStock' | 'outOfStock'>('all');
+  const [productFilterRequest, setProductFilterRequest] = useState<ProductFilterRequest>(INITIAL_PRODUCT_FILTER_REQUEST);
   const [productToEditId, setProductToEditId] = useState<string | null>(null);
   const [isFirstRunWizardOpen, setIsFirstRunWizardOpen] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -329,7 +349,6 @@ export default function App() {
     }
     return false;
   });
-  const [isReadinessOpen, setIsReadinessOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(true);
   const [storeName, setStoreName] = useState(APP_TITLE);
   // Idle auto-lock: after the idle timeout the session is really closed (log out), so the next person must log in again
@@ -360,13 +379,13 @@ export default function App() {
   const [helpCenterSection, setHelpCenterSection] = useState<string>('pos');
 
   const openHelpCenterModal = useCallback((sec?: string) => {
-    setHelpCenterSection(sec || effectiveActiveTab);
+    setHelpCenterSection(sec || helpSectionOf(effectiveActiveTab));
     setIsHelpCenterOpen(true);
   }, [effectiveActiveTab]);
 
   useEffect(() => {
     const handleHelpEvent = (e: any) => {
-      const sec = e.detail?.section || effectiveActiveTab;
+      const sec = e.detail?.section || helpSectionOf(effectiveActiveTab);
       openHelpCenterModal(sec);
     };
     window.addEventListener('rafiq:open-help', handleHelpEvent);
@@ -411,6 +430,17 @@ export default function App() {
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
   const [isAlertTickerDismissed, setIsAlertTickerDismissed] = useState(false);
 
+  // Each call is a new request, so the products page clears its other filters before applying this one
+  const openProductsWithFilter = (
+    subView: 'catalog' | 'movements' | 'batches' = 'catalog',
+    filter: ProductStockFilter = 'all',
+  ) => {
+    setActiveTab('products');
+    setProductsSubView(subView);
+    setProductFilterRequest((prev) => nextProductFilterRequest(prev, filter));
+    setIsProductsMenuExpanded(true);
+  };
+
   const allSystemNotifications = useSystemNotifications({
     clockWarning,
     setClockWarning,
@@ -434,16 +464,11 @@ export default function App() {
       setSettingsSubTab('backup');
       setIsSettingsMenuExpanded(true);
     },
-    onOpenLowStockCatalog: () => {
-      setActiveTab('products');
-      setProductsSubView('catalog');
-      setInitialProductFilter('lowStock');
-      setIsProductsMenuExpanded(true);
-    },
+    onOpenLowStockCatalog: () => openProductsWithFilter('catalog', 'lowStock'),
     onOpenDemoManagement: () => {
-      setActiveTab('settings');
-      setSettingsSubTab('demo');
-      setIsSettingsMenuExpanded(true);
+      setActiveTab('root');
+      setRootSubTab('data');
+      setIsRootMenuExpanded(true);
     },
   });
 
@@ -844,11 +869,11 @@ export default function App() {
           sublabel: 'استرجاع الفواتير المكتملة وحركات المبيعات من قاعدة البيانات',
           icon: <Receipt className="w-6 h-6 text-brand" />,
         };
-      case 'audit':
+      case 'root':
         return {
-          label: 'جاري تحديث سجل الرقابة والأمان...',
-          sublabel: 'استرجاع حركات التدقيق وسجل نشاط المستخدمين',
-          icon: <ShieldAlert className="w-6 h-6 text-brand" />,
+          label: 'جاري تحديث لوحة المطور...',
+          sublabel: 'قراءة حالة النظام والإعدادات الخاصة بحساب المطور',
+          icon: <Wrench className="w-6 h-6 text-brand" />,
         };
       case 'settings':
         return {
@@ -969,7 +994,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeTab, canAccessAudit, canAccessCustomers, canAccessDashboard, canAccessEpay, canAccessInsurance, canAccessPos, canAccessProducts, canAccessPurchases, canAccessSales, canAccessSettings, canAccessWallets, handleUniversalRefresh, isEnabled, walletsSubTab]);
+  }, [activeTab, canAccessCustomers, canAccessDashboard, canAccessEpay, canAccessInsurance, canAccessPos, canAccessProducts, canAccessPurchases, canAccessSales, canAccessSettings, canAccessWallets, handleUniversalRefresh, isEnabled, walletsSubTab]);
 
   const handleExitApp = async () => {
     const confirmed = await rafiqConfirm({
@@ -1027,16 +1052,18 @@ export default function App() {
     const labels: Record<SettingsSubTab, { label: string; icon: any }> = {
       profile: { label: 'بيانات المحل والفاتورة', icon: Store },
       policies: { label: 'سياسات البيع والمخزون', icon: ClipboardList },
-      features: { label: 'ميزات ونشاط المحل', icon: SlidersHorizontal },
       printer: { label: 'إعدادات الطابعة والورق', icon: Printer },
-      scanner: { label: 'قارئ الباركود والاسكانر', icon: Barcode },
-      security: { label: 'حماية وأرقام السر (PIN)', icon: KeyRound },
-      backup: { label: 'نسخة احتياطية وحماية البيانات', icon: HardDrive },
-      system: { label: 'فحص سرعة النظام والتشخيص', icon: Activity },
-      demo: { label: 'بيانات تجريبية وتدريب', icon: FlaskConical },
+      backup: { label: 'النسخ الاحتياطي', icon: HardDrive },
     };
     return getAllowedSettingsSubTabs({ isRoot, isAdmin, hasPermission }).map((id) => ({ id, ...labels[id] }));
   }, [isRoot, isAdmin, hasPermission]);
+
+  const canViewAudit = hasPermission('audit_log.view');
+  const rootTreeItems = useMemo(
+    () => getAllowedRootSubTabs({ isRoot, canViewAudit }).map((id) => ({ id, label: ROOT_SUB_TAB_META[id].navLabel, icon: ROOT_SUB_TAB_META[id].icon })),
+    [isRoot, canViewAudit],
+  );
+  const effectiveRootSubTab: RootSubTab = resolveRootSubTab(rootSubTab, rootTreeItems.map((item) => item.id)) ?? 'status';
 
   const allNavItems = [
     { id: 'pos' as TabType, label: 'الكاشير وشاشة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
@@ -1048,8 +1075,8 @@ export default function App() {
     { id: 'epay' as TabType, label: 'خدمات وماكينات الدفع', icon: CreditCard, shortcut: 'Alt+7' },
     { id: 'insurance' as TabType, label: 'التأمين الطبي والتعاقدات', icon: Building2, shortcut: 'Alt+8' },
     { id: 'dashboard' as TabType, label: 'المتابعة والتقارير', icon: BarChart3, shortcut: 'Alt+9' },
-    { id: 'audit' as TabType, label: 'سجل المراقبة والأمان', icon: ShieldAlert, shortcut: '' },
     { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: '' },
+    { id: 'root' as TabType, label: 'لوحة المطور (Root)', icon: Wrench, shortcut: '' },
   ];
 
   const canAccessEpayTerminals = isRoot || isAdmin || hasPermission('epay.terminals_manage') || hasPermission('epay.fund');
@@ -1143,8 +1170,8 @@ export default function App() {
       case 'products': return canAccessProducts;
       case 'purchases': return canAccessPurchases;
       case 'sales': return canAccessSales;
-      case 'audit': return canAccessAudit;
       case 'settings': return canAccessSettings;
+      case 'root': return canAccessRoot;
       default: return true;
     }
   });
@@ -1154,6 +1181,12 @@ export default function App() {
       setActiveTab('pos');
     }
   }, [navItems, activeTab]);
+
+  // The root group sits last in the sidebar: keep its active page in view when the list scrolls (short screens)
+  useEffect(() => {
+    if (activeTab !== 'root' || !isRootMenuExpanded) return;
+    document.querySelector('[data-root-nav-active="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [activeTab, isRootMenuExpanded, rootSubTab]);
 
   if (isFirstRunWizardOpen) {
     return (
@@ -1174,6 +1207,18 @@ export default function App() {
             setActiveTab('pos');
             window.location.reload();
           }}
+          onNavigateToSettings={(subTab) => {
+            // The template's features only show after a reload, so the settings sub-tab is handed over through sessionStorage
+            try {
+              sessionStorage.setItem('rafiq_post_setup_settings_tab', subTab);
+              localStorage.setItem('rafiq_first_run_completed', 'true');
+              localStorage.removeItem('rafiq_show_guided_tour');
+              localStorage.removeItem('rafiq_wizard_state');
+            } catch {
+              // ignore
+            }
+            window.location.reload();
+          }}
         />
 
       <RafiqDialogContainer />
@@ -1183,7 +1228,8 @@ export default function App() {
 
   if (isLoading && !currentUser) {
     return (
-      <div className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center bg-canvas select-none" dir="rtl">
+      <div className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center bg-canvas dark:bg-canvas-dark select-none" dir="rtl">
+        <ExitAppButton onExit={() => void handleExitApp()} className="absolute top-3 left-3 z-[10001]" />
         <RafiqLoadingState 
           label="جاري تحميل نظام رفيق..." 
           sublabel="التحقق من جلسة المستخدم والاتصال بقاعدة البيانات" 
@@ -1194,8 +1240,9 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-canvas" dir="rtl">
+      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-canvas dark:bg-canvas-dark" dir="rtl">
         <LoginScreen />
+        <ExitAppButton onExit={() => void handleExitApp()} className="absolute top-3 left-3 z-[10001]" />
         {corruptDbStatus && (
           <DatabaseRecoveryModal
             status={corruptDbStatus}
@@ -1213,16 +1260,19 @@ export default function App() {
       <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-auto select-none bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark flex items-center justify-center p-4" dir="rtl">
         <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
           <div className="h-1.5 w-full bg-brand dark:bg-brand-bright" />
-          <div className="px-6 py-4 flex items-center justify-between gap-3 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2">
+          <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-3 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2">
             <h2 className="t-modal-title text-ink dark:text-ink-dark">تحديث أمني إلزامي: تعيين رقم سري جديد</h2>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-high focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:focus-visible:ring-brand-bright transition-colors cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>تسجيل الخروج</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-high focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:focus-visible:ring-brand-bright transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>تسجيل الخروج</span>
+              </button>
+              <ExitAppButton compact onExit={() => void handleExitApp()} />
+            </div>
           </div>
           <ForcedPinChangeForm user={currentUser} onPinChanged={() => void refreshUser()} />
         </div>
@@ -1249,7 +1299,7 @@ export default function App() {
   // Top bar menus. Every capability removed from the bar has a home here (the F1/F5/F11 shortcuts are unchanged).
   const userMenuItems: HeaderMenuItem[] = [
     { id: 'shortcuts', label: 'اختصارات الكيبورد', icon: Keyboard, hint: 'F1', onSelect: () => setIsShortcutsModalOpen(true) },
-    { id: 'help', label: 'مركز المساعدة والدعم', icon: HelpCircle, onSelect: () => openHelpCenterModal(effectiveActiveTab) },
+    { id: 'help', label: 'مركز المساعدة والدعم', icon: HelpCircle, onSelect: () => openHelpCenterModal() },
     { id: 'logout', label: 'تسجيل الخروج', icon: LogOut, tone: 'danger', separatorBefore: true, onSelect: () => void handleLogoutClick() },
   ];
   const moreMenuItems: HeaderMenuItem[] = [
@@ -1259,9 +1309,6 @@ export default function App() {
       : []),
     ...(headerAccess.showUpdates
       ? [{ id: 'updates', label: 'تحديثات رفيق', icon: DownloadCloud, onSelect: () => setIsAppUpdateModalOpen(true) } satisfies HeaderMenuItem]
-      : []),
-    ...(headerAccess.showReadiness
-      ? [{ id: 'readiness', label: 'فحص جاهزية التشغيل والعتاد', icon: CheckCircle2, onSelect: () => setIsReadinessOpen(true) } satisfies HeaderMenuItem]
       : []),
   ];
   const SingleMoreIcon = moreMenuItems[0].icon;
@@ -1517,6 +1564,7 @@ export default function App() {
               const isProductsItem = item.id === 'products';
               const isPurchasesItem = item.id === 'purchases';
               const isSettingsItem = item.id === 'settings';
+              const isRootItem = item.id === 'root';
 
               if (isSidebarCollapsed) {
                 return (
@@ -1532,6 +1580,7 @@ export default function App() {
                         if (isProductsItem) setProductsSubView('catalog');
                         if (isPurchasesItem) setPurchasesSubView(defaultPurchasesSubView);
                         if (isSettingsItem) setSettingsSubTab('profile');
+                        if (isRootItem) setRootSubTab('status');
                       });
                     }}
                     title={item.label}
@@ -1601,6 +1650,12 @@ export default function App() {
                         } else {
                           setIsSettingsMenuExpanded(!isSettingsMenuExpanded);
                         }
+                      } else if (isRootItem) {
+                        if (effectiveActiveTab !== 'root') {
+                          handleNavClick('root', () => setIsRootMenuExpanded(true));
+                        } else {
+                          setIsRootMenuExpanded(!isRootMenuExpanded);
+                        }
                       } else {
                         handleNavClick(item.id);
                       }
@@ -1616,9 +1671,9 @@ export default function App() {
                       <span className="truncate whitespace-nowrap">{item.label}</span>
                     </div>
 
-                    {(isEpayItem || isWalletsItem || isInsuranceItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
+                    {(isEpayItem || isWalletsItem || isInsuranceItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem || isRootItem) && (
                       <span className={`shrink-0 ${isActive ? 'text-white/80 dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/70'}`}>
-                        {(isEpayItem ? isEpayMenuExpanded : isWalletsItem ? isWalletsMenuExpanded : isInsuranceItem ? isInsuranceMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
+                        {(isEpayItem ? isEpayMenuExpanded : isWalletsItem ? isWalletsMenuExpanded : isInsuranceItem ? isInsuranceMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isRootItem ? isRootMenuExpanded : isSettingsMenuExpanded) ? (
                           <ChevronDown className="w-3.5 h-3.5" />
                         ) : (
                           <ChevronLeft className="w-3.5 h-3.5" />
@@ -1642,7 +1697,7 @@ export default function App() {
                               setActiveTab('epay');
                               setEpaySubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1650,7 +1705,7 @@ export default function App() {
                           >
                             <div className="flex items-center gap-2 truncate">
                               <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
-                              <span className="truncate whitespace-nowrap">{sub.label}</span>
+                              <span className="min-w-0 leading-snug break-words" title={sub.label}>{sub.label}</span>
                             </div>
                           </button>
                         );
@@ -1673,7 +1728,7 @@ export default function App() {
                               setActiveTab('wallets');
                               setWalletsSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1681,7 +1736,7 @@ export default function App() {
                           >
                             <div className="flex items-center gap-2 truncate">
                               <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
-                              <span className="truncate whitespace-nowrap">{sub.label}</span>
+                              <span className="min-w-0 leading-snug break-words" title={sub.label}>{sub.label}</span>
                             </div>
                           </button>
                         );
@@ -1704,7 +1759,7 @@ export default function App() {
                               setActiveTab('insurance');
                               setInsuranceSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1712,7 +1767,7 @@ export default function App() {
                           >
                             <div className="flex items-center gap-2 truncate">
                               <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
-                              <span className="truncate whitespace-nowrap">{sub.label}</span>
+                              <span className="min-w-0 leading-snug break-words" title={sub.label}>{sub.label}</span>
                             </div>
                           </button>
                         );
@@ -1735,7 +1790,7 @@ export default function App() {
                               setActiveTab('dashboard');
                               setDashboardSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1743,7 +1798,7 @@ export default function App() {
                           >
                             <div className="flex items-center gap-2 truncate">
                               <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
-                              <span className="truncate whitespace-nowrap">{sub.label}</span>
+                              <span className="min-w-0 leading-snug break-words" title={sub.label}>{sub.label}</span>
                             </div>
                           </button>
                         );
@@ -1759,7 +1814,6 @@ export default function App() {
                         onClick={() => {
                           setActiveTab('products');
                           setProductsSubView('catalog');
-                          setInitialProductFilter('all');
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'products' && productsSubView === 'catalog'
@@ -1902,6 +1956,41 @@ export default function App() {
                     </div>
                   )}
 
+                  {/* Sub-tree for the root-only developer console */}
+                  {isRootItem && isRootMenuExpanded && (
+                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                      {rootTreeItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = activeTab === 'root' && effectiveRootSubTab === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            data-root-nav-active={isSubActive ? 'true' : undefined}
+                            onClick={(e) => {
+                              e.currentTarget.blur();
+                              setActiveTab('root');
+                              setRootSubTab(sub.id);
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                              isSubActive
+                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 text-start">
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
+                              <span className="min-w-0 leading-snug break-words" title={sub.label}>{sub.label}</span>
+                            </div>
+                            {sub.id === 'data' && hasDemoData && (
+                              <span className="w-2 h-2 rounded-full bg-warn animate-pulse shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* Sub-tree for Settings */}
                   {isSettingsItem && isSettingsMenuExpanded && (
                     <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
@@ -1917,19 +2006,16 @@ export default function App() {
                               setActiveTab('settings');
                               setSettingsSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                             }`}
                           >
-                            <div className="flex items-center gap-2 min-w-0 truncate">
+                            <div className="flex items-center gap-2 min-w-0 text-start">
                               <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
-                              <span className="truncate whitespace-nowrap">{sub.label}</span>
+                              <span className="min-w-0 leading-snug break-words" title={sub.label}>{sub.label}</span>
                             </div>
-                            {sub.id === 'demo' && hasDemoData && (
-                              <span className="w-2 h-2 rounded-full bg-warn animate-pulse shrink-0" />
-                            )}
                           </button>
                         );
                       })}
@@ -1944,7 +2030,7 @@ export default function App() {
           <div className="pt-2 mt-auto border-t border-line dark:border-line-dark shrink-0 w-full flex flex-col gap-1.5">
             <button
               type="button"
-              onClick={() => openHelpCenterModal(effectiveActiveTab)}
+              onClick={() => openHelpCenterModal()}
               title="مركز المساعدة والشروحات والدعم الفني"
               className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 ${
                 isSidebarCollapsed
@@ -2041,15 +2127,10 @@ export default function App() {
                   <DashboardView 
                     isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'today'}
                     onNavigateToPos={() => setActiveTab('pos')} 
-                    onNavigateToProducts={(sub?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => {
-                      setActiveTab('products');
-                      setProductsSubView(sub || 'catalog');
-                      if (filter) setInitialProductFilter(filter);
-                      setIsProductsMenuExpanded(true);
-                    }} 
+                    onNavigateToProducts={openProductsWithFilter} 
                     onNavigateToCustomers={() => setActiveTab('customers')}
                     onNavigateToSales={() => setActiveTab('sales')}
-                    onNavigateToAudit={() => setActiveTab('audit')}
+                    onNavigateToAudit={canAccessRoot ? () => { setActiveTab('root'); setRootSubTab('audit'); setIsRootMenuExpanded(true); } : undefined}
                     onNavigateToSettings={(target) => {
                       setActiveTab('settings');
                       if (target?.includes('backup')) setSettingsSubTab('backup');
@@ -2067,12 +2148,7 @@ export default function App() {
                 <div className={`h-full w-full ${dashboardSubTab === 'inventory' ? '' : 'hidden'}`}>
                   <InventoryAnalyticsView 
                     isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'inventory'}
-                    onNavigateToProducts={(sub, filter) => {
-                      setActiveTab('products');
-                      setProductsSubView(sub || 'catalog');
-                      if (filter) setInitialProductFilter(filter);
-                      setIsProductsMenuExpanded(true);
-                    }}
+                    onNavigateToProducts={openProductsWithFilter}
                     onNavigateToProductEdit={(productId) => {
                       setActiveTab('products');
                       setProductsSubView('catalog');
@@ -2110,8 +2186,8 @@ export default function App() {
                 isActive={effectiveActiveTab === 'products'}
                 subView={productsSubView} 
                 onSubViewChange={(tab) => setProductsSubView(tab)} 
-                initialFilter={initialProductFilter}
-                onResetFilter={() => setInitialProductFilter('all')}
+                filterRequest={productFilterRequest}
+                onResetFilter={() => setProductFilterRequest(withClearedStockFilter)}
                 initialProductIdToEdit={productToEditId}
                 onClearInitialProductIdToEdit={() => setProductToEditId(null)}
               />
@@ -2134,16 +2210,20 @@ export default function App() {
             </div>
           )}
 
-          {canAccessAudit && visitedTabs.has('audit') && (
-            <div className={`h-full w-full ${effectiveActiveTab === 'audit' ? '' : 'hidden'}`}>
-              <AuditLogView isActive={effectiveActiveTab === 'audit'} />
+          {canAccessRoot && visitedTabs.has('root') && (
+            <div className={`h-full w-full ${effectiveActiveTab === 'root' ? '' : 'hidden'}`}>
+              <RootConsoleView
+                activeSubTab={rootSubTab}
+                isActive={effectiveActiveTab === 'root'}
+                sysInfo={sysInfo}
+                onNavigateToTab={(tab) => setActiveTab(tab as TabType)}
+              />
             </div>
           )}
 
           {canAccessSettings && visitedTabs.has('settings') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'settings' ? '' : 'hidden'}`}>
               <SettingsView 
-                sysInfo={sysInfo} 
                 activeSubTab={settingsSubTab} 
                 onSubTabChange={(tab) => setSettingsSubTab(tab)} 
                 onOpenLicenseModal={() => setIsLicenseModalOpen(true)} 
@@ -2213,15 +2293,6 @@ export default function App() {
         }}
       />
 
-      {/* Pilot Readiness Check Modal (Feature #137) */}
-      <ReadinessCheckModal
-        isOpen={isReadinessOpen}
-        onClose={() => setIsReadinessOpen(false)}
-        onNavigateToTab={(tab) => {
-          setActiveTab(tab as TabType);
-        }}
-      />
-
       {/* Employee & Role Management Modal (Task 166-4) */}
       <UserManagerModal
         isOpen={isUserManagerOpen}
@@ -2258,6 +2329,7 @@ export default function App() {
       />
 
       {/* Feature #172: Fullscreen License Expired Lock Screen (Task 172-1, 172-3, 172-5) */}
+      {isLockScreenOpen && <ExitAppButton onExit={() => void handleExitApp()} className="fixed top-3 left-3 z-[10001]" />}
       <LicenseExpiredLockScreen
         isOpen={isLockScreenOpen}
         expiryInfo={licenseExpiry}

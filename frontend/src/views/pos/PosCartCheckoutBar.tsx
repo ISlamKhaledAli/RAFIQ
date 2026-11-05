@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Tag,
   X,
+  Lock,
 } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import type { CartItem } from './types';
@@ -41,6 +42,34 @@ const PAY_ICON = 'w-5 h-5 shrink-0';
 const PAY_ICON_BRAND = `${PAY_ICON} group-enabled:text-brand dark:group-enabled:text-brand-bright`;
 const LINK_BADGE =
   'absolute -top-2.5 start-2 px-1.5 py-0.5 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold rounded-md border border-warn-border dark:border-warn-bright/40 flex items-center gap-0.5 shadow-2xs leading-none';
+
+/** Sales are blocked until a shift is open; the bar shows the notice and guards the payment buttons. */
+export interface ShiftBlockNotice {
+  message: string;
+  canOpenShift: boolean;
+  isFlashing: boolean;
+  onOpenShift: () => void;
+  /** A click on a disabled payment button still tells the cashier why nothing happened. */
+  onBlockedAttempt: () => void;
+}
+
+interface PayButtonGuardProps {
+  notice: ShiftBlockNotice | null | undefined;
+  children: React.ReactNode;
+}
+
+const PayButtonGuard: React.FC<PayButtonGuardProps> = ({ notice, children }) => (
+  <div className="relative flex-1 min-w-0 flex">
+    {children}
+    {notice && (
+      <div
+        className="absolute inset-0 rounded-xl cursor-not-allowed"
+        title={notice.message}
+        onClick={notice.onBlockedAttempt}
+      />
+    )}
+  </div>
+);
 
 interface PosCartCheckoutBarProps {
   cart: CartItem[];
@@ -73,6 +102,7 @@ interface PosCartCheckoutBarProps {
   hasWalletAccount?: boolean;
   onNavigateToWallets?: (subTab?: 'accounts' | 'transact') => void;
   ddiResult?: CartInteractionCheckResult | null;
+  shiftBlock?: ShiftBlockNotice | null;
 }
 
 export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
@@ -105,6 +135,7 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   hasWalletAccount = true,
   onNavigateToWallets,
   ddiResult,
+  shiftBlock,
 }) => {
   const { isEnabled } = useFeatures();
   const canReturn = usePermission('returns.create');
@@ -271,6 +302,33 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
         </div>
       )}
 
+      {/* 1.8 No open shift: persistent, actionable notice right above the payment buttons */}
+      {shiftBlock && (
+        <div
+          role="alert"
+          className={`flex items-center gap-3 rounded-xl border px-3 py-2 bg-warn-soft dark:bg-warn-dark-soft border-warn-border dark:border-warn-bright/40 transition-shadow ${
+            shiftBlock.isFlashing ? 'ring-2 ring-danger dark:ring-danger-bright animate-pulse' : ''
+          }`}
+        >
+          <Lock className="w-5 h-5 shrink-0 text-warn dark:text-warn-bright" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-bold text-ink dark:text-ink-dark">{shiftBlock.message}</div>
+            <div className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">
+              {shiftBlock.canOpenShift ? 'افتح الوردية الأول وبعدها كمّل البيع.' : 'اطلب من المدير أو المالك يفتح وردية.'}
+            </div>
+          </div>
+          {shiftBlock.canOpenShift && (
+            <button
+              type="button"
+              onClick={shiftBlock.onOpenShift}
+              className="h-10 px-4 shrink-0 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-bold shadow-2xs active:scale-[0.98] transition-colors cursor-pointer"
+            >
+              فتح وردية
+            </button>
+          )}
+        </div>
+      )}
+
       {/* 2. Hero: Grand Total Card (dominant) above the primary payment buttons */}
       <div className="flex flex-col gap-2.5">
         {/* Grand Total Hero Card ("المطلوب دفعه") */}
@@ -291,80 +349,88 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
         <div className="flex items-stretch gap-3">
           {paymentMethod === 'credit' ? (
             /* شكك */
-            <button 
-              type="button"
-              onClick={() => handleOpenCheckout('credit')}
-              disabled={loading || cart.length === 0}
-              className={`${PAY_BTN} bg-danger text-white border-danger-ink dark:bg-danger-dark-fill dark:border-danger-bright/50 enabled:hover:bg-danger-ink dark:enabled:hover:bg-danger`}
-              title="تسجيل بيع شكك (F12)"
-            >
-              <CreditCard className={PAY_ICON} />
-              <span className="truncate">
-                تسجيل بيع شكك {selectedCust ? `(${selectedCust.name})` : ''}
-              </span>
-            </button>
+            <PayButtonGuard notice={shiftBlock}>
+              <button 
+                type="button"
+                onClick={() => handleOpenCheckout('credit')}
+                disabled={loading || cart.length === 0 || Boolean(shiftBlock)}
+                className={`${PAY_BTN} bg-danger text-white border-danger-ink dark:bg-danger-dark-fill dark:border-danger-bright/50 enabled:hover:bg-danger-ink dark:enabled:hover:bg-danger`}
+                title="تسجيل بيع شكك (F12)"
+              >
+                <CreditCard className={PAY_ICON} />
+                <span className="truncate">
+                  تسجيل بيع شكك {selectedCust ? `(${selectedCust.name})` : ''}
+                </span>
+              </button>
+            </PayButtonGuard>
           ) : (
             <>
               {/* كاش */}
-              <button 
-                type="button"
-                onClick={() => handleOpenCheckout('cash')}
-                disabled={loading || cart.length === 0}
-                className={`${PAY_BTN} ${PAY_SOLID}`}
-                title="دفع كاش وحساب الباقي (F9)"
-              >
-                <Banknote className={PAY_ICON} />
-                <span className="truncate">كاش</span>
-              </button>
+              <PayButtonGuard notice={shiftBlock}>
+                <button 
+                  type="button"
+                  onClick={() => handleOpenCheckout('cash')}
+                  disabled={loading || cart.length === 0 || Boolean(shiftBlock)}
+                  className={`${PAY_BTN} ${PAY_SOLID}`}
+                  title="دفع كاش وحساب الباقي (F9)"
+                >
+                  <Banknote className={PAY_ICON} />
+                  <span className="truncate">كاش</span>
+                </button>
+              </PayButtonGuard>
 
               {/* انستاباي والمحافظ الإلكترونية */}
               {showWallets && (
                 <>
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      if (needsInstapayLink) {
-                        onNavigateToWallets?.('accounts');
-                      } else {
-                        handleOpenCheckout('instapay');
-                      }
-                    }}
-                    disabled={loading || (cart.length === 0 && !needsInstapayLink)}
-                    className={`${PAY_BTN} ${PAY_OUTLINE}`}
-                    title={hasInstapayAccount ? "سداد عبر تطبيق انستاباي" : "سداد فوري عبر تطبيق انستاباي"}
-                  >
-                    {needsInstapayLink && (
-                      <span className={LINK_BADGE}>
-                        <Link2 className="w-2.5 h-2.5 text-current" />
-                        <span>ربط</span>
-                      </span>
-                    )}
-                    <Smartphone className={PAY_ICON_BRAND} />
-                    <span className="truncate">انستاباي</span>
-                  </button>
+                  <PayButtonGuard notice={needsInstapayLink ? null : shiftBlock}>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        if (needsInstapayLink) {
+                          onNavigateToWallets?.('accounts');
+                        } else {
+                          handleOpenCheckout('instapay');
+                        }
+                      }}
+                      disabled={loading || (cart.length === 0 && !needsInstapayLink) || (Boolean(shiftBlock) && !needsInstapayLink)}
+                      className={`${PAY_BTN} ${PAY_OUTLINE}`}
+                      title={hasInstapayAccount ? "سداد عبر تطبيق انستاباي" : "سداد فوري عبر تطبيق انستاباي"}
+                    >
+                      {needsInstapayLink && (
+                        <span className={LINK_BADGE}>
+                          <Link2 className="w-2.5 h-2.5 text-current" />
+                          <span>ربط</span>
+                        </span>
+                      )}
+                      <Smartphone className={PAY_ICON_BRAND} />
+                      <span className="truncate">انستاباي</span>
+                    </button>
+                  </PayButtonGuard>
 
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      if (needsWalletLink) {
-                        onNavigateToWallets?.('accounts');
-                      } else {
-                        handleOpenCheckout('vodafone_cash');
-                      }
-                    }}
-                    disabled={loading || (cart.length === 0 && !needsWalletLink)}
-                    className={`${PAY_BTN} ${PAY_OUTLINE}`}
-                    title={hasWalletAccount ? "سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)" : "سداد فوري عبر المحفظة الإلكترونية"}
-                  >
-                    {needsWalletLink && (
-                      <span className={LINK_BADGE}>
-                        <Link2 className="w-2.5 h-2.5 text-current" />
-                        <span>ربط</span>
-                      </span>
-                    )}
-                    <Wallet className={PAY_ICON_BRAND} />
-                    <span className="truncate">محفظة</span>
-                  </button>
+                  <PayButtonGuard notice={needsWalletLink ? null : shiftBlock}>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        if (needsWalletLink) {
+                          onNavigateToWallets?.('accounts');
+                        } else {
+                          handleOpenCheckout('vodafone_cash');
+                        }
+                      }}
+                      disabled={loading || (cart.length === 0 && !needsWalletLink) || (Boolean(shiftBlock) && !needsWalletLink)}
+                      className={`${PAY_BTN} ${PAY_OUTLINE}`}
+                      title={hasWalletAccount ? "سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)" : "سداد فوري عبر المحفظة الإلكترونية"}
+                    >
+                      {needsWalletLink && (
+                        <span className={LINK_BADGE}>
+                          <Link2 className="w-2.5 h-2.5 text-current" />
+                          <span>ربط</span>
+                        </span>
+                      )}
+                      <Wallet className={PAY_ICON_BRAND} />
+                      <span className="truncate">محفظة</span>
+                    </button>
+                  </PayButtonGuard>
                 </>
               )}
             </>

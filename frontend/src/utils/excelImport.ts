@@ -159,19 +159,6 @@ export function cleanExcelBarcode(raw: string): string {
 }
 
 /**
- * تنظيف وتصفية قيم المتغيرات (اللون والمقاس) من الرموز الاحتياطية (مثل — أو - أو لا يوجد)
- */
-export function cleanExcelVariant(val: string | null | undefined): string | undefined {
-  if (!val) return undefined;
-  const str = String(val).trim();
-  if (!str) return undefined;
-  if (/^[-—–_./\\]+$/.test(str) || /^(n\/?a|none|null|nil|لا\s*يوجد|بدون|غير\s*محدد)$/i.test(str)) {
-    return undefined;
-  }
-  return str;
-}
-
-/**
  * تحميل ملف Base64 كملف محلي في المتصفح / WebView2
  */
 export function downloadBase64File(base64: string, fileName: string, mimeType: string = 'application/octet-stream'): void {
@@ -769,10 +756,10 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
     return s.startsWith('ملخص') || s.startsWith('لوحة') || s.includes('دليل الاستخدام') || s.includes('دليل_الاستخدام') || s.includes('دليل المستخدم') || s.includes('تعليمات') || s.includes('تقرير_الأخطاء') || s.toLowerCase() === 'readme' || s.toLowerCase() === 'instructions';
   };
 
-  // الشيتات الجامعة التي لا يمثل اسمها قسماً مستقلاً
+  // الشيتات الجامعة التي لا يمثل اسمها قسماً مستقلاً (بما فيها اسم الشيت الافتراضي في إكسل: Sheet1 أو ورقة1)
   const isGenericMasterSheet = (sheetName: string): boolean => {
     const s = sheetName.trim();
-    return s === 'كافة_الأصناف' || s === 'كل الأصناف' || s === 'كتالوج_الأصناف' || s === 'المنتجات_والمخزون' || s === 'Sheet1' || s === 'Sheet' || s === 'قالب_الأصناف_المعتمد' || s === 'قالب المنتجات';
+    return /^(sheet|ورقة)\s*\d*$/i.test(s) || s === 'كافة_الأصناف' || s === 'كل الأصناف' || s === 'كتالوج_الأصناف' || s === 'المنتجات_والمخزون' || s === 'قالب_الأصناف_المعتمد' || s === 'قالب المنتجات';
   };
 
   for (const sheetName of workbook.SheetNames) {
@@ -875,8 +862,8 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
       // اسم التابة يمثل القسم تلقائياً لكافة الأصناف بداخلها؛ بدون قسم يبقى قسم الصنف القائم كما هو
       const rawUnit = getCellString('unit').toLowerCase();
       const isKg = rawUnit === 'كجم' || rawUnit === 'كيلو' || rawUnit === 'وزن' || rawUnit === 'kg' || rawUnit === 'gram' || rawUnit === 'جم';
-      const rawColor = cleanExcelVariant(getCellString('color'));
-      const rawSize = cleanExcelVariant(getCellString('size'));
+      const rawColor = getCellString('color');
+      const rawSize = getCellString('size');
 
       const parsedPrice = parseCellNumber('price', 0);
       const parsedCost = parseCellNumber('cost', 0);
@@ -1038,8 +1025,8 @@ export function validateImportRows(
     const stockMilli = row.stockQuantity === null ? null : Math.round(row.stockQuantity * 1000);
     const minStockMilli = row.minStockQuantity === null ? null : Math.round(row.minStockQuantity * 1000);
 
-    const cleanColor = cleanExcelVariant(row.variantColor) || '';
-    const cleanSize = cleanExcelVariant(row.variantSize) || '';
+    const cleanColor = row.variantColor?.trim() || '';
+    const cleanSize = row.variantSize?.trim() || '';
     const normName = normalizeArabicText(row.name);
     const nameVariantKey = `${normName}||${normalizeArabicText(cleanColor)}||${normalizeArabicText(cleanSize)}`;
 

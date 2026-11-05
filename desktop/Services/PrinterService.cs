@@ -136,7 +136,8 @@ namespace RafiqPOS.Services
                 int ms;
                 if (int.TryParse(val, out ms) && ms >= 2 && ms <= 250)
                 {
-                    return ms;
+                    // الأمر يخزن النبضة بوحدات 2 مللي ثانية، فالرقم الفردي يعمل مثل الزوجي الأصغر منه: نعتمد الزوجي صراحة
+                    return ms - (ms % 2);
                 }
             }
             return 30;
@@ -486,6 +487,46 @@ namespace RafiqPOS.Services
                 return false;
             }
             return true;
+        }
+
+        /// <summary>
+        /// اسم الصنف كما يُطبع: سطر واحد نظيف. المسافات والأسطر والتبويبات تصير مسافة واحدة، ويُحذف ما لا يملك خط الإيصال رمزاً له فيُطبع مربعاً
+        /// (الإيموجي والرموز خارج المستوى الأساسي، والرموز الزخرفية، والأحرف الصفرية العرض، وعلامات قلب الاتجاه). توأم cleanReceiptItemName في receiptLayout.ts.
+        /// </summary>
+        public static string CleanReceiptItemName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "";
+            var sb = new StringBuilder(name.Length);
+            bool pendingSpace = false;
+            for (int i = 0; i < name.Length; i++)
+            {
+                char c = name[i];
+                if (char.IsWhiteSpace(c) || char.IsControl(c))
+                {
+                    pendingSpace = sb.Length > 0;
+                    continue;
+                }
+                if (c == '\u200B' || c == '\uFEFF' || c == '\uFE0F' ||
+                    (c >= '\u202A' && c <= '\u202E') || (c >= '\u2066' && c <= '\u2069') ||
+                    (c >= '\u2600' && c <= '\u27BF') || (c >= '\u2B00' && c <= '\u2BFF') ||
+                    char.IsSurrogate(c))
+                {
+                    continue;
+                }
+                if (pendingSpace)
+                {
+                    sb.Append(' ');
+                    pendingSpace = false;
+                }
+                sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        private static string ReceiptItemNameOrDefault(string name)
+        {
+            string cleaned = CleanReceiptItemName(name);
+            return cleaned.Length == 0 ? "صنف" : cleaned;
         }
 
         /// <summary>الشيك المبدئي وفواتير التدريب لا تُسجل كإيصال أصلي ولا تُعد نسخاً</summary>
@@ -913,8 +954,6 @@ namespace RafiqPOS.Services
 
         private sealed class ReceiptTotals
         {
-            public int ItemCount;
-            public long PieceCount;
             public long Subtotal;
             public long DiscountTotal;
             public long ServiceCharge;
@@ -936,7 +975,6 @@ namespace RafiqPOS.Services
             public string Qty;
             public string Price;
             public string Total;
-            public string Discount;
             public List<string> Details = new List<string>();
         }
 
@@ -1014,11 +1052,6 @@ namespace RafiqPOS.Services
             return Money.FromPiasters(item.UnitPricePiasters).MultiplyByMilliUnits(item.QuantityMilli).Piasters;
         }
 
-        private static bool IsMeasureUnitLabel(string label)
-        {
-            return label == "كجم" || label == "جم" || label == "لتر" || label == "متر";
-        }
-
         /// <summary>تجميع إجماليات الإيصال مباشرة من الفاتورة المخزنة (بدون إعادة حساب الضريبة أو الإجمالي)</summary>
         private static ReceiptTotals ComputeReceiptTotals(Sale sale)
         {
@@ -1031,14 +1064,8 @@ namespace RafiqPOS.Services
                 {
                     SaleItem item = sale.Items[i];
                     if (item == null) continue;
-                    t.ItemCount++;
                     lineDiscounts += Math.Max(0L, item.DiscountPiasters);
                     grossSum += GetReceiptLineGross(item);
-                    string label = FormatReceiptUnit(item.UnitName, item.Unit, item.QuantityMilli);
-                    if (item.QuantityMilli > 0 && item.QuantityMilli % 1000 == 0 && !IsMeasureUnitLabel(label))
-                    {
-                        t.PieceCount += item.QuantityMilli / 1000;
-                    }
                 }
             }
 
@@ -1303,9 +1330,12 @@ namespace RafiqPOS.Services
             }
         }
 
+        // ارتفاع الصفحة بمائة البوصة: تقريب لأعلى + 3 (حوالي 0.75 مم) تحمي من تقريب تعريف الطابعة دون ترك ورق فارغ زائد
+        private const int ReceiptPageSlackHundredths = 3;
+
         private static int ReceiptRowsToHundredthsInch(int rows)
         {
-            return (int)(((long)rows * 100L + 202L) / 203L) + 8;
+            return (int)(((long)rows * 100L + 202L) / 203L) + ReceiptPageSlackHundredths;
         }
 
         /// <summary>
@@ -1424,6 +1454,11 @@ namespace RafiqPOS.Services
         {
             public const float Pad = 5f;
             public const float ColGap = 6f;
+            // هامش أمان لكل عمود مقاس: امتداد الحروف العربية المتصلة يتجاوز عرض القياس بوحدات قليلة
+            public const float CellPad = 3f;
+            // مسافة أعلى أول سطر وأسفل آخر سطر بوحدات الرسم (الوحدة = حوالي 0.25 مم)
+            public const float TopPad = 2f;
+            public const float BottomPad = 5f;
 
             public readonly Graphics G;
             public readonly float W;
@@ -1451,7 +1486,7 @@ namespace RafiqPOS.Services
                 W = contentWidth;
                 Usable = contentWidth - 2f * Pad;
                 Compact = contentWidth <= 210;
-                Y = 2f;
+                Y = TopPad;
                 FontName = ResolveReceiptFontName();
 
                 // أحجام الخطوط تناسبية مع مقاس الورق (80mm أو 57mm)
@@ -1464,16 +1499,16 @@ namespace RafiqPOS.Services
                 Solid = new Pen(Color.Black, 1.2f);
 
                 Rtl = new StringFormat { FormatFlags = StringFormatFlags.DirectionRightToLeft, Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
-                RtlNoWrap = new StringFormat { FormatFlags = StringFormatFlags.DirectionRightToLeft | StringFormatFlags.NoWrap, Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
+                RtlNoWrap = new StringFormat { FormatFlags = StringFormatFlags.DirectionRightToLeft | StringFormatFlags.NoWrap | StringFormatFlags.NoClip, Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
                 Center = new StringFormat { FormatFlags = StringFormatFlags.DirectionRightToLeft, Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Near };
                 Left = (StringFormat)StringFormat.GenericTypographic.Clone();
                 Left.Alignment = StringAlignment.Near;
                 Left.LineAlignment = StringAlignment.Near;
-                Left.FormatFlags |= StringFormatFlags.NoWrap;
+                Left.FormatFlags |= StringFormatFlags.NoWrap | StringFormatFlags.NoClip;
                 Right = (StringFormat)StringFormat.GenericTypographic.Clone();
                 Right.Alignment = StringAlignment.Far;
                 Right.LineAlignment = StringAlignment.Near;
-                Right.FormatFlags |= StringFormatFlags.NoWrap;
+                Right.FormatFlags |= StringFormatFlags.NoWrap | StringFormatFlags.NoClip;
                 _measure = (StringFormat)StringFormat.GenericTypographic.Clone();
                 _measure.FormatFlags |= StringFormatFlags.NoWrap;
             }
@@ -1490,6 +1525,13 @@ namespace RafiqPOS.Services
             {
                 if (string.IsNullOrEmpty(text)) return 0f;
                 return (float)Math.Ceiling(G.MeasureString(text, font, new PointF(0f, 0f), _measure).Width) + 1f;
+            }
+
+            /// <summary>عرض خلية نص عربي تُرسم بتنسيق RtlNoWrap: يُقاس بنفس التنسيق (بما فيه حشو الحواف) ثم يُضاف هامش الأمان، فلا يُقص آخر حرف</summary>
+            public float CellW(string text, Font font)
+            {
+                if (string.IsNullOrEmpty(text)) return 0f;
+                return (float)Math.Ceiling(G.MeasureString(text, font, new PointF(0f, 0f), RtlNoWrap).Width) + CellPad;
             }
 
             public float LineH(Font font)
@@ -1561,7 +1603,7 @@ namespace RafiqPOS.Services
             public void LabelValue(string label, string value, Font labelFont, Font valueFont, float valueColW)
             {
                 float valueW = valueColW > 0f ? valueColW : TextW(value, valueFont);
-                float labelW = TextW(label, labelFont);
+                float labelW = CellW(label, labelFont);
                 float h = Math.Max(LineH(labelFont), LineH(valueFont));
                 if (labelW + valueW + ColGap <= Usable)
                 {
@@ -1834,10 +1876,91 @@ namespace RafiqPOS.Services
         {
             if (!store.SignatureVisible || store.Signature.Length == 0) return;
             if (separatorFirst) p.Separator(p.Dashed, 2f, 3f);
-            // مسافة سطر ونصف بين الخط المنقط وما بعده، تدخل في قياس ارتفاع الإيصال مثل باقي الأسطر
-            p.Y += p.LineH(p.Small) * 1.5f;
+            // مسافة سطر واحد بين الخط المنقط وما بعده، تدخل في قياس ارتفاع الإيصال مثل باقي الأسطر
+            p.Y += p.LineH(p.Small);
             DrawSignatureBanner(p, store.SignatureImage, pickKey);
             p.WrapLines(store.Signature, p.Small, p.Center, ReceiptPainter.Pad - 3f, p.Usable + 6f);
+        }
+
+        // باركود الفاتورة بنقاط الطابعة (203 DPI: 576 نقطة لـ 80mm و384 لـ 57mm): هامش جانبي ومنطقة هادئة 10 موديولات على كل جانب
+        private const int InvoiceBarcodeSideMarginDots = 10;
+        private const int InvoiceBarcodeQuietModules = 10;
+
+        /// <summary>قيمة باركود الفاتورة: رقم الفاتورة بثمانية أرقام (أصفار بادئة)، أرقام فقط حتى لا تشوّهها لوحة المفاتيح العربية. فارغة إن لم يكن الرقم صالحاً. توأم formatInvoiceBarcodeValue في receiptLayout.ts</summary>
+        public static string FormatInvoiceBarcodeValue(int invoiceNumber)
+        {
+            if (invoiceNumber <= 0) return "";
+            return invoiceNumber.ToString("D8", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>عرض الموديول بعدد صحيح من النقاط: أكبر قيمة يتسع معها الباركود مع منطقتيه الهادئتين داخل عرض الورق (لا تكبير كسري يطمس الخطوط). توأم layoutReceiptBarcode في receiptLayout.ts</summary>
+        public static int ComputeInvoiceBarcodeModuleDots(int modules, int paperDots)
+        {
+            int available = paperDots - 2 * InvoiceBarcodeSideMarginDots;
+            int dots = available / (modules + 2 * InvoiceBarcodeQuietModules);
+            return dots < 1 ? 1 : dots;
+        }
+
+        /// <summary>ارتفاع الخطوط بالنقاط: 68 (حوالي 8.4mm) على 80mm و60 (حوالي 7.4mm) على 57mm</summary>
+        public static int InvoiceBarcodeHeightDots(bool compact)
+        {
+            return compact ? 60 : 68;
+        }
+
+        /// <summary>
+        /// باركود الفاتورة الحقيقي (Code 128) بلا أرقام تحته (رقم الفاتورة مطبوع في الترويسة). يُرسم بنقاط الطابعة الصحيحة مباشرة (بعد تصفير التحويل) فلا يتأثر بمقياس الإيصال الكسري،
+        /// ثم يتقدّم p.Y بنفس الارتفاع في القياس والرسم
+        /// </summary>
+        private static void DrawInvoiceBarcode(ReceiptPainter p, string value)
+        {
+            if (string.IsNullOrEmpty(value)) return;
+            string bits = BarcodeGenerator.EncodeCode128Digits(value);
+            if (bits.Length == 0) return;
+
+            float scale;
+            float originX;
+            float originY;
+            using (Matrix transform = p.G.Transform)
+            {
+                float[] e = transform.Elements;
+                scale = e[0] > 0f ? e[0] : 1f;
+                originX = e[4];
+                originY = e[5];
+            }
+
+            int paperDots = (int)Math.Round(p.W * scale);
+            int moduleDots = ComputeInvoiceBarcodeModuleDots(bits.Length, paperDots);
+            int heightDots = InvoiceBarcodeHeightDots(p.Compact);
+            int widthDots = bits.Length * moduleDots;
+            int left = (int)Math.Round(originX) + Math.Max(0, (paperDots - widthDots) / 2);
+
+            p.Y += 3f;
+            int top = (int)Math.Round(originY + p.Y * scale);
+
+            GraphicsState state = p.G.Save();
+            try
+            {
+                p.G.ResetTransform();
+                int i = 0;
+                while (i < bits.Length)
+                {
+                    if (bits[i] != '1')
+                    {
+                        i++;
+                        continue;
+                    }
+                    int run = 1;
+                    while (i + run < bits.Length && bits[i + run] == '1') run++;
+                    p.G.FillRectangle(Brushes.Black, left + i * moduleDots, top, run * moduleDots, heightDots);
+                    i += run;
+                }
+            }
+            finally
+            {
+                p.G.Restore(state);
+            }
+
+            p.Y += heightDots / scale + 1f;
         }
 
         /// <summary>جدول الأصناف: الاسم بعرض كامل ملتفاً، وتحته الكمية | السعر | الإجمالي بأعمدة مقاسة (أو سطرين إذا لم تتسع)</summary>
@@ -1845,14 +1968,15 @@ namespace RafiqPOS.Services
         {
             if (lines == null || lines.Count == 0) return;
 
-            float qtyW = p.TextW("الكمية", p.Bold);
-            float priceW = p.TextW("السعر", p.Bold);
-            float totalW = p.TextW("الإجمالي", p.Bold);
+            // الكمية تُرسم بتنسيق RTL فتُقاس بنفس التنسيق (CellW)، والسعر والإجمالي بتنسيق LTR مقاس بالتنسيق نفسه؛ كلها بهامش أمان CellPad
+            float qtyW = p.CellW("الكمية", p.Bold);
+            float priceW = p.TextW("السعر", p.Bold) + ReceiptPainter.CellPad;
+            float totalW = p.TextW("الإجمالي", p.Bold) + ReceiptPainter.CellPad;
             for (int i = 0; i < lines.Count; i++)
             {
-                qtyW = Math.Max(qtyW, p.TextW(lines[i].Qty, p.Regular));
-                priceW = Math.Max(priceW, p.TextW(lines[i].Price, p.Regular));
-                totalW = Math.Max(totalW, p.TextW(lines[i].Total, p.Bold));
+                qtyW = Math.Max(qtyW, p.CellW(lines[i].Qty, p.Regular));
+                priceW = Math.Max(priceW, p.TextW(lines[i].Price, p.Regular) + ReceiptPainter.CellPad);
+                totalW = Math.Max(totalW, p.TextW(lines[i].Total, p.Bold) + ReceiptPainter.CellPad);
             }
 
             // كتلة الأرقام (الكمية | السعر | الإجمالي) على اليسار؛ إن لم تتسع تُعرض الكمية × السعر والإجمالي في سطرين
@@ -1862,7 +1986,7 @@ namespace RafiqPOS.Services
 
             if (columns)
             {
-                float labelW = p.TextW("الصنف", p.Bold);
+                float labelW = p.CellW("الصنف", p.Bold);
                 if (labelW <= nameAvail)
                 {
                     p.NumbersRow("الصنف", "الكمية", "السعر", "الإجمالي", qtyW, priceW, totalW, p.Bold, p.Bold, p.Bold, p.Bold);
@@ -1888,7 +2012,7 @@ namespace RafiqPOS.Services
             for (int i = 0; i < lines.Count; i++)
             {
                 ReceiptLine line = lines[i];
-                if (columns && p.TextW(line.Name, p.Bold) <= nameAvail)
+                if (columns && p.CellW(line.Name, p.Bold) <= nameAvail)
                 {
                     // اسم قصير: كل شيء في سطر واحد (توفير للورق)
                     p.NumbersRow(line.Name, line.Qty, line.Price, line.Total, qtyW, priceW, totalW, p.Bold, p.Regular, p.Regular, p.Bold);
@@ -1899,11 +2023,6 @@ namespace RafiqPOS.Services
                     p.WrapText(line.Name, p.Bold, p.Rtl, ReceiptPainter.Pad, p.Usable);
                     if (columns) p.NumbersRow(null, line.Qty, line.Price, line.Total, qtyW, priceW, totalW, p.Bold, p.Regular, p.Regular, p.Bold);
                     else p.LabelValue(line.Qty + " × " + line.Price, line.Total, p.Regular, p.Bold, 0f);
-                }
-
-                if (!string.IsNullOrEmpty(line.Discount))
-                {
-                    p.LabelValue("خصم", "-" + line.Discount, p.Small, p.Small, columns ? totalW : 0f);
                 }
 
                 for (int d = 0; d < line.Details.Count; d++)
@@ -1925,11 +2044,10 @@ namespace RafiqPOS.Services
                 if (item == null) continue;
 
                 var line = new ReceiptLine();
-                line.Name = string.IsNullOrWhiteSpace(item.ProductName) ? "صنف" : item.ProductName.Trim();
+                line.Name = ReceiptItemNameOrDefault(item.ProductName);
                 line.Qty = FormatReceiptQuantityWithUnit(item.QuantityMilli, item.UnitName, item.Unit);
                 line.Price = FormatReceiptMoney(item.UnitPricePiasters);
                 line.Total = FormatReceiptMoney(GetReceiptLineGross(item));
-                if (item.DiscountPiasters > 0) line.Discount = FormatReceiptMoney(item.DiscountPiasters);
 
                 // تشغيلة وصلاحية الأدوية (للصيدليات)
                 if (!string.IsNullOrWhiteSpace(item.BatchNumber) || !string.IsNullOrWhiteSpace(item.ExpiryDate))
@@ -1973,7 +2091,8 @@ namespace RafiqPOS.Services
         {
             string orderType = (sale.OrderType ?? "").Trim().ToLowerInvariant();
             bool hasTable = !string.IsNullOrWhiteSpace(sale.TableName);
-            bool hasCall = sale.OrderCallNumber > 0;
+            // رقم النداء لطلبات الكافيه فقط: فاتورة السوبر ماركت (نوع الطلب retail) لا تطبعه أبداً
+            bool hasCall = sale.OrderCallNumber > 0 && (orderType == "dine_in" || orderType == "takeaway" || orderType == "delivery");
             bool hasWaiter = !string.IsNullOrWhiteSpace(sale.WaiterName);
             if (!hasTable && !hasCall && !hasWaiter && orderType != "dine_in" && orderType != "delivery") return "";
 
@@ -2031,21 +2150,18 @@ namespace RafiqPOS.Services
                 // 4. جدول الأصناف
                 DrawReceiptLines(p, BuildSaleReceiptLines(sale));
 
-                // 5. الإجماليات: عدد الأصناف/القطع ثم الإجمالي قبل الخصم والخصم والرسوم ثم الإجمالي النهائي
-                p.Separator(p.Dashed, 0f, 3f);
-                string countsText = "عدد الأصناف: " + t.ItemCount.ToString(CultureInfo.InvariantCulture);
-                string piecesText = (t.PieceCount > 0 && t.PieceCount != t.ItemCount) ? "عدد القطع: " + t.PieceCount.ToString(CultureInfo.InvariantCulture) : "";
-                p.WrapWithSide(countsText, piecesText, p.Small, p.Small);
-
+                // 5. الإجماليات: الإجمالي قبل الخصم (مجموع الأسطر المطبوعة) ثم صف واحد لإجمالي كل الخصومات والرسوم ثم الإجمالي النهائي
                 var rows = new List<KeyValuePair<string, string>>();
                 if (t.DiscountTotal > 0 || t.ServiceCharge > 0 || t.DeliveryFee > 0)
                 {
                     rows.Add(new KeyValuePair<string, string>("الإجمالي قبل الخصم", FormatReceiptMoney(t.Subtotal)));
                 }
-                if (t.DiscountTotal > 0) rows.Add(new KeyValuePair<string, string>("الخصم", "-" + FormatReceiptMoney(t.DiscountTotal)));
+                if (t.DiscountTotal > 0) rows.Add(new KeyValuePair<string, string>("إجمالي الخصم", "-" + FormatReceiptMoney(t.DiscountTotal)));
                 if (t.ServiceCharge > 0) rows.Add(new KeyValuePair<string, string>("خدمة الصالة", FormatReceiptMoney(t.ServiceCharge)));
                 if (t.DeliveryFee > 0) rows.Add(new KeyValuePair<string, string>("رسوم التوصيل", FormatReceiptMoney(t.DeliveryFee)));
 
+                // خط منقط يفصل الأسطر عن بنود التسوية، وبدونها يكفي الخط الغامق قبل الإجمالي النهائي (لا خط مزدوج)
+                if (rows.Count > 0) p.Separator(p.Dashed, 0f, 3f);
                 float colW = 0f;
                 for (int i = 0; i < rows.Count; i++) colW = Math.Max(colW, p.TextW(rows[i].Value, p.Regular));
                 for (int i = 0; i < rows.Count; i++) p.LabelValue(rows[i].Key, rows[i].Value, p.Regular, p.Regular, colW);
@@ -2105,7 +2221,10 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // 8. تنبيه سلسلة التبريد + ملاحظات الفاتورة + الخاتمة (إن وُجدت) + توقيع النظام
+                // 8. باركود رقم الفاتورة (للبحث عنها عند المرتجع): للفاتورة الفعلية فقط، يشمل النسخة المعادة، لا الحساب المبدئي ولا التجريبية
+                if (!IsTransientReceiptSale(sale)) DrawInvoiceBarcode(p, FormatInvoiceBarcodeValue(sale.InvoiceNumber));
+
+                // 9. تنبيه سلسلة التبريد + ملاحظات الفاتورة + الخاتمة (إن وُجدت) + توقيع النظام
                 p.Separator(p.Dashed, 3f, 3f);
                 bool hasFooterBlock = false;
                 if (HasColdChainItems(sale))
@@ -2128,8 +2247,8 @@ namespace RafiqPOS.Services
                 // بدون خاتمة ولا ملاحظات يكفي الخط الفاصل السابق: لا خط مزدوج ولا فراغ
                 DrawReceiptSignature(p, store, hasFooterBlock, isPreBill ? "" : sale.Id);
 
-                // هامش سفلي طفيف قبل شفرة القص
-                p.Y += 8f;
+                // هامش سفلي طفيف: تغذية القص (ESC d + GS V 66) تضيف المسافة الفعلية حتى الشفرة
+                p.Y += ReceiptPainter.BottomPad;
                 return p.Y;
             }
         }
@@ -2354,7 +2473,7 @@ namespace RafiqPOS.Services
                         ReturnItem item = returnObj.Items[i];
                         if (item == null) continue;
                         var line = new ReceiptLine();
-                        line.Name = (string.IsNullOrWhiteSpace(item.ProductName) ? "صنف" : item.ProductName.Trim()) + (item.IsDamaged ? " (تالف)" : "");
+                        line.Name = ReceiptItemNameOrDefault(item.ProductName) + (item.IsDamaged ? " (تالف)" : "");
                         line.Qty = FormatReceiptQuantityWithUnit(item.QuantityMilli, null, item.Unit);
                         line.Price = FormatReceiptMoney(item.UnitPricePiasters);
                         line.Total = FormatReceiptMoney(item.TotalPiasters);
@@ -2382,7 +2501,7 @@ namespace RafiqPOS.Services
 
                 DrawReceiptSignature(p, store, true, returnObj.Id);
 
-                p.Y += 8f;
+                p.Y += ReceiptPainter.BottomPad;
                 return p.Y;
             }
         }
