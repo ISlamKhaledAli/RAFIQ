@@ -1444,7 +1444,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 type="button"
                 onClick={() => openHelpCenter('products')}
                 className="h-10 w-10 flex items-center justify-center bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-paid dark:text-paid-bright rounded-xl transition-colors shadow-2xs cursor-pointer shrink-0"
-                title="شرح ودليل إدارة الأصناف والمخزون والباركود (F1)"
+                title="شرح ودليل إدارة الأصناف والمخزون والباركود"
                 aria-label="شرح ودليل إدارة الأصناف والمخزون والباركود"
               >
                 <HelpCircle className="w-4 h-4" />

@@ -1,9 +1,9 @@
 import React from 'react';
+import { PANEL_TOGGLE_BUTTON_CLASS, PANEL_TOGGLE_ICON_CLASS } from '../../utils/panelToggle';
 import { 
   Sparkles, 
   Flame,
   PanelLeftClose,
-  PanelLeftOpen,
   Plus, 
   Search, 
   X, 
@@ -51,6 +51,8 @@ interface PosCatalogPanelProps {
   categories?: Category[];
   /** Called after the panel is collapsed or expanded so the cashier's focus goes back to the barcode input. */
   onAfterToggle?: () => void;
+  // Changes whenever the sections rail is expanded; the catalog opens with it
+  expandSignal?: number;
 }
 
 export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
@@ -75,6 +77,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   totalCatalogProductsCount = 0,
   categories: _categories = [],
   onAfterToggle,
+  expandSignal = 0,
 }) => {
   const { isEnabled } = useFeatures();
   // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
@@ -94,6 +97,16 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   React.useEffect(() => {
     if (!isCollapsed && gridRef.current) gridRef.current.scrollTop = savedScrollTopRef.current;
   }, [isCollapsed]);
+
+  React.useEffect(() => {
+    if (expandSignal === 0) return;
+    setIsCollapsed(false);
+    try {
+      localStorage.setItem(CATALOG_COLLAPSED_KEY, 'false');
+    } catch {
+      // ignore
+    }
+  }, [expandSignal]);
 
   const toggleCollapsed = () => {
     if (!isCollapsed && gridRef.current) savedScrollTopRef.current = gridRef.current.scrollTop;
@@ -130,37 +143,26 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   return (
     <section
       className={`${
-        isCollapsed ? 'flex-none w-[3.625rem] min-w-[3.625rem] p-2 items-center' : 'flex-1 min-w-[300px] p-2.5 sm:p-3'
+        isCollapsed ? 'flex-none w-[3.625rem] min-w-[3.625rem]' : 'flex-1 min-w-[300px] p-2.5 sm:p-3'
       } h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 shadow-2xs`}
     >
       {isCollapsed && (
-        <div className="w-full flex-1 min-h-0 flex flex-col items-center gap-2">
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            aria-expanded={false}
-            aria-label="توسيع أصناف المحل"
-            title="توسيع أصناف المحل"
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all cursor-pointer bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright border border-line dark:border-line-dark shadow-xs group"
-          >
-            <PanelLeftOpen className="w-4 h-4 text-brand dark:text-brand-bright transition-transform group-hover:scale-110" />
-          </button>
-          <div className="w-7 h-7 rounded-lg bg-paid-soft dark:bg-paid-dark-soft flex items-center justify-center text-paid dark:text-paid-bright border border-paid-border dark:border-paid/30 shrink-0">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <span
-            className="min-w-8 px-1.5 py-0.5 rounded-md text-center text-sm font-mono font-extrabold tabular-nums bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid/30 shrink-0"
-            title="عدد الأصناف المعروضة"
-          >
-            {displayedCatalogItems.length}
-          </span>
+        // Collapsed: only the title as vertical text, the whole strip expands the panel (same as the categories rail)
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-expanded={false}
+          aria-label="توسيع أصناف المحل"
+          title="توسيع أصناف المحل"
+          className="flex-1 w-full min-h-0 flex items-center justify-center cursor-pointer hover:bg-brand-soft dark:hover:bg-surface-dark-3 transition-colors"
+        >
           <span
             style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-            className="text-sm font-extrabold text-ink dark:text-ink-dark whitespace-nowrap overflow-hidden"
+            className="text-sm font-extrabold text-ink dark:text-ink-dark whitespace-nowrap"
           >
             أصناف المحل
           </span>
-        </div>
+        </button>
       )}
 
       <div className={isCollapsed ? 'hidden' : 'contents'}>
@@ -256,9 +258,9 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             aria-expanded={true}
             aria-label="طي أصناف المحل"
             title="طي أصناف المحل"
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-all cursor-pointer shadow-2xs"
+            className={PANEL_TOGGLE_BUTTON_CLASS}
           >
-            <PanelLeftClose className="w-4 h-4" />
+            <PanelLeftClose className={PANEL_TOGGLE_ICON_CLASS} />
           </button>
         </div>
       </div>

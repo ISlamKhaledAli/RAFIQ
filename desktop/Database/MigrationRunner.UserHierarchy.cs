@@ -54,6 +54,10 @@ namespace RafiqPOS.Database
 
             // Guarded by PRAGMA table_info inside EnsureColumn: ADD COLUMN only, existing rows get the empty default
             EnsureColumn(conn, trans, "digital_accounts", "holder_name", "TEXT NOT NULL DEFAULT ''");
+
+            // phone_number / identifier are written by DigitalAccountRepository.SaveAccount; the base CREATE TABLE never defined them
+            EnsureColumn(conn, trans, "digital_accounts", "phone_number", "TEXT");
+            EnsureColumn(conn, trans, "digital_accounts", "identifier", "TEXT");
         }
 
         private static void ApplyMigration63(SQLiteConnection conn)

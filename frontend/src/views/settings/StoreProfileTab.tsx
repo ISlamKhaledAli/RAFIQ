@@ -117,8 +117,8 @@ export const StoreProfileTab = ({
     reader.onload = async () => {
       if (typeof reader.result === 'string') {
         try {
-          // Auto-optimize to recommended thermal dimensions & pure high contrast monochrome
-          setStoreLogoUrl(await optimizeImageForThermal(reader.result));
+          // Auto-optimize to recommended thermal dimensions (200x70) & pure high contrast monochrome
+          setStoreLogoUrl(await optimizeImageForThermal(reader.result, 200, 70));
         } catch {
           setStoreLogoUrl(reader.result);
         }
@@ -270,7 +270,7 @@ export const StoreProfileTab = ({
                 <span className="text-xs font-semibold text-danger dark:text-danger-bright">{logoError}</span>
               ) : (
                 <span className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                  الأفضل صورة مربعة أو عريضة بخلفية بيضاء أو شفافة. يقوم النظام بتجهيزها تلقائياً بأعلى نقاء للطباعة الحرارية بدون بهتان أو بكسلة.
+                  الأفضل ملف PNG بخلفية بيضاء، بعرض حتى 200 بكسل لورق 80 مم أو 150 بكسل لورق 57 مم.
                 </span>
               )}
             </div>

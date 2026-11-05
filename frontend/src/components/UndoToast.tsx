@@ -57,8 +57,8 @@ export const UndoToast: React.FC<UndoToastProps> = ({
     }, 50);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Support F9 or Ctrl+Z to undo
-      if (e.key === 'F9' || (e.ctrlKey && e.key.toLowerCase() === 'z')) {
+      // Ctrl+Z only: F9 belongs to the cash checkout and must never undo a deletion at the same time
+      if (e.ctrlKey && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         clearInterval(interval);
         handleUndo();
@@ -88,7 +88,7 @@ export const UndoToast: React.FC<UndoToastProps> = ({
           <button
             type="button"
             onClick={handleUndo}
-            title="تراجع عن الحذف (Ctrl+Z أو F9)"
+            title="تراجع عن الحذف (Ctrl+Z)"
             className="h-[32px] px-3 bg-brand-dark hover:bg-brand dark:bg-paid dark:hover:bg-paid-hover text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />

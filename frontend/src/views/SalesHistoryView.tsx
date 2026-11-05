@@ -429,7 +429,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               type="button"
               onClick={() => openHelpCenter('sales')}
               className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-paid dark:text-brand-bright flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
-              title="دليل وشروحات المبيعات والورديات والإغلاق اليومي (F1)"
+              title="دليل وشروحات المبيعات والورديات والإغلاق اليومي"
             >
               <HelpCircle className="w-4 h-4" />
             </button>
