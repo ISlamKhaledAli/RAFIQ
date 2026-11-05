@@ -90,7 +90,7 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
               <Users className="w-10 h-10 text-ink-muted/30 mx-auto mb-2" />
               <p className="text-xs font-bold">لا يوجد مرضى مستحقين لصرف الدواء في الوقت الحالي</p>
               <p className="text-micro text-ink-muted/70 mt-1">
-                جميع المرضى تم صرف أدويتهم الشهرية بنجاح ومواعيدهم القادمة منتظمة
+                تم صرف الأدوية الشهرية لجميع المرضى
               </p>
             </div>
           ) : (

@@ -1,31 +1,45 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { RequiredMark } from './RequiredMark';
 
 /** Shared building blocks for the quick-button add modal and the quick-button manager. */
 
 export const QUICK_FIELD =
   'w-full h-10 px-3 text-sm bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder:text-ink-muted/60 dark:placeholder:text-ink-dark-muted/60 focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-2 focus:ring-brand/20 transition-colors';
 
+/** Roomier 44px field for the quick-add modal (the manager keeps the compact 40px one). */
+export const QUICK_FIELD_LG =
+  'w-full h-11 px-3.5 text-sm bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder:text-ink-muted/60 dark:placeholder:text-ink-dark-muted/60 focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-2 focus:ring-brand/20 transition-colors';
+
 export const QUICK_BTN =
   'h-10 px-4 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 export const QUICK_BTN_SECONDARY =
   'bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2';
+export const QUICK_BTN_LG =
+  'h-11 px-5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 export const QUICK_BTN_PRIMARY = 'bg-brand hover:bg-brand-hover text-white shadow-xs';
 export const QUICK_BTN_ICON =
   'w-10 h-10 shrink-0 rounded-lg inline-flex items-center justify-center border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
 
+export const QUICK_BTN_ICON_LG =
+  'w-11 h-11 shrink-0 rounded-lg inline-flex items-center justify-center border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
+
 export const FieldLabel = ({ children, required = false }: { children: ReactNode; required?: boolean }) => (
   <span className="block text-sm font-bold text-ink dark:text-ink-dark mb-1.5">
     {children}
-    {required && <span className="text-danger dark:text-danger-bright mr-1">*</span>}
+    {required && <> <RequiredMark /></>}
   </span>
 );
 
-export const FormSection = ({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) => (
-  <section className="flex flex-col gap-3">
+export const FormSection = ({ title, hint, card = false, children }: { title: string; hint?: string; card?: boolean; children: ReactNode }) => (
+  <section
+    className={`flex flex-col ${
+      card ? 'gap-4 p-5 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2' : 'gap-3'
+    }`}
+  >
     <div className="flex items-baseline justify-between gap-2">
-      <h4 className="t-label text-ink dark:text-ink-dark m-0">{title}</h4>
+      <h4 className={`${card ? 't-card-title' : 't-label'} text-ink dark:text-ink-dark m-0`}>{title}</h4>
       {hint && <span className="text-xs text-ink-muted dark:text-ink-dark-muted">{hint}</span>}
     </div>
     {children}
@@ -36,12 +50,12 @@ export const FormSection = ({ title, hint, children }: { title: string; hint?: s
 export const ExtrasSection = ({ summary, children }: { summary: string; children: ReactNode }) => {
   const [open, setOpen] = useState(false);
   return (
-    <section className="rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 overflow-hidden">
+    <section className="shrink-0 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full h-11 px-3 flex items-center justify-between gap-3 text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
+        className="w-full h-12 px-4 flex items-center justify-between gap-3 text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
       >
         <span className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-bold shrink-0">خيارات إضافية</span>
@@ -52,7 +66,7 @@ export const ExtrasSection = ({ summary, children }: { summary: string; children
         />
       </button>
       {open && (
-        <div className="p-3 border-t border-line dark:border-line-dark flex flex-col gap-3">{children}</div>
+        <div className="p-4 border-t border-line dark:border-line-dark flex flex-col gap-4">{children}</div>
       )}
     </section>
   );
@@ -66,9 +80,10 @@ interface PriceInputProps {
   placeholder?: string;
   disabled?: boolean;
   required?: boolean;
+  large?: boolean;
 }
 
-export const PriceInput = ({ value, onChange, step, min, placeholder = '0.00', disabled = false, required = false }: PriceInputProps) => (
+export const PriceInput = ({ value, onChange, step, min, placeholder = '0.00', disabled = false, required = false, large = false }: PriceInputProps) => (
   <div className="relative">
     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted pointer-events-none">
       ج.م
@@ -82,7 +97,7 @@ export const PriceInput = ({ value, onChange, step, min, placeholder = '0.00', d
       placeholder={placeholder}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`${QUICK_FIELD} pl-12 font-mono font-bold tabular-nums text-left disabled:opacity-50 disabled:cursor-not-allowed`}
+      className={`${large ? QUICK_FIELD_LG : QUICK_FIELD} pl-12 font-mono font-bold tabular-nums text-left disabled:opacity-50 disabled:cursor-not-allowed`}
     />
   </div>
 );

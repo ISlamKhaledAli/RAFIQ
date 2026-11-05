@@ -17,6 +17,7 @@ import { extractProducts, type Product } from '../types/models';
 import type { ShortageEntry } from '../types/shortage';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { useAuth } from '../context/useAuth';
+import { RequiredMark } from './RequiredMark';
 
 interface QuickShortageModalProps {
   isOpen: boolean;
@@ -214,7 +215,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
           {/* Product Name with Auto-Suggest */}
           <div className="relative">
             <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-              اسم الصنف أو الدواء المطلوب *
+              اسم الصنف أو الدواء المطلوب <RequiredMark />
             </label>
             <div className="relative">
               <input
@@ -369,7 +370,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
             <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2.5 animate-in fade-in">
               <div className="text-micro font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                <span>بيانات العميل للاتصال به عند توافر الصنف (اختياري)</span>
+                <span>بيانات العميل للاتصال به عند توافر الصنف</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="relative">

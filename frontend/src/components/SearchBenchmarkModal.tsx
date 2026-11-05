@@ -155,7 +155,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
                 )}
                 <span>
                   {isSuccess 
-                    ? `النظام اجتاز كل اختبارات السرعة بنجاح فائق على ${totalCount} صنف!`
+                    ? `اجتاز النظام كل اختبارات السرعة على ${totalCount} صنف`
                     : 'النظام مجتازش أحد اختبارات السرعة المحددة.'}
                 </span>
               </div>

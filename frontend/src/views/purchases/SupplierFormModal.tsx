@@ -3,6 +3,7 @@ import { Building2, X, Calendar, Percent } from 'lucide-react';
 import { normalizeArabicNumerals } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { useFeatures } from '../../context/useFeatures';
+import { RequiredMark } from '../../components/RequiredMark';
 
 export interface SupplierFormData {
   id?: string;
@@ -79,9 +80,10 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
         </div>
 
         <form onSubmit={onSave} className="p-5 space-y-3.5">
+          <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
           <div>
             <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-              اسم المورد أو المندوب <span className="text-danger dark:text-danger-bright">*</span>
+              اسم المورد أو المندوب <RequiredMark />
             </label>
             <input
               type="text"

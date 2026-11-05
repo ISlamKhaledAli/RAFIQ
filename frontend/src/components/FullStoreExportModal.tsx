@@ -238,7 +238,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-paid dark:text-paid-bright font-bold text-sm">
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
-                  <span>تم تصدير {exportResult.generatedFiles.length} ملفات بنجاح تام!</span>
+                  <span>تم تصدير {exportResult.generatedFiles.length} ملفات</span>
                 </div>
                 <button
                   onClick={handleOpenFolder}

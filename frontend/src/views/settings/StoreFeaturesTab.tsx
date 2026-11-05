@@ -39,6 +39,7 @@ import { SegmentedTabs } from '../../components/SegmentedTabs';
 import { useFeatures } from '../../context/useFeatures';
 import { rafiqAlert } from '../../utils/dialogService';
 import { INITIAL_STORE_TEMPLATES } from '../../constants/storeTemplates';
+import { ThemeModeCard } from './ThemeModeCard';
 
 interface StoreFeaturesTabProps {
   flags: Record<string, boolean>;
@@ -434,6 +435,9 @@ export const StoreFeaturesTab = ({
           <span className="font-bold text-xs">لا توجد ميزات تطابق البحث في هذا القسم</span>
         </div>
       )}
+
+      {/* 6. App appearance (per-device preference, interface customisation) */}
+      <ThemeModeCard />
 
     </div>
   );

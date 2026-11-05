@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { RequiredMark } from './RequiredMark';
 
 export interface PinSettingsModalProps {
   isOpen: boolean;
@@ -219,7 +220,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
         actions: updated,
         currentPin: '',
       });
-      setSuccessMsg('تم حفظ وتحديث إعدادات الحماية بنجاح.');
+      setSuccessMsg('تم حفظ إعدادات الحماية');
       setTimeout(() => setSuccessMsg(null), 2500);
       if (onStatusChanged) onStatusChanged();
     } catch (err: unknown) {
@@ -384,7 +385,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
             {isPinSet && (
               <div>
                 <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                  الرقم السري الحالي
+                  الرقم السري الحالي <RequiredMark />
                 </label>
                 <input
                   type="password"
@@ -401,7 +402,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                  الرقم السري الجديد (4-8 أرقام)
+                  الرقم السري الجديد (4-8 أرقام) <RequiredMark />
                 </label>
                 <input
                   type="password"
@@ -415,7 +416,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
               </div>
               <div>
                 <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                  تأكيد الرقم السري
+                  تأكيد الرقم السري <RequiredMark />
                 </label>
                 <input
                   type="password"

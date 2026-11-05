@@ -151,7 +151,7 @@ describe('Defect 1: idle refresh loop (auth:getCurrentUser -> setCurrentUser -> 
       }
     }
     assert.ok(actions.size > 100);
-    const mutatingVerb = /^(save|delete|create|cancel|archive|record|fund|process|adjust|recalculate|bulk|import|apply|hold|recallHeld|deleteHeld|restore|dispose|rebase|setBase|seed|clear|vacuum)/;
+    const mutatingVerb = /^(save|delete|create|cancel|archive|record|fund|process|adjust|recalculate|bulk|import|apply|hold|recallHeld|deleteHeld|restore|dispose|rebase|setBase|setDefault|seed|clear|vacuum)/;
     for (const action of actions) {
       if (getAutoTopicsForAction(action).length > 0) {
         assert.match(action.split(':')[1], mutatingVerb, `${action} emits topics but is not a mutation`);

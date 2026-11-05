@@ -4,18 +4,19 @@ import {
   Wallet, 
   X, 
   CheckCircle2, 
-  UserCheck, 
   ShieldCheck, 
   ArrowRight,
   Receipt,
-  Plus,
-  Copy,
-  Check,
 } from 'lucide-react';
 import type { Customer, SalePayment, DigitalAccount } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
-import { CustomSelect } from './CustomSelect';
+import { pickReceivingAccount } from '../utils/digitalAccounts';
 import { invoke } from '../bridge/ipc';
+import { useAuth } from '../context/useAuth';
+import { CustomerPicker } from './payment/CustomerPicker';
+import { QuickAddCustomerForm } from './payment/QuickAddCustomerForm';
+import { ReceivingAccountCard } from './payment/ReceivingAccountCard';
+import { useQuickAddCustomer } from './payment/useQuickAddCustomer';
 
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
@@ -69,8 +70,33 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
     instapayAddress: '',
     walletNumber: '',
   });
-  const [copied, setCopied] = useState(false);
+  const { isRoot, isAdmin, hasPermission } = useAuth();
+  const canManageAccounts = isRoot || isAdmin || hasPermission('wallets.accounts_manage');
   const prevIsOpenRef = useRef(false);
+
+  const handleCustomerSelect = (id: string) => {
+    setCurrentCustomerId(id || null);
+    if (onCustomerChange) {
+      onCustomerChange(id);
+    }
+  };
+
+  const {
+    localCustomers,
+    showQuickAdd,
+    openQuickAdd,
+    closeQuickAdd,
+    resetQuickAdd,
+    quickName,
+    setQuickName,
+    quickPhone,
+    setQuickPhone,
+    quickSaving,
+    hasQuickAddInput,
+    duplicateQuickCustomer,
+    handleQuickAddCustomer,
+    selectDuplicateCustomer,
+  } = useQuickAddCustomer(customers, handleCustomerSelect);
 
   // Load digital accounts & store direct payment settings
   useEffect(() => {
@@ -95,55 +121,36 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
       setCurrentCustomerId(selectedCustomerId || null);
+      resetQuickAdd();
       prevIsOpenRef.current = true;
     }
     if (!isOpen) {
       prevIsOpenRef.current = false;
     }
-  }, [isOpen, selectedCustomerId]);
+  }, [isOpen, selectedCustomerId, resetQuickAdd]);
 
   const targetAccountType = method === 'instapay' ? 'instapay' : 'wallet';
-  const matchedAccount = useMemo(() => {
-    return digitalAccounts.find((a) => a.accountType === targetAccountType && a.isActive) || null;
-  }, [digitalAccounts, targetAccountType]);
+  // Same rule as the host's sale credit (main account first, else the oldest active one), so the screen names the account that is credited
+  const matchedAccount = useMemo(() => pickReceivingAccount(digitalAccounts, targetAccountType), [digitalAccounts, targetAccountType]);
 
-  const isDirty = Boolean(currentCustomerId && currentCustomerId !== (selectedCustomerId || null));
+  const customerModified = Boolean(currentCustomerId && currentCustomerId !== (selectedCustomerId || null));
+  const isDirty = customerModified || hasQuickAddInput;
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
     onClose,
     isDirty,
-    confirmTitle: 'تجاهل اختيار الزبون؟',
-    confirmMessage: 'قمت باختيار زبون للفاتورة، هل تريد الخروج وتجاهل الاختيار؟',
+    confirmTitle: 'تجاهل بيانات الزبون؟',
+    confirmMessage: 'قمت باختيار زبون أو كتابة بيانات زبون جديد، هل تريد الخروج وتجاهلها؟',
     discardText: 'تجاهل والخروج',
     stayText: 'البقاء ومتابعة الدفع',
   });
 
   const isInstapay = method === 'instapay';
 
-  // Format customer options exactly matching PaymentModal (Image 2)
-  const customerOptions = useMemo(() => {
-    return [
-      { value: '', label: 'زبون عادي كاش (بدون حساب)' },
-      ...customers
-        .filter(c => c && c.id && c.id !== 'cust_general_cash')
-        .map((c) => ({
-          value: c.id,
-          label: c.name,
-        }))
-    ];
-  }, [customers]);
-
   const selectedCustomer = useMemo(() => {
-    return customers.find(c => c && c.id === currentCustomerId);
-  }, [customers, currentCustomerId]);
-
-  const handleCustomerSelect = (id: string) => {
-    setCurrentCustomerId(id || null);
-    if (onCustomerChange) {
-      onCustomerChange(id);
-    }
-  };
+    return localCustomers.find((c) => c && c.id === currentCustomerId);
+  }, [localCustomers, currentCustomerId]);
 
   const handleConfirm = () => {
     if (loading) return;
@@ -163,44 +170,46 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !loading) {
+    // Enter in the quick-add form saves the customer, on a button activates it, in a field (customer search) belongs to that field; none may confirm the sale.
+    const target = e.target as HTMLElement;
+    if (e.key === 'Enter' && !loading && !target.closest('form, button, input, textarea')) {
       e.preventDefault();
+      // Stop here so the global confirm-dialog listener never receives this same Enter.
+      e.stopPropagation();
       handleConfirm();
     }
   };
 
   if (!isOpen) return null;
 
+  const storeHandle = isInstapay ? storePaymentDetails.instapayAddress : storePaymentDetails.walletNumber;
+  const MethodIcon = isInstapay ? Smartphone : Wallet;
+  const totalLabel = formatArabicCurrency(netTotalPiasters, false);
+  const balance = selectedCustomer?.balancePiasters ?? 0;
+
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none"
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
       dir="rtl"
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-2xl max-h-[94vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95 duration-150">
-        
-        {/* Header - Specialized for the active method */}
-        <div className={`h-[68px] px-5 flex items-center justify-between shrink-0 text-white transition-colors duration-200 ${
-          isInstapay ? 'bg-[#582C83]' : 'bg-[#e60000]'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-xs text-white flex items-center justify-center shadow-inner">
-              {isInstapay ? (
-                <Smartphone className="w-5 h-5 text-purple-100" />
-              ) : (
-                <Wallet className="w-5 h-5 text-white" />
-              )}
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-4xl h-[min(38.8125rem,92vh)] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95 duration-150">
+
+        {/* Fixed outer box: every state (customer, quick-add, account) is laid out inside it, so the dialog never changes size. */}
+        {/* Header */}
+        <div className="px-5 py-4 flex items-center justify-between gap-3 shrink-0 border-b border-line dark:border-line-dark">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 shrink-0 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
+              <MethodIcon className="w-6 h-6" />
             </div>
-            <div>
-              <h2 className="t-modal-title leading-tight m-0 text-white">
-                {isInstapay 
-                  ? 'سداد الفاتورة عبر انستاباي (InstaPay)' 
-                  : 'سداد الفاتورة عبر المحفظة الإلكترونية'}
+            <div className="min-w-0">
+              <h2 className="t-modal-title leading-tight m-0 text-ink dark:text-ink-dark">
+                {isInstapay ? 'سداد الفاتورة عبر انستاباي (InstaPay)' : 'سداد الفاتورة عبر المحفظة الإلكترونية'}
               </h2>
-              <p className="text-xs text-white/80 m-0 mt-0.5">
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 mt-1">
                 {isInstapay
-                  ? 'معاملة دفع لحظي بنكي مباشر • خارج درج الكاش الورقي'
+                  ? 'معاملة دفع لحظي بنكي مباشر • خارج درج الكاش'
                   : 'فودافون كاش، أورانج كاش، اتصالات كاش، وي باي • خارج درج الكاش'}
               </p>
             </div>
@@ -209,267 +218,142 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/90 hover:text-white transition-colors cursor-pointer"
+            className="w-11 h-11 shrink-0 rounded-lg border border-transparent hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark focus-visible:border-brand dark:focus-visible:border-brand-bright transition-colors cursor-pointer"
             title="إغلاق"
+            aria-label="إغلاق"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4">
-          
-          {/* 1. Complete Invoice Meta & Customer Row (Top Section) */}
-          <div className="bg-[#f8faf9] dark:bg-surface-dark-2 border border-[#dce1dc] dark:border-line-dark rounded-2xl p-3 sm:p-4 flex flex-col gap-3 shadow-2xs">
-            {/* Meta Strip: Invoice # + Items + Subtotal + Discount */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-[#dce1dc]/80 dark:border-line-dark text-xs">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <span className="text-ink-muted dark:text-ink-dark-muted">فاتورة:</span>
-                  <span className="font-mono font-bold text-paid dark:text-brand-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-2.5 py-0.5 rounded-md shadow-2xs">
-                    #{invoiceNumber || '1'}
-                  </span>
-                </div>
+        {/* Body: section 1 = amount + receiving account, section 2 = customer + confirmation */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 grid grid-cols-1 md:grid-cols-2 md:grid-rows-[minmax(0,1fr)] gap-5 content-start">
 
-                <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-medium bg-surface dark:bg-surface-dark-3 px-2.5 py-0.5 rounded-md border border-line dark:border-line-dark flex items-center gap-1.5">
-                  <Receipt className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
-                  <span>{itemCount} صنف ({totalItemCount} قطعة)</span>
-                </div>
-              </div>
+          {/* Section 1: amount and receiving account */}
+          <section className="flex flex-col gap-3 min-w-0" aria-label="المبلغ والحساب">
+            <h3 className="t-card-title m-0 flex items-center gap-2 text-ink dark:text-ink-dark">
+              <span className="w-6 h-6 rounded-full bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:border dark:border-brand-bright/50 flex items-center justify-center text-xs font-bold tabular-nums" aria-hidden="true">1</span>
+              <span>المبلغ والحساب</span>
+            </h3>
 
-              {discountPiasters > 0 && (
-                <span className="text-danger dark:text-danger-bright font-bold bg-danger-soft dark:bg-danger-dark-soft px-2.5 py-0.5 rounded-md border border-danger-border dark:border-danger-bright/30 text-micro">
-                  خصم: −{formatArabicCurrency(discountPiasters)}
+            {/* Total card (the only place the amount is shown) */}
+            <div className="rounded-2xl border-2 border-brand/40 dark:border-brand-bright/50 bg-brand-soft dark:bg-brand-dark-soft p-4 flex flex-col items-center gap-3 text-center">
+              <span className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted">المبلغ المطلوب استلامه بالتحويل</span>
+              <div className="flex items-baseline justify-center gap-2 min-w-0 max-w-full">
+                <span className={`${totalLabel.length > 10 ? 'text-3xl' : 'text-4xl'} font-black font-mono tracking-tight tabular-nums leading-none whitespace-nowrap text-brand dark:text-brand-bright`}>
+                  {totalLabel}
                 </span>
-              )}
-            </div>
-
-            {/* Customer Row - Exactly matching PaymentModal (Image 2) */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 flex-1 min-w-[220px] sm:min-w-[280px]">
-                <div className="flex items-center gap-1.5 text-xs text-[#006d41] dark:text-brand-bright font-bold shrink-0">
-                  <UserCheck className="w-4 h-4" />
-                  <span>الزبون:</span>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <CustomSelect
-                    value={currentCustomerId || ''}
-                    onChange={handleCustomerSelect}
-                    options={customerOptions}
-                    placeholder="اختر عميل للربط..."
-                    className="w-full"
-                    size="sm"
-                    searchable
-                  />
-                </div>
+                <span className="text-base font-bold text-ink-muted dark:text-ink-dark-muted shrink-0">ج.م</span>
               </div>
-            </div>
-
-            {/* Customer Account Status & Debt Breakdown (موقف حساب الزبون مع انستاباي/المحفظة) */}
-            {selectedCustomer && (
-              <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/95 dark:bg-surface-dark-3 border text-center font-mono shadow-2xs mt-1 ${
-                isInstapay ? 'border-purple-200 dark:border-purple-800/40' : 'border-red-200 dark:border-red-800/40'
-              }`}>
-                {/* 1. كان عليه قديم */}
-                <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                  <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">
-                    {selectedCustomer.balancePiasters > 0
-                      ? 'كان عليه قديم:'
-                      : selectedCustomer.balancePiasters < 0
-                        ? 'له أمانات سابقة:'
-                        : 'حسابه القديم:'}
+              <div className="flex flex-wrap items-center justify-center gap-2 min-h-7">
+                <span className="font-mono tabular-nums text-xs font-bold text-paid dark:text-paid-bright bg-surface dark:bg-surface-dark border border-paid-border dark:border-paid-dark-border px-2.5 py-1 rounded-md">
+                  فاتورة #{invoiceNumber || '1'}
+                </span>
+                <span className="text-xs font-semibold text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark border border-line dark:border-line-dark px-2.5 py-1 rounded-md flex items-center gap-1.5">
+                  <Receipt className="w-3.5 h-3.5 shrink-0" />
+                  <span>{itemCount} صنف ({totalItemCount} قطعة)</span>
+                </span>
+                {discountPiasters > 0 && (
+                  <span className="text-xs font-bold tabular-nums text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/40 px-2.5 py-1 rounded-md">
+                    خصم: −{formatArabicCurrency(discountPiasters)}
                   </span>
-                  <span className={`text-base font-black ${
-                    selectedCustomer.balancePiasters > 0
-                      ? 'text-danger'
-                      : selectedCustomer.balancePiasters < 0
-                        ? 'text-paid dark:text-brand-bright'
-                        : 'text-ink dark:text-ink-dark'
-                  }`}>
-                    {selectedCustomer.balancePiasters === 0 
-                      ? '0.00 ج.م (خالص)' 
-                      : formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))}
-                  </span>
-                </div>
-
-                {/* 2. الفاتورة الحالية (مسددة بالتحويل) */}
-                <div className={`flex flex-col items-center justify-center p-2 rounded-lg border ${
-                  isInstapay ? 'bg-purple-50/60 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/30' : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30'
-                }`}>
-                  <span className="text-micro font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">
-                    الفاتورة الحالية ({isInstapay ? 'انستاباي' : 'محفظة'}):
-                  </span>
-                  <span className={`text-base font-black ${isInstapay ? 'text-[#582C83] dark:text-purple-300' : 'text-danger dark:text-danger-bright'}`}>
-                    {formatArabicCurrency(netTotalPiasters)}
-                  </span>
-                  <span className="text-micro font-sans font-bold text-paid dark:text-brand-bright mt-0.5">
-                    مسددة بالكامل • لا تضاف للشكك
-                  </span>
-                </div>
-
-                {/* 3. إجمالي حسابه بعد الفاتورة */}
-                <div className={`flex flex-col items-center justify-center p-2 rounded-lg border ${
-                  selectedCustomer.balancePiasters > 0
-                    ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
-                    : selectedCustomer.balancePiasters < 0
-                      ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright'
-                      : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark'
-                }`}>
-                  <span className="text-micro font-sans font-bold mb-0.5">
-                    {selectedCustomer.balancePiasters > 0
-                      ? 'إجمالي اللي عليه بعد الفاتورة:'
-                      : selectedCustomer.balancePiasters < 0
-                        ? 'يظل في رصيده بالمحل:'
-                        : 'حسابه بعد الفاتورة:'}
-                  </span>
-                  <span className="text-base sm:text-lg font-black">
-                    {selectedCustomer.balancePiasters === 0
-                      ? '0.00 ج.م (خالص)'
-                      : formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))}
-                  </span>
-                  {selectedCustomer.balancePiasters > 0 && (
-                    <span className="text-micro font-sans font-medium text-ink-muted dark:text-ink-dark-muted mt-0.5">
-                      ديونه القديمة تظل بدون تغيير
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 2. HERO: Required Transfer Amount Display */}
-          <div className={`rounded-2xl border-2 p-5 text-center flex flex-col items-center justify-center gap-2.5 shadow-xs transition-colors duration-200 ${
-            isInstapay 
-              ? 'bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/40 text-purple-950 dark:text-purple-200' 
-              : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
-          }`}>
-            <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-              المبلغ المطلوب استلامه بالتحويل الإلكتروني
-            </span>
-
-            <div className={`text-4xl sm:text-5xl font-black font-mono tracking-tight tabular-nums my-0.5 ${
-              isInstapay ? 'text-[#582C83] dark:text-purple-300' : 'text-danger dark:text-danger-bright'
-            }`}>
-              {formatArabicCurrency(netTotalPiasters)}
-            </div>
-
-            {/* Invoice Total pill */}
-            <div className="inline-flex items-center gap-2 bg-surface dark:bg-surface-dark-3 px-3.5 py-1.5 rounded-full border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark shadow-2xs">
-              <span className="text-ink-muted dark:text-ink-dark-muted font-normal">إجمالي الفاتورة:</span>
-              <span className="font-mono">{formatArabicCurrency(netTotalPiasters)}</span>
-            </div>
-
-            {/* Linked Account Balance Info vs Direct Store Handle vs Notice */}
-            {matchedAccount ? (
-              <div className="w-full mt-2 p-3 sm:p-3.5 rounded-xl bg-white/95 dark:bg-surface-dark-3 border border-emerald-200 dark:border-emerald-800/40 shadow-2xs flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 text-xs">
-                {/* Account Details */}
-                <div className="flex items-center gap-2 min-w-0 max-w-full">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 self-center" />
-                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                    <span className="font-sans font-bold text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
-                      الحساب المستلم:
-                    </span>
-                    <span className="font-sans font-black text-brand dark:text-brand-bright whitespace-nowrap">
-                      {matchedAccount.name}
-                    </span>
-                    {matchedAccount.identifier && (
-                      <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded border border-line dark:border-line-dark shrink-0">
-                        {matchedAccount.identifier}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Balance & Projection Badge */}
-                <div className="flex items-center gap-1.5 font-mono text-xs shrink-0 mr-auto sm:mr-0 self-end sm:self-auto bg-emerald-50/70 dark:bg-emerald-950/30 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
-                  <span className="font-sans font-medium text-ink-muted dark:text-ink-dark-muted text-micro">الرصيد:</span>
-                  <span className="font-bold text-ink dark:text-ink-dark">{formatArabicCurrency(matchedAccount.balancePiasters)}</span>
-                  <span className="font-sans font-bold text-micro text-paid dark:text-brand-bright whitespace-nowrap">
-                    (سيزداد +{formatArabicCurrency(netTotalPiasters)})
-                  </span>
-                </div>
-              </div>
-            ) : (isInstapay ? storePaymentDetails.instapayAddress : storePaymentDetails.walletNumber) ? (
-              <div className={`w-full mt-2 p-3 sm:p-3.5 rounded-xl shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs border ${
-                isInstapay 
-                  ? 'bg-purple-50/70 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/40' 
-                  : 'bg-red-50/70 dark:bg-red-950/30 border-red-200 dark:border-red-800/40'
-              }`}>
-                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <CheckCircle2 className={`w-4 h-4 shrink-0 ${isInstapay ? 'text-purple-600 dark:text-purple-400' : 'text-[#e60000]'}`} />
-                  <span className="font-sans font-bold text-ink dark:text-ink-dark whitespace-nowrap">
-                    {isInstapay ? 'عنوان إنستاباي للمحل:' : 'رقم محفظة المحل:'}
-                  </span>
-                  <span className={`font-mono font-bold text-sm bg-white dark:bg-surface-dark-3 px-2.5 py-0.5 rounded-lg border select-all ${
-                    isInstapay 
-                      ? 'text-purple-900 dark:text-purple-200 border-purple-200 dark:border-purple-800/40' 
-                      : 'text-[#e60000] dark:text-red-300 border-red-200 dark:border-red-800/40'
-                  }`}>
-                    {isInstapay ? storePaymentDetails.instapayAddress : storePaymentDetails.walletNumber}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const txt = isInstapay ? storePaymentDetails.instapayAddress : storePaymentDetails.walletNumber;
-                    if (txt) {
-                      void navigator.clipboard.writeText(txt);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    }
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-white text-micro font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 self-end sm:self-auto transition-all active:scale-95 ${
-                    isInstapay 
-                      ? 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800' 
-                      : 'bg-[#e60000] hover:bg-[#cc0000] active:bg-[#b30000]'
-                  }`}
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-white" />}
-                  <span>{copied ? 'تم النسخ!' : 'نسخ للزبون'}</span>
-                </button>
-              </div>
-            ) : (
-              <div className="w-full mt-2 p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark shadow-2xs flex flex-col gap-1.5 text-right">
-                <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark">
-                  <Smartphone className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
-                  <span>تحويل مباشر على {isInstapay ? 'إنستاباي' : 'المحفظة'}:</span>
-                </div>
-                <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
-                  اطلب من الزبون إتمام التحويل إلى {isInstapay ? 'حساب إنستاباي' : 'محفظة كاش'} التابع للمحل، ثم اضغط «تأكيد واستلام الفاتورة» لتسجيلها وإصدار الإيصال الحراري.
-                </p>
-                {onNavigateToWallets && (
-                  <div className="pt-1.5 border-t border-line/60 dark:border-line-dark flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onNavigateToWallets('accounts');
-                      }}
-                      className="text-micro font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>ربط حساب رسمي بمكتب المحافظ لمتابعة الأرصدة</span>
-                    </button>
-                  </div>
                 )}
               </div>
-            )}
+            </div>
 
-            <p className="text-micro text-ink-muted dark:text-ink-dark-muted font-medium mt-1 mb-0 flex items-center justify-center gap-1.5 text-center flex-wrap">
-              <ShieldCheck className="w-4 h-4 text-paid dark:text-brand-bright shrink-0" />
-              <span>تأكد من وصول إشعار التحويل المالي على الحساب قبل تأكيد الفاتورة</span>
+            {/* Receiving account: one card shape for every variant so late-loading accounts never resize the dialog */}
+            <ReceivingAccountCard
+              account={matchedAccount}
+              storeHandle={storeHandle}
+              isInstapay={isInstapay}
+              canManageAccounts={canManageAccounts}
+              onNavigateToWallets={
+                onNavigateToWallets
+                  ? () => {
+                      onClose();
+                      onNavigateToWallets('accounts');
+                    }
+                  : undefined
+              }
+            />
+          </section>
+
+          {/* Section 2: customer and confirmation */}
+          <section className="flex flex-col gap-3 min-w-0 min-h-0" aria-label="الزبون والتأكيد">
+            <h3 className="t-card-title m-0 flex items-center gap-2 text-ink dark:text-ink-dark shrink-0">
+              <span className="w-6 h-6 rounded-full bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:border dark:border-brand-bright/50 flex items-center justify-center text-xs font-bold tabular-nums" aria-hidden="true">2</span>
+              <span>الزبون والتأكيد</span>
+            </h3>
+
+            {/* The picker card fills the column; the quick-add form replaces the picker inside it, so nothing resizes. */}
+            <CustomerPicker
+              customerId={currentCustomerId}
+              customers={localCustomers}
+              onChange={handleCustomerSelect}
+              customerRequired={false}
+              quickAddOpen={showQuickAdd}
+              onOpenQuickAdd={openQuickAdd}
+              hint="اختار الزبون لو عايز الفاتورة تتسجل باسمه."
+              status={
+                <div className="rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 px-3 py-2 min-h-[4.5rem] flex flex-col justify-center gap-1">
+                  {selectedCustomer ? (
+                    <>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-sm font-semibold text-ink-muted dark:text-ink-dark-muted">
+                          {balance > 0 ? 'كان عليه قديم:' : balance < 0 ? 'له أمانات سابقة:' : 'حسابه القديم:'}
+                        </span>
+                        <span className={`text-base font-black font-mono tabular-nums ${
+                          balance > 0
+                            ? 'text-danger dark:text-danger-bright'
+                            : balance < 0
+                              ? 'text-paid dark:text-paid-bright'
+                              : 'text-ink dark:text-ink-dark'
+                        }`}>
+                          {balance === 0 ? '0.00 ج.م (خالص)' : formatArabicCurrency(Math.abs(balance))}
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold text-paid dark:text-paid-bright flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>
+                          مسددة بالكامل • لا تضاف للشكك
+                          {balance > 0 ? ' • ديونه القديمة كما هي' : ''}
+                        </span>
+                      </span>
+                    </>
+                  ) : (
+                    <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 text-center leading-relaxed">
+                      اختر زبوناً لعرض موقف حسابه، أو اترك «زبون عادي» للبيع بدون حساب.
+                    </p>
+                  )}
+                </div>
+              }
+            >
+              <QuickAddCustomerForm
+                quickName={quickName}
+                setQuickName={setQuickName}
+                quickPhone={quickPhone}
+                setQuickPhone={setQuickPhone}
+                quickSaving={quickSaving}
+                duplicateQuickCustomer={duplicateQuickCustomer}
+                onSelectDuplicateCustomer={selectDuplicateCustomer}
+                onCancel={closeQuickAdd}
+                onSubmit={handleQuickAddCustomer}
+              />
+            </CustomerPicker>
+
+            <p className="text-xs text-ink dark:text-ink-dark font-medium m-0 px-3 py-2 rounded-xl border border-warn-border dark:border-warn-bright/40 bg-warn-soft dark:bg-warn-dark-soft flex items-center gap-2 leading-relaxed shrink-0">
+              <ShieldCheck className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
+              <span>تأكد من وصول الإشعار قبل الضغط على «تأكيد استلام التحويل».</span>
             </p>
-          </div>
-
+          </section>
         </div>
 
-        {/* Footer */}
-        <div className="h-[68px] px-5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between shrink-0 gap-3">
+        {/* Footer: always visible, outside the scrolling body */}
+        <div className="px-5 py-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center gap-3 shrink-0">
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="h-10 px-4 rounded-xl text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark transition-all cursor-pointer flex items-center gap-1.5 active:scale-98"
+            className="h-12 px-5 rounded-xl text-sm font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark focus-visible:border-brand dark:focus-visible:border-brand-bright transition-colors cursor-pointer flex items-center gap-2 active:scale-98"
           >
             <ArrowRight className="w-4 h-4" />
             <span>رجوع للسلة</span>
@@ -479,18 +363,10 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
             type="button"
             onClick={handleConfirm}
             disabled={loading}
-            className={`h-10 px-6 rounded-xl text-xs sm:text-sm font-black text-white transition-all shadow-md active:scale-98 cursor-pointer flex items-center gap-2 ${
-              isInstapay 
-                ? 'bg-[#582C83] hover:bg-[#462269] active:bg-[#371954]' 
-                : 'bg-[#e60000] hover:bg-[#cc0000] active:bg-[#b30000]'
-            } disabled:opacity-40 disabled:pointer-events-none`}
+            className="h-12 flex-1 px-6 rounded-xl text-base font-black text-white bg-paid hover:bg-paid-hover border border-paid-hover dark:border-paid-bright/50 focus-visible:border-paid-bright transition-colors shadow-md active:scale-98 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-40 disabled:pointer-events-none"
           >
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-white/90" />
-            <span>
-              {loading 
-                ? 'جاري حفظ الفاتورة...' 
-                : 'تأكيد استلام التحويل'}
-            </span>
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <span>{loading ? 'جاري حفظ الفاتورة...' : 'تأكيد استلام التحويل'}</span>
           </button>
         </div>
 

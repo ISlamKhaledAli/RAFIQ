@@ -19,6 +19,8 @@ import type { CartItem } from './types';
 import type { ControlledDrugDispense, ControlledMandatoryFields } from '../../types/pharma';
 import { invoke } from '../../bridge/ipc';
 import { useAuth } from '../../context/useAuth';
+import { RequiredMark } from '../../components/RequiredMark';
+import { parseMandatoryFields } from '../../utils/controlledMandatoryFields';
 
 interface ControlledDrugDispenseModalProps {
   isOpen: boolean;
@@ -77,10 +79,11 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
     if (!isOpen) return;
 
     // Fetch mandatory fields configuration from backend
-    void invoke<ControlledMandatoryFields>('pharma:getControlledMandatoryFields')
+    // The host answers with a list of field ids; the helper converts it to named booleans
+    void invoke<unknown>('pharma:getControlledMandatoryFields')
       .then((cfg) => {
         if (cfg) {
-          setMandatorySettings(cfg);
+          setMandatorySettings(parseMandatoryFields(cfg));
         }
       })
       .catch(() => null);
@@ -321,6 +324,8 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
             </div>
           )}
 
+          <p className="text-micro text-ink-muted dark:text-ink-muted-dark -mb-2">الحقول المميزة بعلامة * مطلوبة</p>
+
           {/* Section 1: Patient Information */}
           <div className="p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark flex flex-col gap-3">
             <div className="flex items-center gap-2 text-brand font-bold text-xs pb-1 border-b border-line dark:border-line-dark">
@@ -331,7 +336,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  اسم المريض ثلاثي <span className="text-danger dark:text-danger-bright">*</span>
+                  اسم المريض ثلاثي <RequiredMark />
                 </label>
                 <div className="relative">
                   <input
@@ -347,7 +352,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
 
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  الرقم القومي (14 رقم) {mandatorySettings.requirePatientNationalId && <span className="text-danger dark:text-danger-bright">*</span>}
+                  الرقم القومي (14 رقم) {mandatorySettings.requirePatientNationalId && <RequiredMark />}
                 </label>
                 <div className="relative">
                   <input
@@ -364,7 +369,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
 
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  رقم الهاتف {mandatorySettings.requirePatientPhone && <span className="text-danger dark:text-danger-bright">*</span>}
+                  رقم الهاتف {mandatorySettings.requirePatientPhone && <RequiredMark />}
                 </label>
                 <div className="relative">
                   <input
@@ -406,7 +411,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  اسم الطبيب المعالج {mandatorySettings.requireDoctorName && <span className="text-danger dark:text-danger-bright">*</span>}
+                  اسم الطبيب المعالج {mandatorySettings.requireDoctorName && <RequiredMark />}
                 </label>
                 <input
                   type="text"
@@ -419,7 +424,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
 
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  رقم قيد / ترخيص الطبيب {mandatorySettings.requireDoctorLicense && <span className="text-danger dark:text-danger-bright">*</span>}
+                  رقم قيد / ترخيص الطبيب {mandatorySettings.requireDoctorLicense && <RequiredMark />}
                 </label>
                 <input
                   type="text"
@@ -432,7 +437,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
 
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  رقم الروشتة الطبية {mandatorySettings.requirePrescriptionNo && <span className="text-danger dark:text-danger-bright">*</span>}
+                  رقم الروشتة الطبية {mandatorySettings.requirePrescriptionNo && <RequiredMark />}
                 </label>
                 <div className="relative">
                   <input
@@ -448,7 +453,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
 
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  تاريخ الروشتة {mandatorySettings.requirePrescriptionDate && <span className="text-danger dark:text-danger-bright">*</span>}
+                  تاريخ الروشتة {mandatorySettings.requirePrescriptionDate && <RequiredMark />}
                 </label>
                 <div className="relative">
                   <input
@@ -545,7 +550,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
                 </div>
               ) : (
                 <div className="text-micro text-paid font-bold">
-                  تم توثيق موافقة المشرف بنجاح وسيتم إدراج اسمه في دفتر التفتيش وسجل الصرف.
+                  تم توثيق موافقة المشرف وسيُدرج اسمه في دفتر التفتيش وسجل الصرف.
                 </div>
               )}
             </div>

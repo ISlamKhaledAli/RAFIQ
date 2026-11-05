@@ -340,9 +340,12 @@ namespace RafiqPOS.Tests.Scenarios
         }
 
         [Test]
-        public void OwnerEditsManagerPermissions_ButOwnerOnlyKeysStayFalseForEveryManager()
+        public void OwnerEditsManagerPermissions_OnlyTheOwnerGradeGrantsAreStored_DailyPowersStayWithTheManager()
         {
+            // Changed with the delegable owner-grade model (S50): the owner CAN grant settings.restore / settings.license to a manager,
+            // and the stored map holds only those grants; a false sent for a daily power such as reports.profit is ignored (managers keep every daily power)
             var m = CreateManager("mgr_l", ManagerPin);
+            Assert.IsFalse(SecurityService.HasPermission(m.Id, "settings.restore"), "قبل المنح");
 
             LoginAs(OwnerId);
             SecurityService.UpdateUserPermissions(m.Id, new Dictionary<string, bool>
@@ -351,11 +354,13 @@ namespace RafiqPOS.Tests.Scenarios
             });
 
             var dto = SecurityService.MapToDto(UserRepo.GetById(m.Id));
-            Assert.IsFalse(dto.Permissions["settings.restore"], "المالك لا يستطيع منح المدير الاسترجاع");
-            Assert.IsFalse(dto.Permissions["settings.license"], "ولا الترخيص");
-            Assert.IsFalse(dto.Permissions["reports.profit"], "لكنه يقيّد باقي الصلاحيات");
-            Assert.IsFalse(SecurityService.HasPermission(m.Id, "settings.restore"));
-            Assert.IsFalse(SecurityService.HasPermission(m.Id, "settings.license"));
+            Assert.IsTrue(dto.Permissions["settings.restore"], "المالك يمنح المدير الاسترجاع صراحةً");
+            Assert.IsTrue(dto.Permissions["settings.license"], "وكذلك الترخيص");
+            Assert.IsFalse(dto.Permissions["system.updates"], "ما لم يُمنح يبقى مغلقاً");
+            Assert.IsTrue(dto.Permissions["reports.profit"], "المدير يحتفظ بصلاحياته اليومية");
+            Assert.IsTrue(SecurityService.HasPermission(m.Id, "settings.restore"));
+            Assert.IsTrue(SecurityService.HasPermission(m.Id, "settings.license"));
+            Assert.IsFalse(SecurityService.HasPermission(m.Id, "system.updates"));
         }
 
         // ---------- Disable / enable / owner protection ----------
@@ -617,6 +622,9 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.IsTrue(owner["settings.license"]);
             Assert.IsFalse(manager["settings.restore"]);
             Assert.IsFalse(manager["settings.license"]);
+            Assert.IsFalse(manager["system.updates"], "بلا منحة من المالك");
+            Assert.IsTrue(owner["system.updates"]);
+            Assert.IsTrue(root["system.updates"]);
             Assert.IsFalse(cashier["settings.restore"]);
             Assert.IsFalse(cashier["settings.license"]);
             Assert.IsTrue(root["settings.restore"]);
@@ -624,7 +632,7 @@ namespace RafiqPOS.Tests.Scenarios
 
             foreach (var kvp in owner)
             {
-                if (kvp.Key == "settings.restore" || kvp.Key == "settings.license") continue;
+                if (kvp.Key == "settings.restore" || kvp.Key == "settings.license" || kvp.Key == "system.updates") continue;
                 Assert.IsTrue(manager.ContainsKey(kvp.Key), "مفتاح ناقص للمدير: " + kvp.Key);
                 Assert.AreEqual(kvp.Value, manager[kvp.Key], "المدير يطابق المالك في: " + kvp.Key);
             }
@@ -640,13 +648,16 @@ namespace RafiqPOS.Tests.Scenarios
         [Test]
         public void HasPermission_OwnerOnlyKeys_AreDeniedToManagersAndCashiers_ByIdAndBySession()
         {
+            // A manager WITHOUT an explicit owner grant (grants are covered by S50); cashiers can never hold these keys
             var m = CreateManager("mgr_x", ManagerPin);
 
             Assert.IsTrue(SecurityService.HasPermission(OwnerId, "settings.restore"));
             Assert.IsTrue(SecurityService.HasPermission(OwnerId, "settings.license"));
+            Assert.IsTrue(SecurityService.HasPermission(OwnerId, "system.updates"));
             Assert.IsTrue(SecurityService.HasPermission(RootId, "settings.restore"));
             Assert.IsFalse(SecurityService.HasPermission(m.Id, "settings.restore"));
             Assert.IsFalse(SecurityService.HasPermission(m.Id, "settings.license"));
+            Assert.IsFalse(SecurityService.HasPermission(m.Id, "system.updates"));
             Assert.IsFalse(SecurityService.HasPermission(SeedCashierId, "settings.restore"));
             Assert.IsFalse(SecurityService.HasPermission(SeedCashierId, "settings.license"));
 

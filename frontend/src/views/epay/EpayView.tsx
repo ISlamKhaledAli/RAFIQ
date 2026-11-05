@@ -5,6 +5,7 @@ import {
   Wallet, 
   FileText, 
   Landmark, 
+  Banknote, 
   PlusCircle, 
   TrendingUp, 
   AlertTriangle, 
@@ -27,6 +28,7 @@ import { useDataSubscription } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
 import { rafiqConfirm, rafiqAlert } from '../../utils/dialogService';
 import { useAuth } from '../../context/useAuth';
+import { RequiredMark } from '../../components/RequiredMark';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
@@ -386,7 +388,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
       const result = await invoke<EpayTransaction>('epay:createTransaction', payload);
       txAttemptRef.current.complete();
-      setSuccessMsg(`تم تنفيذ عملية "${serviceName}" بنجاح! صافي ربح المحل: ${formatArabicCurrency(netProfitPiasters)}`);
+      setSuccessMsg(`تم تنفيذ عملية "${serviceName}". صافي ربح المحل: ${formatArabicCurrency(netProfitPiasters)}`);
 
       if (autoPrintReceipt && result) {
         setReceiptTx(result);
@@ -420,7 +422,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
         transactionId: cancellingTx.id,
         reason: cancelReason.trim() || 'إلغاء يدوي من سجل العمليات',
       });
-      setSuccessMsg(`تم إلغاء عملية "${cancellingTx.serviceName}" واسترجاع رصيد الماكينة بنجاح.`);
+      setSuccessMsg(`تم إلغاء عملية "${cancellingTx.serviceName}" واسترجاع رصيد الماكينة`);
       setCancellingTx(null);
       setCancelReason('');
       await loadData();
@@ -466,7 +468,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
       });
       fundAttemptRef.current.complete();
 
-      setSuccessMsg(`تمت تغذية رصيد الماكينة بمبلغ ${formatArabicCurrency(fundingAmountPiasters)} بنجاح`);
+      setSuccessMsg(`تمت تغذية رصيد الماكينة بمبلغ ${formatArabicCurrency(fundingAmountPiasters)}`);
       setIsFundingModalOpen(false);
       setFundingNotes('');
       setFundingModalError(null);
@@ -525,7 +527,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
         isActive: true,
       });
 
-      setSuccessMsg(editingTerminalId ? 'تم تحديث بيانات الماكينة بنجاح' : 'تمت إضافة ماكينة الدفع بنجاح');
+      setSuccessMsg(editingTerminalId ? 'تم تحديث الماكينة' : 'تمت إضافة الماكينة');
       setIsTerminalModalOpen(false);
       setTerminalModalError(null);
       await loadData();
@@ -552,7 +554,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
     try {
       await invoke('epay:deleteTerminal', { terminalId: termId });
-      setSuccessMsg(`تم حذف / أرشفة ماكينة "${targetName}" بنجاح`);
+      setSuccessMsg(`تم حذف ماكينة "${targetName}"`);
       if (isTerminalModalOpen && editingTerminalId === termId) {
         setIsTerminalModalOpen(false);
       }
@@ -809,6 +811,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
           <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Left 7 Columns: Form Input */}
             <div className="lg:col-span-7 bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark p-5 sm:p-6 flex flex-col gap-5 shadow-2xs">
+              <p className="text-micro text-ink-muted dark:text-ink-muted-dark -mb-2">الحقول المميزة بعلامة * مطلوبة</p>
               {/* Step 1: Terminal Selection */}
               <div>
                 <StepHeading step={1} title="اختيار ماكينة الدفع" />
@@ -904,7 +907,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 <div className="p-4 sm:p-5 rounded-2xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark transition-all focus-within:border-brand/50 dark:focus-within:border-brand-bright/50 focus-within:bg-surface dark:focus-within:bg-surface-dark">
                   <label className="text-sm font-black text-ink dark:text-ink-dark flex items-center gap-2 mb-2.5">
                     <Receipt className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
-                    <span>مبلغ الفاتورة / الرصيد</span>
+                    <span>مبلغ الفاتورة / الرصيد <RequiredMark /></span>
                   </label>
                   <MoneyInput
                     valuePiasters={billAmountPiasters}
@@ -945,7 +948,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
               {/* Step 4: Customer / phone details */}
               <div className="border-t border-line dark:border-line-dark pt-5">
-                <StepHeading step={4} title="بيانات الزبون والعملية" hint="رقم الهاتف أو الكود يظهر في الإيصال، والباقي اختياري" />
+                <StepHeading step={4} title="بيانات الزبون والعملية" hint="رقم الهاتف أو الكود يظهر في الإيصال" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <label className={FIELD_LABEL_CLS}>رقم الهاتف / كود المشترك / رقم الحساب</label>
@@ -959,7 +962,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className={FIELD_LABEL_CLS}>اسم العميل (اختياري)</label>
+                    <label className={FIELD_LABEL_CLS}>اسم العميل</label>
                     <input
                       type="text"
                       value={customerName}
@@ -980,7 +983,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className={FIELD_LABEL_CLS}>ملاحظات (اختياري)</label>
+                    <label className={FIELD_LABEL_CLS}>ملاحظات</label>
                     <input
                       type="text"
                       value={notes}
@@ -1026,7 +1029,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark hover:border-line-hover dark:hover:border-line-dark-hover'
                     }`}
                   >
-                    <Landmark className="w-5 h-5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
+                    <Banknote className="w-5 h-5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
                     <div className="min-w-0">
                       <span className="text-xs font-bold block">درج كاشير المحل</span>
                       <span className="text-micro text-ink-muted dark:text-ink-muted-dark block mt-0.5">يدخل ضمن نقدية وعهدة الكاشير الرئيسية</span>
@@ -1747,7 +1750,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">مبلغ التغذية (الشحن)</label>
+                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">مبلغ التغذية (الشحن) <RequiredMark /></label>
                 <MoneyInput
                   valuePiasters={fundingAmountPiasters}
                   onChangePiasters={setFundingAmountPiasters}
@@ -1803,7 +1806,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   type="text"
                   value={fundingNotes}
                   onChange={(e) => setFundingNotes(e.target.value)}
-                  placeholder="ملاحظات اختيارية..."
+                  placeholder="ملاحظات..."
                   className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-muted-dark/50 focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none transition-all"
                 />
               </div>
@@ -1857,7 +1860,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 </div>
               )}
               <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">اسم الماكينة</label>
+                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">اسم الماكينة <RequiredMark /></label>
                 <input
                   type="text"
                   value={termName}
@@ -2106,7 +2109,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">سبب الإلغاء (اختياري)</label>
+                <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">سبب الإلغاء</label>
                 <input
                   type="text"
                   value={cancelReason}

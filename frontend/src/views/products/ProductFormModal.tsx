@@ -52,6 +52,7 @@ import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { ProductUnitsEditor } from '../../components/ProductUnitsEditor';
 import { useFeatures } from '../../context/useFeatures';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { RequiredMark } from '../../components/RequiredMark';
 import { getStoreTerminology, getCurrentStoreType } from '../../utils/storeTerminology';
 
 export interface BelowCostWarningData {
@@ -954,7 +955,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               <button
                 type="button"
                 onClick={onOpenPriceHistory}
-                className="mr-2 px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-soft/20 hover:bg-brand/20 border border-brand/20 text-brand dark:text-brand-bright text-micro font-bold flex items-center gap-1 transition-colors"
+                className="mr-2 px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 border border-brand/20 text-brand dark:text-brand-bright text-micro font-bold flex items-center gap-1 transition-colors"
                 title="عرض تاريخ وتعديلات أسعار هذا الصنف"
               >
                 <History className="w-3 h-3" />
@@ -977,6 +978,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           {/* Scrollable Form Body */}
           <div ref={formBodyRef} className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 flex flex-col gap-3.5 text-xs">
             
+            <p className="text-micro text-ink-muted dark:text-ink-muted-dark -mb-1.5">الحقول المميزة بعلامة * مطلوبة</p>
+
             {/* Errors & Warnings */}
             {formError && (
               <div className="p-2.5 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright flex items-center gap-2 text-xs font-bold animate-in fade-in">
@@ -989,7 +992,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             <div className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-3 shadow-2xs">
               <div className="flex items-center justify-between border-b border-line/60 dark:border-line-dark/60 pb-2">
                 <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark text-sm">
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
                     {headerIcon}
                   </div>
                   <span>
@@ -1017,7 +1020,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </span>
                 )}
                 {isPharmacy && pharmaInfo?.scientificName && (
-                  <span className="text-micro px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright font-mono font-bold truncate max-w-[200px]">
+                  <span className="text-micro px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-mono font-bold truncate max-w-[200px]">
                     {pharmaInfo.scientificName}
                   </span>
                 )}
@@ -1028,10 +1031,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 {/* Product / Model Name */}
                 <div>
                   <label className="block text-ink dark:text-ink-dark font-semibold mb-1">
-                    {isPharmacy ? 'اسم الدواء التجاري *' :
-                     isClothing ? 'اسم الموديل / القطعة *' :
-                     isProduceOrButchery ? 'اسم الصنف أو نوع اللحم *' :
-                     isElectronics ? 'اسم الجهاز أو القطعة *' : 'اسم الصنف *'}
+                    {isPharmacy ? 'اسم الدواء التجاري' :
+                     isClothing ? 'اسم الموديل / القطعة' :
+                     isProduceOrButchery ? 'اسم الصنف أو نوع اللحم' :
+                     isElectronics ? 'اسم الجهاز أو القطعة' : 'اسم الصنف'}{' '}
+                    <RequiredMark />
                   </label>
                   <input
                     ref={nameInputRef}
@@ -1156,7 +1160,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       type="button"
                       onClick={onAddBarcode}
                       disabled={!newBarcodeInput.trim()}
-                      className="px-3 h-[32px] bg-brand hover:bg-brand-hover disabled:bg-surface dark:disabled:bg-surface-dark disabled:text-ink-muted text-white rounded text-micro font-bold transition-colors shadow-2xs cursor-pointer"
+                      className="px-3 h-[32px] bg-brand hover:bg-brand-hover disabled:bg-surface dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white rounded text-micro font-bold transition-colors shadow-2xs cursor-pointer"
                     >
                       إضافة
                     </button>
@@ -1168,7 +1172,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           key={bc}
                           className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded text-micro font-mono text-ink dark:text-ink-dark shadow-2xs"
                         >
-                          <Barcode className="w-3 h-3 text-ink-muted" />
+                          <Barcode className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                           <span>{bc}</span>
                           <button
                             type="button"
@@ -1310,7 +1314,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         placeholder="مثلاً: Paracetamol, Amoxicillin, Ibuprofen..."
                         className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-[34px] px-3 pr-8 text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
                       />
-                      <Sparkles className="w-3.5 h-3.5 text-brand absolute right-2.5 top-2.5 pointer-events-none" />
+                      <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright absolute right-2.5 top-2.5 pointer-events-none" />
                     </div>
                   </div>
 
@@ -1467,7 +1471,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             type="checkbox"
                             checked={isColdChainActive}
                             onChange={(e) => handleColdChainChange(e.target.checked)}
-                            className="rounded border-line text-cyan-600 focus:ring-cyan-500 w-3.5 h-3.5"
+                            className="rounded border-line dark:border-line-dark text-cyan-600 focus:ring-cyan-500 w-3.5 h-3.5"
                           />
                           <Snowflake className={`w-3.5 h-3.5 ${isColdChainActive ? 'text-cyan-600 dark:text-cyan-400' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
                           <span className="text-micro font-bold">ثلاجة</span>
@@ -1494,7 +1498,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       type="checkbox"
                       checked={isColdChainActive}
                       onChange={(e) => handleColdChainChange(e.target.checked)}
-                      className="rounded border-line text-cyan-600 focus:ring-cyan-500 w-3.5 h-3.5"
+                      className="rounded border-line dark:border-line-dark text-cyan-600 focus:ring-cyan-500 w-3.5 h-3.5"
                     />
                     <Snowflake className={`w-3.5 h-3.5 ${isColdChainActive ? 'text-cyan-600 dark:text-cyan-400' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
                     <span className="text-micro font-bold">يحتاج حفظ في الثلاجة (تبريد)</span>
@@ -1574,7 +1578,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     className={`text-micro font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
                       showCostCalculator
                         ? 'bg-brand text-white border-brand shadow-xs'
-                        : 'bg-brand-soft/70 dark:bg-brand-soft/20 text-brand dark:text-brand-bright hover:bg-brand/15 border-brand/20'
+                        : 'bg-brand-soft/70 dark:bg-brand-dark-soft text-brand dark:text-brand-bright hover:bg-brand/15 border-brand/20'
                     }`}
                     title="حساب تكلفة الوحدة من سعر الكرتونة أو إجمالي الفاتورة"
                   >
@@ -1588,9 +1592,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-ink dark:text-ink-dark font-semibold mb-1">
-                    {unit === 'kg' ? 'سعر بيع الكيلو للزبون *' :
-                     isPharmacy ? 'سعر بيع العلبة للجمهور *' :
-                     isClothing ? 'سعر بيع القطعة للزبون *' : 'سعر البيع للزبون (للقطعة) *'}
+                    {unit === 'kg' ? 'سعر بيع الكيلو للزبون' :
+                     isPharmacy ? 'سعر بيع العلبة للجمهور' :
+                     isClothing ? 'سعر بيع القطعة للزبون' : 'سعر البيع للزبون (للقطعة)'}{' '}
+                    <RequiredMark />
                   </label>
                   <MoneyInput
                     valuePiasters={pricePiasters}
@@ -1723,7 +1728,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         setCostPiasters(activeCalculatedCost);
                         setShowCostCalculator(false);
                       }}
-                      className="px-3 py-1 bg-brand hover:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted text-white rounded text-micro font-bold flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
+                      className="px-3 py-1 bg-brand hover:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white rounded text-micro font-bold flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>تطبيق التكلفة</span>
@@ -1745,14 +1750,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <div className="p-2.5 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 text-danger dark:text-danger-bright flex flex-col gap-1 text-micro">
                       <div className="flex items-center justify-between font-bold">
                         <span className="flex items-center gap-1.5">
-                          <AlertTriangle className="w-3.5 h-3.5 text-danger shrink-0" />
+                          <AlertTriangle className="w-3.5 h-3.5 text-danger dark:text-danger-bright shrink-0" />
                           <span>تنبيه: سعر البيع أقل من التكلفة (هتبيع بخسارة!)</span>
                         </span>
                         <span className="font-mono text-xs">
                           -{formatArabicCurrency(Math.abs(profitPiasters))}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between font-mono text-micro text-danger/80">
+                      <div className="flex items-center justify-between font-mono text-micro text-danger/80 dark:text-danger-bright">
                         <span>نسبة الخسارة من التكلفة: -{Math.abs(markupPercent).toFixed(1)}%</span>
                         <span>تكلفة: {formatArabicCurrency(costPiasters)} | بيع: {formatArabicCurrency(pricePiasters)}</span>
                       </div>
@@ -1762,7 +1767,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                 if (isBreakEven) {
                   return (
-                    <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted text-micro flex items-center justify-between font-mono">
+                    <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-micro flex items-center justify-between font-mono">
                       <span>مكسب الصنف: 0.00 ج.م (رأس برأس من غير مكسب)</span>
                       <span>سعر البيع نفس سعر الشراء بالظبط</span>
                     </div>
@@ -1784,7 +1789,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         +{formatArabicCurrency(profitPiasters)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between font-mono text-micro text-paid/90 dark:text-paid-bright/90">
+                    <div className="flex items-center justify-between font-mono text-micro text-paid/90 dark:text-paid-bright">
                       <span>نسبة الربح من التكلفة (Markup): +{markupPercent.toFixed(1)}%</span>
                       <span>هامش الربح من البيع (Margin): {marginPercent.toFixed(1)}%</span>
                     </div>
@@ -1870,7 +1875,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             <div className="p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-3 shadow-2xs">
               <div className="flex items-center justify-between border-b border-line/60 dark:border-line-dark/60 pb-2">
                 <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark text-sm">
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
                     <Boxes className="w-3.5 h-3.5" />
                   </div>
                   <span>
@@ -1880,7 +1885,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright text-micro font-bold">
+                  <span className="px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro font-bold">
                     حساب فوري ولحظي
                   </span>
                 </div>
@@ -1912,7 +1917,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <label className="text-micro font-bold text-ink dark:text-ink-dark truncate" title={`سعة الـ (${packName}) بالـ (${baseUnitName})`}>
                           سعة الـ ({packName}):
                         </label>
-                        <span className="text-micro text-ink-muted font-bold">
+                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
                           {baseUnitName}
                         </span>
                       </div>
@@ -1947,7 +1952,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
 
                     {/* 4. Equals sign symbol */}
-                    <div className="hidden sm:flex items-center justify-center font-extrabold text-ink-muted text-xl pt-4">
+                    <div className="hidden sm:flex items-center justify-center font-extrabold text-ink-muted dark:text-ink-dark-muted text-xl pt-4">
                       =
                     </div>
 
@@ -1969,8 +1974,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           title={editingId ? "يتم تعديل رصيد المخزون رسمياً عبر شاشة تسوية الجرد أو فواتير الشراء والبيع" : "الرصيد الافتتاحي للصنف الجديد"}
                           className={`w-full rounded h-[36px] px-2 text-sm font-mono text-center font-extrabold focus:outline-none ${
                             editingId
-                              ? 'bg-brand-soft dark:bg-brand-soft/20 border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright'
-                              : 'bg-brand-soft dark:bg-brand-soft/20 border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright'
+                              ? 'bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright'
+                              : 'bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright'
                           }`}
                         />
                       </div>
@@ -1980,7 +1985,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   {editingId && editingProduct && Math.round((parseFloat(normalizeArabicNumerals(stockInput)) || 0) * 1000) !== editingProduct.stockQuantityMilli && (
                     <div className="flex flex-col gap-1 bg-warn-soft dark:bg-warn-dark-soft px-3 py-2 rounded-lg border border-warn-border dark:border-warn-bright/30">
                       <label className="text-micro font-extrabold text-warn dark:text-warn-bright">
-                        تعديل الرصيد يُسجَّل كتسوية جردية — سبب التعديل (إجباري):
+                        تعديل الرصيد يُسجَّل كتسوية جردية — سبب التعديل <RequiredMark />:
                       </label>
                       <input
                         type="text"
@@ -2011,13 +2016,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         placeholder="0"
                         className="w-20 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[28px] px-2 text-xs font-mono text-center text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                       />
-                      <span className="text-micro text-ink-muted truncate">تنبيه عند اقتراب نفاذ الصنف</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted truncate">تنبيه عند اقتراب نفاذ الصنف</span>
                     </div>
 
                     {/* Live Inventory Valuation (Invested Capital) */}
                     <div className="px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg flex items-center justify-between text-micro">
-                      <div className="flex items-center gap-1.5 text-ink-muted">
-                        <Coins className="w-3.5 h-3.5 text-brand" />
+                      <div className="flex items-center gap-1.5 text-ink-muted dark:text-ink-dark-muted">
+                        <Coins className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                         <span>قيمة البضاعة بالتكلفة:</span>
                       </div>
                       <span className="font-mono font-bold text-brand dark:text-brand-bright text-micro">
@@ -2029,7 +2034,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </div>
 
                   {/* Dynamic Equation Breakdown Banner */}
-                  <div className="p-2 bg-brand-soft/50 dark:bg-brand-soft/20 border border-brand/20 rounded-lg text-brand dark:text-brand-bright text-micro font-bold flex items-center justify-between">
+                  <div className="p-2 bg-brand-soft/50 dark:bg-brand-dark-soft border border-brand/20 rounded-lg text-brand dark:text-brand-bright text-micro font-bold flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <Boxes className="w-3.5 h-3.5 shrink-0" />
                       <span>
@@ -2059,7 +2064,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-ink dark:text-ink-dark font-semibold mb-1 text-micro">
-                        {editingId ? 'الرصيد الفعلي الحالي (كجم)' : 'الرصيد الافتتاحي (كجم) *'}
+                        {editingId ? 'الرصيد الفعلي الحالي (كجم)' : 'الرصيد الافتتاحي (كجم)'}
                       </label>
                       <input
                         type="text"
@@ -2075,7 +2080,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark focus:border-brand'
                         }`}
                       />
-                      <p className="text-micro text-ink-muted mt-1">
+                      <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1">
                         {editingId ? 'تحديث الوزن الفعلي سيُسجل تلقائياً في دفتر حركة المخزون' : 'الوزن الكلي المتوفر حالياً بالمحل للبيع'}
                       </p>
                     </div>
@@ -2090,14 +2095,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         placeholder="5"
                         className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] px-3 text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
                       />
-                      <p className="text-micro text-ink-muted mt-1">تنبيه تلقائي عند هبوط الوزن عن هذا الحد</p>
+                      <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1">تنبيه تلقائي عند هبوط الوزن عن هذا الحد</p>
                     </div>
                   </div>
 
                   {parseFloat(stockInput) > 0 && costPiasters > 0 && (
                     <div className="px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg flex items-center justify-between text-micro">
-                      <div className="flex items-center gap-1.5 text-ink-muted">
-                        <Coins className="w-3.5 h-3.5 text-brand" />
+                      <div className="flex items-center gap-1.5 text-ink-muted dark:text-ink-dark-muted">
+                        <Coins className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                         <span>قيمة الوزن المتوفر بالتكلفة:</span>
                       </div>
                       <span className="font-mono font-bold text-brand dark:text-brand-bright text-micro">
@@ -2132,7 +2137,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-micro font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                        رقم التشغيلة / إذن الاستلام (اختياري)
+                        رقم التشغيلة / إذن الاستلام
                       </label>
                       <input
                         type="text"
@@ -2189,7 +2194,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg flex flex-col gap-2.5">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark">
-                            <ShieldAlert className="w-3.5 h-3.5 text-warn" />
+                            <ShieldAlert className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
                             <span>تصنيف الصرف والرقابة والجدول (Controlled Drugs & Rx Status)</span>
                           </div>
                         </div>
@@ -2236,7 +2241,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                         {((pharmaInfo?.controlledSchedule && pharmaInfo.controlledSchedule !== 'none') || pharmaInfo?.rxStatus === 'controlled') && (
                           <div className="p-2 rounded-lg bg-warn/10 border border-warn/25 text-micro text-warn-dark dark:text-warn-bright flex items-start gap-1.5 leading-relaxed">
-                            <AlertTriangle className="w-4 h-4 shrink-0 text-warn mt-0.5" />
+                            <AlertTriangle className="w-4 h-4 shrink-0 text-warn dark:text-warn-bright mt-0.5" />
                             <span>
                               تنبيه رقابي: عند بيع هذا الصنف في الكاشير، سيتم تسجيل وتوثيق بيانات المريض والطبيب والروشتة إجبارياً في «دفتر أدوية الجدول والتفتيش الصيدلي»، ولن يُسمح بتعليق الفاتورة.
                             </span>
@@ -2298,7 +2303,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         </div>
 
                         {(showIngredientsDetail || (pharmaInfo?.ingredients && pharmaInfo.ingredients.length > 0)) && (
-                          <div className="flex flex-col gap-2 pt-1 border-t border-line/40">
+                          <div className="flex flex-col gap-2 pt-1 border-t border-line/40 dark:border-line-dark">
                             {/* Add Ingredient Form */}
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <input
@@ -2346,7 +2351,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             {pharmaInfo?.ingredients && pharmaInfo.ingredients.length > 0 && (
                               <div className="border border-line/60 dark:border-line-dark/60 rounded-lg overflow-hidden mt-1">
                                 <table className="w-full text-right text-xs">
-                                  <thead className="bg-surface dark:bg-surface-dark text-ink-muted text-micro">
+                                  <thead className="bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted text-micro">
                                     <tr>
                                       <th className="px-2.5 py-1.5">المادة الفعالة</th>
                                       <th className="px-2.5 py-1.5 text-center">التركيز</th>
@@ -2405,9 +2410,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           placeholder="0"
                           className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono pl-7"
                         />
-                        <Percent className="w-3.5 h-3.5 text-ink-muted absolute left-2 pointer-events-none" />
+                        <Percent className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute left-2 pointer-events-none" />
                       </div>
-                      <p className="text-micro text-ink-muted mt-0.5">اكتب 0 لو الصنف معفي من الضريبة</p>
+                      <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">اكتب 0 لو الصنف معفي من الضريبة</p>
                     </div>
 
                     <div>
@@ -2429,7 +2434,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        placeholder="اختياري - لمنظومة الضرائب"
+                        placeholder="لمنظومة الضرائب"
                         value={taxCategoryCode}
                         onChange={(e) => setTaxCategoryCode(e.target.value)}
                         className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
@@ -2440,7 +2445,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   {/* Variant Size and Color (Shown in advanced if not clothing and has data) */}
                   {!isClothing && !isElectronics && Boolean(variantSize || variantColor) && (
                     <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg flex flex-col gap-2">
-                      <span className="text-micro font-bold text-ink dark:text-ink-dark">{terminology.sizeLabel} و {terminology.colorLabel} (اختياري)</span>
+                      <span className="text-micro font-bold text-ink dark:text-ink-dark">{terminology.sizeLabel} و {terminology.colorLabel}</span>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-micro text-ink-muted dark:text-ink-dark-muted mb-1">{terminology.sizeLabel}</label>
@@ -2586,7 +2591,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               <button
                 type="submit"
                 disabled={loading || unitsLoadState !== 'ready'}
-                className="h-[36px] px-5 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-[36px] px-5 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark disabled:cursor-not-allowed"
               >
                 <Check className="w-4 h-4" />
                 <span>

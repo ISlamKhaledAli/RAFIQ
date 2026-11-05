@@ -113,6 +113,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
       'wallets:saveAccount',
       'wallets:createAccount',
       'wallets:updateAccount',
+      'wallets:setDefaultAccount',
       'wallets:deleteAccount',
       'wallets:adjustBalance',
       'wallets:cancelTransaction',

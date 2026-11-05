@@ -27,7 +27,9 @@ import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
 import { ToggleSwitch } from './ToggleSwitch';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { RequiredMark } from './RequiredMark';
 import { INITIAL_STORE_TEMPLATES, type StoreTemplateDto } from '../constants/storeTemplates';
+import { DEFAULT_DEVELOPER_SIGNATURE, splitReceiptText } from '../utils/receiptLayout';
 export type { StoreTemplateDto };
 
 export interface FirstRunWizardModalProps {
@@ -495,11 +497,12 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             <h2 className="text-lg font-semibold text-ink dark:text-ink-dark leading-tight">
               معلومات المنشأة وعناوين الإيصال
             </h2>
+            <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 -mt-2">الحقول المميزة بعلامة * مطلوبة</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">
-                  اسم المحل / المنشأة *
+                  اسم المحل / المنشأة <RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -513,7 +516,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-ink-muted dark:text-ink-dark-muted">
-                  رقم الهاتف / خدمة العملاء *
+                  رقم الهاتف / خدمة العملاء <RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -724,15 +727,19 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                 {/* Dotted separator */}
                 <div className="border-b border-dashed border-ink/40 my-2.5" />
 
-                {/* Return policy centered */}
-                <div className="text-center font-sans text-micro text-ink-muted leading-tight px-1 mt-1">
-                  {receiptFooter || 'شكراً لزيارتكم — الاستبدال خلال 3 أيام بالإيصال'}
-                </div>
+                {/* Return policy centered: nothing is printed when the footer is left empty */}
+                {receiptFooter.trim() && (
+                  <div className="text-center font-sans text-micro text-ink-muted leading-tight px-1 mt-1">
+                    {receiptFooter}
+                  </div>
+                )}
 
                 {/* Developer signature */}
-                <div className="border-t border-dashed border-ink/40 my-2 pt-1.5" />
+                {receiptFooter.trim() && <div className="border-t border-dashed border-ink/40 my-2 pt-1.5" />}
                 <div className="text-center font-sans text-micro text-ink-muted leading-tight px-1">
-                  نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965
+                  {splitReceiptText(DEFAULT_DEVELOPER_SIGNATURE).map((line, i) => (
+                    <div key={i}>{line}</div>
+                  ))}
                 </div>
 
                 {/* Zigzag torn bottom edge */}
@@ -1015,12 +1022,12 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
               {/* Title */}
               <h1 className="text-ink dark:text-ink-dark text-3xl font-semibold mb-3">
-                تم تهيئة وتجهيز النظام بنجاح!
+                النظام جاهز للعمل
               </h1>
 
               {/* Description */}
               <p className="text-ink-muted dark:text-ink-dark-muted text-sm leading-relaxed mb-8">
-                تم ضبط ميزات نشاطك بنجاح، وقاعدة البيانات جاهزة للعمل. جاري نقلك لشاشة نقطة البيع…
+                تم ضبط ميزات نشاطك وقاعدة البيانات جاهزة. جاري نقلك لشاشة نقطة البيع…
               </p>
 
               {/* 44px Progress Strip */}

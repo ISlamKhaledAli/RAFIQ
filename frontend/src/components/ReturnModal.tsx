@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  RotateCcw, 
-  X, 
-  Search, 
-  AlertCircle, 
-  Printer, 
-  Check, 
-  Lock, 
-  ShoppingBag, 
+import type { ReactNode } from 'react';
+import {
+  RotateCcw,
+  X,
+  Search,
+  AlertCircle,
+  Printer,
+  Check,
+  CheckCircle2,
+  Lock,
+  ShoppingBag,
   CreditCard,
   Banknote,
   FileText,
-  AlertTriangle
+  AlertTriangle,
+  Minus,
+  Plus
 } from 'lucide-react';
 import type { Sale, Return, Product } from '../types/models';
 import { extractProducts } from '../types/models';
@@ -20,6 +24,7 @@ import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { useAuth } from '../context/useAuth';
 import { createAttemptKey } from '../utils/idempotency';
+import { RequiredMark } from './RequiredMark';
 
 interface ReturnModalProps {
   isOpen: boolean;
@@ -39,6 +44,84 @@ interface ReturnItemDraft {
   isDamaged: boolean;
   notes?: string;
 }
+
+const FIELD =
+  'w-full h-11 px-3.5 text-sm bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder:text-ink-muted/60 dark:placeholder:text-ink-dark-muted/60 focus:outline-none focus:border-warn dark:focus:border-warn-bright focus:ring-2 focus:ring-warn/20 transition-colors';
+const BTN_SECONDARY =
+  'h-11 px-5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+const BTN_WARN =
+  'rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap bg-warn hover:bg-warn-dark dark:bg-warn-dark-soft dark:hover:bg-warn-dark-soft text-white dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/50 shadow-xs transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed';
+const TAB_ACTIVE =
+  'bg-warn dark:bg-warn-dark-soft text-white dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs';
+const TAB_IDLE =
+  'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark';
+const STEP_CARD = 'rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 p-5 flex flex-col gap-4';
+
+const StepHeader = ({ step, title, aside }: { step: number; title: string; aside?: ReactNode }) => (
+  <div className="flex items-center justify-between gap-3 flex-wrap">
+    <div className="flex items-center gap-2.5 min-w-0">
+      <span className="w-7 h-7 shrink-0 rounded-full bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 dark:border-warn-bright/40 text-warn dark:text-warn-bright text-sm font-black tabular-nums flex items-center justify-center">
+        {step}
+      </span>
+      <h3 className="t-card-title text-ink dark:text-ink-dark m-0">{title}</h3>
+    </div>
+    {aside}
+  </div>
+);
+
+const Fact = ({ label, value }: { label: string; value: string }) => (
+  <div className="min-w-0">
+    <div className="text-xs text-ink-muted dark:text-ink-dark-muted">{label}</div>
+    <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-ink dark:text-ink-dark break-words">{value}</div>
+  </div>
+);
+
+const SummaryRow = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div className="flex items-baseline justify-between gap-4 text-sm">
+    <span className="text-ink-muted dark:text-ink-dark-muted">{label}</span>
+    <span className="font-bold text-ink dark:text-ink-dark text-left">{children}</span>
+  </div>
+);
+
+interface QtyStepperProps {
+  value: number;
+  onChange: (value: number) => void;
+  max: number;
+}
+
+const QtyStepper = ({ value, onChange, max }: QtyStepperProps) => (
+  <div className="flex items-center rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 shrink-0">
+    <button
+      type="button"
+      onClick={() => onChange(value - 1)}
+      aria-label="إنقاص الكمية"
+      title="إنقاص الكمية"
+      className="w-10 h-10 flex items-center justify-center rounded-r-lg text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer"
+    >
+      <Minus className="w-4 h-4" />
+    </button>
+    <input
+      type="text"
+      inputMode="decimal"
+      aria-label="الكمية المرتجعة"
+      value={value}
+      onChange={(e) => {
+        const raw = parseFloat(normalizeArabicNumerals(e.target.value)) || 0;
+        onChange(Math.min(max, Math.max(0, raw)));
+      }}
+      className="w-16 h-10 text-center font-mono font-extrabold text-sm tabular-nums bg-transparent text-ink dark:text-ink-dark border-x border-line dark:border-line-dark focus:outline-none focus:bg-warn-soft dark:focus:bg-warn-dark-soft"
+    />
+    <button
+      type="button"
+      onClick={() => onChange(value + 1)}
+      aria-label="زيادة الكمية"
+      title="زيادة الكمية"
+      className="w-10 h-10 flex items-center justify-center rounded-l-lg text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer"
+    >
+      <Plus className="w-4 h-4" />
+    </button>
+  </div>
+);
 
 export const ReturnModal: React.FC<ReturnModalProps> = ({
   isOpen,
@@ -373,6 +456,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
   const isDirty = activeReturnItems.length > 0 && !completedReturn;
   const isUnpaidCreditSale = mode === 'withInvoice' && loadedSale?.paymentMethod === 'credit' && (loadedSale?.paidPiasters || 0) <= 0;
+  const cashShortfall = refundMethod === 'cash' && !isUnpaidCreditSale && drawerBalance !== null && totalRefundPiasters > drawerBalance;
+  const totalReturnedPieces = activeReturnItems.reduce((sum, item) => sum + item.returnQuantityPieces, 0);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -387,106 +472,116 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
       onClick={handleBackdropClick}
     >
-      <div 
-        className="w-full max-w-[700px] bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-warn"
+      <div
+        className="w-full max-w-4xl bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-warn text-ink dark:text-ink-dark"
         dir="rtl"
       >
         {/* Modal Header */}
-        <div className="h-[52px] px-4 border-b border-warn/20 dark:border-warn-bright/30 flex items-center justify-between bg-warn-soft dark:bg-warn-dark-soft shrink-0">
-          <div className="flex items-center gap-2">
-            <RotateCcw className="w-5 h-5 text-warn dark:text-warn-bright" />
-            <h2 className="t-modal-title text-ink dark:text-ink-dark m-0">مرتجع بضاعة واسترجاع فلوس</h2>
+        <div className="h-16 px-5 border-b border-warn/20 dark:border-warn-bright/30 flex items-center justify-between bg-warn-soft dark:bg-warn-dark-soft shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 shrink-0 rounded-lg bg-surface dark:bg-surface-dark-3 border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright flex items-center justify-center">
+              <RotateCcw className="w-5 h-5" />
+            </div>
+            <h2 className="t-modal-title text-ink dark:text-ink-dark m-0 truncate">مرتجع بضاعة واسترجاع فلوس</h2>
           </div>
-          <button 
+          <button
             type="button"
             onClick={() => void requestClose()}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
+            className="w-10 h-10 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
             title="إغلاق"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Content */}
-        <div className="p-4 space-y-4 overflow-y-auto flex-1 min-h-0">
-          {completedReturn ? (
-            /* Success State */
-            <div className="py-8 text-center space-y-4">
-              <div className="w-14 h-14 bg-emerald-100 dark:bg-paid-dark-soft text-emerald-700 dark:text-brand-bright rounded-full flex items-center justify-center mx-auto shadow-sm">
-                <Check className="w-7 h-7 stroke-[3]" />
+        {completedReturn ? (
+          <>
+            {/* Success State */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col items-center gap-5 text-center">
+              <div className="w-16 h-16 mt-2 rounded-full bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border text-paid dark:text-paid-bright flex items-center justify-center">
+                <Check className="w-8 h-8 stroke-[3]" />
               </div>
               <div>
-                <h3 className="t-card-title text-slate-900 dark:text-ink-dark">تم تسجيل المرتجع ورجعت البضاعة بنجاح</h3>
-                <p className="text-xs text-slate-500 dark:text-ink-dark-muted font-mono mt-1">
-                  إيصال مرتجع رقم: <strong className="text-slate-800 dark:text-ink-dark font-bold">#{completedReturn.returnNumber}</strong>
+                <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">تم تسجيل المرتجع</h3>
+                <p className="text-sm text-ink-muted dark:text-ink-dark-muted mt-1.5 mb-0">
+                  إيصال مرتجع رقم: <strong className="font-mono tabular-nums text-ink dark:text-ink-dark">#{completedReturn.returnNumber}</strong>
                 </p>
               </div>
 
-              <div className="bg-slate-50 dark:bg-surface-dark-2 border border-slate-200 dark:border-line-dark rounded-xl p-4 max-w-sm mx-auto space-y-2 text-xs">
-                <div className="flex justify-between text-slate-600 dark:text-ink-dark-muted">
-                  <span>إجمالي الفلوس اللي خرجت للزبون:</span>
-                  <strong className="font-bold text-amber-700 dark:text-warn-bright font-mono text-sm">
-                    {formatArabicCurrency(completedReturn.totalPiasters)}
-                  </strong>
+              <div className={`${STEP_CARD} w-full max-w-md text-right`}>
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="text-sm text-ink-muted dark:text-ink-dark-muted">إجمالي الفلوس اللي خرجت للزبون</span>
+                  <strong className="t-kpi font-mono text-warn dark:text-warn-bright">{formatArabicCurrency(completedReturn.totalPiasters)}</strong>
                 </div>
-                <div className="flex justify-between text-slate-600 dark:text-ink-dark-muted">
-                  <span>الفلوس خرجت إزاي:</span>
-                  <span className="font-bold text-slate-800 dark:text-ink-dark">
+                <div className="border-t border-line dark:border-line-dark pt-4 flex flex-col gap-3">
+                  <SummaryRow label="الفلوس خرجت إزاي">
                     {completedReturn.refundMethod === 'credit' ? 'اتخصمت من حسابه الشكك' : 'كاش طلع من الدرج'}
-                  </span>
-                </div>
-                <div className="flex justify-between text-slate-600 dark:text-ink-dark-muted">
-                  <span>عدد الأصناف اللي رجعت:</span>
-                  <span className="font-mono text-slate-800 dark:text-ink-dark">{completedReturn.items?.length || 0} صنف</span>
+                  </SummaryRow>
+                  <SummaryRow label="عدد الأصناف اللي رجعت">
+                    <span className="font-mono tabular-nums">{completedReturn.items?.length || 0}</span> صنف
+                  </SummaryRow>
                 </div>
               </div>
 
               {printNotice && (
                 <div
-                  className={`max-w-sm mx-auto p-3 rounded-lg border text-xs font-bold flex items-center gap-2 ${
+                  className={`w-full max-w-md p-3 rounded-lg border text-sm font-bold flex items-start gap-2 text-right ${
                     printNotice.ok
                       ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-dark-border text-paid dark:text-paid-bright'
                       : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
                   }`}
                   role="status"
                 >
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{printNotice.msg}</span>
+                  {printNotice.ok ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+                  <span className="min-w-0 break-words">{printNotice.msg}</span>
                 </div>
               )}
-
-              <div className="flex justify-center gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={handlePrintReceipt}
-                  className="h-10 px-4 bg-brand hover:bg-brand-hover text-white font-bold text-xs rounded-lg flex items-center gap-2 transition-colors shadow-xs"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>طباعة وصل المرتجع</span>
-                </button>
-              </div>
             </div>
-          ) : (
-            /* Return Form */
-            <>
+
+            <div className="px-5 py-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
+              <button type="button" onClick={() => void requestClose()} className={BTN_SECONDARY}>
+                إغلاق
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintReceipt}
+                className="h-11 px-5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover text-white shadow-xs transition-colors cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>طباعة وصل المرتجع</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Return Form */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-5">
               {/* Mode Tabs */}
-              <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-surface-dark-2 p-1 rounded-lg">
+              <div
+                role="tablist"
+                aria-label="نوع المرتجع"
+                className="grid grid-cols-2 gap-1.5 p-1.5 rounded-2xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark"
+              >
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={mode === 'withInvoice'}
                   onClick={() => setMode('withInvoice')}
-                  className={`h-8 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                    mode === 'withInvoice' ? 'bg-white dark:bg-surface-dark text-slate-900 dark:text-ink-dark shadow-xs' : 'text-slate-500 dark:text-ink-dark-muted hover:text-slate-800 dark:hover:text-ink-dark'
+                  className={`min-h-[44px] px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    mode === 'withInvoice' ? TAB_ACTIVE : TAB_IDLE
                   }`}
                 >
-                  <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-warn-bright" />
+                  <FileText className="w-4 h-4 shrink-0" />
                   <span>مرتجع برقم الفاتورة (الأفضل)</span>
                 </button>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={mode === 'withoutInvoice'}
                   disabled={!canReturnWithoutInvoice}
                   onClick={() => {
                     if (!canReturnWithoutInvoice) {
@@ -495,335 +590,349 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                     }
                     setMode('withoutInvoice');
                   }}
-                  className={`h-8 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  className={`min-h-[44px] px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
                     !canReturnWithoutInvoice
-                      ? 'opacity-40 cursor-not-allowed text-slate-400'
-                      : mode === 'withoutInvoice'
-                        ? 'bg-white dark:bg-surface-dark text-slate-900 dark:text-ink-dark shadow-xs'
-                        : 'text-slate-500 dark:text-ink-dark-muted hover:text-slate-800 dark:hover:text-ink-dark'
+                      ? 'opacity-50 cursor-not-allowed text-ink-muted dark:text-ink-dark-muted'
+                      : `cursor-pointer ${mode === 'withoutInvoice' ? TAB_ACTIVE : TAB_IDLE}`
                   }`}
                   title={!canReturnWithoutInvoice ? 'يتطلب صلاحية المرتجع بدون فاتورة' : undefined}
                 >
-                  <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-warn-bright" />
+                  <Lock className="w-4 h-4 shrink-0" />
                   <span>مرتجع حر بدون فاتورة (مشرف)</span>
                 </button>
               </div>
 
-              {submitError && (
-                <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-bold rounded-lg flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
-                  <span>{submitError}</span>
-                </div>
-              )}
-
+              {/* Step 1: find the invoice or the goods */}
               {mode === 'withInvoice' ? (
-                /* Search Invoice Header */
-                <div className="space-y-2">
-                  <form onSubmit={handleSearchInvoice} className="flex gap-2">
-                    <div className="relative flex-1">
+                <section className={STEP_CARD}>
+                  <StepHeader step={1} title="ابحث عن الفاتورة" />
+                  <form onSubmit={handleSearchInvoice} className="flex gap-3">
+                    <div className="relative flex-1 min-w-0">
+                      <Search className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
+                        aria-label="رقم الفاتورة"
                         placeholder="اكتب رقم الفاتورة هنا..."
                         value={invoiceQuery}
                         onChange={(e) => setInvoiceQuery(e.target.value)}
-                        className="w-full h-10 px-3 pr-9 bg-slate-50 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-ink-dark focus:outline-none focus:border-amber-500 dark:focus:border-warn focus:bg-white dark:focus:bg-surface-dark"
+                        className={`${FIELD} h-12 pr-12 text-base font-mono font-bold`}
                       />
-                      <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
                     </div>
                     <button
                       type="submit"
                       disabled={searchingSale || !invoiceQuery.trim()}
-                      className="h-10 px-4 bg-warn hover:bg-warn-dark dark:hover:bg-warn-bright/90 disabled:opacity-50 text-white dark:bg-warn-bright dark:text-surface-dark font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                      className={`${BTN_WARN} h-12 px-6 shrink-0`}
                     >
                       <span>{searchingSale ? 'بندور عليها...' : 'هات الفاتورة'}</span>
                     </button>
                   </form>
 
                   {saleError && (
-                    <div className="text-xs text-danger dark:text-danger-bright font-bold bg-danger-soft dark:bg-danger-dark-soft p-2 rounded border border-danger/20 dark:border-danger-bright/30">
-                      {saleError}
+                    <div className="rounded-lg border border-danger/20 dark:border-danger-bright/30 bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright text-sm font-bold p-3 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span className="min-w-0 break-words">{saleError}</span>
                     </div>
                   )}
 
                   {loadedSale && (
-                    <div className="bg-slate-50 dark:bg-surface-dark-2 border border-slate-200 dark:border-line-dark rounded-lg p-3 text-xs flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 dark:text-ink-dark">فاتورة رقم #{loadedSale.invoiceNumber}</span>
-                        <span className="text-slate-400">•</span>
-                        <span className="text-slate-600 dark:text-ink-dark-muted font-mono">{formatArabicCurrency(loadedSale.totalPiasters)}</span>
-                        {loadedSale.customerName && (
-                          <>
-                            <span className="text-slate-400">•</span>
-                            <span className="text-brand dark:text-brand-bright font-semibold">{loadedSale.customerName}</span>
-                          </>
-                        )}
-                      </div>
-                      <span className="text-micro font-mono text-slate-400">
-                        {loadedSale.createdAt ? new Date(loadedSale.createdAt).toLocaleDateString('ar-EG-u-nu-latn') : ''}
-                      </span>
+                    <div className="rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <Fact label="رقم الفاتورة" value={`#${loadedSale.invoiceNumber}`} />
+                      <Fact
+                        label="التاريخ"
+                        value={loadedSale.createdAt ? new Date(loadedSale.createdAt).toLocaleDateString('ar-EG-u-nu-latn') : '-'}
+                      />
+                      <Fact label="العميل" value={loadedSale.customerName || '-'} />
+                      <Fact label="إجمالي الفاتورة" value={formatArabicCurrency(loadedSale.totalPiasters)} />
                     </div>
                   )}
-                </div>
+                </section>
               ) : (
-                /* Without Invoice Product Search */
-                <div className="space-y-2">
+                <section className={STEP_CARD}>
+                  <StepHeader step={1} title="ابحث عن الصنف" />
                   <div className="relative">
+                    <Search className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
+                      aria-label="بحث عن صنف"
                       placeholder="اكتب اسم الصنف أو اضرب الباركود عشان تضيفه للمرتجع..."
                       value={catalogQuery}
                       onChange={(e) => void handleSearchCatalog(e.target.value)}
-                      className="w-full h-10 px-3 pr-9 bg-slate-50 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded-lg text-xs font-bold text-slate-900 dark:text-ink-dark focus:outline-none focus:border-amber-500 dark:focus:border-warn focus:bg-white dark:focus:bg-surface-dark"
+                      className={`${FIELD} h-12 pr-12 text-base font-bold`}
                     />
-                    <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
                   </div>
 
                   {searchingCatalog && (
-                    <div className="text-micro text-slate-400">بندور في بضاعة المحل...</div>
+                    <div className="text-xs text-ink-muted dark:text-ink-dark-muted">بندور في بضاعة المحل...</div>
                   )}
 
                   {catalogResults.length > 0 && (
-                    <div className="border border-slate-200 dark:border-line-dark rounded-lg overflow-hidden bg-white dark:bg-surface-dark shadow-md divide-y divide-slate-100 dark:divide-line-dark max-h-40 overflow-y-auto">
+                    <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden bg-surface dark:bg-surface-dark shadow-md divide-y divide-line dark:divide-line-dark max-h-64 overflow-y-auto">
                       {catalogResults.map((p) => (
-                        <div
+                        <button
                           key={p.id}
+                          type="button"
                           onClick={() => addCatalogProductToDraft(p)}
-                          className="px-3 py-2 flex items-center justify-between text-xs hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer"
+                          className="w-full min-h-14 px-4 py-2.5 flex items-center justify-between gap-3 text-sm text-right hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer transition-colors"
                         >
-                          <div>
-                            <span className="font-bold text-ink dark:text-ink-dark">{p.name}</span>
-                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted block font-mono">{p.barcode}</span>
-                          </div>
-                          <span className="font-bold font-mono text-warn dark:text-warn-bright">{formatArabicCurrency(p.pricePiasters)}</span>
-                        </div>
+                          <span className="flex flex-col min-w-0">
+                            <span className="font-bold text-ink dark:text-ink-dark line-clamp-2 break-words">{p.name}</span>
+                            <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-mono">{p.barcode}</span>
+                          </span>
+                          <span className="font-bold font-mono tabular-nums text-warn dark:text-warn-bright shrink-0">{formatArabicCurrency(p.pricePiasters)}</span>
+                        </button>
                       ))}
                     </div>
                   )}
-                </div>
+                </section>
               )}
 
-              {/* Items List */}
-              {draftItems.length > 0 ? (
-                <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden shadow-2xs">
-                  <table className="w-full text-right border-collapse text-xs">
-                    <thead>
-                      <tr className="h-8 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold text-micro">
-                        <th className="px-3">اسم الصنف</th>
-                        <th className="px-2 text-center">سعر البيع</th>
-                        <th className="px-2 text-center">العدد في الفاتورة</th>
-                        <th className="px-2 text-center w-28">العدد اللي هيرجعه</th>
-                        <th className="px-2 text-center">حالة البضاعة</th>
-                        <th className="px-3 text-left">فلوس المرتجع</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-line dark:divide-line-dark bg-surface dark:bg-surface-dark">
-                      {draftItems.map((item, idx) => {
-                        const maxReturnable = item.originalQuantityPieces - item.previouslyReturnedPieces;
-                        const lineTotal = Math.round(item.unitPricePiasters * item.returnQuantityPieces);
-
-                        return (
-                          <tr key={idx} className={`h-11 ${item.returnQuantityPieces > 0 ? 'bg-warn-soft/40 dark:bg-warn-dark-soft/40' : ''}`}>
-                            <td className="px-3 font-semibold text-slate-800 dark:text-ink-dark">
-                              <span className="truncate block max-w-[150px]">{item.productName}</span>
-                            </td>
-                            <td className="px-2 text-center font-mono text-slate-600 dark:text-ink-dark-muted">
-                              {formatArabicCurrency(item.unitPricePiasters)}
-                            </td>
-                            <td className="px-2 text-center font-mono text-slate-500 dark:text-ink-dark-muted">
-                              {mode === 'withInvoice' ? (
-                                <span>{item.originalQuantityPieces} {item.previouslyReturnedPieces > 0 && `(-${item.previouslyReturnedPieces})`}</span>
-                              ) : (
-                                <span>---</span>
-                              )}
-                            </td>
-                            <td className="px-2 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => updateItemQty(idx, item.returnQuantityPieces - 1)}
-                                  className="w-6 h-6 rounded bg-slate-100 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark hover:bg-slate-200 dark:hover:bg-surface-dark-3 text-slate-800 dark:text-ink-dark font-bold flex items-center justify-center"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={item.returnQuantityPieces}
-                                  onChange={(e) => {
-                                    const raw = parseFloat(normalizeArabicNumerals(e.target.value)) || 0;
-                                    const val = Math.min(maxReturnable, Math.max(0, raw));
-                                    updateItemQty(idx, val);
-                                  }}
-                                  className="w-12 h-6 text-center font-mono font-bold text-xs bg-white dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded focus:border-amber-500 dark:focus:border-warn text-slate-900 dark:text-ink-dark focus:outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => updateItemQty(idx, item.returnQuantityPieces + 1)}
-                                  className="w-6 h-6 rounded bg-slate-100 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark hover:bg-slate-200 dark:hover:bg-surface-dark-3 text-slate-800 dark:text-ink-dark font-bold flex items-center justify-center"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </td>
-                            <td className="px-2 text-center">
-                              <button
-                                type="button"
-                                onClick={() => toggleItemDamaged(idx)}
-                                className={`px-2 py-0.5 rounded text-micro font-bold border transition-colors inline-flex items-center gap-1 ${
-                                  item.isDamaged
-                                    ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/30'
-                                    : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid-border dark:border-paid/30'
-                                }`}
-                                title={item.isDamaged ? 'بضاعة تالفة: مش هتدخل المخزن' : 'بضاعة سليمة: هترجع رصيد في المخزن'}
-                              >
-                                {item.isDamaged ? (
-                                  <>
-                                    <AlertTriangle className="w-3 h-3 text-danger dark:text-danger-bright shrink-0" />
-                                    <span>بايظ / تالف</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Check className="w-3 h-3 text-[#006D41] dark:text-brand-bright shrink-0" />
-                                    <span>سليم</span>
-                                  </>
-                                )}
-                              </button>
-                            </td>
-                            <td className="px-3 text-left font-mono font-bold text-amber-700 dark:text-warn-bright">
-                              {formatArabicCurrency(lineTotal)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="py-8 text-center text-slate-400 dark:text-ink-dark-muted bg-slate-50 dark:bg-surface-dark-2 border border-dashed border-slate-200 dark:border-line-dark rounded-lg">
-                  <ShoppingBag className="w-8 h-8 mx-auto mb-1 stroke-[1.5] text-slate-300 dark:text-line-dark-strong" />
-                  <p className="text-xs font-semibold">
-                    {mode === 'withInvoice' ? 'اكتب رقم الفاتورة واضغط "هات الفاتورة" عشان تختار البضاعة اللي هترجع' : 'اضرب باركود أو دور على الصنف عشان تضيفه للمرتجع'}
-                  </p>
-                </div>
-              )}
-
-              {/* Bottom Options & Financial Refund Method */}
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-line-dark">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-micro font-bold text-slate-700 dark:text-ink-dark">
-                      هترجع الفلوس إزاي؟:
-                    </label>
-                    {drawerBalance !== null && (
-                      <span className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted bg-slate-100 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-slate-200 dark:border-line-dark">
-                        كاش الدرج: <strong className={drawerBalance < totalRefundPiasters ? 'text-danger dark:text-danger-bright font-mono' : 'text-paid dark:text-brand-bright font-mono'}>{formatArabicCurrency(drawerBalance)}</strong>
+              {/* Step 2: returnable lines */}
+              <section className="flex flex-col gap-4">
+                <StepHeader
+                  step={2}
+                  title="الأصناف المرتجعة"
+                  aside={
+                    draftItems.length > 0 ? (
+                      <span className="inline-flex items-center h-7 px-2.5 rounded-md border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                        <span className="tabular-nums">{activeReturnItems.length}</span>
+                        <span className="mx-1">من</span>
+                        <span className="tabular-nums">{draftItems.length}</span>
+                        <span className="ms-1">محدد للمرتجع</span>
                       </span>
+                    ) : undefined
+                  }
+                />
+
+                {draftItems.length > 0 ? (
+                  <ul className="m-0 p-0 list-none flex flex-col gap-3">
+                    {draftItems.map((item, idx) => {
+                      const maxReturnable = item.originalQuantityPieces - item.previouslyReturnedPieces;
+                      const lineTotal = Math.round(item.unitPricePiasters * item.returnQuantityPieces);
+                      const isActive = item.returnQuantityPieces > 0;
+
+                      return (
+                        <li
+                          key={idx}
+                          className={`rounded-xl border p-4 flex items-center gap-x-5 gap-y-4 flex-wrap transition-colors ${
+                            isActive
+                              ? 'border-warn/40 dark:border-warn-bright/50 bg-warn-soft/50 dark:bg-warn-dark-soft/40'
+                              : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-[15rem] flex flex-col gap-3">
+                            <span className="text-sm font-bold text-ink dark:text-ink-dark break-words leading-relaxed">{item.productName}</span>
+                            <div className="flex items-start gap-x-6 gap-y-2 flex-wrap">
+                              <Fact label="سعر البيع" value={formatArabicCurrency(item.unitPricePiasters)} />
+                              {mode === 'withInvoice' && (
+                                <>
+                                  <Fact label="العدد في الفاتورة" value={String(item.originalQuantityPieces)} />
+                                  {item.previouslyReturnedPieces > 0 && (
+                                    <Fact label="اترجع قبل كده" value={String(item.previouslyReturnedPieces)} />
+                                  )}
+                                  <Fact label="المتاح للإرجاع" value={String(maxReturnable)} />
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs font-bold text-ink dark:text-ink-dark mb-1.5">العدد اللي هيرجعه</div>
+                            <QtyStepper
+                              value={item.returnQuantityPieces}
+                              max={maxReturnable}
+                              onChange={(qty) => updateItemQty(idx, qty)}
+                            />
+                          </div>
+
+                          <div>
+                            <div className="text-xs font-bold text-ink dark:text-ink-dark mb-1.5">حالة البضاعة</div>
+                            <button
+                              type="button"
+                              onClick={() => toggleItemDamaged(idx)}
+                              className={`h-10 px-3 rounded-lg text-sm font-bold border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                                item.isDamaged
+                                  ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/30'
+                                  : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid-border dark:border-paid-dark-border'
+                              }`}
+                              title={item.isDamaged ? 'بضاعة تالفة: مش هتدخل المخزن' : 'بضاعة سليمة: هترجع رصيد في المخزن'}
+                            >
+                              {item.isDamaged ? (
+                                <>
+                                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                                  <span>بايظ / تالف</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-4 h-4 shrink-0" />
+                                  <span>سليم</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="min-w-[8rem] text-left">
+                            <div className="text-xs text-ink-muted dark:text-ink-dark-muted mb-1.5">فلوس المرتجع</div>
+                            <div className={`t-kpi font-mono ${isActive ? 'text-warn dark:text-warn-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
+                              {formatArabicCurrency(lineTotal)}
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <div className="py-10 px-4 text-center bg-surface-2 dark:bg-surface-dark-2 border border-dashed border-line dark:border-line-dark-strong rounded-xl">
+                    <ShoppingBag className="w-9 h-9 mx-auto mb-2 stroke-[1.5] text-ink-muted dark:text-ink-dark-muted" />
+                    <p className="text-sm font-semibold text-ink-muted dark:text-ink-dark-muted m-0">
+                      {mode === 'withInvoice' ? 'اكتب رقم الفاتورة واضغط "هات الفاتورة" عشان تختار البضاعة اللي هترجع' : 'اضرب باركود أو دور على الصنف عشان تضيفه للمرتجع'}
+                    </p>
+                  </div>
+                )}
+              </section>
+
+              {/* Step 3: refund summary */}
+              <section className={STEP_CARD}>
+                <StepHeader
+                  step={3}
+                  title="ملخص الصرف"
+                  aside={
+                    drawerBalance !== null ? (
+                      <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                        <span>كاش الدرج:</span>
+                        <strong className={`font-mono tabular-nums ${drawerBalance < totalRefundPiasters ? 'text-danger dark:text-danger-bright' : 'text-paid dark:text-paid-bright'}`}>
+                          {formatArabicCurrency(drawerBalance)}
+                        </strong>
+                      </span>
+                    ) : undefined
+                  }
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
+                  <div className="rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-4 flex flex-col justify-center">
+                    <div className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted">إجمالي الفلوس اللي هترجع</div>
+                    <div className="mt-1 text-3xl font-black font-mono tabular-nums text-warn dark:text-warn-bright break-words">
+                      {formatArabicCurrency(totalRefundPiasters)}
+                    </div>
+                    <div className="mt-1 text-xs text-ink-muted dark:text-ink-dark-muted">
+                      <span className="tabular-nums">{activeReturnItems.length}</span> صنف
+                      <span className="mx-1">·</span>
+                      <span className="tabular-nums">{totalReturnedPieces}</span> قطعة
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-bold text-ink dark:text-ink-dark mb-1.5">هترجع الفلوس إزاي؟</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={isUnpaidCreditSale}
+                        onClick={() => setRefundMethod('cash')}
+                        title={isUnpaidCreditSale ? 'الفاتورة شكك لم يُسدد منها كاش، الاسترداد يتم كرصيد آجل لخصم المديونية' : undefined}
+                        className={`min-h-[44px] px-2 rounded-lg text-sm font-bold border flex items-center justify-center gap-2 transition-colors ${
+                          isUnpaidCreditSale
+                            ? 'opacity-50 cursor-not-allowed bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted'
+                            : refundMethod === 'cash'
+                              ? 'cursor-pointer bg-warn-soft dark:bg-warn-dark-soft border-warn/40 dark:border-warn-bright/50 text-warn dark:text-warn-bright shadow-2xs'
+                              : 'cursor-pointer bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                        }`}
+                      >
+                        <Banknote className="w-4 h-4 shrink-0" />
+                        <span>كاش من الدرج</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRefundMethod('credit')}
+                        className={`min-h-[44px] px-2 rounded-lg text-sm font-bold border flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                          refundMethod === 'credit'
+                            ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/40 dark:border-warn-bright/50 text-warn dark:text-warn-bright shadow-2xs'
+                            : 'bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                        }`}
+                      >
+                        <CreditCard className="w-4 h-4 shrink-0" />
+                        <span>خصم من حسابه الشكك</span>
+                      </button>
+                    </div>
+                    {cashShortfall && drawerBalance !== null && (
+                      <div className="mt-2 p-2.5 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/40 text-danger dark:text-danger-bright text-xs font-bold flex items-start gap-1.5">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>كاش الدرج المتاح ({formatArabicCurrency(drawerBalance)}) غير كافٍ لصرف المرتجع نقداً.</span>
+                      </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      disabled={isUnpaidCreditSale}
-                      onClick={() => setRefundMethod('cash')}
-                      title={isUnpaidCreditSale ? 'الفاتورة شكك لم يُسدد منها كاش، الاسترداد يتم كرصيد آجل لخصم المديونية' : undefined}
-                      className={`h-8 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-colors ${
-                        isUnpaidCreditSale
-                          ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-surface-dark-2 border-slate-200 dark:border-line-dark text-slate-400 dark:text-ink-dark-muted'
-                          : refundMethod === 'cash'
-                            ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/30 dark:border-warn-bright/50 text-warn dark:text-warn-bright shadow-2xs'
-                            : 'bg-slate-50 dark:bg-surface-dark-2 border-slate-200 dark:border-line-dark text-slate-600 dark:text-ink-dark-muted'
-                      }`}
-                    >
-                      <Banknote className="w-3.5 h-3.5" />
-                      <span>كاش من الدرج</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRefundMethod('credit')}
-                      className={`h-8 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-colors ${
-                        refundMethod === 'credit'
-                          ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/30 dark:border-warn-bright/50 text-warn dark:text-warn-bright shadow-2xs'
-                          : 'bg-slate-50 dark:bg-surface-dark-2 border-slate-200 dark:border-line-dark text-slate-600 dark:text-ink-dark-muted'
-                      }`}
-                    >
-                      <CreditCard className="w-3.5 h-3.5" />
-                      <span>خصم من حسابه الشكك</span>
-                    </button>
-                  </div>
-                  {refundMethod === 'cash' && !isUnpaidCreditSale && drawerBalance !== null && totalRefundPiasters > drawerBalance && (
-                    <div className="mt-2 p-2 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/40 text-danger dark:text-danger-bright text-micro flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      <span>كاش الدرج المتاح ({formatArabicCurrency(drawerBalance)}) غير كافٍ لصرف المرتجع نقداً.</span>
-                    </div>
-                  )}
                 </div>
 
-                <div>
-                  <label className="block text-micro font-bold text-slate-700 dark:text-ink-dark mb-1">
-                    سبب الترجيع (ملاحظة):
-                  </label>
+                <label className="block">
+                  <span className="block text-sm font-bold text-ink dark:text-ink-dark mb-1.5">سبب الترجيع (ملاحظة)</span>
                   <input
                     type="text"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     placeholder="مثلاً: الصنف بايظ، أو الزبون غير رأيه..."
-                    className="w-full h-8 px-2.5 bg-slate-50 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded-lg text-xs text-slate-800 dark:text-ink-dark font-medium focus:outline-none focus:border-warn"
+                    className={FIELD}
                   />
+                </label>
+
+                {/* Supervisor PIN: only for a return without an invoice */}
+                {mode === 'withoutInvoice' && (
+                  <div className="rounded-lg border border-warn/30 dark:border-warn-bright/40 bg-warn-soft dark:bg-warn-dark-soft p-4 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <Lock className="w-5 h-5 text-warn dark:text-warn-bright shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <span className="text-sm font-bold text-ink dark:text-ink-dark block">لازم موافقة المشرف (رقم سري) <RequiredMark /></span>
+                        <span className="text-xs text-warn dark:text-warn-bright block mt-0.5">اكتب الرقم السري للمشرف عشان تصرف المرتجع ده من غير فاتورة</span>
+                      </div>
+                    </div>
+                    <input
+                      type="password"
+                      aria-label="الرقم السري للمشرف"
+                      value={supervisorPin}
+                      onChange={(e) => setSupervisorPin(e.target.value)}
+                      className="w-40 h-11 px-3 text-center text-base font-bold font-mono tracking-widest bg-surface dark:bg-surface-dark-3 border border-warn/40 dark:border-warn-bright/50 rounded-lg focus:outline-none focus:border-warn dark:focus:border-warn-bright focus:ring-2 focus:ring-warn/20 text-ink dark:text-ink-dark"
+                    />
+                  </div>
+                )}
+              </section>
+            </div>
+
+            {submitError && (
+              <div className="px-5 pt-3 pb-1 shrink-0" role="alert">
+                <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-sm font-bold rounded-lg flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span className="min-w-0 break-words">{submitError}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Footer */}
+            <div className="px-5 py-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between gap-3 flex-wrap shrink-0">
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">إجمالي المرتجع</div>
+                <div className="t-kpi font-mono text-warn dark:text-warn-bright break-words">
+                  {formatArabicCurrency(totalRefundPiasters)}
                 </div>
               </div>
 
-              {/* Supervisor PIN if without invoice or needed */}
-              {mode === 'withoutInvoice' && (
-                <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg p-2.5 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
-                    <div>
-                      <span className="text-xs font-bold text-ink dark:text-ink-dark block">لازم موافقة المشرف (رقم سري)</span>
-                      <span className="text-micro text-warn dark:text-warn-bright block">اكتب الرقم السري للمشرف عشان تصرف المرتجع ده من غير فاتورة</span>
-                    </div>
-                  </div>
-                  <input
-                    type="password"
-                    value={supervisorPin}
-                    onChange={(e) => setSupervisorPin(e.target.value)}
-                    className="w-24 h-8 px-2 text-center text-sm font-bold font-mono tracking-widest bg-surface dark:bg-surface-dark-3 border border-warn/30 dark:border-warn-bright/40 rounded-lg focus:outline-none focus:border-warn text-ink dark:text-ink-dark"
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Modal Footer */}
-        {!completedReturn && (
-          <div className="h-[56px] px-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between shrink-0">
-            <div className="flex items-baseline gap-1">
-              <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي الفلوس اللي هترجع:</span>
-              <span className="text-lg font-black font-mono text-warn dark:text-warn-bright tabular-nums">
-                {formatArabicCurrency(totalRefundPiasters)}
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void requestClose()}
+                  disabled={loading}
+                  className={BTN_SECONDARY}
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSubmitReturn()}
+                  disabled={loading || activeReturnItems.length === 0 || cashShortfall}
+                  className={`${BTN_WARN} h-11 px-6`}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>{loading ? 'بنحفظ المرتجع...' : 'تنفيذ المرتجع'}</span>
+                </button>
+              </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void requestClose()}
-                disabled={loading}
-                className="h-9 px-4 border border-slate-300 dark:border-line-dark bg-white dark:bg-surface-dark-3 hover:bg-slate-50 dark:hover:bg-surface-dark-2 font-bold text-xs text-slate-700 dark:text-ink-dark rounded-lg transition-colors cursor-pointer"
-              >
-                رجوع
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSubmitReturn()}
-                disabled={loading || activeReturnItems.length === 0 || (refundMethod === 'cash' && !isUnpaidCreditSale && drawerBalance !== null && totalRefundPiasters > drawerBalance)}
-                className="h-9 px-5 bg-warn hover:bg-warn-dark dark:hover:bg-warn-bright/90 active:bg-warn/90 disabled:opacity-50 text-white dark:bg-warn-bright dark:text-surface-dark font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>{loading ? 'بنحفظ المرتجع...' : 'تأكيد وصرف فلوس المرتجع'}</span>
-              </button>
-            </div>
-          </div>
+          </>
         )}
       </div>
     </div>

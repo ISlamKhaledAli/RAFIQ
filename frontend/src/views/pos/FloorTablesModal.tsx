@@ -19,6 +19,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { CustomSelect } from '../../components/CustomSelect';
 import { formatArabicCurrency } from '../../utils/money';
+import { RequiredMark } from '../../components/RequiredMark';
 import type { RestaurantTable, TableSplitItemRequest, TableSplitResult } from '../../types/cafe';
 import type { CartItem } from './types';
 
@@ -193,7 +194,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
         toTableId: targetTableId,
       });
       if (transferred) {
-        setSuccessMsg(`تم نقل الطلب بنجاح إلى «${transferred.name}».`);
+        setSuccessMsg(`تم نقل الطلب إلى «${transferred.name}»`);
         setActionMode('none');
         setTargetTableId('');
         setSelectedTable(transferred);
@@ -217,7 +218,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
         targetTableId,
       });
       if (merged) {
-        setSuccessMsg(`تم دمج الطاولتين بنجاح في «${merged.name}».`);
+        setSuccessMsg(`تم دمج الطاولتين في «${merged.name}»`);
         setActionMode('none');
         setTargetTableId('');
         setSelectedTable(merged);
@@ -303,14 +304,14 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
     setLoading(true);
     setErrorMsg(null);
     try {
-      await invoke('tables:upsert', {
+      await invoke('tables:save', {
         id: editTableId || undefined,
         name: editTableName.trim(),
         zoneName: editZoneName.trim() || 'الصالة الرئيسية',
         capacity: editCapacity > 0 ? editCapacity : 4,
         displayOrder: editDisplayOrder > 0 ? editDisplayOrder : 1,
       });
-      setSuccessMsg(editTableId ? 'تم تعديل الطاولة بنجاح' : 'تمت إضافة الطاولة بنجاح');
+      setSuccessMsg(editTableId ? 'تم تعديل الطاولة' : 'تمت إضافة الطاولة');
       setEditTableId('');
       setEditTableName('');
       await fetchTables();
@@ -414,7 +415,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
               </h3>
 
               <div>
-                <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اسم / رقم الطاولة</label>
+                <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اسم / رقم الطاولة <RequiredMark /></label>
                 <input
                   type="text"
                   value={editTableName}
@@ -682,7 +683,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                   <div className="space-y-3 bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark">
                     <h4 className="t-label text-ink dark:text-ink-dark">بيانات فتح الطاولة</h4>
                     <div>
-                      <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اسم الويتر / الكابتن (اختياري)</label>
+                      <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اسم الويتر / الكابتن</label>
                       <input
                         type="text"
                         value={waiterName}

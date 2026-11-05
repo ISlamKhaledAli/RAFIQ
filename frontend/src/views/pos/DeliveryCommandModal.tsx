@@ -16,6 +16,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { CustomSelect } from '../../components/CustomSelect';
 import { formatArabicCurrency } from '../../utils/money';
+import { RequiredMark } from '../../components/RequiredMark';
 import type {
   DeliveryZone,
   DeliveryRider,
@@ -233,7 +234,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
     setLoading(true);
     try {
       await invoke('delivery:settleRider', { riderId: settleRiderId });
-      setSuccessMsg('تمت تصفية عهدة الطيار بنجاح وتسجيل المبالغ في الخزينة.');
+      setSuccessMsg('تمت تصفية عهدة الطيار');
       await fetchAllDeliveryData();
       setSettleRiderId('');
       setSettlementSummary(null);
@@ -258,7 +259,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
         isActive: true,
       });
       setNewZoneName('');
-      setSuccessMsg('تم حفظ منطقة التوصيل بنجاح.');
+      setSuccessMsg('تم حفظ منطقة التوصيل');
       await fetchAllDeliveryData();
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'فشل حفظ المنطقة');
@@ -292,7 +293,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
       });
       setNewRiderName('');
       setNewRiderPhone('');
-      setSuccessMsg('تم تسجيل الطيار بنجاح.');
+      setSuccessMsg('تم تسجيل الطيار');
       await fetchAllDeliveryData();
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'فشل حفظ بيانات الطيار');
@@ -423,10 +424,11 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
         <div className="p-6 overflow-y-auto flex-1">
           {activeTab === 'order_setup' && (
             <form onSubmit={handleConfirmOrderDeliveryInfo} className="max-w-3xl mx-auto space-y-4">
+              <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">
-                    رقم هاتف العميل (يبحث تلقائياً في سجل العملاء)
+                    رقم هاتف العميل (يبحث تلقائياً في سجل العملاء) <RequiredMark />
                   </label>
                   <div className="relative">
                     <Phone className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-2.5" />
@@ -456,7 +458,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">عنوان التوصيل بالتفصيل (يُطبع في قسيمة الطيار)</label>
+                <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">عنوان التوصيل بالتفصيل (يُطبع في قسيمة الطيار) <RequiredMark /></label>
                 <input
                   type="text"
                   value={deliveryAddress}
@@ -508,7 +510,7 @@ export const DeliveryCommandModal: React.FC<DeliveryCommandModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">إسناد مباشر لطيار (اختياري الآن)</label>
+                  <label className="block text-xs font-black text-ink dark:text-ink-dark mb-1">إسناد مباشر لطيار</label>
                   <CustomSelect
                     value={selectedRiderId}
                     onChange={(v) => setSelectedRiderId(v)}

@@ -23,6 +23,7 @@ import { AppUpdateModal } from '../../components/AppUpdateModal';
 import { FullStoreExportModal } from '../../components/FullStoreExportModal';
 import { FactoryResetModal } from '../../components/FactoryResetModal';
 import { useFeatures } from '../../context/useFeatures';
+import { useAuth } from '../../context/useAuth';
 import { rafiqAlert } from '../../utils/dialogService';
 import type { SystemInfo } from '../../App';
 
@@ -67,6 +68,8 @@ export const SystemDiagnosticsTab = ({
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const { registry } = useFeatures();
+  const { hasPermission } = useAuth();
+  const canUpdateApp = hasPermission('system.updates');
 
   return (
     <div className="flex flex-col gap-6 text-xs text-ink dark:text-ink-dark">
@@ -283,7 +286,8 @@ export const SystemDiagnosticsTab = ({
           </span>
         </div>
 
-        {/* App Updates Section (Feature #115) */}
+        {/* App Updates Section (Feature #115): owner-grade, needs system.updates */}
+        {canUpdateApp && (
         <div className="p-5 rounded-xl bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex items-center gap-2">
@@ -309,6 +313,7 @@ export const SystemDiagnosticsTab = ({
             <span>فحص وجود تحديثات</span>
           </button>
         </div>
+        )}
 
         {/* Full Store Export Section (Feature #148) */}
         <div className="p-5 rounded-xl bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark flex flex-col gap-4">

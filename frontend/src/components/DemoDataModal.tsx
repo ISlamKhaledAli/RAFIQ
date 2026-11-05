@@ -136,7 +136,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
         storeType: selectedStoreType,
       });
       if (res && res.success) {
-        setMessage({ text: res.message || 'تم تحميل البيانات التجريبية بنجاح!', type: 'success' });
+        setMessage({ text: res.message || 'تم تحميل البيانات التجريبية', type: 'success' });
         await refreshStatus();
         if (onDataChanged) onDataChanged();
       } else {
@@ -164,7 +164,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
       }>('demo:clear');
       if (res && res.success) {
         setClearSuccessInfo({
-          message: res.message || 'تم مسح كافة البيانات التجريبية بنجاح!',
+          message: res.message || 'تم مسح البيانات التجريبية',
           deletedProducts: res.deletedProducts ?? 0,
           deletedSales: res.deletedSales ?? 0,
           deletedCustomers: res.deletedCustomers ?? 0,
@@ -249,7 +249,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="t-card-title text-brand-dark dark:text-brand-bright">تم مسح كل البيانات التجريبية بنجاح!</h3>
+                <h3 className="t-card-title text-brand-dark dark:text-brand-bright">تم مسح البيانات التجريبية</h3>
                 <p className="text-xs text-paid dark:text-paid-bright mt-1 font-bold leading-relaxed">
                   {clearSuccessInfo.message}
                 </p>

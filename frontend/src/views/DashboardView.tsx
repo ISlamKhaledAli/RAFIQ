@@ -86,7 +86,6 @@ export function DashboardView({
   const [unclosedAlert, setUnclosedAlert] = useState<UnclosedDayAlert | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const showLoading = useSmoothLoading(isLoading, 300);
-  const [lastRefreshed, setLastRefreshed] = useState<string>('');
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
   const [hourlyData, setHourlyData] = useState<HourlyIntensityReport | null>(null);
 
@@ -123,8 +122,6 @@ export function DashboardView({
       if (batchData) setBatchSummary(batchData);
       if (hrData) setHourlyData(hrData);
       if (dueData) setDuePatientAlerts(dueData);
-      const now = new Date();
-      setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch {
       // Offline fallback
     } finally {
@@ -266,13 +263,6 @@ export function DashboardView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <div className="hidden md:flex items-center gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-3 h-10 rounded-lg border border-line dark:border-line-dark">
-            <Clock className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
-            <span className="text-micro">آخر تحديث:</span>
-            <span className="font-mono text-ink dark:text-ink-dark font-bold text-xs tabular-nums">{lastRefreshed || '---'}</span>
-          </div>
-
-
           {canCreateExpense && (
           <button
             type="button"

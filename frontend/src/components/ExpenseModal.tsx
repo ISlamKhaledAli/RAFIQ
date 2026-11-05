@@ -20,6 +20,7 @@ import { formatArabicCurrency } from '../utils/money';
 import type { Expense, ExpenseCategory } from '../types/models';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { createAttemptKey } from '../utils/idempotency';
+import { RequiredMark } from './RequiredMark';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -165,7 +166,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       if (res) {
         expenseAttemptRef.current.complete();
         const srcLabel = source === 'drawer' ? 'خصمه من درج الكاشير' : 'قيده على الخزينة الرئيسية';
-        setSuccessMsg(`تم تسجيل المصروف بقيمة ${formatArabicCurrency(amountPiasters)} و${srcLabel} بنجاح`);
+        setSuccessMsg(`تم تسجيل المصروف بقيمة ${formatArabicCurrency(amountPiasters)} و${srcLabel}`);
         setAmountPiasters(0);
         setNotes('');
         void loadTodayExpenses();
@@ -215,7 +216,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         managerPin: managerPin.trim() || undefined,
       });
 
-      setSuccessMsg('تم إلغاء المصروف بنجاح وتحديث موازنة اليومية وسجل التدقيق');
+      setSuccessMsg('تم إلغاء المصروف');
       setCancellingExpenseId(null);
       setCancelReason('');
       setManagerPin('');
@@ -287,7 +288,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             {/* Source Selection (Drawer vs Main Safe) */}
             <div>
               <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
-                مصدر الصرف النقدي *
+                مصدر الصرف النقدي
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -332,7 +333,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-ink dark:text-ink-dark">
-                  المبلغ المنصرف (ج.م) *
+                  المبلغ المنصرف (ج.م) <RequiredMark />
                 </label>
                 {source === 'drawer' && drawerBalance !== null && (
                   <span className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded-md border border-line dark:border-line-dark">
@@ -359,7 +360,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-ink dark:text-ink-dark">
-                  بند وتصنيف المصروف *
+                  بند وتصنيف المصروف
                 </label>
                 <button
                   type="button"
@@ -402,7 +403,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             {/* Notes / Description */}
             <div>
               <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
-                تفاصيل المصروف أو البيان (اختياري)
+                تفاصيل المصروف أو البيان
               </label>
               <input
                 type="text"
@@ -546,13 +547,16 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                             </div>
                           )}
 
-                          <input
-                            type="text"
-                            value={cancelReason}
-                            onChange={(e) => setCancelReason(e.target.value)}
-                            placeholder="سبب الإلغاء (إلزامي للتدقيق المالي)..."
-                            className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink focus:outline-none focus:border-danger"
-                          />
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={cancelReason}
+                              onChange={(e) => setCancelReason(e.target.value)}
+                              placeholder="سبب الإلغاء للتدقيق المالي..."
+                              className="w-full ps-2.5 pe-6 py-1.5 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink focus:outline-none focus:border-danger"
+                            />
+                            <span className="absolute end-2 top-1/2 -translate-y-1/2 pointer-events-none text-xs"><RequiredMark /></span>
+                          </div>
 
                           <div className="flex items-center gap-2">
                             <input

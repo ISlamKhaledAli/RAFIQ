@@ -302,6 +302,10 @@
     <Content Include="logo.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Built-in receipt signature images: every PNG dropped into Resources\signatures is embedded as RafiqPOS.signatures.<file name> and joins the rotation -->
+    <EmbeddedResource Include="Resources\signatures\*.png">
+      <LogicalName>RafiqPOS.signatures.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="packages\Microsoft.Web.WebView2.1.0.1518.46\build\native\Microsoft.Web.WebView2.targets" Condition="Exists('packages\Microsoft.Web.WebView2.1.0.1518.46\build\native\Microsoft.Web.WebView2.targets')" />

@@ -102,7 +102,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
       if (created) {
         setNewGroupName('');
         setSelectedGroupId(created.id);
-        setSuccessMsg('تم إنشاء مجموعة الإضافات بنجاح.');
+        setSuccessMsg('تم إنشاء مجموعة الإضافات');
         await fetchGroups();
       }
     } catch (err: unknown) {
@@ -145,7 +145,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
       setNewOptIngredientId('');
       setNewOptIngredientQtyUnits('0');
       setNewOptIsDefault(false);
-      setSuccessMsg('تمت إضافة الخيار للمجموعة بنجاح.');
+      setSuccessMsg('تمت إضافة الخيار');
       await fetchGroups();
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'فشل حفظ خيار الإضافة');
@@ -172,7 +172,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
         productId: targetProductId,
         groupIds: linkedGroupIds,
       });
-      setSuccessMsg('تم ربط مجموعات الإضافات المحددة بالصنف بنجاح.');
+      setSuccessMsg('تم ربط مجموعات الإضافات بالصنف');
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'فشل ربط المجموعات بالصنف');
     } finally {
@@ -343,7 +343,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
 
                   <div>
                     <label className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold mb-0.5">
-                      ربط بخامة مخزنية لخصمها تلقائياً (اختياري)
+                      ربط بخامة مخزنية لخصمها تلقائياً
                     </label>
                     <CustomSelect
                       value={newOptIngredientId}
@@ -458,7 +458,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                   type="button"
                   disabled={loading}
                   onClick={handleSaveProductLinks}
-                  className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black flex items-center justify-center gap-1.5 hover:opacity-95 disabled:opacity-50 transition-opacity shadow-sm"
+                  className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black flex items-center justify-center gap-1.5 hover:opacity-95 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-opacity shadow-sm"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>حفظ ربط الإضافات بالصنف</span>

@@ -5,6 +5,7 @@ import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { ReceiptPaper } from './ReceiptPaper';
 import { buildReceiptModel } from '../utils/receiptLayout';
+import { BUILT_IN_SIGNATURE_IMAGES } from '../utils/signatureDefaults';
 import type { ReceiptPaperWidth } from '../utils/receiptLayout';
 
 interface ReceiptModalProps {
@@ -85,7 +86,7 @@ export function ReceiptModal({
       if (res && res.success) {
         setPrintStatus({
           ok: true,
-          msg: `تم إرسال الفاتورة بنجاح إلى الطابعة (${res.printerUsed || 'الافتراضية'})`,
+          msg: `تم إرسال الفاتورة إلى الطابعة (${res.printerUsed || 'الافتراضية'})`,
         });
       } else {
         const errMsg = res?.message || 'تعذر إرسال أمر الطباعة للطابعة الحرارية. يرجى مراجعة التوصيل والكابل.';
@@ -127,39 +128,48 @@ export function ReceiptModal({
   const is57mm = paperWidth === '57mm';
 
   // Same builder the printer layout mirrors: sections, order and labels match the thermal receipt
-  const receipt = buildReceiptModel(sale, {
-    name: activeStoreName,
-    phone: activePhone,
-    address: activeAddress,
-    taxNumber: activeTaxNumber,
-    header: activeHeader,
-    footer: configuredFooter,
-    signature: liveSettings.developer_signature,
-  });
+  const receipt = buildReceiptModel(
+    sale,
+    {
+      name: activeStoreName,
+      phone: activePhone,
+      address: activeAddress,
+      taxNumber: activeTaxNumber,
+      header: activeHeader,
+      footer: configuredFooter,
+      signature: liveSettings.developer_signature,
+    },
+    {
+      showCashier: liveSettings.receipt_show_cashier !== '0',
+      signatureVisible: liveSettings.developer_signature_visible !== '0',
+      signatureImage: liveSettings.developer_signature_image ?? '',
+      builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES,
+    },
+  );
 
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface rounded-lg shadow-2xl border border-line flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-2xl border border-line dark:border-line-dark flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Modal Header */}
-        <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between gap-4">
+        <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-b px-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Printer className="w-4 h-4 text-brand" />
-            <span className="text-sm font-bold text-ink">معاينة الإيصال الحراري</span>
+            <Printer className="w-4 h-4 text-brand dark:text-brand-bright" />
+            <span className="text-sm font-bold text-ink dark:text-ink-dark">معاينة الإيصال الحراري</span>
           </div>
 
           {/* Paper Width Selector Pill */}
-          <div className="flex items-center gap-1 bg-surface border border-line rounded p-0.5 text-xs font-semibold">
+          <div className="flex items-center gap-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded p-0.5 text-xs font-semibold">
             <button
               type="button"
               onClick={() => setPaperWidth('80mm')}
               className={`px-2.5 py-0.5 rounded transition-all ${
                 !is57mm 
                   ? 'bg-brand text-white shadow-xs font-bold' 
-                  : 'text-ink-muted hover:text-ink'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               80 مم (قياسي)
@@ -170,7 +180,7 @@ export function ReceiptModal({
               className={`px-2.5 py-0.5 rounded transition-all ${
                 is57mm 
                   ? 'bg-brand text-white shadow-xs font-bold' 
-                  : 'text-ink-muted hover:text-ink'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               57 مم (مضغوط)
@@ -179,7 +189,7 @@ export function ReceiptModal({
 
           <button 
             onClick={onClose}
-            className="w-7 h-7 rounded hover:bg-surface flex items-center justify-center text-ink-muted hover:text-ink transition-colors"
+            className="w-7 h-7 rounded hover:bg-surface dark:hover:bg-surface-dark-2 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors"
             title="إغلاق (Esc)"
           >
             <X className="w-4 h-4" />
@@ -188,33 +198,28 @@ export function ReceiptModal({
 
         {/* Paper Out / Hardware Error Banner */}
         {printStatus && !printStatus.ok && (
-          <div className="px-4 py-2.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800/60 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="px-4 py-2.5 bg-warn-soft dark:bg-warn-dark-soft border-b border-warn-border dark:border-warn-bright/30 flex items-start gap-2.5 text-xs text-ink dark:text-ink-dark">
+            <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0 mt-0.5" />
             <div className="flex-1">
               <div className="font-bold">{printStatus.msg}</div>
-              <div className="text-micro opacity-80 mt-0.5">
-                الفاتورة رقم #{sale.invoiceNumber || '---'} محفوظة ومسجلة بنجاح. تأكد من توصيل الكابل ووجود الورق في الطابعة ثم اضغط &quot;إعادة المحاولة&quot;.
+              <div className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                الفاتورة #{sale.invoiceNumber || '---'} محفوظة. تأكد من الطابعة والورق ثم اعد المحاولة.
               </div>
             </div>
           </div>
         )}
 
         {/* Scrollable Receipt Body */}
-        <div className="overflow-y-auto p-4 bg-canvas flex justify-center">
+        <div className="overflow-y-auto p-4 bg-canvas dark:bg-canvas-dark flex justify-center items-start">
           <ReceiptPaper id="printable-receipt" model={receipt} paper={paperWidth} logoUrl={showReceiptLogo ? activeLogoUrl : null} />
         </div>
         {/* Modal Actions Footer */}
-        <div className="h-14 bg-surface-2 hairline-t px-4 flex items-center justify-between">
+        <div className="h-14 bg-surface-2 dark:bg-surface-dark-2 hairline-t px-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {printStatus && printStatus.ok ? (
               <div className="flex items-center gap-1.5 text-xs font-semibold text-paid">
                 <CheckCircle className="w-4 h-4" />
                 <span>{printStatus.msg}</span>
-              </div>
-            ) : !printStatus ? (
-              <div className="flex items-center gap-1.5 text-xs text-paid font-medium">
-                <CheckCircle className="w-4 h-4" />
-                <span>تم حفظ الفاتورة بنجاح في قاعدة البيانات</span>
               </div>
             ) : null}
           </div>
@@ -223,7 +228,7 @@ export function ReceiptModal({
             <button
               onClick={onClose}
               disabled={isPrinting}
-              className="px-4 py-2 rounded bg-surface border border-line text-ink hover:bg-surface-2 text-xs font-semibold disabled:opacity-50 transition-colors"
+              className="px-4 py-2 rounded bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-xs font-semibold disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-colors"
             >
               إغلاق (Esc)
             </button>
@@ -232,7 +237,7 @@ export function ReceiptModal({
               disabled={isPrinting}
               className={`flex items-center gap-2 px-5 py-2 rounded text-white text-xs font-bold shadow-sm disabled:opacity-60 transition-all ${
                 printStatus && !printStatus.ok
-                  ? 'bg-amber-600 hover:bg-amber-700'
+                  ? 'bg-warn hover:bg-warn/90 dark:bg-warn-bright dark:text-surface-dark dark:hover:bg-warn-bright/90'
                   : 'bg-brand hover:bg-brand-hover'
               }`}
             >

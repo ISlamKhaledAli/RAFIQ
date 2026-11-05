@@ -22,6 +22,7 @@ import {
   User,
   Hash,
   Landmark,
+  Star,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription, emitDataChanged } from '../../utils/eventBus';
@@ -32,6 +33,8 @@ import { useFeatures } from '../../context/useFeatures';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
 import { PaginationBar } from '../../components/PaginationBar';
+import { RequiredMark } from '../../components/RequiredMark';
+import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useClientPagination } from '../../utils/usePagination';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import type {
@@ -337,6 +340,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<DigitalAccount | null>(null);
   const [accountFormName, setAccountFormName] = useState('');
+  const [accountFormHolder, setAccountFormHolder] = useState('');
+  const [accountFormIsDefault, setAccountFormIsDefault] = useState(false);
   const [accountFormType, setAccountFormType] = useState<DigitalAccountType>('instapay');
   const [accountFormProvider, setAccountFormProvider] = useState<string>('nbe');
   const [accountFormPhone, setAccountFormPhone] = useState('');
@@ -386,6 +391,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     if (editingAccount) {
       return (
         accountFormName !== editingAccount.name ||
+        accountFormHolder !== (editingAccount.holderName || '') ||
+        accountFormIsDefault !== (editingAccount.isDefault === true) ||
         accountFormType !== editingAccount.accountType ||
         accountFormProvider !== editingAccount.provider ||
         accountFormPhone !== (editingAccount.phoneNumber || '') ||
@@ -398,6 +405,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     }
     return Boolean(
       accountFormName.trim() ||
+      accountFormHolder.trim() ||
+      accountFormIsDefault ||
       accountFormPhone.trim() ||
       accountFormIdentifier.trim() ||
       accountFormBalance > 0 ||
@@ -406,6 +415,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   }, [
     editingAccount,
     accountFormName,
+    accountFormHolder,
+    accountFormIsDefault,
     accountFormType,
     accountFormProvider,
     accountFormPhone,
@@ -552,7 +563,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setLastProcessedTx(res);
       setFeedbackMsg({
         type: 'success',
-        text: `تم حفظ المعاملة بنجاح برقم إيصال (${res.transactionNumber}). تم تحديث رصيد المحفظة وأرباح الوردية.`,
+        text: `تم حفظ المعاملة رقم ${res.transactionNumber}`,
       });
 
       // Reset form
@@ -619,7 +630,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setIsFundingModalOpen(false);
       setFeedbackMsg({
         type: 'success',
-        text: `تم شحن رصيد المحفظة بنجاح بمبلغ (${formatArabicCurrency(fundingAmountPiasters)}).`,
+        text: `تم شحن رصيد المحفظة بمبلغ ${formatArabicCurrency(fundingAmountPiasters)}`,
       });
       await loadData();
     } catch (err: any) {
@@ -630,9 +641,16 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     }
   };
 
+  // The first active account of a type, and the current main account, are always the main one (the host enforces it too)
+  const accountHasActivePeer = accounts.some(
+    (a) => a.accountType === accountFormType && a.isActive !== false && a.id !== editingAccount?.id,
+  );
+  const accountMainLocked = !accountHasActivePeer || editingAccount?.isDefault === true;
+
   // Handle Account Type Switching in Modal
   const handleAccountTypeChange = (newType: DigitalAccountType) => {
     setAccountFormType(newType);
+    setAccountFormIsDefault(false);
     if (newType === 'instapay') {
       const defaultBank = INSTAPAY_BANKS[0];
       setAccountFormProvider(defaultBank.code);
@@ -669,6 +687,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     if (acc) {
       setEditingAccount(acc);
       setAccountFormName(acc.name);
+      setAccountFormHolder(acc.holderName || '');
+      setAccountFormIsDefault(acc.isDefault === true);
       setAccountFormType(acc.accountType);
       setAccountFormProvider(acc.provider);
       setAccountFormPhone(acc.phoneNumber || '');
@@ -683,6 +703,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setAccountFormType('instapay');
       setAccountFormProvider('nbe');
       setAccountFormName('إنستاباي - الأهلي المصري');
+      setAccountFormHolder('');
+      setAccountFormIsDefault(false);
       setAccountFormPhone('');
       setAccountFormIdentifier('');
       setAccountFormBalance(0);
@@ -705,6 +727,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       await invoke('wallets:saveAccount', {
         id: editingAccount ? editingAccount.id : undefined,
         name: accountFormName.trim(),
+        holderName: accountFormHolder.trim(),
+        isDefault: accountMainLocked ? true : accountFormIsDefault,
         type: accountFormType,
         accountType: accountFormType,
         provider: accountFormProvider,
@@ -722,8 +746,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setFeedbackMsg({
         type: 'success',
         text: editingAccount
-          ? `تم تحديث بيانات الحساب (${accountFormName}) بنجاح.`
-          : `تم حفظ وإضافة (${accountFormName}) بنجاح.`,
+          ? `تم تحديث الحساب (${accountFormName})`
+          : `تمت إضافة الحساب (${accountFormName})`,
       });
 
       setIsAccountModalOpen(false);
@@ -732,6 +756,25 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     } catch (err: any) {
       console.error('Failed to save account:', err);
       setFeedbackMsg({ type: 'error', text: err?.message || 'فشل حفظ بيانات الحساب.' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Make an account the main one of its type (dedicated host action: touches only the main flag, never balances or limits)
+  const handleSetDefaultAccount = async (acc: DigitalAccount) => {
+    try {
+      setActionLoading(true);
+      await invoke('wallets:setDefaultAccount', { id: acc.id });
+      setFeedbackMsg({
+        type: 'success',
+        text: `تم تعيين (${acc.name}) كحساب رئيسي لـ${acc.accountType === 'instapay' ? 'إنستاباي' : 'المحافظ'}`,
+      });
+      await loadData();
+      emitDataChanged('wallets');
+    } catch (err: any) {
+      console.error('Failed to set main account:', err);
+      setFeedbackMsg({ type: 'error', text: err?.message || 'تعذر تعيين الحساب الرئيسي.' });
     } finally {
       setActionLoading(false);
     }
@@ -751,7 +794,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setActionLoading(true);
       await invoke('wallets:deleteAccount', { id: acc.id });
       setIsAccountModalOpen(false);
-      setFeedbackMsg({ type: 'success', text: `تم حذف المحفظة (${acc.name}) بنجاح.` });
+      setFeedbackMsg({ type: 'success', text: `تم حذف المحفظة (${acc.name})` });
       await loadData();
       emitDataChanged('wallets');
     } catch (err: any) {
@@ -774,7 +817,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       });
       setCancellingTx(null);
       setCancelReason('');
-      setFeedbackMsg({ type: 'success', text: 'تم إلغاء العملية وتصحيح رصيد المحفظة والدرج بنجاح.' });
+      setFeedbackMsg({ type: 'success', text: 'تم إلغاء العملية وتصحيح رصيد المحفظة والدرج' });
       await loadData();
       emitDataChanged('wallets');
     } catch (err: unknown) {
@@ -859,7 +902,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">المحافظ الإلكترونية وإنستاباي</span>
-              <span className="text-ink-muted/40 dark:text-ink-dark-muted/40 font-bold">/</span>
+              <span className="text-ink-muted dark:text-ink-dark-muted font-bold" aria-hidden="true">/</span>
               <h1 className="t-page-title text-ink dark:text-white m-0">
                 {currentTab === 'transact' && 'تنفيذ عملية سريعة (سحب / إيداع)'}
                 {currentTab === 'accounts' && 'أرصدة المحافظ والحسابات'}
@@ -929,6 +972,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
             {/* Right Column: 7 Cols - Main Entry Form */}
             <div className="lg:col-span-7 bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark p-5 sm:p-6 flex flex-col gap-5 shadow-2xs">
               
+              <p className="text-micro text-ink-muted dark:text-ink-muted-dark -mb-2">الحقول المميزة بعلامة * مطلوبة</p>
               {/* Step 1: Account Selection */}
               <div>
                 <div className="mb-2">
@@ -1037,7 +1081,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   <span className="w-4.5 h-4.5 rounded-full bg-brand-soft text-brand-dark dark:bg-brand-dark-soft dark:text-brand-bright inline-flex items-center justify-center text-micro font-black">
                     3
                   </span>
-                  <span>بيانات الزبون والعملية (اختياري)</span>
+                  <span>بيانات الزبون والعملية</span>
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1101,7 +1145,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-black text-ink dark:text-white flex items-center gap-1.5">
                       <Coins className="w-4 h-4 text-brand dark:text-brand-bright" />
-                      <span>مبلغ العملية (المحول / المستلم)</span>
+                      <span>مبلغ العملية (المحول / المستلم) <RequiredMark /></span>
                     </label>
                     <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">
                       {isCashOut ? 'يُخصم فقط من رصيد المحفظة' : 'يُضاف إلى رصيد المحفظة'}
@@ -1277,7 +1321,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-black text-paid dark:text-paid-bright">
-                        تمت المعاملة بنجاح!
+                        تمت المعاملة
                       </span>
                     </div>
                     <button
@@ -1402,10 +1446,22 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   >
                     <div>
                       <div className="flex items-center justify-between mb-2.5">
-                        <span className={`text-micro font-bold px-2.5 py-0.5 rounded-full border ${info.border} ${info.bgSoft} ${info.text} flex items-center gap-1`}>
-                          {info.isBank ? <Landmark className="w-3 h-3" /> : <Smartphone className="w-3 h-3" />}
-                          <span>{info.badge}</span>
-                        </span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className={`text-micro font-bold px-2.5 py-0.5 rounded-full border ${info.border} ${info.bgSoft} ${info.text} flex items-center gap-1`}>
+                            {info.isBank ? <Landmark className="w-3 h-3" /> : <Smartphone className="w-3 h-3" />}
+                            <span>{info.badge}</span>
+                          </span>
+                          {acc.isDefault === true && (
+                            <span
+                              className="text-micro font-bold px-2 py-0.5 rounded-full border border-brand/40 dark:border-brand-bright/50 bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright flex items-center gap-1"
+                              title="الحساب الرئيسي: يظهر في شاشة الدفع ويُسجَّل فيه المبلغ المستلم"
+                              data-testid="main-account-badge"
+                            >
+                              <Star className="w-3 h-3 fill-current" />
+                              <span>رئيسي</span>
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1">
                           {canFund && (
                             <button
@@ -1442,9 +1498,27 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                       <h3 className="t-card-title text-ink dark:text-white mb-1">
                         {acc.name}
                       </h3>
+                      {acc.holderName && (
+                        <p className="text-xs font-bold text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5 min-w-0">
+                          <User className="w-3.5 h-3.5 shrink-0 text-ink-muted dark:text-ink-dark-muted" />
+                          <span className="truncate">{acc.holderName}</span>
+                        </p>
+                      )}
                       <p className="text-xs font-mono text-ink-muted dark:text-ink-dark-muted mb-3 truncate">
                         {acc.identifier || acc.phoneNumber || 'بدون رقم مسجل'}
                       </p>
+                      {canManageAccounts && acc.isDefault !== true && (
+                        <button
+                          type="button"
+                          onClick={() => void handleSetDefaultAccount(acc)}
+                          disabled={actionLoading}
+                          className="w-full h-8 mb-3 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 hover:border-brand dark:hover:border-brand-bright text-brand dark:text-brand-bright text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                          title="يظهر هذا الحساب للكاشير عند الدفع، ويُسجَّل فيه المبلغ المستلم"
+                        >
+                          <Star className="w-3.5 h-3.5 shrink-0" />
+                          <span>اجعله الرئيسي</span>
+                        </button>
+                      )}
 
                       <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark font-mono flex items-center justify-between">
                         <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-sans font-bold">
@@ -1768,7 +1842,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  مبلغ الشحن / الإيداع:
+                  مبلغ الشحن / الإيداع: <RequiredMark />
                 </label>
                 <MoneyInput
                   valuePiasters={fundingAmountPiasters}
@@ -1824,7 +1898,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  ملاحظات الشحن (اختياري):
+                  ملاحظات الشحن:
                 </label>
                 <input
                   type="text"
@@ -1900,6 +1974,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
             {/* Modal Body */}
             <div className="p-5 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
+              <p className="text-micro text-ink-muted dark:text-ink-muted-dark -mb-2">الحقول المميزة بعلامة * مطلوبة</p>
               
               {/* Type Switcher / Locked Indicator */}
               {editingAccount ? (
@@ -1909,7 +1984,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                       نوع الحساب:
                     </label>
                     <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
-                      <Lock className="w-3 h-3 text-ink-muted" />
+                      <Lock className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                       <span>ثابت لا يمكن تغييره</span>
                     </span>
                   </div>
@@ -2004,7 +2079,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               {/* Account Display Name */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  اسم الحساب أو المحفظة في البرنامج:
+                  اسم الحساب أو المحفظة في البرنامج: <RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -2014,6 +2089,23 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
                   autoFocus
                 />
+              </div>
+
+              {/* Account holder name: what the customer sees when sending money */}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="account-holder-name" className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                  اسم صاحب الحساب:
+                </label>
+                <input
+                  id="account-holder-name"
+                  type="text"
+                  value={accountFormHolder}
+                  onChange={(e) => setAccountFormHolder(e.target.value)}
+                  maxLength={60}
+                  placeholder="مثال: أحمد محمود السيد"
+                  className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
+                />
+                <span className="text-micro text-ink-muted dark:text-ink-dark-muted">الاسم الذي يظهر للزبون عند التحويل</span>
               </div>
 
               {/* Specific Fields: Phone & IPA / Account Number */}
@@ -2034,7 +2126,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                    {accountFormType === 'instapay' ? 'عنوان الدفع اللحظي (IPA) / المعرف:' : 'معرف إضافي أو كارت ميزة (اختياري):'}
+                    {accountFormType === 'instapay' ? 'عنوان الدفع اللحظي (IPA) / المعرف:' : 'معرف إضافي أو كارت ميزة:'}
                   </label>
                   <input
                     type="text"
@@ -2044,6 +2136,27 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-left focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
                     dir="ltr"
                   />
+                </div>
+              </div>
+
+              {/* Main account of its type (shown in the checkout dialog) */}
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
+                <ToggleSwitch
+                  checked={accountMainLocked ? true : accountFormIsDefault}
+                  onChange={(val) => setAccountFormIsDefault(val)}
+                  disabled={accountMainLocked}
+                  title="الحساب الرئيسي"
+                  className="shrink-0 mt-0.5"
+                />
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-xs font-bold text-ink dark:text-ink-dark">الحساب الرئيسي (يظهر في شاشة الدفع)</span>
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed">
+                    {editingAccount?.isDefault === true
+                      ? 'هذا هو الحساب الرئيسي الحالي. لتغييره اجعل حساباً آخر رئيسياً.'
+                      : !accountHasActivePeer
+                        ? 'أول حساب من هذا النوع يصبح رئيسياً تلقائياً.'
+                        : 'يظهر هذا الحساب للكاشير عند الدفع عبر انستاباي أو المحفظة، ويُسجَّل فيه المبلغ المستلم'}
+                  </span>
                 </div>
               </div>
 
@@ -2182,7 +2295,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">سبب الإلغاء (إلزامي):</label>
+                <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">سبب الإلغاء: <RequiredMark /></label>
                 <input
                   type="text"
                   value={cancelReason}

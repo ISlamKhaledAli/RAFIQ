@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { RequiredMark } from './RequiredMark';
 
 export interface PinCodeModalProps {
   isOpen: boolean;
@@ -278,7 +279,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                 <CheckCircle2 className="w-7 h-7" />
               </div>
               <div>
-                <h4 className="t-label text-ink dark:text-ink-dark">تم تعيين الرقم السري بنجاح!</h4>
+                <h4 className="t-label text-ink dark:text-ink-dark">تم تعيين الرقم السري</h4>
                 <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">
                   احفظ رمز الاسترجاع الجديد الموضح أدناه في مكان آمن. لن يظهر لك هذا الرمز مرة أخرى.
                 </p>
@@ -320,7 +321,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                  رمز استرجاع الطوارئ (مثال: RFK-XXXX-XXXX)
+                  رمز استرجاع الطوارئ (مثال: RFK-XXXX-XXXX) <RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -334,7 +335,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                  الرقم السري الجديد (4-8 أرقام)
+                  الرقم السري الجديد (4-8 أرقام) <RequiredMark />
                 </label>
                 <input
                   type="password"
@@ -349,7 +350,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                  تأكيد الرقم السري الجديد
+                  تأكيد الرقم السري الجديد <RequiredMark />
                 </label>
                 <input
                   type="password"

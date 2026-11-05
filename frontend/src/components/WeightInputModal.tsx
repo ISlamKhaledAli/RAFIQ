@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Scale, X, Check, Delete, RotateCcw } from 'lucide-react';
 import { formatArabicCurrency, calculateLineTotal, normalizeArabicNumerals } from '../utils/money';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { RequiredMark } from './RequiredMark';
 
 interface WeightInputModalProps {
   isOpen: boolean;
@@ -205,7 +206,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
           {/* Primary Weight Input Box */}
           <div className="relative flex flex-col bg-surface-2/70 dark:bg-surface-dark-2/70 p-3 rounded-xl border-2 border-brand/50 dark:border-brand-bright/50 focus-within:border-brand dark:focus-within:border-brand-bright">
             <div className="flex justify-between items-center text-micro text-ink-muted dark:text-ink-dark-muted font-semibold mb-1">
-              <span>{unitMode === 'kg' ? 'الوزن بالكيلو:' : 'الوزن بالجرام:'}</span>
+              <span>{unitMode === 'kg' ? 'الوزن بالكيلو:' : 'الوزن بالجرام:'} <RequiredMark /></span>
               <span className="font-mono text-ink dark:text-ink-dark">
                 {unitMode === 'kg'
                   ? `${weightMilli} جرام`

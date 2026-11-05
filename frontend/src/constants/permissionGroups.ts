@@ -1,6 +1,7 @@
 // Permission editor catalogue. Pure data (no React) so it can be unit-tested; every key must exist in
-// desktop/Services/SecurityService.cs ALL_PERMISSIONS. Owner/root-only keys (settings.restore, settings.license,
-// settings.features, audit_log.view, users.delegate, pharma.controlled.view_full) are intentionally NOT listed.
+// desktop/Services/SecurityService.cs ALL_PERMISSIONS. Keys reserved for the owner/root (settings.features,
+// audit_log.view, users.delegate, pharma.controlled.view_full) are intentionally NOT listed. The three owner-grade
+// keys live in the `owner_grade` group, which only the manager editor shows and the cashier editor never does.
 
 export type PermissionIconId =
   | 'cart'
@@ -20,7 +21,8 @@ export type PermissionIconId =
   | 'pharma'
   | 'insurance'
   | 'patients'
-  | 'cafe';
+  | 'cafe'
+  | 'ownerGrade';
 
 export type PermissionFeatureFlag =
   | 'feature_pharmacy'
@@ -42,6 +44,8 @@ export interface PermissionGroupDef {
   icon: PermissionIconId;
   /** When set, the group is shown only while this store feature is enabled. */
   feature?: PermissionFeatureFlag;
+  /** Owner-grade group: edited only on a manager account, never in the cashier matrix. */
+  ownerGrade?: boolean;
   items: PermissionItem[];
 }
 
@@ -298,4 +302,21 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
       { key: 'recipes.produce', label: 'تسجيل أوامر الإنتاج والتصنيع المجمع', description: 'تنفيذ دورة إنتاج مجمعة لخصم الخامات وإضافة المنتج التام للمخزون' },
     ],
   },
+  {
+    id: 'owner_grade',
+    name: 'صلاحيات خاصة بالمالك',
+    icon: 'ownerGrade',
+    ownerGrade: true,
+    items: [
+      { key: 'system.updates', label: 'تحديث البرنامج', description: 'فحص التحديثات وتنزيل ملف التثبيت' },
+      { key: 'settings.restore', label: 'استعادة النسخ الاحتياطية ونقل البيانات', description: 'استرجاع نسخة احتياطية أو حزمة نقل فوق بيانات المحل الحالية' },
+      { key: 'settings.license', label: 'إدارة ترخيص التشغيل', description: 'تفعيل الترخيص ونقله إلى جهاز آخر' },
+    ],
+  },
 ];
+
+/** Groups of the cashier permission matrix (the owner-grade group is never part of it). */
+export const CASHIER_PERMISSION_GROUPS: PermissionGroupDef[] = PERMISSION_GROUPS.filter((group) => !group.ownerGrade);
+
+/** The manager editor shows only this group: managers hold every other administrative power by default. */
+export const OWNER_GRADE_GROUP: PermissionGroupDef = PERMISSION_GROUPS.filter((group) => group.ownerGrade)[0];

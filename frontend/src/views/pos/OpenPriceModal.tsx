@@ -4,6 +4,7 @@ import { Sparkles, X } from 'lucide-react';
 import type { QuickItem } from '../../types/models';
 import { normalizeArabicNumerals } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { RequiredMark } from '../../components/RequiredMark';
 
 interface OpenPriceModalProps {
   openPriceItem: QuickItem | null;
@@ -50,7 +51,7 @@ export const OpenPriceModal: React.FC<OpenPriceModalProps> = ({
         </div>
         <form onSubmit={onConfirm}>
           <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">
-            أدخل المبلغ بالجنيه:
+            أدخل المبلغ بالجنيه: <RequiredMark />
           </label>
           <input
             type="text"

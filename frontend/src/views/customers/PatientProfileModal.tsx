@@ -23,6 +23,7 @@ import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import type { CustomerPatientInfo, ChronicMedication } from '../../types/patient';
 import type { Product } from '../../types/models';
+import { RequiredMark } from '../../components/RequiredMark';
 
 interface PatientProfileModalProps {
   isOpen: boolean;
@@ -247,7 +248,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
 
       const res = await invoke<CustomerPatientInfo>('patients:saveProfile', info);
       if (res) {
-        setStatusMessage({ text: 'تم حفظ الملف الطبي للمريض بنجاح وتحديث سجل الحساسية السريرية', type: 'success' });
+        setStatusMessage({ text: 'تم حفظ الملف الطبي للمريض', type: 'success' });
         if (onProfileUpdated) onProfileUpdated();
       }
     } catch (err: unknown) {
@@ -619,7 +620,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                   {/* Product Search */}
                   <div className="relative">
                     <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                      الصنف الدوائي *
+                      الصنف الدوائي <RequiredMark />
                     </label>
                     <div className="relative">
                       <input

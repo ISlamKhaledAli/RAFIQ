@@ -16,7 +16,6 @@ import {
   Trash2,
   Store,
   ShoppingBag,
-  Percent,
   CheckCircle2,
   Layers,
 } from 'lucide-react';
@@ -29,11 +28,11 @@ import { ToggleSwitch } from './ToggleSwitch';
 import { useFeatures } from '../context/useFeatures';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import {
-  QUICK_FIELD,
-  QUICK_BTN,
+  QUICK_FIELD_LG,
+  QUICK_BTN_LG,
   QUICK_BTN_SECONDARY,
   QUICK_BTN_PRIMARY,
-  QUICK_BTN_ICON,
+  QUICK_BTN_ICON_LG,
   FieldLabel,
   FormSection,
   ExtrasSection,
@@ -69,6 +68,28 @@ const QUICK_PRESETS = [
   { label: 'سعر حر (مبلغ مفتوح)', price: '', isOpenPrice: true, unit: 'piece' },
 ];
 
+interface BundleStatProps {
+  label: string;
+  value: string;
+  tone?: 'ok' | 'neutral';
+  extra?: ReactNode;
+}
+
+const BundleStat = ({ label, value, tone = 'neutral', extra }: BundleStatProps) => (
+  <div className="min-w-0">
+    <div className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">{label}</div>
+    <div
+      className={`mt-1 flex items-baseline gap-1 flex-wrap font-mono t-kpi ${
+        tone === 'ok' ? 'text-paid dark:text-paid-bright' : 'text-ink dark:text-ink-dark'
+      }`}
+    >
+      <span className="break-all">{value}</span>
+      <span className="text-xs font-bold">ج.م</span>
+      {extra && <span className="inline-flex items-center gap-0.5 text-xs font-bold">{extra}</span>}
+    </div>
+  </div>
+);
+
 interface CategoryFieldProps {
   value: string;
   onChange: (value: string) => void;
@@ -85,12 +106,12 @@ const CategoryField = ({ value, onChange, options, isCustom, setIsCustom, custom
     {!isCustom ? (
       <div className="flex gap-2 items-center">
         <div className="flex-1 min-w-0">
-          <CustomSelect value={value} onChange={onChange} size="md" options={options} />
+          <CustomSelect value={value} onChange={onChange} size="lg" options={options} />
         </div>
         <button
           type="button"
           onClick={() => setIsCustom(true)}
-          className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}
+          className={`${QUICK_BTN_LG} ${QUICK_BTN_SECONDARY}`}
           title="كتابة قسم جديد"
         >
           <Plus className="w-4 h-4" />
@@ -105,7 +126,7 @@ const CategoryField = ({ value, onChange, options, isCustom, setIsCustom, custom
           placeholder="اسم القسم الجديد..."
           value={customValue}
           onChange={(e) => setCustomValue(e.target.value)}
-          className={QUICK_FIELD}
+          className={QUICK_FIELD_LG}
         />
         <button
           type="button"
@@ -113,7 +134,7 @@ const CategoryField = ({ value, onChange, options, isCustom, setIsCustom, custom
             setIsCustom(false);
             setCustomValue('');
           }}
-          className={QUICK_BTN_ICON}
+          className={QUICK_BTN_ICON_LG}
           title="الرجوع للأقسام الحالية"
         >
           <X className="w-4 h-4" />
@@ -125,6 +146,7 @@ const CategoryField = ({ value, onChange, options, isCustom, setIsCustom, custom
 
 interface ProductSearchBoxProps {
   label: string;
+  required?: boolean;
   placeholder: string;
   query: string;
   onQueryChange: (query: string) => void;
@@ -134,21 +156,21 @@ interface ProductSearchBoxProps {
   trailing: (product: Product) => ReactNode;
 }
 
-const ProductSearchBox = ({ label, placeholder, query, onQueryChange, searching, results, onPick, trailing }: ProductSearchBoxProps) => (
+const ProductSearchBox = ({ label, required = false, placeholder, query, onQueryChange, searching, results, onPick, trailing }: ProductSearchBoxProps) => (
   <div className="relative">
     <label className="block">
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel required={required}>{label}</FieldLabel>
       <div className="relative">
-        <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           type="text"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           placeholder={placeholder}
-          className={`${QUICK_FIELD} pr-9`}
+          className={`${QUICK_FIELD_LG} pr-10`}
         />
         {searching && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-ink-muted dark:text-ink-dark-muted font-bold animate-pulse">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-ink-muted dark:text-ink-dark-muted font-bold animate-pulse">
             جاري البحث...
           </span>
         )}
@@ -156,16 +178,16 @@ const ProductSearchBox = ({ label, placeholder, query, onQueryChange, searching,
     </label>
 
     {results.length > 0 && (
-      <div className="absolute z-20 top-full mt-1 w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg shadow-xl max-h-56 overflow-y-auto divide-y divide-line dark:divide-line-dark">
+      <div className="absolute z-20 top-full mt-1 w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg shadow-xl max-h-64 overflow-y-auto divide-y divide-line dark:divide-line-dark">
         {results.map((p) => (
           <button
             key={p.id}
             type="button"
             onClick={() => onPick(p)}
-            className="w-full min-h-12 px-3 py-2 text-right hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer flex items-center justify-between gap-3 text-sm transition-colors"
+            className="w-full min-h-14 px-4 py-2.5 text-right hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer flex items-center justify-between gap-3 text-sm transition-colors"
           >
             <span className="flex flex-col min-w-0">
-              <span className="font-bold text-ink dark:text-ink-dark truncate">{p.name}</span>
+              <span className="font-bold text-ink dark:text-ink-dark line-clamp-2 break-words">{p.name}</span>
               <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-mono">{p.barcode || 'بدون باركود'}</span>
             </span>
             <span className="flex items-center gap-2 shrink-0">
@@ -512,41 +534,38 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
     </div>
   ) : null;
 
-  const openPriceToggle = (
-    <ToggleSwitch
-      size="sm"
-      checked={isOpenPrice}
-      onChange={(checked) => {
-        setIsOpenPrice(checked);
-        if (checked) setPriceEgp('');
-      }}
-      label="سعر حر"
-      description="الكاشير يكتب السعر عند البيع"
-    />
-  );
-
   const priceBlock = (
     <div className="flex flex-col gap-3">
-      <div className="flex items-end gap-3 flex-wrap">
-        <label className="block flex-1 min-w-[180px]">
-          <FieldLabel required={!isOpenPrice}>سعر البيع</FieldLabel>
-          <PriceInput
-            value={priceEgp}
-            onChange={(v) => setPriceEgp(normalizeArabicNumerals(v))}
-            step="0.25"
-            min="0"
-            required={!isOpenPrice}
-            disabled={isOpenPrice}
-            placeholder={isOpenPrice ? 'سعر حر' : '0.00'}
-          />
-        </label>
-        <div className="h-10 flex items-center">{openPriceToggle}</div>
+      <label className="block">
+        <FieldLabel required={!isOpenPrice}>سعر البيع</FieldLabel>
+        <PriceInput
+          large
+          value={priceEgp}
+          onChange={(v) => setPriceEgp(normalizeArabicNumerals(v))}
+          step="0.25"
+          min="0"
+          required={!isOpenPrice}
+          disabled={isOpenPrice}
+          placeholder={isOpenPrice ? 'سعر حر' : '0.00'}
+        />
+        {!isOpenPrice && mode === 'warehouse' && originalPriceEgp && (
+          <span className="block mt-1.5 text-xs text-ink-muted dark:text-ink-dark-muted">
+            سعر الصنف في المخزن: <span className="font-mono font-bold tabular-nums text-paid dark:text-paid-bright">{originalPriceEgp} ج.م</span> - تقدر تعدله لهذا الزر.
+          </span>
+        )}
+      </label>
+      <div className="rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark px-4 py-3">
+        <ToggleSwitch
+          className="w-full justify-between"
+          checked={isOpenPrice}
+          onChange={(checked) => {
+            setIsOpenPrice(checked);
+            if (checked) setPriceEgp('');
+          }}
+          label="سعر حر"
+          description="الكاشير يكتب السعر عند البيع"
+        />
       </div>
-      {!isOpenPrice && mode === 'warehouse' && originalPriceEgp && (
-        <InlineNotice tone="ok">
-          السعر الأساسي في المخزن: <strong className="font-mono tabular-nums">{originalPriceEgp} ج.م</strong> - تقدر تسيبه أو تعدله لهذا الزر.
-        </InlineNotice>
-      )}
     </div>
   );
 
@@ -556,7 +575,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
       onClick={handleBackdropClick}
       dir="rtl"
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh] text-ink dark:text-ink-dark">
+      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] text-ink dark:text-ink-dark">
 
         {/* Header */}
         <div className="h-16 px-5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
@@ -581,24 +600,15 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
           </button>
         </div>
 
-        {/* Mode tabs */}
-        <div className="px-5 py-3 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark shrink-0">
-          <SegmentedTabs ariaLabel="نوع الصنف السريع" fullWidth value={mode} onChange={handleModeChange} options={MODE_OPTIONS} />
-        </div>
-
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
-          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
-            {error && (
-              <InlineNotice tone="danger" icon={<AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}>
-                {error}
-              </InlineNotice>
-            )}
+          <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
+            <SegmentedTabs ariaLabel="نوع الصنف السريع" fullWidth value={mode} onChange={handleModeChange} options={MODE_OPTIONS} />
 
             {/* Matrix variants shortcut (Feature #114) */}
             {isEnabled('feature_matrix_variants') && onOpenVariantMatrixModal && (
-              <div className="rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 p-3 flex items-center justify-between gap-3">
+              <div className="rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 p-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
                     <Layers className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
@@ -612,7 +622,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     onClose();
                     onOpenVariantMatrixModal();
                   }}
-                  className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY} shrink-0`}
+                  className={`${QUICK_BTN_LG} ${QUICK_BTN_SECONDARY} shrink-0`}
                 >
                   <Plus className="w-4 h-4" />
                   <span>مصفوفة مقاسات</span>
@@ -623,9 +633,9 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
             {/* MODE 1: WAREHOUSE PRODUCT (primary) */}
             {mode === 'warehouse' && (
               <>
-                <FormSection title="الأساسيات">
+                <FormSection card title="الأساسيات">
                   <ProductSearchBox
-                    label="اربط الزر بصنف من المخزن (اختياري)"
+                    label="اربط الزر بصنف من المخزن"
                     placeholder="اكتب اسم الصنف أو امسح الباركود..."
                     query={searchQuery}
                     onQueryChange={(q) => void handleProductSearch(q)}
@@ -643,7 +653,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     <InlineNotice tone="ok" icon={<CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="font-bold">تم ربط الصنف: {selectedProduct.name}</div>
+                          <div className="font-bold break-words">تم ربط الصنف: {selectedProduct.name}</div>
                           <div className="font-mono tabular-nums opacity-90">
                             الرصيد المتاح: {selectedProduct.stockQuantityMilli / 1000} {selectedProduct.unit === 'kg' ? 'كجم' : 'قطعة'}
                           </div>
@@ -656,7 +666,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                             setPriceEgp('');
                             setOriginalPriceEgp('');
                           }}
-                          className="h-8 px-3 rounded-lg text-xs font-bold border border-current/30 hover:bg-surface/50 dark:hover:bg-surface-dark/50 cursor-pointer shrink-0"
+                          className="h-10 px-4 rounded-lg text-sm font-bold border border-current/30 hover:bg-surface/50 dark:hover:bg-surface-dark/50 cursor-pointer shrink-0"
                         >
                           تغيير
                         </button>
@@ -667,14 +677,14 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                   <label className="block">
                     <FieldLabel required>اسم الزر على الشاشة</FieldLabel>
                     <div className="relative">
-                      <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
                         required
                         placeholder="مثال: عيش فينو، لبن جهينة، خيار..."
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className={`${QUICK_FIELD} pr-9`}
+                        className={`${QUICK_FIELD_LG} pr-10`}
                       />
                     </div>
                   </label>
@@ -700,24 +710,53 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
             {/* MODE 2: BUNDLE / COMBO OFFER (e.g. Ramadan Box) */}
             {mode === 'bundle' && (
               <>
-                <FormSection title="الأساسيات">
+                <FormSection card title="الأساسيات">
                   <label className="block">
                     <FieldLabel required>اسم العرض / الكرتونة</FieldLabel>
                     <div className="relative">
-                      <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
                         required
                         placeholder="مثال: كرتونة رمضان الخير، باقة السحور..."
                         value={bundleName}
                         onChange={(e) => setBundleName(e.target.value)}
-                        className={`${QUICK_FIELD} pr-9`}
+                        className={`${QUICK_FIELD_LG} pr-10`}
                       />
                     </div>
                   </label>
 
+                  <label className="block">
+                    <FieldLabel required>سعر بيع العرض (الإجمالي)</FieldLabel>
+                    <PriceInput
+                      large
+                      value={bundlePriceEgp}
+                      onChange={(v) => setBundlePriceEgp(normalizeArabicNumerals(v))}
+                      step="0.5"
+                      min="1"
+                      required
+                      placeholder="مثال: 150.00"
+                    />
+                  </label>
+
+                  {bundleItems.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-4">
+                      <BundleStat label="مجموع أسعار المكونات" value={totalBundleOriginalEgp} />
+                      <BundleStat label="سعر العرض" value={(bundleOfferPricePiasters / 100).toFixed(2)} />
+                      <BundleStat
+                        label="توفير الزبون"
+                        value={(bundleSavingsPiasters / 100).toFixed(2)}
+                        tone={bundleSavingsPiasters > 0 ? 'ok' : 'neutral'}
+                        extra={bundleSavingsPiasters > 0 ? <span className="tabular-nums">{bundleSavingsPercent}%</span> : null}
+                      />
+                    </div>
+                  )}
+                </FormSection>
+
+                <FormSection card title="مكونات العرض" hint={`${bundleItems.length} صنف`}>
                   <ProductSearchBox
                     label="أضف مكونات العرض من المخزن"
+                    required
                     placeholder="ابحث عن صنف لإضافته (زيت، سكر، أرز...)"
                     query={bundleSearchQuery}
                     onQueryChange={(q) => void handleBundleSearch(q)}
@@ -732,88 +771,60 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     )}
                   />
 
-                  <div className="rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 overflow-hidden">
-                    <div className="h-10 px-3 flex items-center justify-between gap-2 border-b border-line dark:border-line-dark text-sm font-bold text-ink dark:text-ink-dark">
-                      <span>
-                        المكونات (<span className="tabular-nums">{bundleItems.length}</span>)
-                      </span>
-                      <span className="text-xs font-mono tabular-nums text-ink-muted dark:text-ink-dark-muted">
-                        إجمالي سعرها: {totalBundleOriginalEgp} ج.م
-                      </span>
+                  {bundleItems.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-line dark:border-line-dark bg-surface dark:bg-surface-dark py-8 px-4 text-center text-sm text-ink-muted dark:text-ink-dark-muted">
+                      لسه ما ضفتش أي مكونات. ابحث في المخزن فوق وأضفها هنا.
                     </div>
-
-                    {bundleItems.length === 0 ? (
-                      <div className="py-6 px-3 text-center text-sm text-ink-muted dark:text-ink-dark-muted">
-                        لسه ما ضفتش أي مكونات. ابحث في المخزن فوق وأضفها هنا.
-                      </div>
-                    ) : (
-                      <div className="max-h-48 overflow-y-auto divide-y divide-line dark:divide-line-dark">
-                        {bundleItems.map((item) => (
-                          <div key={item.product.id} className="min-h-12 px-3 py-1.5 flex items-center justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <span className="font-bold text-sm text-ink dark:text-ink-dark block truncate">{item.product.name}</span>
-                              <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-mono tabular-nums">
-                                {((item.product.pricePiasters * item.quantity) / 100).toFixed(2)} ج.م
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <div className="flex items-center rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3">
-                                <button
-                                  type="button"
-                                  onClick={() => updateBundleItemQuantity(item.product.id, -1)}
-                                  className="w-8 h-8 flex items-center justify-center text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-r-lg cursor-pointer"
-                                  title="إنقاص الكمية"
-                                >
-                                  <Minus className="w-3.5 h-3.5" />
-                                </button>
-                                <span className="w-8 text-center font-mono font-extrabold text-sm tabular-nums text-ink dark:text-ink-dark">
-                                  {item.quantity}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateBundleItemQuantity(item.product.id, 1)}
-                                  className="w-8 h-8 flex items-center justify-center text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-l-lg cursor-pointer"
-                                  title="زيادة الكمية"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => removeProductFromBundle(item.product.id)}
-                                className="w-8 h-8 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center justify-center rounded-lg transition-colors cursor-pointer"
-                                title="حذف من العرض"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
+                  ) : (
+                    <ul className="m-0 p-0 list-none rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark divide-y divide-line dark:divide-line-dark overflow-hidden">
+                      {bundleItems.map((item) => (
+                        <li key={item.product.id} className="px-4 py-3 flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <span className="block text-sm font-bold text-ink dark:text-ink-dark line-clamp-2 break-words">{item.product.name}</span>
+                            <span className="block mt-0.5 text-xs text-ink-muted dark:text-ink-dark-muted font-mono tabular-nums">
+                              {(item.product.pricePiasters / 100).toFixed(2)} ج.م للقطعة
+                            </span>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                          <div className="flex items-center rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => updateBundleItemQuantity(item.product.id, -1)}
+                              className="w-10 h-10 flex items-center justify-center text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-r-lg cursor-pointer"
+                              title="إنقاص الكمية"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="w-10 text-center font-mono font-extrabold text-sm tabular-nums text-ink dark:text-ink-dark">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => updateBundleItemQuantity(item.product.id, 1)}
+                              className="w-10 h-10 flex items-center justify-center text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-l-lg cursor-pointer"
+                              title="زيادة الكمية"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <span className="min-w-[6rem] text-left font-mono font-black text-sm tabular-nums text-ink dark:text-ink-dark shrink-0">
+                            {((item.product.pricePiasters * item.quantity) / 100).toFixed(2)} ج.م
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeProductFromBundle(item.product.id)}
+                            className="w-10 h-10 shrink-0 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center justify-center rounded-lg transition-colors cursor-pointer"
+                            title="حذف من العرض"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
 
-                  <div className="flex flex-col gap-2">
-                    <label className="block">
-                      <FieldLabel required>سعر بيع العرض (الإجمالي)</FieldLabel>
-                      <PriceInput
-                        value={bundlePriceEgp}
-                        onChange={(v) => setBundlePriceEgp(normalizeArabicNumerals(v))}
-                        step="0.5"
-                        min="1"
-                        required
-                        placeholder="مثال: 150.00"
-                      />
-                    </label>
-                    {bundleSavingsPiasters > 0 && (
-                      <InlineNotice tone="ok" icon={<Percent className="w-4 h-4 shrink-0 mt-0.5" />}>
-                        توفير للزبون: <span className="font-mono tabular-nums">{(bundleSavingsPiasters / 100).toFixed(2)} ج.م ({bundleSavingsPercent}%)</span>
-                      </InlineNotice>
-                    )}
-                    <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 leading-relaxed">
-                      عند بيع العرض بيتخصم تلقائياً مخزون كل مكون من المخزن.
-                    </p>
-                  </div>
+                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 leading-relaxed">
+                    عند بيع العرض بيتخصم تلقائياً مخزون كل مكون من المخزن.
+                  </p>
                 </FormSection>
 
                 <ExtrasSection summary={shownBundleCategory}>
@@ -833,7 +844,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
             {/* MODE 3: SERVICE / STANDALONE (bags, delivery, ...) */}
             {mode === 'service' && (
               <>
-                <FormSection title="الأساسيات">
+                <FormSection card title="الأساسيات">
                   <div>
                     <FieldLabel>نماذج جاهزة</FieldLabel>
                     <div className="flex flex-wrap gap-2">
@@ -852,7 +863,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                             }
                             setUnit((preset.unit as 'piece' | 'kg') || 'piece');
                           }}
-                          className="h-9 px-3 text-xs font-bold rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 transition-colors active:scale-95 inline-flex items-center gap-1.5 cursor-pointer"
+                          className="h-10 px-3.5 text-sm font-bold rounded-lg bg-surface dark:bg-surface-dark-3 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 transition-colors active:scale-95 inline-flex items-center gap-1.5 cursor-pointer"
                         >
                           <span>{preset.label}</span>
                           {!preset.isOpenPrice && preset.price && (
@@ -866,14 +877,14 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                   <label className="block">
                     <FieldLabel required>اسم الصنف السريع</FieldLabel>
                     <div className="relative">
-                      <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
                         required
                         placeholder="مثال: كيس بلاستيك كبير، خدمة توصيل..."
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className={`${QUICK_FIELD} pr-9`}
+                        className={`${QUICK_FIELD_LG} pr-10`}
                       />
                     </div>
                   </label>
@@ -897,8 +908,16 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
             )}
           </div>
 
+          {error && (
+            <div className="px-5 pt-3 pb-1 shrink-0" role="alert">
+              <InlineNotice tone="danger" icon={<AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}>
+                {error}
+              </InlineNotice>
+            </div>
+          )}
+
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between gap-2 shrink-0">
+          <div className="px-5 py-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between gap-3 flex-wrap shrink-0">
             {onOpenFullManager ? (
               <button
                 type="button"
@@ -906,7 +925,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                   onClose();
                   onOpenFullManager();
                 }}
-                className="h-10 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-bold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
+                className="h-11 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-bold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
               >
                 <Settings className="w-4 h-4" />
                 <span>إدارة وترتيب الأزرار السريعة</span>
@@ -918,14 +937,14 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                 type="button"
                 onClick={() => void requestClose()}
                 disabled={loading}
-                className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}
+                className={`${QUICK_BTN_LG} ${QUICK_BTN_SECONDARY}`}
               >
                 إلغاء
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY} px-5`}
+                className={`${QUICK_BTN_LG} ${QUICK_BTN_PRIMARY} px-6`}
               >
                 {loading ? (
                   <span>جاري الحفظ...</span>

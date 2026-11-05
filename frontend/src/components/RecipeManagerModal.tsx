@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
+import { RequiredMark } from './RequiredMark';
 import { formatArabicCurrency } from '../utils/money';
 import type { Recipe, RecipeIngredient, ProductionBatch } from '../types/cafe';
 import type { Product } from '../types/models';
@@ -187,7 +188,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
       });
       if (saved) {
         setRecipeId(saved.id);
-        setSuccessMsg('تم حفظ الرسبي (BOM) وتحديث التكلفة التلقائية للصنف بنجاح.');
+        setSuccessMsg('تم حفظ الوصفة (BOM) وتحديث تكلفة الصنف');
         await fetchRecipesAndLog();
         onProductsChanged?.();
       }
@@ -205,7 +206,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
       await invoke('recipes:delete', { id: recipeId });
       setRecipeId('');
       setIngredients([]);
-      setSuccessMsg('تم حذف الوصفة بنجاح.');
+      setSuccessMsg('تم حذف الوصفة');
       await fetchRecipesAndLog();
     } catch {
       // ignore
@@ -231,7 +232,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
       });
       if (batch) {
         setSuccessMsg(
-          `تم تنفيذ دفعة التصنيع بنجاح: تمت إضافة ${(batch.producedQtyMilli / 1000).toFixed(2)} وحدة من «${batch.productName}» للمخزون وخصم الخامات ذرياً.`
+          `تم تنفيذ دفعة التصنيع: أُضيف ${(batch.producedQtyMilli / 1000).toFixed(2)} وحدة من «${batch.productName}» للمخزون`
         );
         setProduceNotes('');
         await fetchRecipesAndLog();
@@ -322,9 +323,10 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
               {/* Left: Product Selection & Depletion Mode */}
               <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4 h-fit">
                 <h3 className="t-card-title text-ink dark:text-ink-dark">1. المنتج النهائي وطريقة الخصم</h3>
+                <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 -mt-2">الحقول المميزة بعلامة * مطلوبة</p>
 
                 <div>
-                  <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اختر الصنف النهائي (المشروب / الوجبة):</label>
+                  <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اختر الصنف النهائي (المشروب / الوجبة): <RequiredMark /></label>
                   <CustomSelect
                     value={selectedProductId}
                     onChange={(v) => setSelectedProductId(v)}
@@ -408,7 +410,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
 
               {/* Right 2 Columns: Raw Ingredients Builder */}
               <div className="lg:col-span-2 bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
-                <h3 className="t-card-title text-ink dark:text-ink-dark">2. المكونات والخامات الداخلة في التحضير ({ingredients.length})</h3>
+                <h3 className="t-card-title text-ink dark:text-ink-dark">2. المكونات والخامات الداخلة في التحضير ({ingredients.length}) <RequiredMark /></h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-surface dark:bg-surface-dark p-3 rounded-xl border border-line dark:border-line-dark">
                   <div className="sm:col-span-2">
@@ -500,7 +502,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                   <button
                     type="submit"
                     disabled={loading || !selectedProductId || ingredients.length === 0}
-                    className="px-6 py-2.5 rounded-xl bg-paid text-white text-xs font-black hover:opacity-95 disabled:opacity-50 flex items-center gap-1.5 shadow-sm transition-opacity"
+                    className="px-6 py-2.5 rounded-xl bg-paid text-white text-xs font-black hover:opacity-95 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark flex items-center gap-1.5 shadow-sm transition-opacity"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>حفظ واعتماد الوصفة (BOM)</span>
@@ -521,7 +523,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                 </h3>
 
                 <div>
-                  <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اختر الوصفة المراد تصنيعها:</label>
+                  <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اختر الوصفة المراد تصنيعها: <RequiredMark /></label>
                   <CustomSelect
                     value={produceRecipeId}
                     onChange={(v) => setProduceRecipeId(v)}
@@ -548,7 +550,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">ملاحظات التشغيلة (اختياري):</label>
+                  <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">ملاحظات التشغيلة:</label>
                   <input
                     type="text"
                     value={produceNotes}
@@ -561,7 +563,7 @@ export const RecipeManagerModal: React.FC<RecipeManagerModalProps> = ({
                 <button
                   type="submit"
                   disabled={loading || !produceRecipeId}
-                  className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black hover:opacity-95 disabled:opacity-50 transition-opacity"
+                  className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black hover:opacity-95 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-opacity"
                 >
                   تنفيذ التصنيع (خصم الخامات وإضافة المنتج التام)
                 </button>

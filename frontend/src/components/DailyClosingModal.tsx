@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { DailyClosing, DailyClosingPreview } from '../types/models';
-import { formatArabicCurrency } from '../utils/money';
+import { formatArabicCurrency, toSafePiasters } from '../utils/money';
 import { MoneyInput } from './MoneyInput';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
@@ -107,12 +107,12 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
         setPreview(res);
         if (res.isAlreadyClosed && res.existingClosing) {
           setSavedClosing(res.existingClosing);
-          setActualCashPiasters(res.existingClosing.actualCashPiasters);
+          setActualCashPiasters(toSafePiasters(res.existingClosing.actualCashPiasters, 'closing.actualCashPiasters'));
           setNotes(res.existingClosing.notes || '');
         } else {
           setSavedClosing(null);
           // Default actual cash to expected cash initially
-          setActualCashPiasters(res.expectedCashPiasters);
+          setActualCashPiasters(toSafePiasters(res.expectedCashPiasters, 'closing:getPreview.expectedCashPiasters'));
         }
       }
     } catch (err: unknown) {
@@ -194,7 +194,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
         closing: target
       });
       if (res && res.success) {
-        setPrintFeedback('تم إرسال إيصال الإقفال اليومي إلى الطابعة بنجاح.');
+        setPrintFeedback('تم إرسال إيصال الإقفال اليومي إلى الطابعة');
       } else {
         setPrintFeedback(res?.message || 'تمت محاولة الطباعة.');
       }
@@ -211,12 +211,13 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   const closedRecord = preview?.existingClosing || savedClosing;
 
   // Expected vs counted difference calculation
-  const expectedCash = isAlreadyClosed && closedRecord
-    ? closedRecord.expectedCashPiasters
-    : (preview ? preview.expectedCashPiasters : 0);
+  const expectedCash = toSafePiasters(
+    isAlreadyClosed && closedRecord ? closedRecord.expectedCashPiasters : preview?.expectedCashPiasters,
+    'closing.expectedCashPiasters',
+  );
 
   const differencePiasters = isAlreadyClosed && closedRecord
-    ? closedRecord.differencePiasters
+    ? toSafePiasters(closedRecord.differencePiasters, 'closing.differencePiasters')
     : (actualCashPiasters - expectedCash);
 
   const isMatch = differencePiasters === 0;
@@ -246,7 +247,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="t-modal-title tracking-tight text-white dark:text-ink-dark">الإقفال المحاسبي لليومية وتشميع الحسابات (Z-Report)</h2>
+                <h2 className="t-modal-title tracking-tight text-white dark:text-ink-dark">الإقفال المحاسبي لليومية وتشميع الحسابات</h2>
                 {savedClosing && (
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-paid text-white">
                     معتمد #{savedClosing.closingNumber}
@@ -569,7 +570,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   {/* Actual Counted Cash (Input) */}
                   <div className="space-y-2 flex flex-col justify-center">
                     <label className="text-sm font-bold text-ink dark:text-ink-dark flex flex-wrap items-center justify-between gap-1">
-                      <span>الفلوس اللي عديتها في الدرج بإيدك *</span>
+                      <span>الفلوس اللي عديتها في الدرج بإيدك</span>
                       <span className="text-xs text-brand dark:text-brand-bright font-medium">كاش درج البضاعة فقط</span>
                     </label>
                     <MoneyInput
@@ -779,7 +780,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
               </div>
 
               <div>
-                <h3 className="t-card-title text-ink dark:text-ink-dark">تم تقفيل اليومية والوردية بنجاح</h3>
+                <h3 className="t-card-title text-ink dark:text-ink-dark">تم تقفيل اليومية والوردية</h3>
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 mt-2 rounded-full text-xs font-semibold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/40">
                   <span>تقفيل معتمد #{savedClosing.closingNumber}</span>
                   <span>•</span>
@@ -816,7 +817,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
               </div>
 
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-relaxed">
-                اتقفلت اليومية واتحفظت في الداتابيز بنجاح. تحب نطبع وصل التقفيل للوردية دلوقتي؟
+                اتقفلت اليومية. تحب نطبع وصل التقفيل دلوقتي؟
               </p>
 
               {printFeedback && (

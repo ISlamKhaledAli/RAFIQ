@@ -13,6 +13,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
 import { MoneyInput } from './MoneyInput';
+import { RequiredMark } from './RequiredMark';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { Category, VariantMatrixCell, CreateVariantMatrixRequest, ParentProductWithVariants, Product, ProductVariant } from '../types/models';
 
@@ -378,10 +379,11 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
               <Package className="w-4 h-4 text-brand dark:text-brand-bright" />
               بيانات المنتج الأساسي
             </h3>
+            <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 -mt-2">الحقول المميزة بعلامة * مطلوبة</p>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                  اسم المنتج الأساسي <span className="text-danger dark:text-danger-bright">*</span>
+                  اسم المنتج الأساسي <RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -818,7 +820,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
               type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="h-10 px-6 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-dark text-xs font-bold transition-all shadow-md flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              className="h-10 px-6 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-dark text-xs font-bold transition-all shadow-md flex items-center gap-2 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer"
             >
               {isSubmitting ? (
                 <>

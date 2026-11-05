@@ -2,6 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { normalizeArabicNumerals } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { RequiredMark } from '../../components/RequiredMark';
 
 interface PosQuantityModalProps {
   quantityModalItem: { index: number; name: string; currentQty: number } | null;
@@ -60,7 +61,7 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
 
         <form onSubmit={handleSubmit}>
           <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">
-            الكمية المطلوبة (عدد القطع):
+            الكمية المطلوبة (عدد القطع): <RequiredMark />
           </label>
           <div className="flex items-center gap-2 mb-3">
             <button

@@ -101,7 +101,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
   const getBadgeStyle = (type: string) => {
     switch (type) {
       case 'INITIAL':
-        return 'bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright border-brand/20 dark:border-brand/30';
+        return 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border-brand/20 dark:border-brand/30';
       case 'SALE':
         return 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30';
       case 'PURCHASE':
@@ -130,23 +130,23 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
       className="fixed inset-0 bg-ink/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in select-none"
     >
       <div 
-        className="bg-surface rounded-xl hairline-all shadow-2xl w-full max-w-5xl flex flex-col max-h-[88vh] overflow-hidden"
+        className="bg-surface dark:bg-surface-dark rounded-xl hairline-all shadow-2xl w-full max-w-5xl flex flex-col max-h-[88vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-line flex items-center justify-between bg-surface-2/60 shrink-0">
+        <div className="px-5 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-brand-soft text-brand flex items-center justify-center">
+            <div className="w-8 h-8 rounded bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
               <Boxes className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="t-modal-title text-ink leading-tight">كارت حركة المخزون</h3>
+                <h3 className="t-modal-title text-ink dark:text-ink-dark leading-tight">كارت حركة المخزون</h3>
                 <span className="px-2 py-0.5 rounded text-micro font-mono font-bold bg-brand text-white">
                   الرصيد الحالي: {currentStockDisplay}
                 </span>
               </div>
-              <p className="text-micro text-ink-muted leading-tight mt-0.5">{productName}</p>
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">{productName}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -166,7 +166,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
             <button
               type="button"
               onClick={requestClose}
-              className="w-7 h-7 rounded flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface border border-transparent hover:border-line transition-colors"
+              className="w-7 h-7 rounded flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 border border-transparent hover:border-line transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -174,7 +174,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
         </div>
 
         {/* Filter Toolbar */}
-        <div className="px-5 py-2.5 bg-surface border-b border-line flex items-center justify-between gap-2 shrink-0">
+        <div className="px-5 py-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-1.5 overflow-x-auto text-micro">
             {[
               { id: 'ALL', label: 'كل الحركات' },
@@ -190,8 +190,8 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                 onClick={() => setMovementTypeFilter(tab.id)}
                 className={`px-2.5 py-1 rounded font-semibold transition-colors shrink-0 ${
                   movementTypeFilter === tab.id
-                    ? 'bg-brand-soft text-brand font-bold'
-                    : 'text-ink-muted hover:bg-surface-2 hover:text-ink'
+                    ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-bold'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 {tab.label}
@@ -199,7 +199,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
             ))}
           </div>
 
-          <div className="text-micro text-ink-muted font-mono shrink-0">
+          <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">
             {movements.length} حركة مسجلة
           </div>
         </div>
@@ -207,30 +207,30 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
         {/* Content */}
         <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-3">
           {error && (
-            <div className="p-3 bg-danger-soft border border-danger/30 rounded text-danger text-xs flex items-center gap-2">
+            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 rounded text-danger dark:text-danger-bright text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {loading ? (
-            <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted">
-              <RefreshCw className="w-6 h-6 animate-spin text-brand" />
+            <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted dark:text-ink-dark-muted">
+              <RefreshCw className="w-6 h-6 animate-spin text-brand dark:text-brand-bright" />
               <span className="text-xs">جاري تحميل سجل حركات المخزون...</span>
             </div>
           ) : movements.length === 0 ? (
-            <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted">
-              <Boxes className="w-8 h-8 opacity-40 text-brand" />
-              <p className="text-sm font-semibold text-ink m-0">لا توجد حركات مخزون مسجلة لهذا الصنف</p>
-              <p className="text-micro text-ink-muted m-0">
+            <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted dark:text-ink-dark-muted">
+              <Boxes className="w-8 h-8 opacity-40 text-brand dark:text-brand-bright" />
+              <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">لا توجد حركات مخزون مسجلة لهذا الصنف</p>
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">
                 تسجل الحركات تلقائياً عند عمليات البيع، الشراء، أو التسويات الجردية.
               </p>
             </div>
           ) : (
-            <div className="border border-line rounded overflow-hidden">
+            <div className="border border-line dark:border-line-dark rounded overflow-hidden">
               <table className="w-full text-right border-collapse text-xs">
                 <thead>
-                  <tr className="bg-surface-2/80 border-b border-line text-ink-muted font-semibold text-micro">
+                  <tr className="bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-semibold text-micro">
                     <th className="py-2.5 px-3">التاريخ والوقت</th>
                     <th className="py-2.5 px-3">نوع الحركة</th>
                     <th className="py-2.5 px-3">الكمية</th>
@@ -238,14 +238,14 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                     <th className="py-2.5 px-3">الملاحظات والسبب</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line">
+                <tbody className="divide-y divide-line dark:divide-line-dark">
                   {movements.map(m => {
                     const isPositive = m.quantityMilli >= 0;
                     return (
-                      <tr key={m.id} className="hover:bg-surface-2/50 transition-colors">
-                        <td className="py-2.5 px-3 font-mono text-micro text-ink whitespace-nowrap">
+                      <tr key={m.id} className="hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors">
+                        <td className="py-2.5 px-3 font-mono text-micro text-ink dark:text-ink-dark whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
-                            <Calendar className="w-3 h-3 text-ink-muted" />
+                            <Calendar className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                             <span>{formatDate(m.createdAt)}</span>
                           </div>
                         </td>
@@ -257,7 +257,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                         </td>
 
                         <td className="py-2.5 px-3 font-mono font-bold whitespace-nowrap">
-                          <div className={`flex items-center gap-1 ${isPositive ? 'text-paid' : 'text-danger'}`}>
+                          <div className={`flex items-center gap-1 ${isPositive ? 'text-paid' : 'text-danger dark:text-danger-bright'}`}>
                             {isPositive ? (
                               <ArrowUpRight className="w-3.5 h-3.5" />
                             ) : (
@@ -267,15 +267,15 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                           </div>
                         </td>
 
-                        <td className="py-2.5 px-3 font-mono text-ink-muted whitespace-nowrap">
+                        <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
                           {formatArabicCurrency(m.unitCostPiasters)}
                         </td>
 
-                        <td className="py-2.5 px-3 text-ink-muted text-micro max-w-sm truncate" title={m.note || ''}>
+                        <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted text-micro max-w-sm truncate" title={m.note || ''}>
                           {m.note ? (
                             <span>{m.note}</span>
                           ) : (
-                            <span className="text-ink-muted/50">—</span>
+                            <span className="text-ink-muted/50 dark:text-ink-dark-muted">—</span>
                           )}
                         </td>
                       </tr>
@@ -288,8 +288,8 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-line bg-surface-2/40 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-1.5 text-micro text-ink-muted">
+        <div className="px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2/40 dark:bg-surface-dark-2/40 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-1.5 text-micro text-ink-muted dark:text-ink-dark-muted">
             <FileText className="w-3.5 h-3.5" />
             <span>جميع الحركات مسجلة بقيود ذرية غير قابلة للحذف المادي (قاعدة أمان البيانات #2)</span>
           </div>

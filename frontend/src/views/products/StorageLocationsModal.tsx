@@ -20,6 +20,7 @@ import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { useAuth } from '../../context/useAuth';
 import { invoke } from '../../bridge/ipc';
 import { printReport } from '../../utils/printReport';
+import { RequiredMark } from '../../components/RequiredMark';
 
 interface StorageLocationsModalProps {
   isOpen: boolean;
@@ -230,7 +231,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright">
+            <div className="p-2.5 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright">
               <Layers className="w-5 h-5" />
             </div>
             <div>
@@ -262,7 +263,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
               </div>
 
               {formError && (
-                <div className="p-3 bg-danger-soft dark:bg-danger-soft/20 text-danger dark:text-danger-bright rounded-lg text-xs flex items-center gap-2">
+                <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright rounded-lg text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{formError}</span>
                 </div>
@@ -271,7 +272,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                    كود الموقع / الرف *
+                    كود الموقع / الرف <RequiredMark />
                   </label>
                   <input
                     type="text"
@@ -285,7 +286,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                    اسم الرف أو الوصف المختصر *
+                    اسم الرف أو الوصف المختصر <RequiredMark />
                   </label>
                   <input
                     type="text"
@@ -299,7 +300,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                    نوع الموقع *
+                    نوع الموقع
                   </label>
                   <CustomSelect
                     value={type}
@@ -329,7 +330,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                     type="checkbox"
                     checked={isActive}
                     onChange={(e) => setIsActive(e.target.checked)}
-                    className="rounded border-line text-brand focus:ring-brand w-4 h-4"
+                    className="rounded border-line dark:border-line-dark text-brand focus:ring-brand w-4 h-4"
                   />
                   <span>الموقع نشط ومتاح للتسكين</span>
                 </label>
@@ -345,7 +346,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-4 py-1.5 bg-brand hover:bg-brand-dark text-white rounded text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+                    className="px-4 py-1.5 bg-brand hover:bg-brand-dark text-white rounded text-xs font-bold transition-colors disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer shadow-xs"
                   >
                     {saving ? 'جاري الحفظ...' : editingId ? 'تحديث الموقع' : 'إضافة الموقع'}
                   </button>
@@ -537,7 +538,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-paid-soft text-paid dark:text-paid-bright">
+                <div className="p-2 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright">
                   <FileSpreadsheet className="w-5 h-5" />
                 </div>
                 <div>
@@ -588,7 +589,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                   <tbody className="divide-y divide-line dark:divide-line-dark">
                     {draftSheet.items.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="p-6 text-center text-ink-muted">
+                        <td colSpan={7} className="p-6 text-center text-ink-muted dark:text-ink-dark-muted">
                           لا توجد أصناف مسكنة على هذا الرف حالياً
                         </td>
                       </tr>

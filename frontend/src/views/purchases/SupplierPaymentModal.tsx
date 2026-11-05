@@ -4,6 +4,7 @@ import type { Supplier } from '../../types/models';
 import { formatMoney } from './types';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
+import { RequiredMark } from '../../components/RequiredMark';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { invoke } from '../../bridge/ipc';
 import { formatArabicCurrency } from '../../utils/money';
@@ -163,7 +164,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-bold text-ink dark:text-ink-dark block">
-                المبلغ المراد سداده <span className="text-danger dark:text-danger-bright">*</span>
+                المبلغ المراد سداده <RequiredMark />
               </label>
               {isDebt && (
                 <button
@@ -275,7 +276,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           {/* Payment Source Selection */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-ink dark:text-ink-dark block">
-              مصدر النقدية المصروفة للسداد <span className="text-danger dark:text-danger-bright">*</span>
+              مصدر النقدية المصروفة للسداد
             </label>
             <CustomSelect
               value={paymentSource}

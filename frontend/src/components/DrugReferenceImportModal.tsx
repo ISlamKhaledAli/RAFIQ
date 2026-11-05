@@ -259,7 +259,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
         );
 
         const count = res.createdCount ?? res.importedCount ?? previewData?.newRowsCount ?? 0;
-        const msg = `تم استيراد الدليل المرجعي بنجاح: تم اعتماد (${count}) دواء في قاعدة بيانات الدليل الاسترشادي.`;
+        const msg = `تم استيراد الدليل المرجعي: ${count} دواء`;
         setSuccessMessage(msg);
         setSelectedFile(null);
         setFileBase64('');
@@ -323,7 +323,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
         totalImported += (res.createdCount ?? res.importedCount ?? batchItems.length);
       }
 
-      const msg = `تم استيراد الدليل المرجعي بنجاح: تم اعتماد (${totalImported}) دواء في قاعدة بيانات الدليل الاسترشادي.`;
+      const msg = `تم استيراد الدليل المرجعي: ${totalImported} دواء`;
       setSuccessMessage(msg);
       setSelectedFile(null);
       setFileBase64('');
@@ -345,7 +345,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
     try {
       const count = await invoke<number>('pharma:clearDrugReference');
       setIsConfirmClearOpen(false);
-      setSuccessMessage(`تم مسح دليل الأدوية بالكامل بنجاح (${count} صنف تم تفريغها)`);
+      setSuccessMessage(`تم مسح دليل الأدوية (${count} صنف)`);
       setSearchResults([]);
       setTotalCount(0);
       setGrandTotal(0);
@@ -398,7 +398,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
           {/* 1. Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center shadow-2xs border border-brand/20">
+              <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shadow-2xs border border-brand/20">
                 <BookOpen className="w-5 h-5" />
               </div>
               <div>
@@ -492,7 +492,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                       type="button"
                       onClick={() => void handleImportBuiltinCatalog()}
                       disabled={isLoadingBuiltin || isPreviewing}
-                      className="shrink-0 h-9 px-3.5 rounded-xl bg-paid hover:bg-paid-dark text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                      className="shrink-0 h-9 px-3.5 rounded-xl bg-paid hover:bg-paid-dark text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                       title="استيراد ومعاينة الدليل الشامل (26,562 دواء مصري) بضغطة زر واحدة مباشرة"
                     >
                       <RefreshCw className={`w-4 h-4 ${isLoadingBuiltin ? 'animate-spin' : ''}`} />
@@ -511,7 +511,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                       type="button"
                       onClick={() => void handleDownloadTemplate()}
                       disabled={isDownloadingTemplate}
-                      className="shrink-0 h-9 px-3 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                      className="shrink-0 h-9 px-3 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                     >
                       <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-paid-bright" />
                       <span>{isDownloadingTemplate ? 'جاري التوليد...' : 'قالب إكسل فارغ'}</span>
@@ -539,7 +539,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                       onChange={handleFileChange}
                       className="hidden"
                     />
-                    <div className="w-12 h-12 rounded-2xl bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-2xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
                       <FileSpreadsheet className="w-6 h-6" />
                     </div>
                     <div>
@@ -561,7 +561,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                         <FileSpreadsheet className="w-5 h-5 text-brand dark:text-brand-bright" />
                         <div>
                           <p className="text-xs font-bold text-ink dark:text-ink-dark font-mono">{selectedFile.name}</p>
-                          <p className="text-micro text-ink-muted">{(selectedFile.size / 1024).toFixed(1)} كيلوبايت</p>
+                          <p className="text-micro text-ink-muted dark:text-ink-dark-muted">{(selectedFile.size / 1024).toFixed(1)} كيلوبايت</p>
                         </div>
                       </div>
                       <button
@@ -579,8 +579,8 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                     </div>
 
                     {isPreviewing && (
-                      <div className="p-8 text-center text-ink-muted space-y-2">
-                        <RefreshCw className="w-6 h-6 animate-spin mx-auto text-brand" />
+                      <div className="p-8 text-center text-ink-muted dark:text-ink-dark-muted space-y-2">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto text-brand dark:text-brand-bright" />
                         <p className="text-xs font-bold">جاري قراءة وفحص ملف الإكسل ومقارنته بقاعدة البيانات...</p>
                       </div>
                     )}
@@ -659,13 +659,13 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                             onChange={(e) => setPreviewSearch(e.target.value)}
                             className="w-full h-9 pl-8 pr-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                           />
-                          <Search className="w-4 h-4 text-ink-muted absolute left-2.5 top-2.5" />
+                          <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute left-2.5 top-2.5" />
                         </div>
 
                         {/* Preview Table */}
                         <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden max-h-72 overflow-y-auto">
                           <table className="w-full text-right text-xs">
-                            <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted sticky top-0 border-b border-line dark:border-line-dark text-micro">
+                            <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted sticky top-0 border-b border-line dark:border-line-dark text-micro">
                               <tr>
                                 <th className="p-2 w-12 text-center">#</th>
                                 <th className="p-2 w-28">الباركود</th>
@@ -740,7 +740,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                               ))}
                               {filteredPreviewRows.length === 0 && (
                                 <tr>
-                                  <td colSpan={8} className="p-6 text-center text-ink-muted">
+                                  <td colSpan={8} className="p-6 text-center text-ink-muted dark:text-ink-dark-muted">
                                     لا توجد صفوف تطابق الفلتر الحالي
                                   </td>
                                 </tr>
@@ -768,14 +768,14 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                       }}
                       className="w-full h-10 pl-9 pr-3.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                     />
-                    <Search className="w-4 h-4 text-ink-muted absolute left-3 top-3" />
+                    <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute left-3 top-3" />
                   </div>
 
                   <button
                     type="button"
                     onClick={handleTriggerSearch}
                     disabled={isSearching}
-                    className="h-10 px-4 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="h-10 px-4 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSearching ? 'animate-spin' : ''}`} />
                     <span>بحث</span>
@@ -795,7 +795,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                 {/* Table of Drugs */}
                 <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden max-h-96 overflow-y-auto">
                   <table className="w-full text-right text-xs">
-                    <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted sticky top-0 border-b border-line dark:border-line-dark text-micro">
+                    <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted sticky top-0 border-b border-line dark:border-line-dark text-micro">
                       <tr>
                         <th className="p-2.5 w-32">الباركود</th>
                         <th className="p-2.5">الاسم التجاري والمواصفات</th>
@@ -849,7 +849,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                       ))}
                       {searchResults.length === 0 && !isSearching && (
                         <tr>
-                          <td colSpan={6} className="p-8 text-center text-ink-muted">
+                          <td colSpan={6} className="p-8 text-center text-ink-muted dark:text-ink-dark-muted">
                             <Pill className="w-8 h-8 mx-auto mb-2 opacity-30" />
                             <p className="text-xs">لا توجد أدوية مطابقة للبحث أو أن الدليل فارغ حالياً.</p>
                           </td>
@@ -881,12 +881,12 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
 
           {/* 3. Footer */}
           <div className="px-6 py-3.5 border-t border-line dark:border-line-dark bg-surface-2/40 dark:bg-surface-dark-2/40 flex items-center justify-between shrink-0">
-            <div className="text-micro text-ink-muted">
+            <div className="text-micro text-ink-muted dark:text-ink-dark-muted">
               {grandTotal > 0 && (
                 <span>
                   إجمالي الأدوية المسجلة بالدليل المرجعي: <strong className="text-brand dark:text-brand-bright font-mono font-bold">{grandTotal.toLocaleString('en-US')}</strong> دواء
                   {searchQuery.trim() && totalCount !== grandTotal && (
-                    <span className="mr-2 text-ink-muted font-normal">({totalCount.toLocaleString('en-US')} نتيجة مطابقة للبحث)</span>
+                    <span className="mr-2 text-ink-muted dark:text-ink-dark-muted font-normal">({totalCount.toLocaleString('en-US')} نتيجة مطابقة للبحث)</span>
                   )}
                 </span>
               )}
@@ -906,7 +906,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                   type="button"
                   onClick={() => void handleConfirmImport()}
                   disabled={isImporting || (previewData.newRowsCount === 0 && previewData.updateRowsCount === 0)}
-                  className="px-5 h-9 bg-brand dark:bg-brand-bright hover:bg-brand-dark text-white dark:text-surface-dark rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-5 h-9 bg-brand dark:bg-brand-bright hover:bg-brand-dark text-white dark:text-surface-dark rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark flex items-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>

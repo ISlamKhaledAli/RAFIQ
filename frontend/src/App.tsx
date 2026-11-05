@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import type { FC } from 'react';
 import { 
   ShoppingCart, 
@@ -50,7 +50,6 @@ import {
   DownloadCloud,
   Ellipsis,
   LogOut,
-  ArrowLeftRight,
 } from 'lucide-react';
 import { HeaderMenu, type HeaderMenuItem } from './components/HeaderMenu';
 import { TextScaleControl } from './components/TextScaleControl';
@@ -89,7 +88,6 @@ import { ReadinessCheckModal } from './components/ReadinessCheckModal';
 import { RafiqLoadingState } from './components/RafiqLoadingState';
 import { RafiqDialogContainer } from './components/RafiqDialog';
 import { rafiqConfirm, rafiqAlert } from './utils/dialogService';
-import { LoginModal } from './components/LoginModal';
 import { UserManagerModal } from './components/UserManagerModal';
 import { ShiftModal } from './components/ShiftModal';
 import { SupervisorPromptModal } from './components/SupervisorPromptModal';
@@ -148,7 +146,7 @@ const HeaderClock: FC = memo(() => {
     <div className="flex items-center gap-1.5 sm:gap-2 bg-white dark:bg-surface-dark-2 border border-line dark:border-line-dark px-2.5 py-1 rounded-lg tabular-nums text-xs font-semibold text-ink dark:text-ink-dark shadow-2xs shrink-0">
       <Clock className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted shrink-0" />
       <span className="text-ink-muted dark:text-ink-dark-muted font-normal text-micro hidden xl:inline">{date}</span>
-      <span className="text-line dark:text-line-dark hidden xl:inline">|</span>
+      <span className="text-line dark:text-line-dark-strong hidden xl:inline">|</span>
       <span className="font-mono text-paid dark:text-brand-bright font-bold tracking-wide text-xs">{time || '00:00:00'}</span>
     </div>
   );
@@ -179,12 +177,15 @@ export default function App() {
   const canCheckBackup = hasPermission('settings.backup');
   const canViewShifts = hasPermission('shifts.view');
   const canOpenShiftPanel = canViewShifts || hasPermission('shifts.open');
-  // Top bar visibility per role (updates:check is admin-only on the server; users.view gates the staff screen)
+  // Top bar visibility per role (updates need system.updates, an owner-grade key; users.view gates the staff screen)
+  const canUpdateApp = hasPermission('system.updates');
+  const canManageLicense = hasPermission('settings.license');
   const headerAccess = getHeaderVisibility({
     user: currentUser,
     canOpenShiftPanel,
     canManageUsers: hasPermission('users.view'),
     canViewProducts: canAccessProducts,
+    canUpdateApp,
   });
   const canSeeUpdates = headerAccess.showUpdates;
   // Land on the first purchases screen the user may actually use
@@ -331,7 +332,7 @@ export default function App() {
   const [isReadinessOpen, setIsReadinessOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(true);
   const [storeName, setStoreName] = useState(APP_TITLE);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  // Idle auto-lock: after the idle timeout the session is really closed (log out), so the next person must log in again
   const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
@@ -396,15 +397,15 @@ export default function App() {
   const [isLicenseReadOnlyMode, setIsLicenseReadOnlyMode] = useState(false);
 
   useEffect(() => {
-    // License activation / transfer is owner-only (server-enforced too)
+    // License activation / transfer needs settings.license (owner/root, or a manager the owner granted it to; server-enforced too)
     const handleOpenLicenseEvent = () => {
-      if (isOwnerOrRoot) setIsLicenseModalOpen(true);
+      if (canManageLicense) setIsLicenseModalOpen(true);
     };
     window.addEventListener('rafiq:open-license', handleOpenLicenseEvent);
     return () => {
       window.removeEventListener('rafiq:open-license', handleOpenLicenseEvent);
     };
-  }, [isOwnerOrRoot]);
+  }, [canManageLicense]);
 
   // Feature #176: Unified Notification & Alert System State
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
@@ -425,7 +426,7 @@ export default function App() {
     availableUpdate: canSeeUpdates ? availableUpdate : null,
     onOpenUpdateModal: () => setIsAppUpdateModalOpen(true),
     onOpenLicenseModal: () => {
-      if (isOwnerOrRoot) setIsLicenseModalOpen(true);
+      if (canManageLicense) setIsLicenseModalOpen(true);
     },
     onOpenLockScreen: () => setIsLockScreenOpen(true),
     onOpenBackupSettings: () => {
@@ -448,8 +449,13 @@ export default function App() {
 
   // Role-appropriate alerts: a cashier never gets owner-only alerts or action buttons they cannot use
   const systemNotifications = useMemo(
-    () => filterNotificationsForAudience(allSystemNotifications, { kind: headerAccess.kind, canViewProducts: canAccessProducts }),
-    [allSystemNotifications, headerAccess.kind, canAccessProducts],
+    () => filterNotificationsForAudience(allSystemNotifications, {
+      kind: headerAccess.kind,
+      canViewProducts: canAccessProducts,
+      canUpdateApp,
+      canManageLicense,
+    }),
+    [allSystemNotifications, headerAccess.kind, canAccessProducts, canUpdateApp, canManageLicense],
   );
 
   const refreshLicenseStatus = useCallback(async () => {
@@ -513,15 +519,20 @@ export default function App() {
     };
   }, [isLicenseReadOnlyMode]);
 
-  // Track user idle timeout to lock session automatically (Task 166-6)
+  // Track user idle timeout to lock session automatically (Task 166-6): the session is closed, not just covered
+  const logoutRef = useRef(logout);
   useEffect(() => {
-    if (idleTimeoutMinutes <= 0) return;
+    logoutRef.current = logout;
+  });
+  const isSignedIn = Boolean(currentUser);
+  useEffect(() => {
+    if (idleTimeoutMinutes <= 0 || !isSignedIn) return;
 
     let timeoutId: any;
     const resetIdleTimer = () => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        setIsLoginModalOpen(true);
+        void logoutRef.current();
       }, idleTimeoutMinutes * 60 * 1000);
     };
 
@@ -533,7 +544,7 @@ export default function App() {
       clearTimeout(timeoutId);
       events.forEach((evt) => window.removeEventListener(evt, resetIdleTimer));
     };
-  }, [idleTimeoutMinutes]);
+  }, [idleTimeoutMinutes, isSignedIn]);
 
   const handleToggleFullscreen = async () => {
     try {
@@ -866,7 +877,7 @@ export default function App() {
       ]);
       // Keep loading visible for a pleasant smooth feedback moment (600ms)
       await new Promise((resolve) => setTimeout(resolve, 600));
-      setRefreshToastMsg('تم تحديث كافة بيانات النظام والعمليات بنجاح');
+      setRefreshToastMsg('تم تحديث البيانات');
       setTimeout(() => {
         setRefreshToastMsg(null);
       }, 2500);
@@ -1015,6 +1026,7 @@ export default function App() {
   const settingsTreeItems = useMemo<SettingsTreeItem[]>(() => {
     const labels: Record<SettingsSubTab, { label: string; icon: any }> = {
       profile: { label: 'بيانات المحل والفاتورة', icon: Store },
+      policies: { label: 'سياسات البيع والمخزون', icon: ClipboardList },
       features: { label: 'ميزات ونشاط المحل', icon: SlidersHorizontal },
       printer: { label: 'إعدادات الطابعة والورق', icon: Printer },
       scanner: { label: 'قارئ الباركود والاسكانر', icon: Barcode },
@@ -1198,17 +1210,18 @@ export default function App() {
   // Server blocks every action until the PIN is changed, so no screen is rendered before that
   if (requiresForcedPinChange(currentUser)) {
     return (
-      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-auto select-none bg-canvas flex items-center justify-center p-4" dir="rtl">
-        <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
-          <div className="h-1.5 w-full bg-brand" />
-          <div className="px-6 py-4 flex items-center justify-between gap-3 border-b border-line">
-            <h2 className="text-lg font-black text-ink">تحديث أمني إلزامي: تعيين رقم سري جديد</h2>
+      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-auto select-none bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark flex items-center justify-center p-4" dir="rtl">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
+          <div className="h-1.5 w-full bg-brand dark:bg-brand-bright" />
+          <div className="px-6 py-4 flex items-center justify-between gap-3 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2">
+            <h2 className="t-modal-title text-ink dark:text-ink-dark">تحديث أمني إلزامي: تعيين رقم سري جديد</h2>
             <button
               type="button"
               onClick={() => void logout()}
-              className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark px-3 py-1.5 rounded-lg border border-line hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
+              className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-high focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:focus-visible:ring-brand-bright transition-colors cursor-pointer"
             >
-              تسجيل الخروج
+              <LogOut className="w-3.5 h-3.5" />
+              <span>تسجيل الخروج</span>
             </button>
           </div>
           <ForcedPinChangeForm user={currentUser} onPinChanged={() => void refreshUser()} />
@@ -1223,9 +1236,10 @@ export default function App() {
   const handleLogoutClick = async () => {
     const confirmed = await rafiqConfirm({
       title: 'تسجيل الخروج',
-      message: 'هل تريد تسجيل الخروج وقفل شاشة الكاشير الآن؟',
+      message: 'هل تريد تسجيل الخروج الآن؟ ستحتاج لإدخال الرقم السري للدخول مرة أخرى.',
       confirmText: 'تسجيل الخروج',
       cancelText: 'إلغاء',
+      variant: 'danger',
     });
     if (confirmed) {
       await logout();
@@ -1234,13 +1248,11 @@ export default function App() {
 
   // Top bar menus. Every capability removed from the bar has a home here (the F1/F5/F11 shortcuts are unchanged).
   const userMenuItems: HeaderMenuItem[] = [
-    { id: 'switch-user', label: 'تبديل المستخدم', icon: ArrowLeftRight, onSelect: () => setIsLoginModalOpen(true) },
     { id: 'shortcuts', label: 'اختصارات الكيبورد', icon: Keyboard, hint: 'F1', onSelect: () => setIsShortcutsModalOpen(true) },
     { id: 'help', label: 'مركز المساعدة والدعم', icon: HelpCircle, onSelect: () => openHelpCenterModal(effectiveActiveTab) },
-    { id: 'logout', label: 'تسجيل الخروج وقفل النظام', icon: LogOut, tone: 'danger', separatorBefore: true, onSelect: () => void handleLogoutClick() },
+    { id: 'logout', label: 'تسجيل الخروج', icon: LogOut, tone: 'danger', separatorBefore: true, onSelect: () => void handleLogoutClick() },
   ];
   const moreMenuItems: HeaderMenuItem[] = [
-    { id: 'refresh', label: 'تحديث البيانات', icon: RefreshCw, hint: 'F5', onSelect: () => void handleUniversalRefresh() },
     { id: 'minimize', label: 'تصغير إلى شريط المهام', icon: Minus, onSelect: () => void handleMinimizeWindow() },
     ...(headerAccess.showEmployees
       ? [{ id: 'employees', label: 'الموظفون والصلاحيات', icon: Users, separatorBefore: true, onSelect: () => setIsUserManagerOpen(true) } satisfies HeaderMenuItem]
@@ -1252,6 +1264,9 @@ export default function App() {
       ? [{ id: 'readiness', label: 'فحص جاهزية التشغيل والعتاد', icon: CheckCircle2, onSelect: () => setIsReadinessOpen(true) } satisfies HeaderMenuItem]
       : []),
   ];
+  const SingleMoreIcon = moreMenuItems[0].icon;
+  const moreTriggerClassName =
+    'w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer';
 
   return (
     <div className="flex flex-col h-screen w-screen bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-hidden relative">
@@ -1340,6 +1355,18 @@ export default function App() {
             onClick={() => setIsNotificationDrawerOpen((prev) => !prev)}
           />
 
+          {/* Refresh all data (F5) */}
+          <button
+            type="button"
+            onClick={() => void handleUniversalRefresh()}
+            aria-label="تحديث البيانات"
+            aria-busy={isUniversalRefreshing}
+            className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+            title="تحديث البيانات (F5)"
+          >
+            <RefreshCw className={`w-4 h-4 ${isUniversalRefreshing ? 'animate-spin text-brand dark:text-brand-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
+          </button>
+
           {/* Fullscreen Kiosk Mode Toggle */}
           <button
             type="button"
@@ -1368,19 +1395,31 @@ export default function App() {
             )}
           </button>
 
-          {/* More menu: rarely used items (refresh, minimise, staff, updates, readiness) */}
-          <HeaderMenu
-            ariaLabel="المزيد من الأدوات"
-            title="المزيد: تحديث البيانات، تصغير النافذة، وأدوات أخرى"
-            triggerClassName="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer"
-            triggerContent={<Ellipsis className={`w-4 h-4 ${isUniversalRefreshing ? 'animate-pulse' : ''}`} />}
-            items={moreMenuItems}
-          />
+          {/* More menu: shown only when it has several items; with a single item that item is shown directly */}
+          {moreMenuItems.length === 1 ? (
+            <button
+              type="button"
+              onClick={moreMenuItems[0].onSelect}
+              className={moreTriggerClassName}
+              title={moreMenuItems[0].label}
+              aria-label={moreMenuItems[0].label}
+            >
+              <SingleMoreIcon className="w-4 h-4" />
+            </button>
+          ) : (
+            <HeaderMenu
+              ariaLabel="المزيد من الأدوات"
+              title="المزيد: تصغير النافذة وأدوات أخرى"
+              triggerClassName={moreTriggerClassName}
+              triggerContent={<Ellipsis className="w-4 h-4" />}
+              items={moreMenuItems}
+            />
+          )}
 
           {/* Date & Time */}
           <HeaderClock />
 
-          {/* User menu: avatar and name coloured by role; switch user, shortcuts, help, logout */}
+          {/* User menu: avatar and name coloured by role; shortcuts, help, logout (switching user = log out, then log in) */}
           <HeaderMenu
             ariaLabel="قائمة المستخدم"
             title={`${currentUser.displayName || ''} (${getRoleLabel(currentUser)}) - قائمة المستخدم`}
@@ -2180,19 +2219,6 @@ export default function App() {
         onClose={() => setIsReadinessOpen(false)}
         onNavigateToTab={(tab) => {
           setActiveTab(tab as TabType);
-        }}
-      />
-
-      {/* Employee Login / Lock Screen Modal (Task 166-3 & Task 166-6) */}
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        canCancel={Boolean(currentUser)}
-        onClose={() => setIsLoginModalOpen(false)}
-        onSuccess={async () => {
-          await refreshUser();
-          setIsLoginModalOpen(false);
-          setActiveTab('pos');
-          emitDataChanged('all');
         }}
       />
 

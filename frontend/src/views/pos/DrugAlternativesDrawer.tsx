@@ -131,7 +131,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
         notes: 'تم التسجيل تلقائياً من محرك البدائل عند طلب العميل ونفاد الرصيد بالمخزن',
       });
       setIsRecordedInShortages(true);
-      setShortageNotice('تم تسجيل الصنف في كشكول النواقص بنجاح');
+      setShortageNotice('تم تسجيل الصنف في كشكول النواقص');
       setTimeout(() => setShortageNotice(null), 3500);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'تعذر تسجيل النواقص';

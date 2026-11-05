@@ -3,6 +3,7 @@ import { CreditCard, Sparkles, X, Coins, ArrowLeftRight, Check, AlertCircle, Sma
 import type { Customer } from '../../types/models';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
+import { RequiredMark } from '../../components/RequiredMark';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatArabicCurrency } from '../../utils/money';
 import { invoke } from '../../bridge/ipc';
@@ -182,7 +183,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           {/* Payment Method Selector */}
           <div>
             <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1.5">
-              طريقة استلام وسداد الدفعة <span className="text-danger dark:text-danger-bright">*</span>
+              طريقة استلام وسداد الدفعة
             </label>
             <CustomSelect
               value={paymentMethod}
@@ -227,7 +228,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                 {paymentMethod === 'cash'
                   ? 'المبلغ المستلم كاش من يد العميل'
                   : 'المبلغ المحول إلكترونياً من العميل'}{' '}
-                <span className="text-danger dark:text-danger-bright">*</span>
+                <RequiredMark />
               </label>
               {isDebt && (
                 <button
@@ -362,7 +363,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           {/* Notes Input */}
           <div>
             <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-              ملاحظات أو بيان السند (اختياري)
+              ملاحظات أو بيان السند
             </label>
             <input
               type="text"

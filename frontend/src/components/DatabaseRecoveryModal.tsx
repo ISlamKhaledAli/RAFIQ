@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { RequiredMark } from './RequiredMark';
 
 export interface DatabaseIntegrityStatus {
   isValid: boolean;
@@ -68,7 +69,7 @@ export const DatabaseRecoveryModal = ({
       // No session exists while the database is corrupt: the owner recovery code is verified server-side against the backup
       const res: any = await invoke('database:restore', { backupFilePath: targetPath, recoveryCode: recoveryCode.trim() });
       if (res && res.success) {
-        setSuccessMessage(res.message || 'تم استرجاع قاعدة البيانات بنجاح.');
+        setSuccessMessage(res.message || 'تم استرجاع قاعدة البيانات');
         setTimeout(() => {
           onRestored();
         }, 1500);
@@ -100,7 +101,7 @@ export const DatabaseRecoveryModal = ({
       onClick={canDismiss ? handleBackdropClick : undefined}
     >
       <div 
-        className="w-full max-w-xl bg-surface rounded-[8px] shadow-2xl border border-red-300 overflow-hidden flex flex-col text-right"
+        className="w-full max-w-xl bg-surface dark:bg-surface-dark rounded-[8px] shadow-2xl border border-red-300 dark:border-danger-bright/30 overflow-hidden flex flex-col text-right"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. Modal Top Banner */}
@@ -124,7 +125,7 @@ export const DatabaseRecoveryModal = ({
           {!status.isCorrupt && onDismiss && (
             <button
               onClick={requestClose}
-              className="text-white/80 hover:text-white text-xs px-2.5 py-1 rounded hover:bg-white/10 flex items-center gap-1 cursor-pointer"
+              className="text-white hover:text-white text-xs px-2.5 py-1 rounded hover:bg-white/10 flex items-center gap-1 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
               <span>إغلاق</span>
@@ -178,10 +179,10 @@ export const DatabaseRecoveryModal = ({
           )}
 
           {/* Owner recovery code: the only restore authorisation (works without a login session) */}
-          <div className="p-2.5 bg-surface border border-line rounded flex flex-col gap-1.5">
-            <label htmlFor="db-recovery-code" className="text-micro font-bold text-ink flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-brand" />
-              <span>أدخل كود استرجاع المالك (Recovery Code) لتأكيد الاسترجاع:</span>
+          <div className="p-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded flex flex-col gap-1.5">
+            <label htmlFor="db-recovery-code" className="text-micro font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+              <span>أدخل كود استرجاع المالك (Recovery Code) لتأكيد الاسترجاع: <RequiredMark /></span>
             </label>
             <input
               id="db-recovery-code"
@@ -190,39 +191,39 @@ export const DatabaseRecoveryModal = ({
               onChange={(e) => setRecoveryCode(e.target.value)}
               placeholder="RFK-XXXX-XXXX-XXXX"
               autoComplete="off"
-              className="w-full bg-surface-2 border border-line rounded h-[36px] px-3 text-sm font-mono text-center tracking-widest text-ink focus:outline-none focus:border-brand"
+              className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] px-3 text-sm font-mono text-center tracking-widest text-ink focus:outline-none focus:border-brand"
               dir="ltr"
             />
-            <span className="text-micro text-ink-muted">
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
               الكود اللي اتسلم لصاحب المحل عند إعداد النسخ الاحتياطي، وهو اللي بيفتح النسخة المشفرة.
             </span>
           </div>
 
           {/* Latest Verified Backup Card */}
           {status.latestValidBackupFile ? (
-            <div className="p-4 rounded-[6px] border border-brand/40 bg-brand-soft/20 flex flex-col gap-2.5">
-              <div className="flex items-center justify-between border-b border-line pb-2">
-                <span className="font-bold text-brand text-sm flex items-center gap-1.5">
+            <div className="p-4 rounded-[6px] border border-brand/40 bg-brand-soft/20 dark:bg-brand-dark-soft/20 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-2">
+                <span className="font-bold text-brand dark:text-brand-bright text-sm flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4" />
                   <span>أحدث نسخة احتياطية سليمة ومضمونة:</span>
                 </span>
-                <span className="text-micro font-bold text-paid bg-paid-soft px-2 py-0.5 rounded border border-paid-border">
+                <span className="text-micro font-bold text-paid bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded border border-paid-border dark:border-paid-bright/30">
                   تم التحقق من سلامتها
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-micro">
-                <div className="flex items-center gap-1.5 text-ink-muted">
-                  <Clock className="w-3.5 h-3.5 text-brand" />
+                <div className="flex items-center gap-1.5 text-ink-muted dark:text-ink-dark-muted">
+                  <Clock className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                   <span>التاريخ: {status.latestValidBackupDate || 'غير محدد'}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-ink-muted font-mono">
-                  <HardDrive className="w-3.5 h-3.5 text-ink-muted" />
+                <div className="flex items-center gap-1.5 text-ink-muted dark:text-ink-dark-muted font-mono">
+                  <HardDrive className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
                   <span>الحجم: {formatBytes(status.latestValidBackupSizeBytes)}</span>
                 </div>
               </div>
 
-              <div className="text-micro font-mono text-ink-muted break-all bg-surface-2 p-1.5 rounded border border-line">
+              <div className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted break-all bg-surface-2 dark:bg-surface-dark-2 p-1.5 rounded border border-line dark:border-line-dark">
                 {status.latestValidBackupFile}
               </div>
 
@@ -231,7 +232,7 @@ export const DatabaseRecoveryModal = ({
                 type="button"
                 onClick={() => void handleRestore(status.latestValidBackupFile)}
                 disabled={restoring || !recoveryCode.trim()}
-                className="mt-1 h-[42px] bg-brand hover:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted text-white rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm text-sm"
+                className="mt-1 h-[42px] bg-brand hover:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted dark:disabled:opacity-100 text-white rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm text-sm"
               >
                 {restoring ? (
                   <>
@@ -247,17 +248,17 @@ export const DatabaseRecoveryModal = ({
               </button>
             </div>
           ) : (
-            <div className="p-4 bg-surface-2 rounded border border-line text-center text-ink-muted">
+            <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark text-center text-ink-muted dark:text-ink-dark-muted">
               ملقناش نسخ احتياطية في المجلد المعتاد. تقدر تختار ملف نسخة احتياطية من فلاشة أو مسار تاني تحت.
             </div>
           )}
 
           {/* Manual File Path Option */}
-          <div className="pt-2 border-t border-line flex flex-col gap-2">
+          <div className="pt-2 border-t border-line dark:border-line-dark flex flex-col gap-2">
             <button
               type="button"
               onClick={() => setUseCustomFile(!useCustomFile)}
-              className="text-brand hover:underline font-semibold text-xs flex items-center gap-1 self-start"
+              className="text-brand dark:text-brand-bright hover:underline font-semibold text-xs flex items-center gap-1 self-start"
             >
               <FolderOpen className="w-3.5 h-3.5" />
               <span>{useCustomFile ? 'إخفاء تحديد الملف يدوياً' : 'أو اختر ملف نسخة احتياطية من فلاشة يدوياً'}</span>
@@ -270,15 +271,15 @@ export const DatabaseRecoveryModal = ({
                   value={customFile}
                   onChange={(e) => setCustomFile(e.target.value)}
                   placeholder="مثال: E:\RafiqBackups\rafiq_backup_20260924_120000.db"
-                  className="w-full bg-surface border border-line rounded h-[38px] px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
+                  className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[38px] px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
                 />
                 <button
                   type="button"
                   onClick={() => void handleRestore(customFile)}
                   disabled={restoring || !customFile.trim() || !recoveryCode.trim()}
-                  className="h-[36px] bg-surface-2 hover:bg-surface disabled:opacity-50 border border-line text-ink rounded font-bold flex items-center justify-center gap-1.5 transition-colors self-end px-4"
+                  className="h-[36px] bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-2 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded font-bold flex items-center justify-center gap-1.5 transition-colors self-end px-4"
                 >
-                  <RotateCcw className="w-3.5 h-3.5 text-brand" />
+                  <RotateCcw className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                   <span>استرجاع من الملف ده</span>
                 </button>
               </div>
@@ -287,7 +288,7 @@ export const DatabaseRecoveryModal = ({
         </div>
 
         {/* 3. Modal Footer */}
-        <div className="p-3 bg-surface-2 border-t border-line flex items-center justify-between text-micro text-ink-muted">
+        <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted">
           <span className="flex items-center gap-1.5">
             <span>بنحفظ نسخة أمان من الوضع الحالي قبل أي استرجاع • للدعم الفني المباشر:</span>
             <a href="tel:01097782965" className="font-mono font-bold text-paid hover:underline" dir="ltr">01097782965</a>
@@ -295,7 +296,7 @@ export const DatabaseRecoveryModal = ({
           {!status.isCorrupt && onDismiss && !isStandaloneDialog && (
             <button
               onClick={onDismiss}
-              className="px-3 py-1 bg-surface border border-line rounded text-ink hover:bg-surface-2"
+              className="px-3 py-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2"
             >
               إلغاء
             </button>

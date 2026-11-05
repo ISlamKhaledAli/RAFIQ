@@ -109,7 +109,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
     if (!returnId) return;
     try {
       await invoke('returns:printReceipt', { returnId });
-      setReprintFeedback('تم إرسال أمر طباعة إيصال المرتجع للطابعة بنجاح.');
+      setReprintFeedback('تم إرسال إيصال المرتجع للطابعة');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'تعذر إرسال أمر الطباعة';
       setReprintFeedback('تنبيه: ' + msg);
@@ -120,7 +120,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
     setSelectedSale(cancelled);
     setSales((prev) => prev.map((s) => (s.id === cancelled.id ? cancelled : s)));
     setShowCancelModal(false);
-    setReprintFeedback('تم إلغاء الفاتورة بنجاح، وإرجاع الأصناف للمخزون، وتوثيق العملية في سجل النظام.');
+    setReprintFeedback('تم إلغاء الفاتورة وإرجاع الأصناف للمخزون');
   };
 
   const handleReturnCompleted = () => {
@@ -136,7 +136,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
       }
     }
     void loadSales();
-    setReprintFeedback('تم تسجيل المرتجع بنجاح وتحديث حركة المبيعات والمخزون.');
+    setReprintFeedback('تم تسجيل المرتجع');
   };
 
   const loadSales = async () => {
@@ -266,7 +266,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         isCopy: true
       });
       if (res && res.success) {
-        setReprintFeedback('تمت إعادة طباعة نسخة طبق الأصل بنجاح وتوثيقها في سجل النظام.');
+        setReprintFeedback('تمت إعادة طباعة النسخة');
       } else {
         setReprintFeedback(res?.message || 'تم إرسال أمر طباعة النسخة.');
       }

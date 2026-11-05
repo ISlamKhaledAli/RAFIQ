@@ -6,7 +6,6 @@ import {
   ShieldCheck,
   Key,
   Lock,
-  LogIn,
   Search,
   Check,
   X,
@@ -16,8 +15,6 @@ import {
   CheckSquare,
   Square,
   Edit3,
-  Eye,
-  EyeOff,
   Trash2,
   UserCheck,
   UserX,
@@ -46,8 +43,10 @@ import { ToggleSwitch } from './ToggleSwitch';
 import { ConfirmModal } from './ConfirmModal';
 import { isValidPinFormat, isWeakPin } from '../utils/pinPolicy';
 import { useModalDismiss } from '../hooks/useModalDismiss';
-import { PERMISSION_GROUPS } from '../constants/permissionGroups';
+import { RequiredMark } from './RequiredMark';
+import { CASHIER_PERMISSION_GROUPS, OWNER_GRADE_GROUP } from '../constants/permissionGroups';
 import type { PermissionGroupDef, PermissionIconId } from '../constants/permissionGroups';
+import { buildOwnerGradePayload, getGrantedOwnerGradeKeys, OWNER_GRADE_CHIP_LABELS } from '../utils/ownerGrade';
 import {
   canManageUser,
   getRoleBadgeClasses,
@@ -77,6 +76,7 @@ const PERMISSION_ICONS: Record<PermissionIconId, React.ReactNode> = {
   insurance: <Building2 className="w-4 h-4 text-brand" />,
   patients: <HeartPulse className="w-4 h-4 text-brand" />,
   cafe: <Coffee className="w-4 h-4 text-brand" />,
+  ownerGrade: <ShieldCheck className="w-4 h-4 text-brand" />,
 };
 
 type PermissionGroup = PermissionGroupDef;
@@ -92,7 +92,6 @@ interface UserManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUsersChanged?: () => void;
-  supervisorPin?: string;
   currentUser?: UserDto | null;
 }
 
@@ -141,27 +140,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   isOpen,
   onClose,
   onUsersChanged,
-  supervisorPin,
   currentUser: propCurrentUser,
 }) => {
-  const { currentUser: authUser, isRoot, login } = useAuth();
+  const { currentUser: authUser, isRoot } = useAuth();
   const currentUser = propCurrentUser || authUser;
   const isRootSession = isRoot || currentUser?.role === 'root' || currentUser?.username === 'root';
-  // A session opened from the login screen with the security PIN acts as the owner.
-  const viewer = useMemo<UserDto | { role: string; isOwner: boolean } | null>(() => {
-    if (supervisorPin && getTier(currentUser) < 2) return { role: 'admin', isOwner: true };
-    return currentUser;
-  }, [supervisorPin, currentUser]);
-  const viewerTier = getTier(viewer);
+  const viewerTier = getTier(currentUser);
   const canChooseManagerRole = viewerTier >= 2;
-  // True for the logged-in account itself (a login-screen supervisor session stands in for the owner account)
   const isSameAccount = useCallback(
-    (u: UserDto | null | undefined): boolean => {
-      if (!u) return false;
-      if (currentUser?.id === u.id) return true;
-      return Boolean(supervisorPin) && viewerTier === 2 && getRoleKind(u) === 'owner';
-    },
-    [currentUser, supervisorPin, viewerTier]
+    (u: UserDto | null | undefined): boolean => Boolean(u) && currentUser?.id === u?.id,
+    [currentUser]
   );
   const [users, setUsers] = useState<UserDto[]>([]);
   const [userTree, setUserTree] = useState<UserDto[]>([]);
@@ -170,15 +158,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const [successMsg, setSuccessMsg] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<UserDto | null>(null);
 
-  // Form modes: 'none' | 'add' | 'edit' | 'permissions' | 'credentials' | 'switchLogin'
-  const [formMode, setFormMode] = useState<'none' | 'add' | 'edit' | 'permissions' | 'credentials' | 'switchLogin'>('none');
+  // Form modes: 'none' | 'add' | 'edit' | 'permissions' | 'ownerGrade' | 'credentials'
+  const [formMode, setFormMode] = useState<'none' | 'add' | 'edit' | 'permissions' | 'ownerGrade' | 'credentials'>('none');
   const [selectedUser, setSelectedUser] = useState<UserDto | null>(null);
 
   const { isEnabled } = useFeatures();
 
   // Filter permission groups based on active store features (zero pharmacy/cafe leakage in other stores)
   const visiblePermissionGroups = useMemo(() => {
-    return PERMISSION_GROUPS.filter((group) => !group.feature || isEnabled(group.feature));
+    return CASHIER_PERMISSION_GROUPS.filter((group) => !group.feature || isEnabled(group.feature));
   }, [isEnabled]);
 
   // Search filter
@@ -192,10 +180,9 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [currentCredential, setCurrentCredential] = useState('');
-  const [switchSecret, setSwitchSecret] = useState('');
-  const [showSwitchSecret, setShowSwitchSecret] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [permissionsState, setPermissionsState] = useState<Record<string, boolean>>({});
+  const [ownerGradeState, setOwnerGradeState] = useState<Record<string, boolean>>({});
 
   // Tree expanded nodes
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
@@ -206,7 +193,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     setLoading(true);
     setError('');
     try {
-      const allList = await invoke<UserDto[]>('users:getAll', supervisorPin ? { supervisorPin } : undefined);
+      const allList = await invoke<UserDto[]>('users:getAll');
       const visibleUsers = (allList || []).filter((u) => isRootSession || u.role !== 'root');
       setUsers(visibleUsers);
       setUserTree(buildTreeFromFlat(visibleUsers));
@@ -215,7 +202,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [supervisorPin, isRootSession]);
+  }, [isRootSession]);
 
   useEffect(() => {
     if (isOpen) {
@@ -286,7 +273,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
     // Default permissions based on cashier role
     const initialPerms: Record<string, boolean> = {};
-    PERMISSION_GROUPS.forEach((g) => {
+    CASHIER_PERMISSION_GROUPS.forEach((g) => {
       g.items.forEach((p) => {
         initialPerms[p.key] = false;
       });
@@ -319,32 +306,33 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     setSuccessMsg('');
   };
 
-  // Start Manage Permissions
+  // Start Manage Permissions (cashier matrix; managers use the owner-grade panel instead)
   const handleStartPermissions = (user: UserDto) => {
-    if (user.role === 'root' || user.username === 'root') {
-      setError('حساب الروت يمتلك كافة صلاحيات النظام بشكل دائم وتلقائي، ولا يمكن تقييد أو سحب الصلاحيات منه.');
-      return;
-    }
-    if (getTier(user) >= 1 && !isRootSession) {
-      setError('لا يمكن تعديل صلاحيات المالك والمديرين إلا من خلال حساب المطور (Root).');
-      return;
-    }
     setSelectedUser(user);
     setParentId(user.parentId || '');
 
     // Fill current user permissions
     const perms: Record<string, boolean> = {};
-    PERMISSION_GROUPS.forEach((g) => {
+    CASHIER_PERMISSION_GROUPS.forEach((g) => {
       g.items.forEach((p) => {
-        if (user.permissions && user.permissions[p.key] !== undefined) {
-          perms[p.key] = !!user.permissions[p.key];
-        } else {
-          perms[p.key] = getTier(user) >= 1;
-        }
+        perms[p.key] = !!user.permissions?.[p.key];
       });
     });
     setPermissionsState(perms);
     setFormMode('permissions');
+    setError('');
+    setSuccessMsg('');
+  };
+
+  // Start the owner-grade panel of a manager (the owner/root decide which owner privileges he holds)
+  const handleStartOwnerGrade = (user: UserDto) => {
+    const granted: Record<string, boolean> = {};
+    OWNER_GRADE_GROUP.items.forEach((item) => {
+      granted[item.key] = user.permissions?.[item.key] === true;
+    });
+    setSelectedUser(user);
+    setOwnerGradeState(granted);
+    setFormMode('ownerGrade');
     setError('');
     setSuccessMsg('');
   };
@@ -360,40 +348,24 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     setSuccessMsg('');
   };
 
-  // Start Switch Login
-  const handleStartSwitchLogin = (user: UserDto) => {
-    setSelectedUser(user);
-    setSwitchSecret('');
-    setShowSwitchSecret(false);
-    setFormMode('switchLogin');
-    setError('');
-    setSuccessMsg('');
-  };
-
-  // Submit Switch Login
-  const handleSubmitSwitchLogin = async (e: React.FormEvent) => {
+  // Save the owner-grade grants: the server stores only the keys that are true and audits every change
+  const handleSubmitOwnerGrade = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedUser) return;
-    if (!switchSecret.trim()) {
-      setError('يرجى إدخال الرقم السري (PIN) للمتابعة.');
-      return;
-    }
+    if (!selectedUser || getTier(selectedUser) !== 1 || viewerTier < 2) return;
 
     setLoading(true);
     setError('');
     try {
-      const res = await login(selectedUser.username, switchSecret.trim());
-      if (res.success) {
-        setSuccessMsg(`تم تسجيل الدخول بنجاح بحساب (${selectedUser.displayName}).`);
-        if (onUsersChanged) onUsersChanged();
-        setTimeout(() => {
-          onClose();
-        }, 400);
-      } else {
-        setError(res.message || 'بيانات الدخول غير صحيحة. يرجى المحاولة مجدداً.');
-      }
+      await invoke('users:updatePermissions', {
+        userId: selectedUser.id,
+        permissions: buildOwnerGradePayload(ownerGradeState),
+      });
+      setSuccessMsg(`تم تحديث الصلاحيات الخاصة بالمالك للمدير (${selectedUser.displayName}).`);
+      await loadData();
+      setFormMode('none');
+      if (onUsersChanged) onUsersChanged();
     } catch (err: any) {
-      setError(err?.message || 'تعذر تسجيل الدخول.');
+      setError(err?.message || 'فشل حفظ الصلاحيات الخاصة بالمالك.');
     } finally {
       setLoading(false);
     }
@@ -449,7 +421,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         permissions: effectiveRole === 'cashier' ? finalPermissions : undefined,
       });
 
-      setSuccessMsg(`تم إنشاء الحساب (${displayName}) بنجاح ضمن الهيكل الإداري.`);
+      setSuccessMsg(`تم إنشاء الحساب (${displayName})`);
       await loadData();
       setFormMode('none');
       if (onUsersChanged) onUsersChanged();
@@ -463,7 +435,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   // What the viewer may change on an account in the edit form (owner/root role and status are fixed)
   const getEditPrivileges = (u: UserDto) => {
     const self = isSameAccount(u);
-    const manage = canManageUser(viewer, u);
+    const manage = canManageUser(currentUser, u);
     const fixedAccount = getTier(u) >= 2;
     return {
       self,
@@ -498,10 +470,9 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         displayName: displayName.trim(),
         role: nextRole,
         isActive: nextActive,
-        supervisorPin: supervisorPin || undefined,
       });
 
-      setSuccessMsg('تم تحديث بيانات الحساب بنجاح.');
+      setSuccessMsg('تم تحديث بيانات الحساب');
       await loadData();
       setFormMode('none');
       if (onUsersChanged) onUsersChanged();
@@ -516,15 +487,6 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const handleSubmitPermissions = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
-
-    if (selectedUser.role === 'root' || selectedUser.username === 'root') {
-      setError('حساب الروت يمتلك كافة الصلاحيات بشكل دائم ولا يمكن تقييدها أو سحبها.');
-      return;
-    }
-    if (getTier(selectedUser) >= 1 && !isRootSession) {
-      setError('لا يمكن تعديل صلاحيات المالك والمديرين إلا من خلال حساب المطور (Root).');
-      return;
-    }
 
     // Build checked permissions dictionary
     const finalPerms: Record<string, boolean> = {};
@@ -549,7 +511,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         permissions: finalPerms,
       });
 
-      setSuccessMsg(`تم تحديث مصفوفة الصلاحيات للحساب (${selectedUser.displayName}) بنجاح، وتطبيق السحب التلقائي على الفروع.`);
+      setSuccessMsg(`تم تحديث صلاحيات الحساب (${selectedUser.displayName})`);
       await loadData();
       setFormMode('none');
       if (onUsersChanged) onUsersChanged();
@@ -562,7 +524,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
   // Owner (non-root) resetting a manager's PIN confirms with his own PIN, sent as supervisorPin
   const credUsesSupervisorPin = (target: UserDto): boolean =>
-    !isRootSession && !isSameAccount(target) && getTier(target) === 1 && canManageUser(viewer, target);
+    !isRootSession && !isSameAccount(target) && getTier(target) === 1 && canManageUser(currentUser, target);
 
   // Submit Credentials (PIN only; legacy passwords are left untouched on the server)
   const handleSubmitCredentials = async (e: React.FormEvent) => {
@@ -594,10 +556,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         id: selectedUser.id,
         newPin: pin,
         currentPin: credUsesSupervisorPin(selectedUser) ? undefined : currentCredential || undefined,
-        supervisorPin: (credUsesSupervisorPin(selectedUser) ? currentCredential : '') || supervisorPin || undefined,
+        supervisorPin: credUsesSupervisorPin(selectedUser) ? currentCredential || undefined : undefined,
       });
 
-      setSuccessMsg(`تم تحديث الرقم السري للحساب (${selectedUser.displayName}) بنجاح.`);
+      setSuccessMsg(`تم تحديث الرقم السري للحساب (${selectedUser.displayName})`);
       await loadData();
       setFormMode('none');
       if (onUsersChanged) onUsersChanged();
@@ -630,7 +592,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
   // Toggle user active status directly
   const handleToggleStatus = async (user: UserDto) => {
-    if (!canManageUser(viewer, user) || isSameAccount(user)) {
+    if (!canManageUser(currentUser, user) || isSameAccount(user)) {
       setError('ليس لديك صلاحية تعطيل أو تفعيل هذا الحساب.');
       return;
     }
@@ -643,12 +605,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         displayName: user.displayName,
         role: user.role,
         isActive: !user.isActive,
-        supervisorPin: supervisorPin || undefined,
       });
       setSuccessMsg(
         user.isActive
-          ? `تم تعطيل حساب (${user.displayName}).`
-          : `تم إعادة تفعيل حساب (${user.displayName}) بنجاح.`
+          ? `تم تعطيل حساب (${user.displayName})`
+          : `تم تفعيل حساب (${user.displayName})`
       );
       await loadData();
       if (onUsersChanged) onUsersChanged();
@@ -752,8 +713,9 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     const isRoot = node.role === 'root';
     const nodeKind = getRoleKind(node);
     const isOwnerOrRootNode = nodeKind === 'owner' || nodeKind === 'root';
-    const canManageNode = canManageUser(viewer, node);
+    const canManageNode = canManageUser(currentUser, node);
     const canDeleteNode = canManageNode && !isSelf && !isOwnerOrRootNode;
+    const grantedOwnerGrade = getGrantedOwnerGradeKeys(node.permissions);
 
     return (
       <div key={node.id} className="relative">
@@ -832,12 +794,27 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   </span>
                 )}
               </div>
+
+              {/* Owner-grade privileges granted to this manager */}
+              {nodeKind === 'manager' && grantedOwnerGrade.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1 mt-1">
+                  {grantedOwnerGrade.map((key) => (
+                    <span
+                      key={key}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-micro font-bold whitespace-nowrap bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30"
+                    >
+                      <ShieldCheck className="w-3 h-3 shrink-0" />
+                      <span>{OWNER_GRADE_CHIP_LABELS[key]}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-1.5 whitespace-nowrap">
-            {/* Manage Permissions: owner/root are always full; managers are edited by root only */}
+            {/* Permissions: owner/root are always full; cashiers get the matrix; a manager gets the owner-grade panel (owner/root viewers only) */}
             {isOwnerOrRootNode ? (
               <span
                 className="px-2.5 py-1.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-xs font-bold rounded-lg border border-paid-border dark:border-paid-dark-border flex items-center gap-1.5 shadow-2xs select-none whitespace-nowrap shrink-0"
@@ -846,30 +823,17 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <ShieldCheck className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                 <span>كامل الصلاحيات</span>
               </span>
-            ) : canManageNode && (nodeKind === 'cashier' || isRootSession) ? (
+            ) : canManageNode && (nodeKind === 'cashier' || (nodeKind === 'manager' && viewerTier >= 2)) ? (
               <button
                 type="button"
-                onClick={() => handleStartPermissions(node)}
+                onClick={() => (nodeKind === 'manager' ? handleStartOwnerGrade(node) : handleStartPermissions(node))}
                 className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark text-xs font-bold rounded-lg border border-line dark:border-line-dark transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-                title="تعديل مصفوفة الصلاحيات"
+                title={nodeKind === 'manager' ? 'منح المدير صلاحيات خاصة بالمالك' : 'تعديل مصفوفة الصلاحيات'}
               >
                 <Shield className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                 <span>الصلاحيات</span>
               </button>
             ) : null}
-
-            {/* Switch Account / Login */}
-            {!isSelf && node.isActive && (
-              <button
-                type="button"
-                onClick={() => handleStartSwitchLogin(node)}
-                className="px-2.5 py-1.5 bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid/20 dark:hover:bg-brand-container text-paid dark:text-paid-bright text-xs font-bold rounded-lg border border-paid-border dark:border-paid-dark-border transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
-                title={`تسجيل الدخول والتبديل إلى حساب (${node.displayName})`}
-              >
-                <LogIn className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
-                <span>دخول</span>
-              </button>
-            )}
 
             {/* Change PIN */}
             {(canManageNode || isSelf) && (
@@ -937,7 +901,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     );
   };
 
-  const isDirty = formMode !== 'none' && formMode !== 'switchLogin' && Boolean(
+  const isDirty = formMode !== 'none' && formMode !== 'ownerGrade' && Boolean(
     username.trim() ||
     displayName.trim() ||
     pin.trim()
@@ -991,7 +955,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   </span>
                 ) : (
                   <span className="bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro px-2.5 py-0.5 rounded-full font-bold border border-brand/20 dark:border-brand-bright/20">
-                    {getRoleLabel(viewer)}
+                    {getRoleLabel(currentUser)}
                   </span>
                 )}
               </div>
@@ -1100,11 +1064,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   <h3 className="t-card-title text-ink dark:text-ink-dark">إضافة حساب موظف جديد</h3>
                 </div>
               </div>
+              <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0">الحقول المميزة بعلامة * مطلوبة</p>
 
               {/* Basic Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم الموظف الكامل</label>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم الموظف الكامل <RequiredMark /></label>
                   <input
                     type="text"
                     required
@@ -1115,7 +1080,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم المستخدم (للدخول السريع)</label>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم المستخدم (للدخول السريع) <RequiredMark /></label>
                   <input
                     type="text"
                     required
@@ -1175,7 +1140,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-micro font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">
-                      الرقم السري (PIN)
+                      الرقم السري (PIN) <RequiredMark />
                     </label>
                     <input
                       type="password"
@@ -1188,7 +1153,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-micro font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">تأكيد الرقم السري (PIN)</label>
+                    <label className="block text-micro font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">تأكيد الرقم السري (PIN) <RequiredMark /></label>
                     <input
                       type="password"
                       inputMode="numeric"
@@ -1246,7 +1211,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handleToggleGroup(group, !allChecked)}
-                            className="text-micro font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
+                            className={`text-micro font-bold hover:underline cursor-pointer ${allChecked ? 'text-danger dark:text-danger-bright' : 'text-brand dark:text-brand-bright'}`}
                           >
                             {allChecked ? 'إلغاء تحديد القسم' : 'تحديد القسم بالكامل'}
                           </button>
@@ -1340,7 +1305,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم الموظف الظاهر</label>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم الموظف الظاهر <RequiredMark /></label>
                 <input
                   type="text"
                   required
@@ -1489,7 +1454,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleToggleGroup(group, !allChecked)}
-                          className="text-micro font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
+                          className={`text-micro font-bold hover:underline cursor-pointer ${allChecked ? 'text-danger dark:text-danger-bright' : 'text-brand dark:text-brand-bright'}`}
                         >
                           {allChecked ? 'إلغاء تحديد القسم' : 'تحديد القسم بالكامل'}
                         </button>
@@ -1580,10 +1545,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               )}
 
               {/* Current PIN prompt if editing an owner / manager / root account */}
-              {getTier(selectedUser) >= 1 && !(credUsesSupervisorPin(selectedUser) && supervisorPin) && (
+              {getTier(selectedUser) >= 1 && (
                 <div className="bg-warn-soft dark:bg-warn-dark-soft p-3 rounded-xl border border-warn/20 dark:border-warn-bright/30 space-y-1.5">
                   <label className="block text-xs font-bold text-warn dark:text-warn-bright">
-                    {credUsesSupervisorPin(selectedUser) ? 'رقم المالك السري (للتأكيد)' : 'الرقم السري الحالي (لتأكيد الهوية)'}
+                    {credUsesSupervisorPin(selectedUser) ? 'رقم المالك السري (للتأكيد)' : 'الرقم السري الحالي (لتأكيد الهوية)'}{!isRootSession && <> <RequiredMark /></>}
                   </label>
                   <input
                     type="password"
@@ -1604,7 +1569,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               {/* New PIN */}
               <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">الرقم السري الجديد (PIN: 4 - 8 أرقام)</label>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">الرقم السري الجديد (PIN: 4 - 8 أرقام) <RequiredMark /></label>
                   <input
                     type="password"
                     inputMode="numeric"
@@ -1616,7 +1581,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-micro font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">تأكيد الرقم السري الجديد</label>
+                  <label className="block text-micro font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">تأكيد الرقم السري الجديد <RequiredMark /></label>
                   <input
                     type="password"
                     inputMode="numeric"
@@ -1648,63 +1613,52 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
           )}
 
           {/* ======================================================== */}
-          {/* 6. SWITCH ACCOUNT / LOGIN AS USER                        */}
+          {/* 6. OWNER-GRADE PRIVILEGES OF A MANAGER                   */}
           {/* ======================================================== */}
-          {formMode === 'switchLogin' && selectedUser && (
-            <form onSubmit={handleSubmitSwitchLogin} className="max-w-md mx-auto space-y-4">
+          {formMode === 'ownerGrade' && selectedUser && (
+            <form onSubmit={handleSubmitOwnerGrade} className="max-w-xl mx-auto space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                 <div className="flex items-center gap-2">
-                  <LogIn className="w-5 h-5 text-paid dark:text-paid-bright" />
-                  <h3 className="t-card-title text-ink dark:text-ink-dark">تسجيل الدخول كـ: {selectedUser.displayName}</h3>
+                  {PERMISSION_ICONS[OWNER_GRADE_GROUP.icon]}
+                  <div>
+                    <h3 className="t-card-title text-ink dark:text-ink-dark">{OWNER_GRADE_GROUP.name}: {selectedUser.displayName}</h3>
+                    <p className="text-micro text-ink-muted dark:text-ink-muted-dark">
+                      فعّل ما تريد منحه لهذا المدير، ويمكنك سحبه في أي وقت
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {/* Account Card Preview */}
-              <div className="p-3.5 bg-paid-soft/40 dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border rounded-xl flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-paid text-white flex items-center justify-center font-bold text-sm shrink-0">
-                  {selectedUser.role === 'root' ? <ShieldCheck className="w-5 h-5" /> : selectedUser.displayName.slice(0, 1)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sm text-ink dark:text-ink-dark">{selectedUser.displayName}</div>
-                  <div className="text-xs text-ink-muted dark:text-ink-muted-dark font-mono dir-ltr text-right">@{selectedUser.username}</div>
-                </div>
-                {renderRoleBadge(selectedUser)}
+              <div className="p-3 bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/30 rounded-xl flex items-start gap-2.5 text-xs text-brand dark:text-brand-bright">
+                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
+                <span className="font-bold">المدير يملك باقي صلاحيات الإدارة اليومية تلقائياً</span>
               </div>
 
-              {/* Instructions */}
-              <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                يرجى إدخال الرقم السري (PIN) الخاص بهذا الحساب للتحقق والتبديل الفوري للجلسة.
-              </p>
-
-              {/* PIN / Password Input */}
-              <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark space-y-2">
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark">الرقم السري (PIN)</label>
-                <div className="relative">
-                  <input
-                    type={showSwitchSecret ? 'text' : 'password'}
-                    autoFocus
-                    value={switchSecret}
-                    onChange={(e) => setSwitchSecret(e.target.value)}
-                    className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl pr-3.5 pl-9 py-2.5 text-ink dark:text-ink-dark text-sm font-mono focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSwitchSecret(!showSwitchSecret)}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer"
+              <div className="space-y-2">
+                {OWNER_GRADE_GROUP.items.map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-between gap-3 p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl"
                   >
-                    {showSwitchSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-bold text-ink dark:text-ink-dark">{item.label}</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-tight">{item.description}</span>
+                    </div>
+                    <ToggleSwitch
+                      checked={ownerGradeState[item.key] === true}
+                      onChange={(val) => setOwnerGradeState((prev) => ({ ...prev, [item.key]: val }))}
+                    />
+                  </div>
+                ))}
               </div>
 
               <div className="flex items-center gap-3 pt-3">
                 <button
                   type="submit"
-                  disabled={loading || !switchSecret.trim()}
-                  className="flex-1 py-2.5 bg-paid hover:bg-paid-dark text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
+                  disabled={loading}
+                  className="flex-1 py-2.5 bg-brand hover:bg-brand-hover text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-40 cursor-pointer"
                 >
-                  <LogIn className="w-4 h-4" />
-                  <span>{loading ? 'جاري التحقق...' : 'تسجيل الدخول فوراً والتبديل'}</span>
+                  {loading ? 'جاري الحفظ...' : 'حفظ الصلاحيات'}
                 </button>
                 <button
                   type="button"
@@ -1725,7 +1679,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             <span>الأرقام السرية مشفرة ومحفوظة بأمان على جهازك</span>
           </div>
           <div className="flex items-center gap-3">
-            <span>{isRootSession ? 'تعديل صلاحيات المديرين متاح' : 'المالك والمديرون يمتلكون كامل صلاحيات التشغيل'}</span>
+            <span>{viewerTier >= 2 ? 'يمكنك منح المديرين صلاحيات خاصة بالمالك' : 'المالك والمديرون يمتلكون صلاحيات التشغيل اليومية'}</span>
           </div>
         </div>
       </div>

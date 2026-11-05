@@ -5,7 +5,10 @@
   "author": "ISlam Khaled Ali",
   "type": "module",
   "scripts": {
+    "sync:signatures": "node scripts/sync-signatures.mjs",
+    "predev": "npm run sync:signatures",
     "dev": "vite",
+    "prebuild": "npm run sync:signatures",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "node --experimental-strip-types --test",

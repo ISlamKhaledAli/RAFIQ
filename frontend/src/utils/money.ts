@@ -68,6 +68,37 @@ export function poundsToPiasters(pounds: number | string): number {
   return negative ? -piasters : piasters;
 }
 
+export const MAX_MONEY_INTEGER_DIGITS = 11;
+const MONEY_TEXT_PATTERN = new RegExp(`^-?[0-9]{0,${MAX_MONEY_INTEGER_DIGITS}}(?:\\.[0-9]{0,2})?$`);
+
+/**
+ * هل النص (بعد التوحيد وإزالة الفواصل) مقبول كمبلغ بالجنيه؟ حتى 11 خانة صحيحة وخانتين عشريتين
+ * الحد يبقي القروش ضمن الأعداد الصحيحة الآمنة ويمنع تفقيط أرقام خيالية
+ */
+export function isValidMoneyText(text: string): boolean {
+  return MONEY_TEXT_PATTERN.test(text);
+}
+
+const warnedSafePiasters = new Set<string>();
+
+/**
+ * حارس الحدود لأي مبلغ قادم من الجسر أو الحقول: يعيد قروشاً صحيحة آمنة أو 0
+ * القيم غير الرقمية أو اللانهائية أو الأكبر من أكبر عدد صحيح آمن تعاد 0 مع تحذير للمطور (مرة لكل مصدر) حتى لا يُخفى خطأ العقد
+ * @param value القيمة الخام
+ * @param source اسم الحقل أو المصدر لتوضيح التحذير
+ */
+export function toSafePiasters(value: unknown, source = 'unknown'): number {
+  if (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER) {
+    const rounded = Math.sign(value) * Math.round(Math.abs(value));
+    return rounded === 0 ? 0 : rounded;
+  }
+  if (import.meta.env?.PROD !== true && !warnedSafePiasters.has(source)) {
+    warnedSafePiasters.add(source);
+    console.warn(`[money] مبلغ غير صالح من "${source}" (${String(value)}) تم اعتباره 0`);
+  }
+  return 0;
+}
+
 /**
  * تحويل القروش إلى جنيهات
  * @param piasters المبلغ بالقروش (مثال: 1550)
@@ -87,6 +118,7 @@ export function piastersToPounds(piasters: number): number {
  */
 export function formatThousands(val: string | number | null | undefined): string {
   if (val === null || val === undefined || val === '') return '';
+  if (typeof val === 'number' && !Number.isFinite(val)) return '';
   const str = typeof val === 'number' ? val.toString() : normalizeNumericInput(val);
   let clean = str.replace(/,/g, '');
   if (!clean) return '';
@@ -125,7 +157,7 @@ export function formatThousands(val: string | number | null | undefined): string
  * مثال: 155050 -> "فقط ألف وخمسمائة وخمسون جنيهاً مصرياً وخمسون قرشاً لا غير"
  */
 export function tafqeetCurrency(piasters: number | null | undefined): string {
-  if (piasters === null || piasters === undefined || isNaN(piasters)) return '';
+  if (typeof piasters !== 'number' || !Number.isFinite(piasters)) return '';
   const absPiasters = Math.abs(Math.round(piasters));
   if (absPiasters === 0) return 'صفر جنيه';
 
@@ -237,7 +269,7 @@ export function tafqeetCurrency(piasters: number | null | undefined): string {
  * @param includeSymbol إضافة "ج.م"
  */
 export function formatArabicCurrency(piasters: number | null | undefined, includeSymbol = true): string {
-  if (piasters === null || piasters === undefined || isNaN(piasters)) {
+  if (typeof piasters !== 'number' || !Number.isFinite(piasters)) {
     return includeSymbol ? '0.00 ج.م' : '0.00';
   }
   const pounds = piastersToPounds(piasters);

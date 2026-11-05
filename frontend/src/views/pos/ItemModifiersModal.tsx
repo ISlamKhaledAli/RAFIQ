@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Sliders, Check, MessageSquare } from 'lucide-react';
 import type { ModifierGroup, ModifierOption, SaleItemModifier } from '../../types/cafe';
 import { formatArabicCurrency } from '../../utils/money';
+import { RequiredMark } from '../../components/RequiredMark';
 
 interface ItemModifiersModalProps {
   isOpen: boolean;
@@ -160,16 +161,7 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
               <div key={group.id} className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-ink dark:text-ink-dark">{group.name}</span>
-                    {group.isRequired ? (
-                      <span className="px-2 py-0.5 rounded-full bg-warn/20 dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-black">
-                        إجباري
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted text-micro font-bold">
-                        اختياري
-                      </span>
-                    )}
+                    <span className="text-sm font-black text-ink dark:text-ink-dark">{group.name}{group.isRequired && <> <RequiredMark /></>}</span>
                   </div>
                   <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
                     {group.selectionType === 'single' ? 'اختيار واحد' : `اختيار متعدد (حتى ${group.maxSelections || 5})`}

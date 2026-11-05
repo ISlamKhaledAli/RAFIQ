@@ -1,6 +1,9 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   piastersToPounds,
+  poundsToPiasters,
+  toSafePiasters,
+  isValidMoneyText,
   normalizeNumericInput,
   formatThousands,
   tafqeetCurrency,
@@ -32,7 +35,7 @@ export interface MoneyInputProps {
  * - تخزن وتتعامل داخلياً بالقروش فقط كعدد صحيح (Rule #1: Integer Financial Arithmetic)
  */
 export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(({
-  valuePiasters,
+  valuePiasters: rawValuePiasters,
   onChangePiasters,
   placeholder = '0.00',
   className = '',
@@ -50,6 +53,8 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(({
   useImperativeHandle(ref, () => inputRef.current as HTMLInputElement);
 
   const [isFocused, setIsFocused] = useState(false);
+  // قيمة غير صالحة من الأب (undefined/NaN) لا يجوز أن تصل للعرض أو للمقارنة
+  const valuePiasters = toSafePiasters(rawValuePiasters, 'MoneyInput.valuePiasters');
 
   const formatPoundsInitial = (p: number): string => {
     if (!p) return '';
@@ -97,7 +102,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(({
     const unformatted = normalized.replace(/,/g, '');
 
     // السماح فقط بالأرقام وعلامة سالب اختيارية ونقطة عشرية واحدة مع خانتين بحد أقصى
-    if (unformatted !== '' && !/^-?[0-9]*\.?[0-9]{0,2}$/.test(unformatted)) {
+    if (unformatted !== '' && !isValidMoneyText(unformatted)) {
       return;
     }
 
@@ -111,7 +116,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(({
     const formatted = formatThousands(unformatted);
     setDisplayValue(formatted);
 
-    const piasters = poundsToPiastersSafe(unformatted);
+    const piasters = poundsToPiasters(unformatted);
     setPrevValue(piasters);
     onChangePiasters(piasters);
 
@@ -143,7 +148,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(({
           const combined = (before + after).replace(/,/g, '');
           const formatted = formatThousands(combined);
           setDisplayValue(formatted);
-          const piasters = poundsToPiastersSafe(combined);
+          const piasters = poundsToPiasters(combined);
           setPrevValue(piasters);
           onChangePiasters(piasters);
 
@@ -226,10 +231,3 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(({
 });
 
 MoneyInput.displayName = 'MoneyInput';
-
-function poundsToPiastersSafe(str: string): number {
-  if (!str) return 0;
-  const num = parseFloat(str);
-  if (isNaN(num)) return 0;
-  return Math.round(num * 100);
-}

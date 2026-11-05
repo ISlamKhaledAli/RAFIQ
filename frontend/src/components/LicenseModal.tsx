@@ -20,6 +20,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert, rafiqConfirm } from '../utils/dialogService';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { RequiredMark } from './RequiredMark';
 
 export interface LicenseInfoData {
   isActive: boolean;
@@ -62,7 +63,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
         } else {
           setSupportCode(content);
         }
-        setStatusMessage({ text: 'تم قراءة كود الدعم من الملف بنجاح', type: 'success' });
+        setStatusMessage({ text: 'تمت قراءة كود الدعم من الملف', type: 'success' });
       }
     };
     reader.readAsText(file);
@@ -181,7 +182,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
       });
 
       if (res?.success) {
-        setStatusMessage({ text: res.message || 'تم تفعيل الترخيص بنجاح!', type: 'success' });
+        setStatusMessage({ text: res.message || 'تم تفعيل الترخيص', type: 'success' });
         if (res.license) {
           setLicense(res.license);
         } else {
@@ -190,7 +191,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
         if (onLicenseUpdated) onLicenseUpdated();
         void rafiqAlert({
           title: 'تهانينا!',
-          message: res.message || 'تم تفعيل ترخيص نظام رفيق السحابي بنجاح!',
+          message: res.message || 'تم تفعيل ترخيص نظام رفيق',
           variant: 'success',
         });
       } else {
@@ -219,7 +220,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
       });
 
       if (res?.success) {
-        setStatusMessage({ text: res.message || 'تم تفعيل الترخيص بنجاح أوفلاين!', type: 'success' });
+        setStatusMessage({ text: res.message || 'تم تفعيل الترخيص أوفلاين', type: 'success' });
         if (res.license) {
           setLicense(res.license);
         } else {
@@ -228,7 +229,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
         if (onLicenseUpdated) onLicenseUpdated();
         void rafiqAlert({
           title: 'تفعيل أوفلاين ناجح!',
-          message: res.message || 'تم تفعيل ترخيص نظام رفيق بنجاح بدون إنترنت عبر كود الدعم المعتمد!',
+          message: res.message || 'تم تفعيل الترخيص بدون إنترنت',
           variant: 'success',
         });
       } else {
@@ -266,7 +267,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
         if (res.license) setLicense(res.license);
         if (onLicenseUpdated) onLicenseUpdated();
         setStatusMessage({
-          text: `تم إلغاء التفعيل بنجاح! كود إثبات النقل: ${res.releaseCode}`,
+          text: `تم إلغاء التفعيل. كود إثبات النقل: ${res.releaseCode}`,
           type: 'success'
         });
         void rafiqAlert({
@@ -546,7 +547,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
           {activeTab === 'online' && (
             <div className="space-y-2">
               <label className="block text-xs font-bold text-ink dark:text-ink-dark">
-                كود الترخيص السحابي (License Key):
+                كود الترخيص السحابي (License Key): <RequiredMark />
               </label>
               <input
                 type="text"
@@ -568,7 +569,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-ink dark:text-ink-dark">
-                    كود الدعم الفني (بدون إنترنت):
+                    كود الدعم الفني (بدون إنترنت): <RequiredMark />
                   </label>
                   <input
                     type="file"
@@ -621,7 +622,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                   </div>
                   <div>
                     <div className="text-sm font-black text-paid dark:text-paid-bright">
-                      تم إلغاء التفعيل على هذا الجهاز بنجاح
+                      تم إلغاء التفعيل على هذا الجهاز
                     </div>
                     <div className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
                       كود إثبات النقل الخاص بك:
@@ -667,7 +668,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
 
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-ink dark:text-ink-dark">
-                      سبب النقل (اختياري):
+                      سبب النقل:
                     </label>
                     <input
                       type="text"

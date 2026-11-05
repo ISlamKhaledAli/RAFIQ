@@ -303,7 +303,7 @@ const FAQS: FaqItem[] = [
     category: 'الشبكة والإنترنت',
     tag: 'بدون إنترنت',
     question: 'هل يمكن تشغيل البرنامج والبيع بدون إنترنت نهائياً؟',
-    answer: 'نعم بنسبة 100%! رفيق هو نظام أوفلاين بالكامل (Offline-First). جميع وظائف البيع، طباعة الإيصالات، المخزون، والتقارير تعمل دون الحاجة لأي اتصال بالإنترنت. الإنترنت مطلوب فقط لثوانٍ معدودة عند تفعيل الترخيص لأول مرة أو فحص التحديثات الجديدة اختيارياً.'
+    answer: 'نعم بنسبة 100%! رفيق هو نظام أوفلاين بالكامل (Offline-First). جميع وظائف البيع، طباعة الإيصالات، المخزون، والتقارير تعمل دون الحاجة لأي اتصال بالإنترنت. الإنترنت مطلوب فقط لثوانٍ معدودة عند تفعيل الترخيص لأول مرة أو فحص التحديثات الجديدة إن رغبت.'
   },
   {
     id: 'faq_barcode_trouble',
@@ -504,7 +504,7 @@ export const HelpCenterModal = ({
     try {
       const res: any = await invoke('support:createBundle');
       if (res && res.success) {
-        setSupportMessage(res.message || 'تم إنشاء حزمة الدعم بنجاح.');
+        setSupportMessage(res.message || 'تم إنشاء حزمة الدعم');
         setSupportSavedPath(res.filePath || null);
       } else {
         setSupportMessage(res?.message || 'تعذر استخراج حزمة الدعم الفني');

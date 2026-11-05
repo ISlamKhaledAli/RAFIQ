@@ -14,6 +14,7 @@ import { invoke } from '../bridge/ipc';
 import type { Product, ProductUnit } from '../types/models';
 import { MoneyInput } from './MoneyInput';
 import { CustomSelect } from './CustomSelect';
+import { RequiredMark } from './RequiredMark';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
@@ -126,7 +127,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
         userId: 'admin'
       });
 
-      setSuccessMsg(`تم استلام الشراء بنجاح! أُضيف ${baseQtyAdded} ${isKg ? 'كجم' : 'قطعة'} للمخزون.`);
+      setSuccessMsg(`تم استلام الشراء: أُضيف ${baseQtyAdded} ${isKg ? 'كجم' : 'قطعة'} للمخزون`);
       setTimeout(() => {
         onSuccess();
         onClose();
@@ -191,7 +192,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-                وحدة الشراء المستلمة <span className="text-danger dark:text-danger-bright">*</span>
+                وحدة الشراء المستلمة
               </label>
               {unitsList.length > 1 ? (
                   <CustomSelect
@@ -215,7 +216,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
             {/* Quantity Input */}
             <div>
               <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-                الكمية المشتراة <span className="text-danger dark:text-danger-bright">*</span>
+                الكمية المشتراة <RequiredMark />
               </label>
               <div className="relative">
                 <input
@@ -250,7 +251,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
           {/* Unit Purchase Cost Input via MoneyInput */}
           <div className="space-y-1">
             <label className="text-xs font-bold text-ink dark:text-ink-dark block">
-              سعر شراء الوحدة الواحدة ({unitName}) <span className="text-danger dark:text-danger-bright">*</span>
+              سعر شراء الوحدة الواحدة ({unitName})
             </label>
             <MoneyInput
               valuePiasters={packageCostPiasters}
@@ -339,7 +340,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
             type="button"
             onClick={requestClose}
             disabled={loading}
-            className="px-4 py-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 rounded text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+            className="px-4 py-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 rounded text-xs font-bold transition-colors disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer"
           >
             إلغاء (Esc)
           </button>
@@ -348,7 +349,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
             type="button"
             onClick={handleSubmit}
             disabled={loading || !isValidQty}
-            className="px-5 py-2 bg-brand dark:bg-brand-bright hover:bg-brand-hover dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark rounded text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+            className="px-5 py-2 bg-brand dark:bg-brand-bright hover:bg-brand-hover dark:hover:bg-brand-bright/90 text-white dark:text-surface-dark rounded text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer"
           >
             <PackageCheck className="w-4 h-4" />
             <span>{loading ? 'جارٍ الحفظ...' : 'تأكيد استلام البضاعة وإضافة المخزون'}</span>

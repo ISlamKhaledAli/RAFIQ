@@ -19,6 +19,7 @@ import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { ConfirmModal } from './ConfirmModal';
 import { CustomSelect } from './CustomSelect';
+import { RequiredMark } from './RequiredMark';
 import type { DrugInteraction, DdiSeverity } from '../types/pharma';
 
 interface DrugInteractionManagerModalProps {
@@ -171,7 +172,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
       setIsEditOpen(false);
       loadInteractions();
       if (onSuccess) {
-        onSuccess(editingItem ? 'تم تعديل التفاعل الدوائي بنجاح.' : 'تمت إضافة التفاعل الدوائي بنجاح.');
+        onSuccess(editingItem ? 'تم تعديل التفاعل الدوائي' : 'تمت إضافة التفاعل الدوائي');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل حفظ التفاعل الدوائي.';
@@ -188,7 +189,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
       setDeleteCandidate(null);
       loadInteractions();
       if (onSuccess) {
-        onSuccess('تم حذف التفاعل الدوائي بنجاح.');
+        onSuccess('تم حذف التفاعل الدوائي');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل حذف التفاعل الدوائي.';
@@ -204,7 +205,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
       if (res?.success) {
         setMessage({
           type: 'success',
-          text: `تم تصدير ملف الإكسل بنجاح إلى: ${res.filePath}`,
+          text: `تم تصدير ملف الإكسل إلى: ${res.filePath}`,
         });
       }
     } catch (err: unknown) {
@@ -244,7 +245,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
       if (res?.success) {
         setMessage({
           type: 'success',
-          text: `تم استيراد ${res.importedCount} تفاعل دوائي بنجاح.`,
+          text: `تم استيراد ${res.importedCount} تفاعل دوائي`,
         });
         loadInteractions();
       }
@@ -453,7 +454,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
             </div>
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-ink-muted dark:text-ink-dark-muted gap-3">
-              <ShieldAlert className="w-12 h-12 text-ink-muted/40 dark:text-ink-dark-muted/40" />
+              <ShieldAlert className="w-12 h-12 text-ink-muted/40 dark:text-ink-dark-muted" />
               <span className="text-sm font-bold text-ink dark:text-ink-dark">لا توجد تفاعلات دوائية مطابقة للبحث</span>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted">
                 يمكنك إضافة تفاعل جديد يدوياً أو استيراد ملف إكسل يحتوي على المواد الفعالة المتعارضة.
@@ -541,7 +542,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer font-medium"
+              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-40 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark disabled:cursor-not-allowed cursor-pointer font-medium"
             >
               السابق
             </button>
@@ -550,7 +551,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer font-medium"
+              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-40 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark disabled:cursor-not-allowed cursor-pointer font-medium"
             >
               التالي
             </button>
@@ -589,10 +590,12 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                 </div>
               )}
 
+              <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0">الحقول المميزة بعلامة * مطلوبة</p>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                    المادة الفعالة الأولى (بالإنجليزية): <span className="text-danger dark:text-danger-bright">*</span>
+                    المادة الفعالة الأولى (بالإنجليزية): <RequiredMark />
                   </label>
                   <input
                     type="text"
@@ -605,7 +608,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                 </div>
                 <div>
                   <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                    المادة الفعالة الثانية (بالإنجليزية): <span className="text-danger dark:text-danger-bright">*</span>
+                    المادة الفعالة الثانية (بالإنجليزية): <RequiredMark />
                   </label>
                   <input
                     type="text"
@@ -620,7 +623,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  درجة الخطورة السريرية: <span className="text-danger dark:text-danger-bright">*</span>
+                  درجة الخطورة السريرية:
                 </label>
                 <CustomSelect
                   value={formSeverity}
@@ -631,7 +634,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  شرح آلية التفاعل الصيدلانية: <span className="text-danger dark:text-danger-bright">*</span>
+                  شرح آلية التفاعل الصيدلانية: <RequiredMark />
                 </label>
                 <textarea
                   value={formMech}
@@ -645,7 +648,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  الخطر السريري على المريض: <span className="text-danger dark:text-danger-bright">*</span>
+                  الخطر السريري على المريض: <RequiredMark />
                 </label>
                 <textarea
                   value={formRisk}
@@ -659,7 +662,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  التوصية الطبية العملية للصيدلي: <span className="text-danger dark:text-danger-bright">*</span>
+                  التوصية الطبية العملية للصيدلي: <RequiredMark />
                 </label>
                 <textarea
                   value={formRec}
@@ -673,7 +676,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
 
               <div>
                 <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                  البديل الآمن المقترح (اختياري):
+                  البديل الآمن المقترح:
                 </label>
                 <input
                   type="text"
@@ -695,7 +698,7 @@ export const DrugInteractionManagerModal: React.FC<DrugInteractionManagerModalPr
                 <button
                   type="submit"
                   disabled={saving}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-dark disabled:opacity-50 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-dark disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-colors cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   {saving ? 'جاري الحفظ...' : 'حفظ التفاعل'}

@@ -16,6 +16,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { CustomSelect } from '../../components/CustomSelect';
 import { formatArabicCurrency } from '../../utils/money';
+import { RequiredMark } from '../../components/RequiredMark';
 import type { 
   InsuranceCompany, 
   InsuranceContract, 
@@ -294,6 +295,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
             </div>
           ) : (
             <>
+              <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
               {/* Row 1: Company & Contract Selection */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -314,7 +316,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
 
                 <div>
                   <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                    العقد الطبي والفئة
+                    العقد الطبي والفئة <RequiredMark />
                   </label>
                   <CustomSelect
                     value={selectedContractId}
@@ -349,7 +351,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
-                      رقم العضوية / رقم البطاقة الطبية *
+                      رقم العضوية / رقم البطاقة الطبية <RequiredMark />
                     </label>
                     <div className="relative">
                       <input
@@ -379,7 +381,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
 
                   <div>
                     <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
-                      اسم المريض / المشترك *
+                      اسم المريض / المشترك <RequiredMark />
                     </label>
                     <input
                       type="text"

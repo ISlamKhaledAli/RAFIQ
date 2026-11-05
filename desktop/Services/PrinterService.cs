@@ -859,10 +859,8 @@ namespace RafiqPOS.Services
         private const string GeneralCashCustomerId = "cust_general_cash";
         private const string PreBillSaleId = "PRE-BILL";
         private const string DefaultReceiptThanks = "شكراً لزيارتكم";
-        private const string DefaultDeveloperSignature = "نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965";
-        private const string LegacyDeveloperSignature = "نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد";
 
-        // نصوص الخاتمة الافتراضية القديمة تُعامل كأنها فارغة (نفس سلوك المعاينة)
+        // نصوص الخاتمة الافتراضية القديمة (لم يعدّلها المالك) تُرحَّل إلى الشكر الافتراضي، أما الخاتمة الفارغة فلا تُطبع إطلاقاً (نفس سلوك المعاينة)
         private static readonly string[] LegacyReceiptFooters = new string[]
         {
             "شكراً لتعاملكم معنا! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.",
@@ -902,6 +900,9 @@ namespace RafiqPOS.Services
             public string Header = "";
             public string Footer = "";
             public string Signature = "";
+            public bool ShowCashier = true;
+            public bool SignatureVisible = true;
+            public string SignatureImage = "";
         }
 
         private sealed class ReceiptPaymentLine
@@ -1392,16 +1393,22 @@ namespace RafiqPOS.Services
             info.Phone = ReadStoreSetting(store, "store_phone");
             info.Address = ReadStoreSetting(store, "store_address");
             info.TaxNumber = ReadStoreSetting(store, "tax_number");
-            info.Header = ReadStoreSetting(store, "receipt_header");
-            info.Footer = ReadStoreSetting(store, "receipt_footer");
+            // نصوص الترويسة والتذييل والتوقيع قد تحوي أسطراً حقيقية (\n): تُطبَّع بنفس قواعد الحفظ وتُرسم سطراً بسطر
+            info.Header = SettingsService.NormalizeReceiptText(ReadStoreSetting(store, "receipt_header"));
+            info.Footer = SettingsService.NormalizeReceiptText(ReadStoreSetting(store, "receipt_footer"));
             for (int i = 0; i < LegacyReceiptFooters.Length; i++)
             {
-                if (info.Footer == LegacyReceiptFooters[i]) info.Footer = "";
+                if (info.Footer == LegacyReceiptFooters[i]) info.Footer = DefaultReceiptThanks;
             }
+            // المفتاح الناقص أو أي قيمة غير "0" تعني إظهار اسم الكاشير
+            info.ShowCashier = ReadStoreSetting(store, "receipt_show_cashier") != "0";
+            // توقيع الإيصال: المفتاح الناقص يعني ظاهر وبالصورة الافتراضية المضمّنة؛ "none" بدون صورة؛ وغير ذلك صورة مخصصة
+            info.SignatureVisible = ReadStoreSetting(store, SettingsService.SignatureVisibleKey) != "0";
+            info.SignatureImage = ReadStoreSetting(store, SettingsService.SignatureImageKey);
 
-            string signature = _settings != null ? _settings.Get("developer_signature", DefaultDeveloperSignature) : DefaultDeveloperSignature;
-            if (string.IsNullOrWhiteSpace(signature) || signature == LegacyDeveloperSignature) signature = DefaultDeveloperSignature;
-            info.Signature = signature.Trim();
+            string signature = _settings != null ? _settings.Get("developer_signature", SettingsService.DefaultDeveloperSignature) : SettingsService.DefaultDeveloperSignature;
+            if (SettingsService.IsLegacyOrBlankDeveloperSignature(signature)) signature = SettingsService.DefaultDeveloperSignature;
+            info.Signature = SettingsService.NormalizeReceiptText(signature);
             return info;
         }
 
@@ -1507,6 +1514,28 @@ namespace RafiqPOS.Services
                 G.DrawString(clean, font, Brushes.Black, new RectangleF(x, Y, width, h), format);
                 Y += h;
                 return h;
+            }
+
+            /// <summary>نص بأسطر متعددة: كل فقرة (يفصلها \n) تُقاس وتُرسم على حدة، والسطر الفارغ يحجز ارتفاع سطر كامل</summary>
+            public float WrapLines(string text, Font font, StringFormat format, float x, float width)
+            {
+                if (string.IsNullOrWhiteSpace(text)) return 0f;
+                string[] paragraphs = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+                float total = 0f;
+                for (int i = 0; i < paragraphs.Length; i++)
+                {
+                    if (string.IsNullOrWhiteSpace(paragraphs[i]))
+                    {
+                        float blank = LineH(font);
+                        Y += blank;
+                        total += blank;
+                    }
+                    else
+                    {
+                        total += WrapText(paragraphs[i], font, format, x, width);
+                    }
+                }
+                return total;
             }
 
             /// <summary>نص ملتف على اليمين وقيمة قصيرة على اليسار في نفس السطر (التفاف النص دون تداخل مع القيمة)</summary>
@@ -1658,15 +1687,157 @@ namespace RafiqPOS.Services
             if (includeHeaderText && store.Header.Length > 0)
             {
                 p.Y += 2f;
-                p.WrapText(store.Header, p.Regular, p.Center, ReceiptPainter.Pad, p.Usable);
+                p.WrapLines(store.Header, p.Regular, p.Center, ReceiptPainter.Pad, p.Usable);
             }
         }
 
-        private static void DrawReceiptSignature(ReceiptPainter p, ReceiptStoreInfo store)
+        // صور التوقيع أسفل الإيصال: الافتراضية هي كل PNG في Resources\signatures (مضمّنة باسم RafiqPOS.signatures.<الملف>) وتُحمَّل مرة واحدة
+        // مرتبة ترتيباً حرفياً، والمخصصة (data URL من الروت) تُفك كلها مرة واحدة لكل نص إعداد وتُحفظ مع قائمتها،
+        // ثم تُختار من المجموعة الكاملة صورة لكل فاتورة بنفس فهرس المعاينة
+        private const string BuiltInSignaturePrefix = "RafiqPOS.signatures.";
+        private static readonly object SignatureBannerLock = new object();
+        private static List<Image> _builtInBanners;
+        private static string _bannerListKey;
+        private static List<Image> _bannerList;
+        // الصور المخصصة التي أنشأناها فقط (لا تشمل المضمّنة المشتركة) لتُتلف عند تغيّر الإعداد
+        private static readonly List<Image> OwnedCustomBanners = new List<Image>();
+
+        // تُستدعى داخل SignatureBannerLock فقط. تُرجع القائمة نفسها في كل مرة؛ التالف يُسقَط ويُسجَّل اسمه فقط
+        private static List<Image> LoadBuiltInSignatureBanners()
         {
-            if (store.Signature.Length == 0) return;
-            p.Separator(p.Dashed, 2f, 3f);
-            p.WrapText(store.Signature, p.Small, p.Center, ReceiptPainter.Pad - 3f, p.Usable + 6f);
+            if (_builtInBanners != null) return _builtInBanners;
+            var list = new List<Image>();
+            try
+            {
+                System.Reflection.Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                string[] names = assembly.GetManifestResourceNames();
+                Array.Sort(names, StringComparer.Ordinal);
+                for (int i = 0; i < names.Length; i++)
+                {
+                    if (!names[i].StartsWith(BuiltInSignaturePrefix, StringComparison.Ordinal) ||
+                        !names[i].EndsWith(".png", StringComparison.OrdinalIgnoreCase)) continue;
+                    try
+                    {
+                        using (Stream resource = assembly.GetManifestResourceStream(names[i]))
+                        {
+                            if (resource == null) continue;
+                            // GDI+ يحتاج المجرى حياً ما دامت الصورة مرتبطة به: ننسخها إلى Bitmap مستقل
+                            using (Image decoded = Image.FromStream(resource))
+                            {
+                                list.Add(new Bitmap(decoded));
+                            }
+                        }
+                    }
+                    catch (Exception exBuiltIn)
+                    {
+                        Logger.Warn("تعذر تحميل صورة التوقيع المضمّنة " + names[i] + ": " + exBuiltIn.Message);
+                    }
+                }
+            }
+            catch (Exception exList)
+            {
+                Logger.Warn("تعذر قراءة صور التوقيع المضمّنة: " + exList.Message);
+            }
+            if (list.Count == 0) Logger.Warn("لا توجد صور توقيع مضمّنة داخل البرنامج: تُطبع الأسطر بدونها.");
+            _builtInBanners = list;
+            return list;
+        }
+
+        // صورة مخصصة واحدة من data URL؛ null عند الفشل (يُسجَّل رقمها فقط، لا محتواها)
+        private static Image DecodeCustomBanner(string dataUrl, int number)
+        {
+            try
+            {
+                byte[] bytes;
+                if (!SettingsService.TryDecodeSignatureImage(dataUrl, out bytes))
+                {
+                    Logger.Warn("صورة توقيع الإيصال المخصصة رقم " + number + " غير صالحة: تُتجاهل.");
+                    return null;
+                }
+                using (var ms = new MemoryStream(bytes))
+                using (Image decoded = Image.FromStream(ms))
+                {
+                    return new Bitmap(decoded);
+                }
+            }
+            catch (Exception exCustom)
+            {
+                Logger.Warn("تعذر تحميل صورة توقيع الإيصال المخصصة رقم " + number + ": " + exCustom.Message);
+                return null;
+            }
+        }
+
+        // تُستدعى داخل SignatureBannerLock فقط. القائمة (حتى 8 عناصر) تُفك مرة واحدة لكل نص إعداد، والعنصر التالف يُسقَط منها،
+        // و"default" يتوسع إلى الصور المضمّنة المشتركة التي لا تُتلف مع المخصصة
+        private static List<Image> ResolveSignatureBanners(string setting)
+        {
+            if (_bannerList != null && _bannerListKey == setting) return _bannerList;
+
+            for (int i = 0; i < OwnedCustomBanners.Count; i++) OwnedCustomBanners[i].Dispose();
+            OwnedCustomBanners.Clear();
+
+            var list = new List<Image>();
+            List<string> items;
+            if (!SettingsService.TryParseSignatureImageItems(setting, out items))
+            {
+                Logger.Warn("قائمة صور توقيع الإيصال غير صالحة: تُطبع الأسطر بدونها.");
+            }
+            else
+            {
+                for (int i = 0; i < items.Count && i < SettingsService.MaxSignatureImages; i++)
+                {
+                    if (items[i] == SettingsService.SignatureImageDefaultToken)
+                    {
+                        // "default" = كل الصور المضمّنة كعنصر واحد في القائمة، وكل واحدة منها تدخل مجموعة الاختيار
+                        list.AddRange(LoadBuiltInSignatureBanners());
+                        continue;
+                    }
+                    Image custom = DecodeCustomBanner(items[i], i + 1);
+                    if (custom != null)
+                    {
+                        list.Add(custom);
+                        OwnedCustomBanners.Add(custom);
+                    }
+                }
+            }
+            _bannerListKey = setting;
+            _bannerList = list;
+            return list;
+        }
+
+        /// <summary>يرسم صورة التوقيع المختارة للفاتورة (FNV-1a على pickKey) متمركزة بعرض 70% من الورقة وبارتفاع لا يتجاوز 4.5 سطر نص صغير، بنفس p.Y في القياس والرسم</summary>
+        private static void DrawSignatureBanner(ReceiptPainter p, string setting, string pickKey)
+        {
+            lock (SignatureBannerLock)
+            {
+                List<Image> banners = ResolveSignatureBanners(setting);
+                if (banners.Count == 0) return;
+                Image banner = banners[SettingsService.PickSignatureImageIndex(pickKey, banners.Count)];
+                if (banner.Width <= 0 || banner.Height <= 0) return;
+                try
+                {
+                    float scale = Math.Min(p.Usable * 0.70f / banner.Width, p.LineH(p.Small) * 4.5f / banner.Height);
+                    float drawW = banner.Width * scale;
+                    float drawH = banner.Height * scale;
+                    p.G.DrawImage(banner, (p.W - drawW) / 2f, p.Y, drawW, drawH);
+                    p.Y += drawH + 3f;
+                }
+                catch (Exception exDraw)
+                {
+                    Logger.Warn("تعذر رسم صورة توقيع الإيصال: " + exDraw.Message);
+                }
+            }
+        }
+
+        /// <summary>توقيع النظام (إن كان ظاهراً): صورة متمركزة ثم أسطر التوقيع. كله يُقاس ثم يُرسم بنفس p.Y فلا يقص شيء. pickKey = معرّف الفاتورة (أو المرتجع)</summary>
+        private static void DrawReceiptSignature(ReceiptPainter p, ReceiptStoreInfo store, bool separatorFirst, string pickKey)
+        {
+            if (!store.SignatureVisible || store.Signature.Length == 0) return;
+            if (separatorFirst) p.Separator(p.Dashed, 2f, 3f);
+            // مسافة سطر ونصف بين الخط المنقط وما بعده، تدخل في قياس ارتفاع الإيصال مثل باقي الأسطر
+            p.Y += p.LineH(p.Small) * 1.5f;
+            DrawSignatureBanner(p, store.SignatureImage, pickKey);
+            p.WrapLines(store.Signature, p.Small, p.Center, ReceiptPainter.Pad - 3f, p.Usable + 6f);
         }
 
         /// <summary>جدول الأصناف: الاسم بعرض كامل ملتفاً، وتحته الكمية | السعر | الإجمالي بأعمدة مقاسة (أو سطرين إذا لم تتسع)</summary>
@@ -1832,7 +2003,7 @@ namespace RafiqPOS.Services
                     ? "حساب مبدئي"
                     : (sale.InvoiceNumber > 0 ? "فاتورة رقم: " + sale.InvoiceNumber.ToString(CultureInfo.InvariantCulture) : "فاتورة");
                 p.WrapWithSide(invoiceText, FormatReceiptDateTime(sale.CreatedAt), p.Bold, p.Small);
-                if (!string.IsNullOrWhiteSpace(sale.CashierName))
+                if (store.ShowCashier && !string.IsNullOrWhiteSpace(sale.CashierName))
                 {
                     p.WrapText("الكاشير: " + sale.CashierName.Trim(), p.Small, p.Rtl, ReceiptPainter.Pad, p.Usable);
                 }
@@ -1934,20 +2105,28 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // 8. تنبيه سلسلة التبريد + ملاحظات الفاتورة + الخاتمة (رسالة المتجر أو شكراً) + توقيع النظام
+                // 8. تنبيه سلسلة التبريد + ملاحظات الفاتورة + الخاتمة (إن وُجدت) + توقيع النظام
                 p.Separator(p.Dashed, 3f, 3f);
+                bool hasFooterBlock = false;
                 if (HasColdChainItems(sale))
                 {
                     p.WrapText("تنبيه: يحفظ في الثلاجة 2-8 مئوية", p.Bold, p.Center, ReceiptPainter.Pad, p.Usable);
                     p.Y += 2f;
+                    hasFooterBlock = true;
                 }
                 if (!isPreBill && !string.IsNullOrWhiteSpace(sale.Notes))
                 {
                     p.WrapText(sale.Notes, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
                     p.Y += 2f;
+                    hasFooterBlock = true;
                 }
-                p.WrapText(store.Footer.Length > 0 ? store.Footer : DefaultReceiptThanks, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
-                DrawReceiptSignature(p, store);
+                if (store.Footer.Length > 0)
+                {
+                    p.WrapLines(store.Footer, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+                    hasFooterBlock = true;
+                }
+                // بدون خاتمة ولا ملاحظات يكفي الخط الفاصل السابق: لا خط مزدوج ولا فراغ
+                DrawReceiptSignature(p, store, hasFooterBlock, isPreBill ? "" : sale.Id);
 
                 // هامش سفلي طفيف قبل شفرة القص
                 p.Y += 8f;
@@ -2201,7 +2380,7 @@ namespace RafiqPOS.Services
                 else methodText = "طريقة الرد: " + returnObj.RefundMethod.Trim();
                 p.WrapText(methodText, p.Regular, p.Rtl, ReceiptPainter.Pad, p.Usable);
 
-                DrawReceiptSignature(p, store);
+                DrawReceiptSignature(p, store, true, returnObj.Id);
 
                 p.Y += 8f;
                 return p.Y;

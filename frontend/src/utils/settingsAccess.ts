@@ -14,6 +14,8 @@ export function getAllowedSettingsSubTabs({ isRoot, isAdmin, hasPermission }: Se
   const can = (perm: string) => isRoot || isAdmin || hasPermission(perm);
   const tabs: SettingsSubTab[] = [];
   if (can('settings.store')) tabs.push('profile');
+  // Sale/stock policies are admin-only on the server (allow-lists + pharma:saveControlledMandatoryFields), so the screen is too
+  if (isRoot || isAdmin) tabs.push('policies');
   if (isRoot || hasPermission('settings.features')) tabs.push('features');
   if (can('settings.printer')) tabs.push('printer');
   if (isRoot) tabs.push('scanner', 'security');

@@ -125,7 +125,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
     try {
       const res = await invoke<{ success: boolean; message: string }>('printer:testPrint');
       if (res && res.success) {
-        setPrinterMsg({ text: res.message || 'تمت طباعة ورقة الاختبار بنجاح على طابعة الكاشير!', isError: false });
+        setPrinterMsg({ text: res.message || 'تمت طباعة ورقة الاختبار', isError: false });
         await fetchStatus();
       } else {
         setPrinterMsg({ text: res?.message || 'تعذر إرسال أمر الطباعة للطابعة المحددة.', isError: true });
@@ -442,7 +442,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                       <CheckCircle2 className="w-3.5 h-3.5" />
                     </div>
                     <div>
-                      <span className="font-bold text-ink dark:text-ink-dark">تمت قراءة الباركود بنجاح تام: </span>
+                      <span className="font-bold text-ink dark:text-ink-dark">تمت قراءة الباركود: </span>
                       <span className="font-mono font-black text-paid dark:text-paid-bright text-sm">{lastScannedItem.code}</span>
                     </div>
                   </div>

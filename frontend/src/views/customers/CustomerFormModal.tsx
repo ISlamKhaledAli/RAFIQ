@@ -5,6 +5,7 @@ import { MoneyInput } from '../../components/MoneyInput';
 import { normalizeArabicNumerals } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { useAuth } from '../../context/useAuth';
+import { RequiredMark } from '../../components/RequiredMark';
 
 export interface CustomerFormModalProps {
   isOpen: boolean;
@@ -82,8 +83,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
         </div>
 
         <form onSubmit={onSave} className="p-4 space-y-3.5 text-xs flex-1 min-h-0 overflow-y-auto">
+          <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
           <div>
-            <label className="block text-ink dark:text-ink-dark font-semibold mb-1">اسم الزبون *</label>
+            <label className="block text-ink dark:text-ink-dark font-semibold mb-1">اسم الزبون <RequiredMark /></label>
             <input 
               type="text"
               required

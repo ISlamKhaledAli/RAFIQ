@@ -645,7 +645,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
               <p className="m-0 text-micro opacity-90">
                 {verification.isTampered 
                   ? verification.errorMessage 
-                  : `تم فحص وتأكيد سلامة جميع السجلات (${verification.totalRecordsVerified} حركة) ومطابقة بصمات SHA-256 بنجاح، ومفيش أي سجل اتعدل أو اتمسح من بره البرنامج.`}
+                  : `تم فحص كل السجلات (${verification.totalRecordsVerified} حركة) وبصمات SHA-256 سليمة، ومفيش أي سجل اتعدل أو اتمسح من بره البرنامج.`}
               </p>
             </div>
           </div>

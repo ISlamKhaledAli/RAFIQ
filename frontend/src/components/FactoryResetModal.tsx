@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { RequiredMark } from './RequiredMark';
 
 interface FactoryResetModalProps {
   isOpen: boolean;
@@ -189,7 +190,7 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
               {/* Confirmation Input */}
               <div className="flex flex-col gap-1.5 pt-1">
                 <label className="text-xs font-semibold text-ink dark:text-ink-dark">
-                  لتأكيد رغبتك بالمسح التام، اكتب كلمة <strong className="text-danger dark:text-danger-bright font-bold text-sm underline">&quot;مسح&quot;</strong> في الحقل التالي:
+                  لتأكيد رغبتك بالمسح التام، اكتب كلمة <strong className="text-danger dark:text-danger-bright font-bold text-sm underline">&quot;مسح&quot;</strong> في الحقل التالي: <RequiredMark />
                 </label>
                 <input
                   type="text"

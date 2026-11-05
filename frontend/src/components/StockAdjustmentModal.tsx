@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
+import { RequiredMark } from './RequiredMark';
 import type { Product } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -240,7 +241,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-ink dark:text-ink-dark block">
-                {mode === 'actual' ? 'الرصيد الفعلي بعد الجرد' : 'الكمية المراد تسويتها'} <span className="text-danger dark:text-danger-bright">*</span>
+                {mode === 'actual' ? 'الرصيد الفعلي بعد الجرد' : 'الكمية المراد تسويتها'} <RequiredMark />
               </label>
               {unitsList.length > 1 && (
                 <div className="flex items-center gap-1.5">
@@ -379,7 +380,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           {/* Preset Reason Tags & Adjustment Types (Task 37-1) */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-ink dark:text-ink-dark block">
-              سبب ونوع التسوية الجردية <span className="text-danger dark:text-danger-bright">*</span>
+              سبب ونوع التسوية الجردية <RequiredMark />
             </label>
             <div className="flex flex-wrap gap-1.5">
               {PRESET_OPTIONS.map((opt) => (
@@ -418,7 +419,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             <button
               type="submit"
               disabled={loading || !isValidNumber || deltaMilli === 0}
-              className="h-9 px-5 rounded bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-hover dark:hover:bg-brand-bright/90 disabled:opacity-50 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+              className="h-9 px-5 rounded bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-hover dark:hover:bg-brand-bright/90 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
             >
               {loading ? (
                 <>

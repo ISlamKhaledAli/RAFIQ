@@ -376,11 +376,11 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
 
                   return (
                     <div className="shrink-0 whitespace-nowrap flex items-baseline gap-1 px-2 py-0.5 rounded-lg bg-paid-soft dark:bg-surface-dark-3 border border-paid-border dark:border-line-dark group-hover:bg-paid dark:group-hover:bg-brand group-hover:border-paid transition-all duration-150">
-                      <span className="text-sm sm:text-base font-extrabold font-mono text-paid dark:text-paid-bright group-hover:text-white tabular-nums tracking-tight transition-colors">
+                      <span className="text-lg sm:text-xl font-extrabold font-mono text-paid dark:text-paid-bright group-hover:text-white tabular-nums tracking-tight transition-colors">
                         {item.isOpenPrice ? 'سعر حر' : (effPrice / 100).toFixed(2)}
                       </span>
                       {!item.isOpenPrice && (
-                        <span className="text-micro font-bold text-paid/80 dark:text-paid-bright/80 group-hover:text-white/90 transition-colors">
+                        <span className="text-xs font-bold text-paid/80 dark:text-paid-bright/80 group-hover:text-white/90 transition-colors">
                           ج.م{unitSuffix}
                         </span>
                       )}

@@ -263,7 +263,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
 
       const result = await invoke<BulkPriceApplyResult>('products:applyBulkPriceAdjustment', req);
       if (result.success) {
-        onSuccess(result.message || `تم تحديث أسعار ${result.updatedCount} صنف بنجاح`, result.batchId);
+        onSuccess(result.message || `تم تحديث أسعار ${result.updatedCount} صنف`, result.batchId);
         onClose();
       } else {
         setErrorMsg(result.message || 'حدث خطأ أثناء تطبيق الأسعار');
@@ -283,7 +283,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
       const res = await invoke<BulkPriceRevertResult>('products:revertBulkPriceAdjustment', {});
       if (res.success) {
         setShowRevertConfirm(false);
-        onSuccess(res.message || `تم التراجع عن تعديل أسعار ${res.revertedCount} صنف بنجاح`);
+        onSuccess(res.message || `تم التراجع عن تعديل أسعار ${res.revertedCount} صنف`);
         onClose();
       } else {
         setErrorMsg(res.message || 'فشل التراجع عن التعديل الجماعي');
@@ -313,7 +313,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
       <div className="w-full max-w-5xl h-[92vh] max-h-[820px] bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl flex flex-col overflow-hidden">
         
         {/* 1. Header */}
-        <div className="h-14 px-5 bg-brand-dark dark:bg-[#071311] text-white flex items-center justify-between border-b border-brand dark:border-brand/40 shrink-0">
+        <div className="h-14 px-5 bg-brand-dark dark:bg-surface-dark-lowest text-white flex items-center justify-between border-b border-brand dark:border-brand/40 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-paid/20 text-paid flex items-center justify-center border border-paid/30">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
@@ -455,7 +455,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <>
                 <label className="font-bold text-ink dark:text-ink-dark">ملف إكسل أو CSV للأسعار</label>
                 <div className="flex items-center gap-2">
-                  <label className="h-8 px-3 rounded-xl border border-brand dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright text-micro font-bold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-brand-soft/80 dark:hover:bg-brand-soft/30">
+                  <label className="h-8 px-3 rounded-xl border border-brand dark:border-brand-bright/40 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro font-bold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-brand-soft/80 dark:hover:bg-brand-dark-soft">
                     <FileSpreadsheet className="w-3.5 h-3.5" />
                     <span>{excelFileName ? 'تغيير الملف' : 'رفع شيت الأسعار'}</span>
                     <input type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
@@ -504,7 +504,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               type="button"
               onClick={() => void handleGeneratePreview()}
               disabled={previewLoading}
-              className="h-8 px-4 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright hover:bg-brand dark:hover:bg-brand hover:text-white dark:hover:text-white border border-brand/30 dark:border-brand-bright/30 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-98"
+              className="h-8 px-4 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright hover:bg-brand dark:hover:bg-brand hover:text-white dark:hover:text-white border border-brand/30 dark:border-brand-bright/30 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-98"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${previewLoading ? 'animate-spin' : ''}`} />
               <span>{previewLoading ? 'جاري الحساب والمعاينة...' : 'تحديث ومعاينة الأسعار'}</span>
@@ -792,7 +792,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               type="button"
               disabled={applying || activeSelectedCount === 0 || previewLoading || reverting}
               onClick={() => void handleApplyChanges()}
-              className="h-9 px-5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-98"
+              className="h-9 px-5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark disabled:cursor-not-allowed cursor-pointer active:scale-98"
             >
               <Check className="w-4 h-4 text-emerald-300" />
               <span>
@@ -835,7 +835,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                   type="button"
                   onClick={() => void handleRevertLastAdjustment()}
                   disabled={reverting}
-                  className="h-8 px-4 rounded-xl bg-warn hover:bg-amber-700 dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                  className="h-8 px-4 rounded-xl bg-warn hover:bg-amber-700 dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                 >
                   <Undo2 className={`w-3.5 h-3.5 ${reverting ? 'animate-spin' : ''}`} />
                   <span>{reverting ? 'جاري التراجع...' : 'تأكيد التراجع الآن'}</span>

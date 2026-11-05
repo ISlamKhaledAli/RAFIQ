@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { CartInteractionCheckResult, InteractionConflictItem } from '../../types/pharma';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { RequiredMark } from '../../components/RequiredMark';
 
 interface DrugInteractionAlertModalProps {
   isOpen: boolean;
@@ -299,7 +300,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
                   {!canOverrideDirectly && (
                     <div>
                       <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                        رمز PIN للمشرف:
+                        رمز PIN للمشرف: <RequiredMark />
                       </label>
                       <input
                         type="password"
@@ -313,7 +314,7 @@ export const DrugInteractionAlertModal: React.FC<DrugInteractionAlertModalProps>
                   )}
                   <div className={canOverrideDirectly ? 'md:col-span-2' : ''}>
                     <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1">
-                      مبرر التجاوز الإشرافي (اختياري):
+                      مبرر التجاوز الإشرافي:
                     </label>
                     <input
                       type="text"

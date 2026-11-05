@@ -37,7 +37,7 @@ export const BulkMinStockModal: React.FC<BulkMinStockModalProps> = ({
       <div className="w-full max-w-sm max-h-[90vh] bg-surface dark:bg-surface-dark rounded-[8px] border border-line dark:border-line-dark p-5 shadow-2xl flex flex-col gap-3.5 overflow-y-auto">
         <div className="flex items-center justify-between pb-2 border-b border-line dark:border-line-dark">
           <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">تعديل حد النواقص للأصناف المحددة</h3>
-          <span className="text-micro font-mono font-bold px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright">
+          <span className="text-micro font-mono font-bold px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright">
             {selectedCount} صنف محدد
           </span>
         </div>

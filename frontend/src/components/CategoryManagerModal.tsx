@@ -260,7 +260,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
                 type="button"
                 onClick={() => void handleAddCategory()}
                 disabled={!newCatName.trim()}
-                className="px-3.5 h-[36px] bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white rounded text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                className="px-3.5 h-[36px] bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted dark:disabled:opacity-100 text-white rounded text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>إضافة تصنيف</span>

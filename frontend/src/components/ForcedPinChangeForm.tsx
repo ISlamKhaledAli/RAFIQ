@@ -3,6 +3,7 @@ import { ShieldAlert, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { UserDto } from '../bridge/ipc';
 import { isWeakPin, isValidPinFormat } from '../utils/pinPolicy';
+import { RequiredMark } from './RequiredMark';
 
 interface ForcedPinChangeFormProps {
   user: UserDto;
@@ -66,14 +67,14 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
   };
 
   const pinInputClass =
-    'w-full h-11 px-3 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark text-center text-lg font-mono tracking-widest focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand shadow-2xs';
+    'w-full h-11 px-3 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark text-center text-lg font-mono tracking-widest focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-2 focus:ring-brand/30 dark:focus:ring-brand-bright/40 shadow-2xs';
 
   return (
-    <div className="p-6 bg-canvas dark:bg-canvas-dark flex flex-col gap-5" dir="rtl">
-      <div className="p-4 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-dark-soft text-warn dark:text-warn-bright flex items-start gap-3">
-        <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+    <div className="p-6 bg-canvas dark:bg-canvas-dark flex flex-col gap-6" dir="rtl">
+      <div className="p-4 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-bright/30 text-ink dark:text-ink-dark flex items-start gap-3">
+        <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
         <div className="text-xs leading-relaxed">
-          <span className="font-bold block text-sm mb-1 text-ink dark:text-ink-dark">تنبيه حماية الحساب والبيانات:</span>
+          <span className="t-card-title block mb-1 text-ink dark:text-ink-dark">تنبيه حماية الحساب والبيانات:</span>
           الحساب الحالي ({user.displayName}) مسجل برقم سري مبدئي أو مؤقت. لحماية حسابك ومنع أي شخص من التلاعب بالأسعار أو الحسابات،
           يرجى كتابة رقم سري جديد وخاص بك (يتكون من 4 إلى 8 أرقام غير متتالية) قبل استخدام البرنامج.
         </div>
@@ -82,7 +83,7 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 max-w-md mx-auto w-full">
         {needsOldPin && (
           <div>
-            <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">الرقم السري الحالي</label>
+            <label className="t-label block text-ink dark:text-ink-dark mb-1.5">الرقم السري الحالي <RequiredMark /></label>
             <input
               type="password"
               inputMode="numeric"
@@ -100,7 +101,7 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
         )}
 
         <div>
-          <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">الرقم السري الجديد (4 إلى 8 أرقام)</label>
+          <label className="t-label block text-ink dark:text-ink-dark mb-1.5">الرقم السري الجديد (4 إلى 8 أرقام) <RequiredMark /></label>
           <input
             type="password"
             inputMode="numeric"
@@ -117,7 +118,7 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">تأكيد الرقم السري الجديد</label>
+          <label className="t-label block text-ink dark:text-ink-dark mb-1.5">تأكيد الرقم السري الجديد <RequiredMark /></label>
           <input
             type="password"
             inputMode="numeric"
@@ -133,7 +134,7 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-danger/10 dark:bg-danger-dark-soft border border-danger/20 dark:border-danger/30 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -142,7 +143,7 @@ export const ForcedPinChangeForm: React.FC<ForcedPinChangeFormProps> = ({ user, 
         <button
           type="submit"
           disabled={saving || !newPin || !newPinConfirm || (needsOldPin && !oldPin)}
-          className="w-full h-11 rounded-xl bg-brand dark:bg-brand-container hover:bg-brand-dark dark:hover:bg-brand text-white font-bold text-sm transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2 shadow-sm"
+          className="w-full h-11 rounded-xl bg-brand dark:bg-brand-container hover:bg-brand-dark dark:hover:bg-brand text-white font-bold text-sm transition-all cursor-pointer flex items-center justify-center gap-2 mt-2 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 dark:focus-visible:ring-brand-bright/50 disabled:opacity-100 disabled:shadow-none disabled:bg-surface-3 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted disabled:border disabled:border-line dark:disabled:border-line-dark disabled:cursor-not-allowed"
         >
           {saving ? (
             <>

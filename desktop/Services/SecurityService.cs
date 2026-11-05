@@ -79,8 +79,8 @@ namespace RafiqPOS.Services
         public const int TIER_ROOT = 3;
         private const string OWNER_ONLY_MESSAGE = "هذه العملية متاحة لصاحب المحل فقط";
 
-        // Permission keys only the owner (or root) may hold; forced false for every other admin
-        private static readonly string[] OWNER_ONLY_PERMISSIONS = new string[] { "settings.restore", "settings.license" };
+        // Owner-grade keys: always on for the owner/root, off for a manager until the owner explicitly grants each one; never held by cashiers
+        public static readonly string[] DELEGABLE_OWNER_PERMISSIONS = new string[] { "system.updates", "settings.restore", "settings.license" };
 
         private static bool IsOwnerIdentity(string id, string username, string role)
         {
@@ -109,13 +109,41 @@ namespace RafiqPOS.Services
             return TIER_CASHIER;
         }
 
+        // True for the owner-grade keys (owner/root by default, a manager only when the owner granted the key)
         public static bool IsOwnerOnlyPermission(string permKey)
         {
-            for (int i = 0; i < OWNER_ONLY_PERMISSIONS.Length; i++)
+            for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
             {
-                if (OWNER_ONLY_PERMISSIONS[i] == permKey) return true;
+                if (DELEGABLE_OWNER_PERMISSIONS[i] == permKey) return true;
             }
             return false;
+        }
+
+        // A manager holds an owner-grade key only when his own PermissionsJson explicitly says true
+        private static bool IsOwnerGradeGranted(User manager, string permKey)
+        {
+            if (manager == null || string.IsNullOrEmpty(manager.PermissionsJson)) return false;
+            try
+            {
+                var custom = JsonConvert.DeserializeObject<Dictionary<string, bool>>(manager.PermissionsJson);
+                bool granted;
+                return custom != null && custom.TryGetValue(permKey, out granted) && granted;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Owner-grade keys currently granted to a manager, in DELEGABLE_OWNER_PERMISSIONS order
+        private static List<string> GrantedOwnerGradeKeys(User manager)
+        {
+            var granted = new List<string>();
+            for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+            {
+                if (IsOwnerGradeGranted(manager, DELEGABLE_OWNER_PERMISSIONS[i])) granted.Add(DELEGABLE_OWNER_PERMISSIONS[i]);
+            }
+            return granted;
         }
 
         // Owner or developer root: the only accounts allowed to run store-wide dangerous operations
@@ -953,6 +981,19 @@ namespace RafiqPOS.Services
                 pinHashStr = Convert.ToBase64String(pHash);
             }
 
+            // New managers start without owner-grade grants (the owner grants them later); cashiers can never hold them
+            if (targetRole == "admin")
+            {
+                permissions = null;
+            }
+            else if (permissions != null)
+            {
+                for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+                {
+                    permissions[DELEGABLE_OWNER_PERMISSIONS[i]] = false;
+                }
+            }
+
             string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : null;
 
             var user = new User
@@ -1123,20 +1164,63 @@ namespace RafiqPOS.Services
             }
 
             User caller = RequireHierarchyAuthority(user);
-            if (caller.Role != "admin" && caller.Role != "root")
+            bool targetIsManager = Tier(user) == TIER_MANAGER;
+            List<string> grantedBefore = GrantedOwnerGradeKeys(user);
+            if (targetIsManager)
             {
-                // Non-admins persist a complete map bounded by their own and the target's parent permissions
-                User targetParent = !string.IsNullOrEmpty(user.ParentId) ? _userRepo.GetById(user.ParentId) : null;
-                permissions = BuildBoundedPermissionMap(user.Role, permissions, GetEffectivePermissions(caller),
-                    targetParent != null ? GetEffectivePermissions(targetParent) : null);
+                // Only the owner/root reach here (tier rule). A manager keeps every daily power, so only the owner-grade grants are stored
+                var grants = new Dictionary<string, bool>();
+                for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+                {
+                    string key = DELEGABLE_OWNER_PERMISSIONS[i];
+                    if (permissions != null && permissions.ContainsKey(key) && permissions[key]) grants[key] = true;
+                }
+                permissions = grants;
+            }
+            else
+            {
+                if (caller.Role != "admin" && caller.Role != "root")
+                {
+                    // Non-admins persist a complete map bounded by their own and the target's parent permissions
+                    User targetParent = !string.IsNullOrEmpty(user.ParentId) ? _userRepo.GetById(user.ParentId) : null;
+                    permissions = BuildBoundedPermissionMap(user.Role, permissions, GetEffectivePermissions(caller),
+                        targetParent != null ? GetEffectivePermissions(targetParent) : null);
+                }
+                if (permissions != null)
+                {
+                    // Cashiers can never hold owner-grade keys, whoever edits them
+                    for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+                    {
+                        permissions[DELEGABLE_OWNER_PERMISSIONS[i]] = false;
+                    }
+                }
             }
 
             string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : "{}";
             user.PermissionsJson = permsJson;
             _userRepo.Update(user);
             LogAudit("USER_PERMISSIONS_UPDATED", "SECURITY", user.Username, string.Format("تم تحديث صلاحيات الحساب: {0}", user.DisplayName));
+            if (targetIsManager) LogOwnerGradeChanges(caller, user, grantedBefore, GrantedOwnerGradeKeys(user));
 
-            CascadeRevokePermissions(user.Id, permissions);
+            CascadeRevokePermissions(user.Id, targetIsManager ? GetEffectivePermissions(user) : permissions);
+        }
+
+        private void LogOwnerGradeChanges(User caller, User target, List<string> before, List<string> after)
+        {
+            var granted = new List<string>();
+            var revoked = new List<string>();
+            for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+            {
+                string key = DELEGABLE_OWNER_PERMISSIONS[i];
+                bool was = before.Contains(key);
+                bool now = after.Contains(key);
+                if (now && !was) granted.Add(key);
+                else if (was && !now) revoked.Add(key);
+            }
+            if (granted.Count == 0 && revoked.Count == 0) return;
+            LogAudit("USER_PERMISSIONS_CHANGED", "SECURITY", target.Username, string.Format(
+                "صلاحيات خاصة بالمالك للمدير {0}: منح [{1}] - سحب [{2}] - بواسطة: {3}",
+                target.DisplayName, string.Join(", ", granted.ToArray()), string.Join(", ", revoked.ToArray()), caller.Username));
         }
 
         public void SetUserDelegation(string userId, bool canDelegate, int maxDepth)
@@ -1474,9 +1558,13 @@ namespace RafiqPOS.Services
             if (user == null) return false;
 
             // Authorization is decided by role only (Audit F-13); the owner account is enforced as role "admin" at startup.
-            // Managers (non-owner admins) keep every key except the owner-only ones.
+            // Managers (non-owner admins) keep every key except the owner-grade ones, which need an explicit owner grant.
             if (user.Role == "root") return true;
-            if (user.Role == "admin") return !IsOwnerOnlyPermission(permKey) || IsOwnerUser(user);
+            if (user.Role == "admin")
+            {
+                if (IsOwnerUser(user) || !IsOwnerOnlyPermission(permKey)) return true;
+                return IsOwnerGradeGranted(user, permKey);
+            }
 
             var perms = GetEffectivePermissions(user);
             return perms.ContainsKey(permKey) && perms[permKey];
@@ -2331,7 +2419,7 @@ namespace RafiqPOS.Services
             "customers.payment", "customers.payment_cancel", "customers.credit_sale", "customers.credit_limit_override",
             "customers.credit_limit", "customers.opening_balance",
             "reports.sales", "reports.profit", "reports.inventory", "reports.customers", "reports.cashier", "reports.daily_closing",
-            "settings.store", "settings.printer", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license",
+            "settings.store", "settings.printer", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license", "system.updates",
             "users.view", "users.create", "users.edit", "users.deactivate", "users.reset_pin", "users.delegate",
             "audit_log.view", "expenses.view", "expenses.create", "expenses.edit", "expenses.delete", "expenses.cancel",
             "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.history", "epay.analytics", "epay.cancel", "epay.balance_adjust",
@@ -2396,12 +2484,21 @@ namespace RafiqPOS.Services
 
             SyncPermissionAliases(p);
 
-            // Owner-only keys are never true for managers, so the UI shows what the server will enforce
-            if (u.Role == "admin" && !IsOwnerUser(u))
+            // Owner-grade keys follow the same rule HasPermission enforces, so the UI shows what the server will allow
+            if (u.Role == "admin" && IsOwnerUser(u))
             {
-                for (int i = 0; i < OWNER_ONLY_PERMISSIONS.Length; i++)
+                for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
                 {
-                    p[OWNER_ONLY_PERMISSIONS[i]] = false;
+                    p[DELEGABLE_OWNER_PERMISSIONS[i]] = true;
+                }
+            }
+            else
+            {
+                bool isManager = u.Role == "admin";
+                for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+                {
+                    string key = DELEGABLE_OWNER_PERMISSIONS[i];
+                    p[key] = isManager && IsOwnerGradeGranted(u, key);
                 }
             }
             return p;
@@ -2579,7 +2676,7 @@ namespace RafiqPOS.Services
             p["settings.backup"] = isAdmin;
             p["settings.restore"] = isAdmin;
             p["settings.license"] = isAdmin;
-
+            p["system.updates"] = isAdmin;
             // Users
             p["users.view"] = isAdmin;
             p["users.create"] = isAdmin;

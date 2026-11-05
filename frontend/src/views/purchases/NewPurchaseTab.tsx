@@ -25,6 +25,7 @@ import {
 import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { MoneyInput } from '../../components/MoneyInput';
+import { RequiredMark } from '../../components/RequiredMark';
 import { useFeatures } from '../../context/useFeatures';
 import type { Supplier, Product, ProductUnit } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
@@ -671,10 +672,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-3 pb-1">
         {/* Invoice header: supplier + date always visible, the rest folded away */}
         <section className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs space-y-3">
+          {(supplierRequired || lineItems.length > 0) && (
+            <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
+          )}
           <div className="flex flex-col sm:flex-row sm:items-end gap-3">
             <div ref={supplierWrapRef} className="flex-1 min-w-0">
               <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1.5">
-                المورد <span className="text-danger dark:text-danger-bright">*</span>
+                المورد {supplierRequired && <RequiredMark />}
               </label>
               <div
                 className={`flex items-center gap-2 rounded-xl ${
@@ -900,7 +904,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           {lineItems.length > 0 && (
             <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_176px_128px_112px_120px] gap-x-3 h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
               <div className="text-right">الصنف</div>
-              <div className="text-center">الكمية</div>
+              <div className="text-center">الكمية <RequiredMark /></div>
               <div className="text-center">سعر الشراء</div>
               <div className="text-center">الإجمالي</div>
               <div />

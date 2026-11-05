@@ -54,7 +54,13 @@ export function ReceiptPaper({ model, paper, logoUrl, id }: ReceiptPaperProps) {
       {model.address && <div className="text-center text-micro break-words">{model.address}</div>}
       {model.phone && <div className="text-center text-micro break-words">هاتف: {model.phone}</div>}
       {model.taxNumber && <div className="text-center text-micro break-words">الرقم الضريبي: {model.taxNumber}</div>}
-      {model.headerText && <div className="text-center text-micro mt-1 break-words">{model.headerText}</div>}
+      {model.headerLines.length > 0 && (
+        <div className="text-center text-micro mt-1">
+          {model.headerLines.map((line, i) => (
+            <div key={i} className="break-words min-h-[1em]">{line}</div>
+          ))}
+        </div>
+      )}
 
       <div className="border-t border-dashed border-black my-1.5"></div>
 
@@ -199,9 +205,30 @@ export function ReceiptPaper({ model, paper, logoUrl, id }: ReceiptPaperProps) {
       <div className="border-t border-dashed border-black my-1.5"></div>
       {model.coldChainNotice && <div className="text-center font-bold break-words mb-0.5">{model.coldChainNotice}</div>}
       {model.notes && <div className="text-center text-micro break-words mb-0.5">{model.notes}</div>}
-      <div className="text-center text-micro break-words">{model.footer}</div>
+      {model.footerLines.length > 0 && (
+        <div className="text-center text-micro">
+          {model.footerLines.map((line, i) => (
+            <div key={i} className="break-words min-h-[1em]">{line}</div>
+          ))}
+        </div>
+      )}
 
-      <div className="border-t border-dashed border-black mt-1.5 pt-1 text-center text-micro break-words">{model.signature}</div>
+      {model.signatureVisible && (
+        <div className={`${model.footerBlock ? 'border-t border-dashed border-black mt-1.5 pt-1 ' : ''}text-center text-micro`}>
+          {model.signatureImageSrc && (
+            // One and a half lines below the dashed separator, like the thermal print; always black on white, never recoloured.
+            // The height cap matches the printer (about 4.5 small lines) so a tall custom image cannot stretch the receipt.
+            <img
+              src={model.signatureImageSrc}
+              alt=""
+              className="block mx-auto mt-6 mb-1 w-2/3 max-w-full max-h-14 h-auto object-contain"
+            />
+          )}
+          {model.signatureLines.map((line, i) => (
+            <div key={i} className="break-words min-h-[1em]">{line}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

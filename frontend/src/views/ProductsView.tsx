@@ -284,7 +284,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     try {
       const res = await exportProductsToExcel();
       if (res.success) {
-        setImportSuccessAlert(`تم تصدير ${res.count || products.length} صنف إلى ملف إكسل ملون واحترافي بنجاح!`);
+        setImportSuccessAlert(`تم تصدير ${res.count || products.length} صنف إلى ملف إكسل`);
       } else {
         void rafiqAlert({
           title: 'فشل تصدير ملف الإكسل',
@@ -346,7 +346,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       });
       if (res.success) {
         setBulkPriceUndoBatchId(null);
-        setImportSuccessAlert(res.message || 'تم التراجع عن تعديل الأسعار بنجاح وإعادة الأصناف لأسعارها السابقة');
+        setImportSuccessAlert(res.message || 'تم التراجع عن تعديل الأسعار');
         void loadProducts(searchQuery, currentPage, pageSize, stockStatusFilter, selectedCategoryFilter);
       } else {
         await rafiqAlert({ message: res.message || 'فشل التراجع عن التعديل', title: 'تنبيه', variant: 'warning' });
@@ -412,7 +412,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setRecalcSuccessMsg(null);
     try {
       const res: any = await invoke('inventory:recalculate');
-      setRecalcSuccessMsg(res?.message || 'تمت إعادة حساب المخزون ومطابقة الأرصدة بنجاح.');
+      setRecalcSuccessMsg(res?.message || 'تمت إعادة حساب المخزون');
       await loadProducts(searchQuery);
       await loadMovements();
       await checkDiscrepancies();
@@ -816,8 +816,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       if (res && res.success) {
         await loadProducts(searchQuery, currentPage, pageSize);
         await rafiqAlert({
-          title: 'تم عمل الباركودات بنجاح',
-          message: `تم بنجاح عمل وتثبيت باركود داخلي قياسي (EAN-13) لـ ${res.count} صنف! تقدر دلوقتي تطبع استيكرات الباركود ليهم من زرار طباعة الاستيكرات (F8).`,
+          title: 'تم عمل الباركودات',
+          message: `تم عمل باركود داخلي (EAN-13) لـ ${res.count} صنف. اطبع الاستيكرات من زر طباعة الاستيكرات (F8).`,
           variant: 'success'
         });
       } else {
@@ -899,7 +899,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       const res = await invoke<{ success: boolean; clearedCount: number }>('products:clearAll');
       setSelectedProductIds([]);
       setCurrentPage(1);
-      setImportSuccessAlert(`تم بنجاح تصفير ومسح كافة الأصناف (${res?.clearedCount || 0} صنف).`);
+      setImportSuccessAlert(`تم مسح كل الأصناف (${res?.clearedCount || 0} صنف)`);
       await loadProducts('', 1, pageSize, 'all', 'all');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1883,7 +1883,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         parentProduct={matrixParentProduct}
         onSuccess={(result) => {
           void rafiqAlert({
-            title: 'تم حفظ مصفوفة المقاسات والألوان بنجاح!',
+            title: 'تم حفظ مصفوفة المقاسات والألوان',
             message: `تم حفظ المنتج الأساسي "${result.parentProduct.name}" مع ${result.totalVariantsCount} تركيبة، بإجمالي رصيد ${result.totalStockMilli / 1000} قطعة.`,
             variant: 'info'
           });

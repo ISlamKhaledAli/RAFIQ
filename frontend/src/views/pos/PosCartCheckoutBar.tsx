@@ -10,6 +10,7 @@ import {
   Wallet,
   Link2,
   ShieldCheck,
+  Tag,
   X,
 } from 'lucide-react';
 import type { Customer } from '../../types/models';
@@ -19,6 +20,27 @@ import type { CartInteractionCheckResult } from '../../types/pharma';
 import { formatArabicCurrency } from '../../utils/money';
 import { useFeatures } from '../../context/useFeatures';
 import { usePermission } from '../../utils/usePermission';
+
+// Shared look of the secondary action row (h-11, readable label, tokens only); icons drop below xl so five buttons fit one row.
+const SECONDARY_BTN =
+  'h-11 flex-1 min-w-[4.5rem] px-2 xl:px-3 rounded-lg border text-sm font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap shadow-2xs transition-colors cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100';
+const SECONDARY_ICON = 'w-4 h-4 shrink-0 max-xl:hidden';
+const SECONDARY_NEUTRAL =
+  'bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark border-line dark:border-line-dark enabled:hover:bg-surface-2 dark:enabled:hover:bg-surface-dark-3 enabled:hover:border-line-hover dark:enabled:hover:border-line-dark-hover';
+const SECONDARY_DISABLED =
+  'disabled:bg-surface-2 disabled:border-line disabled:text-ink-muted dark:disabled:bg-surface-dark-2 dark:disabled:border-line-dark dark:disabled:text-ink-dark-muted';
+
+// Payment triggers: min-h-14, disabled reads as an inert dashed outline (not just faded).
+const PAY_BTN =
+  'group relative flex-1 min-w-0 min-h-14 px-3 rounded-xl border-2 flex items-center justify-center gap-2 text-base font-semibold whitespace-nowrap shadow-sm transition-colors cursor-pointer active:scale-[0.98] disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100 disabled:border-dashed disabled:bg-surface-2 disabled:border-line disabled:text-ink-muted dark:disabled:bg-surface-dark-2 dark:disabled:border-line-dark dark:disabled:text-ink-dark-muted';
+const PAY_OUTLINE =
+  'bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark border-brand dark:border-brand-bright/60 enabled:hover:bg-brand-soft dark:enabled:hover:bg-brand-dark-soft';
+const PAY_SOLID =
+  'bg-paid text-white border-paid-hover dark:border-paid-bright/50 enabled:hover:bg-paid-hover';
+const PAY_ICON = 'w-5 h-5 shrink-0';
+const PAY_ICON_BRAND = `${PAY_ICON} group-enabled:text-brand dark:group-enabled:text-brand-bright`;
+const LINK_BADGE =
+  'absolute -top-2.5 start-2 px-1.5 py-0.5 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold rounded-md border border-warn-border dark:border-warn-bright/40 flex items-center gap-0.5 shadow-2xs leading-none';
 
 interface PosCartCheckoutBarProps {
   cart: CartItem[];
@@ -43,6 +65,8 @@ interface PosCartCheckoutBarProps {
   onOpenHeldSales: () => void;
   onOpenReturnModal: () => void;
   onOpenExpenseModal?: () => void;
+  /** When given, the invoice discount becomes a button (same entry as F4); without it the chip is display-only. */
+  onOpenInvoiceDiscount?: () => void;
   activeInsuranceClaim?: InsuranceClaimLine | null;
   onRemoveInsuranceClaim?: () => void;
   hasInstapayAccount?: boolean;
@@ -74,6 +98,7 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   onOpenHeldSales,
   onOpenReturnModal,
   onOpenExpenseModal,
+  onOpenInvoiceDiscount,
   activeInsuranceClaim,
   onRemoveInsuranceClaim,
   hasInstapayAccount = true,
@@ -85,61 +110,81 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   const canReturn = usePermission('returns.create');
   const showWallets = isEnabled('feature_pos_digital_payments') || isEnabled('feature_digital_wallets');
   const selectedCust = selectedCustomerId ? customers.find((c) => c.id === selectedCustomerId) : null;
+  // No account linked yet and nothing in the cart: the button becomes the shortcut to link one
+  const needsInstapayLink = !hasInstapayAccount && Boolean(onNavigateToWallets) && cart.length === 0;
+  const needsWalletLink = !hasWalletAccount && Boolean(onNavigateToWallets) && cart.length === 0;
   const totalLabel = formatArabicCurrency(netTotalPiasters, false);
 
   return (
-    <div className="bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark shadow-[0_-2px_8px_rgba(0,0,0,0.03)] p-1.5 sm:p-2 flex flex-col gap-1.5 shrink-0 select-none">
+    <div className="bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark shadow-[0_-2px_8px_rgba(0,0,0,0.03)] px-3 py-2.5 flex flex-col gap-2.5 shrink-0 select-none">
       
-      {/* 1. Info strip (invoice, counters, alerts) then an evenly spread action row - nothing hides behind a scrollbar */}
-      <div className="flex flex-col gap-1.5 pb-1.5 border-b border-line/60 dark:border-line-dark/60">
+      {/* 1. Info strip (invoice, counters, alerts) then an evenly spread action row */}
+      <div className="flex flex-col gap-2 pb-2.5 border-b border-line/60 dark:border-line-dark/60">
         
         {/* Cart Meta (Invoice #, Count, Discount, DDI status) */}
-        <div className="flex items-center gap-1.5 text-xs shrink-0 min-h-7 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1 font-bold">
-            <span className="text-ink-muted dark:text-ink-dark-muted text-xs">فاتورة</span>
-            <span className="text-sm font-mono font-extrabold tabular-nums text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-2 py-0.5 rounded-lg shadow-2xs">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm shrink-0 min-h-8">
+          <div className="flex items-center gap-2 font-semibold">
+            <span className="text-ink-muted dark:text-ink-dark-muted text-sm font-semibold">فاتورة</span>
+            <span className="text-sm font-mono font-bold tabular-nums text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-3 py-1 rounded-lg shadow-2xs">
               #{nextExpectedInvoiceNumber || (lastInvoiceNumber ? lastInvoiceNumber + 1 : '1')}
             </span>
           </div>
 
-          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold bg-surface-2 dark:bg-surface-dark-3 px-2.5 py-0.5 rounded-lg border border-line dark:border-line-dark/80 whitespace-nowrap flex items-center gap-1">
-            <span className="text-sm font-extrabold tabular-nums text-ink dark:text-ink-dark">{cart.length}</span>
+          <span className="text-sm text-ink-muted dark:text-ink-dark-muted font-semibold bg-surface-2 dark:bg-surface-dark-3 px-3 py-1 rounded-lg border border-line dark:border-line-dark/80 whitespace-nowrap flex items-center gap-1.5">
+            <span className="text-sm font-bold tabular-nums text-ink dark:text-ink-dark">{cart.length}</span>
             <span>صنف</span>
-            <span className="opacity-50">·</span>
-            <span className="text-sm font-extrabold tabular-nums text-ink dark:text-ink-dark">{totalItemCount}</span>
+            <span className="text-ink-muted dark:text-ink-dark-muted" aria-hidden="true">·</span>
+            <span className="text-sm font-bold tabular-nums text-ink dark:text-ink-dark">{totalItemCount}</span>
             <span>قطعة</span>
           </span>
 
-          {discountPiasters > 0 && (
-            <span className="text-xs text-danger dark:text-danger-bright font-extrabold tabular-nums bg-danger-soft dark:bg-danger-dark-soft px-2 py-0.5 rounded-lg border border-danger-border dark:border-danger-bright/30 whitespace-nowrap">
-              خصم: -{formatArabicCurrency(discountPiasters)}
-            </span>
+          {onOpenInvoiceDiscount ? (
+            <button
+              type="button"
+              onClick={onOpenInvoiceDiscount}
+              disabled={cart.length === 0}
+              className={`h-8 px-3 rounded-lg border text-sm font-bold tabular-nums whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer transition-colors focus-visible:border-brand dark:focus-visible:border-brand-bright disabled:cursor-not-allowed disabled:bg-surface-2 disabled:border-line disabled:text-ink-muted dark:disabled:bg-surface-dark-2 dark:disabled:border-line-dark dark:disabled:text-ink-dark-muted ${
+                discountPiasters > 0
+                  ? 'text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/40 enabled:hover:bg-danger-soft/60 dark:enabled:hover:bg-danger-dark-soft/60'
+                  : 'text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark enabled:hover:bg-surface-2 dark:enabled:hover:bg-surface-dark-3 enabled:hover:border-line-hover dark:enabled:hover:border-line-dark-hover'
+              }`}
+              title="إضافة أو تعديل خصم على إجمالي الفاتورة (F4)"
+            >
+              <Tag className="w-4 h-4 shrink-0" />
+              <span>{discountPiasters > 0 ? `خصم: -${formatArabicCurrency(discountPiasters)}` : 'خصم على الفاتورة'}</span>
+            </button>
+          ) : (
+            discountPiasters > 0 && (
+              <span className="text-sm text-danger dark:text-danger-bright font-bold tabular-nums bg-danger-soft dark:bg-danger-dark-soft px-3 py-1 rounded-lg border border-danger-border dark:border-danger-bright/30 whitespace-nowrap">
+                خصم: -{formatArabicCurrency(discountPiasters)}
+              </span>
+            )
           )}
 
           {/* DDI Clinical Status: conflicts are shown by the warning banner above the cart; only the all-clear state lives here */}
           {(isEnabled('feature_drug_interactions') || isEnabled('feature_pharmacy')) && cart.length >= 2 && ddiResult && !ddiResult.hasInteractions && (
             <div
-              className="h-6 px-2 rounded-md border border-paid/30 dark:border-paid-dark-border bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold flex items-center gap-1 select-none whitespace-nowrap shadow-2xs"
+              className="h-7 px-2.5 rounded-lg border border-paid/30 dark:border-paid-dark-border bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-xs font-semibold flex items-center gap-1.5 select-none whitespace-nowrap shadow-2xs"
               title="تم فحص السلة سريرياً: لا توجد تعارضات دوائية مسجلة بين الأصناف"
             >
-              <ShieldCheck className="w-3 h-3 shrink-0" />
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
               <span>آمن دوائياً</span>
             </div>
           )}
         </div>
 
         {/* Support Action Buttons (مصروف, تفريغ, تعليق, معلقة, مرتجع) */}
-        <div className="flex items-stretch gap-1">
+        <div className="flex flex-wrap items-stretch gap-2">
 
           {/* مصروف درج */}
           {onOpenExpenseModal && (
             <button
               type="button"
               onClick={onOpenExpenseModal}
-              className="h-8 flex-1 min-w-0 px-2 bg-surface dark:bg-surface-dark-2 hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-danger dark:text-danger-bright border border-line dark:border-line-dark hover:border-danger/40 dark:hover:border-danger-bright/40 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+              className={`${SECONDARY_BTN} ${SECONDARY_NEUTRAL}`}
               title="تسجيل مصروف نثريات طلع من الدرج"
             >
-              <Receipt className="w-3 h-3 shrink-0" />
+              <Receipt className={`${SECONDARY_ICON} text-ink-muted dark:text-ink-dark-muted`} />
               <span>مصروف</span>
             </button>
           )}
@@ -149,10 +194,10 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
             type="button"
             onClick={requestClearCart}
             disabled={cart.length === 0}
-            className="h-8 flex-1 min-w-0 px-2 bg-surface dark:bg-surface-dark-2 hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-danger dark:text-danger-bright disabled:text-ink-muted/50 dark:disabled:text-ink-dark-muted/40 border border-danger-border dark:border-danger-bright/30 disabled:border-line dark:disabled:border-line-dark text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+            className={`${SECONDARY_BTN} ${SECONDARY_DISABLED} bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/40 enabled:hover:bg-danger-soft/60 dark:enabled:hover:bg-danger-dark-soft/60 enabled:hover:border-danger dark:enabled:hover:border-danger-bright`}
             title="تفريغ السلة وفاتورة جديدة (F7)"
           >
-            <RotateCcw className="w-3 h-3 shrink-0" />
+            <RotateCcw className={SECONDARY_ICON} />
             <span>تفريغ</span>
           </button>
 
@@ -161,10 +206,10 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
             type="button"
             onClick={() => void handleHoldCurrentSale()}
             disabled={cart.length === 0}
-            className="h-8 flex-1 min-w-0 px-2 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark disabled:text-ink-muted/50 dark:disabled:text-ink-dark-muted/40 border border-line dark:border-line-dark hover:border-brand-bright/40 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 whitespace-nowrap"
+            className={`${SECONDARY_BTN} ${SECONDARY_DISABLED} ${SECONDARY_NEUTRAL}`}
             title="تعليق الفاتورة الحالية (F6)"
           >
-            <Clock className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted shrink-0" />
+            <Clock className={`${SECONDARY_ICON} text-ink-muted dark:text-ink-dark-muted`} />
             <span>تعليق</span>
           </button>
 
@@ -172,12 +217,12 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
           <button
             type="button"
             onClick={onOpenHeldSales}
-            className="h-8 flex-1 min-w-0 px-2 bg-surface dark:bg-surface-dark-2 hover:bg-warn-soft dark:hover:bg-warn-dark-soft text-ink dark:text-ink-dark border border-line dark:border-line-dark hover:border-warn/30 dark:hover:border-warn-bright/30 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+            className={`${SECONDARY_BTN} ${SECONDARY_NEUTRAL}`}
             title="عرض واسترجاع الفواتير المعلقة"
           >
             <span>معلقة</span>
             {heldSalesCount > 0 && (
-              <span className="min-w-5 h-5 px-1 rounded-full bg-warn text-white dark:bg-warn-bright dark:text-surface-dark font-mono text-xs tabular-nums flex items-center justify-center font-extrabold shrink-0">
+              <span className="min-w-6 h-6 px-1.5 rounded-full bg-warn text-white dark:bg-warn-bright dark:text-surface-dark font-mono text-xs tabular-nums flex items-center justify-center font-bold shrink-0">
                 {heldSalesCount}
               </span>
             )}
@@ -188,10 +233,10 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
           <button
             type="button"
             onClick={onOpenReturnModal}
-            className="h-8 flex-1 min-w-0 px-2 bg-warn-soft dark:bg-warn-dark-soft hover:bg-warn-soft/80 dark:hover:bg-warn-dark-soft/80 text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+            className={`${SECONDARY_BTN} bg-warn-soft dark:bg-warn-dark-soft enabled:hover:bg-warn-soft/70 dark:enabled:hover:bg-warn-dark-soft/70 text-ink dark:text-ink-dark border-warn-border dark:border-warn-bright/40`}
             title="تسجيل مرتجع بضاعة (F11)"
           >
-            <Undo2 className="w-3 h-3 shrink-0 text-warn dark:text-warn-bright" />
+            <Undo2 className={`${SECONDARY_ICON} text-warn dark:text-warn-bright`} />
             <span>مرتجع</span>
           </button>
           )}
@@ -226,38 +271,35 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
         </div>
       )}
 
-      {/* 2. Main Hero Section: Grand Total Card + Primary Payment Buttons */}
-      <div className="flex flex-row items-stretch gap-1.5 sm:gap-2 h-14">
-        
-        {/* Grand Total Hero Card ("المطلوب دفعه") - Sized proportionally as the largest card */}
-        <div className="flex-[2] min-w-0 bg-gradient-to-br from-brand-dark via-brand to-brand-hover dark:from-[#0B4F42] dark:via-[#178068] dark:to-[#1D9A7E] rounded-xl border border-brand/80 dark:border-brand-bright/30 px-2.5 sm:px-3 py-1 flex flex-col justify-between shadow-[0_2px_8px_rgba(0,55,45,0.18)] select-none">
-          <div className="flex items-center justify-between leading-none">
-            <span className="text-xs font-bold text-emerald-200">المطلوب دفعه</span>
-            <span className="flex items-center gap-1 text-xs font-bold text-emerald-100">
-              {showTaxes && totalTaxPiasters > 0 && <span className="text-micro font-medium text-emerald-300">(شامل)</span>}
-              <span>ج.م</span>
-            </span>
+      {/* 2. Hero: Grand Total Card (dominant) above the primary payment buttons */}
+      <div className="flex flex-col gap-2.5">
+        {/* Grand Total Hero Card ("المطلوب دفعه") */}
+        <div className="min-w-0 min-h-16 bg-gradient-to-br from-brand-dark via-brand to-brand-hover dark:from-brand-dark dark:via-brand dark:to-brand-container rounded-xl border border-brand dark:border-brand-bright/40 px-4 py-2.5 flex items-center justify-between gap-3 shadow-[0_2px_8px_rgba(0,55,45,0.18)] select-none">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-base font-semibold text-white">المطلوب دفعه</span>
+            {showTaxes && totalTaxPiasters > 0 && <span className="text-xs font-medium text-white/80">(شامل الضريبة)</span>}
           </div>
-          <div className="flex items-baseline justify-end leading-none pt-0.5">
-            <span className={`text-white ${totalLabel.length > 10 ? 'text-lg' : totalLabel.length > 8 ? 'text-xl' : 'text-2xl'} font-black font-mono tracking-tight tabular-nums whitespace-nowrap`}>
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className={`text-white ${totalLabel.length > 10 ? 'text-2xl' : totalLabel.length > 8 ? 'text-3xl' : 'text-4xl'} font-black font-mono tracking-tight tabular-nums whitespace-nowrap leading-none`}>
               {totalLabel}
             </span>
+            <span className="text-sm font-bold text-white/80 shrink-0">ج.م</span>
           </div>
         </div>
 
-        {/* Primary Checkout Triggers (كاش / انستاباي / محافظ / شكك) - Evenly balanced */}
-        <div className="flex-[2.7] min-w-0 flex items-stretch gap-1 sm:gap-1.5">
+        {/* Primary Checkout Triggers (كاش / انستاباي / محفظة / شكك) */}
+        <div className="flex items-stretch gap-3">
           {paymentMethod === 'credit' ? (
             /* شكك */
             <button 
               type="button"
               onClick={() => handleOpenCheckout('credit')}
               disabled={loading || cart.length === 0}
-              className="w-full h-full bg-danger hover:bg-red-700 active:bg-red-800 disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted/40 text-white rounded-xl px-3 sm:px-4 flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+              className={`${PAY_BTN} bg-danger text-white border-danger-ink dark:bg-danger-dark-fill dark:border-danger-bright/50 enabled:hover:bg-danger-ink dark:enabled:hover:bg-danger`}
               title="تسجيل بيع شكك (F12)"
             >
-              <CreditCard className="w-4 h-4 shrink-0" />
-              <span className="text-xs sm:text-sm font-bold truncate">
+              <CreditCard className={PAY_ICON} />
+              <span className="truncate">
                 تسجيل بيع شكك {selectedCust ? `(${selectedCust.name})` : ''}
               </span>
             </button>
@@ -268,13 +310,11 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                 type="button"
                 onClick={() => handleOpenCheckout('cash')}
                 disabled={loading || cart.length === 0}
-                className="flex-1 min-w-0 h-full bg-brand hover:bg-brand-dark active:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/70 dark:disabled:text-ink-dark-muted/60 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                className={`${PAY_BTN} ${PAY_SOLID}`}
                 title="دفع كاش وحساب الباقي (F9)"
               >
-                <Banknote className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-micro sm:text-xs font-black truncate text-center leading-none">
-                  كاش
-                </span>
+                <Banknote className={PAY_ICON} />
+                <span className="truncate">كاش</span>
               </button>
 
               {/* انستاباي والمحافظ الإلكترونية */}
@@ -283,51 +323,47 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                   <button 
                     type="button"
                     onClick={() => {
-                      if (!hasInstapayAccount && onNavigateToWallets && cart.length === 0) {
-                        onNavigateToWallets('accounts');
+                      if (needsInstapayLink) {
+                        onNavigateToWallets?.('accounts');
                       } else {
                         handleOpenCheckout('instapay');
                       }
                     }}
-                    disabled={loading || cart.length === 0}
-                    className="relative flex-1 min-w-0 h-full bg-[#582C83] hover:bg-[#49226e] active:bg-[#3b195a] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/70 dark:disabled:text-ink-dark-muted/60 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                    disabled={loading || (cart.length === 0 && !needsInstapayLink)}
+                    className={`${PAY_BTN} ${PAY_OUTLINE}`}
                     title={hasInstapayAccount ? "سداد عبر تطبيق انستاباي" : "سداد فوري عبر تطبيق انستاباي"}
                   >
-                    {!hasInstapayAccount && onNavigateToWallets && cart.length === 0 && (
-                      <span className="absolute top-1 left-1.5 px-1 py-0.5 bg-black/15 dark:bg-white/20 text-current text-micro font-black rounded-md border border-current/20 flex items-center gap-0.5 shadow-2xs leading-none">
-                        <Link2 className="w-2 h-2 text-current" />
+                    {needsInstapayLink && (
+                      <span className={LINK_BADGE}>
+                        <Link2 className="w-2.5 h-2.5 text-current" />
                         <span>ربط</span>
                       </span>
                     )}
-                    <Smartphone className="w-3.5 h-3.5 shrink-0" />
-                    <span className="text-micro sm:text-xs font-black truncate text-center leading-none">
-                      انستاباي
-                    </span>
+                    <Smartphone className={PAY_ICON_BRAND} />
+                    <span className="truncate">انستاباي</span>
                   </button>
 
                   <button 
                     type="button"
                     onClick={() => {
-                      if (!hasWalletAccount && onNavigateToWallets && cart.length === 0) {
-                        onNavigateToWallets('accounts');
+                      if (needsWalletLink) {
+                        onNavigateToWallets?.('accounts');
                       } else {
                         handleOpenCheckout('vodafone_cash');
                       }
                     }}
-                    disabled={loading || cart.length === 0}
-                    className="relative flex-1 min-w-0 h-full bg-[#D92D20] hover:bg-[#B42318] active:bg-[#912018] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/70 dark:disabled:text-ink-dark-muted/60 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                    disabled={loading || (cart.length === 0 && !needsWalletLink)}
+                    className={`${PAY_BTN} ${PAY_OUTLINE}`}
                     title={hasWalletAccount ? "سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)" : "سداد فوري عبر المحفظة الإلكترونية"}
                   >
-                    {!hasWalletAccount && onNavigateToWallets && cart.length === 0 && (
-                      <span className="absolute top-1 left-1.5 px-1 py-0.5 bg-black/15 dark:bg-white/20 text-current text-micro font-black rounded-md border border-current/20 flex items-center gap-0.5 shadow-2xs leading-none">
-                        <Link2 className="w-2 h-2 text-current" />
+                    {needsWalletLink && (
+                      <span className={LINK_BADGE}>
+                        <Link2 className="w-2.5 h-2.5 text-current" />
                         <span>ربط</span>
                       </span>
                     )}
-                    <Wallet className="w-3.5 h-3.5 shrink-0" />
-                    <span className="text-micro sm:text-xs font-black truncate text-center leading-none">
-                      محفظة
-                    </span>
+                    <Wallet className={PAY_ICON_BRAND} />
+                    <span className="truncate">محفظة</span>
                   </button>
                 </>
               )}

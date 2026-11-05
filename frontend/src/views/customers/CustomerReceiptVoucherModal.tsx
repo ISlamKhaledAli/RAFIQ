@@ -3,6 +3,7 @@ import { Printer, X, FileText } from 'lucide-react';
 import type { Customer, CustomerLedgerEntry } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
 import { printCompactReport } from '../../utils/printReport';
+import { DEFAULT_DEVELOPER_SIGNATURE, splitReceiptText } from '../../utils/receiptLayout';
 
 export interface CustomerReceiptVoucherModalProps {
   isOpen: boolean;
@@ -165,7 +166,10 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
             </div>
 
             <div className="mt-4 pt-2 border-t border-dashed border-neutral-300 text-center text-micro text-neutral-400">
-              نظام رفيق للأنظمة والحلول البرمجية | م. إسلام خالد (01097782965) - سند موثق بدفتر الأستاذ
+              {splitReceiptText(DEFAULT_DEVELOPER_SIGNATURE).map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+              <div>سند موثق بدفتر الأستاذ</div>
             </div>
           </div>
         </div>

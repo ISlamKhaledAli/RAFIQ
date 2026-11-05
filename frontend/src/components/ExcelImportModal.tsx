@@ -200,7 +200,7 @@ export const ExcelImportModal = ({
       const notesText = rowNotes.length > 0
         ? ` ملاحظات (${rowNotes.length}): ${rowNotes.slice(0, 3).join(' | ')}${rowNotes.length > 3 ? ' ...' : ''}`
         : '';
-      const summary = `تمت العملية بنجاح: تم إضافة (${added}) صنف جديد، وتحديث (${updated})، وتخطي (${skipped}) صنف.${notesText}`;
+      const summary = `تم الاستيراد: ${added} صنف جديد، ${updated} محدّث، ${skipped} متخطى.${notesText}`;
 
       onSuccess(summary);
       onClose();
@@ -227,24 +227,24 @@ export const ExcelImportModal = ({
   return (
     <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
       <div 
-        className="bg-surface hairline-all rounded-lg shadow-xl w-full max-w-5xl flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="bg-surface dark:bg-surface-dark hairline-all rounded-lg shadow-xl w-full max-w-5xl flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         dir="rtl"
       >
         {/* 1. Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-surface-2/60 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line dark:border-line-dark bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
+            <div className="w-8 h-8 rounded-md bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border flex items-center justify-center text-paid dark:text-paid-bright">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="t-modal-title text-ink">استيراد الأصناف من ملف إكسل أو CSV</h2>
-              <p className="text-micro text-ink-muted">إضافة وتحديث المنتجات والمخزون دفعة واحدة في معاملة آمنة ومحمية</p>
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">استيراد الأصناف من ملف إكسل أو CSV</h2>
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted">إضافة وتحديث المنتجات والمخزون دفعة واحدة في معاملة آمنة ومحمية</p>
             </div>
           </div>
           <button
             onClick={requestClose}
             disabled={importing}
-            className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface-3 transition-colors cursor-pointer"
+            className="p-1 rounded text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -254,14 +254,14 @@ export const ExcelImportModal = ({
         <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
 
           {/* Template Download Banner */}
-          <div className="bg-emerald-500/5 hairline-all rounded-md p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-emerald-500/20">
+          <div className="bg-paid-soft dark:bg-paid-dark-soft hairline-all rounded-md p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-paid-border dark:border-paid-dark-border">
             <div className="flex items-start gap-2.5">
-              <div className="p-2 rounded bg-emerald-500/10 text-emerald-700 shrink-0 mt-0.5">
+              <div className="p-2 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright shrink-0 mt-0.5">
                 <FileText className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="t-label text-emerald-950">هل تحتاج نموذج الإكسل المعتمد لملء الأصناف؟</h4>
-                <p className="text-emerald-800 text-micro leading-relaxed mt-0.5">
+                <h4 className="t-label text-paid-hover dark:text-paid-bright">هل تحتاج نموذج الإكسل المعتمد لملء الأصناف؟</h4>
+                <p className="text-paid dark:text-paid-bright text-micro leading-relaxed mt-0.5">
                   قم بتحميل ملف النموذج الجاهز (يحتوي على تابات منفصلة لكل قسم، لوحة ملخص الأقسام، معادلات مالية ومخزنية تلقائية، وتنسيق باركود نصي سليم).
                 </p>
               </div>
@@ -277,7 +277,7 @@ export const ExcelImportModal = ({
                 }
               }}
               disabled={downloadingTemplate}
-              className="shrink-0 h-9 px-3.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-micro flex items-center justify-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60"
+              className="shrink-0 h-9 px-3.5 rounded bg-paid hover:bg-paid-hover text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark font-bold text-micro flex items-center justify-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
             >
               <Download className="w-4 h-4" />
               <span>{downloadingTemplate ? 'جاري التحميل...' : 'تحميل نموذج الإكسل الجاهز (.xlsx)'}</span>
@@ -293,8 +293,8 @@ export const ExcelImportModal = ({
               onClick={() => fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-lg p-7 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-2.5 ${
                 isDragging 
-                  ? 'border-emerald-500 bg-emerald-500/5' 
-                  : 'border-line hover:border-emerald-400 bg-surface-2/40 hover:bg-surface-2'
+                  ? 'border-paid dark:border-paid-bright bg-paid-soft dark:bg-paid-dark-soft' 
+                  : 'border-line dark:border-line-dark hover:border-paid dark:hover:border-paid-bright bg-surface-2/40 dark:bg-surface-dark-2/40 hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
               <input
@@ -304,21 +304,21 @@ export const ExcelImportModal = ({
                 onChange={handleFileChange}
                 className="hidden"
               />
-              <div className="w-11 h-11 rounded-full bg-surface-3 hairline-all flex items-center justify-center text-ink-muted">
-                <UploadCloud className="w-6 h-6 text-emerald-600" />
+              <div className="w-11 h-11 rounded-full bg-surface-3 dark:bg-surface-dark-3 hairline-all flex items-center justify-center text-ink-muted dark:text-ink-dark-muted">
+                <UploadCloud className="w-6 h-6 text-paid dark:text-paid-bright" />
               </div>
               <div>
-                <p className="font-bold text-ink text-xs">اسحب ملف الإكسل هنا، أو انقر لاختيار الملف من جهازك</p>
-                <p className="text-ink-muted text-micro mt-0.5">الملفات المدعومة: مصنفات Excel (.xlsx, .xls) أو ملفات القيم المفصولة (.csv)</p>
+                <p className="font-bold text-ink dark:text-ink-dark text-xs">اسحب ملف الإكسل هنا، أو انقر لاختيار الملف من جهازك</p>
+                <p className="text-ink-muted dark:text-ink-dark-muted text-micro mt-0.5">الملفات المدعومة: مصنفات Excel (.xlsx, .xls) أو ملفات القيم المفصولة (.csv)</p>
               </div>
             </div>
           ) : (
-            <div className="bg-surface-2 hairline-all rounded-md p-3 flex items-center justify-between gap-3">
+            <div className="bg-surface-2 dark:bg-surface-dark-2 hairline-all rounded-md p-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <FileSpreadsheet className="w-5 h-5 text-emerald-600 shrink-0" />
+                <FileSpreadsheet className="w-5 h-5 text-paid dark:text-paid-bright shrink-0" />
                 <div>
-                  <span className="font-bold text-ink text-xs">{selectedFile.name}</span>
-                  <span className="text-micro text-ink-muted mr-2 font-mono">
+                  <span className="font-bold text-ink dark:text-ink-dark text-xs">{selectedFile.name}</span>
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted mr-2 font-mono">
                     ({(selectedFile.size / 1024).toFixed(1)} KB)
                   </span>
                 </div>
@@ -327,14 +327,14 @@ export const ExcelImportModal = ({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-2.5 py-1 text-micro font-bold rounded bg-surface hover:bg-surface-3 hairline-all text-ink transition-colors"
+                  className="px-2.5 py-1 text-micro font-bold rounded bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 hairline-all text-ink dark:text-ink-dark transition-colors"
                 >
                   تغيير الملف
                 </button>
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="p-1 text-ink-muted hover:text-red-600 rounded transition-colors"
+                  className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-red-600 dark:hover:text-danger-bright rounded transition-colors"
                   title="إلغاء الملف"
                 >
                   <X className="w-4 h-4" />
@@ -360,7 +360,7 @@ export const ExcelImportModal = ({
 
           {/* Validation & Preview Section */}
           {parsing ? (
-            <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted">
+            <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted dark:text-ink-dark-muted">
               <RefreshCw className="w-6 h-6 animate-spin text-brand dark:text-brand-bright" />
               <p className="text-xs font-bold">جاري قراءة وفحص بيانات الملف والتحقق من الأسعار والباركودات...</p>
             </div>
@@ -374,12 +374,12 @@ export const ExcelImportModal = ({
                   onClick={() => { setStatusFilter('all'); setCurrentPage(1); }}
                   className={`p-2.5 rounded-md text-right transition-all cursor-pointer ${
                     statusFilter === 'all'
-                      ? 'bg-surface-3 hairline-all ring-2 ring-brand'
-                      : 'bg-surface-2 hairline-all hover:bg-surface-3'
+                      ? 'bg-surface-3 dark:bg-surface-dark-3 hairline-all ring-2 ring-brand'
+                      : 'bg-surface-2 dark:bg-surface-dark-2 hairline-all hover:bg-surface-3 dark:hover:bg-surface-dark-3'
                   }`}
                 >
-                  <span className="text-ink-muted text-micro">إجمالي الأصناف بالملف</span>
-                  <p className="text-base font-bold text-ink mt-0.5 font-mono">{parsedRows.length}</p>
+                  <span className="text-ink-muted dark:text-ink-dark-muted text-micro">إجمالي الأصناف بالملف</span>
+                  <p className="text-base font-bold text-ink dark:text-ink-dark mt-0.5 font-mono">{parsedRows.length}</p>
                 </button>
 
                 <button
@@ -432,12 +432,12 @@ export const ExcelImportModal = ({
               </div>
 
               {/* Options & Strategies Bar */}
-              <div className="bg-surface-2 hairline-all rounded-md p-3 space-y-2.5">
+              <div className="bg-surface-2 dark:bg-surface-dark-2 hairline-all rounded-md p-3 space-y-2.5">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                   
                   {/* Duplicate Strategy */}
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-ink text-micro shrink-0">معالجة الأصناف المكررة:</span>
+                    <span className="font-bold text-ink dark:text-ink-dark text-micro shrink-0">معالجة الأصناف المكررة:</span>
                     <CustomSelect
                       value={duplicateStrategy}
                       onChange={(val) => setDuplicateStrategy(val as 'skip' | 'update' | 'error')}
@@ -453,12 +453,12 @@ export const ExcelImportModal = ({
 
                   {/* Filter Valid / Export Errors */}
                   <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none text-micro font-bold text-ink">
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none text-micro font-bold text-ink dark:text-ink-dark">
                       <input
                         type="checkbox"
                         checked={onlyValidRows}
                         onChange={(e) => setOnlyValidRows(e.target.checked)}
-                        className="rounded border-line text-brand focus:ring-0"
+                        className="rounded border-line dark:border-line-dark text-brand focus:ring-0"
                       />
                       <span>استيراد الصفوف السليمة وتجاوز الأخطاء</span>
                     </label>
@@ -478,26 +478,26 @@ export const ExcelImportModal = ({
                 </div>
 
                 {/* Search & Status Filter Tabs */}
-                <div className="pt-2 border-t border-line/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="pt-2 border-t border-line/50 dark:border-line-dark flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   {/* Fast Search Input (status filters are the summary cards above) */}
                   <div className="relative w-full sm:w-60">
-                    <Search className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                       placeholder="بحث بالاسم أو الباركود أو الكود..."
-                      className="w-full h-7 pr-8 pl-2.5 rounded bg-surface border border-line text-micro text-ink placeholder:text-ink-muted/70 focus:outline-none focus:border-brand"
+                      className="w-full h-7 pr-8 pl-2.5 rounded bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-micro text-ink placeholder:text-ink-muted/70 focus:outline-none focus:border-brand"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Data Preview Table (Paginated to 50 rows - Zero Freeze for 10,000 items) */}
-              <div className="hairline-all rounded-md overflow-hidden bg-surface">
+              <div className="hairline-all rounded-md overflow-hidden bg-surface dark:bg-surface-dark">
                 <div className="max-h-72 overflow-y-auto overflow-x-auto">
                   <table className="w-full text-right border-collapse text-micro">
-                    <thead className="bg-surface-2 text-ink-muted font-bold sticky top-0 z-10 hairline-b">
+                    <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted font-bold sticky top-0 z-10 hairline-b">
                       <tr>
                         <th className="py-2 px-2.5 w-14 text-center">الصف</th>
                         <th className="py-2 px-2.5 w-16 text-center">الحالة</th>
@@ -511,10 +511,10 @@ export const ExcelImportModal = ({
                         <th className="py-2 px-3">الملاحظات والتدقيق</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-line">
+                    <tbody className="divide-y divide-line dark:divide-line-dark">
                       {displayedRows.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="py-8 text-center text-ink-muted text-xs">
+                          <td colSpan={10} className="py-8 text-center text-ink-muted dark:text-ink-dark-muted text-xs">
                             لا توجد أصناف مطابقة للتصفية أو البحث المحدد.
                           </td>
                         </tr>
@@ -523,14 +523,14 @@ export const ExcelImportModal = ({
                           return (
                             <tr 
                               key={idx} 
-                              className={`hover:bg-surface-2/60 transition-colors ${
+                              className={`hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors ${
                                 row.status === 'error' ? 'bg-danger-soft/30 dark:bg-danger-dark-soft/40' : row.status === 'warning' ? 'bg-warn-soft/30 dark:bg-warn-dark-soft/40' : ''
                               }`}
                             >
-                              <td className="py-2 px-2.5 text-center font-mono text-ink-muted font-bold">
+                              <td className="py-2 px-2.5 text-center font-mono text-ink-muted dark:text-ink-dark-muted font-bold">
                                 <span>#{row.rowIndex}</span>
                                 {row.sheetName && row.sheetName !== 'عام' && (
-                                  <span className="block text-micro text-ink-muted/80 truncate max-w-[50px] mx-auto" title={row.sheetName}>
+                                  <span className="block text-micro text-ink-muted dark:text-ink-dark-muted truncate max-w-[50px] mx-auto" title={row.sheetName}>
                                     {row.sheetName}
                                   </span>
                                 )}
@@ -550,32 +550,32 @@ export const ExcelImportModal = ({
                                   </span>
                                 )}
                               </td>
-                              <td className="py-2 px-3 font-mono text-ink font-semibold">
-                                {row.data.barcode || <span className="text-ink-muted italic">بدون</span>}
+                              <td className="py-2 px-3 font-mono text-ink dark:text-ink-dark font-semibold">
+                                {row.data.barcode || <span className="text-ink-muted dark:text-ink-dark-muted italic">بدون</span>}
                               </td>
-                              <td className="py-2 px-3 font-bold text-ink">
+                              <td className="py-2 px-3 font-bold text-ink dark:text-ink-dark">
                                 <span>{row.data.name}</span>
                                 {(row.data.variantColor || row.data.variantSize) && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-micro bg-brand-soft text-brand font-medium mr-1.5">
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-micro bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-medium mr-1.5">
                                     {row.data.variantColor && <span>{row.data.variantColor}</span>}
                                     {row.data.variantColor && row.data.variantSize && <span>/</span>}
                                     {row.data.variantSize && <span>{row.data.variantSize}</span>}
                                   </span>
                                 )}
                               </td>
-                              <td className="py-2 px-3 text-ink-muted">{row.data.categoryName || 'عام'}</td>
+                              <td className="py-2 px-3 text-ink-muted dark:text-ink-dark-muted">{row.data.categoryName || 'عام'}</td>
                               <td className="py-2 px-3 text-center font-bold">
                                 {row.data.unit === 'kg' ? 'كجم' : 'قطعة'}
                               </td>
-                              <td className="py-2 px-3 text-left font-mono font-bold text-ink">
+                              <td className="py-2 px-3 text-left font-mono font-bold text-ink dark:text-ink-dark">
                                 {formatArabicCurrency(row.payload.pricePiasters)}
                               </td>
-                              <td className="py-2 px-3 text-left font-mono text-ink-muted">
+                              <td className="py-2 px-3 text-left font-mono text-ink-muted dark:text-ink-dark-muted">
                                 {formatArabicCurrency(row.payload.costPiasters)}
                               </td>
                               <td className="py-2 px-3 text-center font-mono">
                                 {row.payload.stockQuantityMilli === null
-                                  ? <span className="text-ink-muted" title="لا يوجد عمود أو قيمة للرصيد؛ لن يتغير رصيد الصنف القائم">—</span>
+                                  ? <span className="text-ink-muted dark:text-ink-dark-muted" title="لا يوجد عمود أو قيمة للرصيد؛ لن يتغير رصيد الصنف القائم">—</span>
                                   : row.data.unit === 'kg' ? (row.payload.stockQuantityMilli / 1000).toFixed(3) : (row.payload.stockQuantityMilli / 1000)}
                               </td>
                               <td className="py-2 px-3 text-micro">
@@ -596,11 +596,11 @@ export const ExcelImportModal = ({
                 </div>
 
                 {/* Pagination Controls Bar */}
-                <div className="bg-surface-2 px-3 py-2 border-t border-line flex items-center justify-between text-micro text-ink-muted">
+                <div className="bg-surface-2 dark:bg-surface-dark-2 px-3 py-2 border-t border-line dark:border-line-dark flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted">
                   <div>
                     {filteredRows.length > 0 ? (
                       <span>
-                        عرض <strong className="font-mono text-ink">{startIdx + 1}</strong> إلى <strong className="font-mono text-ink">{Math.min(startIdx + PAGE_SIZE, filteredRows.length)}</strong> من إجمالي <strong className="font-mono text-ink">{filteredRows.length}</strong> صنف
+                        عرض <strong className="font-mono text-ink dark:text-ink-dark">{startIdx + 1}</strong> إلى <strong className="font-mono text-ink dark:text-ink-dark">{Math.min(startIdx + PAGE_SIZE, filteredRows.length)}</strong> من إجمالي <strong className="font-mono text-ink dark:text-ink-dark">{filteredRows.length}</strong> صنف
                       </span>
                     ) : (
                       <span>لا توجد نتائج</span>
@@ -608,14 +608,14 @@ export const ExcelImportModal = ({
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-ink text-micro ml-2">
+                    <span className="font-mono text-ink dark:text-ink-dark text-micro ml-2">
                       صفحة {currentSafePage} من {totalPages}
                     </span>
                     <button
                       type="button"
                       onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                       disabled={currentSafePage <= 1}
-                      className="h-6 px-2 rounded bg-surface hairline-all text-ink hover:bg-surface-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-micro"
+                      className="h-6 px-2 rounded bg-surface dark:bg-surface-dark hairline-all text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-micro"
                     >
                       <ChevronRight className="w-3 h-3" />
                       <span>السابق</span>
@@ -624,7 +624,7 @@ export const ExcelImportModal = ({
                       type="button"
                       onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                       disabled={currentSafePage >= totalPages}
-                      className="h-6 px-2 rounded bg-surface hairline-all text-ink hover:bg-surface-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-micro"
+                      className="h-6 px-2 rounded bg-surface dark:bg-surface-dark hairline-all text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-micro"
                     >
                       <span>التالي</span>
                       <ChevronLeft className="w-3 h-3" />
@@ -639,11 +639,11 @@ export const ExcelImportModal = ({
         </div>
 
         {/* 3. Footer Actions */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-t border-line bg-surface-2/60 shrink-0">
-          <div className="text-micro text-ink-muted">
+        <div className="flex items-center justify-between px-5 py-3.5 border-t border-line dark:border-line-dark bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
+          <div className="text-micro text-ink-muted dark:text-ink-dark-muted">
             {parsedRows.length > 0 && (
               <span>
-                سيتم استيراد <strong className="text-ink font-mono">{rowsToImport.length}</strong> من إجمالي <strong className="text-ink font-mono">{parsedRows.length}</strong> صنف
+                سيتم استيراد <strong className="text-ink dark:text-ink-dark font-mono">{rowsToImport.length}</strong> من إجمالي <strong className="text-ink dark:text-ink-dark font-mono">{parsedRows.length}</strong> صنف
               </span>
             )}
           </div>
@@ -652,7 +652,7 @@ export const ExcelImportModal = ({
               type="button"
               onClick={requestClose}
               disabled={importing}
-              className="h-8 px-4 rounded bg-surface hover:bg-surface-3 hairline-all text-ink font-bold text-micro transition-colors cursor-pointer"
+              className="h-8 px-4 rounded bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 hairline-all text-ink dark:text-ink-dark font-bold text-micro transition-colors cursor-pointer"
             >
               إلغاء
             </button>
@@ -663,7 +663,7 @@ export const ExcelImportModal = ({
               className={`h-8 px-5 rounded font-bold text-micro flex items-center gap-1.5 transition-colors shadow-sm ${
                 canImport && !importing
                   ? 'bg-paid hover:bg-paid-dark text-white'
-                  : 'bg-surface-3 text-ink-muted border border-line cursor-not-allowed opacity-60'
+                  : 'bg-surface-3 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark cursor-not-allowed opacity-60 dark:opacity-100'
               }`}
             >
               {importing ? (

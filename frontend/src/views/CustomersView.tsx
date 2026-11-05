@@ -112,8 +112,8 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
       const res = await exportCustomersToExcel();
       if (res.success) {
         void rafiqAlert({
-          title: 'تم تصدير سجل العملاء بنجاح',
-          message: `تم تصدير ${res.count || customers.length} عميل مع حساباتهم وديونهم إلى ملف إكسل بنجاح!`,
+          title: 'تم تصدير سجل العملاء',
+          message: `تم تصدير ${res.count || customers.length} عميل إلى ملف إكسل`,
           variant: 'success',
         });
       } else {
@@ -437,7 +437,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
       const res = await invoke<CustomerBalanceVerification>('customers:verifyBalance', { customerId });
       setBalanceVerification(res);
       if (res && res.isBalanced) {
-        setAuditFeedback('تم تدقيق ومطابقة رصيد العميل بنجاح. الرصيد سليم 100% ولا يوجد أي تفاوت.');
+        setAuditFeedback('تمت مطابقة رصيد العميل: سليم ولا يوجد أي تفاوت.');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل تدقيق الرصيد';
@@ -466,7 +466,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         setCustomers((prev) => prev.map((c) => (c.id === fixedCustomer.id ? fixedCustomer : c)));
         const verifyRes = await invoke<CustomerBalanceVerification>('customers:verifyBalance', { customerId });
         setBalanceVerification(verifyRes);
-        setAuditFeedback(`تمت إعادة حساب الرصيد وتصحيحه بنجاح (${(fixedCustomer.balancePiasters / 100).toFixed(2)} ج.م).`);
+        setAuditFeedback(`تم تصحيح الرصيد (${(fixedCustomer.balancePiasters / 100).toFixed(2)} ج.م)`);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل تصحيح الرصيد';

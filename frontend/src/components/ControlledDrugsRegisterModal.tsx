@@ -160,15 +160,15 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
         {/* Header - Screen & Print */}
         <div className="h-14 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 flex items-center justify-between shrink-0 print:border-b-2 print:border-black print:h-auto print:py-2">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-warn/15 text-warn print:hidden">
-              <ShieldAlert className="w-5 h-5 text-warn" />
+            <div className="p-2 rounded-xl bg-warn/15 text-warn dark:text-warn-bright print:hidden">
+              <ShieldAlert className="w-5 h-5 text-warn dark:text-warn-bright" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-ink dark:text-ink-dark m-0 print:text-lg">
                   دفتر قيد أدوية الجدول والرقابة والمؤثرات العقلية (سجل التفتيش الصيدلي)
                 </h3>
-                <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-warn/15 text-warn border border-warn/30 print:hidden">
+                <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-warn/15 text-warn dark:text-warn-bright border border-warn/30 print:hidden">
                   سجل رسمي معتمد
                 </span>
               </div>
@@ -183,7 +183,7 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
               type="button"
               onClick={handlePrint}
               disabled={rows.length === 0}
-              className="h-8 px-3 rounded-lg bg-surface dark:bg-surface-dark border border-line hover:border-brand text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 transition-colors shadow-2xs"
+              className="h-8 px-3 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-colors shadow-2xs"
             >
               <Printer className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
               <span>طباعة الدفتر A4</span>
@@ -213,15 +213,15 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
 
             {/* Date Filters */}
             <div className="flex items-center gap-1.5 bg-surface-2 dark:bg-surface-dark-2 px-2.5 py-1 rounded-lg border border-line dark:border-line-dark">
-              <Calendar className="w-3.5 h-3.5 text-ink-muted" />
-              <span className="text-micro font-bold text-ink-muted">من:</span>
+              <Calendar className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
+              <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">من:</span>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="bg-transparent text-xs font-mono font-bold text-ink dark:text-ink-dark focus:outline-none"
               />
-              <span className="text-micro font-bold text-ink-muted mr-1">إلى:</span>
+              <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted mr-1">إلى:</span>
               <input
                 type="date"
                 value={endDate}
@@ -239,7 +239,7 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
                 placeholder="بحث بالمريض/الطبيب/الروشتة..."
                 className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-7.5 px-2.5 pr-7 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
               />
-              <Search className="w-3.5 h-3.5 text-ink-muted absolute right-2 top-2 pointer-events-none" />
+              <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2 top-2 pointer-events-none" />
             </div>
           </div>
 
@@ -248,7 +248,7 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
             <button
               type="button"
               onClick={() => setShowFullNationalIds((v) => !v)}
-              className="h-7.5 px-2.5 rounded-lg border border-line hover:border-brand text-xs font-bold flex items-center gap-1.5 text-ink dark:text-ink-dark transition-colors cursor-pointer"
+              className="h-7.5 px-2.5 rounded-lg border border-line dark:border-line-dark hover:border-brand text-xs font-bold flex items-center gap-1.5 text-ink dark:text-ink-dark transition-colors cursor-pointer"
             >
               {showFullNationalIds ? (
                 <>
@@ -269,14 +269,14 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
         {currentProduct && (
           <div className="px-5 py-3 bg-brand-soft/20 dark:bg-brand-soft/10 border-b border-line dark:border-line-dark flex items-center justify-between flex-wrap gap-3 shrink-0 print:bg-white print:border-b print:py-1">
             <div className="flex items-center gap-2">
-              <Pill className="w-4 h-4 text-brand" />
+              <Pill className="w-4 h-4 text-brand dark:text-brand-bright" />
               <div>
-                <span className="font-bold text-sm text-brand">{currentProduct.name}</span>
+                <span className="font-bold text-sm text-brand dark:text-brand-bright">{currentProduct.name}</span>
                 {currentProduct.scientificName && (
-                  <span className="text-xs font-mono text-ink-muted mr-2">[{currentProduct.scientificName}]</span>
+                  <span className="text-xs font-mono text-ink-muted dark:text-ink-dark-muted mr-2">[{currentProduct.scientificName}]</span>
                 )}
                 {currentProduct.controlledSchedule && currentProduct.controlledSchedule !== 'none' && (
-                  <span className="mr-2 text-micro font-bold px-2 py-0.5 rounded-full bg-warn/20 text-warn border border-warn/30">
+                  <span className="mr-2 text-micro font-bold px-2 py-0.5 rounded-full bg-warn/20 text-warn dark:text-warn-bright border border-warn/30">
                     تصنيف: {currentProduct.controlledSchedule}
                   </span>
                 )}
@@ -286,7 +286,7 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
             {/* KPI Cards */}
             <div className="flex items-center gap-3">
               <div className="px-3 py-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-center">
-                <span className="text-micro text-ink-muted block">رصيد أول المدة</span>
+                <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">رصيد أول المدة</span>
                 <span className="text-xs font-mono font-bold text-ink dark:text-ink-dark">{stats.openingUnits}</span>
               </div>
               <div className="px-3 py-1 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 rounded-lg text-center">
@@ -294,12 +294,12 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
                 <span className="text-xs font-mono font-bold text-paid">{stats.inflowUnits}</span>
               </div>
               <div className="px-3 py-1 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 rounded-lg text-center">
-                <span className="text-micro text-danger block">إجمالي المنصرف (-)</span>
-                <span className="text-xs font-mono font-bold text-danger">{stats.outflowUnits}</span>
+                <span className="text-micro text-danger dark:text-danger-bright block">إجمالي المنصرف (-)</span>
+                <span className="text-xs font-mono font-bold text-danger dark:text-danger-bright">{stats.outflowUnits}</span>
               </div>
-              <div className="px-3 py-1 bg-brand-soft dark:bg-brand-soft/30 border border-brand/30 rounded-lg text-center">
-                <span className="text-micro text-brand block font-bold">الرصيد الفعلي الحالي</span>
-                <span className="text-xs font-mono font-bold text-brand">{stats.balanceUnits}</span>
+              <div className="px-3 py-1 bg-brand-soft dark:bg-brand-dark-soft border border-brand/30 rounded-lg text-center">
+                <span className="text-micro text-brand dark:text-brand-bright block font-bold">الرصيد الفعلي الحالي</span>
+                <span className="text-xs font-mono font-bold text-brand dark:text-brand-bright">{stats.balanceUnits}</span>
               </div>
             </div>
           </div>
@@ -308,37 +308,37 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
         {/* Register Table Container */}
         <div className="flex-1 overflow-auto p-4 print:p-0">
           {!selectedProductId ? (
-            <div className="h-64 flex flex-col items-center justify-center text-ink-muted gap-2">
-              <ShieldAlert className="w-10 h-10 text-ink-muted/50" />
+            <div className="h-64 flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2">
+              <ShieldAlert className="w-10 h-10 text-ink-muted/50 dark:text-ink-dark-muted" />
               <span className="text-xs font-bold">يرجى اختيار دواء جدول من القائمة أعلاه لعرض حركات دفتر التفتيش</span>
             </div>
           ) : loading ? (
-            <div className="h-64 flex flex-col items-center justify-center text-ink-muted gap-2">
+            <div className="h-64 flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2">
               <div className="w-7 h-7 border-2 border-brand border-t-transparent rounded-full animate-spin" />
               <span className="text-xs">جاري تحميل حركات ورصيد دفتر التفتيش الصيدلي...</span>
             </div>
           ) : filteredRows.length === 0 ? (
-            <div className="h-64 flex flex-col items-center justify-center text-ink-muted gap-2">
-              <FileSpreadsheet className="w-10 h-10 text-ink-muted/50" />
+            <div className="h-64 flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2">
+              <FileSpreadsheet className="w-10 h-10 text-ink-muted/50 dark:text-ink-dark-muted" />
               <span className="text-xs font-bold">لا توجد حركات مسجلة لهذا الصنف خلال الفترة المحددة</span>
             </div>
           ) : (
             <table className="w-full text-right border-collapse text-micro print:text-[9px]">
               <thead>
-                <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b-2 border-brand text-ink font-bold print:bg-gray-100">
-                  <th className="p-2 w-8 text-center border border-line">#</th>
-                  <th className="p-2 border border-line">التاريخ والوقت</th>
-                  <th className="p-2 border border-line">نوع الحركة</th>
-                  <th className="p-2 border border-line">رقم الإذن / المستند</th>
-                  <th className="p-2 border border-line">اسم المريض / المورد</th>
-                  <th className="p-2 border border-line">الرقم القومي</th>
-                  <th className="p-2 border border-line">الطبيب المعالج</th>
-                  <th className="p-2 border border-line">رقم الروشتة</th>
-                  <th className="p-2 border border-line">التشغيلة</th>
-                  <th className="p-2 border border-line text-center text-paid">الوارد</th>
-                  <th className="p-2 border border-line text-center text-danger">المنصرف</th>
-                  <th className="p-2 border border-line text-center font-bold text-brand">الرصيد</th>
-                  <th className="p-2 border border-line">الصارف / الاعتماد</th>
+                <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b-2 border-brand text-ink dark:text-ink-dark font-bold print:bg-gray-100">
+                  <th className="p-2 w-8 text-center border border-line dark:border-line-dark">#</th>
+                  <th className="p-2 border border-line dark:border-line-dark">التاريخ والوقت</th>
+                  <th className="p-2 border border-line dark:border-line-dark">نوع الحركة</th>
+                  <th className="p-2 border border-line dark:border-line-dark">رقم الإذن / المستند</th>
+                  <th className="p-2 border border-line dark:border-line-dark">اسم المريض / المورد</th>
+                  <th className="p-2 border border-line dark:border-line-dark">الرقم القومي</th>
+                  <th className="p-2 border border-line dark:border-line-dark">الطبيب المعالج</th>
+                  <th className="p-2 border border-line dark:border-line-dark">رقم الروشتة</th>
+                  <th className="p-2 border border-line dark:border-line-dark">التشغيلة</th>
+                  <th className="p-2 border border-line dark:border-line-dark text-center text-paid">الوارد</th>
+                  <th className="p-2 border border-line dark:border-line-dark text-center text-danger dark:text-danger-bright">المنصرف</th>
+                  <th className="p-2 border border-line dark:border-line-dark text-center font-bold text-brand dark:text-brand-bright">الرصيد</th>
+                  <th className="p-2 border border-line dark:border-line-dark">الصارف / الاعتماد</th>
                 </tr>
               </thead>
               <tbody>
@@ -355,9 +355,9 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
                         isOpening ? 'bg-brand-soft/20 dark:bg-brand-dark-soft/20 font-bold' : ''
                       }`}
                     >
-                      <td className="p-2 text-center font-mono border border-line">{idx + 1}</td>
-                      <td className="p-2 font-mono whitespace-nowrap border border-line">{row.date}</td>
-                      <td className="p-2 border border-line">
+                      <td className="p-2 text-center font-mono border border-line dark:border-line-dark">{idx + 1}</td>
+                      <td className="p-2 font-mono whitespace-nowrap border border-line dark:border-line-dark">{row.date}</td>
+                      <td className="p-2 border border-line dark:border-line-dark">
                         <span
                           className={`px-1.5 py-0.5 rounded text-micro font-bold ${
                             row.transactionType === 'dispense'
@@ -372,10 +372,10 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
                           {row.transactionTypeAr}
                         </span>
                       </td>
-                      <td className="p-2 font-mono border border-line">{row.documentRefNo || '-'}</td>
-                      <td className="p-2 font-bold border border-line">{row.supplierOrPatientName || '-'}</td>
-                      <td className="p-2 font-mono text-micro border border-line">{nationalIdDisplay || '-'}</td>
-                      <td className="p-2 border border-line">
+                      <td className="p-2 font-mono border border-line dark:border-line-dark">{row.documentRefNo || '-'}</td>
+                      <td className="p-2 font-bold border border-line dark:border-line-dark">{row.supplierOrPatientName || '-'}</td>
+                      <td className="p-2 font-mono text-micro border border-line dark:border-line-dark">{nationalIdDisplay || '-'}</td>
+                      <td className="p-2 border border-line dark:border-line-dark">
                         {row.doctorName ? (
                           <div>
                             <div>{row.doctorName}</div>
@@ -385,7 +385,7 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
                           </div>
                         ) : '-'}
                       </td>
-                      <td className="p-2 font-mono border border-line">
+                      <td className="p-2 font-mono border border-line dark:border-line-dark">
                         {row.prescriptionNo ? (
                           <div>
                             <div>{row.prescriptionNo}</div>
@@ -395,17 +395,17 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
                           </div>
                         ) : '-'}
                       </td>
-                      <td className="p-2 font-mono text-micro border border-line">{row.batchNumber || '-'}</td>
-                      <td className="p-2 text-center font-mono text-paid font-bold border border-line">
+                      <td className="p-2 font-mono text-micro border border-line dark:border-line-dark">{row.batchNumber || '-'}</td>
+                      <td className="p-2 text-center font-mono text-paid font-bold border border-line dark:border-line-dark">
                         {row.inflowQtyMilli > 0 ? (row.inflowQtyMilli / 1000).toFixed(0) : '-'}
                       </td>
-                      <td className="p-2 text-center font-mono text-danger dark:text-danger-bright font-bold border border-line">
+                      <td className="p-2 text-center font-mono text-danger dark:text-danger-bright font-bold border border-line dark:border-line-dark">
                         {row.outflowQtyMilli > 0 ? (row.outflowQtyMilli / 1000).toFixed(0) : '-'}
                       </td>
-                      <td className="p-2 text-center font-mono font-bold text-brand dark:text-brand-bright border border-line">
+                      <td className="p-2 text-center font-mono font-bold text-brand dark:text-brand-bright border border-line dark:border-line-dark">
                         {(row.runningBalanceMilli / 1000).toFixed(0)}
                       </td>
-                      <td className="p-2 border border-line">
+                      <td className="p-2 border border-line dark:border-line-dark">
                         <div className="text-micro">
                           {row.dispensedBy && <div>صرف: {row.dispensedBy}</div>}
                           {row.approvedBy && <div className="text-paid font-bold">اعتماد: {row.approvedBy}</div>}
@@ -419,7 +419,7 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
           )}
 
           {/* Official Signature Area for Print */}
-          <div className="hidden print:flex items-center justify-between pt-12 px-6 text-xs font-bold text-black border-t-2 border-black mt-8">
+          <div className="hidden print:flex items-center justify-between pt-12 px-6 text-xs font-bold text-black dark:text-ink-dark border-t-2 border-black mt-8">
             <div className="text-center">
               <div>الصيدلي المدير المسؤول</div>
               <div className="mt-8">....................................</div>

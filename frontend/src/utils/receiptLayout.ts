@@ -3,10 +3,23 @@
 // same sections, same order, same labels, so the preview shows what the thermal printer prints.
 // Money is integer piasters end to end: no float math, only display strings are built here.
 
+import { resolveSignatureImageSrc } from './signatureImage.ts';
+
 export const RECEIPT_CURRENCY = 'ج.م';
 export const DEFAULT_RECEIPT_THANKS = 'شكراً لزيارتكم';
-export const DEFAULT_DEVELOPER_SIGNATURE = 'نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965';
-export const LEGACY_DEVELOPER_SIGNATURE = 'نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد';
+// Three lines (company name, inquiry label, contact); the signature image (one of the built-in set by default) is printed above them. No emoji (thermal drivers print boxes).
+// Receipt texts keep real line breaks ("\n").
+export const DEFAULT_DEVELOPER_SIGNATURE = 'رفيق للأنظمة والحلول البرمجية\nللاستفسار وتجربة النظام\nم. إسلام خالد | 01097782965';
+// Every older built-in default; a stored value equal to one of these migrates to the current default.
+export const LEGACY_DEVELOPER_SIGNATURES: readonly string[] = [
+  'نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد',
+  'نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965',
+  'نظام رفيق للأنظمة والحلول البرمجية\nللتواصل: م. إسلام خالد - 01097782965',
+  'رفيق للأنظمة والحلول البرمجية\nللدعم الفني والاستفسارات\nم. إسلام خالد - 01097782965\nشكرًا لثقتكم بنا',
+  'للدعم الفني والاستفسارات\nم. إسلام خالد - 01097782965',
+];
+export const RECEIPT_TEXT_MAX_CHARS = 300;
+export const RECEIPT_TEXT_MAX_LINES = 4;
 export const LEGACY_RECEIPT_FOOTERS: readonly string[] = [
   'شكراً لتعاملكم معنا! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.',
   'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.',
@@ -125,6 +138,7 @@ export interface ReceiptModel {
   phone: string;
   taxNumber: string;
   headerText: string;
+  headerLines: string[];
   invoiceLabel: string;
   dateTime: string;
   cashier: string;
@@ -146,7 +160,16 @@ export interface ReceiptModel {
   coldChainNotice: string;
   notes: string;
   footer: string;
+  footerLines: string[];
+  /** true when something sits between the closing dashed rule and the signature (cold-chain notice, invoice notes or footer text) */
+  footerBlock: boolean;
   signature: string;
+  /** every line of the signature, all plain text */
+  signatureLines: string[];
+  /** false hides the whole signature block (image, lines and its dashed separator): store setting developer_signature_visible = '0' */
+  signatureVisible: boolean;
+  /** image above the signature lines, picked from the configured pool by the invoice id: a built-in image URL, a custom PNG data URL, or null for text only */
+  signatureImageSrc: string | null;
   totals: ReceiptTotals;
 }
 
@@ -255,6 +278,43 @@ function isMeasureUnitLabel(label: string): boolean {
 
 function clean(value: string | null | undefined): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+/**
+ * Multi-line receipt text (header / footer / signature). Same rules as SettingsService.NormalizeReceiptText:
+ * CRLF and CR become LF, every line is trimmed, leading/trailing blank lines are dropped and any run of
+ * blank lines collapses to a single blank line.
+ */
+export function normalizeReceiptText(value: string | null | undefined): string {
+  if (typeof value !== 'string' || value === '') return '';
+  const lines: string[] = [];
+  let previousBlank = true;
+  for (const raw of value.split(/\r\n|\r|\n/)) {
+    const line = raw.trim();
+    if (line === '') {
+      if (!previousBlank) lines.push('');
+      previousBlank = true;
+    } else {
+      lines.push(line);
+      previousBlank = false;
+    }
+  }
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  return lines.join('\n');
+}
+
+/** Paragraphs of a receipt text: each one is wrapped on its own, an empty string is a blank line. */
+export function splitReceiptText(value: string | null | undefined): string[] {
+  const text = normalizeReceiptText(value);
+  return text === '' ? [] : text.split('\n');
+}
+
+/** Error text when a receipt text is too long for the host (300 chars / 4 lines), otherwise ''. */
+export function receiptTextLimitError(value: string | null | undefined): string {
+  const text = normalizeReceiptText(value);
+  if (text.length > RECEIPT_TEXT_MAX_CHARS) return `النص أطول من المسموح (الحد الأقصى ${RECEIPT_TEXT_MAX_CHARS} حرفاً)`;
+  if (splitReceiptText(text).length > RECEIPT_TEXT_MAX_LINES) return `النص يتجاوز الحد الأقصى (${RECEIPT_TEXT_MAX_LINES} أسطر)`;
+  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -413,20 +473,31 @@ function buildPaymentRows(t: ReceiptTotals): ReceiptRow[] {
 }
 
 export function resolveReceiptFooter(footer: string | null | undefined): string {
-  const text = clean(footer);
-  if (text === '' || LEGACY_RECEIPT_FOOTERS.includes(text)) return DEFAULT_RECEIPT_THANKS;
+  const text = normalizeReceiptText(footer);
+  // An empty footer prints nothing; only an untouched old built-in footer migrates to the plain thanks line
+  if (LEGACY_RECEIPT_FOOTERS.includes(text)) return DEFAULT_RECEIPT_THANKS;
   return text;
 }
 
 export function resolveReceiptSignature(signature: string | null | undefined): string {
-  const text = clean(signature);
-  if (text === '' || text === LEGACY_DEVELOPER_SIGNATURE) return DEFAULT_DEVELOPER_SIGNATURE;
+  const text = normalizeReceiptText(signature);
+  if (text === '' || LEGACY_DEVELOPER_SIGNATURES.includes(text)) return DEFAULT_DEVELOPER_SIGNATURE;
   return text;
 }
 
 export interface BuildReceiptOptions {
   isCopy?: boolean;
   now?: Date;
+  /** false hides the "الكاشير: name" line (store setting receipt_show_cashier = '0'); default true */
+  showCashier?: boolean;
+  /** store setting developer_signature_image: '' the built-in set, 'none' no image, a PNG data URL, or a JSON array of up to 8 images; one image of the pool is picked per invoice by its id */
+  signatureImage?: string;
+  /** URLs of the built-in signature images ("default" expands into all of them); the app passes BUILT_IN_SIGNATURE_IMAGES */
+  builtInSignatureImages?: readonly string[];
+  /** settings preview only: show this pool image instead of the invoice's own pick */
+  signatureImageIndex?: number | null;
+  /** store setting developer_signature_visible: false hides the whole signature block; default true */
+  signatureVisible?: boolean;
 }
 
 export function buildReceiptModel(
@@ -473,17 +544,24 @@ export function buildReceiptModel(
     if (clean(info?.notes)) deliveryLines.push(`ملاحظات: ${clean(info?.notes)}`);
   }
 
+  const footer = resolveReceiptFooter(store.footer);
+  const signature = resolveReceiptSignature(store.signature);
+  const signatureLines = splitReceiptText(signature);
+  const footerLines = splitReceiptText(footer);
   const hasColdChain = !!sale.hasColdChainItems || (sale.items ?? []).some((item) => !!item?.isColdChain);
+  const coldChainNotice = hasColdChain ? COLD_CHAIN_NOTICE : '';
+  const notes = !isPreBill ? clean(sale.notes) : '';
 
   return {
     storeName: clean(store.name) || 'متجر رفيق',
     address: clean(store.address),
     phone: clean(store.phone),
     taxNumber: clean(store.taxNumber),
-    headerText: clean(store.header),
+    headerText: normalizeReceiptText(store.header),
+    headerLines: splitReceiptText(store.header),
     invoiceLabel: isPreBill ? 'حساب مبدئي' : invoiceNumber > 0 ? `فاتورة رقم: ${invoiceNumber}` : 'فاتورة',
     dateTime: formatReceiptDateTime(sale.createdAt, options.now),
-    cashier: clean(sale.cashierName) ? `الكاشير: ${clean(sale.cashierName)}` : '',
+    cashier: options.showCashier !== false && clean(sale.cashierName) ? `الكاشير: ${clean(sale.cashierName)}` : '',
     orderMeta: buildOrderMetaText(sale),
     customer,
     badges,
@@ -499,10 +577,15 @@ export function buildReceiptModel(
     paymentRows: !isPreBill && (t.payments.length > 0 || t.remaining > 0) ? buildPaymentRows(t) : [],
     deliveryTitle,
     deliveryLines,
-    coldChainNotice: hasColdChain ? COLD_CHAIN_NOTICE : '',
-    notes: !isPreBill ? clean(sale.notes) : '',
-    footer: resolveReceiptFooter(store.footer),
-    signature: resolveReceiptSignature(store.signature),
+    coldChainNotice,
+    notes,
+    footer,
+    footerLines,
+    footerBlock: coldChainNotice !== '' || notes !== '' || footerLines.length > 0,
+    signature,
+    signatureLines,
+    signatureVisible: options.signatureVisible !== false,
+    signatureImageSrc: resolveSignatureImageSrc(options.signatureImage, isPreBill ? '' : clean(sale.id), options.builtInSignatureImages ?? [], options.signatureImageIndex),
     totals: t,
   };
 }

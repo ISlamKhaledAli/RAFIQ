@@ -166,17 +166,17 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
       await invoke('shortages:updateStatus', { id, status: newStatus, increaseStock });
       const name = productName || 'الصنف';
       if (newStatus === 'ordered') {
-        showToast(`تم نقل "${name}" إلى قائمة (تم الطلب من المورد). يمكنك استعراضه من تبويب "تم الطلب".`, 'success');
+        showToast(`تم نقل "${name}" إلى تبويب "تم الطلب"`, 'success');
       } else if (newStatus === 'cancelled') {
         showToast(`تم نقل "${name}" إلى قائمة (الملغيات).`, 'success');
       } else if (newStatus === 'received') {
         const addedQty = typeof qtyMilli === 'number' && qtyMilli > 0 ? qtyMilli / 1000 : 1;
         const u = unit || 'قطعة';
-        showToast(`تم استلام "${name}" وتزويد رصيد المخزن بمقدار (+${addedQty} ${u}) بنجاح.`, 'success');
+        showToast(`تم استلام "${name}": +${addedQty} ${u}`, 'success');
       } else if (newStatus === 'pending') {
-        showToast(`تمت إعادة تفعيل "${name}" ونقله إلى قائمة (بانتظار الطلب).`, 'success');
+        showToast(`تمت إعادة تفعيل "${name}" في قائمة "بانتظار الطلب"`, 'success');
       } else {
-        showToast(`تم تحديث حالة "${name}" بنجاح`, 'success');
+        showToast(`تم تحديث حالة "${name}"`, 'success');
       }
       void loadShortages();
     } catch {
@@ -242,7 +242,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
       }
 
       if (autoList && autoList.length > 0) {
-        showToast(`تم فحص المخزون واكتشاف وإدراج ${autoList.length} صنف في النواقص بنجاح`, 'success');
+        showToast(`تم فحص المخزون وإدراج ${autoList.length} صنف في النواقص`, 'success');
       } else {
         showToast('كافة الأصناف متوفرة وأعلى من حدود الأمان ومعدلات الاستهلاك', 'success');
       }
@@ -403,7 +403,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     };
     setIsLostSalesReportOpen(false);
     onLoadProposalToNewPurchase(proposal);
-    showToast(`تم تجهيز "${p.productName}" ونقله لفاتورة الشراء بنجاح`, 'success');
+    showToast(`تم نقل "${p.productName}" لفاتورة الشراء`, 'success');
   };
 
   const reportSourceOptions: SelectOption[] = [
@@ -875,7 +875,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
         isOpen={isQuickAddOpen}
         onClose={() => setIsQuickAddOpen(false)}
         onSuccess={() => {
-          showToast('تم تسجيل النواقص بنجاح', 'success');
+          showToast('تم تسجيل النواقص', 'success');
           void loadShortages();
         }}
       />

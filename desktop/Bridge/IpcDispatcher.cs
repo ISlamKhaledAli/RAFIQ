@@ -62,6 +62,7 @@ namespace RafiqPOS.Bridge
                 request.Action == "wallets:saveAccount" ||
                 request.Action == "wallets:createAccount" ||
                 request.Action == "wallets:updateAccount" ||
+                request.Action == "wallets:setDefaultAccount" ||
                 request.Action == "wallets:deleteAccount" ||
                 request.Action == "wallets:adjustBalance" ||
                 request.Action == "wallets:cancelTransaction" ||
@@ -547,6 +548,7 @@ namespace RafiqPOS.Bridge
             { "wallets:saveAccount", "wallets.accounts_manage" },
             { "wallets:createAccount", "wallets.accounts_manage" },
             { "wallets:updateAccount", "wallets.accounts_manage" },
+            { "wallets:setDefaultAccount", "wallets.accounts_manage" },
             { "wallets:deleteAccount", "wallets.accounts_manage" },
             { "wallets:adjustBalance", "wallets.balance_adjust" },
             { "wallets:cancelTransaction", "wallets.cancel" },
@@ -608,18 +610,18 @@ namespace RafiqPOS.Bridge
             { "backup:confirmRecoveryCode", REQUIRE_OWNER },
             { "backup:revealRecoveryCode", REQUIRE_OWNER },
             { "database:checkIntegrity", "settings.backup" },
-            { "database:restore", REQUIRE_OWNER },
+            { "database:restore", "settings.restore" },
             { "migration:getMetrics", "settings.backup" },
             { "migration:export", "settings.backup" },
             { "migration:browseFolder", "settings.backup" },
-            { "migration:inspect", REQUIRE_OWNER },
+            { "migration:inspect", "settings.restore" },
             { "migration:browseFile", "settings.restore" },
-            { "migration:restore", REQUIRE_OWNER },
-            { "license:activate", REQUIRE_OWNER },
-            { "license:activateSupportCode", REQUIRE_OWNER },
-            { "license:generateSupportCode", REQUIRE_OWNER },
-            { "license:deactivateForTransfer", REQUIRE_OWNER },
-            { "updates:check", REQUIRE_ADMIN },
+            { "migration:restore", "settings.restore" },
+            { "license:activate", "settings.license" },
+            { "license:activateSupportCode", "settings.license" },
+            { "license:generateSupportCode", "settings.license" },
+            { "license:deactivateForTransfer", "settings.license" },
+            { "updates:check", "system.updates" },
 
             // Security & Users
             { "security:setPin", REQUIRE_OWNER },
@@ -922,7 +924,7 @@ namespace RafiqPOS.Bridge
                 action == "customers:archive" || action == "customers:recalculateBalance" ||
                 action == "suppliers:save" || action == "suppliers:recordPayment" || action == "suppliers:archive" || action == "suppliers:delete" ||
                 action == "epay:createTransaction" || action == "epay:fundTerminal" || action == "epay:saveTerminal" || action == "epay:adjustBalance" ||
-                action == "wallets:processTransaction" || action == "wallets:fundAccount" || action == "wallets:saveAccount" || action == "wallets:adjustBalance" || action == "wallets:cancelTransaction" ||
+                action == "wallets:processTransaction" || action == "wallets:fundAccount" || action == "wallets:saveAccount" || action == "wallets:setDefaultAccount" || action == "wallets:adjustBalance" || action == "wallets:cancelTransaction" ||
                 action == "closing:save" || action == "shifts:open" || action == "shifts:close" ||
                 action == "shifts:cashIn" || action == "shifts:cashOut" || action == "drawer:cashIn" || action == "drawer:cashOut")
                 return true;
@@ -1097,6 +1099,10 @@ namespace RafiqPOS.Bridge
             if (!allowed)
             {
                 Logger.Warn(string.Format("رفض تنفيذ إجراء غير مصرح: {0} للمستخدم {1}", request.Action, sessionUser.Username));
+                if (SecurityService.IsOwnerOnlyPermission(requiredPermission))
+                {
+                    return BridgeResponse.Fail(request.Id, "FORBIDDEN", "هذه الصلاحية خاصة بصاحب المحل ولم تُمنح لحسابك. اطلب من صاحب المحل منحك إياها.");
+                }
                 return BridgeResponse.Fail(request.Id, "FORBIDDEN", "ليس لديك صلاحية لتنفيذ هذه العملية. يرجى التواصل مع مدير المحل.");
             }
             return null;

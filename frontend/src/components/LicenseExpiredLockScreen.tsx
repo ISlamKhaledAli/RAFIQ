@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
+import { RequiredMark } from './RequiredMark';
 import { useAuth } from '../context/useAuth';
 
 export interface LicenseExpiryDetails {
@@ -46,7 +47,8 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
   onUnlocked,
   onEnterReadOnlyMode,
 }) => {
-  const { isOwnerOrRoot, logout } = useAuth();
+  const { hasPermission, logout } = useAuth();
+  const canActivateLicense = hasPermission('settings.license');
   const [newKey, setNewKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedFp, setCopiedFp] = useState(false);
@@ -79,7 +81,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
         if (!isCancelled && isLicenseActive) {
           void rafiqAlert({
             title: 'الترخيص سارٍ!',
-            message: res?.message || 'تم التحقق من تمديد الاشتراك من السيرفر بنجاح!',
+            message: res?.message || 'تم تمديد الاشتراك',
             variant: 'success',
           });
           onUnlocked();
@@ -188,8 +190,8 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
 
       if (res?.success && res.license?.isActive) {
         void rafiqAlert({
-          title: 'تم التجديد بنجاح!',
-          message: res.message || 'تم تجديد وترخيص نظام رفيق بنجاح.',
+          title: 'تم التجديد',
+          message: res.message || 'تم تجديد ترخيص نظام رفيق',
           variant: 'success',
         });
         onUnlocked();
@@ -225,7 +227,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
       if (isLicenseActive) {
         void rafiqAlert({
           title: 'الترخيص سارٍ!',
-          message: res?.message || 'تم التحقق من تمديد الاشتراك من السيرفر بنجاح!',
+          message: res?.message || 'تم تمديد الاشتراك',
           variant: 'success',
         });
         onUnlocked();
@@ -361,12 +363,12 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
           </div>
         </div>
 
-        {/* Activation is owner-only (server-enforced); other sessions get a notice and a way out */}
-        {!isOwnerOrRoot ? (
+        {/* Activation needs settings.license (owner/root, or a manager the owner granted it to); other sessions get a notice and a way out */}
+        {!canActivateLicense ? (
           <div className="px-6 sm:px-8 space-y-3 mb-4">
             <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-xs p-3 rounded-xl flex items-start gap-2 font-bold">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>يلزم دخول صاحب المحل لتفعيل الترخيص</span>
+              <span>يلزم دخول صاحب المحل أو مدير منحه المالك صلاحية الترخيص لتفعيل الترخيص</span>
             </div>
             <button
               type="button"
@@ -374,13 +376,13 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
               className="w-full flex items-center justify-center gap-2 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold py-2.5 px-3 rounded-xl text-xs transition active:scale-95 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>تبديل المستخدم</span>
+              <span>تسجيل الخروج</span>
             </button>
           </div>
         ) : (
         <div className="px-6 sm:px-8 space-y-2 mb-4">
           <label className="block text-xs font-bold text-slate-700 dark:text-ink-dark">
-            {isUnlicensed ? 'أدخل رمز الترخيص أو كود التجربة:' : 'أدخل كود التجديد الجديد:'}
+            {isUnlicensed ? 'أدخل رمز الترخيص أو كود التجربة:' : 'أدخل كود التجديد الجديد:'} <RequiredMark />
           </label>
           <div className="flex gap-2">
             <div className="relative flex-1">

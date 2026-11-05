@@ -26,7 +26,7 @@ namespace RafiqPOS.Bridge
         private static readonly HashSet<string> STORE_SETTING_KEYS = new HashSet<string>(StringComparer.Ordinal)
         {
             "store_name", "cashier_name", "store_phone", "store_address", "tax_number",
-            "receipt_header", "receipt_footer", "show_receipt_logo", "store_logo_url", "logo_variant",
+            "receipt_header", "receipt_footer", "show_receipt_logo", "receipt_show_cashier", "store_logo_url", "logo_variant",
             "store_instapay_address", "store_wallet_number"
         };
 
@@ -61,6 +61,20 @@ namespace RafiqPOS.Bridge
         // settings:save / settings:updateBatch never echo stored settings back; callers re-read through settings:getAll
         private static BridgeResponse SaveSettingsAuthorized(BridgeRequest request, Dictionary<string, string> input)
         {
+            // Root-only keys (developer signature) are rejected loudly for everyone else, unless the value is unchanged
+            if (input != null && !IsCurrentUserRoot())
+            {
+                foreach (var kvp in input)
+                {
+                    if (!IsRootOnlySettingKey(kvp.Key)) continue;
+                    string stored = EffectiveRootOnlyValue(kvp.Key);
+                    if (stored != null && stored == (kvp.Value ?? "")) continue;
+                    string rootWho = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Username : "";
+                    Logger.Warn(string.Format("رفض تعديل توقيع ودعاية المطور للمستخدم {0}: يتطلب صلاحية روت.", rootWho));
+                    return BridgeResponse.Fail(request.Id, "FORBIDDEN", "توقيع ودعاية المطور مخصصان لحساب المطور (روت) فقط.");
+                }
+            }
+
             Dictionary<string, string> writable = RemoveProtectedSettingKeys(input);
             List<string> denied = FindUnauthorizedSettingKeys(writable);
             if (denied.Count > 0)
@@ -69,8 +83,56 @@ namespace RafiqPOS.Bridge
                 Logger.Warn(string.Format("رفض تعديل إعدادات غير مصرح بها للمستخدم {0}: {1}", who, string.Join(", ", denied.ToArray())));
                 return BridgeResponse.Fail(request.Id, "FORBIDDEN", "ليس لديك صلاحية لتعديل بعض هذه الإعدادات. يرجى التواصل مع مدير المحل.");
             }
+
+            // Receipt texts keep real line breaks: normalise once here so every renderer sees the same value
+            var receiptTextKeys = new List<string>();
+            foreach (var key in writable.Keys)
+            {
+                if (SettingsService.GetReceiptTextLabel(key) != null) receiptTextKeys.Add(key);
+            }
+            // Signature visibility/image (root only, already authorised above): authoritative validation, the image content is never echoed or logged
+            foreach (var kvp in writable)
+            {
+                string signatureError;
+                if (!SettingsService.TryValidateSignatureSetting(kvp.Key, kvp.Value, out signatureError))
+                {
+                    return BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", signatureError);
+                }
+            }
+            for (int i = 0; i < receiptTextKeys.Count; i++)
+            {
+                string normalized;
+                string textError;
+                if (!SettingsService.TryNormalizeReceiptText(receiptTextKeys[i], writable[receiptTextKeys[i]], out normalized, out textError))
+                {
+                    return BridgeResponse.Fail(request.Id, "INVALID_INPUT", textError);
+                }
+                writable[receiptTextKeys[i]] = normalized;
+            }
+
             DatabaseService.Settings.SaveSettings(writable);
             return BridgeResponse.Ok(request.Id, new { success = true });
+        }
+
+        private static bool IsCurrentUserRoot()
+        {
+            return SecurityService.CurrentUser != null && SecurityService.CurrentUser.Role == "root";
+        }
+
+        // The value settings:getAll shows (stored value, or the built-in default when the key was never saved), so a full-screen
+        // round trip by a non-root user that re-sends the defaults it just read is a no-op, not a forbidden change
+        private static string EffectiveRootOnlyValue(string key)
+        {
+            if (DatabaseService.Settings == null) return null;
+            string value;
+            return DatabaseService.Settings.GetAllSettings().TryGetValue(key ?? "", out value) ? value : null;
+        }
+
+        private static bool IsRootOnlySettingKey(string key)
+        {
+            string lower = (key ?? "").Trim().ToLowerInvariant();
+            return lower == "developer_signature" || lower == "developer_branding" || lower == "system_developer_signature"
+                || SettingsService.IsSignatureSettingKey(key);
         }
 
         // Secrets and license/security state owned by services: never returned to the UI and never writable through settings:*
@@ -107,15 +169,14 @@ namespace RafiqPOS.Bridge
         {
             var clean = new Dictionary<string, string>();
             if (input == null) return clean;
-            bool isRoot = SecurityService.CurrentUser != null && SecurityService.CurrentUser.Role == "root";
+            bool isRoot = IsCurrentUserRoot();
 
             foreach (var kvp in input)
             {
                 string key = kvp.Key ?? "";
-                string lower = key.ToLowerInvariant();
 
                 // حماية دعاية وتوقيع مطور النظام: محجوزة حصرياً لحساب الروت (المطور)
-                if (lower == "developer_signature" || lower == "developer_branding" || lower == "system_developer_signature")
+                if (IsRootOnlySettingKey(key))
                 {
                     if (!isRoot)
                     {

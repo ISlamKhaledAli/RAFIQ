@@ -87,7 +87,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
         {/* 1. Total Movements Card */}
         <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold">
               <Boxes className="w-5 h-5" />
             </div>
             <div>

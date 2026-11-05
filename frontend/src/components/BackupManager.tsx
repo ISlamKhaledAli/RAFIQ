@@ -73,8 +73,10 @@ interface BackupManagerProps {
 }
 
 export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) => {
-  // Restore, migration and license activation are owner-only (the server enforces the same rule)
-  const { isOwnerOrRoot } = useAuth();
+  // Restore / migration and license activation are owner-grade privileges (owner/root always, a manager only when granted; the server enforces the same keys)
+  const { hasPermission } = useAuth();
+  const canRestore = hasPermission('settings.restore');
+  const canManageLicense = hasPermission('settings.license');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<BackupStatusInfo | null>(null);
   const [drives, setDrives] = useState<DriveItem[]>([]);
@@ -325,7 +327,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
       <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 sm:p-6 flex flex-col gap-5 shadow-2xs">
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3 border-b border-line dark:border-line-dark pb-5">
           <div className="flex flex-wrap items-center gap-3">
-            {isOwnerOrRoot && (
+            {canManageLicense && (
             <button
               type="button"
               onClick={handleOpenLicense}
@@ -337,7 +339,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
             </button>
             )}
 
-            {isOwnerOrRoot && (
+            {canRestore && (
             <button
               type="button"
               onClick={() => setIsMigrationModalOpen(true)}
@@ -429,7 +431,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
           </div>
           {settingsSaved && (
             <span className="text-xs font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2.5 py-1 rounded border border-paid-border dark:border-paid-bright/30">
-              تم حفظ السياسة بنجاح
+              تم حفظ السياسة
             </span>
           )}
         </div>
@@ -644,7 +646,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
                           <span>فحص</span>
                         </button>
 
-                        {isOwnerOrRoot && (
+                        {canRestore && (
                         <button
                           type="button"
                           onClick={() => setRestoreTarget(bk)}

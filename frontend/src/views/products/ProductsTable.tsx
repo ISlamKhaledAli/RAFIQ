@@ -280,7 +280,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     {/* 2. Barcode */}
                     <td className="w-36 px-3 text-right font-mono text-xs text-ink dark:text-ink-dark tabular-nums">
                       <div className="flex items-center gap-1">
-                        <span className="truncate">{prod.barcode || <span className="text-ink-muted/50 dark:text-ink-dark-muted/50">—</span>}</span>
+                        <span className="truncate">{prod.barcode || <span className="text-ink-muted/50 dark:text-ink-dark-muted/70">—</span>}</span>
                         {prod.barcodes && prod.barcodes.length > 1 && (
                           <span
                             className="px-1.5 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro text-ink-muted dark:text-ink-dark-muted shrink-0 font-bold"
@@ -320,7 +320,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         )}
                         {prod.hasVariants && (
                           <span
-                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1"
+                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1"
                             title={terminology.variantsTitle}
                           >
                             <Layers className="w-2.5 h-2.5" />
@@ -337,7 +337,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         )}
                         {prod.isLooseSellable && (
                           <span
-                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-soft/20 text-brand-dark dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1"
+                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1"
                             title="صنف مفكوك يباع بالتجزئة"
                           >
                             <Boxes className="w-2.5 h-2.5" />
@@ -379,7 +379,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         <span className="font-black text-paid dark:text-paid-bright text-xs">
                           {formatArabicCurrency(prod.pricePiasters)}
                         </span>
-                        {isKg && <span className="text-micro text-paid/80 dark:text-paid-bright/80 font-normal">/كجم</span>}
+                        {isKg && <span className="text-micro text-paid/80 dark:text-paid-bright font-normal">/كجم</span>}
                         {prod.costPiasters > 0 &&
                           (prod.pricePiasters < prod.costPiasters ? (
                             <span
@@ -587,9 +587,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     setActiveMenu(null);
                     onEditProduct(p);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Edit2 className="w-3.5 h-3.5" />
                   </div>
                   <span className="flex-1 min-w-0 truncate">تعديل بيانات الصنف</span>
@@ -620,9 +620,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   setActiveMenu(null);
                   onSelectProdForAdjustment(p);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-warn-soft dark:hover:bg-warn-soft/20 text-ink dark:text-ink-dark hover:text-warn dark:hover:text-warn-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-warn-soft dark:hover:bg-warn-dark-soft text-ink dark:text-ink-dark hover:text-warn dark:hover:text-warn-bright text-xs font-bold transition-colors cursor-pointer group text-right"
               >
-                <div className="w-6 h-6 rounded-md bg-warn-soft dark:bg-warn-soft/20 text-warn dark:text-warn-bright group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                <div className="w-6 h-6 rounded-md bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                   <Scale className="w-3.5 h-3.5" />
                 </div>
                 <span className="flex-1 min-w-0 truncate">تسوية جرد وعدّ المخزن</span>
@@ -639,7 +639,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   }}
                   className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
-                  <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-brand-soft dark:group-hover:bg-brand-soft/20 group-hover:text-brand dark:group-hover:text-brand-bright flex items-center justify-center shrink-0 transition-colors">
+                  <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-brand-soft dark:group-hover:bg-brand-dark-soft group-hover:text-brand dark:group-hover:text-brand-bright flex items-center justify-center shrink-0 transition-colors">
                     <Tag className="w-3.5 h-3.5" />
                   </div>
                   <span className="flex-1 min-w-0 truncate">طباعة استيكر باركود</span>
@@ -656,7 +656,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 }}
                 className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
               >
-                <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-brand-soft dark:group-hover:bg-brand-soft/20 group-hover:text-brand dark:group-hover:text-brand-bright flex items-center justify-center shrink-0 transition-colors">
+                <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-brand-soft dark:group-hover:bg-brand-dark-soft group-hover:text-brand dark:group-hover:text-brand-bright flex items-center justify-center shrink-0 transition-colors">
                   <History className="w-3.5 h-3.5" />
                 </div>
                 <span className="flex-1 min-w-0 truncate">سجل وتاريخ تغيير الأسعار</span>
@@ -671,9 +671,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     setActiveMenu(null);
                     onSelectProdForPurchase(p);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Truck className="w-3.5 h-3.5" />
                   </div>
                   <span className="flex-1 min-w-0 truncate">استلام وتزويد بضاعة للمخزن</span>
@@ -689,9 +689,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     setActiveMenu(null);
                     onNavigateToBatches(p.name);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-warn-soft dark:hover:bg-warn-soft/20 text-ink dark:text-ink-dark hover:text-warn dark:hover:text-warn-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-warn-soft dark:hover:bg-warn-dark-soft text-ink dark:text-ink-dark hover:text-warn dark:hover:text-warn-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
-                  <div className="w-6 h-6 rounded-md bg-warn-soft dark:bg-warn-soft/20 text-warn dark:text-warn-bright group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <div className="w-6 h-6 rounded-md bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Clock className="w-3.5 h-3.5" />
                   </div>
                   <span className="flex-1 min-w-0 truncate">تواريخ الصلاحية والتشغيلات</span>
@@ -707,9 +707,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     setActiveMenu(null);
                     onViewVariants(p);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Layers className="w-3.5 h-3.5" />
                   </div>
                   <span className="flex-1 min-w-0 truncate">{terminology.variantsTitle}</span>

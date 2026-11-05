@@ -13,6 +13,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
+import { RequiredMark } from '../../components/RequiredMark';
 import type { Customer, Product } from '../../types/models';
 import type { ChronicMedication, PatientDueAlert, CustomerPatientInfo } from '../../types/patient';
 
@@ -247,7 +248,7 @@ export const PosChronicDispenseModal: React.FC<PosChronicDispenseModalProps> = (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                اختيار المريض / العميل
+                اختيار المريض / العميل <RequiredMark />
               </label>
               <div className="relative">
                 <input

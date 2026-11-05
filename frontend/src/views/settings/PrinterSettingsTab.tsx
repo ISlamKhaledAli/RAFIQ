@@ -174,7 +174,7 @@ export const PrinterSettingsTab = ({
         paperSize: labelPaperSize,
       });
       if (res && res.success) {
-        setLabelTestMessage({ text: `تم إرسال الملصق التجريبي بنجاح إلى: ${res.printerUsed}`, isError: false });
+        setLabelTestMessage({ text: `تم إرسال الملصق التجريبي إلى: ${res.printerUsed}`, isError: false });
       } else {
         setLabelTestMessage({ text: res?.message || 'فشلت تجربة طباعة الملصق', isError: true });
       }
@@ -206,7 +206,7 @@ export const PrinterSettingsTab = ({
       });
       if (res && res.success) {
         setDrawerTestMessage({
-          text: res.message || `تم إرسال نبضة فتح درج النقدية بنجاح بقوة (${pulseToUse} مللي ثانية)!`,
+          text: res.message || `تم إرسال نبضة فتح الدرج (${pulseToUse} مللي ثانية)`,
           isError: false,
         });
       } else {
@@ -275,7 +275,7 @@ export const PrinterSettingsTab = ({
       {printerSaveSuccess && (
         <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-bright/30 text-paid dark:text-paid-bright rounded-lg text-xs font-semibold flex items-center gap-2">
           <CheckCircle className="w-4 h-4" />
-          <span>تم حفظ وتفعيل إعدادات طابعة الفواتير بنجاح!</span>
+          <span>تم حفظ إعدادات الطابعة</span>
         </div>
       )}
 

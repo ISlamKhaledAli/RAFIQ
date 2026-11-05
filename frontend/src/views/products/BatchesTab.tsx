@@ -25,6 +25,7 @@ import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { rafiqAlert } from '../../utils/dialogService';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
+import { RequiredMark } from '../../components/RequiredMark';
 
 export interface BatchesTabProps {
   onBatchChanged?: () => void;
@@ -215,7 +216,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
       void loadData(alertDays);
       onBatchChanged?.();
       void rafiqAlert({
-        title: 'تمت التسوية بنجاح',
+        title: 'تمت التسوية',
         message: 'تم تحديث رصيد الدفعة وتسجيل الحركة في دفتر المخزون.',
         variant: 'success',
       });
@@ -246,7 +247,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
       onBatchChanged?.();
       void rafiqAlert({
         title: 'تم إتلاف الدفعة',
-        message: 'تم إتلاف الدفعة وتصفير رصيدها وتسجيل قيد هالك المخزون بنجاح.',
+        message: 'تم إتلاف الدفعة وتسجيل قيد هالك المخزون.',
         variant: 'success',
       });
     } catch (err: unknown) {
@@ -295,7 +296,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
         {/* 1. Active Batches */}
         <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark flex items-center justify-between gap-3 shadow-2xs">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center font-bold border border-brand/20 dark:border-brand-bright/20">
+            <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold border border-brand/20 dark:border-brand-bright/20">
               <Layers className="w-5 h-5" />
             </div>
             <div>
@@ -508,7 +509,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
             />
           ) : filteredBatches.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2">
-              <Calendar className="w-10 h-10 opacity-30" />
+              <Calendar className="w-10 h-10 opacity-40 dark:opacity-100" />
               <span className="text-sm font-semibold text-ink dark:text-ink-dark">لا توجد دفعات مطابقة للمعايير المحددة</span>
               <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
                 يتم تسجيل الدفعات وتواريخ الصلاحية تلقائياً عند استلام فواتير الشراء
@@ -538,7 +539,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
 
                   {/* Batch Number */}
                   <div className="col-span-2">
-                    <span className="font-mono font-bold text-brand dark:text-brand-bright bg-brand-soft/70 dark:bg-brand-soft/20 px-2 py-0.5 rounded border border-brand/20 dark:border-brand-bright/20">
+                    <span className="font-mono font-bold text-brand dark:text-brand-bright bg-brand-soft/70 dark:bg-brand-dark-soft px-2 py-0.5 rounded border border-brand/20 dark:border-brand-bright/20">
                       {b.batchNumber}
                     </span>
                     {b.productionDate && (
@@ -687,7 +688,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
 
               <div>
                 <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-                  الرصيد الفعلي الجديد بعد التسوية <span className="text-danger dark:text-danger-bright">*</span>
+                  الرصيد الفعلي الجديد بعد التسوية <RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -723,7 +724,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                 <button
                   type="submit"
                   disabled={adjustLoading}
-                  className="px-5 py-2 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-5 py-2 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark flex items-center gap-1.5"
                 >
                   <ArrowUpDown className="w-3.5 h-3.5" />
                   <span>{adjustLoading ? 'جاري الحفظ...' : 'تأكيد وحفظ التسوية'}</span>

@@ -13,7 +13,7 @@ import {
 } from '../src/utils/roleLabels.ts';
 import { APP_TITLE, getShopSubtitle } from '../src/utils/appBranding.ts';
 import { INITIAL_STORE_TEMPLATES } from '../src/constants/storeTemplates.ts';
-import { PERMISSION_GROUPS } from '../src/constants/permissionGroups.ts';
+import { PERMISSION_GROUPS, CASHIER_PERMISSION_GROUPS } from '../src/constants/permissionGroups.ts';
 
 const root = { id: 'usr_root', username: 'islam', role: 'root', isOwner: false };
 const owner = { id: 'usr_admin_default', username: 'admin', role: 'admin', isOwner: true };
@@ -142,17 +142,18 @@ describe('PERMISSION_GROUPS catalogue', () => {
     assert.deepEqual(unknown, []);
   });
 
-  it('hides owner/root-only and retired keys from the editor', () => {
+  it('hides keys reserved for the owner/root and retired keys from the cashier editor', () => {
+    const cashierKeys = CASHIER_PERMISSION_GROUPS.flatMap((g) => g.items.map((i) => i.key));
     for (const k of [
-      'settings.restore', 'settings.license', 'settings.features', 'audit_log.view', 'users.delegate',
+      'settings.restore', 'settings.license', 'system.updates', 'settings.features', 'audit_log.view', 'users.delegate',
       'pharma.controlled.view_full', 'expenses.cancel', 'db_recovery', 'refunds', 'cancel_sale',
     ]) {
-      assert.ok(!allKeys.includes(k), `${k} must not be listed`);
+      assert.ok(!cashierKeys.includes(k), `${k} must not be listed`);
     }
   });
 
   it('follows the agreed logical group order', () => {
-    const order = PERMISSION_GROUPS.map((g) => g.id);
+    const order = CASHIER_PERMISSION_GROUPS.map((g) => g.id);
     const expected = [
       'pos', 'pricing', 'shifts', 'invoices', 'customers', 'products', 'stock', 'purchases',
       'expenses', 'epay', 'wallets', 'reports', 'settings', 'users', 'pharma', 'insurance',

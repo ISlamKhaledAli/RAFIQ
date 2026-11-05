@@ -84,7 +84,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
     setSuccessMessage(null);
     try {
       await invoke('variants:delete', { variantProductId: variantToDelete.variantProductId });
-      setSuccessMessage(`تم حذف المتغير (${variantToDelete.color || 'عام'} - ${variantToDelete.size || 'حر'}) بنجاح`);
+      setSuccessMessage(`تم حذف المتغير (${variantToDelete.color || 'عام'} - ${variantToDelete.size || 'حر'})`);
       setVariantToDelete(null);
       if (parentProduct?.id) {
         const res = await invoke<ProductVariant[]>('variants:getByParentId', { parentId: parentProduct.id });
@@ -194,7 +194,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
             </div>
           ) : variants.length === 0 ? (
             <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted text-xs flex flex-col items-center gap-3">
-              <Package className="w-10 h-10 opacity-40 text-brand dark:text-brand-bright" />
+              <Package className="w-10 h-10 opacity-40 dark:opacity-100 text-brand dark:text-brand-bright" />
               <span>لا توجد أصناف متفرعة مسجلة لهذا الصنف حالياً</span>
               {onOpenMatrixModal && (
                 <button
@@ -241,7 +241,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                           </span>
                         </td>
                         <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
-                          <Barcode className="w-3.5 h-3.5 opacity-60" />
+                          <Barcode className="w-3.5 h-3.5 opacity-60 dark:opacity-100" />
                           <span>{v.barcode || '—'}</span>
                         </td>
                         <td className="py-2.5 px-3 text-center font-mono font-bold">
@@ -316,7 +316,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                   type="button"
                   onClick={() => void handleDeleteVariant()}
                   disabled={isDeleting}
-                  className="px-4 py-1.5 rounded-lg bg-danger text-white text-xs font-bold hover:bg-danger/90 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-lg bg-danger text-white text-xs font-bold hover:bg-danger/90 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                 >
                   {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                   <span>{isDeleting ? 'جاري الحذف...' : 'تأكيد الحذف'}</span>

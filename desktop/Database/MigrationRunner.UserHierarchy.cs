@@ -13,6 +13,47 @@ namespace RafiqPOS.Database
                 BackupDatabaseBeforeMigration(dbPath);
                 ApplyMigration63(conn);
             }
+
+            // 67. Apply Migration 64: digital_accounts.holder_name (the account holder name shown to the customer at checkout)
+            if (currentVersion < 64)
+            {
+                BackupDatabaseBeforeMigration(dbPath);
+                ApplyMigration64(conn);
+            }
+        }
+
+        private static void ApplyMigration64(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    EnsureDigitalAccountHolderColumn(conn, trans);
+
+                    using (var migCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (64, 'Digital account holder name (digital_accounts.holder_name)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        migCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void EnsureDigitalAccountHolderColumn(SQLiteConnection conn, SQLiteTransaction trans)
+        {
+            if (!TableExists(conn, trans, "digital_accounts")) return;
+
+            // Guarded by PRAGMA table_info inside EnsureColumn: ADD COLUMN only, existing rows get the empty default
+            EnsureColumn(conn, trans, "digital_accounts", "holder_name", "TEXT NOT NULL DEFAULT ''");
         }
 
         private static void ApplyMigration63(SQLiteConnection conn)
@@ -51,6 +92,7 @@ namespace RafiqPOS.Database
                 try
                 {
                     EnsureUserHierarchyColumns(conn, trans);
+                    EnsureDigitalAccountHolderColumn(conn, trans);
                     trans.Commit();
                 }
                 catch

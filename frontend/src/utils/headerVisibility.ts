@@ -8,11 +8,13 @@ export interface HeaderAccessInput {
   canOpenShiftPanel: boolean;
   canManageUsers: boolean;
   canViewProducts: boolean;
+  /** hasPermission('system.updates'): owner/root always, a manager only when granted. */
+  canUpdateApp: boolean;
 }
 
 export interface HeaderVisibility {
   kind: RoleKind;
-  /** Update check/badge: updates:check is REQUIRE_ADMIN on the server, so only owner/manager/root see it. */
+  /** Update check/badge: updates:check needs system.updates, an owner-grade key (owner/root always, manager by grant). */
   showUpdates: boolean;
   showShift: boolean;
   showEmployees: boolean;
@@ -24,7 +26,7 @@ export function getHeaderVisibility(input: HeaderAccessInput): HeaderVisibility 
   const isAdminTier = kind === 'root' || kind === 'owner' || kind === 'manager';
   return {
     kind,
-    showUpdates: isAdminTier,
+    showUpdates: isAdminTier && input.canUpdateApp,
     showShift: input.canOpenShiftPanel,
     showEmployees: isAdminTier || input.canManageUsers,
     showReadiness: kind === 'root',
@@ -48,6 +50,10 @@ export function getRoleAvatarClasses(kind: RoleKind): string {
 export interface NotificationAudience {
   kind: RoleKind;
   canViewProducts: boolean;
+  /** hasPermission('system.updates') */
+  canUpdateApp: boolean;
+  /** hasPermission('settings.license') */
+  canManageLicense: boolean;
 }
 
 const WITHOUT_ACTION = (item: SystemNotificationItem): SystemNotificationItem => {
@@ -60,15 +66,15 @@ const WITHOUT_ACTION = (item: SystemNotificationItem): SystemNotificationItem =>
 /**
  * Role-appropriate notifications: a cashier only sees what affects selling (clock, read-only,
  * expiry, stock) and never an action button they cannot use; owner/manager see everything.
- * License renewal actions stay owner-only (license:activate is REQUIRE_OWNER).
+ * License renewal actions need settings.license and the update alert needs system.updates (owner-grade keys).
  */
 export function filterNotificationsForAudience(
   items: SystemNotificationItem[],
   audience: NotificationAudience,
 ): SystemNotificationItem[] {
   const { kind } = audience;
-  const isOwnerTier = kind === 'owner' || kind === 'root';
-  const isAdminTier = isOwnerTier || kind === 'manager';
+  const isAdminTier = kind === 'owner' || kind === 'root' || kind === 'manager';
+  const mayManageLicense = isAdminTier && audience.canManageLicense;
   const out: SystemNotificationItem[] = [];
 
   for (const item of items) {
@@ -78,12 +84,14 @@ export function filterNotificationsForAudience(
         break;
       case 'license_readonly':
       case 'license_expiry_warning':
-        out.push(isOwnerTier ? item : WITHOUT_ACTION(item));
+        out.push(mayManageLicense ? item : WITHOUT_ACTION(item));
         break;
       case 'license_trial':
-        if (isAdminTier) out.push(isOwnerTier ? item : WITHOUT_ACTION(item));
+        if (isAdminTier) out.push(mayManageLicense ? item : WITHOUT_ACTION(item));
         break;
       case 'app_update_available':
+        if (isAdminTier && audience.canUpdateApp) out.push(item);
+        break;
       case 'backup_overdue':
       case 'demo_data_active':
         if (isAdminTier) out.push(item);

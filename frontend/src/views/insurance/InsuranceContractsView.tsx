@@ -16,6 +16,7 @@ import { useAuth } from '../../context/useAuth';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import { PaginationBar } from '../../components/PaginationBar';
+import { RequiredMark } from '../../components/RequiredMark';
 import type {
   InsuranceCompany,
   InsuranceContract,
@@ -183,7 +184,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
     setLoading(true);
     try {
       await invoke('insurance:saveCompany', editingCompany);
-      setSuccessMsg('تم حفظ بيانات شركة التأمين بنجاح');
+      setSuccessMsg('تم حفظ شركة التأمين');
       setShowCompanyModal(false);
       setEditingCompany(null);
       await loadData();
@@ -203,7 +204,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
     setLoading(true);
     try {
       await invoke('insurance:saveContract', editingContract);
-      setSuccessMsg('تم حفظ عقد التأمين بنجاح');
+      setSuccessMsg('تم حفظ عقد التأمين');
       setShowContractModal(false);
       setEditingContract(null);
       await loadData();
@@ -223,7 +224,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
     setLoading(true);
     try {
       await invoke('insurance:saveMember', editingMember);
-      setSuccessMsg('تم تسجيل بيانات المشترك بنجاح');
+      setSuccessMsg('تم تسجيل المشترك');
       setShowMemberModal(false);
       setEditingMember(null);
       await loadData();
@@ -253,7 +254,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
         notes: newBatchNotes,
         claimLineIds: selectedPendingClaimIds,
       });
-      setSuccessMsg('تم إصدار دفعة المطالبة الشهرية بنجاح');
+      setSuccessMsg('تم إصدار دفعة المطالبة الشهرية');
       setShowBatchModal(false);
       setSelectedPendingClaimIds([]);
       setNewBatchNumber('');
@@ -289,7 +290,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
         rejectionReason: rejAmt > 0 ? rejectionReason : undefined,
         deductionTarget: deductionTarget,
       });
-      setSuccessMsg('تمت تسوية المطالبة واعتماد الأرصدة وترحيل الرفوضات بنجاح');
+      setSuccessMsg('تمت تسوية المطالبة');
       setShowSettleModal(false);
       setSettlingBatch(null);
       await loadData();
@@ -306,7 +307,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
     try {
       const res = await invoke<{ path: string }>('insurance:exportBatchExcel', { batchId });
       if (res && res.path) {
-        setSuccessMsg(`تم تصدير ملف الإكسل الرسمي بنجاح في: ${res.path}`);
+        setSuccessMsg(`تم تصدير ملف الإكسل في: ${res.path}`);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'حدث خطأ أثناء تصدير الإكسل');
@@ -806,7 +807,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم شركة التأمين *</label>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم شركة التأمين <RequiredMark /></label>
                 <input
                   type="text"
                   value={editingCompany.name || ''}
@@ -880,7 +881,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">شركة التأمين *</label>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">شركة التأمين</label>
                 <CustomSelect
                   value={editingContract.companyId || ''}
                   onChange={(val) => setEditingContract({ ...editingContract, companyId: val })}
@@ -889,7 +890,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم العقد / الفئة *</label>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم العقد / الفئة <RequiredMark /></label>
                 <input
                   type="text"
                   value={editingContract.name || ''}
@@ -901,7 +902,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">نسبة تحمل المريض (%) *</label>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">نسبة تحمل المريض (%)</label>
                   <input
                     type="number"
                     min="0"
@@ -980,7 +981,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">العقد التأميني *</label>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">العقد التأميني</label>
                 <CustomSelect
                   value={editingMember.contractId || ''}
                   onChange={(val) => setEditingMember({ ...editingMember, contractId: val })}
@@ -989,7 +990,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم المشترك / المريض *</label>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم المشترك / المريض <RequiredMark /></label>
                 <input
                   type="text"
                   value={editingMember.memberName || ''}
@@ -1000,7 +1001,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم الكارنيه / العضوية *</label>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم الكارنيه / العضوية <RequiredMark /></label>
                 <input
                   type="text"
                   value={editingMember.memberNo || ''}
@@ -1065,7 +1066,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">شركة التأمين *</label>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">شركة التأمين</label>
                   <CustomSelect
                     value={newBatchCompanyId}
                     onChange={(val) => {
@@ -1077,7 +1078,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم المطالبة *</label>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم المطالبة <RequiredMark /></label>
                   <input
                     type="text"
                     value={newBatchNumber}
@@ -1087,7 +1088,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">فترة المطالبة (شهر/سنة) *</label>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">فترة المطالبة (شهر/سنة) <RequiredMark /></label>
                   <input
                     type="month"
                     value={newBatchPeriod}
@@ -1098,7 +1099,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">ملاحظات على المطالبة (اختياري):</label>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">ملاحظات على المطالبة:</label>
                 <input
                   type="text"
                   value={newBatchNotes}
@@ -1111,7 +1112,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               {/* Pending claims selection table */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-ink dark:text-ink-dark">الفواتير المعلقة القابلة للإدراج:</label>
+                  <label className="text-xs font-bold text-ink dark:text-ink-dark">الفواتير المعلقة القابلة للإدراج: <RequiredMark /></label>
                   <button
                     type="button"
                     onClick={() => {
@@ -1225,7 +1226,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-paid dark:text-paid-bright mb-1">المبلغ المعتمد والمسدد (ج.م) *</label>
+                  <label className="block text-xs font-bold text-paid dark:text-paid-bright mb-1">المبلغ المعتمد والمسدد (ج.م)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1243,7 +1244,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-danger dark:text-danger-bright mb-1">المبلغ المرفوض (ج.م) *</label>
+                  <label className="block text-xs font-bold text-danger dark:text-danger-bright mb-1">المبلغ المرفوض (ج.م)</label>
                   <input
                     type="number"
                     step="0.01"

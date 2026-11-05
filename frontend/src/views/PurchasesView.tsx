@@ -445,7 +445,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       const result = await invoke<Purchase>('purchases:create', payload);
       if (result) {
         purchaseAttemptRef.current.complete();
-        showToast(`تم تسجيل فاتورة الشراء رقم #${result.invoiceNumber} وزيادة المخزون بنجاح!`, 'success');
+        showToast(`تم تسجيل فاتورة الشراء #${result.invoiceNumber} وزيادة المخزون`, 'success');
         // Reset form
         setLineItems([]);
         setSelectedSupplierId('');
@@ -465,7 +465,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           setConfirmDialog({
             isOpen: true,
             title: 'طباعة ملصقات الباركود للبضاعة المستلمة',
-            message: 'تم حفظ الفاتورة بنجاح وتوريد البضاعة للمخزن. هل ترغب في فتح مصمم وطباعة ملصقات الباركود للأصناف الواردة بعدد الكميات المشتراة؟',
+            message: 'تم حفظ الفاتورة وتوريد البضاعة. هل تريد طباعة ملصقات الباركود للأصناف الواردة؟',
             confirmText: 'فتح مصمم الملصقات',
             cancelText: 'تخطي ومتابعة',
             isDanger: false,
@@ -543,7 +543,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       });
 
       if (res) {
-        showToast(supplierForm.id ? 'تم تحديث بيانات المورد بنجاح' : 'تم إضافة المورد الجديد بنجاح');
+        showToast(supplierForm.id ? 'تم تحديث بيانات المورد' : 'تمت إضافة المورد');
         setIsSupplierModalOpen(false);
         loadSuppliers();
       }
@@ -564,7 +564,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
         try {
           await invoke('suppliers:archive', { id: sup.id });
-          showToast('تم أرشفة المورد بنجاح');
+          showToast('تمت أرشفة المورد');
           loadSuppliers();
         } catch {
           showToast('تعذر أرشفة المورد', 'error');
@@ -576,7 +576,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const handleRestoreSupplier = async (id: string) => {
     try {
       await invoke('suppliers:restore', { id });
-      showToast('تم استعادة المورد بنجاح');
+      showToast('تمت استعادة المورد');
       loadSuppliers();
     } catch {
       showToast('تعذر استعادة المورد', 'error');
@@ -618,7 +618,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         idempotencyKey: paymentAttemptRef.current.current(),
       });
       paymentAttemptRef.current.complete();
-      showToast('تم تسجيل سداد الدفعة بنجاح وتحديث رصيد المورد');
+      showToast('تم تسجيل سداد الدفعة');
       setIsPaymentModalOpen(false);
       loadSuppliers();
     } catch (err: unknown) {

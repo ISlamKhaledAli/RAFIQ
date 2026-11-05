@@ -21,6 +21,7 @@ import {
 import { useAuth } from '../context/useAuth';
 import { invoke, type UserDto } from '../bridge/ipc';
 import { CustomSelect, type SelectOption } from '../components/CustomSelect';
+import { RequiredMark } from '../components/RequiredMark';
 import { getRoleLabel, getTier } from '../utils/roleLabels';
 
 export const LoginScreen: React.FC = () => {
@@ -242,7 +243,7 @@ export const LoginScreen: React.FC = () => {
       if (!res.success) {
         setRecoveryError(res.message || 'كود الدعم الفني غير صحيح.');
       } else {
-        setRecoverySuccess('تم استرجاع الحساب وتحديث الرقم السري بنجاح. جاري الدخول...');
+        setRecoverySuccess('تم استرجاع الحساب وتحديث الرقم السري. جاري الدخول...');
         setTimeout(async () => {
           setIsRecoveryModalOpen(false);
           setUsername('admin');
@@ -440,7 +441,7 @@ export const LoginScreen: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark">
-                    اسم المستخدم (أو كتابة يدوية)
+                    اسم المستخدم (أو كتابة يدوية) <RequiredMark />
                   </label>
                   {username && (
                     <button
@@ -471,7 +472,7 @@ export const LoginScreen: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark">
-                    الرقم السري (PIN)
+                    الرقم السري (PIN) <RequiredMark />
                   </label>
                   <button
                     type="button"
@@ -653,7 +654,7 @@ export const LoginScreen: React.FC = () => {
               {/* Response Token Input */}
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  2. رمز تصريح Root الموقع (RFQ-ROOT-...)
+                  2. رمز تصريح Root الموقع (RFQ-ROOT-...) <RequiredMark />
                 </label>
                 <textarea
                   value={rootTokenInput}
@@ -741,7 +742,7 @@ export const LoginScreen: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  كود الدعم الفني / رمز الاسترجاع
+                  كود الدعم الفني / رمز الاسترجاع <RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -760,7 +761,7 @@ export const LoginScreen: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  الرقم السري (PIN) الجديد للمدير
+                  الرقم السري (PIN) الجديد للمدير <RequiredMark />
                 </label>
                 <input
                   type="password"
@@ -776,7 +777,7 @@ export const LoginScreen: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  تأكيد الرقم السري الجديد
+                  تأكيد الرقم السري الجديد <RequiredMark />
                 </label>
                 <input
                   type="password"

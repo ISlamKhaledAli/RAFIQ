@@ -154,7 +154,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
     setActiveCategory(trimmed);
     setNewCategoryName('');
     setIsAddingCategory(false);
-    setSuccessMessage(`تم إنشاء قسم "${trimmed}" بنجاح، يمكنك الآن إضافة أصناف إليه`);
+    setSuccessMessage(`تم إنشاء قسم "${trimmed}"`);
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
@@ -199,7 +199,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
       const remaining = categories.filter((c) => c !== catToDelete);
       setActiveCategory(remaining.length > 0 ? remaining[0] : 'عام');
       setDeleteCategoryConfirm(null);
-      setSuccessMessage(`تم حذف قسم "${catToDelete}" بنجاح`);
+      setSuccessMessage(`تم حذف قسم "${catToDelete}"`);
       setTimeout(() => setSuccessMessage(null), 3000);
       await fetchItems();
       if (onItemsChanged) onItemsChanged();
@@ -311,7 +311,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
     setErrorMessage(null);
     try {
       await invoke('quickItems:save', payload);
-      setSuccessMessage(editingId ? 'تم تحديث الصنف بنجاح' : 'تمت إضافة الصنف بنجاح');
+      setSuccessMessage(editingId ? 'تم تحديث الصنف' : 'تمت إضافة الصنف');
       setTimeout(() => setSuccessMessage(null), 3000);
       setIsFormOpen(false);
       setActiveCategory(finalCategory);
@@ -330,7 +330,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
     setErrorMessage(null);
     try {
       await invoke('quickItems:delete', { id });
-      setSuccessMessage('تم حذف الصنف بنجاح');
+      setSuccessMessage('تم حذف الصنف');
       setTimeout(() => setSuccessMessage(null), 3000);
       setDeleteConfirmId(null);
       await fetchItems();
@@ -910,7 +910,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                     </div>
 
                     <div>
-                      <FieldLabel required>التبويب (القسم)</FieldLabel>
+                      <FieldLabel required={formCategory === '__new__'}>التبويب (القسم)</FieldLabel>
                       <CustomSelect
                         value={formCategory}
                         onChange={(val) => setFormCategory(val)}

@@ -124,7 +124,7 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
           {/* Reason Selection */}
           <div>
             <label className="block text-sm font-bold text-ink dark:text-ink-dark mb-1.5">
-              سبب الإلغاء <span className="text-danger dark:text-danger-bright">*</span>
+              سبب الإلغاء
             </label>
             <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden bg-surface dark:bg-surface-dark shadow-2xs divide-y divide-line dark:divide-line-dark">
               {PRESET_REASONS.map((r) => {
@@ -171,7 +171,6 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
           <div>
             <label className="text-sm font-bold text-ink mb-1.5 flex items-center justify-between">
               <span>الرقم السري للمدير</span>
-              <span className="text-micro text-ink-muted font-normal">(إن وُجد)</span>
             </label>
             <div className="relative">
               <input

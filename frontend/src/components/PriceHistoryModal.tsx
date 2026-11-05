@@ -119,7 +119,7 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
             </div>
           ) : history.length === 0 ? (
             <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted text-sm flex flex-col items-center gap-2 bg-canvas/60 dark:bg-canvas-dark rounded border border-dashed border-line dark:border-line-dark">
-              <History className="w-8 h-8 text-ink-muted/50 dark:text-ink-dark-muted/50" />
+              <History className="w-8 h-8 text-ink-muted/50 dark:text-ink-dark-muted" />
               <p className="font-semibold text-ink dark:text-ink-dark">لا توجد تعديلات أسعار سابقة مسجلة</p>
               <p className="text-micro text-ink-muted dark:text-ink-dark-muted">سيتم تسجيل أي تعديل تقوم به على سعر البيع أو التكلفة تلقائياً هنا مع التاريخ والوقت والمستخدم المسؤول.</p>
             </div>

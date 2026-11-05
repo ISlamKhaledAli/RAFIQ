@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { 
-  CheckCircle, 
   Printer, 
   Activity, 
   Store, 
@@ -10,6 +9,7 @@ import {
   KeyRound, 
   FlaskConical,
   SlidersHorizontal,
+  ClipboardList,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useFeatures } from '../context/useFeatures';
@@ -28,13 +28,15 @@ import { PinSettingsModal } from '../components/PinSettingsModal';
 
 import { StoreProfileTab } from './settings/StoreProfileTab';
 import { StoreFeaturesTab } from './settings/StoreFeaturesTab';
+import { SalesPoliciesTab } from './settings/SalesPoliciesTab';
 import { PrinterSettingsTab } from './settings/PrinterSettingsTab';
+import { DEFAULT_DEVELOPER_SIGNATURE, normalizeReceiptText, receiptTextLimitError, resolveReceiptFooter, resolveReceiptSignature } from '../utils/receiptLayout';
 import { invalidateReportPaperCache, normalizeReportPaper, type ReportPaper } from '../utils/printReport';
 import { ScannerSettingsTab } from './settings/ScannerSettingsTab';
 import { SystemDiagnosticsTab } from './settings/SystemDiagnosticsTab';
 import { DemoDataTab } from './settings/DemoDataTab';
 
-export type SettingsSubTab = 'profile' | 'features' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
+export type SettingsSubTab = 'profile' | 'policies' | 'features' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
 
 export interface SettingsViewProps {
   sysInfo?: SystemInfo | null;
@@ -47,6 +49,7 @@ export interface SettingsViewProps {
 export const SettingsView = ({ 
   sysInfo, 
   activeSubTab = 'profile', 
+  onSubTabChange,
   onOpenLicenseModal, 
 }: SettingsViewProps) => {
   const { flags, toggleFlag } = useFeatures();
@@ -62,41 +65,53 @@ export const SettingsView = ({
   const [isBenchmarkModalOpen, setIsBenchmarkModalOpen] = useState(false);
   const [demoStatus, setDemoStatus] = useState<any>(null);
   const [storeName, setStoreName] = useState('متجر رفيق');
-  const [cashierName, setCashierName] = useState('كاشير (1)');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [taxNumber, setTaxNumber] = useState('');
   const [receiptHeader, setReceiptHeader] = useState('');
   const [receiptFooter, setReceiptFooter] = useState('');
   const [showReceiptLogo, setShowReceiptLogo] = useState(true);
+  const [showReceiptCashier, setShowReceiptCashier] = useState(true);
   const [storeLogoUrl, setStoreLogoUrl] = useState('/receipt_logo_square.png');
-  const [developerSignature, setDeveloperSignature] = useState('نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965');
+  const [developerSignature, setDeveloperSignature] = useState(DEFAULT_DEVELOPER_SIGNATURE);
+  // Root-only receipt signature switches: visible by default, '' = the built-in banner image
+  const [developerSignatureVisible, setDeveloperSignatureVisible] = useState(true);
+  const [developerSignatureImage, setDeveloperSignatureImage] = useState('');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [requireOpenShiftToSell, setRequireOpenShiftToSell] = useState(true);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
   const [storeInstapayAddress, setStoreInstapayAddress] = useState('');
   const [storeWalletNumber, setStoreWalletNumber] = useState('');
-  const [logoVariant, setLogoVariant] = useState<'classic' | 'modern'>(() => {
-    try {
-      const saved = localStorage.getItem('rafiq_logo_variant');
-      return saved === 'modern' ? 'modern' : 'classic';
-    } catch {
-      return 'classic';
-    }
-  });
 
-  const handleLogoVariantChange = (val: 'classic' | 'modern') => {
-    setLogoVariant(val);
-    try {
-      localStorage.setItem('rafiq_logo_variant', val);
-      window.dispatchEvent(new Event('rafiq_logo_variant_changed'));
-    } catch {
-      // ignore
-    }
-  };
-
-  const [saved, setSaved] = useState(false);
+  // Which screen just saved (drives the "saved" confirmation on that screen only)
+  const [savedTab, setSavedTab] = useState<SettingsSubTab | null>(null);
   const [saveLoading, setSaveLoading] = useState(false);
+  // Last saved credit limit and receipt/profile snapshot: the save buttons stay disabled until something really changed
+  const [savedCreditLimitEgp, setSavedCreditLimitEgp] = useState(1000);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [profileBaseline, setProfileBaseline] = useState<string | null>(null);
+  const profileSnapshot = JSON.stringify([
+    storeName.trim(),
+    phone.trim(),
+    address.trim(),
+    taxNumber.trim(),
+    normalizeReceiptText(receiptHeader),
+    normalizeReceiptText(receiptFooter),
+    showReceiptLogo,
+    showReceiptCashier,
+    storeLogoUrl,
+    storeInstapayAddress.trim(),
+    storeWalletNumber.trim(),
+    isRoot ? normalizeReceiptText(developerSignature) : '',
+    isRoot ? developerSignatureVisible : true,
+    isRoot ? developerSignatureImage : '',
+  ]);
+  // Until the stored values are known the screen stays saveable (never blocks a save by mistake)
+  const profileDirty = profileBaseline === null || profileSnapshot !== profileBaseline;
+
+  useEffect(() => {
+    if (settingsLoaded && profileBaseline === null) setProfileBaseline(profileSnapshot);
+  }, [settingsLoaded, profileBaseline, profileSnapshot]);
 
   // Printer Settings State (Feature #53 / Tasks 53-1, 53-2, 53-3)
   const [printersList, setPrintersList] = useState<{ name: string; isDefault: boolean; isOnline: boolean }[]>([]);
@@ -150,15 +165,15 @@ export const SettingsView = ({
               // ignore
             }
           }
-          if (settings.cashier_name !== undefined) setCashierName(settings.cashier_name);
           if (settings.store_phone !== undefined) setPhone(settings.store_phone);
           if (settings.store_address !== undefined) setAddress(settings.store_address);
           if (settings.tax_number !== undefined) setTaxNumber(settings.tax_number);
           if (settings.receipt_header !== undefined) setReceiptHeader(settings.receipt_header);
-          if (settings.receipt_footer !== undefined) setReceiptFooter(settings.receipt_footer);
+          if (settings.receipt_footer !== undefined) setReceiptFooter(resolveReceiptFooter(settings.receipt_footer));
           if (settings.show_receipt_logo !== undefined) {
             setShowReceiptLogo(settings.show_receipt_logo === '1' || settings.show_receipt_logo === 'true');
           }
+          setShowReceiptCashier(settings.receipt_show_cashier !== '0');
           if (settings.store_logo_url) {
             setStoreLogoUrl(
               settings.store_logo_url === '/logo.png' || settings.store_logo_url === '/receipt_logo.png'
@@ -166,13 +181,9 @@ export const SettingsView = ({
                 : settings.store_logo_url
             );
           }
-          if (settings.developer_signature) {
-            if (settings.developer_signature === 'نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد') {
-              setDeveloperSignature('نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965');
-            } else {
-              setDeveloperSignature(settings.developer_signature);
-            }
-          }
+          if (settings.developer_signature) setDeveloperSignature(resolveReceiptSignature(settings.developer_signature));
+          setDeveloperSignatureVisible(settings.developer_signature_visible !== '0');
+          setDeveloperSignatureImage(settings.developer_signature_image ?? '');
           if (settings.allow_negative_stock !== undefined) {
             setAllowNegativeStock(settings.allow_negative_stock === '1' || settings.allow_negative_stock === 'true');
           }
@@ -181,7 +192,10 @@ export const SettingsView = ({
           }
           if (settings.default_customer_credit_limit_egp) {
             const lim = Number(settings.default_customer_credit_limit_egp);
-            if (!isNaN(lim) && lim >= 0) setDefaultCustomerCreditLimitEgp(lim);
+            if (!isNaN(lim) && lim >= 0) {
+              setDefaultCustomerCreditLimitEgp(lim);
+              setSavedCreditLimitEgp(lim);
+            }
           }
           if (settings.store_instapay_address) setStoreInstapayAddress(settings.store_instapay_address);
           if (settings.store_wallet_number) setStoreWalletNumber(settings.store_wallet_number);
@@ -192,15 +206,8 @@ export const SettingsView = ({
           if (settings.printer_open_drawer !== undefined) setOpenDrawerOnSale(settings.printer_open_drawer === '1');
           if (settings.drawer_pulse_ms) setDrawerPulseMs(settings.drawer_pulse_ms);
           if (settings.drawer_pin) setDrawerPin(settings.drawer_pin);
-          if (settings.logo_variant === 'modern' || settings.logo_variant === 'classic') {
-            setLogoVariant(settings.logo_variant);
-            try {
-              localStorage.setItem('rafiq_logo_variant', settings.logo_variant);
-            } catch {
-              // ignore
-            }
-          }
         }
+        setSettingsLoaded(true);
         if (Array.isArray(list)) {
           setPrintersList(list);
           setSelectedPrinter((current) => {
@@ -253,34 +260,36 @@ export const SettingsView = ({
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
+    if (receiptTextLimitError(receiptHeader) || receiptTextLimitError(receiptFooter) || (isRoot && receiptTextLimitError(developerSignature))) {
+      void rafiqAlert({ title: 'نص الوصل طويل', message: 'قصّر نصوص الترحيب أو التذييل أو التوقيع (الحد الأقصى 300 حرف و4 أسطر) ثم احفظ مرة أخرى.', variant: 'error' });
+      return;
+    }
     setSaveLoading(true);
     try {
       const payload: Record<string, string> = {
         store_name: storeName.trim(),
-        cashier_name: cashierName.trim(),
         store_phone: phone.trim(),
         store_address: address.trim(),
         tax_number: taxNumber.trim(),
-        receipt_header: receiptHeader.trim(),
-        receipt_footer: receiptFooter.trim(),
+        receipt_header: normalizeReceiptText(receiptHeader),
+        receipt_footer: normalizeReceiptText(receiptFooter),
         show_receipt_logo: showReceiptLogo ? '1' : '0',
+        receipt_show_cashier: showReceiptCashier ? '1' : '0',
         store_logo_url: storeLogoUrl,
         store_instapay_address: storeInstapayAddress.trim(),
         store_wallet_number: storeWalletNumber.trim(),
-        logo_variant: logoVariant,
-        // Business-policy keys are admin-only on the server; staff with settings.store save the profile only
-        ...(isAdmin ? {
-          allow_negative_stock: allowNegativeStock ? '1' : '0',
-          require_open_shift_to_sell: requireOpenShiftToSell ? '1' : '0',
-          default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
-          instapay_fee_percent: '0',
-          vodafone_cash_fee_percent: '0',
-        } : {}),
-        ...(isRoot ? { developer_signature: developerSignature.trim() } : {}),
+        ...(isRoot
+          ? {
+              developer_signature: normalizeReceiptText(developerSignature),
+              developer_signature_visible: developerSignatureVisible ? '1' : '0',
+              developer_signature_image: developerSignatureImage,
+            }
+          : {}),
       };
       await invoke('settings:save', payload);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3500);
+      setProfileBaseline(profileSnapshot);
+      setSavedTab('profile');
+      setTimeout(() => setSavedTab(null), 3500);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       void rafiqAlert({
@@ -288,6 +297,27 @@ export const SettingsView = ({
         message: `فشل حفظ الإعدادات: ${msg}`,
         variant: 'error',
       });
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  // Sale/stock policies are admin-only on the server (IpcDispatcher settings allow-lists); toggles auto-save, the limit saves here
+  const handleSavePolicies = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaveLoading(true);
+    try {
+      await invoke('settings:save', {
+        allow_negative_stock: allowNegativeStock ? '1' : '0',
+        require_open_shift_to_sell: requireOpenShiftToSell ? '1' : '0',
+        default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
+      });
+      setSavedCreditLimitEgp(defaultCustomerCreditLimitEgp);
+      setSavedTab('policies');
+      setTimeout(() => setSavedTab(null), 3500);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      void rafiqAlert({ title: 'فشل حفظ السياسات', message: `فشل حفظ سياسات البيع والمخزون: ${msg}`, variant: 'error' });
     } finally {
       setSaveLoading(false);
     }
@@ -457,8 +487,13 @@ export const SettingsView = ({
   const SUB_TAB_CONFIG: Record<SettingsSubTab, { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }> = {
     profile: {
       title: 'بيانات المحل وتفاصيل الفاتورة',
-      subtitle: 'اسم المحل، التليفون، العنوان، الرقم الضريبي، وشكل وصل الكاشير الحراري',
+      subtitle: 'اسم المحل وعنوانه وتليفونه ورقمه الضريبي، وشعار الوصل ونصوصه مع معاينة مباشرة',
       icon: Store,
+    },
+    policies: {
+      title: 'سياسات البيع والمخزون',
+      subtitle: 'البيع بالسالب، إلزام الوردية، حد الدين للزبائن الجدد، وبيانات صرف أدوية الجدول للصيدليات',
+      icon: ClipboardList,
     },
     features: {
       title: 'ميزات ونشاط المحل وتخصيص الواجهات',
@@ -522,14 +557,6 @@ export const SettingsView = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {saved && (
-            <div className="flex items-center gap-1.5 text-xs text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid-bright/30 px-3.5 py-1.5 rounded-xl animate-in fade-in shadow-2xs">
-              <CheckCircle className="w-4 h-4 text-paid dark:text-paid-bright" />
-              <span>تم حفظ بيانات المحل بنجاح</span>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* 2. Sub-Tab Views */}
@@ -575,8 +602,6 @@ export const SettingsView = ({
         <StoreProfileTab
           storeName={storeName}
           setStoreName={setStoreName}
-          cashierName={cashierName}
-          setCashierName={setCashierName}
           phone={phone}
           setPhone={setPhone}
           address={address}
@@ -587,31 +612,45 @@ export const SettingsView = ({
           setReceiptHeader={setReceiptHeader}
           receiptFooter={receiptFooter}
           setReceiptFooter={setReceiptFooter}
-          allowNegativeStock={allowNegativeStock}
-          setAllowNegativeStock={setAllowNegativeStock}
-          onToggleNegativeStock={handleToggleNegativeStock}
-          requireOpenShiftToSell={requireOpenShiftToSell}
-          setRequireOpenShiftToSell={setRequireOpenShiftToSell}
-          onToggleRequireOpenShift={handleToggleRequireShift}
-          defaultCustomerCreditLimitEgp={defaultCustomerCreditLimitEgp}
-          setDefaultCustomerCreditLimitEgp={setDefaultCustomerCreditLimitEgp}
-          logoVariant={logoVariant}
-          setLogoVariant={handleLogoVariantChange}
           showReceiptLogo={showReceiptLogo}
           setShowReceiptLogo={setShowReceiptLogo}
+          showReceiptCashier={showReceiptCashier}
+          setShowReceiptCashier={setShowReceiptCashier}
           storeLogoUrl={storeLogoUrl}
           setStoreLogoUrl={setStoreLogoUrl}
           developerSignature={developerSignature}
           setDeveloperSignature={setDeveloperSignature}
+          developerSignatureVisible={developerSignatureVisible}
+          setDeveloperSignatureVisible={setDeveloperSignatureVisible}
+          developerSignatureImage={developerSignatureImage}
+          setDeveloperSignatureImage={setDeveloperSignatureImage}
           storeInstapayAddress={storeInstapayAddress}
           setStoreInstapayAddress={setStoreInstapayAddress}
           storeWalletNumber={storeWalletNumber}
           setStoreWalletNumber={setStoreWalletNumber}
+          paperWidth={paperWidth}
           isRoot={isRoot}
-          canEditStorePolicies={isAdmin}
+          dirty={profileDirty}
+          saved={savedTab === 'profile'}
           saveLoading={saveLoading}
           handleSave={handleSave}
           onOpenWizard={isRoot ? () => setIsWizardOpen(true) : undefined}
+          onOpenPrinterSettings={onSubTabChange && allowedSubTabs.includes('printer') ? () => onSubTabChange('printer') : undefined}
+        />
+      )}
+
+      {subTab === 'policies' && (
+        <SalesPoliciesTab
+          allowNegativeStock={allowNegativeStock}
+          onToggleNegativeStock={handleToggleNegativeStock}
+          requireOpenShiftToSell={requireOpenShiftToSell}
+          onToggleRequireOpenShift={handleToggleRequireShift}
+          defaultCustomerCreditLimitEgp={defaultCustomerCreditLimitEgp}
+          setDefaultCustomerCreditLimitEgp={setDefaultCustomerCreditLimitEgp}
+          creditLimitDirty={defaultCustomerCreditLimitEgp !== savedCreditLimitEgp}
+          saveLoading={saveLoading}
+          saved={savedTab === 'policies'}
+          onSave={(e) => void handleSavePolicies(e)}
         />
       )}
 

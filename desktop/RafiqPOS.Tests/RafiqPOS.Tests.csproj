@@ -110,6 +110,9 @@
     <Compile Include="Scenarios\S48_ReceiptPrintFixtureBase.cs" />
     <Compile Include="Scenarios\S48_ReceiptPrintingBridgeTest.cs" />
     <Compile Include="Scenarios\S49_PreBillAndReturnPrintTest.cs" />
+    <Compile Include="Scenarios\S50_OwnerGradeDelegationTest.cs" />
+    <Compile Include="Scenarios\S51_ReceiptTextSettingsTest.cs" />
+    <Compile Include="Scenarios\S52_DigitalAccountHolderAndDefaultTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

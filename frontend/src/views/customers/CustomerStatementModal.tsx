@@ -541,7 +541,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               </div>
 
               <div className="mb-2">
-                <label className="block text-ink dark:text-ink-dark font-semibold mb-1">سبب إلغاء السداد *</label>
+                <label className="block text-ink dark:text-ink-dark font-semibold mb-1">سبب إلغاء السداد</label>
                 <CustomSelect
                   value={cancelReasonPreset}
                   onChange={(val) => setCancelReasonPreset(val)}
