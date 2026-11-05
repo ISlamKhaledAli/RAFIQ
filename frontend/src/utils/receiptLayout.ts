@@ -503,6 +503,11 @@ export function formatInvoiceBarcodeValue(invoiceNumber: number | null | undefin
 /** What a barcode scan or a typed invoice number means for the invoice search: an exact 8-digit value loses its padding zeros ("00001042" -> "1042"). Anything else (a phone number, a name, an amount) is left alone. */
 export function normalizeInvoiceSearchText(text: string): string {
   const trimmed = text.trim().replace(/^#/, '');
+  const prefixMatch = trimmed.match(/^(?:(?:RFQ-INV|RFQ|INV)-?)([0-9]+)$/i);
+  if (prefixMatch && prefixMatch[1]) {
+    const num = Number.parseInt(prefixMatch[1], 10);
+    return num > 0 ? String(num) : trimmed;
+  }
   if (!/^\d{8}$/.test(trimmed)) return trimmed;
   const n = Number.parseInt(trimmed, 10);
   return n > 0 ? String(n) : trimmed;

@@ -54,8 +54,21 @@ namespace RafiqPOS.Services
 
                     // 1. Seed 5,000 realistic supermarket products inside a single transaction
                     Stopwatch seedSw = Stopwatch.StartNew();
+                    string now = DateTime.UtcNow.ToString("o");
+
                     using (var trans = conn.BeginTransaction())
                     {
+                        // Ensure 'cat_general' exists to satisfy foreign key constraint on category_id
+                        using (var catCmd = conn.CreateCommand())
+                        {
+                            catCmd.Transaction = trans;
+                            catCmd.CommandText = @"
+                                INSERT OR IGNORE INTO categories (id, name, created_at, updated_at)
+                                VALUES ('cat_general', 'عام', @now, @now);";
+                            catCmd.Parameters.AddWithValue("@now", now);
+                            catCmd.ExecuteNonQuery();
+                        }
+
                         using (var cmd = conn.CreateCommand())
                         {
                             cmd.Transaction = trans;
@@ -77,8 +90,6 @@ namespace RafiqPOS.Services
                             cmd.Parameters.Add("@price", System.Data.DbType.Int64);
                             cmd.Parameters.Add("@cost", System.Data.DbType.Int64);
                             cmd.Parameters.Add("@now", System.Data.DbType.String);
-
-                            string now = DateTime.UtcNow.ToString("o");
 
                             string[] baseNames = new string[]
                             {
@@ -235,7 +246,7 @@ namespace RafiqPOS.Services
 
                     // 4. Scanner Simulation (Task 22-1: Keyboard wedge rapid input)
                     // Simulates 13 keystrokes arriving at 15ms interval ending with Enter
-                    string scanBarcode = "622000000001";
+                    string scanBarcode = string.Format("622{0:D10}", 1);
                     Stopwatch scanSw = Stopwatch.StartNew();
                     Product scannedProd = _repo.GetByBarcode(scanBarcode);
                     scanSw.Stop();
@@ -276,6 +287,7 @@ namespace RafiqPOS.Services
                 Logger.Error("فشل تشغيل فحص أداء البحث", ex);
                 result.Success = false;
                 result.SummaryReport = "فشل تشغيل فحص أداء البحث: " + ex.Message;
+                result.TestLog.Add("تعذر إتمام الفحص: " + ex.Message);
                 return result;
             }
         }

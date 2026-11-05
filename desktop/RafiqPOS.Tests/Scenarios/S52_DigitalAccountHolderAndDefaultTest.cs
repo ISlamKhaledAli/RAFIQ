@@ -19,6 +19,12 @@ namespace RafiqPOS.Tests.Scenarios
     [NonParallelizable]
     public class S52_DigitalAccountHolderMigrationTest : TestBase
     {
+        [SetUp]
+        public void CleanAccounts()
+        {
+            Execute("DELETE FROM digital_accounts;");
+        }
+
         private long Scalar(string sql, params object[] nameValuePairs)
         {
             using (var conn = new SQLiteConnection(ConnectionString))
@@ -268,6 +274,14 @@ namespace RafiqPOS.Tests.Scenarios
         public void EnableWalletsFeature()
         {
             DatabaseService.SettingsRepo.Set("feature_digital_wallets", "1");
+            using (var conn = new SQLiteConnection(DatabaseService.ConnectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("DELETE FROM digital_accounts;", conn))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+            }
         }
 
         private static JObject AccountPayload(string name, string type, string holder, bool isDefault)

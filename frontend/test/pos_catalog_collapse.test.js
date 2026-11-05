@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
-const read = (...parts) => readFileSync(join(ROOT, ...parts), 'utf8');
+const read = (...parts) => readFileSync(join(ROOT, ...parts), 'utf8').replace(/\r\n/g, '\n');
 const panel = read('src', 'views', 'pos', 'PosCatalogPanel.tsx');
 const categories = read('src', 'views', 'pos', 'PosCategoriesPanel.tsx');
 const posView = read('src', 'views', 'PosView.tsx');

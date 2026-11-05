@@ -36,6 +36,7 @@ import {
   isBarcodeMatch
 } from '../utils/barcodeReader';
 import { parseScaleBarcode } from '../utils/scaleBarcode';
+import { parseInvoiceBarcode } from '../utils/invoiceBarcode';
 import { shouldPrintReceipt } from '../utils/receiptPrintPreference';
 import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
@@ -163,6 +164,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     invoiceDiscountPiasters: number;
   } | null>(null);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [returnInitialSale, setReturnInitialSale] = useState<Sale | null>(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [currentShift, setCurrentShift] = useState<Shift | null>(null);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
@@ -1173,7 +1175,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const loadSmartCatalog = useCallback(async () => {
     const seq = ++catalogLoadSeqRef.current;
     try {
-      const res = await invoke<{ products?: Product[]; customQuickItems?: QuickItem[] }>('products:getSmartCatalog', { limit: 1000 }).catch(() => null);
+      const res = await invoke<{ products?: Product[]; customQuickItems?: QuickItem[] }>('products:getSmartCatalog', { limit: 50000 }).catch(() => null);
       if (seq !== catalogLoadSeqRef.current) return;
       if (res && Array.isArray(res.products)) {
         setCatalogProducts(res.products);
@@ -1182,7 +1184,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         }
       } else {
         const [pData, qData] = await Promise.all([
-          invoke<Product[]>('products:getAll', { limit: 1000 }).catch(() => []),
+          invoke<Product[]>('products:getAll', { limit: 50000 }).catch(() => []),
           invoke<QuickItem[]>('quickItems:getAll').catch(() => [])
         ]);
         if (seq !== catalogLoadSeqRef.current) return;
@@ -1642,8 +1644,51 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     barcodeInputRef.current?.focus();
   }, [addProductToCart, showStatus, loadSmartCatalog, dismissLiveSearch]);
 
+  const handleOpenScannedInvoice = useCallback(async (invMatch: ReturnType<typeof parseInvoiceBarcode>) => {
+    if (!invMatch) return false;
+    if (invMatch.type === 'sale') {
+      try {
+        setLoading(true);
+        let sale: Sale | null = null;
+        if (invMatch.invoiceNumber) {
+          sale = await invoke<Sale>('sales:getByInvoiceNumber', { invoiceNumber: invMatch.invoiceNumber });
+        } else if (invMatch.rawId) {
+          sale = await invoke<Sale>('sales:getById', { id: invMatch.rawId });
+        }
+
+        if (sale && sale.id) {
+          setLastCompletedSale(sale);
+          setIsReceiptOpen(true);
+          setBarcodeQuery('');
+          dismissLiveSearch();
+          showStatus(`تم العثور على الفاتورة رقم #${sale.invoiceNumber} وعرض تفاصيلها بنجاح`, 'success');
+          return true;
+        } else {
+          showStatus(`لم يتم العثور على أي فاتورة برقم "${invMatch.invoiceNumber || invMatch.originalQuery}" في قاعدة البيانات`, 'warning');
+          setBarcodeQuery('');
+          dismissLiveSearch();
+          return true;
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        showStatus(`تعذر فحص الفاتورة: ${msg}`, 'error');
+        setBarcodeQuery('');
+        return true;
+      } finally {
+        setLoading(false);
+        barcodeInputRef.current?.focus();
+      }
+    }
+    return false;
+  }, [showStatus, dismissLiveSearch]);
+
   const handleFastBarcodeScan = useCallback(async (scannedBarcode: string) => {
     if (!scannedBarcode) return;
+    const invMatch = parseInvoiceBarcode(scannedBarcode);
+    if (invMatch) {
+      const handled = await handleOpenScannedInvoice(invMatch);
+      if (handled) return;
+    }
     dismissLiveSearch();
     try {
       setLoading(true);
@@ -1730,7 +1775,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setLoading(false);
       barcodeInputRef.current?.focus();
     }
-  }, [addProductToCart, showStatus, catalogProducts, isEnabled, dismissLiveSearch]);
+  }, [addProductToCart, showStatus, catalogProducts, isEnabled, dismissLiveSearch, handleOpenScannedInvoice]);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
@@ -1755,6 +1800,13 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     const typed = barcodeQuery.trim();
     const query = convertArabicLayoutToBarcode(typed);
     if (!query) return;
+
+    // Distinct Invoice Barcode Instant Auto-Open
+    const invMatch = parseInvoiceBarcode(query) || parseInvoiceBarcode(typed);
+    if (invMatch) {
+      const handled = await handleOpenScannedInvoice(invMatch);
+      if (handled) return;
+    }
 
     // Priority 1 (in memory): an exact barcode match in the dropdown always wins over the highlighted row;
     // the highlighted row is used only while the dropdown still answers what is typed now
@@ -2793,6 +2845,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         isOpen={isReceiptOpen}
         onClose={() => setIsReceiptOpen(false)}
         sale={lastCompletedSale}
+        onOpenReturn={(s) => {
+          setReturnInitialSale(s);
+          setIsReturnModalOpen(true);
+        }}
       />
 
       {/* 4. CLEAR CART CONFIRMATION MODAL (Feature #112 / Task 112-2) */}
@@ -3078,12 +3134,15 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       {/* 15. SALES RETURN MODAL (Feature #26 / Tasks 26-1 to 26-7) */}
       <ReturnModal
         isOpen={isReturnModalOpen}
+        initialSale={returnInitialSale}
         onClose={() => {
           setIsReturnModalOpen(false);
+          setReturnInitialSale(null);
           barcodeInputRef.current?.focus();
         }}
         onReturnCompleted={(ret) => {
           showStatus(`تم تسجيل المرتجع رقم #${ret.returnNumber} بقيمة ${formatArabicCurrency(ret.totalPiasters)}`, 'success');
+          setReturnInitialSale(null);
         }}
       />
 

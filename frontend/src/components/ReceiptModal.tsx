@@ -17,6 +17,7 @@ interface ReceiptModalProps {
   storeAddress?: string;
   receiptHeader?: string;
   receiptFooter?: string;
+  onOpenReturn?: (sale: Sale) => void;
 }
 
 
@@ -29,7 +30,8 @@ export function ReceiptModal({
   storePhone = '',
   storeAddress = '',
   receiptHeader = '',
-  receiptFooter = ''
+  receiptFooter = '',
+  onOpenReturn
 }: ReceiptModalProps) {
   const { handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -225,6 +227,21 @@ export function ReceiptModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {onOpenReturn && sale && sale.status !== 'cancelled' && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenReturn(sale);
+                }}
+                disabled={isPrinting}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded bg-warn-soft dark:bg-warn-dark-soft hover:bg-warn/20 text-warn dark:text-warn-bright border border-warn/30 text-xs font-bold transition-all shadow-2xs active:scale-[0.98] cursor-pointer"
+                title="بدء عملية استرجاع أو استبدال أصناف من هذه الفاتورة (F11)"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>عمل مرتجع للفاتورة</span>
+              </button>
+            )}
             <button
               onClick={onClose}
               disabled={isPrinting}

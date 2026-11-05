@@ -43,6 +43,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
   const scanPassed = Boolean(benchmarkResult?.scannerSimulationPassed ?? (benchmarkResult as any)?.ScannerSimulationPassed);
   const isSuccess = Boolean(benchmarkResult?.success ?? (benchmarkResult as any)?.Success);
   const totalCount = Number(benchmarkResult?.totalProductsTested ?? (benchmarkResult as any)?.TotalProductsTested ?? 5000);
+  const summaryReport = String(benchmarkResult?.summaryReport ?? (benchmarkResult as any)?.SummaryReport ?? '');
   const testLogs: string[] = Array.isArray(benchmarkResult?.testLog) 
     ? benchmarkResult.testLog 
     : (Array.isArray((benchmarkResult as any)?.TestLog) ? (benchmarkResult as any).TestLog : []);
@@ -156,7 +157,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
                 <span>
                   {isSuccess 
                     ? `اجتاز النظام كل اختبارات السرعة على ${totalCount} صنف`
-                    : 'النظام مجتازش أحد اختبارات السرعة المحددة.'}
+                    : (summaryReport && !summaryReport.includes('\n') ? summaryReport : 'النظام مجتازش أحد اختبارات السرعة المحددة.')}
                 </span>
               </div>
 

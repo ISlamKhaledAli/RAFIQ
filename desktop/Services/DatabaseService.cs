@@ -871,9 +871,6 @@ namespace RafiqPOS.Services
 
         public static TransactionResult ExecuteAtomicSaleTransaction(int itemCount)
         {
-#if !DEBUG
-            return new TransactionResult(false, "هذه الدالة مخصصة لبيئة الاختبار والتطوير فقط ولا تعمل في بيئة الإنتاج.");
-#else
             // Isolate test transactions to a temporary DB to avoid polluting the active store DB (BUG-03)
             string tempDbPath = Path.Combine(Path.GetTempPath(), "rafiq_atomic_test_" + Guid.NewGuid().ToString("N") + ".db");
             try
@@ -917,7 +914,6 @@ namespace RafiqPOS.Services
                 }
                 catch { }
             }
-#endif
         }
 
         public static FactoryResetResult FactoryReset(bool wipeBackups = false)

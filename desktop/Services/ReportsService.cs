@@ -1609,7 +1609,10 @@ namespace RafiqPOS.Services
                         WHERE s.status = 'completed'
                           AND (
                               (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) = 0
-                              OR s.total_piasters != (s.subtotal_piasters - s.discount_piasters + s.tax_piasters)
+                              OR (
+                                  s.total_piasters != (s.subtotal_piasters - s.discount_piasters + COALESCE(s.service_charge_piasters, 0) + COALESCE(s.delivery_fee_piasters, 0))
+                                  AND s.total_piasters != (s.subtotal_piasters - s.discount_piasters + s.tax_piasters + COALESCE(s.service_charge_piasters, 0) + COALESCE(s.delivery_fee_piasters, 0))
+                              )
                           );
                     ";
                     using (var incCmd = new SQLiteCommand(incompleteSalesSql, conn))

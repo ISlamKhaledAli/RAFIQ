@@ -75,12 +75,13 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "products:getSmartCatalog":
-                    int smartLimit = 1000;
+                    int smartLimit = 50000;
                     JObject smartObj = request.Payload as JObject;
                     if (smartObj != null && smartObj["limit"] != null)
                     {
                         smartLimit = smartObj["limit"].Value<int>();
                     }
+                    if (smartLimit <= 0) smartLimit = 50000;
                     var smartCatalog = DatabaseService.Products.GetSmartCatalog(smartLimit);
                     MarkRecipeConsumption(smartCatalog);
                     var customQuickList = DatabaseService.QuickItems.GetAll();

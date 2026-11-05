@@ -453,7 +453,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 void handleSearchInvoice();
               }
             }}
-            placeholder="ابحث برقم الفاتورة، اسم الزبون، المبلغ، أو ملاحظة..."
+            placeholder="امسح باركود الفاتورة (RFQ-INV-...) أو ابحث بالرقم أو العميل..."
             className="w-full h-9 pr-9 pl-8 text-xs bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none focus:ring-2 focus:ring-paid/20 focus:border-paid dark:focus:border-brand-bright transition-all"
           />
           {searchQuery && (

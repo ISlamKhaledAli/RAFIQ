@@ -269,6 +269,190 @@ namespace RafiqPOS.Repositories
             return list;
         }
 
+        private static void PopulateBarcodesAndUnits(SQLiteConnection conn, List<Product> products, SQLiteTransaction trans = null)
+        {
+            if (products == null || products.Count == 0) return;
+
+            if (products.Count == 1)
+            {
+                products[0].Barcodes = GetBarcodesForProductInternal(conn, products[0].Id, trans);
+                products[0].Units = GetUnitsForProductInternal(conn, products[0].Id, trans);
+                return;
+            }
+
+            var dict = new Dictionary<string, Product>(products.Count);
+            for (int i = 0; i < products.Count; i++)
+            {
+                var p = products[i];
+                p.Barcodes = new List<string>();
+                p.Units = new List<ProductUnit>();
+                if (!string.IsNullOrEmpty(p.Id))
+                {
+                    dict[p.Id] = p;
+                }
+            }
+
+            try
+            {
+                // 1) Barcodes
+                if (dict.Count <= 200)
+                {
+                    var pNames = new List<string>(dict.Count);
+                    using (var cmd = new SQLiteCommand(conn))
+                    {
+                        if (trans != null) cmd.Transaction = trans;
+                        int paramIdx = 0;
+                        foreach (var key in dict.Keys)
+                        {
+                            string pName = "@p" + paramIdx++;
+                            pNames.Add(pName);
+                            cmd.Parameters.AddWithValue(pName, key);
+                        }
+                        cmd.CommandText = "SELECT product_id, barcode FROM product_barcodes WHERE product_id IN (" + string.Join(",", pNames.ToArray()) + ") ORDER BY created_at ASC;";
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                string pid = reader["product_id"].ToString();
+                                Product prod;
+                                if (dict.TryGetValue(pid, out prod))
+                                {
+                                    prod.Barcodes.Add(reader["barcode"].ToString());
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    using (var cmd = new SQLiteCommand("SELECT product_id, barcode FROM product_barcodes ORDER BY created_at ASC;", conn, trans))
+                    {
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                string pid = reader["product_id"].ToString();
+                                Product prod;
+                                if (dict.TryGetValue(pid, out prod))
+                                {
+                                    prod.Barcodes.Add(reader["barcode"].ToString());
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2) Units
+                if (dict.Count <= 200)
+                {
+                    var pNames = new List<string>(dict.Count);
+                    using (var cmd = new SQLiteCommand(conn))
+                    {
+                        if (trans != null) cmd.Transaction = trans;
+                        int paramIdx = 0;
+                        foreach (var key in dict.Keys)
+                        {
+                            string pName = "@u" + paramIdx++;
+                            pNames.Add(pName);
+                            cmd.Parameters.AddWithValue(pName, key);
+                        }
+                        cmd.CommandText = @"
+                            SELECT pu.id, pu.product_id, pu.unit_name, pu.conversion_factor, pu.is_base_unit,
+                                   pu.sell_price_piasters, pu.cost_price_piasters, pu.barcode, pu.is_divisible,
+                                   pu.sort_order, pu.created_at, pu.updated_at,
+                                   (SELECT COUNT(*) FROM sale_items si WHERE si.unit_id = pu.id LIMIT 1) > 0 AS has_sales
+                            FROM product_units pu
+                            WHERE pu.product_id IN (" + string.Join(",", pNames.ToArray()) + @")
+                            ORDER BY pu.is_base_unit DESC, pu.sort_order ASC, pu.unit_name ASC;";
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                string pid = reader["product_id"].ToString();
+                                Product prod;
+                                if (dict.TryGetValue(pid, out prod))
+                                {
+                                    bool hasSales = false;
+                                    try
+                                    {
+                                        int colIdx = reader.GetOrdinal("has_sales");
+                                        if (colIdx >= 0 && reader[colIdx] != DBNull.Value) hasSales = Convert.ToInt32(reader[colIdx]) == 1;
+                                    }
+                                    catch { }
+
+                                    prod.Units.Add(new ProductUnit
+                                    {
+                                        Id = reader["id"].ToString(),
+                                        ProductId = pid,
+                                        UnitName = reader["unit_name"].ToString(),
+                                        ConversionFactor = Convert.ToInt32(reader["conversion_factor"]),
+                                        IsBaseUnit = Convert.ToInt32(reader["is_base_unit"]) == 1,
+                                        SellPricePiasters = Convert.ToInt64(reader["sell_price_piasters"]),
+                                        CostPricePiasters = Convert.ToInt64(reader["cost_price_piasters"]),
+                                        Barcode = reader["barcode"] == DBNull.Value ? null : reader["barcode"].ToString(),
+                                        IsDivisible = Convert.ToInt32(reader["is_divisible"]) == 1,
+                                        SortOrder = Convert.ToInt32(reader["sort_order"]),
+                                        HasSales = hasSales,
+                                        CreatedAt = reader["created_at"].ToString(),
+                                        UpdatedAt = reader["updated_at"].ToString()
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    string sql = @"
+                        SELECT pu.id, pu.product_id, pu.unit_name, pu.conversion_factor, pu.is_base_unit,
+                               pu.sell_price_piasters, pu.cost_price_piasters, pu.barcode, pu.is_divisible,
+                               pu.sort_order, pu.created_at, pu.updated_at,
+                               (SELECT COUNT(*) FROM sale_items si WHERE si.unit_id = pu.id LIMIT 1) > 0 AS has_sales
+                        FROM product_units pu
+                        ORDER BY pu.is_base_unit DESC, pu.sort_order ASC, pu.unit_name ASC;";
+                    using (var cmd = new SQLiteCommand(sql, conn, trans))
+                    {
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                string pid = reader["product_id"].ToString();
+                                Product prod;
+                                if (dict.TryGetValue(pid, out prod))
+                                {
+                                    bool hasSales = false;
+                                    try
+                                    {
+                                        int colIdx = reader.GetOrdinal("has_sales");
+                                        if (colIdx >= 0 && reader[colIdx] != DBNull.Value) hasSales = Convert.ToInt32(reader[colIdx]) == 1;
+                                    }
+                                    catch { }
+
+                                    prod.Units.Add(new ProductUnit
+                                    {
+                                        Id = reader["id"].ToString(),
+                                        ProductId = pid,
+                                        UnitName = reader["unit_name"].ToString(),
+                                        ConversionFactor = Convert.ToInt32(reader["conversion_factor"]),
+                                        IsBaseUnit = Convert.ToInt32(reader["is_base_unit"]) == 1,
+                                        SellPricePiasters = Convert.ToInt64(reader["sell_price_piasters"]),
+                                        CostPricePiasters = Convert.ToInt64(reader["cost_price_piasters"]),
+                                        Barcode = reader["barcode"] == DBNull.Value ? null : reader["barcode"].ToString(),
+                                        IsDivisible = Convert.ToInt32(reader["is_divisible"]) == 1,
+                                        SortOrder = Convert.ToInt32(reader["sort_order"]),
+                                        HasSales = hasSales,
+                                        CreatedAt = reader["created_at"].ToString(),
+                                        UpdatedAt = reader["updated_at"].ToString()
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
         public List<Product> Search(string query, int limit = 50, int offset = 0, string stockStatus = "all", string categoryId = "all")
         {
             var results = new List<Product>();
@@ -376,7 +560,7 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@normLike", "%" + normalizedQuery + "%");
                     cmd.Parameters.AddWithValue("@like", "%" + cleanQuery + "%");
                     cmd.Parameters.AddWithValue("@categoryId", categoryId);
-                    cmd.Parameters.AddWithValue("@limit", limit);
+                    cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 50000);
                     cmd.Parameters.AddWithValue("@offset", offset);
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -388,11 +572,7 @@ namespace RafiqPOS.Repositories
                 }
 
                 // Populate barcodes and units for each result
-                foreach (var prod in results)
-                {
-                    prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
-                    prod.Units = GetUnitsForProductInternal(conn, prod.Id);
-                }
+                PopulateBarcodesAndUnits(conn, results);
             }
             return results;
         }
@@ -459,7 +639,7 @@ namespace RafiqPOS.Repositories
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@categoryId", categoryId);
-                    cmd.Parameters.AddWithValue("@limit", limit);
+                    cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 50000);
                     cmd.Parameters.AddWithValue("@offset", offset);
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -470,11 +650,7 @@ namespace RafiqPOS.Repositories
                     }
                 }
 
-                foreach (var prod in results)
-                {
-                    prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
-                    prod.Units = GetUnitsForProductInternal(conn, prod.Id);
-                }
+                PopulateBarcodesAndUnits(conn, results);
             }
             return results;
         }
@@ -498,7 +674,7 @@ namespace RafiqPOS.Repositories
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@limit", limit);
+                    cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 50000);
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -508,11 +684,7 @@ namespace RafiqPOS.Repositories
                     }
                 }
 
-                foreach (var prod in results)
-                {
-                    prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
-                    prod.Units = GetUnitsForProductInternal(conn, prod.Id);
-                }
+                PopulateBarcodesAndUnits(conn, results);
             }
             return results;
         }
@@ -676,7 +848,7 @@ namespace RafiqPOS.Repositories
                 string sql = "SELECT * FROM products WHERE is_active = 1 ORDER BY name ASC LIMIT @limit;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@limit", limit);
+                    cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 50000);
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -694,7 +866,7 @@ namespace RafiqPOS.Repositories
         private const int PopularWindowDays = 30;
 
         // SalesCount of each product = base units sold in the last PopularWindowDays days (any sale unit counted by its conversion factor)
-        public List<Product> GetSmartCatalog(int limit = 1000)
+        public List<Product> GetSmartCatalog(int limit = 50000)
         {
             var results = new List<Product>();
             using (var conn = new SQLiteConnection(_connectionString))
@@ -754,7 +926,7 @@ namespace RafiqPOS.Repositories
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@limit", limit);
+                    cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 50000);
                     cmd.Parameters.AddWithValue("@popularSince", DateTime.UtcNow.AddDays(-PopularWindowDays).ToString("o"));
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -765,11 +937,7 @@ namespace RafiqPOS.Repositories
                     }
                 }
 
-                foreach (var prod in results)
-                {
-                    prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
-                    prod.Units = GetUnitsForProductInternal(conn, prod.Id);
-                }
+                PopulateBarcodesAndUnits(conn, results);
             }
             return results;
         }

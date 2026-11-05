@@ -90,12 +90,14 @@ namespace RafiqPOS.Repositories
                         }
 
                         // 2. Preload existing barcodes map (barcode -> product_id): main, extra, then unit (carton/box) barcodes
+                        // Active products are ordered first so an archived row never shadows an active owner.
                         var existingBarcodeMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        var productOwnedBarcodes = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
                         string[] barcodeSources =
                         {
-                            "SELECT barcode, id FROM products WHERE barcode IS NOT NULL AND barcode != '' ORDER BY created_at, id;",
-                            "SELECT barcode, product_id FROM product_barcodes WHERE barcode IS NOT NULL AND barcode != '' ORDER BY created_at, product_id;",
-                            "SELECT barcode, product_id FROM product_units WHERE barcode IS NOT NULL AND barcode != '' ORDER BY created_at, product_id;"
+                            "SELECT barcode, id FROM products WHERE barcode IS NOT NULL AND barcode != '' ORDER BY is_active DESC, created_at, id;",
+                            "SELECT pb.barcode, pb.product_id FROM product_barcodes pb JOIN products p ON p.id = pb.product_id WHERE pb.barcode IS NOT NULL AND pb.barcode != '' ORDER BY p.is_active DESC, pb.created_at, pb.product_id;",
+                            "SELECT pu.barcode, pu.product_id FROM product_units pu JOIN products p ON p.id = pu.product_id WHERE pu.barcode IS NOT NULL AND pu.barcode != '' ORDER BY p.is_active DESC, pu.created_at, pu.product_id;"
                         };
                         var productLevelBarcodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                         for (int sourceIndex = 0; sourceIndex < barcodeSources.Length; sourceIndex++)
@@ -107,10 +109,21 @@ namespace RafiqPOS.Repositories
                                 while (bcReader.Read())
                                 {
                                     string bc = bcReader[0].ToString().Trim();
-                                    if (bc.Length > 0 && !existingBarcodeMap.ContainsKey(bc))
+                                    string ownerPid = bcReader[1].ToString();
+                                    if (bc.Length > 0)
                                     {
-                                        existingBarcodeMap[bc] = bcReader[1].ToString();
-                                        if (sourceIndex < 2) productLevelBarcodes.Add(bc);
+                                        if (!existingBarcodeMap.ContainsKey(bc))
+                                        {
+                                            existingBarcodeMap[bc] = ownerPid;
+                                            if (sourceIndex < 2) productLevelBarcodes.Add(bc);
+                                        }
+                                        List<string> ownedList;
+                                        if (!productOwnedBarcodes.TryGetValue(ownerPid, out ownedList))
+                                        {
+                                            ownedList = new List<string>();
+                                            productOwnedBarcodes[ownerPid] = ownedList;
+                                        }
+                                        ownedList.Add(bc);
                                     }
                                 }
                             }
@@ -122,7 +135,7 @@ namespace RafiqPOS.Repositories
                             SELECT pu.id, pu.product_id, pu.unit_name, pu.conversion_factor, pu.barcode, p.name AS product_name
                             FROM product_units pu JOIN products p ON p.id = pu.product_id
                             WHERE pu.is_base_unit = 0 AND pu.conversion_factor != 1 AND pu.barcode IS NOT NULL AND pu.barcode != ''
-                            ORDER BY pu.created_at, pu.id;", conn, trans))
+                            ORDER BY p.is_active DESC, pu.created_at, pu.id;", conn, trans))
                         using (var puReader = puCmd.ExecuteReader())
                         {
                             while (puReader.Read())
@@ -142,7 +155,7 @@ namespace RafiqPOS.Repositories
 
                         // 3. Preload existing products by name + variant for deduplication when barcode is missing
                         var existingNameVariantMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                        using (var prodCmd = new SQLiteCommand("SELECT id, name, normalized_name, variant_color, variant_size FROM products;", conn, trans))
+                        using (var prodCmd = new SQLiteCommand("SELECT id, name, normalized_name, variant_color, variant_size FROM products ORDER BY is_active DESC, created_at, id;", conn, trans))
                         {
                             using (var prodReader = prodCmd.ExecuteReader())
                             {
@@ -191,6 +204,7 @@ namespace RafiqPOS.Repositories
                         // Only columns present in the sheet are written (NULL keeps the stored value); stock goes through the ledger path
                         string updateProdSql = @"
                             UPDATE products SET
+                                barcode = COALESCE(@barcode, barcode),
                                 name = @name,
                                 normalized_name = @normName,
                                 category_id = COALESCE(@categoryId, category_id),
@@ -266,6 +280,7 @@ namespace RafiqPOS.Repositories
                             insProdCmd.Parameters.Add("@now", System.Data.DbType.String);
 
                             updProdCmd.Parameters.Add("@pid", System.Data.DbType.String);
+                            updProdCmd.Parameters.Add("@barcode", System.Data.DbType.String);
                             updProdCmd.Parameters.Add("@name", System.Data.DbType.String);
                             updProdCmd.Parameters.Add("@normName", System.Data.DbType.String);
                             updProdCmd.Parameters.Add("@categoryId", System.Data.DbType.String);
@@ -312,26 +327,26 @@ namespace RafiqPOS.Repositories
                             insCatCmd.Parameters.Add("@cname", System.Data.DbType.String);
                             insCatCmd.Parameters.Add("@cdate", System.Data.DbType.String);
 
-                            restoreCatCmd.Parameters.Add("@cid", System.Data.DbType.String);
-                            restoreCatCmd.Parameters.Add("@cdate", System.Data.DbType.String);
-
                             var inventory = new Services.InventoryService(_connectionString, new StockMovementRepository(_connectionString), this, _auditRepo);
 
                             Func<string, string> resolveCategory = delegate(string catName)
                             {
                                 string normCatName = ArabicTextNormalizer.Normalize(catName);
-                                string matchedCategoryId = null;
                                 if (categoryMap.ContainsKey(catName))
                                 {
-                                    matchedCategoryId = categoryMap[catName];
+                                    string matchedCategoryId = categoryMap[catName];
+                                    if (archivedCategoryIds.Remove(matchedCategoryId))
+                                    {
+                                        restoreCatCmd.Parameters["@cid"].Value = matchedCategoryId;
+                                        restoreCatCmd.Parameters["@cdate"].Value = now;
+                                        restoreCatCmd.ExecuteNonQuery();
+                                        result.CategoriesRestoredCount++;
+                                    }
+                                    return matchedCategoryId;
                                 }
-                                else if (!string.IsNullOrEmpty(normCatName) && normalizedCategoryMap.ContainsKey(normCatName))
+                                if (!string.IsNullOrEmpty(normCatName) && normalizedCategoryMap.ContainsKey(normCatName))
                                 {
-                                    matchedCategoryId = normalizedCategoryMap[normCatName];
-                                }
-                                if (matchedCategoryId != null)
-                                {
-                                    // An archived section is hidden from the lists, so products imported into it would be invisible
+                                    string matchedCategoryId = normalizedCategoryMap[normCatName];
                                     if (archivedCategoryIds.Remove(matchedCategoryId))
                                     {
                                         restoreCatCmd.Parameters["@cid"].Value = matchedCategoryId;
@@ -377,8 +392,8 @@ namespace RafiqPOS.Repositories
                                     categoryId = resolveCategory(item.CategoryName.Trim());
                                 }
 
-                                string cleanColor = !string.IsNullOrWhiteSpace(item.VariantColor) ? item.VariantColor.Trim() : "";
-                                string cleanSize = !string.IsNullOrWhiteSpace(item.VariantSize) ? item.VariantSize.Trim() : "";
+                                string cleanColor = CleanVariantValue(item.VariantColor);
+                                string cleanSize = CleanVariantValue(item.VariantSize);
                                 string itemNormName = ArabicTextNormalizer.Normalize(item.Name ?? "");
                                 string nameVariantKey = string.Format("{0}||{1}||{2}", itemNormName, cleanColor, cleanSize);
 
@@ -436,36 +451,41 @@ namespace RafiqPOS.Repositories
                                     if (isArchived)
                                     {
                                         // Product was previously deleted (is_active = 0): reactivate it with the imported data
-                                        BindImportUpdate(updProdCmd, item, existingProductId, itemNormName, categoryId, cleanColor, cleanSize, now);
-                                        updProdCmd.ExecuteNonQuery();
-                                        ApplyImportedStock(conn, trans, inventory, result, existingProductId, item, userId, "RESTORE_IMPORT", "استعادة وتنشيط الصنف من ملف الإكسل");
-                                        SyncImportedBaseUnit(updUnitCmd, insUnitCmd, existingProductId, item, primaryBarcode, now);
-
-                                        // Insert additional barcodes if provided
-                                        if (item.Barcodes != null && item.Barcodes.Count > 0)
+                                        if (!string.IsNullOrWhiteSpace(primaryBarcode) || (item.Barcodes != null && item.Barcodes.Count > 0))
                                         {
-                                            foreach (var b in item.Barcodes)
+                                            ReleaseRestoredProductOldBarcodes(conn, trans, existingProductId, productOwnedBarcodes, existingBarcodeMap);
+                                        }
+
+                                        string restoredPrimaryBarcode = null;
+                                        if (!string.IsNullOrWhiteSpace(primaryBarcode))
+                                        {
+                                            string primaryOwner;
+                                            if (existingBarcodeMap.TryGetValue(primaryBarcode, out primaryOwner) && !string.Equals(primaryOwner, existingProductId, StringComparison.OrdinalIgnoreCase))
                                             {
-                                                if (!string.IsNullOrWhiteSpace(b))
+                                                if (inactiveProductIds.Contains(primaryOwner))
                                                 {
-                                                    string trimmedB = b.Trim();
-                                                    if (!string.Equals(trimmedB, primaryBarcode, StringComparison.OrdinalIgnoreCase))
-                                                    {
-                                                        string owner;
-                                                        if (existingBarcodeMap.TryGetValue(trimmedB, out owner) && !string.Equals(owner, existingProductId, StringComparison.OrdinalIgnoreCase))
-                                                        {
-                                                            throw new InvalidOperationException(string.Format("الباركود '{0}' للصنف '{1}' مسجل لصنف آخر في النظام. صحح الملف ثم أعد الاستيراد.", trimmedB, item.Name.Trim()));
-                                                        }
-                                                        insBcCmd.Parameters["@pbid"].Value = "pbc_" + Guid.NewGuid().ToString("N");
-                                                        insBcCmd.Parameters["@pid"].Value = existingProductId;
-                                                        insBcCmd.Parameters["@bc"].Value = trimmedB;
-                                                        insBcCmd.Parameters["@now"].Value = now;
-                                                        insBcCmd.ExecuteNonQuery();
-                                                        existingBarcodeMap[trimmedB] = existingProductId;
-                                                    }
+                                                    ReleaseBarcodeFromArchivedProducts(conn, trans, primaryBarcode, existingProductId, existingBarcodeMap);
+                                                    restoredPrimaryBarcode = primaryBarcode;
                                                 }
                                             }
+                                            else
+                                            {
+                                                ReleaseBarcodeFromArchivedProducts(conn, trans, primaryBarcode, existingProductId, existingBarcodeMap);
+                                                restoredPrimaryBarcode = primaryBarcode;
+                                            }
                                         }
+
+                                        BindImportUpdate(updProdCmd, item, existingProductId, restoredPrimaryBarcode, itemNormName, categoryId, cleanColor, cleanSize, now);
+                                        updProdCmd.ExecuteNonQuery();
+                                        if (!string.IsNullOrWhiteSpace(restoredPrimaryBarcode))
+                                        {
+                                            existingBarcodeMap[restoredPrimaryBarcode] = existingProductId;
+                                        }
+                                        existingNameVariantMap[nameVariantKey] = existingProductId;
+
+                                        ApplyImportedStock(conn, trans, inventory, result, existingProductId, item, userId, "RESTORE_IMPORT", "استعادة وتنشيط الصنف من ملف الإكسل");
+                                        SyncImportedBaseUnit(updUnitCmd, insUnitCmd, existingProductId, item, restoredPrimaryBarcode ?? primaryBarcode, now);
+                                        SyncAdditionalBarcodes(conn, trans, insBcCmd, result, strat, existingProductId, item.Name.Trim(), restoredPrimaryBarcode ?? primaryBarcode, item.Barcodes, existingBarcodeMap, inactiveProductIds, now);
 
                                         inactiveProductIds.Remove(existingProductId);
                                         result.ImportedCount++;
@@ -482,7 +502,7 @@ namespace RafiqPOS.Repositories
                                     }
                                     else if (strat == "update")
                                     {
-                                        BindImportUpdate(updProdCmd, item, existingProductId, itemNormName, categoryId, cleanColor, cleanSize, now);
+                                        BindImportUpdate(updProdCmd, item, existingProductId, null, itemNormName, categoryId, cleanColor, cleanSize, now);
                                         updProdCmd.ExecuteNonQuery();
                                         ApplyImportedStock(conn, trans, inventory, result, existingProductId, item, userId, "IMPORT_UPDATE", "تسوية رصيد ناتجة عن تحديث ملف إكسل");
 
@@ -491,6 +511,8 @@ namespace RafiqPOS.Repositories
                                         updUnitCmd.Parameters["@cost"].Value = item.CostPiasters.HasValue ? (object)item.CostPiasters.Value : DBNull.Value;
                                         updUnitCmd.Parameters["@now"].Value = now;
                                         updUnitCmd.ExecuteNonQuery();
+
+                                        SyncAdditionalBarcodes(conn, trans, insBcCmd, result, strat, existingProductId, item.Name.Trim(), primaryBarcode, item.Barcodes, existingBarcodeMap, inactiveProductIds, now);
 
                                         result.UpdatedCount++;
                                         continue;
@@ -517,6 +539,8 @@ namespace RafiqPOS.Repositories
                                     } while (existingBarcodeMap.ContainsKey(primaryBarcode));
                                 }
 
+                                ReleaseBarcodeFromArchivedProducts(conn, trans, primaryBarcode, newId, existingBarcodeMap);
+
                                 insProdCmd.Parameters["@id"].Value = newId;
                                 insProdCmd.Parameters["@barcode"].Value = primaryBarcode;
                                 insProdCmd.Parameters["@internalCode"].Value = (object)item.InternalCode ?? "";
@@ -539,26 +563,7 @@ namespace RafiqPOS.Repositories
                                 existingNameVariantMap[nameVariantKey] = newId;
 
                                 // Insert additional barcodes
-                                if (item.Barcodes != null && item.Barcodes.Count > 0)
-                                {
-                                    foreach (var b in item.Barcodes)
-                                    {
-                                        if (!string.IsNullOrWhiteSpace(b))
-                                        {
-                                            string trimmedB = b.Trim();
-                                            if (!string.Equals(trimmedB, primaryBarcode, StringComparison.OrdinalIgnoreCase))
-                                            {
-                                                insBcCmd.Parameters["@pbid"].Value = "pbc_" + Guid.NewGuid().ToString("N");
-                                                insBcCmd.Parameters["@pid"].Value = newId;
-                                                insBcCmd.Parameters["@bc"].Value = trimmedB;
-                                                insBcCmd.Parameters["@now"].Value = now;
-                                                insBcCmd.ExecuteNonQuery();
-
-                                                existingBarcodeMap[trimmedB] = newId;
-                                            }
-                                        }
-                                    }
-                                }
+                                SyncAdditionalBarcodes(conn, trans, insBcCmd, result, strat, newId, item.Name.Trim(), primaryBarcode, item.Barcodes, existingBarcodeMap, inactiveProductIds, now);
 
                                 // Synchronize base unit in product_units
                                 try
@@ -712,14 +717,35 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        private static string CleanVariantValue(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "";
+            string t = value.Trim();
+            if (t == "—" || t == "–" || t == "-" || t == "_" || t == "/" || t == "." || t == "\\" ||
+                t.Equals("n/a", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("na", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("none", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("null", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("nil", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("لا يوجد", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("لايوجد", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("بدون", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("غير محدد", StringComparison.OrdinalIgnoreCase))
+            {
+                return "";
+            }
+            return t;
+        }
+
         private static object OptionalText(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? (object)DBNull.Value : value.Trim();
         }
 
-        private static void BindImportUpdate(SQLiteCommand cmd, BatchImportItem item, string productId, string normName, string categoryId, string color, string size, string now)
+        private static void BindImportUpdate(SQLiteCommand cmd, BatchImportItem item, string productId, string barcodeToSet, string normName, string categoryId, string color, string size, string now)
         {
             cmd.Parameters["@pid"].Value = productId;
+            cmd.Parameters["@barcode"].Value = OptionalText(barcodeToSet);
             cmd.Parameters["@name"].Value = item.Name.Trim();
             cmd.Parameters["@normName"].Value = normName;
             cmd.Parameters["@categoryId"].Value = OptionalText(categoryId);
@@ -733,6 +759,96 @@ namespace RafiqPOS.Repositories
             cmd.Parameters["@color"].Value = OptionalText(color);
             cmd.Parameters["@size"].Value = OptionalText(size);
             cmd.Parameters["@now"].Value = now;
+        }
+
+        private static void ReleaseRestoredProductOldBarcodes(SQLiteConnection conn, SQLiteTransaction trans, string productId, Dictionary<string, List<string>> productOwnedBarcodes, Dictionary<string, string> existingBarcodeMap)
+        {
+            using (var delCmd = new SQLiteCommand("DELETE FROM product_barcodes WHERE product_id = @pid;", conn, trans))
+            {
+                delCmd.Parameters.AddWithValue("@pid", productId);
+                delCmd.ExecuteNonQuery();
+            }
+
+            List<string> oldBarcodes;
+            if (productOwnedBarcodes.TryGetValue(productId, out oldBarcodes))
+            {
+                for (int i = 0; i < oldBarcodes.Count; i++)
+                {
+                    string oldBc = oldBarcodes[i];
+                    string mappedOwner;
+                    if (existingBarcodeMap.TryGetValue(oldBc, out mappedOwner) && string.Equals(mappedOwner, productId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        existingBarcodeMap.Remove(oldBc);
+                    }
+                }
+                oldBarcodes.Clear();
+            }
+        }
+
+        private static void ReleaseBarcodeFromArchivedProducts(SQLiteConnection conn, SQLiteTransaction trans, string barcode, string targetProductId, Dictionary<string, string> existingBarcodeMap)
+        {
+            if (string.IsNullOrWhiteSpace(barcode)) return;
+
+            string cleanBc = barcode.Trim();
+            using (var relCmd = new SQLiteCommand(@"
+                UPDATE products SET barcode = NULL WHERE barcode = @bc COLLATE NOCASE AND is_active = 0 AND id <> @targetId;
+                DELETE FROM product_barcodes WHERE barcode = @bc COLLATE NOCASE AND product_id <> @targetId AND product_id IN (SELECT id FROM products WHERE is_active = 0);
+                UPDATE product_units SET barcode = @nullVal WHERE barcode = @bc COLLATE NOCASE AND product_id <> @targetId AND product_id IN (SELECT id FROM products WHERE is_active = 0);", conn, trans))
+            {
+                relCmd.Parameters.AddWithValue("@bc", cleanBc);
+                relCmd.Parameters.AddWithValue("@targetId", targetProductId ?? "");
+                relCmd.Parameters.AddWithValue("@nullVal", DBNull.Value);
+                relCmd.ExecuteNonQuery();
+            }
+
+            string mappedOwner;
+            if (existingBarcodeMap.TryGetValue(cleanBc, out mappedOwner) && !string.Equals(mappedOwner, targetProductId, StringComparison.OrdinalIgnoreCase))
+            {
+                existingBarcodeMap.Remove(cleanBc);
+            }
+        }
+
+        private static void SyncAdditionalBarcodes(SQLiteConnection conn, SQLiteTransaction trans, SQLiteCommand insBcCmd, BatchImportResult result, string strat, string targetProductId, string itemName, string primaryBarcode, List<string> barcodes, Dictionary<string, string> existingBarcodeMap, HashSet<string> inactiveProductIds, string now)
+        {
+            if (barcodes == null || barcodes.Count == 0) return;
+
+            for (int i = 0; i < barcodes.Count; i++)
+            {
+                string rawB = barcodes[i];
+                if (string.IsNullOrWhiteSpace(rawB)) continue;
+
+                string trimmedB = rawB.Trim();
+                if (string.Equals(trimmedB, primaryBarcode, StringComparison.OrdinalIgnoreCase)) continue;
+
+                string owner;
+                if (existingBarcodeMap.TryGetValue(trimmedB, out owner) && !string.Equals(owner, targetProductId, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (inactiveProductIds.Contains(owner))
+                    {
+                        ReleaseBarcodeFromArchivedProducts(conn, trans, trimmedB, targetProductId, existingBarcodeMap);
+                    }
+                    else
+                    {
+                        if (strat == "error")
+                        {
+                            throw new InvalidOperationException(string.Format("الباركود '{0}' للصنف '{1}' مسجل لصنف آخر في النظام. صحح الملف ثم أعد الاستيراد.", trimmedB, itemName));
+                        }
+                        result.Errors.Add(string.Format("تنبيه للصنف '{0}': تم تخطي الباركود الإضافي '{1}' لأنه مسجل لصنف نشط آخر.", itemName, trimmedB));
+                        continue;
+                    }
+                }
+                else
+                {
+                    ReleaseBarcodeFromArchivedProducts(conn, trans, trimmedB, targetProductId, existingBarcodeMap);
+                }
+
+                insBcCmd.Parameters["@pbid"].Value = "pbc_" + Guid.NewGuid().ToString("N");
+                insBcCmd.Parameters["@pid"].Value = targetProductId;
+                insBcCmd.Parameters["@bc"].Value = trimmedB;
+                insBcCmd.Parameters["@now"].Value = now;
+                insBcCmd.ExecuteNonQuery();
+                existingBarcodeMap[trimmedB] = targetProductId;
+            }
         }
 
         // An imported stock figure is an absolute count: recorded as an adjustment (ledger + variants + FEFO batch sync)
