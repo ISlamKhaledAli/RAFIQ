@@ -115,22 +115,33 @@ namespace RafiqPOS
             this.Bounds = workingArea;
         }
 
+        // Startup mode: true fullscreen covering the whole display including the taskbar (F11 switches to the work-area mode).
+        private void ApplyFullscreenBounds(Screen screen)
+        {
+            Rectangle full = screen.Bounds;
+            this.MinimumSize = new Size(
+                Math.Min(PreferredMinWidth, full.Width),
+                Math.Min(PreferredMinHeight, full.Height));
+            this.Bounds = full;
+            _isKioskFullscreen = true;
+        }
+
         public MainForm(bool isDemoError = false)
         {
             Instance = this;
             _isDemoError = isDemoError;
-            this.Text = "نظام رفيق — إدارة المتاجر ونقاط البيع";
+            this.Text = "نظام رفيق — نقاط البيع وإدارة المتاجر";
             this.Size = new Size(1280, 800);
             _uiScale = DetectUiScale();
             _isSplashDarkMode = DetectSplashDarkMode();
             Color defaultCanvas = _isSplashDarkMode ? Color.FromArgb(14, 19, 18) : Color.FromArgb(243, 245, 242);
             this.BackColor = defaultCanvas;
 
-            // Default to borderless desktop mode matching Windows WorkingArea (respecting Windows Taskbar and preventing bottom bar overflow)
+            // Default to borderless true fullscreen covering the whole display including the taskbar (owner decision)
             this.StartPosition = FormStartPosition.Manual;
             this.WindowState = FormWindowState.Normal;
             this.FormBorderStyle = FormBorderStyle.None;
-            ApplyWorkingAreaBounds(Screen.PrimaryScreen);
+            ApplyFullscreenBounds(Screen.PrimaryScreen);
             this.KeyPreview = true;
 
             // Double-buffer the main form and all child drawing to eliminate any startup flicker
@@ -817,7 +828,7 @@ namespace RafiqPOS
             // Brand Badge
             _lblBadge = new Label
             {
-                Text = "نظام رفيق — إدارة المتاجر ونقاط البيع",
+                Text = "نظام رفيق — نقاط البيع وإدارة المتاجر",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(52, 211, 153), // Emerald 400
                 Location = new Point(24, 18),
@@ -1077,16 +1088,16 @@ namespace RafiqPOS
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            ApplyWorkingAreaBounds(Screen.PrimaryScreen);
+            ApplyFullscreenBounds(Screen.PrimaryScreen);
             // Force immediate layout and paint of the splash screen
             this.Refresh();
         }
 
         private void MainForm_Shown(object sender, EventArgs e)
         {
-            ApplyWorkingAreaBounds(Screen.PrimaryScreen);
+            ApplyFullscreenBounds(Screen.PrimaryScreen);
             WindowHelper.ActivateAndBringToFront(this);
-            ApplyWorkingAreaBounds(Screen.PrimaryScreen);
+            ApplyFullscreenBounds(Screen.PrimaryScreen);
             this.Refresh();
             Application.DoEvents();
             InitializeApplication();

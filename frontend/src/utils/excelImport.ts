@@ -188,7 +188,7 @@ export async function downloadExcelTemplate(): Promise<void> {
     if (res && res.base64) {
       downloadBase64File(
         res.base64,
-        res.fileName || 'قالب_استيراد_المنتجات_نظام_رفيق.xlsx',
+        res.fileName || 'قالب_استيراد_المنتجات_رفيق_POS.xlsx',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       );
       return;
@@ -356,7 +356,7 @@ export async function downloadExcelTemplate(): Promise<void> {
   XLSX.utils.book_append_sheet(wb, buildSheetJsProductSheet('قسم: منظفات وعناية', sampleCleaning), 'منظفات وعناية');
 
   // Trigger browser download
-  XLSX.writeFile(wb, 'قالب_استيراد_المنتجات_نظام_رفيق.xlsx');
+  XLSX.writeFile(wb, 'قالب_استيراد_المنتجات_رفيق_POS.xlsx');
 }
 
 function getFormattedTimestamp(): string {

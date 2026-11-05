@@ -19,6 +19,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { CustomSelect } from '../../components/CustomSelect';
 import { formatArabicCurrency } from '../../utils/money';
+import { RequiredMark } from '../../components/RequiredMark';
 import type { RestaurantTable, TableSplitItemRequest, TableSplitResult } from '../../types/cafe';
 import type { CartItem } from './types';
 
@@ -193,7 +194,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
         toTableId: targetTableId,
       });
       if (transferred) {
-        setSuccessMsg(`تم نقل الطلب بنجاح إلى «${transferred.name}».`);
+        setSuccessMsg(`تم نقل الطلب إلى «${transferred.name}»`);
         setActionMode('none');
         setTargetTableId('');
         setSelectedTable(transferred);
@@ -217,7 +218,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
         targetTableId,
       });
       if (merged) {
-        setSuccessMsg(`تم دمج الطاولتين بنجاح في «${merged.name}».`);
+        setSuccessMsg(`تم دمج الطاولتين في «${merged.name}»`);
         setActionMode('none');
         setTargetTableId('');
         setSelectedTable(merged);
@@ -303,14 +304,14 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
     setLoading(true);
     setErrorMsg(null);
     try {
-      await invoke('tables:upsert', {
+      await invoke('tables:save', {
         id: editTableId || undefined,
         name: editTableName.trim(),
         zoneName: editZoneName.trim() || 'الصالة الرئيسية',
         capacity: editCapacity > 0 ? editCapacity : 4,
         displayOrder: editDisplayOrder > 0 ? editDisplayOrder : 1,
       });
-      setSuccessMsg(editTableId ? 'تم تعديل الطاولة بنجاح' : 'تمت إضافة الطاولة بنجاح');
+      setSuccessMsg(editTableId ? 'تم تعديل الطاولة' : 'تمت إضافة الطاولة');
       setEditTableId('');
       setEditTableName('');
       await fetchTables();
@@ -348,7 +349,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
               <UtensilsCrossed className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-ink dark:text-ink-dark">خريطة الصالة وإدارة الطاولات</h2>
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">خريطة الصالة وإدارة الطاولات</h2>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                 متابعة حالة الطاولات لحظياً، فتح الطلبات، نقل ودمج الطاولات، وتقسيم الشيك بالأصناف
               </p>
@@ -362,7 +363,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                 onClick={() => setActionMode(actionMode === 'manage_floor' ? 'none' : 'manage_floor')}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border transition-all cursor-pointer ${
                   actionMode === 'manage_floor'
-                    ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark border-brand dark:border-brand-bright'
+                    ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright border-brand dark:border-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                     : 'bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand dark:hover:border-brand-bright'
                 }`}
               >
@@ -409,12 +410,12 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
           <div className="p-6 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Add / Edit Table Form */}
             <form onSubmit={handleSaveFloorTable} className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4 h-fit">
-              <h3 className="text-sm font-black text-ink dark:text-ink-dark">
+              <h3 className="t-card-title text-ink dark:text-ink-dark">
                 {editTableId ? 'تعديل بيانات الطاولة' : 'إضافة طاولة جديدة للصالة'}
               </h3>
 
               <div>
-                <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اسم / رقم الطاولة</label>
+                <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اسم / رقم الطاولة <RequiredMark /></label>
                 <input
                   type="text"
                   value={editTableName}
@@ -485,7 +486,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
 
             {/* Existing Tables List */}
             <div className="lg:col-span-2 bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-3 overflow-y-auto max-h-[62vh]">
-              <h3 className="text-sm font-black text-ink dark:text-ink-dark">الطاولات المسجلة ({tables.length})</h3>
+              <h3 className="t-card-title text-ink dark:text-ink-dark">الطاولات المسجلة ({tables.length})</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {tables.map((t) => (
                   <div
@@ -540,7 +541,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                     onClick={() => setSelectedZone('ALL')}
                     className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                       selectedZone === 'ALL'
-                        ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                        ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                         : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark border border-line dark:border-line-dark'
                     }`}
                   >
@@ -553,7 +554,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                       onClick={() => setSelectedZone(z)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                         selectedZone === z
-                          ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                          ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                           : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark border border-line dark:border-line-dark'
                       }`}
                     >
@@ -563,7 +564,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                 </div>
 
                 {/* Status Legend */}
-                <div className="flex items-center gap-3 text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">
+                <div className="flex items-center gap-3 text-micro font-bold text-ink-muted dark:text-ink-dark-muted">
                   <span className="flex items-center gap-1">
                     <span className="w-2.5 h-2.5 rounded-full bg-paid inline-block" /> متاحة
                   </span>
@@ -590,11 +591,11 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
 
                   if (isOccupied) {
                     cardStyle = 'bg-brand/5 dark:bg-brand-dark-soft/50 border-brand/50 dark:border-brand-bright/50 hover:border-brand';
-                    badgeStyle = 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark';
+                    badgeStyle = 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40';
                     statusLabel = 'مشغولة';
                   } else if (isBillPrinted) {
                     cardStyle = 'bg-warn/10 dark:bg-warn-dark-soft/60 border-warn/50 dark:border-warn-border/50 hover:border-warn';
-                    badgeStyle = 'bg-warn dark:bg-warn-bright text-white dark:text-surface-dark';
+                    badgeStyle = 'bg-warn dark:bg-warn-dark-soft text-white dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40';
                     statusLabel = 'طُبع الشيك';
                   }
 
@@ -617,14 +618,14 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                           <div className="text-sm font-black text-ink dark:text-ink-dark flex items-center gap-1.5">
                             <span>{tbl.name}</span>
                             {isCurrentActive && (
-                              <span className="px-1.5 py-0.5 rounded bg-brand/20 dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-[10px]">
+                              <span className="px-1.5 py-0.5 rounded bg-brand/20 dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro">
                                 محددة الآن
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">{tbl.zoneName}</div>
+                          <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">{tbl.zoneName}</div>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${badgeStyle}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-micro font-black ${badgeStyle}`}>
                           {statusLabel}
                         </span>
                       </div>
@@ -640,7 +641,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                               {formatArabicCurrency(tbl.currentTotalPiasters)}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">
+                          <div className="flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
                             <span>{tbl.waiterName ? `كابتن: ${tbl.waiterName}` : `ضيوف: ${tbl.guestsCount}`}</span>
                             <span>{tbl.itemsCount} أصناف</span>
                           </div>
@@ -680,9 +681,9 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                   </div>
 
                   <div className="space-y-3 bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark">
-                    <h4 className="text-xs font-black text-ink dark:text-ink-dark">بيانات فتح الطاولة</h4>
+                    <h4 className="t-label text-ink dark:text-ink-dark">بيانات فتح الطاولة</h4>
                     <div>
-                      <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اسم الويتر / الكابتن (اختياري)</label>
+                      <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">اسم الويتر / الكابتن</label>
                       <input
                         type="text"
                         value={waiterName}
@@ -727,7 +728,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                         <div className="text-sm font-black text-brand dark:text-brand-bright">
                           {formatArabicCurrency(selectedTable.currentTotalPiasters)}
                         </div>
-                        <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">
+                        <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
                           {selectedTable.itemsCount} أصناف
                         </div>
                       </div>
@@ -762,7 +763,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                           }}
                           className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
                             actionMode === 'transfer'
-                              ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark border-brand dark:border-brand-bright'
+                              ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright border-brand dark:border-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                               : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand dark:hover:border-brand-bright'
                           }`}
                         >
@@ -780,7 +781,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                           }}
                           className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
                             actionMode === 'merge'
-                              ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark border-brand dark:border-brand-bright'
+                              ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright border-brand dark:border-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                               : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand dark:hover:border-brand-bright'
                           }`}
                         >
@@ -798,7 +799,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                           }}
                           className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
                             actionMode === 'split'
-                              ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark border-brand dark:border-brand-bright'
+                              ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright border-brand dark:border-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                               : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand dark:hover:border-brand-bright'
                           }`}
                         >
@@ -812,7 +813,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                   {/* Sub-Action Panels */}
                   {actionMode === 'transfer' && (
                     <div className="p-4 rounded-2xl bg-surface dark:bg-surface-dark border border-brand/40 dark:border-brand-bright/40 space-y-3">
-                      <h4 className="text-xs font-black text-ink dark:text-ink-dark">نقل طلب «{selectedTable.name}» إلى طاولة متاحة:</h4>
+                      <h4 className="t-label text-ink dark:text-ink-dark">نقل طلب «{selectedTable.name}» إلى طاولة متاحة:</h4>
                       <CustomSelect
                         value={targetTableId}
                         onChange={(v) => setTargetTableId(v)}
@@ -836,7 +837,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
 
                   {actionMode === 'merge' && (
                     <div className="p-4 rounded-2xl bg-surface dark:bg-surface-dark border border-brand/40 dark:border-brand-bright/40 space-y-3">
-                      <h4 className="text-xs font-black text-ink dark:text-ink-dark">دمج حساب «{selectedTable.name}» داخل طاولة مشغولة أخرى:</h4>
+                      <h4 className="t-label text-ink dark:text-ink-dark">دمج حساب «{selectedTable.name}» داخل طاولة مشغولة أخرى:</h4>
                       <CustomSelect
                         value={targetTableId}
                         onChange={(v) => setTargetTableId(v)}
@@ -863,7 +864,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
 
                   {actionMode === 'split' && (
                     <div className="p-4 rounded-2xl bg-surface dark:bg-surface-dark border border-brand/40 dark:border-brand-bright/40 space-y-3">
-                      <h4 className="text-xs font-black text-ink dark:text-ink-dark">حدد الكميات المراد فصلها ودفعها الآن بشكل مستقل:</h4>
+                      <h4 className="t-label text-ink dark:text-ink-dark">حدد الكميات المراد فصلها ودفعها الآن بشكل مستقل:</h4>
                       <div className="space-y-2 max-h-48 overflow-y-auto">
                         {selectedTableCartItems.map((item, idx) => {
                           const maxUnits = Math.max(1, Math.floor((item.quantityMilli || 1000) / 1000));
@@ -875,7 +876,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                             >
                               <div>
                                 <div className="font-black text-ink dark:text-ink-dark">{item.productName}</div>
-                                <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">
+                                <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
                                   الكمية بالطاولة: {maxUnits}
                                 </div>
                               </div>
@@ -943,7 +944,7 @@ export const FloorTablesModal: React.FC<FloorTablesModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleCloseFreeTable(selectedTable)}
-                        className="flex items-center gap-1 text-[11px] font-bold text-danger dark:text-danger-bright hover:underline cursor-pointer"
+                        className="flex items-center gap-1 text-micro font-bold text-danger dark:text-danger-bright hover:underline cursor-pointer"
                       >
                         <Unlock className="w-3.5 h-3.5" />
                         <span>إخلاء الطاولة يدوياً (بدون فاتورة)</span>

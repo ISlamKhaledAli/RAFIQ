@@ -45,7 +45,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
       <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col items-center justify-center min-h-[220px] animate-pulse">
         <Clock className="w-7 h-7 text-paid dark:text-paid-bright animate-spin mb-2" />
         <span className="text-xs font-bold text-ink dark:text-ink-dark">جاري قراءة وتوزيع مبيعات الـ 24 ساعة...</span>
-        <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1">يتم تجميع الفواتير وحساب ساعة الذروة والضغط</span>
+        <span className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">يتم تجميع الفواتير وحساب ساعة الذروة والضغط</span>
       </div>
     );
   }
@@ -59,8 +59,8 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
             <Flame className="w-5 h-5 text-warn dark:text-warn-bright fill-warn/30" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-ink dark:text-ink-dark">خريطة ساعات الذروة وكثافة الزبائن (24 ساعة)</h3>
-            <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
+            <h3 className="t-card-title text-ink dark:text-ink-dark">خريطة ساعات الذروة وكثافة الزبائن (24 ساعة)</h3>
+            <p className="text-sm text-ink-muted dark:text-ink-dark-muted mt-1">
               تحديد أوقات الازدحام لتوزيع الكاشيرات بدقة وتنظيم استلام البضائع من الموردين
             </p>
           </div>
@@ -71,7 +71,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
             <Flame className="w-4 h-4 text-warn dark:text-warn-bright fill-warn" />
             <span>ساعة الذروة: {peakPoint.hourLabel}</span>
             <span className="font-mono bg-white/80 dark:bg-surface-dark/80 px-1.5 py-0.5 rounded border border-warn/20 dark:border-warn-bright/30">
-              {peakPoint.invoicesCount} من {totalInvoicesInDay} فاتورة ({formatArabicCurrency(peakPoint.salesPiasters)})
+              {peakPoint.invoicesCount} من {totalInvoicesInDay} فاتورة
             </span>
           </div>
         ) : (
@@ -108,11 +108,11 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
               if (ratio >= 0.75) {
                 barBg = 'bg-brand-dark dark:bg-brand-bright group-hover:bg-brand';
               } else if (ratio >= 0.45) {
-                barBg = 'bg-paid dark:bg-emerald-500 group-hover:bg-paid-hover';
+                barBg = 'bg-paid dark:bg-paid-bright group-hover:bg-paid-hover dark:group-hover:bg-paid-bright-hover';
               } else if (ratio >= 0.2) {
-                barBg = 'bg-paid/75 dark:bg-emerald-600/75 group-hover:bg-paid';
+                barBg = 'bg-paid/75 dark:bg-paid-bright/75 group-hover:bg-paid dark:group-hover:bg-paid-bright';
               } else {
-                barBg = 'bg-paid/45 dark:bg-emerald-700/45 group-hover:bg-paid/60';
+                barBg = 'bg-paid/45 dark:bg-paid-bright/45 group-hover:bg-paid/60 dark:group-hover:bg-paid-bright/60';
               }
             }
 
@@ -132,7 +132,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
                 {/* Peak flame marker */}
                 {isPeak && (
                   <div className="absolute -top-3.5 flex flex-col items-center animate-bounce z-10">
-                    <Flame className="w-3.5 h-3.5 text-warn fill-warn" />
+                    <Flame className="w-3.5 h-3.5 text-warn dark:text-warn-bright fill-warn" />
                   </div>
                 )}
 
@@ -145,7 +145,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
                 </div>
 
                 {/* Hour label index */}
-                <span className={`text-[9px] font-mono mt-1.5 leading-none transition-colors ${
+                <span className={`text-micro font-mono mt-1.5 leading-none transition-colors ${
                   isSelected ? 'text-warn dark:text-warn-bright font-black' : 'text-ink-muted dark:text-ink-dark-muted'
                 }`}>
                   {item.hour % 3 === 0 ? item.hour : '·'}
@@ -156,7 +156,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
         </div>
 
         {/* Legend / Timeline Periods Indicator */}
-        <div className="flex items-center justify-between text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold mt-2 px-1">
+        <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted font-bold mt-2 px-1">
           <span>00:00 (منتصف الليل)</span>
           <span>06:00 (الصباح)</span>
           <span>12:00 (الظهيرة)</span>
@@ -173,10 +173,10 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
               <Clock className="w-4 h-4 text-brand dark:text-brand-bright" />
             </div>
             <div>
-              <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">الساعة المحددة: </span>
+              <span className="text-ink-muted dark:text-ink-dark-muted text-xs">الساعة المحددة: </span>
               <span className="font-bold text-ink dark:text-ink-dark font-mono text-sm">{activePoint.hourLabel}</span>
               {activePoint.hour === currentSystemHour && (
-                <span className="mr-2 text-[10px] bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright px-1.5 py-0.5 rounded font-bold border border-paid/20 dark:border-paid/40">
+                <span className="mr-2 text-xs bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright px-1.5 py-0.5 rounded font-bold border border-paid/20 dark:border-paid/40">
                   الساعة الحالية الآن
                 </span>
               )}
@@ -185,14 +185,14 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
 
           <div className="flex items-center gap-4">
             <div>
-              <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">المبيعات: </span>
+              <span className="text-ink-muted dark:text-ink-dark-muted text-xs">المبيعات: </span>
               <span className="font-mono font-bold text-paid dark:text-paid-bright text-sm">
                 {formatArabicCurrency(activePoint.salesPiasters)}
               </span>
             </div>
 
             <div>
-              <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">الزبائن والفواتير: </span>
+              <span className="text-ink-muted dark:text-ink-dark-muted text-xs">الزبائن والفواتير: </span>
               <span className="font-mono font-bold text-ink dark:text-ink-dark text-sm">
                 {activePoint.invoicesCount} فاتورة
               </span>
@@ -200,7 +200,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
 
             {activePoint.returnsPiasters > 0 && (
               <div>
-                <span className="text-danger dark:text-danger-bright text-[11px]">مرتجع: </span>
+                <span className="text-danger dark:text-danger-bright text-xs">مرتجع: </span>
                 <span className="font-mono text-danger dark:text-danger-bright font-bold text-sm">
                   {formatArabicCurrency(activePoint.returnsPiasters)}
                 </span>
@@ -208,7 +208,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
             )}
           </div>
 
-          <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
+          <div className="text-xs text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
             <Info className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
             <span>اضغط أو مرر المؤشر على أي ساعة لمعاينة تفاصيلها</span>
           </div>

@@ -1,13 +1,14 @@
 import React from 'react';
-import { AlertCircle, AlertTriangle, Check, CheckCircle, Sparkles, UserCheck, X } from 'lucide-react';
+import { UserCheck } from 'lucide-react';
 import type { Customer } from '../../types/models';
-import { formatArabicCurrency } from '../../utils/money';
+import { PaymentStatusCard } from './PaymentStatusCard';
 
 interface CashPaymentSectionProps {
   receivedInput: string;
   onReceivedChange: (raw: string) => void;
   receivedInputRef: React.RefObject<HTMLInputElement | null>;
   netTotalPiasters: number;
+  quickPresetsPiasters: number[];
   onSetPreset: (piasters: number) => void;
   isShortPayment: boolean;
   selectedCustomer: Customer | undefined;
@@ -20,11 +21,18 @@ interface CashPaymentSectionProps {
   onToggleSaveChangeToCustomerAccount: (v: boolean) => void;
 }
 
+const PRESET_BASE =
+  'h-11 px-3 rounded-lg border text-sm font-bold tabular-nums transition-colors cursor-pointer active:scale-95 whitespace-nowrap';
+const PRESET_IDLE =
+  'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border-line dark:border-line-dark hover:bg-brand-soft dark:hover:bg-brand-dark-soft hover:border-brand/50 dark:hover:border-brand-bright/50';
+const PRESET_SELECTED = 'bg-brand text-white border-brand dark:bg-brand-container dark:border-brand-bright';
+
 export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
   receivedInput,
   onReceivedChange,
   receivedInputRef,
   netTotalPiasters,
+  quickPresetsPiasters,
   onSetPreset,
   isShortPayment,
   selectedCustomer,
@@ -40,346 +48,93 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
   const isCreditActive = isFullCreditMode || (receivedPiasters === 0 && hasRegisteredCustomer);
 
   return (
-    <div className="flex flex-col gap-4 bg-surface dark:bg-surface-dark p-4 rounded-lg border border-line dark:border-line-dark">
-      {/* Received Input & Quick Presets */}
-      <div className="flex flex-col gap-2">
-        <label className="text-xs font-bold text-ink dark:text-ink-dark flex items-center justify-between whitespace-nowrap">
-          <span>المبلغ المستلم من العميل (المدفوع نقداً):</span>
-          <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-normal whitespace-nowrap">اكتب المبلغ أو اضغط على الأزرار السريعة</span>
-        </label>
+    <div className="flex-1 min-h-0 flex flex-col gap-4">
+      <section
+        aria-label="المبلغ المستلم"
+        className="shrink-0 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-4 flex flex-col gap-3"
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <label htmlFor="payment-received-input" className="t-card-title text-ink dark:text-ink-dark">
+            المبلغ المستلم من العميل (المدفوع نقداً):
+          </label>
+          <span className="text-xs text-ink-muted dark:text-ink-dark-muted">اضغط على المبالغ الجاهزة أو اكتب المبلغ</span>
+        </div>
 
         <div className="relative">
           <input
+            id="payment-received-input"
             ref={receivedInputRef}
             type="text"
+            inputMode="decimal"
+            autoComplete="off"
             value={receivedInput}
             onChange={(e) => onReceivedChange(e.target.value)}
-            className="w-full h-[52px] px-4 text-2xl font-mono font-black text-brand dark:text-brand-bright bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand/50 dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-lg text-right pl-16 focus:outline-none"
-            placeholder=""
+            className="w-full h-14 px-4 pl-16 text-2xl font-mono font-black tabular-nums text-right text-brand dark:text-brand-bright bg-surface-2 dark:bg-surface-dark-2 border-2 border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/20 dark:focus:ring-brand-bright/25 placeholder:text-sm placeholder:font-sans placeholder:font-normal placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted"
+            placeholder="اكتب المبلغ المستلم"
           />
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm text-ink-muted dark:text-ink-dark-muted">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm text-ink-muted dark:text-ink-dark-muted pointer-events-none">
             ج.م
           </div>
         </div>
 
-        {/* Quick Action Buttons: Exact Cash + Full Credit */}
-        <div className="flex items-center gap-3 mt-2 flex-wrap">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <button
             type="button"
             onClick={() => onSetPreset(netTotalPiasters)}
-            className="h-11 px-5 rounded-xl text-sm font-bold bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright hover:bg-brand hover:text-white border border-brand/30 dark:border-line-dark transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 shadow-2xs active:scale-95"
+            aria-pressed={receivedPiasters === netTotalPiasters}
+            className={`${PRESET_BASE} ${
+              receivedPiasters === netTotalPiasters
+                ? PRESET_SELECTED
+                : 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border-brand/40 dark:border-brand-bright/40 hover:bg-brand hover:text-white dark:hover:bg-brand dark:hover:text-white'
+            }`}
             title="استلام إجمالي الفاتورة بالضبط نقداً"
           >
-            <Check className="w-4 h-4 shrink-0" />
-            <span>المبلغ بالظبط</span>
+            المبلغ بالظبط
           </button>
 
-          {/* Quick Credit Button (Egyptian Retail Wording) */}
-          <button
-            type="button"
-            onClick={onQuickFullCredit}
-            className={`h-11 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 active:scale-95 shadow-2xs ${
-              isCreditActive
-                ? 'bg-warn text-white border-warn shadow-xs'
-                : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 hover:bg-warn hover:text-white dark:hover:bg-warn dark:hover:text-white'
-            }`}
-            title="تسجيل الفاتورة على حساب العميل بالكامل (0 كاش مستلم)"
-          >
-            <UserCheck className="w-4 h-4 shrink-0" />
-            <span>على الحساب بالكامل (بدون كاش)</span>
-          </button>
+          {quickPresetsPiasters.filter((p) => p !== netTotalPiasters).map((amt) => (
+            <button
+              key={amt}
+              type="button"
+              onClick={() => onSetPreset(amt)}
+              aria-pressed={receivedPiasters === amt}
+              className={`${PRESET_BASE} ${receivedPiasters === amt ? PRESET_SELECTED : PRESET_IDLE}`}
+            >
+              {(amt / 100).toFixed(2)} ج.م
+            </button>
+          ))}
         </div>
+
+        <button
+          type="button"
+          onClick={onQuickFullCredit}
+          aria-pressed={isCreditActive}
+          className={`h-11 w-full px-4 rounded-lg border-2 text-sm font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] text-ink dark:text-ink-dark ${
+            isCreditActive
+              ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn dark:border-warn-bright'
+              : 'bg-surface dark:bg-surface-dark border-dashed border-warn/60 dark:border-warn-bright/50 hover:bg-warn-soft dark:hover:bg-warn-dark-soft'
+          }`}
+          title="تسجيل الفاتورة على حساب العميل بالكامل (0 كاش مستلم)"
+        >
+          <UserCheck className="w-4 h-4 shrink-0 text-warn dark:text-warn-bright" />
+          <span>على الحساب بالكامل (بدون كاش)</span>
+        </button>
+      </section>
+
+      <div className="flex-1 min-h-0">
+        <PaymentStatusCard
+          selectedCustomer={selectedCustomer}
+          hasRegisteredCustomer={hasRegisteredCustomer}
+          isCreditActive={isCreditActive}
+          isShortPayment={isShortPayment}
+          receivedPiasters={receivedPiasters}
+          shortAmountPiasters={shortAmountPiasters}
+          changeDuePiasters={changeDuePiasters}
+          netTotalPiasters={netTotalPiasters}
+          saveChangeToCustomerAccount={saveChangeToCustomerAccount}
+          onToggleSaveChangeToCustomerAccount={onToggleSaveChangeToCustomerAccount}
+        />
       </div>
-
-      {/* Status Card: Full Credit / Advance Credit / Short Payment / Change Due / Zero Pending */}
-      {isCreditActive && hasRegisteredCustomer ? (
-        selectedCustomer.balancePiasters < 0 ? (
-          /* Customer has advance credit: Deduct smartly from previous deposit */
-          <div className="p-4 rounded-xl border border-paid-border dark:border-paid/30 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-between gap-3 transition-all">
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-paid dark:text-paid-bright flex items-center gap-1.5 whitespace-nowrap">
-                <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
-                <span>خصم من الفلوس اللي سايبها العميل تحت حسابه:</span>
-              </span>
-              <span className="text-2xl font-mono font-black mt-1 tabular-nums text-paid dark:text-paid-bright whitespace-nowrap">
-                {formatArabicCurrency(netTotalPiasters)}
-              </span>
-              <span className="text-[11px] font-semibold text-paid dark:text-paid-bright mt-0.5 whitespace-nowrap">
-                العميل: {selectedCustomer.name} (الفلوس اللي سايبها: {formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))})
-              </span>
-            </div>
-            <div className="text-left text-xs font-medium max-w-[280px]">
-              <span className="flex items-center gap-1.5 text-paid dark:text-paid-bright font-bold">
-                <CheckCircle className="w-4 h-4 shrink-0 text-paid dark:text-paid-bright" />
-                <span>
-                  {Math.abs(selectedCustomer.balancePiasters) >= netTotalPiasters
-                    ? `الفاتورة هتتخصم كلها من الفلوس اللي سايبها، وهيتبقى له ${formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters) - netTotalPiasters)} في حسابه بالمحل.`
-                    : `الفلوس اللي كان سايبها هتخلص كلها (${formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))})، والباقي (${formatArabicCurrency(netTotalPiasters - Math.abs(selectedCustomer.balancePiasters))}) هيتسجل عليه في حسابه.`}
-                </span>
-              </span>
-            </div>
-          </div>
-        ) : (
-          /* Normal full credit debt */
-          <div className="p-4 rounded-xl border border-[#f5deb4] dark:border-warn/30 bg-[#fef7ec] dark:bg-surface-dark-2 text-[#b3720e] dark:text-warn flex flex-col gap-3 transition-all shadow-2xs">
-
-            {/* 3-Step Clear Debt Calculation Breakdown */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/90 dark:bg-surface-dark border border-[#f5deb4] dark:border-line-dark text-center font-mono">
-              <div className="flex flex-col items-center justify-center p-2 bg-[#fef7ec] dark:bg-surface-dark-3 rounded-lg border border-[#f5deb4]/60 dark:border-line-dark">
-                <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">كان عليه قديم:</span>
-                <span className="text-base font-black text-danger">
-                  {formatArabicCurrency(selectedCustomer.balancePiasters)}
-                </span>
-              </div>
-              <div className="flex flex-col items-center justify-center p-2 bg-[#fef7ec] dark:bg-surface-dark-3 rounded-lg border border-[#f5deb4]/60 dark:border-line-dark">
-                <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">أُضيف عليه (الفاتورة الحالية):</span>
-                <span className="text-base font-black text-[#b3720e] dark:text-warn-bright">
-                  +{formatArabicCurrency(netTotalPiasters)}
-                </span>
-              </div>
-              <div className="flex flex-col items-center justify-center p-2 bg-danger-soft/40 dark:bg-danger-dark-soft rounded-lg border border-danger/40 dark:border-danger-bright/30">
-                <span className="text-[11px] font-sans font-bold text-danger dark:text-danger-bright mb-0.5">إجمالي اللي عليه بعد الفاتورة:</span>
-                <span className="text-lg font-black text-danger dark:text-danger-bright">
-                  {formatArabicCurrency(selectedCustomer.balancePiasters + netTotalPiasters)}
-                </span>
-              </div>
-            </div>
-          </div>
-        )
-      ) : receivedPiasters === 0 ? null : isShortPayment ? (
-        <div className={`p-4 rounded-xl border flex flex-col gap-3 transition-all shadow-2xs ${
-          selectedCustomer
-            ? 'bg-[#FEF7EC] dark:bg-surface-dark-2 border-[#F5DEB4] dark:border-warn-bright/30 text-[#B3720E] dark:text-warn-bright'
-            : 'bg-[#FDF3F2] dark:bg-surface-dark-2 border-[#F6CBC6] dark:border-danger-bright/30 text-[#B23A2E] dark:text-danger-bright'
-        }`}>
-          {selectedCustomer ? (
-            <>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-[#B3720E] dark:text-warn-bright flex items-center gap-1.5 whitespace-nowrap">
-                    <AlertTriangle className="w-4 h-4 text-[#B3720E] dark:text-warn-bright shrink-0" />
-                    <span>دفع جزء كاش والباقي على الحساب (دين):</span>
-                  </span>
-                  <span className="text-xs text-[#8A5200] dark:text-ink-dark-muted mt-0.5">
-                    العميل: <strong className="text-ink dark:text-ink-dark">{selectedCustomer.name}</strong> | دفع كاش: <strong className="font-mono text-ink dark:text-ink-dark">{formatArabicCurrency(receivedPiasters)}</strong>
-                  </span>
-                </div>
-                <div className="text-left font-mono">
-                  <span className="text-[11px] font-sans text-[#8A5200] dark:text-ink-dark-muted block">المتبقي على النوتة:</span>
-                  <span className="text-xl font-black text-[#8A5200] dark:text-warn-bright tabular-nums">
-                    +{formatArabicCurrency(shortAmountPiasters)}
-                  </span>
-                </div>
-              </div>
-
-              {/* 3-Step Clear Debt Calculation Breakdown */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/90 dark:bg-surface-dark border border-[#F5DEB4] dark:border-line-dark text-center font-mono">
-                <div className="flex flex-col items-center justify-center p-2 bg-[#FEF7EC] dark:bg-surface-dark-3 rounded-lg border border-[#F5DEB4]/60 dark:border-line-dark">
-                  <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">كان عليه قديم:</span>
-                  <span className="text-base font-black text-danger">
-                    {formatArabicCurrency(selectedCustomer.balancePiasters)}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center justify-center p-2 bg-[#FEF7EC] dark:bg-surface-dark-3 rounded-lg border border-[#F5DEB4]/60 dark:border-line-dark">
-                  <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">أُضيف عليه (باقي الفاتورة):</span>
-                  <span className="text-base font-black text-[#B3720E] dark:text-warn-bright">
-                    +{formatArabicCurrency(shortAmountPiasters)}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center justify-center p-2 bg-danger-soft/40 dark:bg-danger-dark-soft rounded-lg border border-danger/40 dark:border-danger-bright/30">
-                  <span className="text-[11px] font-sans font-bold text-danger dark:text-danger-bright mb-0.5">إجمالي اللي عليه الآن:</span>
-                  <span className="text-lg font-black text-danger dark:text-danger-bright">
-                    {formatArabicCurrency(selectedCustomer.balancePiasters + shortAmountPiasters)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="text-xs font-medium text-[#8A5200] dark:text-ink-dark-muted flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 shrink-0 text-[#B3720E] dark:text-warn-bright" />
-                <span>هيتحط {formatArabicCurrency(receivedPiasters)} في الدرج كاش، والباقي ({formatArabicCurrency(shortAmountPiasters)}) هيتسجل دين على حسابه في النوتة.</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-[#B23A2E] dark:text-danger whitespace-nowrap">
-                    المبلغ ناقص (دفع جزء):
-                  </span>
-                  <span className="text-2xl font-mono font-black mt-1 tabular-nums text-[#B23A2E] dark:text-danger whitespace-nowrap">
-                    -{formatArabicCurrency(shortAmountPiasters)}
-                  </span>
-                </div>
-                <div className="text-left text-xs font-bold text-[#8A241A] dark:text-danger-light max-w-[260px] flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-[#B23A2E] dark:text-danger shrink-0" />
-                  <span>مينفعش يدفع جزء من الفاتورة إلا لما تختار اسم العميل عشان نسجل الباقي عليه.</span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      ) : (
-        <div className="p-4 rounded-xl border border-paid-border dark:border-paid/30 bg-paid-soft/80 dark:bg-paid-dark-soft text-paid dark:text-brand-bright flex flex-col gap-3 transition-all shadow-2xs">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col">
-              <span className="text-xs font-bold whitespace-nowrap text-paid dark:text-brand-bright">
-                الباقي اللي هترجعه للزبون:
-              </span>
-              <span className="text-3xl font-mono font-black mt-1 tabular-nums whitespace-nowrap text-paid dark:text-paid-bright">
-                {formatArabicCurrency(changeDuePiasters)}
-              </span>
-            </div>
-            <div className="text-left text-xs font-medium max-w-[220px]">
-              <span className="flex items-center gap-1.5 text-paid dark:text-brand-bright font-bold whitespace-nowrap">
-                <CheckCircle className="w-5 h-5 shrink-0 text-paid dark:text-brand-bright" />
-                <span>الحساب مظبوط وجاهز لطباعة الفاتورة.</span>
-              </span>
-            </div>
-          </div>
-
-          {/* Smart Customer Change Deposit Option with High-Clarity Switch & Balance Calculation */}
-          {hasRegisteredCustomer && changeDuePiasters > 0 && selectedCustomer && (
-            <div className={`mt-1 p-3 rounded-xl border-2 transition-all ${
-              saveChangeToCustomerAccount
-                ? 'bg-white dark:bg-surface-dark border-paid dark:border-paid shadow-xs'
-                : 'bg-white/80 dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-paid/40'
-            }`}>
-              <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
-                <div className="flex items-center gap-3">
-                  {/* Distinct Visual Switch */}
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={saveChangeToCustomerAccount}
-                    onClick={() => onToggleSaveChangeToCustomerAccount(!saveChangeToCustomerAccount)}
-                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      saveChangeToCustomerAccount ? 'bg-paid' : 'bg-slate-300 dark:bg-surface-dark-3'
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                        saveChangeToCustomerAccount ? '-translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-black text-ink dark:text-ink-dark">
-                        سيب باقي الفلوس ({formatArabicCurrency(changeDuePiasters)}) في حساب العميل
-                      </span>
-                      {saveChangeToCustomerAccount ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-paid text-white shadow-2xs">
-                          <Check className="w-3 h-3" />
-                          مفعّل (خصم من حسابه)
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
-                          <X className="w-3 h-3" />
-                          غير مفعّل (تسليم كاش باليد)
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
-                      {saveChangeToCustomerAccount
-                        ? 'سيتم خصم الباقي من دينه القديم، أو إيداعه كرصيد محفوظ له في المحل.'
-                        : 'سيتم تسليم الباقي نقداً باليد للزبون، ويبقى حسابه القديم في النوتة دون تغيير.'}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => onToggleSaveChangeToCustomerAccount(!saveChangeToCustomerAccount)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer active:scale-95 shrink-0 ${
-                    saveChangeToCustomerAccount
-                      ? 'bg-paid text-white border-paid shadow-2xs'
-                      : 'bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark border-line dark:border-line-dark hover:border-paid/40'
-                  }`}
-                >
-                  {saveChangeToCustomerAccount ? 'إلغاء التفعيل' : 'تفعيل الخصم'}
-                </button>
-              </div>
-
-              {/* Dynamic Balance Breakdown: "كان عليه كذا وبقى كذا" */}
-              {saveChangeToCustomerAccount ? (
-                <div className="mt-3 pt-3 border-t border-line dark:border-line-dark">
-                  {selectedCustomer.balancePiasters > 0 ? (
-                    (() => {
-                      const oldDebt = selectedCustomer.balancePiasters;
-                      const remainingDebt = oldDebt - changeDuePiasters;
-                      return (
-                        <div className="flex flex-col gap-1.5">
-                          <div className="text-[11px] font-bold text-paid dark:text-brand-bright flex items-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5 text-paid dark:text-brand-bright shrink-0" />
-                            <span>تسوية الباقي وخصمه من حساب الزبون «{selectedCustomer.name}»:</span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center font-mono">
-                            <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex flex-col">
-                              <span className="text-[10px] font-sans text-ink-muted dark:text-ink-dark-muted">كان عليه قديم:</span>
-                              <span className="text-sm font-black text-danger">{formatArabicCurrency(oldDebt)}</span>
-                            </div>
-                            <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex flex-col">
-                              <span className="text-[10px] font-sans text-ink-muted dark:text-ink-dark-muted">اتخصم من دينه (الباقي المساب):</span>
-                              <span className="text-sm font-black text-paid dark:text-brand-bright">-{formatArabicCurrency(changeDuePiasters)}</span>
-                            </div>
-                            <div className={`p-2 rounded-lg border flex flex-col ${
-                              remainingDebt > 0 ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30' : 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid/30'
-                            }`}>
-                              <span className="text-[10px] font-sans font-bold text-ink dark:text-ink-dark">
-                                {remainingDebt > 0 ? 'بقى عليه الآن في النوتة:' : 'سدد دينه بالكامل وبقى له رصيد:'}
-                              </span>
-                              <span className={`text-base font-black ${remainingDebt > 0 ? 'text-warn dark:text-warn-bright' : 'text-paid dark:text-paid-bright'}`}>
-                                {formatArabicCurrency(Math.abs(remainingDebt))}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    (() => {
-                      const oldCredit = Math.abs(selectedCustomer.balancePiasters);
-                      const totalCredit = oldCredit + changeDuePiasters;
-                      return (
-                        <div className="flex flex-col gap-1.5">
-                          <div className="text-[11px] font-bold text-paid dark:text-brand-bright flex items-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5 text-paid dark:text-brand-bright shrink-0" />
-                            <span>رصيد الزبون «{selectedCustomer.name}» المحفوظ في المحل:</span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center font-mono">
-                            <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex flex-col">
-                              <span className="text-[10px] font-sans text-ink-muted dark:text-ink-dark-muted">رصيده السابق:</span>
-                              <span className="text-sm font-black text-paid dark:text-brand-bright">{formatArabicCurrency(oldCredit)}</span>
-                            </div>
-                            <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex flex-col">
-                              <span className="text-[10px] font-sans text-ink-muted dark:text-ink-dark-muted">أُضيف لرصيده (الباقي):</span>
-                              <span className="text-sm font-black text-paid dark:text-brand-bright">+{formatArabicCurrency(changeDuePiasters)}</span>
-                            </div>
-                            <div className="p-2 rounded-lg bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 flex flex-col">
-                              <span className="text-[10px] font-sans font-bold text-paid dark:text-brand-bright">إجمالي رصيده الجديد:</span>
-                              <span className="text-base font-black text-paid dark:text-paid-bright">{formatArabicCurrency(totalCredit)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()
-                  )}
-                </div>
-              ) : (
-                selectedCustomer.balancePiasters > 0 && (
-                  <div className="mt-2.5 p-2 rounded-lg bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-xs text-warn dark:text-warn-bright flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-warn dark:text-warn-bright" />
-                    <span>
-                      هترجع للزبون <strong className="font-mono text-ink dark:text-ink-dark">{formatArabicCurrency(changeDuePiasters)}</strong> نقداً باليد، ودينه القديم المسجل في النوتة <strong className="font-mono text-danger dark:text-danger-bright">({formatArabicCurrency(selectedCustomer.balancePiasters)})</strong> يفضل زي ما هو بدون تعديل.
-                    </span>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 };

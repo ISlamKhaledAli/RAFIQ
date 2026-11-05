@@ -20,6 +20,7 @@ import { formatArabicCurrency } from '../utils/money';
 import type { Expense, ExpenseCategory } from '../types/models';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { createAttemptKey } from '../utils/idempotency';
+import { RequiredMark } from './RequiredMark';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -165,7 +166,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       if (res) {
         expenseAttemptRef.current.complete();
         const srcLabel = source === 'drawer' ? 'خصمه من درج الكاشير' : 'قيده على الخزينة الرئيسية';
-        setSuccessMsg(`تم تسجيل المصروف بقيمة ${formatArabicCurrency(amountPiasters)} و${srcLabel} بنجاح`);
+        setSuccessMsg(`تم تسجيل المصروف بقيمة ${formatArabicCurrency(amountPiasters)} و${srcLabel}`);
         setAmountPiasters(0);
         setNotes('');
         void loadTodayExpenses();
@@ -215,7 +216,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         managerPin: managerPin.trim() || undefined,
       });
 
-      setSuccessMsg('تم إلغاء المصروف بنجاح وتحديث موازنة اليومية وسجل التدقيق');
+      setSuccessMsg('تم إلغاء المصروف');
       setCancellingExpenseId(null);
       setCancelReason('');
       setManagerPin('');
@@ -252,7 +253,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
               <Receipt className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white dark:text-ink-dark">تسجيل مصروفات ونثريات</h3>
+              <h3 className="t-modal-title text-white dark:text-ink-dark">تسجيل مصروفات ونثريات</h3>
               <p className="text-xs text-white/70 dark:text-ink-dark-muted">خصم نثريات من درج الشفت أو الخزينة مع التدقيق المالي المعتمد</p>
             </div>
           </div>
@@ -287,7 +288,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             {/* Source Selection (Drawer vs Main Safe) */}
             <div>
               <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
-                مصدر الصرف النقدي *
+                مصدر الصرف النقدي
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -299,12 +300,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                       : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:border-line-hover'
                   }`}
                 >
-                  <div className={`p-1.5 rounded-lg ${source === 'drawer' ? 'bg-brand text-white dark:bg-brand-bright dark:text-brand-dark' : 'bg-surface-2 dark:bg-surface-dark-2'}`}>
+                  <div className={`p-1.5 rounded-lg ${source === 'drawer' ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright' : 'bg-surface-2 dark:bg-surface-dark-2'}`}>
                     <Wallet className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="text-xs font-bold">درج شفت الكاشير</div>
-                    <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted">يُخصم فوراً من عهدة الدرج</div>
+                    <div className="text-micro text-ink-muted dark:text-ink-dark-muted">يُخصم فوراً من عهدة الدرج</div>
                   </div>
                 </button>
 
@@ -317,12 +318,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                       : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:border-line-hover'
                   }`}
                 >
-                  <div className={`p-1.5 rounded-lg ${source === 'safe' ? 'bg-brand text-white dark:bg-brand-bright dark:text-brand-dark' : 'bg-surface-2 dark:bg-surface-dark-2'}`}>
+                  <div className={`p-1.5 rounded-lg ${source === 'safe' ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright' : 'bg-surface-2 dark:bg-surface-dark-2'}`}>
                     <Building2 className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="text-xs font-bold">الخزينة الرئيسية</div>
-                    <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted">لا يؤثر على عهدة درج الوردية</div>
+                    <div className="text-micro text-ink-muted dark:text-ink-dark-muted">لا يؤثر على عهدة درج الوردية</div>
                   </div>
                 </button>
               </div>
@@ -332,10 +333,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-ink dark:text-ink-dark">
-                  المبلغ المنصرف (ج.م) *
+                  المبلغ المنصرف (ج.م) <RequiredMark />
                 </label>
                 {source === 'drawer' && drawerBalance !== null && (
-                  <span className="text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded-md border border-line dark:border-line-dark">
+                  <span className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded-md border border-line dark:border-line-dark">
                     كاش الدرج المتاح: <strong className={drawerBalance < amountPiasters ? 'text-danger dark:text-danger-bright font-mono font-bold' : 'text-paid dark:text-brand-bright font-mono font-bold'}>{formatArabicCurrency(drawerBalance)}</strong>
                   </span>
                 )}
@@ -359,12 +360,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-ink dark:text-ink-dark">
-                  بند وتصنيف المصروف *
+                  بند وتصنيف المصروف
                 </label>
                 <button
                   type="button"
                   onClick={() => setIsAddingCategory(!isAddingCategory)}
-                  className="text-[11px] font-semibold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-micro font-semibold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3 h-3" />
                   <span>{isAddingCategory ? 'إلغاء الإضافة' : 'إضافة بند مخصص جديد'}</span>
@@ -402,7 +403,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             {/* Notes / Description */}
             <div>
               <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
-                تفاصيل المصروف أو البيان (اختياري)
+                تفاصيل المصروف أو البيان
               </label>
               <input
                 type="text"
@@ -467,7 +468,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                     >
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          <span className={`px-2 py-0.5 rounded-md text-micro font-bold ${
                             isDrawer 
                               ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300' 
                               : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
@@ -480,7 +481,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                           </span>
 
                           {exp.notes && (
-                            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                               ({exp.notes})
                             </span>
                           )}
@@ -504,7 +505,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                                 setManagerPin('');
                                 setCancelError(null);
                               }}
-                              className="p-1 rounded-md text-ink-muted hover:text-danger hover:bg-danger-soft/50 dark:hover:bg-danger-soft/20 transition cursor-pointer"
+                              className="p-1 rounded-md text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft/50 dark:hover:bg-danger-soft/20 transition cursor-pointer"
                               title="إلغاء المصروف وتوثيقه في التدقيق"
                             >
                               <Ban className="w-3.5 h-3.5" />
@@ -514,7 +515,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                       </div>
 
                       {/* Details row */}
-                      <div className="flex items-center justify-between text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1.5 pt-1 border-t border-line/40 dark:border-line-dark/40">
+                      <div className="flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted mt-1.5 pt-1 border-t border-line/40 dark:border-line-dark/40">
                         <div className="flex items-center gap-2">
                           <span className="flex items-center gap-1" dir="ltr">
                             <Clock className="w-3 h-3" />
@@ -541,18 +542,21 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                           </div>
 
                           {cancelError && (
-                            <div className="text-[11px] text-danger font-semibold bg-danger-soft p-1.5 rounded-md">
+                            <div className="text-micro text-danger font-semibold bg-danger-soft p-1.5 rounded-md">
                               {cancelError}
                             </div>
                           )}
 
-                          <input
-                            type="text"
-                            value={cancelReason}
-                            onChange={(e) => setCancelReason(e.target.value)}
-                            placeholder="سبب الإلغاء (إلزامي للتدقيق المالي)..."
-                            className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink focus:outline-none focus:border-danger"
-                          />
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={cancelReason}
+                              onChange={(e) => setCancelReason(e.target.value)}
+                              placeholder="سبب الإلغاء للتدقيق المالي..."
+                              className="w-full ps-2.5 pe-6 py-1.5 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink focus:outline-none focus:border-danger"
+                            />
+                            <span className="absolute end-2 top-1/2 -translate-y-1/2 pointer-events-none text-xs"><RequiredMark /></span>
+                          </div>
 
                           <div className="flex items-center gap-2">
                             <input
@@ -574,7 +578,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setCancellingExpenseId(null)}
-                              className="px-2.5 py-1.5 rounded-lg border border-line text-ink-muted hover:text-ink text-xs transition cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-lg border border-line text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs transition cursor-pointer"
                             >
                               تراجع
                             </button>

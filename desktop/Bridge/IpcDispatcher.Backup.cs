@@ -58,8 +58,8 @@ namespace RafiqPOS.Bridge
 
                 case "backup:getRecoveryStatus":
                     bool isConfirmed = DatabaseService.Settings != null && DatabaseService.Settings.Get("owner_recovery_code_confirmed", "0") == "1";
-                    // The plaintext owner recovery code resets the owner PIN, so only admin/root sessions may ever see it
-                    if (DatabaseService.Security == null || !DatabaseService.Security.IsCurrentSessionAdmin())
+                    // The plaintext owner recovery code resets the owner PIN, so only the owner (or developer root) sessions may ever see it
+                    if (DatabaseService.Security == null || !DatabaseService.Security.IsCurrentSessionOwner())
                     {
                         response = BridgeResponse.Ok(request.Id, new { isConfirmed = isConfirmed });
                         return true;
@@ -98,7 +98,7 @@ namespace RafiqPOS.Bridge
                         response = BridgeResponse.Fail(request.Id, "SECURITY_UNAVAILABLE", "خدمة الأمان غير مهيأة.");
                         return true;
                     }
-                    var supRes = DatabaseService.Security.VerifySupervisorPin(adminPin, "REVEAL_RECOVERY_CODE");
+                    var supRes = DatabaseService.Security.VerifySupervisorPin(adminPin, "REVEAL_RECOVERY_CODE", SecurityService.TIER_OWNER);
                     if (!supRes.Success)
                     {
                         response = BridgeResponse.Fail(request.Id, "INVALID_PIN", supRes.Message ?? "PIN المالك غير صحيح.");

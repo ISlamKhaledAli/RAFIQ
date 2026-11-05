@@ -16,6 +16,10 @@ import { ThemeProvider } from './context/ThemeProvider'
 import { FeaturesProvider } from './context/FeaturesProvider'
 import { AuthProvider } from './context/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { applyTextScale, loadTextScale } from './utils/textScale'
+
+// Apply the saved text size before the first render so there is no size flash.
+applyTextScale(document.documentElement, loadTextScale(localStorage))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

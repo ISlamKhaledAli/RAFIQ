@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Tag, Percent, Banknote, AlertTriangle } from 'lucide-react';
+import { X, Tag, AlertTriangle } from 'lucide-react';
 import { formatArabicCurrency, normalizeArabicNumerals, calculateDiscountAmount } from '../utils/money';
+import { DiscountEntry, type DiscountType } from './discount/DiscountEntry';
 import type { SaleItem } from '../types/models';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
@@ -30,7 +31,7 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
   onApply,
   onRequestSupervisor,
 }) => {
-  const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount');
+  const [discountType, setDiscountType] = useState<DiscountType>('amount');
   const [inputValue, setInputValue] = useState(() => {
     return item && item.discountPiasters > 0 ? (item.discountPiasters / 100).toFixed(2) : '';
   });
@@ -86,20 +87,20 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-md p-5 animate-in fade-in zoom-in-95 duration-150 text-right select-none">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-md max-h-full flex flex-col overflow-hidden text-right text-ink dark:text-ink-dark select-none animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 pb-2 border-b border-line">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-brand-soft text-brand flex items-center justify-center font-bold">
-              <Tag className="w-4 h-4" />
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-line dark:border-line-dark shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
+              <Tag className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-bold text-ink m-0">خصم خاص على الصنف</h3>
-              <p className="text-[11px] text-ink-muted m-0 truncate max-w-[260px]">
+            <div className="min-w-0">
+              <h3 className="t-modal-title text-ink dark:text-ink-dark m-0">خصم خاص على الصنف</h3>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 mt-0.5 truncate" title={item.productName}>
                 {item.productName} ({formatArabicCurrency(grossPiasters)})
               </p>
             </div>
@@ -107,143 +108,64 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-2 transition-colors cursor-pointer"
+            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-lg border border-transparent text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 focus-visible:border-brand dark:focus-visible:border-brand-bright transition-colors cursor-pointer"
             title="إغلاق"
+            aria-label="إغلاق"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit}>
-          {/* Type Toggle */}
-          <div className="flex bg-surface-2 p-1 rounded-lg border border-line mb-3">
-            <button
-              type="button"
-              onClick={() => {
-                setDiscountType('amount');
+        <form onSubmit={handleSubmit} className="flex flex-col min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
+            <DiscountEntry
+              type={discountType}
+              onTypeChange={(next) => {
+                setDiscountType(next);
                 setInputValue('');
               }}
-              className={`flex-1 py-1.5 px-3 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                discountType === 'amount'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              <Banknote className="w-3.5 h-3.5" />
-              مبلغ نقدي (ج.م)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDiscountType('percent');
-                setInputValue('');
-              }}
-              className={`flex-1 py-1.5 px-3 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                discountType === 'percent'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              <Percent className="w-3.5 h-3.5" />
-              نسبة مئوية (%)
-            </button>
-          </div>
-
-          {/* Input Field */}
-          <label className="block text-xs font-bold text-ink-muted mb-1.5">
-            {discountType === 'amount' ? 'أدخل قيمة الخصم بالجنيه:' : 'أدخل نسبة الخصم المئوية (%):'}
-          </label>
-          <div className="relative mb-3">
-            <input
-              type="text"
-              inputMode="decimal"
-              autoFocus
-              placeholder="0"
               value={inputValue}
-              onChange={(e) => {
-                const norm = normalizeArabicNumerals(e.target.value);
-                if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
-                  setInputValue(norm);
-                }
-              }}
-              className="w-full text-center text-3xl font-mono font-bold text-brand bg-surface-2 border-2 border-brand/50 focus:border-brand rounded-lg p-3 text-ink focus:outline-none shadow-inner"
+              onValueChange={setInputValue}
+              amountPresets={[1, 2, 5, 10]}
+              percentPresets={[5, 10, 15, 20]}
+              amountToggleLabel="مبلغ نقدي (ج.م)"
+              percentToggleLabel="نسبة مئوية (%)"
+              amountFieldLabel="أدخل قيمة الخصم بالجنيه:"
+              percentFieldLabel="أدخل نسبة الخصم المئوية (%):"
+              resetLabel="إلغاء الخصم (0)"
+              inputId="item-discount-value"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted">
-              {discountType === 'amount' ? 'ج.م' : '%'}
-            </span>
-          </div>
 
-          {/* Quick Buttons */}
-          <div className="mb-4">
-            <span className="block text-[11px] font-bold text-ink-muted mb-1.5">اختصارات سريعة:</span>
-            <div className="grid grid-cols-4 gap-1.5">
-              {discountType === 'amount' ? (
-                <>
-                  {[1, 2, 5, 10].map((amt) => (
-                    <button
-                      key={amt}
-                      type="button"
-                      onClick={() => setInputValue(String(amt))}
-                      className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all"
-                    >
-                      {amt} ج.م
-                    </button>
-                  ))}
-                </>
-              ) : (
-                <>
-                  {[5, 10, 15, 20].map((pct) => (
-                    <button
-                      key={pct}
-                      type="button"
-                      onClick={() => setInputValue(String(pct))}
-                      className="h-8 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand hover:text-brand hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark text-xs font-bold shadow-2xs transition-all"
-                    >
-                      {pct}%
-                    </button>
-                  ))}
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => setInputValue('0')}
-                className="col-span-4 h-8 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-danger hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink dark:text-ink-dark text-xs font-bold shadow-2xs transition-all"
-              >
-                إلغاء الخصم (0)
-              </button>
+            {/* Supervisor Warning Badge */}
+            {requiresSupervisor && (
+              <div className="p-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-bright/40 rounded-xl text-ink dark:text-warn-bright text-xs font-semibold flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 min-w-0">
+                  <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
+                  <span>{canDiscountLine ? `يتطلب موافقة المشرف (أعلى من ${maxPercentWithoutPin}%)` : 'حسابك لا يملك صلاحية خصم الأصناف'}</span>
+                </span>
+                <span className="font-bold whitespace-nowrap">مطلوب PIN</span>
+              </div>
+            )}
+
+            {/* Real-time Preview */}
+            <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-between gap-3 text-sm font-bold">
+              <span className="text-ink-muted dark:text-ink-dark-muted">سعر الصنف بعد الخصم:</span>
+              <span className="font-mono tabular-nums text-brand dark:text-brand-bright text-base">{formatArabicCurrency(netPreviewPiasters)}</span>
             </div>
-          </div>
-
-          {/* Supervisor Warning Badge */}
-          {requiresSupervisor && (
-            <div className="mb-3 p-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg text-warn dark:text-warn-bright text-xs flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
-                <span>{canDiscountLine ? `يتطلب موافقة المشرف (أعلى من ${maxPercentWithoutPin}%)` : 'حسابك لا يملك صلاحية خصم الأصناف'}</span>
-              </span>
-              <span className="font-bold whitespace-nowrap mr-2">مطلوب PIN</span>
-            </div>
-          )}
-
-          {/* Real-time Preview */}
-          <div className="p-2.5 rounded-lg bg-surface-2 border border-line flex items-center justify-between mb-4 text-xs font-bold">
-            <span className="text-ink-muted">سعر الصنف بعد الخصم:</span>
-            <span className="font-mono text-brand text-sm">{formatArabicCurrency(netPreviewPiasters)}</span>
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2">
+          <div className="flex gap-3 px-5 py-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 shrink-0">
             <button
               type="submit"
-              className="flex-1 h-10 bg-brand hover:bg-brand-hover text-white font-bold rounded-lg transition-colors shadow-xs"
+              className="flex-1 h-12 bg-brand hover:bg-brand-hover text-white border border-brand dark:border-brand-bright/60 focus-visible:border-brand-bright font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
             >
               تأكيد الخصم (Enter)
             </button>
             <button
               type="button"
               onClick={() => void requestClose()}
-              className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold rounded-lg transition-colors cursor-pointer"
+              className="px-5 h-12 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark focus-visible:border-brand dark:focus-visible:border-brand-bright text-ink dark:text-ink-dark font-semibold rounded-xl transition-colors cursor-pointer"
             >
               إلغاء
             </button>

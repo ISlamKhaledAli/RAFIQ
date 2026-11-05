@@ -1,26 +1,21 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import type { FormEvent } from 'react';
-import { 
-  Banknote,
-  UserCheck, 
-  X, 
-  Printer, 
-  ArrowRight, 
-  UserPlus,
-} from 'lucide-react';
-import { invoke } from '../bridge/ipc';
+import { Banknote, X, CheckCircle2 } from 'lucide-react';
 import type { Customer, SalePayment } from '../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals, poundsToPiasters } from '../utils/money';
 import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
-import { MoneyInput } from './MoneyInput';
-import { CustomSelect } from './CustomSelect';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
 import { useAuth } from '../context/useAuth';
 import { SupervisorPromptModal } from './SupervisorPromptModal';
+import { ToggleSwitch } from './ToggleSwitch';
+import { setReceiptPrintPreference, shouldPrintReceipt } from '../utils/receiptPrintPreference';
 
 import { CashPaymentSection } from './payment/CashPaymentSection';
-import { piastersToInputText } from './payment/cashPresets';
+import { CustomerPicker } from './payment/CustomerPicker';
+import { PaymentSummary } from './payment/PaymentSummary';
+import { QuickAddCustomerForm } from './payment/QuickAddCustomerForm';
+import { useQuickAddCustomer } from './payment/useQuickAddCustomer';
+import { buildCashQuickPresetsPiasters, piastersToInputText } from './payment/cashPresets';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -34,7 +29,6 @@ interface PaymentModalProps {
   netTotalPiasters: number;
   selectedCustomerId?: string | null;
   onCustomerChange?: (id: string) => void;
-  showCredit?: boolean;
   customers: Customer[];
   onConfirmPayment: (paymentData: {
     paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash';
@@ -61,21 +55,17 @@ export const PaymentModal = ({
   netTotalPiasters,
   selectedCustomerId,
   onCustomerChange,
-  showCredit: _showCredit = true,
   customers,
   onConfirmPayment,
   loading = false,
 }: PaymentModalProps) => {
+  // '' means nothing received yet and is read exactly like 0 piasters everywhere.
   const [receivedInput, setReceivedInput] = useState<string>('');
   const [receivedPiasters, setReceivedPiasters] = useState<number>(0);
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(selectedCustomerId || null);
-  const [newlyAddedCustomers, setNewlyAddedCustomers] = useState<Customer[]>([]);
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [quickName, setQuickName] = useState('');
-  const [quickPhone, setQuickPhone] = useState('');
-  const [quickSaving, setQuickSaving] = useState(false);
   const [isFullCreditMode, setIsFullCreditMode] = useState(false);
   const [saveChangeToCustomerAccount, setSaveChangeToCustomerAccount] = useState(false);
+  const [printReceipt, setPrintReceipt] = useState<boolean>(() => shouldPrintReceipt());
 
   const { isRoot, isAdmin, hasPermission } = useAuth();
   const [supervisorPrompt, setSupervisorPrompt] = useState<{
@@ -90,24 +80,25 @@ export const PaymentModal = ({
     onApproved: () => {},
   });
 
-  const localCustomers = useMemo(() => {
-    const map = new Map<string, Customer>();
-    for (const c of customers) {
-      if (c && c.id) map.set(c.id, c);
-    }
-    for (const c of newlyAddedCustomers) {
-      if (c && c.id) map.set(c.id, c);
-    }
-    return Array.from(map.values());
-  }, [customers, newlyAddedCustomers]);
-
-  // Reconcile newlyAddedCustomers once the updated list arrives from the database
-  useEffect(() => {
-    if (newlyAddedCustomers.length > 0) {
-      const existingIds = new Set(customers.map((c) => c.id));
-      setNewlyAddedCustomers((prev) => prev.filter((c) => !existingIds.has(c.id)));
-    }
-  }, [customers, newlyAddedCustomers.length]);
+  const {
+    localCustomers,
+    showQuickAdd,
+    openQuickAdd,
+    closeQuickAdd,
+    resetQuickAdd,
+    quickName,
+    setQuickName,
+    quickPhone,
+    setQuickPhone,
+    quickSaving,
+    hasQuickAddInput,
+    duplicateQuickCustomer,
+    handleQuickAddCustomer,
+    selectDuplicateCustomer,
+  } = useQuickAddCustomer(customers, (id) => {
+    setCurrentCustomerId(id);
+    if (onCustomerChange) onCustomerChange(id);
+  });
 
   const receivedInputRef = useRef<HTMLInputElement>(null);
   const prevIsOpenRef = useRef(false);
@@ -119,11 +110,9 @@ export const PaymentModal = ({
       setReceivedPiasters(0);
       setIsFullCreditMode(false);
       setSaveChangeToCustomerAccount(false);
+      setPrintReceipt(shouldPrintReceipt());
       setCurrentCustomerId(selectedCustomerId || null);
-      setNewlyAddedCustomers([]);
-      setShowQuickAdd(false);
-      setQuickName('');
-      setQuickPhone('');
+      resetQuickAdd();
       const timer = setTimeout(() => {
         receivedInputRef.current?.focus();
       }, 60);
@@ -133,47 +122,16 @@ export const PaymentModal = ({
     if (!isOpen) {
       prevIsOpenRef.current = false;
     }
-  }, [isOpen, netTotalPiasters, selectedCustomerId]);
+  }, [isOpen, netTotalPiasters, selectedCustomerId, resetQuickAdd]);
 
-  const duplicateQuickCustomer = useMemo(() => {
-    const clean = quickPhone.trim().replace(/[\s-]/g, '');
-    if (clean.length < 7) return null;
-    return localCustomers.find(c => (c.phone || '').trim().replace(/[\s-]/g, '') === clean) || null;
-  }, [quickPhone, localCustomers]);
-
-  const handleQuickAddCustomer = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!quickName.trim() || quickSaving) return;
-    setQuickSaving(true);
-    try {
-      const saved = await invoke<Customer>('customers:save', {
-        name: quickName.trim(),
-        phone: quickPhone.trim(),
-        balancePiasters: 0,
-        creditLimitPiasters: 100000,
-      });
-      if (saved) {
-        setNewlyAddedCustomers((prev) => (prev.some((c) => c.id === saved.id) ? prev : [...prev, saved]));
-        setCurrentCustomerId(saved.id);
-        if (onCustomerChange) {
-          onCustomerChange(saved.id);
-        }
-        setShowQuickAdd(false);
-        setQuickName('');
-        setQuickPhone('');
-      }
-    } catch (err: unknown) {
-      void rafiqAlert({
-        title: 'فشل حفظ العميل',
-        message: err instanceof Error ? err.message : 'تعذر حفظ العميل',
-        variant: 'error',
-      });
-    } finally {
-      setQuickSaving(false);
-    }
+  const handleCustomerChange = (id: string) => {
+    setCurrentCustomerId(id || null);
+    if (onCustomerChange) onCustomerChange(id);
   };
 
   const selectedCustomer = localCustomers.find((c) => c.id === currentCustomerId);
+  const hasRegisteredCustomer = !!(selectedCustomer && selectedCustomer.id !== 'cust_general_cash');
+  const isCreditActive = isFullCreditMode || (receivedPiasters === 0 && hasRegisteredCustomer);
 
   // Calculations for Single Cash payment
   const changeDuePiasters = Math.max(0, receivedPiasters - netTotalPiasters);
@@ -202,50 +160,25 @@ export const PaymentModal = ({
   const handleQuickFullCredit = async () => {
     if (!currentCustomerId || currentCustomerId === 'cust_general_cash') {
       await rafiqAlert({
-        title: 'اختار العميل الأول',
-        message: 'عشان تسجل الفاتورة على الحساب، اختار اسم العميل من القائمة فوق أو اضغط «+ إضافة عميل سريع» الأول.',
+        title: 'اختار الزبون الأول',
+        message: 'عشان تسجل الفاتورة على الحساب، اختار اسم الزبون من خانة الزبون أو اضغط «تسجيل زبون جديد» الأول.',
         variant: 'warning',
       });
       return;
     }
 
-    const targetCust = localCustomers.find(c => c.id === currentCustomerId);
-    if (targetCust) {
-      if (targetCust.balancePiasters < 0) {
-        const creditAvail = Math.abs(targetCust.balancePiasters);
-        if (creditAvail >= netTotalPiasters) {
-          await rafiqAlert({
-            title: 'خصم الفاتورة من الفلوس اللي سايبها العميل',
-            message: `العميل «${targetCust.name}» سايب فلوس في المحل: ${formatArabicCurrency(creditAvail)}.\n\nالفاتورة (${formatArabicCurrency(netTotalPiasters)}) هتتخصم كلها من الفلوس اللي سايبها، وهيفضل له في حسابه بالمحل: ${formatArabicCurrency(creditAvail - netTotalPiasters)}.`,
-            variant: 'info',
-          });
-        } else {
-          await rafiqAlert({
-            title: 'خصم الفلوس اللي سايبها والباقي على الحساب',
-            message: `العميل «${targetCust.name}» سايب فلوس في المحل: ${formatArabicCurrency(creditAvail)}.\n\nالفلوس اللي كان سايبها هتتخصم كلها (${formatArabicCurrency(creditAvail)})، والباقي (${formatArabicCurrency(netTotalPiasters - creditAvail)}) هيتسجل عليه في حسابه بالنوتة.`,
-            variant: 'info',
-          });
-        }
-      } else {
-        await rafiqAlert({
-          title: 'تأكيد تسجيل الفاتورة على الحساب',
-          message: `مستلمتش كاش: 0.00 ج.م (مفيش فلوس اتدفعت كاش).\n\nالفاتورة كلها (${formatArabicCurrency(netTotalPiasters)}) هتتسجل على حساب العميل «${targetCust.name}» في النوتة.\nإجمالي اللي عليه بعد الفاتورة دي: ${formatArabicCurrency(targetCust.balancePiasters + netTotalPiasters)}.`,
-          variant: 'info',
-        });
-      }
-    }
-
+    // The status card shows the consequence; the money confirmation happens when the cashier saves.
     setReceivedInput('');
     setReceivedPiasters(0);
     setIsFullCreditMode(true);
   };
 
   const isDirty = useMemo(() => {
-    const receivedModified = receivedInput !== '0' && receivedInput !== '';
+    const receivedModified = receivedPiasters > 0;
     const customerModified = Boolean(currentCustomerId && currentCustomerId !== (selectedCustomerId || null));
-    const quickAddModified = Boolean(quickName.trim() || quickPhone.trim());
+    const quickAddModified = hasQuickAddInput;
     return receivedModified || customerModified || quickAddModified || isFullCreditMode || saveChangeToCustomerAccount;
-  }, [receivedInput, currentCustomerId, selectedCustomerId, quickName, quickPhone, isFullCreditMode, saveChangeToCustomerAccount]);
+  }, [receivedPiasters, currentCustomerId, selectedCustomerId, hasQuickAddInput, isFullCreditMode, saveChangeToCustomerAccount]);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -258,22 +191,24 @@ export const PaymentModal = ({
   });
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !loading) {
-      e.preventDefault();
-      void handleConfirm();
-    }
+    if (e.key !== 'Enter' || loading) return;
+    // Enter belongs to the control that has focus when it is the quick-add form (saves the customer), a dropdown menu
+    // (picks an option), a plain button (clicks it) or a textarea. Only the amount fields and the print switch confirm the sale.
+    const target = e.target as HTMLElement;
+    const isPlainButton = target.tagName === 'BUTTON' && target.getAttribute('role') !== 'switch';
+    if (isPlainButton || target.closest('form, textarea, [data-select-menu]')) return;
+    e.preventDefault();
+    // Stop here: the global confirm-dialog listener must not receive this same Enter and auto-accept the confirmation it opens.
+    e.stopPropagation();
+    void handleConfirm();
   };
 
   const handleConfirm = async () => {
-    const hasRegisteredCustomer = !!(selectedCustomer && selectedCustomer.id !== 'cust_general_cash');
-
-    const isCreditSubmission = isFullCreditMode || (receivedPiasters === 0 && hasRegisteredCustomer);
-
-    if (isCreditSubmission) {
+    if (isCreditActive) {
       if (!hasRegisteredCustomer || !selectedCustomer) {
         await rafiqAlert({
-          title: 'يجب اختيار عميل أولاً',
-          message: 'لتسجيل الفاتورة كآجل بالكامل على الحساب، يرجى اختيار عميل من القائمة أعلاه أو الضغط على «+ إضافة عميل سريع» أولاً.',
+          title: 'يجب اختيار زبون أولاً',
+          message: 'لتسجيل الفاتورة كآجل بالكامل على الحساب، اختر زبوناً من خانة الزبون أو اضغط «تسجيل زبون جديد» أولاً.',
           variant: 'warning',
         });
         return;
@@ -326,6 +261,18 @@ export const PaymentModal = ({
         return;
       }
 
+      // Credit through Enter or the button must never create debt silently: short confirm of the two key figures.
+      const debtPiasters = Math.max(0, netTotalPiasters - Math.max(0, -selectedCustomer.balancePiasters));
+      if (debtPiasters > 0) {
+        const confirmOnAccount = await rafiqConfirm({
+          title: 'تسجيل الفاتورة على الحساب',
+          message: `مفيش كاش هيدخل الدرج.\nالزبون: «${selectedCustomer.name}»\nهيتسجل عليه: ${formatArabicCurrency(debtPiasters)}`,
+          confirmText: 'تسجيل على الحساب',
+          cancelText: 'تراجع',
+          variant: 'warning',
+        });
+        if (!confirmOnAccount) return;
+      }
       proceedWithCreditSale();
       return;
     }
@@ -361,7 +308,7 @@ export const PaymentModal = ({
       if (!currentCustomerId || currentCustomerId === 'cust_general_cash') {
         await rafiqAlert({
           title: 'لا يمكن إتمام دفع جزئي لعميل مجهول',
-          message: `المبلغ المدفوع (${formatArabicCurrency(receivedPiasters)}) أقل من قيمة الفاتورة (${formatArabicCurrency(netTotalPiasters)}) بفارق ${formatArabicCurrency(shortAmountPiasters)}.\n\nلتسجيل باقي الحساب كدين آجل، يرجى اختيار عميل من القائمة أعلاه أو الضغط على «إضافة عميل سريع» أولاً.`,
+          message: `المبلغ المدفوع (${formatArabicCurrency(receivedPiasters)}) أقل من قيمة الفاتورة (${formatArabicCurrency(netTotalPiasters)}) بفارق ${formatArabicCurrency(shortAmountPiasters)}.\n\nلتسجيل باقي الحساب كدين آجل، اختر زبوناً من خانة الزبون أو اضغط «تسجيل زبون جديد» أولاً.`,
           variant: 'warning',
         });
         return;
@@ -371,16 +318,7 @@ export const PaymentModal = ({
       const isExceeded = (selectedCustomer?.creditLimitPiasters || 0) > 0 && 
         newProjectedBalance > (selectedCustomer?.creditLimitPiasters || 0);
 
-      const proceedWithShortPayment = async (verifiedSupervisorPin?: string) => {
-        const proceed = await rafiqConfirm({
-          title: 'تأكيد الدفع الجزئي وتسجيل الباقي كآجل',
-          message: `تفاصيل العملية:\n• المدفوع كاش الآن: ${formatArabicCurrency(receivedPiasters)} (يُضاف لدرج الخزينة)\n• الباقي كدين آجل: ${formatArabicCurrency(shortAmountPiasters)} (يُقيد في دفتر العميل: ${selectedCustomer?.name || ''})\n\nهل تريد المتابعة وإتمام الفاتورة؟`,
-          confirmText: 'نعم، إتمام الفاتورة',
-          cancelText: 'تراجع وتعديل المبلغ',
-          variant: 'info',
-        });
-        if (!proceed) return;
-
+      const proceedWithShortPayment = (verifiedSupervisorPin?: string) => {
         const payments: SalePayment[] = [
           {
             amountPiasters: receivedPiasters,
@@ -413,7 +351,7 @@ export const PaymentModal = ({
             variant: 'danger',
           });
           if (!confirmExceeded) return;
-          await proceedWithShortPayment();
+          proceedWithShortPayment();
         } else {
           setSupervisorPrompt({
             isOpen: true,
@@ -421,14 +359,22 @@ export const PaymentModal = ({
             actionDescription: `دين العميل (${selectedCustomer.name}) سيتجاوز الحد الائتماني المسموح (${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}) بمقدار ${formatArabicCurrency(newProjectedBalance - selectedCustomer.creditLimitPiasters)}. يتطلب إتمام العملية موافقة مدير بصلاحية موثقة برقم سري.`,
             onApproved: (_supervisorName, verifiedPin) => {
               setSupervisorPrompt(prev => ({ ...prev, isOpen: false }));
-              void proceedWithShortPayment(verifiedPin);
+              proceedWithShortPayment(verifiedPin);
             },
           });
         }
         return;
       }
 
-      await proceedWithShortPayment();
+      const confirmShort = await rafiqConfirm({
+        title: 'تسجيل الباقي على الحساب',
+        message: `الباقي هيتسجل دين على الزبون «${selectedCustomer?.name || ''}».\nالمبلغ اللي هيتسجل عليه: ${formatArabicCurrency(shortAmountPiasters)}`,
+        confirmText: 'حفظ والباقي على الحساب',
+        cancelText: 'تراجع',
+        variant: 'warning',
+      });
+      if (!confirmShort) return;
+      proceedWithShortPayment();
       return;
     }
 
@@ -452,40 +398,59 @@ export const PaymentModal = ({
 
     const payments: SalePayment[] = [
       {
-        amountPiasters: receivedPiasters,
+        amountPiasters: Math.min(receivedPiasters, netTotalPiasters),
         method: 'cash',
       },
     ];
 
     onConfirmPayment({
       paymentMethod: 'cash',
-      paidPiasters: receivedPiasters,
+      paidPiasters: Math.min(receivedPiasters, netTotalPiasters),
       payments,
       changeDuePiasters,
       customerId: currentCustomerId,
     });
   };
 
+  // Quick cash buttons generator (Exact, next 50, next 100, 200)
+  const quickPresetsPiasters = buildCashQuickPresetsPiasters(netTotalPiasters);
+
+  const handlePrintReceiptChange = (value: boolean) => {
+    setPrintReceipt(value);
+    setReceiptPrintPreference(value);
+  };
+
+  // The button names the process (completing the sale), not the technical steps; the print switch beside it says whether a receipt prints.
+  let confirmLabel = 'إتمام البيع';
+  if (isCreditActive) confirmLabel = 'إتمام البيع على الحساب';
+  else if (isShortPayment && hasRegisteredCustomer) confirmLabel = 'إتمام البيع والباقي على الحساب';
+  const ConfirmIcon = CheckCircle2;
+
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 select-none"
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-3xl max-h-[94vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark">
-        {/* Header */}
-        <div className="h-[60px] px-5 bg-surface-2 dark:bg-surface-dark-2 hairline-b flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright flex items-center justify-center shadow-xs">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="payment-modal-title"
+        className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-4xl h-[min(46rem,100%)] flex flex-col overflow-hidden text-ink dark:text-ink-dark"
+      >
+        {/* Header (fixed) */}
+        <div className="h-16 px-5 bg-surface-2 dark:bg-surface-dark-2 hairline-b flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
               <Banknote className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-[16px] font-bold text-ink dark:text-ink-dark leading-tight m-0">
+            <div className="min-w-0">
+              <h2 id="payment-modal-title" className="t-modal-title text-ink dark:text-ink-dark leading-tight m-0">
                 حساب الفاتورة واستلام الفلوس والباقي (نقداً)
               </h2>
-              <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted m-0">
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 truncate">
                 استلمت كام نقداً من الزبون في الدرج، احسب الباقي، وسجل الفاتورة بضغطة زر واحدة
               </p>
             </div>
@@ -493,185 +458,111 @@ export const PaymentModal = ({
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="w-8 h-8 rounded hover:bg-surface dark:hover:bg-surface-dark-3 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
+            aria-label="إغلاق"
+            className="w-10 h-10 rounded-lg hover:bg-surface dark:hover:bg-surface-dark-3 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-          {/* 1. Complete Invoice Meta, Financial Summary & Customer Selector Card */}
-          <div className="bg-[#f8faf9] dark:bg-surface-dark-2 border border-[#dce1dc] dark:border-line-dark rounded-2xl p-3 sm:p-4 flex flex-col gap-3 shadow-2xs">
-            {/* Top Row: Invoice # + Item Counts + Subtotal + Discount Input + Grand Total Card */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#dce1dc]/80 dark:border-line-dark/80">
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                {/* Invoice Number Badge */}
-                <div className="flex items-center gap-1.5 font-bold">
-                  <span className="text-xs text-[#0f172a] dark:text-ink-dark">فاتورة:</span>
-                  <span className="text-xs font-mono font-bold text-[#006d41] dark:text-paid-bright bg-[#eaf5ee] dark:bg-paid-dark-soft border border-[#c4e3d0] dark:border-paid/30 px-2.5 py-0.5 rounded-md shadow-2xs">
-                    #{invoiceNumber || '1'}
-                  </span>
-                </div>
+        {/* Body: both columns fill the fixed height; scrolling is only a last resort on very short screens */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="md:col-span-2 min-h-0 flex flex-col gap-4">
+            <PaymentSummary
+              invoiceNumber={invoiceNumber}
+              itemCount={itemCount}
+              totalItemCount={totalItemCount}
+              subtotalPiasters={subtotalPiasters}
+              discountPiasters={discountPiasters}
+              onDiscountChange={onDiscountChange}
+              netTotalPiasters={netTotalPiasters}
+            />
 
-                {/* Items and Pieces Count */}
-                <div className="text-[11px] text-[#52605d] dark:text-ink-dark-muted font-medium bg-white dark:bg-surface-dark px-2.5 py-0.5 rounded-md border border-[#dce1dc] dark:border-line-dark">
-                  {itemCount} صنف ({totalItemCount} قطعة)
-                </div>
-
-                {/* Subtotal */}
-                <div className="flex items-center gap-1 text-xs">
-                  <span className="text-[#52605d] dark:text-ink-dark-muted">إجمالي السلة:</span>
-                  <span className="font-bold text-[#0f172a] dark:text-ink-dark font-mono tabular-nums">
-                    {formatArabicCurrency(subtotalPiasters)}
-                  </span>
-                </div>
-
-                {/* Interactive Discount Field */}
-                <div className="flex items-center gap-1 text-xs">
-                  <span className="text-danger dark:text-danger-bright font-bold shrink-0">خصم الفاتورة:</span>
-                  <div className="w-24" title={onDiscountChange ? undefined : 'خصم الفاتورة يحتاج صلاحية أو اعتماد المشرف من زر الخصم'}>
-                    <MoneyInput
-                      valuePiasters={discountPiasters}
-                      disabled={!onDiscountChange}
-                      onChangePiasters={(val) => {
-                        if (onDiscountChange) onDiscountChange(val);
-                      }}
-                      className="h-7 text-xs text-danger dark:text-danger-bright font-bold border-danger/30 focus:border-danger dark:focus:border-danger-bright bg-danger-soft dark:bg-danger-dark-soft text-right pr-1.5 pl-6 rounded-md shadow-2xs"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Grand Total Hero Box */}
-              <div className="flex items-center gap-2.5 bg-gradient-to-br from-[#00372d] to-[#004d3f] dark:from-[#0B4F42] dark:to-[#178068] text-white px-3.5 py-1.5 rounded-xl shadow-xs">
-                <span className="text-xs text-[#83bfaf] dark:text-brand-bright font-semibold">المطلوب دفعه:</span>
-                <span className="text-xl sm:text-2xl font-black font-mono tabular-nums tracking-tight">
-                  {formatArabicCurrency(netTotalPiasters)}
-                </span>
-              </div>
-            </div>
-
-            {/* Bottom Row: Customer Selector & Quick Add Trigger */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 flex-1 min-w-[280px]">
-                <div className="flex items-center gap-1.5 text-xs text-[#006d41] dark:text-brand-bright font-bold shrink-0">
-                  <UserCheck className="w-4 h-4" />
-                  <span>الزبون:</span>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <CustomSelect
-                    value={currentCustomerId || ''}
-                    onChange={(val) => {
-                      setCurrentCustomerId(val || null);
-                      if (onCustomerChange) onCustomerChange(val);
-                    }}
-                    options={[
-                      { value: '', label: 'زبون عادي كاش (بدون حساب)' },
-                      ...localCustomers.filter(c => c.id !== 'cust_general_cash').map((c) => ({
-                        value: c.id,
-                        label: c.name,
-                      })),
-                    ]}
-                    className="w-full"
-                    size="sm"
-                    searchable
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowQuickAdd(true)}
-                  className="px-2.5 py-1.5 text-xs font-bold text-[#006d41] dark:text-brand-bright bg-[#eaf5ee] dark:bg-surface-dark-3 hover:bg-[#d8edd0] dark:hover:bg-line-dark border border-[#c4e3d0] dark:border-line-dark rounded-lg transition-colors shrink-0 shadow-2xs cursor-pointer active:scale-95 flex items-center gap-1"
-                  title="تسجيل زبون جديد في النوتة فوراً"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>تسجيل زبون جديد</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Add Customer Inline Form (Toggled) */}
-            {showQuickAdd && (
-              <form onSubmit={handleQuickAddCustomer} className="p-3 bg-white dark:bg-surface-dark rounded-xl border border-[#c4e3d0] dark:border-line-dark flex flex-wrap items-center gap-2 shadow-2xs mt-1">
-                <input
-                  type="text"
-                  placeholder="اسم الزبون *"
-                  value={quickName}
-                  onChange={(e) => setQuickName(e.target.value)}
-                  className="flex-1 min-w-[140px] h-8 text-xs px-2.5 rounded-lg border border-[#dce1dc] dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark focus:border-[#006d41] dark:focus:border-brand-bright outline-none"
-                  autoFocus
-                />
-                <input
-                  type="text"
-                  placeholder="رقم الموبايل"
-                  value={quickPhone}
-                  onChange={(e) => setQuickPhone(e.target.value)}
-                  className="flex-1 min-w-[120px] h-8 text-xs px-2.5 rounded-lg border border-[#dce1dc] dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark focus:border-[#006d41] dark:focus:border-brand-bright outline-none font-mono"
-                />
-                <button
-                  type="submit"
-                  disabled={quickSaving || !quickName.trim()}
-                  className="px-3 h-8 bg-[#006d41] hover:bg-[#005230] text-white text-xs font-bold rounded-lg disabled:opacity-50 cursor-pointer"
-                >
-                  {quickSaving ? 'ثواني بنحفظ...' : 'حفظ واختيار الزبون'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowQuickAdd(false)}
-                  className="px-2.5 h-8 bg-surface-2 dark:bg-surface-dark-3 hover:bg-surface text-ink-muted dark:text-ink-dark-muted text-xs rounded-lg border border-line dark:border-line-dark cursor-pointer"
-                >
-                  إلغاء
-                </button>
-                {duplicateQuickCustomer && (
-                  <span className="text-[11px] text-[#b23a2e] dark:text-danger w-full font-semibold">
-                    تنبيه: الرقم ده متسجل قبل كده باسم الزبون «{duplicateQuickCustomer.name}»
-                  </span>
-                )}
-              </form>
-            )}
+            <CustomerPicker
+              customerId={currentCustomerId}
+              customers={localCustomers}
+              onChange={handleCustomerChange}
+              customerRequired={isFullCreditMode || isShortPayment}
+              quickAddOpen={showQuickAdd}
+              onOpenQuickAdd={openQuickAdd}
+            >
+              <QuickAddCustomerForm
+                quickName={quickName}
+                setQuickName={setQuickName}
+                quickPhone={quickPhone}
+                setQuickPhone={setQuickPhone}
+                quickSaving={quickSaving}
+                duplicateQuickCustomer={duplicateQuickCustomer}
+                onSelectDuplicateCustomer={selectDuplicateCustomer}
+                onCancel={closeQuickAdd}
+                onSubmit={handleQuickAddCustomer}
+              />
+            </CustomerPicker>
           </div>
 
-          {/* 2. Cash Payment Section */}
-          <CashPaymentSection
-            receivedInput={receivedInput}
-            onReceivedChange={handleReceivedChange}
-            receivedInputRef={receivedInputRef}
-            netTotalPiasters={netTotalPiasters}
-            onSetPreset={setPresetReceived}
-            isShortPayment={isShortPayment}
-            selectedCustomer={selectedCustomer}
-            shortAmountPiasters={shortAmountPiasters}
-            receivedPiasters={receivedPiasters}
-            changeDuePiasters={changeDuePiasters}
-            onQuickFullCredit={handleQuickFullCredit}
-            isFullCreditMode={isFullCreditMode}
-            saveChangeToCustomerAccount={saveChangeToCustomerAccount}
-            onToggleSaveChangeToCustomerAccount={setSaveChangeToCustomerAccount}
-          />
+          <div className="md:col-span-3 min-h-0 flex flex-col">
+            <CashPaymentSection
+              receivedInput={receivedInput}
+              onReceivedChange={handleReceivedChange}
+              receivedInputRef={receivedInputRef}
+              netTotalPiasters={netTotalPiasters}
+              quickPresetsPiasters={quickPresetsPiasters}
+              onSetPreset={setPresetReceived}
+              isShortPayment={isShortPayment}
+              selectedCustomer={selectedCustomer}
+              shortAmountPiasters={shortAmountPiasters}
+              receivedPiasters={receivedPiasters}
+              changeDuePiasters={changeDuePiasters}
+              onQuickFullCredit={handleQuickFullCredit}
+              isFullCreditMode={isFullCreditMode}
+              saveChangeToCustomerAccount={saveChangeToCustomerAccount}
+              onToggleSaveChangeToCustomerAccount={setSaveChangeToCustomerAccount}
+            />
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="h-[64px] px-5 bg-surface-2 dark:bg-surface-dark-2 hairline-t flex items-center justify-between shrink-0">
+        {/* Footer (fixed height): back, print switch, confirm */}
+        <div className="h-[4.5rem] px-5 bg-surface-2 dark:bg-surface-dark-2 hairline-t flex items-center justify-between gap-3 shrink-0">
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="px-4 py-2 rounded-md text-xs font-semibold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark transition-colors cursor-pointer"
+            className="h-12 px-5 rounded-lg text-sm font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark transition-colors cursor-pointer"
           >
             رجوع لفاتورة البيع
           </button>
 
-          <button
-            type="button"
-            onClick={() => void handleConfirm()}
-            disabled={loading}
-            className="px-6 py-2.5 rounded-lg text-sm font-bold bg-brand hover:bg-brand-hover text-white flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>{loading ? 'ثواني، بنسجل الفاتورة وبنطبع...' : 'حفظ الفاتورة وطباعة الوصل'}</span>
-            <ArrowRight className="w-4 h-4 rotate-180" />
-          </button>
+          <div className="flex items-center gap-4">
+            {/* Capture: Enter on the focused switch confirms the sale like everywhere else; Space toggles it. */}
+            <div
+              className="flex items-center gap-2.5"
+              onKeyDownCapture={(e) => {
+                if (e.key === 'Enter') {
+                  e.stopPropagation();
+                  handleKeyDown(e);
+                }
+              }}
+            >
+              <label htmlFor="payment-print-receipt-switch" className="text-sm font-bold text-ink dark:text-ink-dark cursor-pointer whitespace-nowrap">
+                طباعة الوصل
+              </label>
+              <ToggleSwitch
+                id="payment-print-receipt-switch"
+                size="sm"
+                checked={printReceipt}
+                onChange={handlePrintReceiptChange}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleConfirm()}
+              disabled={loading}
+              className="h-12 min-w-72 px-6 rounded-lg text-sm font-bold bg-brand hover:bg-brand-hover dark:bg-brand-container dark:hover:bg-brand text-white flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <ConfirmIcon className="w-5 h-5 shrink-0" />
+              <span>{loading ? 'ثواني، بنكمل البيع...' : confirmLabel}</span>
+            </button>
+          </div>
         </div>
       </div>
 

@@ -36,7 +36,7 @@ import {
   isBarcodeMatch
 } from '../utils/barcodeReader';
 import { parseScaleBarcode } from '../utils/scaleBarcode';
-import { parseInvoiceBarcode } from '../utils/invoiceBarcode';
+import { shouldPrintReceipt } from '../utils/receiptPrintPreference';
 import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
 
@@ -105,7 +105,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const canOverridePrice = isAdmin || hasPermission('pos.price_override');
   const { isEnabled } = useFeatures();
   const showFastItems = isEnabled('feature_fast_buttons');
-  const showCredit = isEnabled('feature_credit_debts');
   const showTaxes = isEnabled('feature_taxes');
   const isDdiActive = isEnabled('feature_drug_interactions') || isEnabled('feature_pharmacy');
   const showCafeMode = isEnabled('feature_cafe_restaurant');
@@ -125,28 +124,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
   const [isQuickItemsManagerOpen, setIsQuickItemsManagerOpen] = useState(false);
   const [isQuickFastItemModalOpen, setIsQuickFastItemModalOpen] = useState(false);
-  const [isCatalogCollapsed, setIsCatalogCollapsed] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('rafiq_pos_catalog_collapsed');
-      return saved === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const handleToggleCatalog = useCallback(() => {
-    setIsCatalogCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('rafiq_pos_catalog_collapsed', String(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  }, []);
-
-  const [returnInitialSale, setReturnInitialSale] = useState<Sale | null>(null);
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<number | null>(null);
   const [nextExpectedInvoiceNumber, setNextExpectedInvoiceNumber] = useState<number | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -402,7 +379,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
 
     if (isEnabled('feature_expiry_dates') && prod.isExpired && isExpiredBypassed) {
-      showStatus(`تم اعتماد إضافة الصنف المنتهي "${prod.name}" للسلة بتصريح إداري موثق.`, 'warning');
+      showStatus(`تم اعتماد إضافة الصنف المنتهي "${prod.name}" بتصريح إداري`, 'warning');
     }
 
     let unitToUse = specificUnit;
@@ -525,6 +502,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         barcode: (unitToUse && unitToUse.barcode) || prod.barcode,
         quantityMilli: qtyMilli,
         unitPricePiasters: unitPrice,
+        basePricePiasters: resolveBaseSellPrice(prod, isEnabled('feature_batch_pricing')),
         unitCostPiasters: unitCost,
         discountPiasters: 0,
         totalPiasters: totalPiasters,
@@ -618,7 +596,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       const currentFactor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
       const basePrice = baseUnit && baseUnit.sellPricePiasters > 0 
         ? baseUnit.sellPricePiasters 
-        : Math.round(item.unitPricePiasters / currentFactor);
+        : (item.basePricePiasters && item.basePricePiasters > 0
+          ? item.basePricePiasters
+          : Math.round(item.unitPricePiasters / currentFactor));
       const baseCost = baseUnit && baseUnit.costPricePiasters > 0 
         ? baseUnit.costPricePiasters 
         : Math.round(item.unitCostPiasters / currentFactor);
@@ -819,7 +799,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setDiscountPiasters(0);
     resetCartSession();
     void loadCafeStats();
-    showStatus(`تم تحميل الأصناف المفصولة من طاولة (${sourceTable.name}) للمحاسبة المباشرة`, 'success');
+    showStatus(`تم تحميل أصناف طاولة ${sourceTable.name}`, 'success');
   }, [resetCartSession, loadCafeStats, showStatus]);
 
   const handleSaveTableOrder = useCallback(async () => {
@@ -848,7 +828,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         setActiveTable((prev) => (prev ? { ...prev, activeHeldSaleId: updatedSale.id, currentTotalPiasters: netTotalPiasters } : null));
       }
       void loadCafeStats();
-      showStatus(`تم حفظ وتحديث طلب طاولة (${activeTable.name}) بنجاح!`, 'success');
+      showStatus(`تم حفظ طلب طاولة ${activeTable.name}`, 'success');
     } catch (err) {
       showStatus(err instanceof Error ? err.message : 'تعذر حفظ طلب الطاولة', 'error');
     } finally {
@@ -909,7 +889,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           kotPrintedQtyMilli: it.quantityMilli,
         }))
       );
-      showStatus(res?.message || 'تم إرسال أوردر المطبخ والبار (KOT) بنجاح!', 'success');
+      showStatus(res?.message || 'تم إرسال طلب المطبخ والبار (KOT)', 'success');
     } catch (err) {
       showStatus(err instanceof Error ? err.message : 'تعذر طباعة تذكرة المطبخ KOT', 'error');
     } finally {
@@ -959,7 +939,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         // ignore
       }
       await loadHeldSalesCount();
-      showStatus('تم تعليق الفاتورة بنجاح في قاعدة البيانات (F6)', 'success');
+      showStatus('تم تعليق الفاتورة', 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'تعذر تعليق الفاتورة';
       showStatus(msg, 'error');
@@ -1018,7 +998,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       return;
     }
     applyRecalledInvoiceDiscount(itemsToRestore, heldInvoiceDiscount);
-    showStatus(`تم استرجاع الفاتورة المعلقة بنجاح (${itemsToRestore.length} صنف)`, 'success');
+    showStatus(`تم استرجاع الفاتورة المعلقة (${itemsToRestore.length} صنف)`, 'success');
     barcodeInputRef.current?.focus();
   }, [catalogProducts, isEnabled, loadHeldSalesCount, resetCartSession, showStatus, applyRecalledInvoiceDiscount]);
 
@@ -1398,28 +1378,28 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }
       setLastCompletedSale(completedSale);
 
-      // Fast Retail Auto-Print Flow: By default in supermarkets and retail POS,
-      // silent background print is triggered immediately without any blocking preview modal.
-      try {
-        const autoPrintSetting = localStorage.getItem('rafiq_pos_printer_auto_print');
-        const isAutoPrint = autoPrintSetting !== '0';
-
-        if (isAutoPrint && window.chrome?.webview) {
-          void invoke('printer:printReceipt', { sale: completedSale }).catch((printErr) => {
-            console.warn('Auto print error:', printErr);
-          });
-          setIsReceiptOpen(false);
-        } else {
+      // Post-sale print flow: the cashier's print switch decides (falls back to the store setting).
+      // Print ON = silent print by sale id, no window; the preview opens only if printing fails so the cashier can retry.
+      // Print OFF = no print and no window (reprint stays available from the invoice history).
+      setIsReceiptOpen(false);
+      if (shouldPrintReceipt()) {
+        const reportPrintFailure = (printMsg: string) => {
+          showStatus(`تم حفظ الفاتورة #${completedSale.invoiceNumber || ''} لكن فشلت الطباعة: ${printMsg}`, 'warning');
           setIsReceiptOpen(true);
-        }
-      } catch {
-        setIsReceiptOpen(true);
+        };
+        void invoke<{ success?: boolean; message?: string }>('printer:printReceipt', { saleId: completedSale.id })
+          .then((res) => {
+            if (res && res.success === false) reportPrintFailure(res.message || 'تعذر إرسال أمر الطباعة');
+          })
+          .catch((printErr: unknown) => {
+            reportPrintFailure(printErr instanceof Error ? printErr.message : 'تعذر إرسال أمر الطباعة');
+          });
       }
 
       if (completedSale.negativeStockWarnings && completedSale.negativeStockWarnings.length > 0) {
-        showStatus(`تم حفظ الفاتورة #${completedSale.invoiceNumber || ''} بنجاح! [${completedSale.negativeStockWarnings[0]}]`, 'warning');
+        showStatus(`تم حفظ الفاتورة #${completedSale.invoiceNumber || ''} - ${completedSale.negativeStockWarnings[0]}`, 'warning');
       } else {
-        showStatus(`تم حفظ الفاتورة #${completedSale.invoiceNumber || ''} بنجاح!`, 'success');
+        showStatus(`تم حفظ الفاتورة #${completedSale.invoiceNumber || ''}`, 'success');
       }
 
       if (isEnabled('feature_patient_profiles') && selectedCustomerId) {
@@ -1598,53 +1578,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     barcodeInputRef.current?.focus();
   }, [addProductToCart, showStatus, loadSmartCatalog]);
 
-  const handleOpenScannedInvoice = useCallback(async (invMatch: ReturnType<typeof parseInvoiceBarcode>) => {
-    if (!invMatch) return false;
-    if (invMatch.type === 'sale') {
-      try {
-        setLoading(true);
-        let sale: Sale | null = null;
-        if (invMatch.invoiceNumber) {
-          sale = await invoke<Sale>('sales:getByInvoiceNumber', { invoiceNumber: invMatch.invoiceNumber });
-        } else if (invMatch.rawId) {
-          sale = await invoke<Sale>('sales:getById', { id: invMatch.rawId });
-        }
-
-        if (sale && sale.id) {
-          setLastCompletedSale(sale);
-          setIsReceiptOpen(true);
-          setBarcodeQuery('');
-          setIsSearchDropdownOpen(false);
-          setLiveSearchResults([]);
-          showStatus(`تم العثور على الفاتورة رقم #${sale.invoiceNumber} وعرض تفاصيلها بنجاح`, 'success');
-          return true;
-        } else {
-          showStatus(`لم يتم العثور على أي فاتورة برقم "${invMatch.invoiceNumber || invMatch.originalQuery}" في قاعدة البيانات`, 'warning');
-          setBarcodeQuery('');
-          setIsSearchDropdownOpen(false);
-          setLiveSearchResults([]);
-          return true;
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        showStatus(`تعذر فحص الفاتورة: ${msg}`, 'error');
-        setBarcodeQuery('');
-        return true;
-      } finally {
-        setLoading(false);
-        barcodeInputRef.current?.focus();
-      }
-    }
-    return false;
-  }, [showStatus]);
-
   const handleFastBarcodeScan = useCallback(async (scannedBarcode: string) => {
     if (!scannedBarcode) return;
-    const invMatch = parseInvoiceBarcode(scannedBarcode);
-    if (invMatch) {
-      const handled = await handleOpenScannedInvoice(invMatch);
-      if (handled) return;
-    }
     try {
       setLoading(true);
       const scaleInfo = isEnabled('feature_scale_weight') ? parseScaleBarcode(scannedBarcode) : null;
@@ -1715,7 +1650,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         setIsSearchDropdownOpen(false);
         const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
         const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000.0).toFixed(3)} كجم - ميزان)` : '';
-        showStatus(`تم مسح الباركود وإضافة: ${exactMatch.name}${unitSuffix}${weightDesc}`, 'success');
+        showStatus(`تمت إضافة: ${exactMatch.name}${unitSuffix}${weightDesc}`, 'success');
       } else {
         setUnregisteredBarcode(scannedBarcode);
         setIsQuickAddModalOpen(true);
@@ -1728,7 +1663,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setLoading(false);
       barcodeInputRef.current?.focus();
     }
-  }, [addProductToCart, showStatus, catalogProducts, isEnabled, handleOpenScannedInvoice]);
+  }, [addProductToCart, showStatus, catalogProducts, isEnabled]);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
@@ -1753,13 +1688,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     e.preventDefault();
     const query = convertArabicLayoutToBarcode(barcodeQuery.trim());
     if (!query) return;
-
-    // Story / Requirement: Distinct Invoice Barcode Instant Auto-Open
-    const invMatch = parseInvoiceBarcode(query);
-    if (invMatch) {
-      const handled = await handleOpenScannedInvoice(invMatch);
-      if (handled) return;
-    }
 
     // Priority 1: Check liveSearchResults for an exact barcode match (fast in-memory path)
     if (isSearchDropdownOpen && liveSearchResults.length > 0) {
@@ -2120,7 +2048,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     });
 
     showStatus(
-      `تم تحديد التشغيلة #${selectedBatch.batchNumber} للصنف بنجاح.`,
+      `تم تحديد التشغيلة #${selectedBatch.batchNumber}`,
       'success'
     );
     setBatchPickerState(null);
@@ -2225,7 +2153,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         conflicts: remainingConflicts,
       };
     });
-    showStatus('تمت إزالة الصنف المتعارض من السلة بنجاح', 'success');
+    showStatus('تمت إزالة الصنف المتعارض', 'success');
   }, [showStatus]);
 
   const handleRemoveAllAllergyConflicts = useCallback(() => {
@@ -2280,7 +2208,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
   const handleRemoveDdiConflictProduct = useCallback((productId: string) => {
     setCart((prev) => prev.filter((item) => item.productId !== productId));
-    showStatus('تمت إزالة الصنف المتعارض من السلة بنجاح', 'success');
+    showStatus('تمت إزالة الصنف المتعارض', 'success');
   }, [showStatus]);
 
   const handleSupervisorDdiOverride = useCallback(
@@ -2293,7 +2221,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         });
         if (res && res.success) {
           setIsDdiOverridden(true);
-          showStatus('تم اعتماد وتوثيق التخطي الإشرافي للتعارض الدوائي بنجاح.', 'success');
+          showStatus('تم اعتماد التخطي الإشرافي للتعارض الدوائي', 'success');
           return true;
         }
         return false;
@@ -2461,7 +2389,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setShortageInitialProductId('');
       setIsQuickShortageOpen(true);
     },
-    onToggleCatalog: handleToggleCatalog,
     hasPermission,
     isAdmin,
   });
@@ -2551,8 +2478,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
               barcodeInputRef.current?.focus();
             }}
             onNavigateToEpay={onNavigateToEpay}
-            onToggleCatalog={handleToggleCatalog}
-            isCatalogCollapsed={isCatalogCollapsed}
           />
 
           {/* Story 133: Clinical Allergy Conflict Warning Banner */}
@@ -2569,7 +2494,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
                   تحذير سريري خطير: المريض ({allergyCheckResult.patientName || allergyCheckResult.customerName || 'المريض'}) لديه تعارض حساسية مع {allergyCheckResult.conflicts.length} دواء بالسلة!
                 </span>
               </div>
-              <span className="text-[11px] font-bold underline text-danger dark:text-danger-bright shrink-0">
+              <span className="text-micro font-bold underline text-danger dark:text-danger-bright shrink-0">
                 مراجعة التعارض
               </span>
             </div>
@@ -2607,11 +2532,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 {isDdiOverridden && ddiResult.maxSeverity === 'severe' && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-paid-soft text-paid border border-paid/30">
+                  <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/30 dark:border-paid-bright/30">
                     معتمد إدارياً
                   </span>
                 )}
-                <span className={`text-[11px] font-bold underline ${
+                <span className={`text-micro font-bold underline ${
                   ddiResult.maxSeverity === 'severe'
                     ? 'text-danger dark:text-danger-bright'
                     : ddiResult.maxSeverity === 'moderate'
@@ -2634,7 +2559,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
                 setDiscountPiasters(draftPrompt.discountPiasters || 0);
                 if (draftPrompt.customerId) setSelectedCustomerId(draftPrompt.customerId);
                 setDraftPrompt(null);
-                showStatus('تم استرجاع السلة المفتوحة بنجاح!', 'success');
+                showStatus('تم استرجاع السلة المفتوحة', 'success');
               }
             }}
             onDiscardDraft={() => {
@@ -2718,24 +2643,20 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             heldSalesCount={heldSalesCount}
             onOpenHeldSales={requestOpenHeldSales}
             onOpenReturnModal={() => setIsReturnModalOpen(true)}
-            onOpenExpenseModal={() => setIsExpenseModalOpen(true)}
+            onOpenExpenseModal={hasPermission('expenses.create') ? () => setIsExpenseModalOpen(true) : undefined}
+            onOpenInvoiceDiscount={isAdmin || hasPermission('pos.discount_line') || canDiscountInvoice ? () => setIsDiscountModalOpen(true) : undefined}
             activeInsuranceClaim={activeInsuranceClaim}
             onRemoveInsuranceClaim={() => setActiveInsuranceClaim(null)}
             hasInstapayAccount={digitalAccounts.some((a) => a.accountType === 'instapay' && a.isActive) || Boolean(storeInstapayAddress) || !isEnabled('feature_digital_wallets')}
             hasWalletAccount={digitalAccounts.some((a) => a.accountType === 'wallet' && a.isActive) || Boolean(storeWalletNumber) || !isEnabled('feature_digital_wallets')}
             onNavigateToWallets={isEnabled('feature_digital_wallets') ? onNavigateToWallets : undefined}
             ddiResult={isDdiActive ? ddiResult : null}
-            onOpenDdiAlert={() => setIsDdiModalOpen(true)}
-            isDdiOverridden={isDdiOverridden}
           />
         </section>
 
         {/* ================= REGION B: SMART PRODUCTS & FAST ITEMS GRID ================= */}
         {showFastItems && (
           <PosCatalogPanel
-            isCollapsed={isCatalogCollapsed}
-            onToggleCollapse={handleToggleCatalog}
-            smartItems={smartItems}
             customItemsCount={customItemsCount}
             popularItemsCount={popularItemsCount}
             catalogSearchQuery={catalogSearchQuery}
@@ -2772,23 +2693,15 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
         {/* ================= REGION C: STORE CATEGORIES PANEL ================= */}
         {showFastItems && (
-          <div
-            className={`h-full overflow-hidden transition-[width,min-width,max-width,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-              isCatalogCollapsed
-                ? 'w-0 min-w-0 max-w-0 opacity-0 pointer-events-none'
-                : 'w-[58px] min-w-[58px] opacity-100'
-            }`}
-          >
-            <PosCategoriesPanel
-              categories={allPosCategories}
-              activeCatalogTab={activeCatalogTab}
-              onSelectCategory={setActiveCatalogTab}
-              totalProductsCount={smartItems.length}
-              popularItemsCount={popularItemsCount}
-              customItemsCount={customItemsCount}
-              categoryProductCounts={categoryProductCounts}
-            />
-          </div>
+          <PosCategoriesPanel
+            categories={allPosCategories}
+            activeCatalogTab={activeCatalogTab}
+            onSelectCategory={setActiveCatalogTab}
+            totalProductsCount={smartItems.length}
+            popularItemsCount={popularItemsCount}
+            customItemsCount={customItemsCount}
+            categoryProductCounts={categoryProductCounts}
+          />
         )}
       </div>
 
@@ -2804,10 +2717,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         isOpen={isReceiptOpen}
         onClose={() => setIsReceiptOpen(false)}
         sale={lastCompletedSale}
-        onOpenReturn={(s) => {
-          setReturnInitialSale(s);
-          setIsReturnModalOpen(true);
-        }}
       />
 
       {/* 4. CLEAR CART CONFIRMATION MODAL (Feature #112 / Task 112-2) */}
@@ -2855,22 +2764,24 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         onItemsChanged={loadQuickItems}
       />
 
-      {/* 8. QUICK FAST ITEM MODAL (Direct creation without inventory overhead) */}
-      <QuickFastItemModal
-        isOpen={isQuickFastItemModalOpen}
-        onClose={() => {
-          setIsQuickFastItemModalOpen(false);
-          barcodeInputRef.current?.focus();
-        }}
-        onItemAdded={(savedItem) => {
-          void loadQuickItems();
-          setActiveCatalogTab('__CUSTOM__');
-          showStatus(`تمت إضافة الصنف السريع "${savedItem.name}" بنجاح!`, 'success');
-        }}
-        onOpenFullManager={() => setIsQuickItemsManagerOpen(true)}
-        onOpenVariantMatrixModal={() => setShowVariantMatrixModal(true)}
-        existingCategories={categoryTabs.map(c => c.name).filter(n => n && n !== 'الكل' && n !== 'الأكثر طلباً')}
-      />
+      {/* 8. QUICK FAST ITEM MODAL (Direct creation without inventory overhead); mounted only while open so every open starts with a blank form */}
+      {isQuickFastItemModalOpen && (
+        <QuickFastItemModal
+          isOpen
+          onClose={() => {
+            setIsQuickFastItemModalOpen(false);
+            barcodeInputRef.current?.focus();
+          }}
+          onItemAdded={(savedItem) => {
+            void loadQuickItems();
+            setActiveCatalogTab('__CUSTOM__');
+            showStatus(`تمت إضافة الصنف السريع "${savedItem.name}"`, 'success');
+          }}
+          onOpenFullManager={() => setIsQuickItemsManagerOpen(true)}
+          onOpenVariantMatrixModal={() => setShowVariantMatrixModal(true)}
+          existingCategories={categoryTabs.map(c => c.name).filter(n => n && n !== 'الكل' && n !== 'الأكثر طلباً')}
+        />
+      )}
 
       {/* 9. OPEN PRICE NUMPAD PROMPT MODAL (Feature #20 / Task 20-5) */}
       <OpenPriceModal
@@ -2901,7 +2812,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           setSelectedCustomerId(id);
           if (!id) setPaymentMethod('cash');
         }}
-        showCredit={showCredit}
         customers={customers}
         onConfirmPayment={handleConfirmPayment}
         loading={loading}
@@ -3092,15 +3002,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       {/* 15. SALES RETURN MODAL (Feature #26 / Tasks 26-1 to 26-7) */}
       <ReturnModal
         isOpen={isReturnModalOpen}
-        initialSale={returnInitialSale}
         onClose={() => {
           setIsReturnModalOpen(false);
-          setReturnInitialSale(null);
           barcodeInputRef.current?.focus();
         }}
         onReturnCompleted={(ret) => {
           showStatus(`تم تسجيل المرتجع رقم #${ret.returnNumber} بقيمة ${formatArabicCurrency(ret.totalPiasters)}`, 'success');
-          setReturnInitialSale(null);
         }}
       />
 
@@ -3131,7 +3038,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         onSuccess={(result) => {
           setShowVariantMatrixModal(false);
           void loadSmartCatalog();
-          showStatus(`تم إنشاء مصفوفة المقاسات والألوان بنجاح للصنف "${result.parentProduct.name}"!`, 'success');
+          showStatus(`تم إنشاء مصفوفة المقاسات والألوان للصنف "${result.parentProduct.name}"`, 'success');
           barcodeInputRef.current?.focus();
         }}
       />
@@ -3166,7 +3073,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           barcodeInputRef.current?.focus();
         }}
         onExpenseAdded={() => {
-          showStatus('تم تسجيل المصروف وخصمه من الدرج بنجاح', 'success');
+          showStatus('تم تسجيل المصروف', 'success');
         }}
       />
 
@@ -3195,7 +3102,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         initialProductName={shortageInitialName}
         initialProductId={shortageInitialProductId}
         onSuccess={(entry) => {
-          showStatus(`تم تسجيل "${entry.productName}" في دفتر النواقص بنجاح`, 'success');
+          showStatus(`تم تسجيل "${entry.productName}" في دفتر النواقص`, 'success');
           barcodeInputRef.current?.focus();
         }}
       />
@@ -3395,9 +3302,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           initialTab={deliveryModalTab}
           currentDeliveryInfo={deliveryInfo}
           customers={customers}
-          canManageOrders={Boolean(isAdmin || (hasPermission && hasPermission('delivery.manage_orders')))}
-          canSettleRiders={Boolean(isAdmin || (hasPermission && hasPermission('delivery.settle_riders')))}
-          canConfigureZonesRiders={Boolean(isAdmin || (hasPermission && hasPermission('delivery.configure_zones_riders')))}
+          canManageOrders={Boolean(isAdmin || (hasPermission && hasPermission('delivery.orders.manage')))}
+          canSettleRiders={Boolean(isAdmin || (hasPermission && hasPermission('delivery.riders.settle')))}
+          canConfigureZonesRiders={Boolean(isAdmin || (hasPermission && hasPermission('delivery.zones_riders.configure')))}
           onApplyDeliveryInfo={(info) => {
             setOrderType('delivery');
             setDeliveryInfo(info);

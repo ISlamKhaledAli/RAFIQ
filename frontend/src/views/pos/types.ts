@@ -5,6 +5,8 @@ export interface CartItem extends SaleItem {
   taxRatePercent?: number;
   stockQuantityMilli?: number;
   productUnits?: ProductUnit[];
+  /** Catalogue base-unit price at add time; keeps package-unit switches exact (no round-trip through a package price). */
+  basePricePiasters?: number;
   isDivisible?: boolean;
   isControlled?: boolean;
   controlledSchedule?: string | null;

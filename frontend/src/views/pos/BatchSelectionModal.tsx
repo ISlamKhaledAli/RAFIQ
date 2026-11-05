@@ -77,7 +77,7 @@ export const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({
               <Layers className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-ink dark:text-ink-dark truncate">
+              <h3 className="t-modal-title text-ink dark:text-ink-dark truncate">
                 اختيار تشغيلة/دفعة محددة
               </h3>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted truncate mt-0.5">
@@ -132,25 +132,25 @@ export const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({
                         <bdi className="font-mono text-brand dark:text-brand-bright font-bold" dir="ltr">#{b.batchNumber}</bdi>
                       </div>
                       {isSelected && (
-                        <span className="px-1.5 py-0.2 bg-brand text-white text-[10px] font-bold rounded-md flex items-center gap-0.5">
+                        <span className="px-1.5 py-0.2 bg-brand text-white text-micro font-bold rounded-md flex items-center gap-0.5">
                           <Check className="w-2.5 h-2.5" /> المحددة حالياً
                         </span>
                       )}
                       {b.isExpired && (
-                        <span className="px-1.5 py-0.2 bg-danger-soft text-danger dark:text-danger-bright text-[10px] font-bold rounded-md flex items-center gap-0.5 border border-danger/20">
+                        <span className="px-1.5 py-0.2 bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright text-micro font-bold rounded-md flex items-center gap-0.5 border border-danger/20">
                           <AlertTriangle className="w-2.5 h-2.5" /> منتهية الصلاحية
                         </span>
                       )}
                       {!b.isExpired && b.isExpiringSoon && (
-                        <span className="px-1.5 py-0.2 bg-warn-soft text-warn dark:text-warn-bright text-[10px] font-bold rounded-md flex items-center gap-0.5 border border-warn/20">
+                        <span className="px-1.5 py-0.2 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold rounded-md flex items-center gap-0.5 border border-warn/20">
                           <Clock className="w-2.5 h-2.5" /> تقترب من الانتهاء
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-3 text-[11px] text-ink-muted dark:text-ink-dark-muted flex-wrap">
+                    <div className="flex items-center gap-3 text-micro text-ink-muted dark:text-ink-dark-muted flex-wrap">
                       <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-ink-muted" />
+                        <Calendar className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                         صلاحية: {b.expiryDate || 'غير محدد'}
                       </span>
                       <span>•</span>
@@ -164,7 +164,7 @@ export const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({
                   <div className="text-left shrink-0">
                     {hasCustomPrice ? (
                       <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-brand dark:text-brand-bright font-bold">
+                        <span className="text-micro text-brand dark:text-brand-bright font-bold">
                           سعر خاص بالتشغيلة
                         </span>
                         <span className="font-mono font-extrabold text-sm text-paid dark:text-paid-bright">
@@ -173,7 +173,7 @@ export const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({
                       </div>
                     ) : (
                       <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">
+                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                           سعر الكتالوج
                         </span>
                         <span className="font-mono font-medium text-xs text-ink dark:text-ink-dark">
@@ -186,17 +186,6 @@ export const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({
               );
             })
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-semibold hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
-          >
-            إلغاء
-          </button>
         </div>
       </div>
     </div>

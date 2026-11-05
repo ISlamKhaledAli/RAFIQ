@@ -19,6 +19,8 @@ import { CustomSelect } from '../../components/CustomSelect';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { useAuth } from '../../context/useAuth';
 import { invoke } from '../../bridge/ipc';
+import { printReport } from '../../utils/printReport';
+import { RequiredMark } from '../../components/RequiredMark';
 
 interface StorageLocationsModalProps {
   isOpen: boolean;
@@ -198,7 +200,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
   };
 
   const handlePrintDraftSheet = () => {
-    window.print();
+    void printReport({ kind: 'a4only' });
   };
 
   const filteredLocations = useMemo(() => {
@@ -229,7 +231,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright">
+            <div className="p-2.5 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright">
               <Layers className="w-5 h-5" />
             </div>
             <div>
@@ -258,17 +260,10 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                 <span className="text-sm font-bold text-ink dark:text-ink-dark">
                   {editingId ? 'تعديل بيانات موقع التخزين' : 'إضافة موقع تخزين أو رف جديد'}
                 </span>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="text-xs text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-                >
-                  إلغاء التحرير
-                </button>
               </div>
 
               {formError && (
-                <div className="p-3 bg-danger-soft dark:bg-danger-soft/20 text-danger dark:text-danger-bright rounded-lg text-xs flex items-center gap-2">
+                <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright rounded-lg text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{formError}</span>
                 </div>
@@ -277,7 +272,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                    كود الموقع / الرف *
+                    كود الموقع / الرف <RequiredMark />
                   </label>
                   <input
                     type="text"
@@ -291,7 +286,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                    اسم الرف أو الوصف المختصر *
+                    اسم الرف أو الوصف المختصر <RequiredMark />
                   </label>
                   <input
                     type="text"
@@ -305,7 +300,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                    نوع الموقع *
+                    نوع الموقع
                   </label>
                   <CustomSelect
                     value={type}
@@ -335,7 +330,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                     type="checkbox"
                     checked={isActive}
                     onChange={(e) => setIsActive(e.target.checked)}
-                    className="rounded border-line text-brand focus:ring-brand w-4 h-4"
+                    className="rounded border-line dark:border-line-dark text-brand focus:ring-brand w-4 h-4"
                   />
                   <span>الموقع نشط ومتاح للتسكين</span>
                 </label>
@@ -344,14 +339,14 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-3 py-1.5 text-xs font-medium text-ink-muted dark:text-ink-dark-muted hover:text-ink rounded border border-line dark:border-line-dark cursor-pointer"
+                    className="px-3 py-1.5 text-xs font-medium text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded border border-line dark:border-line-dark cursor-pointer"
                   >
                     إلغاء
                   </button>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-4 py-1.5 bg-brand hover:bg-brand-dark text-white rounded text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+                    className="px-4 py-1.5 bg-brand hover:bg-brand-dark text-white rounded text-xs font-bold transition-colors disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer shadow-xs"
                   >
                     {saving ? 'جاري الحفظ...' : editingId ? 'تحديث الموقع' : 'إضافة الموقع'}
                   </button>
@@ -443,11 +438,11 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                         <td className="p-3">
                           <div className="font-semibold text-ink dark:text-ink-dark">{loc.name}</div>
                           {loc.description && (
-                            <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted">{loc.description}</div>
+                            <div className="text-micro text-ink-muted dark:text-ink-dark-muted">{loc.description}</div>
                           )}
                         </td>
                         <td className="p-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-micro font-medium ${
                             isFridge
                               ? 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800'
                               : 'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark'
@@ -464,12 +459,12 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                         </td>
                         <td className="p-3">
                           {loc.isActive ? (
-                            <span className="inline-flex items-center gap-1 text-paid dark:text-paid-bright font-medium text-[11px]">
+                            <span className="inline-flex items-center gap-1 text-paid dark:text-paid-bright font-medium text-micro">
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               <span>نشط</span>
                             </span>
                           ) : (
-                            <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">معطل</span>
+                            <span className="text-ink-muted dark:text-ink-dark-muted text-micro">معطل</span>
                           )}
                         </td>
                         <td className="p-3">
@@ -528,17 +523,6 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
             </table>
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="px-6 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark rounded-lg text-xs font-bold border border-line dark:border-line-dark transition-colors cursor-pointer shadow-xs"
-          >
-            إغلاق
-          </button>
-        </div>
       </div>
 
       {/* Draft Inventory Sheet Viewer Modal (Task 185-5) */}
@@ -548,12 +532,13 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
           onClick={handleDraftBackdropClick}
         >
           <div
+            data-print-root
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-3xl bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark flex flex-col max-h-[85vh] overflow-hidden animate-in fade-in zoom-in-95"
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-paid-soft text-paid dark:text-paid-bright">
+                <div className="p-2 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright">
                   <FileSpreadsheet className="w-5 h-5" />
                 </div>
                 <div>
@@ -567,7 +552,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
               </div>
               <button
                 onClick={() => setDraftSheet(null)}
-                className="p-1.5 text-ink-muted hover:text-ink rounded-lg cursor-pointer"
+                className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -604,14 +589,14 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                   <tbody className="divide-y divide-line dark:divide-line-dark">
                     {draftSheet.items.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="p-6 text-center text-ink-muted">
+                        <td colSpan={7} className="p-6 text-center text-ink-muted dark:text-ink-dark-muted">
                           لا توجد أصناف مسكنة على هذا الرف حالياً
                         </td>
                       </tr>
                     ) : (
                       draftSheet.items.map((item, index) => (
-                        <tr key={item.productId} className="hover:bg-surface-2/40">
-                          <td className="p-2.5 font-mono text-ink-muted">{index + 1}</td>
+                        <tr key={item.productId} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40">
+                          <td className="p-2.5 font-mono text-ink-muted dark:text-ink-dark-muted">{index + 1}</td>
                           <td className="p-2.5 font-semibold text-ink dark:text-ink-dark">
                             <div className="flex items-center gap-1.5">
                               {item.isColdChain && (
@@ -620,7 +605,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                               <span>{item.productName}</span>
                             </div>
                           </td>
-                          <td className="p-2.5 font-mono text-ink-muted">{item.barcode || '—'}</td>
+                          <td className="p-2.5 font-mono text-ink-muted dark:text-ink-dark-muted">{item.barcode || '—'}</td>
                           <td className="p-2.5">{item.unitName}</td>
                           <td className="p-2.5 font-mono font-bold text-ink dark:text-ink-dark">
                             {item.bookStockQuantityMilli / 1000}
@@ -637,19 +622,9 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                   </tbody>
                 </table>
               </div>
-            </div>
-
-            <div className="px-6 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex justify-between items-center">
-              <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">
                 كشف الجرد الفعلي يملأ يدوياً بقلم الكاشير/الجارد لمطابقة الأرصدة
-              </span>
-              <button
-                type="button"
-                onClick={() => setDraftSheet(null)}
-                className="px-4 py-2 bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark rounded-lg text-xs font-bold border border-line dark:border-line-dark cursor-pointer"
-              >
-                إغلاق
-              </button>
+              </p>
             </div>
           </div>
         </div>

@@ -37,6 +37,8 @@ import type { AuditLogEntry, AuditChainVerificationResult } from '../types/model
 import type { UserDto } from '../bridge/ipc';
 import { piastersToPounds } from '../utils/money';
 
+const AUDIT_PAGE_SIZE_OPTIONS = [15, 25, 50, 100];
+
 const ACTION_FILTERS = [
   { id: '', label: 'كل العمليات الحساسة' },
   { id: 'price_update', label: 'تعديل سعر البيع' },
@@ -255,7 +257,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
             <ArrowRightLeft className="w-3 h-3 text-ink-muted" />
             <span className="text-paid dark:text-paid-bright font-bold font-mono">{total} ج.م</span>
             {Boolean(details.authorizedBy) && (
-              <span className="text-[11px] text-ink-muted bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-line">
+              <span className="text-micro text-ink-muted bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-line">
                 اعتماد: {String(details.authorizedBy)}
               </span>
             )}
@@ -360,11 +362,11 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
             <div className="text-xs font-sans text-ink dark:text-ink-dark flex items-center gap-1.5 flex-wrap">
               <span className="font-semibold text-brand dark:text-brand-bright">تعديل إعدادات:</span>
               {changes.slice(0, 2).map((c, idx) => (
-                <span key={idx} className="bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded text-[11px] font-mono border border-line">
+                <span key={idx} className="bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded text-micro font-mono border border-line">
                   {c.key}: <span className="text-danger line-through">{c.oldValue || 'فارغ'}</span> {'->'} <span className="text-paid font-bold">{c.newValue || 'فارغ'}</span>
                 </span>
               ))}
-              {changes.length > 2 && <span className="text-[11px] text-ink-muted font-bold">+{changes.length - 2} إعدادات أخرى</span>}
+              {changes.length > 2 && <span className="text-micro text-ink-muted font-bold">+{changes.length - 2} إعدادات أخرى</span>}
             </div>
           );
         }
@@ -408,14 +410,14 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
     switch (action) {
       case 'drawer_manual_open':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 flex items-center gap-1">
             <ShieldAlert className="w-3 h-3" />
             <span>{label || 'فتح الدرج يدوياً'}</span>
           </span>
         );
       case 'sale_discount':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30 flex items-center gap-1">
             <Percent className="w-3 h-3" />
             <span>{label || 'إعطاء خصم'}</span>
           </span>
@@ -423,105 +425,105 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
       case 'sale_cancel':
       case 'sale_void':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 flex items-center gap-1">
             <XCircle className="w-3 h-3" />
             <span>{label || 'إلغاء فاتورة'}</span>
           </span>
         );
       case 'sale_refund':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30 flex items-center gap-1">
             <RotateCcw className="w-3 h-3" />
             <span>{label || 'مرتجع مبيعات'}</span>
           </span>
         );
       case 'sale_reprint':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark flex items-center gap-1">
             <Printer className="w-3 h-3" />
             <span>{label || 'إعادة طباعة'}</span>
           </span>
         );
       case 'price_update':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
             <span>{label || 'تعديل سعر بيع'}</span>
           </span>
         );
       case 'cost_update':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30 flex items-center gap-1">
             <Tag className="w-3 h-3" />
             <span>{label || 'تعديل تكلفة شراء'}</span>
           </span>
         );
       case 'stock_adjust':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20 flex items-center gap-1">
             <ArrowRightLeft className="w-3 h-3" />
             <span>{label || 'تسوية مخزن'}</span>
           </span>
         );
       case 'sale_create':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/20 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/20 flex items-center gap-1">
             <FileText className="w-3 h-3" />
             <span>{label || 'إصدار فاتورة'}</span>
           </span>
         );
       case 'settings_update':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark flex items-center gap-1">
             <Sliders className="w-3 h-3" />
             <span>{label || 'تعديل إعدادات'}</span>
           </span>
         );
       case 'USER_LOGIN':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 flex items-center gap-1">
             <LogIn className="w-3 h-3" />
             <span>{label || 'تسجيل دخول'}</span>
           </span>
         );
       case 'USER_LOGOUT':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line flex items-center gap-1">
             <LogOut className="w-3 h-3" />
             <span>{label || 'تسجيل خروج'}</span>
           </span>
         );
       case 'LOGIN_FAILED':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border flex items-center gap-1">
             <AlertOctagon className="w-3 h-3" />
             <span>{label || 'محاولة فاشلة'}</span>
           </span>
         );
       case 'DRAWER_CASH_IN':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 flex items-center gap-1">
             <ArrowDownRight className="w-3 h-3" />
             <span>{label || 'إيداع بالدرج'}</span>
           </span>
         );
       case 'DRAWER_CASH_OUT':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border flex items-center gap-1">
             <ArrowUpRight className="w-3 h-3" />
             <span>{label || 'سحب من الدرج'}</span>
           </span>
         );
       case 'credit_limit_override':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border flex items-center gap-1">
             <Lock className="w-3 h-3" />
             <span>{label || 'تجاوز حد الائتمان'}</span>
           </span>
         );
       default:
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark">
+          <span className="px-2 py-0.5 rounded text-micro font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark">
             {label || action}
           </span>
         );
@@ -537,10 +539,10 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
             <ShieldAlert className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-ink dark:text-ink-dark leading-tight m-0">
+            <h2 className="t-page-title text-ink dark:text-ink-dark leading-tight m-0">
               سجل التدقيق الرقابي والعمليات الحساسة (Audit Log)
             </h2>
-            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 hidden sm:block">
+            <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0 hidden sm:block">
               توثيق شامل ومحصّن ضد التعديل لفتح الدرج والخصومات وتعديل الأسعار وحركات الأمان
             </p>
           </div>
@@ -613,7 +615,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -635,15 +637,15 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
               <CheckCircle2 className="w-5 h-5 shrink-0 text-paid dark:text-paid-bright" />
             )}
             <div>
-              <p className="font-bold m-0 text-xs sm:text-[13px]">
+              <p className="font-bold m-0 text-xs sm:text-sm">
                 {verification.isTampered 
                   ? 'تحذير أمان: تم اكتشاف تلاعب مباشر بسجل العمليات من خارج النظام!' 
                   : 'سلسلة العمليات سليمة ومحمية بالتوقيع الرقمي بنسبة 100%'}
               </p>
-              <p className="m-0 text-[11px] opacity-90">
+              <p className="m-0 text-micro opacity-90">
                 {verification.isTampered 
                   ? verification.errorMessage 
-                  : `تم فحص وتأكيد سلامة جميع السجلات (${verification.totalRecordsVerified} حركة) ومطابقة بصمات SHA-256 بنجاح، ومفيش أي سجل اتعدل أو اتمسح من بره البرنامج.`}
+                  : `تم فحص كل السجلات (${verification.totalRecordsVerified} حركة) وبصمات SHA-256 سليمة، ومفيش أي سجل اتعدل أو اتمسح من بره البرنامج.`}
               </p>
             </div>
           </div>
@@ -660,10 +662,6 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
                 <span>{resealing ? 'جارِ التأمين...' : 'إعادة ختم وتأمين السلسلة'}</span>
               </button>
             )}
-            <div className="flex items-center gap-1 font-mono text-[11px] bg-surface/80 dark:bg-surface-dark/80 px-2.5 py-1 rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark">
-              <Lock className="w-3 h-3 text-paid dark:text-paid-bright" />
-              <span>SHA-256 Tamper-Proof</span>
-            </div>
           </div>
         </div>
       )}
@@ -690,8 +688,8 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
           ) : logs.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-ink-muted dark:text-ink-muted-dark gap-2 p-6">
               <ShieldAlert className="w-12 h-12 stroke-[1.2] text-ink-muted dark:text-ink-muted-dark opacity-40" />
-              <p className="text-[14px] font-semibold text-ink dark:text-ink-dark m-0">مفيش أي عمليات مطابقة للفلترة الحالية</p>
-              <p className="text-[12px] text-ink-muted dark:text-ink-muted-dark m-0">
+              <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">مفيش أي عمليات مطابقة للفلترة الحالية</p>
+              <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0">
                 كل تعديل في الأسعار أو فتح للدرج أو خصم أو حذف بيتسجل ويتوثق هنا تلقائياً لحماية المحل
               </p>
             </div>
@@ -734,7 +732,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
                   </div>
 
                   <div 
-                    className="col-span-1 flex items-center justify-end gap-1 font-mono text-[10px] text-ink-muted dark:text-ink-muted-dark truncate" 
+                    className="col-span-1 flex items-center justify-end gap-1 font-mono text-micro text-ink-muted dark:text-ink-muted-dark truncate" 
                     title={`معرف السجل: ${log.id}\nبصمة التشفير: ${log.recordHash || 'محسوبة'}\nبصمة السجل السابق: ${log.prevHash || 'Genesis'}`}
                   >
                     <Lock className="w-2.5 h-2.5 text-paid dark:text-paid-bright shrink-0" />
@@ -748,26 +746,25 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
 
         {/* Table Footer */}
         <div className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark shrink-0">
-          <span className="text-[11px]">
-            إجمالي السجلات المطابقة: <strong className="font-mono text-ink dark:text-ink-dark">{logs.length}</strong> حركة أمان
-          </span>
-          <span className="font-mono text-[11px] text-paid dark:text-paid-bright flex items-center gap-1">
+          <span className="font-mono text-micro text-paid dark:text-paid-bright flex items-center gap-1">
             <Lock className="w-3 h-3 text-paid dark:text-paid-bright" />
             سجل أمان غير قابل للتعديل ومحصّن بـ SQLite Triggers وبصمة SHA-256
           </span>
         </div>
       </div>
 
-      {/* Pagination Bar */}
-      <PaginationBar
-        currentPage={currentPage}
-        pageSize={pageSize}
-        totalCount={logs.length}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={setPageSize}
-        pageSizeOptions={[15, 25, 50, 100]}
-        itemLabel="عملية"
-      />
+      {/* Pagination Bar: only when more than one page is possible (rows are already numbered) */}
+      {logs.length > AUDIT_PAGE_SIZE_OPTIONS[0] && (
+        <PaginationBar
+          currentPage={currentPage}
+          pageSize={pageSize}
+          totalCount={logs.length}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={AUDIT_PAGE_SIZE_OPTIONS}
+          itemLabel="عملية"
+        />
+      )}
     </div>
   );
 };

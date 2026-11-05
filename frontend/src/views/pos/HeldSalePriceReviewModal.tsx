@@ -39,7 +39,7 @@ export const HeldSalePriceReviewModal: React.FC<HeldSalePriceReviewModalProps> =
       <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-xl border border-line dark:border-line-dark w-full max-w-lg p-5">
         <div className="flex items-center gap-2 mb-3 pb-2 hairline-b">
           <AlertTriangle className="w-5 h-5 text-warn dark:text-warn-bright shrink-0" />
-          <h3 className="text-base font-bold text-ink dark:text-ink-dark">تغيرت أسعار بعض أصناف الفاتورة المعلقة</h3>
+          <h3 className="t-modal-title text-ink dark:text-ink-dark">تغيرت أسعار بعض أصناف الفاتورة المعلقة</h3>
         </div>
         <p className="text-xs text-ink-muted dark:text-ink-dark-muted mb-3">
           تم استرجاع الفاتورة بالأسعار التي عُلّقت بها (السعر الذي أُبلغ به العميل). الأصناف التالية سعرها الحالي في الكتالوج مختلف:

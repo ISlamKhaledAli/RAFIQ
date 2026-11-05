@@ -49,10 +49,10 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm sm:text-base text-ink dark:text-ink-dark">
+                <h3 className="t-modal-title text-ink dark:text-ink-dark">
                   المرضى المستحقين لصرف العلاج الشهري
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-warn text-white">
+                <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-warn text-white dark:bg-warn-bright dark:text-surface-dark">
                   {alerts.length} مريض
                 </span>
               </div>
@@ -89,8 +89,8 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
             <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted">
               <Users className="w-10 h-10 text-ink-muted/30 mx-auto mb-2" />
               <p className="text-xs font-bold">لا يوجد مرضى مستحقين لصرف الدواء في الوقت الحالي</p>
-              <p className="text-[11px] text-ink-muted/70 mt-1">
-                جميع المرضى تم صرف أدويتهم الشهرية بنجاح ومواعيدهم القادمة منتظمة
+              <p className="text-micro text-ink-muted/70 mt-1">
+                تم صرف الأدوية الشهرية لجميع المرضى
               </p>
             </div>
           ) : (
@@ -112,11 +112,11 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
                           {patient.customerName}
                         </span>
                         {hasOverdue ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-danger text-white">
+                          <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-danger text-white">
                             فات موعد الصرف
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-warn text-white">
+                          <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-warn text-white dark:bg-warn-bright dark:text-surface-dark">
                             مستحق الآن
                           </span>
                         )}
@@ -148,7 +148,7 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
 
                   {/* Medications Pills */}
                   <div className="mt-2.5 pt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 ml-1">
+                    <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 ml-1">
                       <Pill className="w-3 h-3 text-brand" />
                       الأدوية المستحقة:
                     </span>
@@ -161,7 +161,7 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
                       </span>
                     ))}
                     {patient.earliestDueDate && (
-                      <span className="mr-auto text-[10px] font-mono text-ink-muted dark:text-ink-dark-muted">
+                      <span className="mr-auto text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
                         تاريخ الاستحقاق: {patient.earliestDueDate}
                       </span>
                     )}
@@ -170,20 +170,6 @@ export const DuePatientsModal: React.FC<DuePatientsModalProps> = ({
               );
             })
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
-          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
-            إجمالي المرضى المستحقين: {alerts.length}
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-8.5 px-4 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 rounded-xl text-xs font-bold text-ink transition-colors cursor-pointer"
-          >
-            إغلاق
-          </button>
         </div>
       </div>
     </div>

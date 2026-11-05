@@ -53,12 +53,12 @@ namespace RafiqPOS.Services
             // -------------------------------------------------------------
             try
             {
-                string invoiceBarcode = "RFQ-INV-00001001";
+                string invoiceBarcode = "00001001";
                 string bits = BarcodeGenerator.EncodeCode128(invoiceBarcode);
 
                 assert("Barcode_Encode_NotEmpty", !string.IsNullOrEmpty(bits), "طول البتات: " + (bits != null ? bits.Length : 0));
-                // Code 128 subset B: 11 (Start) + 16*11 (Chars) + 11 (Checksum) + 13 (Stop) = 211 bits
-                assert("Barcode_BitLength_Valid", bits != null && bits.Length == 211, "طول سلسلة بتات الباركود 211 بت متوافق مع ISO 15417");
+                // Code 128 subset B: 11 (Start) + 8*11 (Chars) + 11 (Checksum) + 13 (Stop) = 123 bits
+                assert("Barcode_BitLength_Valid", bits != null && bits.Length == 123, "طول سلسلة بتات الباركود 123 بت متوافق مع ISO 15417");
 
                 // رسم الباركود في مستطيل رسومي دون استثناءات
                 using (var bmp = new Bitmap(280, 50))
@@ -180,12 +180,13 @@ namespace RafiqPOS.Services
                     CreatedAt = DateTime.UtcNow.ToString("o"),
                     CashierId = "كاشير تجريبي",
                     PaymentMethod = "cash",
-                    SubtotalPiasters = 12500,
+                    // الأسعار شاملة الضريبة: الإجمالي = مجموع الأصناف (17600) - خصم الفاتورة (500)
+                    SubtotalPiasters = 17600,
                     DiscountPiasters = 500,
-                    TaxPiasters = 1680,
-                    TotalPiasters = 13680,
-                    PaidPiasters = 15000,
-                    ChangePiasters = 1320,
+                    TaxPiasters = 2100,
+                    TotalPiasters = 17100,
+                    PaidPiasters = 20000,
+                    ChangePiasters = 2900,
                     Notes = "ملاحظات الفاتورة: تم الدفع نقداً",
                     Items = new List<SaleItem>
                     {
@@ -194,6 +195,22 @@ namespace RafiqPOS.Services
                         new SaleItem { ProductName = "كرتونة مياه معدنية 12 زجاجة", QuantityMilli = 500, UnitPricePiasters = 6000, TotalPiasters = 3000, Unit = "piece", UnitName = "نصف كرتونة" }
                     }
                 };
+
+                // هوية الإجماليات: مجموع (سعر x كمية) = المجموع الفرعي، والمجموع الفرعي - الخصومات = الإجمالي
+                long fixtureGross = 0;
+                long fixtureLineDiscounts = 0;
+                for (int fi = 0; fi < testSale.Items.Count; fi++)
+                {
+                    fixtureGross += Money.FromPiasters(testSale.Items[fi].UnitPricePiasters).MultiplyByMilliUnits(testSale.Items[fi].QuantityMilli).Piasters;
+                    fixtureLineDiscounts += testSale.Items[fi].DiscountPiasters;
+                }
+                assert("RenderReceipt_Fixture_Subtotal_Matches_Lines", fixtureGross == testSale.SubtotalPiasters,
+                    "مجموع الأصناف " + fixtureGross + " = المجموع الفرعي " + testSale.SubtotalPiasters);
+                assert("RenderReceipt_Fixture_Totals_Identity",
+                    testSale.SubtotalPiasters - fixtureLineDiscounts - testSale.DiscountPiasters + testSale.ServiceChargePiasters + testSale.DeliveryFeePiasters == testSale.TotalPiasters,
+                    "المجموع الفرعي - الخصومات + الرسوم = الإجمالي النهائي");
+                assert("RenderReceipt_Fixture_Payment_Identity", testSale.PaidPiasters - testSale.ChangePiasters == testSale.TotalPiasters,
+                    "المدفوع - الباقي = الإجمالي النهائي");
 
                 // اختبار مقاس 80mm
                 using (var bmp80 = printerService.RenderReceiptToBitmap(testSale, "80mm", false))

@@ -176,7 +176,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
                 <span className="inline-block text-xs font-bold bg-white/25 px-2.5 py-0.5 rounded-full mb-1">
                   {currentStep.badgeText}
                 </span>
-                <h2 className="text-xl font-black leading-tight">{currentStep.title}</h2>
+                <h2 className="t-modal-title leading-tight">{currentStep.title}</h2>
               </div>
             </div>
             <button
@@ -197,7 +197,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
                 onClick={() => setCurrentStepIndex(idx)}
                 className={`h-2 transition-all rounded-full ${
                   idx === currentStepIndex
-                    ? 'w-8 bg-white shadow'
+                    ? 'w-8 bg-white dark:bg-surface-dark shadow'
                     : idx < currentStepIndex
                     ? 'w-3 bg-white/70'
                     : 'w-2 bg-white/30'
@@ -216,7 +216,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
 
           {/* Key Features List */}
           <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-4 space-y-2.5">
-            <h4 className="text-xs font-black text-ink-muted dark:text-ink-dark-muted flex items-center gap-2">
+            <h4 className="t-label text-ink-muted dark:text-ink-dark-muted flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright" />
               أهم المزايا في هذه الشاشة
             </h4>
@@ -258,7 +258,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
                   onClose();
                   onLoadDemoData();
                 }}
-                className="text-xs text-brand dark:text-brand-bright hover:text-brand-dark font-bold bg-brand/10 dark:bg-brand-dark-soft hover:bg-brand/20 px-3 py-2 rounded-lg border border-brand/30 dark:border-brand-bright/30 transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="text-xs text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-brand-bright font-bold bg-brand/10 dark:bg-brand-dark-soft hover:bg-brand/20 px-3 py-2 rounded-lg border border-brand/30 dark:border-brand-bright/30 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 تحميل بيانات تجريبية للتدريب

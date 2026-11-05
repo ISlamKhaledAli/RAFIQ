@@ -38,6 +38,7 @@ namespace RafiqPOS.Services
         private Return ProcessReturnCore(Return returnObj, string supervisorPin)
         {
             if (returnObj == null) throw new ArgumentNullException("returnObj");
+            returnObj.TotalsComputedByService = false;
             if (returnObj.Items == null || returnObj.Items.Count == 0)
             {
                 throw new InvalidOperationException("لا يمكن حفظ مرتجع بدون أصناف");
@@ -216,13 +217,20 @@ namespace RafiqPOS.Services
                     var requestedInThisReturn = new Dictionary<string, long>();
                     var refundedTotalSoFar = new Dictionary<string, long>();
                     var refundedTotalBySaleItem = new Dictionary<string, long>();
+                    // Legacy returns saved without SaleItemId: charged to a line only when it is the sale's sole line for that product+unit
+                    var legacyRefundedByProductUnit = new Dictionary<string, long>();
                     for (int r = 0; r < pastReturns.Count; r++)
                     {
                         if (pastReturns[r].Items == null) continue;
                         for (int pi = 0; pi < pastReturns[r].Items.Count; pi++)
                         {
                             var pastItem = pastReturns[r].Items[pi];
-                            if (string.IsNullOrEmpty(pastItem.SaleItemId)) continue;
+                            if (string.IsNullOrEmpty(pastItem.SaleItemId))
+                            {
+                                string legacyKey = (pastItem.ProductId ?? "") + "_" + (pastItem.Unit ?? "");
+                                legacyRefundedByProductUnit[legacyKey] = (legacyRefundedByProductUnit.ContainsKey(legacyKey) ? legacyRefundedByProductUnit[legacyKey] : 0) + pastItem.TotalPiasters;
+                                continue;
+                            }
                             refundedTotalBySaleItem[pastItem.SaleItemId] = (refundedTotalBySaleItem.ContainsKey(pastItem.SaleItemId) ? refundedTotalBySaleItem[pastItem.SaleItemId] : 0) + pastItem.TotalPiasters;
                         }
                     }
@@ -244,28 +252,15 @@ namespace RafiqPOS.Services
                             }
                         }
 
+                        // Lines without a sale item id: pick the same-product line that still has returnable quantity (L7)
                         if (origItem == null && !string.IsNullOrEmpty(it.Unit))
                         {
-                            for (int j = 0; j < origSale.Items.Count; j++)
-                            {
-                                if (origSale.Items[j].ProductId == it.ProductId && string.Equals(origSale.Items[j].Unit, it.Unit, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    origItem = origSale.Items[j];
-                                    break;
-                                }
-                            }
+                            origItem = FindReturnableLine(origSale, it, true, returnedQtyBySaleItem, returnedQtyByProductUnit, requestedInThisReturn);
                         }
 
                         if (origItem == null)
                         {
-                            for (int j = 0; j < origSale.Items.Count; j++)
-                            {
-                                if (origSale.Items[j].ProductId == it.ProductId)
-                                {
-                                    origItem = origSale.Items[j];
-                                    break;
-                                }
-                            }
+                            origItem = FindReturnableLine(origSale, it, false, returnedQtyBySaleItem, returnedQtyByProductUnit, requestedInThisReturn);
                         }
 
                         if (origItem == null)
@@ -273,19 +268,7 @@ namespace RafiqPOS.Services
                             throw new InvalidOperationException(string.Format("الصنف '{0}' غير موجود في الفاتورة الأصلية #{1}.", it.ProductName, origSale.InvoiceNumber));
                         }
 
-                        long alreadyReturned = 0;
-                        if (!string.IsNullOrEmpty(origItem.Id) && returnedQtyBySaleItem.ContainsKey(origItem.Id))
-                        {
-                            alreadyReturned = returnedQtyBySaleItem[origItem.Id];
-                        }
-                        else
-                        {
-                            string unitKey = (it.ProductId ?? "") + "_" + (it.Unit ?? origItem.Unit ?? "");
-                            if (returnedQtyByProductUnit.ContainsKey(unitKey))
-                            {
-                                alreadyReturned = returnedQtyByProductUnit[unitKey];
-                            }
-                        }
+                        long alreadyReturned = AlreadyReturnedForLine(origSale, origItem, it, returnedQtyBySaleItem, returnedQtyByProductUnit);
 
                         long maxAllowable = origItem.QuantityMilli - alreadyReturned;
                         string origKey = !string.IsNullOrEmpty(origItem.Id) ? origItem.Id : ((origItem.ProductId ?? "") + "_" + (origItem.Unit ?? ""));
@@ -322,6 +305,11 @@ namespace RafiqPOS.Services
                         {
                             refundedBefore += refundedTotalBySaleItem[origItem.Id];
                         }
+                        string legacyLineKey = (origItem.ProductId ?? "") + "_" + (origItem.Unit ?? "");
+                        if (legacyRefundedByProductUnit.ContainsKey(legacyLineKey) && IsSoleLineForProductUnit(origSale, origItem))
+                        {
+                            refundedBefore += legacyRefundedByProductUnit[legacyLineKey];
+                        }
                         if (alreadyReturned + requestedInThisReturn[origKey] == origItem.QuantityMilli)
                         {
                             proportionalTotal = Math.Max(0, origItem.TotalPiasters - refundedBefore);
@@ -338,11 +326,12 @@ namespace RafiqPOS.Services
                         {
                             it.Unit = origItem.Unit;
                         }
-                        if (string.IsNullOrEmpty(it.SaleItemId))
-                        {
-                            it.SaleItemId = origItem.Id;
-                        }
+                        // Always bind to the resolved original line so a client-supplied id cannot defeat per-line bounds
+                        it.SaleItemId = origItem.Id;
                     }
+
+                    // Totals for every line were computed above from the validated original invoice
+                    returnObj.TotalsComputedByService = true;
 
                     // Enforce financial ceiling for refunds on credit sales (Senior QA Invariant)
                     // If returning an unpaid credit sale, cash or digital money cannot be disbursed;
@@ -561,6 +550,76 @@ namespace RafiqPOS.Services
             }
 
             return _returnRepo.CreateReturnAtomic(returnObj);
+        }
+
+        // Quantity already returned against one original line. Per-line history is authoritative; the product+unit
+        // total is only a fallback for legacy returns saved without SaleItemId, and only when that line is the
+        // sale's single line for the product+unit (otherwise another line's returns would be charged to this one).
+        private static long AlreadyReturnedForLine(Sale origSale, SaleItem line, ReturnItem it,
+            Dictionary<string, long> returnedQtyBySaleItem, Dictionary<string, long> returnedQtyByProductUnit)
+        {
+            long bySaleItem = 0;
+            if (!string.IsNullOrEmpty(line.Id) && returnedQtyBySaleItem.ContainsKey(line.Id))
+            {
+                bySaleItem = returnedQtyBySaleItem[line.Id];
+            }
+
+            string unit = !string.IsNullOrEmpty(it.Unit) ? it.Unit : (line.Unit ?? "");
+            int sameProductUnitLines = 0;
+            for (int j = 0; j < origSale.Items.Count; j++)
+            {
+                SaleItem s = origSale.Items[j];
+                if (s.ProductId == line.ProductId && string.Equals(s.Unit ?? "", unit, StringComparison.OrdinalIgnoreCase))
+                {
+                    sameProductUnitLines++;
+                }
+            }
+
+            long byProductUnit = 0;
+            if (sameProductUnitLines == 1)
+            {
+                string unitKey = (line.ProductId ?? "") + "_" + unit;
+                if (returnedQtyByProductUnit.ContainsKey(unitKey)) byProductUnit = returnedQtyByProductUnit[unitKey];
+            }
+            return Math.Max(bySaleItem, byProductUnit);
+        }
+
+        private static bool IsSoleLineForProductUnit(Sale origSale, SaleItem line)
+        {
+            int count = 0;
+            for (int j = 0; j < origSale.Items.Count; j++)
+            {
+                SaleItem s = origSale.Items[j];
+                if (s.ProductId == line.ProductId && string.Equals(s.Unit ?? "", line.Unit ?? "", StringComparison.OrdinalIgnoreCase))
+                {
+                    count++;
+                }
+            }
+            return count == 1;
+        }
+
+        // Same-product (and optionally same-unit) lines of the original sale: the first one that can take the whole
+        // requested quantity, else the first with anything left, else the first match (so the normal over-return error fires).
+        private static SaleItem FindReturnableLine(Sale origSale, ReturnItem it, bool matchUnit,
+            Dictionary<string, long> returnedQtyBySaleItem, Dictionary<string, long> returnedQtyByProductUnit, Dictionary<string, long> requestedInThisReturn)
+        {
+            SaleItem firstMatch = null;
+            SaleItem firstWithRoom = null;
+            for (int j = 0; j < origSale.Items.Count; j++)
+            {
+                SaleItem cand = origSale.Items[j];
+                if (cand.ProductId != it.ProductId) continue;
+                if (matchUnit && !string.Equals(cand.Unit, it.Unit, StringComparison.OrdinalIgnoreCase)) continue;
+                if (firstMatch == null) firstMatch = cand;
+
+                long already = AlreadyReturnedForLine(origSale, cand, it, returnedQtyBySaleItem, returnedQtyByProductUnit);
+                string candKey = !string.IsNullOrEmpty(cand.Id) ? cand.Id : ((cand.ProductId ?? "") + "_" + (cand.Unit ?? ""));
+                long requested = requestedInThisReturn.ContainsKey(candKey) ? requestedInThisReturn[candKey] : 0;
+                long room = cand.QuantityMilli - already - requested;
+                if (room >= it.QuantityMilli) return cand;
+                if (room > 0 && firstWithRoom == null) firstWithRoom = cand;
+            }
+            return firstWithRoom ?? firstMatch;
         }
 
         private static string ReturnFingerprint(Return returnObj)

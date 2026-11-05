@@ -43,17 +43,17 @@ export const CreditPaymentSection = ({
       <div className="flex flex-col gap-2">
         <div className="p-3 bg-surface-2 border border-line rounded-md grid grid-cols-3 gap-2 text-xs font-mono">
           <div>
-            <span className="text-ink-muted block text-[10px]">حسابه القديم:</span>
+            <span className="text-ink-muted block text-micro">حسابه القديم:</span>
             <strong className="text-ink">{formatArabicCurrency(selectedCustomer.balancePiasters)}</strong>
           </div>
           <div>
-            <span className="text-ink-muted block text-[10px]">سقف الشكك المسموح:</span>
+            <span className="text-ink-muted block text-micro">سقف الشكك المسموح:</span>
             <strong className="text-ink">
               {selectedCustomer.creditLimitPiasters > 0 ? formatArabicCurrency(selectedCustomer.creditLimitPiasters) : 'مفتوح (غير محدد)'}
             </strong>
           </div>
           <div>
-            <span className="text-ink-muted block text-[10px]">إجمالي اللي عليه بعد الفاتورة:</span>
+            <span className="text-ink-muted block text-micro">إجمالي اللي عليه بعد الفاتورة:</span>
             <strong className={isOverLimit ? 'text-danger font-black' : 'text-brand font-bold'}>
               {formatArabicCurrency(totalDebtAfterPiasters)}
             </strong>
@@ -74,7 +74,7 @@ export const CreditPaymentSection = ({
                   ? 'تحذير: الزبون عدى سقف الشكك المسموح بيه!' 
                   : 'تنبيه: الزبون عليه فلوس قديمة كتير!'}
               </span>
-              <p className="m-0 text-[11px] leading-relaxed">
+              <p className="m-0 text-micro leading-relaxed">
                 {isOverLimit ? (
                   <>
                     الحساب هيزيد عن السقف المتفق عليه ({formatArabicCurrency(selectedCustomer.creditLimitPiasters)}) بمقدار <strong className="font-mono">{formatArabicCurrency(totalDebtAfterPiasters - selectedCustomer.creditLimitPiasters)}</strong>. الأفضل تطلب منه يدفع جزء كاش الأول.

@@ -801,7 +801,7 @@ namespace RafiqPOS
             {
                 // Fallback to notification only if window activation cannot be completed
                 MessageBox.Show(
-                    "برنامج نظام رفيق قيد التشغيل بالفعل على هذا الجهاز في نافذة أخرى.",
+                    "نظام رفيق قيد التشغيل بالفعل على هذا الجهاز في نافذة أخرى.",
                     "نظام رفيق",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information

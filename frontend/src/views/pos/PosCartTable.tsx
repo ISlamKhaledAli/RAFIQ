@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   ShoppingBag, 
   Trash2, 
@@ -45,6 +45,21 @@ interface PosCartTableProps {
   onOpenItemModifiers?: (index: number) => void;
 }
 
+const UNIT_LABELS: Record<string, string> = { piece: 'قطعة', pcs: 'قطعة', box: 'علبة', strip: 'شريط' };
+
+const unitLabel = (item: CartItem & { unitName: string }): string =>
+  `${UNIT_LABELS[item.unitName.toLowerCase()] ?? item.unitName}${item.conversionFactor && item.conversionFactor > 1 ? ` = ${item.conversionFactor}` : ''}`;
+
+// Per-line fingerprint used to spot which single line was just added or changed.
+const lineSignature = (item: CartItem): string =>
+  `${item.productId}|${item.quantityMilli}|${item.discountPiasters}|${item.unitPricePiasters}`;
+
+const FLASH_MS = 1600;
+
+// Weighed items already show "كجم" on the weight button, so the plain unit chip would repeat it.
+const showsUnitChip = (item: CartItem): item is CartItem & { unitName: string } =>
+  Boolean(item.unitName) && (item.unit !== 'kg' || (item.productUnits?.length ?? 0) > 1);
+
 export const PosCartTable: React.FC<PosCartTableProps> = ({
   cart,
   lastInvoiceNumber,
@@ -65,6 +80,35 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
   onPrintDosageLabel,
   onOpenItemModifiers,
 }) => {
+  const listRef = useRef<HTMLDivElement>(null);
+  const prevSignaturesRef = useRef<string[]>(cart.map(lineSignature));
+  const flashTimerRef = useRef<number | undefined>(undefined);
+  const [flashIndex, setFlashIndex] = useState<number | null>(null);
+
+  // Highlights (and scrolls to) the one line that was just added or changed; bulk changes (restore, clear) stay quiet.
+  useEffect(() => {
+    const next = cart.map(lineSignature);
+    const prev = prevSignaturesRef.current;
+    prevSignaturesRef.current = next;
+    let changed = -1;
+    let changedCount = 0;
+    for (let i = 0; i < Math.max(prev.length, next.length); i++) {
+      if (prev[i] !== next[i]) {
+        changed = i;
+        changedCount++;
+      }
+    }
+    if (changedCount !== 1 || changed >= next.length) return;
+    setFlashIndex(changed);
+    listRef.current
+      ?.querySelector(`[data-cart-row="${changed}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+    window.clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = window.setTimeout(() => setFlashIndex(null), FLASH_MS);
+  }, [cart]);
+
+  useEffect(() => () => window.clearTimeout(flashTimerRef.current), []);
+
   return (
     <>
       {/* Feature #132: Power Outage Cart Draft Recovery Prompt Banner */}
@@ -76,7 +120,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
               <div className="text-xs font-bold text-ink dark:text-ink-dark truncate">
                 لقينا فاتورة كانت مفتوحة قبل ما السيستم يقفل أو النور يقطع:
               </div>
-              <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5 truncate">
+              <div className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 truncate">
                 فيها {draftPrompt.items.length} صنف — حسابها: {formatArabicCurrency(draftPrompt.items.reduce((sum, i) => sum + i.totalPiasters, 0) - (draftPrompt.discountPiasters || 0))} — اتحفظت الساعة: {new Date(draftPrompt.savedAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
@@ -120,23 +164,12 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
 
       {/* Main Cart Items Container */}
       <div className="flex-1 flex flex-col overflow-hidden mt-1 bg-surface dark:bg-surface-dark">
-        {/* Table Column Headers */}
-        <div className="h-8 sm:h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center px-2 sm:px-3 text-xs font-bold text-ink-muted dark:text-ink-dark-muted select-none shrink-0 w-full gap-1 sm:gap-1.5 lg:gap-2">
-          <div className="w-5 shrink-0 text-center font-mono">#</div>
-          <div className="flex-1 min-w-0 text-right font-bold pr-1 truncate">اسم الصنف / الباركود</div>
-          <div className="w-14 sm:w-16 lg:w-20 shrink-0 text-center font-bold">السعر</div>
-          <div className="w-20 sm:w-24 lg:w-26 shrink-0 text-center font-bold">العدد / الوزن</div>
-          <div className="w-8 sm:w-10 shrink-0 text-center font-bold">خصم</div>
-          <div className="w-14 sm:w-16 lg:w-20 shrink-0 text-left tabular-nums font-bold">الإجمالي</div>
-          <div className="w-6 sm:w-7 shrink-0 text-center font-bold">مسح</div>
-        </div>
-
         {/* Cart Items List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-line/60 dark:divide-line-dark/60 custom-scrollbar">
+        <div ref={listRef} className="flex-1 overflow-y-auto divide-y divide-line dark:divide-line-dark custom-scrollbar">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2.5 p-6">
-              <div className="w-14 h-14 rounded-2xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-center shadow-2xs">
-                <ShoppingBag className="w-7 h-7 text-ink-muted/60 dark:text-ink-dark-muted/60 stroke-[1.5]" />
+              <div className="w-16 h-16 rounded-2xl bg-surface-2 dark:bg-surface-dark-2 border-2 border-dashed border-line-hover dark:border-line-dark-strong flex items-center justify-center">
+                <ShoppingBag className="w-8 h-8 text-ink-muted dark:text-ink-dark-muted stroke-[1.5]" />
               </div>
               <div className="text-center">
                 <p className="text-sm sm:text-base font-extrabold text-ink dark:text-ink-dark m-0">السلة فاضية</p>
@@ -151,61 +184,162 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
               )}
             </div>
           ) : (
-            cart.map((item, index) => (
-              <div 
-                key={item.productId || index} 
-                className="min-h-[50px] sm:min-h-[54px] py-1.5 border-b border-line/40 dark:border-line-dark/50 flex items-center px-2 sm:px-3 text-xs hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors w-full gap-1 sm:gap-1.5 lg:gap-2"
+            cart.map((item, index) => {
+              const isWeighed = item.unit === 'kg';
+              const isFlashing = flashIndex === index;
+              const grossLinePiasters = Math.round((item.unitPricePiasters * item.quantityMilli) / 1000);
+              return (
+              <div
+                key={item.productId || index}
+                data-cart-row={index}
+                className={`py-2.5 pe-4 ps-3 border-s-4 flex items-start gap-3 text-sm w-full transition-colors duration-500 focus-within:bg-brand-soft/60 dark:focus-within:bg-surface-dark-3 ${
+                  isWeighed ? 'border-s-brand dark:border-s-brand-bright' : 'border-s-transparent'
+                } ${
+                  isFlashing
+                    ? 'bg-brand-soft dark:bg-brand-dark-soft'
+                    : 'even:bg-surface-2/50 dark:even:bg-surface-dark-2/60 hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                }`}
               >
                 {/* Index */}
-                <div className="w-5 shrink-0 text-center font-mono text-ink-muted dark:text-ink-dark-muted text-xs font-bold">
+                <div className="w-7 h-7 shrink-0 mt-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex items-center justify-center font-mono tabular-nums text-ink-muted dark:text-ink-dark text-xs font-bold">
                   {index + 1}
                 </div>
 
-                {/* Description Column */}
-                <div className="flex-1 min-w-0 pr-1 flex flex-col justify-center gap-1">
-                  {/* Line 1: Clear, Uncrowded Product Name */}
-                  <div className="flex items-center gap-1.5 min-w-0">
+                {/* Item Column: name + delete, then qty / unit price / line total, then chips */}
+                <div className="flex-1 min-w-0 flex flex-col gap-2">
+                  {/* Line 1: product name (up to 2 lines, full text in tooltip) and the quiet delete control */}
+                  <div className="flex items-start justify-between gap-2">
                     <span
-                      className="font-bold text-ink dark:text-ink-dark truncate text-xs sm:text-[13px] leading-snug"
-                      title={item.productName}
+                      className="flex-1 min-w-0 font-semibold text-ink dark:text-ink-dark line-clamp-2 break-words text-base leading-snug pt-0.5"
+                      title={item.barcode ? `${item.productName}\nالباركود: ${item.barcode}` : item.productName}
                     >
                       {item.productName}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(index)}
+                      className="w-8 h-8 -mt-1 flex items-center justify-center rounded-lg border border-transparent text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft hover:border-danger-border dark:hover:border-danger-bright/40 focus-visible:border-danger dark:focus-visible:border-danger-bright transition-colors cursor-pointer shrink-0"
+                      title="حذف الصنف"
+                      aria-label="حذف الصنف"
+                    >
+                      <Trash2 className="w-[18px] h-[18px]" />
+                    </button>
+                  </div>
+
+                  {/* Line 2: quantity / weight, unit price and the end-aligned line total */}
+                  <div className="flex items-center gap-3">
+                    {isWeighed ? (
+                      <button
+                        type="button"
+                        onClick={() => openWeightEditorForCartItem(index)}
+                        className="h-10 px-3 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand-soft/70 dark:hover:bg-surface-dark-3 border border-brand/30 dark:border-brand-bright/50 focus-visible:border-brand dark:focus-visible:border-brand-bright rounded-lg flex items-center gap-2 text-brand-dark dark:text-brand-bright transition-colors shadow-2xs cursor-pointer active:scale-95 shrink-0"
+                        title="اضغط لتعديل الوزن بالجرام أو الكيلو"
+                      >
+                        <Scale className="w-4 h-4 shrink-0" />
+                        <span className="font-mono font-bold text-sm tabular-nums whitespace-nowrap">
+                          {(item.quantityMilli / 1000).toFixed(3).replace(/\.?0+$/, '')} كجم
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="flex items-center h-10 bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg p-0.5 gap-0.5 shadow-2xs shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateQuantity(index, -1);
+                          }}
+                          className="w-9 h-9 flex items-center justify-center bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright focus-visible:border-brand dark:focus-visible:border-brand-bright rounded-md transition-colors cursor-pointer"
+                          title="إنقاص الكمية"
+                          aria-label="إنقاص الكمية"
+                        >
+                          <Minus className="w-4 h-4 stroke-[2.5]" />
+                        </button>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={item.quantityMilli / 1000}
+                          onChange={(e) => {
+                            const norm = normalizeArabicNumerals(e.target.value);
+                            if (/^[0-9]*$/.test(norm)) {
+                              const val = parseInt(norm, 10);
+                              if (!isNaN(val) && val >= 0) {
+                                setDirectQuantity(index, val);
+                              }
+                            }
+                          }}
+                          className="w-14 h-9 text-center font-mono font-bold text-ink dark:text-ink-dark text-base tabular-nums bg-transparent border border-transparent focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark focus:outline-none rounded-md p-0"
+                          title="اضغط لتعديل الكمية بالكتابة مباشرة"
+                          aria-label="الكمية"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateQuantity(index, 1);
+                          }}
+                          className="w-9 h-9 flex items-center justify-center bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright focus-visible:border-brand dark:focus-visible:border-brand-bright rounded-md transition-colors cursor-pointer"
+                          title="زيادة الكمية"
+                          aria-label="زيادة الكمية"
+                        >
+                          <Plus className="w-4 h-4 stroke-[2.5]" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Unit price (read-only from inventory) */}
+                    <span className="flex-1 min-w-0 truncate tabular-nums font-mono text-ink dark:text-ink-dark text-base font-semibold" title="سعر الوحدة">
+                      × {formatArabicCurrency(item.unitPricePiasters, false)}
+                      <span className="text-xs font-medium ms-1 text-ink-muted dark:text-ink-dark-muted max-xl:hidden">{isWeighed ? '/ كجم' : '/ وحدة'}</span>
+                    </span>
+
+                    {/* Line total: the pill under the delete button; when discounted, the original amount is struck through right under it */}
+                    <div className="shrink-0 min-w-[7.5rem] flex flex-col items-end gap-0.5 tabular-nums font-mono">
+                      <div
+                        className="w-full flex items-baseline justify-end gap-1.5 px-3 py-1 rounded-lg bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border"
+                        title="إجمالي سعر الصنف بعد الخصم"
+                      >
+                        <span className="text-2xl font-extrabold leading-tight text-paid dark:text-paid-bright whitespace-nowrap">{formatArabicCurrency(item.totalPiasters, false)}</span>
+                        <span className="text-xs font-bold text-paid dark:text-paid-bright">ج.م</span>
+                      </div>
+                      {item.discountPiasters > 0 && (
+                        <span className="text-sm text-danger dark:text-danger-bright line-through font-semibold px-1" title="السعر قبل الخصم">
+                          {formatArabicCurrency(grossLinePiasters, false)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Line 3: discount chip, then item specs (cold chain, location, unit, batch / expiry, modifiers) */}
+                  <div className="flex items-center gap-2 text-micro text-ink-muted dark:text-ink-dark-muted min-w-0 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => onOpenItemDiscount(index)}
+                      className={`h-8 px-3 rounded-lg transition-colors text-sm font-semibold inline-flex items-center gap-1.5 cursor-pointer border max-w-full focus-visible:border-brand dark:focus-visible:border-brand-bright ${
+                        item.discountPiasters > 0
+                          ? 'text-ink dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border-warn-border dark:border-warn-bright/40 hover:bg-warn-soft/70 dark:hover:bg-warn-dark-soft/70'
+                          : 'text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark hover:text-paid dark:hover:text-paid-bright hover:bg-paid-soft dark:hover:bg-paid-dark-soft'
+                      }`}
+                      title="تطبيق خصم خاص على هذا الصنف"
+                    >
+                      <Tag className="w-3.5 h-3.5 shrink-0" />
+                      <span className="tabular-nums truncate">
+                        {item.discountPiasters > 0 ? `خصم -${formatArabicCurrency(item.discountPiasters, false)}` : 'خصم'}
+                      </span>
+                    </button>
+
                     {item.isColdChain && (
-                      <span className="shrink-0 px-1.5 py-0.5 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-300 text-[9px] font-bold rounded flex items-center gap-0.5" title="سلسلة تبريد: يحفظ في الثلاجة (2-8 مئوية)">
-                        <Snowflake className="w-2.5 h-2.5 text-cyan-600 dark:text-cyan-400" />
+                      <span className="shrink-0 h-6 px-2 bg-brand-soft dark:bg-brand-dark-soft border border-brand/25 dark:border-brand-bright/40 text-brand dark:text-brand-bright text-micro font-semibold rounded-md flex items-center gap-1" title="سلسلة تبريد: يحفظ في الثلاجة (2-8 مئوية)">
+                        <Snowflake className="w-3 h-3 shrink-0" />
                         <span>ثلاجة</span>
                       </span>
                     )}
-                    {item.unit === 'kg' && (
-                      <span className="shrink-0 px-1 py-0.5 bg-brand-soft dark:bg-surface-dark-3 border border-brand/20 dark:border-line-dark text-brand dark:text-brand-bright text-[9px] font-bold rounded flex items-center gap-0.5" title="يباع بالوزن (ميزان)">
-                        <Scale className="w-2.5 h-2.5 text-brand dark:text-brand-bright" />
-                        <span>وزن</span>
-                      </span>
-                    )}
                     {item.locationCode && (
-                      <span className="shrink-0 px-1.5 py-0.5 bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-[9px] font-mono font-bold text-ink dark:text-ink-dark rounded" title={`مكان الصنف: ${item.locationCode}`}>
+                      <span className="shrink-0 h-6 px-2 bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-micro font-mono font-semibold text-ink dark:text-ink-dark rounded-md flex items-center" title={`مكان الصنف: ${item.locationCode}`}>
                         [{item.locationCode}]
                       </span>
                     )}
-                  </div>
-
-                  {/* Line 2: Core Item Specs (Barcode, Unit with Switcher, Batch / Expiry) */}
-                  <div className="flex items-center gap-1.5 text-[10px] text-ink-muted dark:text-ink-dark-muted min-w-0 flex-wrap">
-                    {/* Barcode */}
-                    {item.barcode && (
-                      <span className="font-mono text-ink-muted/90 dark:text-ink-dark-muted text-[10px] shrink-0 tracking-tight">
-                        {item.barcode}
-                      </span>
-                    )}
-
-                    {/* Dot separator */}
-                    {item.barcode && item.unitName && (
-                      <span className="text-line-hover dark:text-line-dark text-[8px] shrink-0">•</span>
-                    )}
-
-                    {/* Unit Badge with Inline Switcher */}
-                    {item.unitName && (
+                    {/* Unit badge with inline switcher */}
+                    {showsUnitChip(item) && (
                       item.productUnits && item.productUnits.length > 1 ? (
                         <button
                           type="button"
@@ -213,72 +347,64 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                             e.stopPropagation();
                             cycleCartItemUnit?.(index);
                           }}
-                          className="h-5 px-1.5 rounded bg-brand-soft/80 dark:bg-brand-soft/20 hover:bg-brand hover:text-white dark:hover:bg-brand border border-brand/25 text-brand dark:text-brand-bright text-[9.5px] font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-all shadow-2xs group"
+                          className="h-6 px-2 rounded-md bg-brand-soft/80 dark:bg-brand-dark-soft hover:bg-brand hover:text-white dark:hover:text-white dark:hover:bg-brand border border-brand/25 dark:border-brand-bright/40 text-brand dark:text-brand-bright text-micro font-semibold flex items-center gap-1 shrink-0 cursor-pointer transition-colors shadow-2xs group"
                           title="اضغط لتبديل وحدة البيع للوحدة التالية (أو اضغط مفتاح / بالكيبورد)"
                         >
-                          <span>
-                            {item.unitName.toLowerCase() === 'piece' || item.unitName.toLowerCase() === 'pcs'
-                              ? 'قطعة'
-                              : item.unitName.toLowerCase() === 'box'
-                              ? 'علبة'
-                              : item.unitName.toLowerCase() === 'strip'
-                              ? 'شريط'
-                              : item.unitName}
-                            {item.conversionFactor && item.conversionFactor > 1 ? ` = ${item.conversionFactor}` : ''}
-                          </span>
-                          <ArrowLeftRight className="w-2.5 h-2.5 opacity-70 group-hover:opacity-100 shrink-0" />
+                          <span>{unitLabel(item)}</span>
+                          <ArrowLeftRight className="w-3 h-3 opacity-70 group-hover:opacity-100 shrink-0" />
                         </button>
                       ) : (
-                        <span className="h-5 px-1.5 rounded bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-[9.5px] font-bold flex items-center shrink-0">
-                          {item.unitName.toLowerCase() === 'piece' || item.unitName.toLowerCase() === 'pcs'
-                            ? 'قطعة'
-                            : item.unitName.toLowerCase() === 'box'
-                            ? 'علبة'
-                            : item.unitName.toLowerCase() === 'strip'
-                            ? 'شريط'
-                            : item.unitName}
-                          {item.conversionFactor && item.conversionFactor > 1 ? ` = ${item.conversionFactor}` : ''}
+                        <span className="h-6 px-2 rounded-md bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-micro font-semibold flex items-center shrink-0">
+                          {unitLabel(item)}
                         </span>
                       )
                     )}
 
-                    {/* Batch / Expiry Button */}
-                    {!item.isExpiredBypass && (item.batchNumber || item.expiryDate || canSelectBatch) && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (canSelectBatch && onOpenBatchSelection) {
+                    {/* Batch / Expiry: a picker button when the cashier may change it, plain badge otherwise */}
+                    {!item.isExpiredBypass && (item.batchNumber || item.expiryDate || canSelectBatch) && (() => {
+                      const batchChipClass = 'h-6 px-2 rounded-md flex items-center gap-1 min-w-0 max-w-full text-micro font-medium text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border';
+                      const batchChipBody = (
+                        <>
+                          <Calendar className="w-3 h-3 shrink-0" />
+                          <bdi className="font-mono font-bold truncate" dir="ltr">
+                            {item.batchNumber ? item.batchNumber : 'الدفعة'}
+                          </bdi>
+                          {item.expiryDate && (
+                            <span className="text-micro font-mono shrink-0">
+                              ({item.expiryDate.split('-').slice(1).join('/')})
+                            </span>
+                          )}
+                        </>
+                      );
+                      return canSelectBatch && onOpenBatchSelection ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             onOpenBatchSelection(index);
-                          }
-                        }}
-                        disabled={!canSelectBatch || !onOpenBatchSelection}
-                        className={`h-5 px-1.5 rounded flex items-center gap-1 shrink-0 text-[9.5px] font-medium transition-colors ${
-                          canSelectBatch && onOpenBatchSelection
-                            ? 'text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 hover:bg-paid-soft/80 cursor-pointer'
-                            : 'text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30'
-                        }`}
-                        title={canSelectBatch ? 'اضغط لاختيار أو تغيير تشغيلة الصنف' : `تشغيلة: ${item.batchNumber || 'افتراضية'} - صلاحية: ${item.expiryDate || 'غير محدد'}`}
-                      >
-                        <Calendar className="w-2.5 h-2.5 text-paid dark:text-paid-bright shrink-0" />
-                        <bdi className="font-mono font-bold" dir="ltr">
-                          {item.batchNumber ? item.batchNumber : 'الدفعة'}
-                        </bdi>
-                        {item.expiryDate && (
-                          <span className="text-[8.5px] opacity-75 font-mono">
-                            ({item.expiryDate.split('-').slice(1).join('/')})
-                          </span>
-                        )}
-                      </button>
-                    )}
+                          }}
+                          className={`${batchChipClass} hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 focus-visible:border-paid dark:focus-visible:border-paid-bright cursor-pointer transition-colors`}
+                          title="اضغط لاختيار أو تغيير تشغيلة الصنف"
+                        >
+                          {batchChipBody}
+                        </button>
+                      ) : (
+                        <span
+                          className={batchChipClass}
+                          title={`تشغيلة: ${item.batchNumber || 'افتراضية'} - صلاحية: ${item.expiryDate || 'غير محدد'}`}
+                        >
+                          {batchChipBody}
+                        </span>
+                      );
+                    })()}
 
                     {/* Expired bypass badge */}
                     {item.isExpiredBypass && (
-                      <span 
-                        className="h-5 px-1.5 rounded bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 text-danger dark:text-danger-bright text-[9.5px] font-bold flex items-center gap-1 shrink-0"
+                      <span
+                        className="h-6 px-2 rounded-md bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 text-danger dark:text-danger-bright text-micro font-semibold flex items-center gap-1 shrink-0"
                         title={`تاريخ الانتهاء: ${item.expiryDate || 'منتهي'} - بيع بتخطي واعتماد إداري`}
                       >
-                        <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
                         <span>منتهي</span>
                       </span>
                     )}
@@ -291,10 +417,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                           e.stopPropagation();
                           onOpenItemModifiers(index);
                         }}
-                        className="h-5 px-1.5 rounded bg-brand-soft/80 dark:bg-brand-soft/20 hover:bg-brand hover:text-white border border-brand/25 text-brand dark:text-brand-bright text-[9.5px] font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
+                        className="h-6 px-2 rounded-md bg-brand-soft/80 dark:bg-brand-dark-soft hover:bg-brand hover:text-white dark:hover:text-white dark:hover:bg-brand border border-brand/25 dark:border-brand-bright/40 text-brand dark:text-brand-bright text-micro font-semibold flex items-center gap-1 shrink-0 cursor-pointer transition-colors"
                         title="تخصيص الإضافات والملاحظات لهذا الصنف"
                       >
-                        <Plus className="w-2.5 h-2.5 shrink-0" />
+                        <Plus className="w-3 h-3 shrink-0" />
                         <span>إضافات</span>
                       </button>
                     )}
@@ -302,29 +428,29 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
 
                   {/* Hospitality Modifiers & Notes Chips */}
                   {((item.modifiers && item.modifiers.length > 0) || item.notes) && (
-                    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {item.modifiers?.map((mod, mIdx) => (
                         <span
                           key={`${mod.optionId || mIdx}`}
-                          className="px-1.5 py-0.5 rounded bg-paid-soft/80 dark:bg-paid-dark-soft border border-paid/25 text-paid dark:text-paid-bright text-[9.5px] font-bold flex items-center gap-1"
+                          className="px-2 py-1 rounded-md bg-paid-soft/80 dark:bg-paid-dark-soft border border-paid/25 text-paid dark:text-paid-bright text-micro font-semibold flex items-center gap-1 max-w-full"
                         >
-                          <span>+ {mod.optionName}</span>
+                          <span className="truncate">+ {mod.optionName}</span>
                           {mod.extraPricePiasters > 0 && (
-                            <span className="font-mono opacity-80">({formatArabicCurrency(mod.extraPricePiasters, false)})</span>
+                            <span className="font-mono shrink-0">({formatArabicCurrency(mod.extraPricePiasters, false)})</span>
                           )}
                         </span>
                       ))}
                       {item.notes && (
-                        <span className="px-1.5 py-0.5 rounded bg-warn-soft/80 dark:bg-warn-dark-soft border border-warn/25 text-warn dark:text-warn-bright text-[9.5px] font-bold">
+                        <span className="px-2 py-1 rounded-md bg-warn-soft/80 dark:bg-warn-dark-soft border border-warn/25 text-ink dark:text-warn-bright text-micro font-semibold max-w-full break-words">
                           ملاحظة: {item.notes}
                         </span>
                       )}
                     </div>
                   )}
 
-                  {/* Line 3: Pharmacy Quick Actions Toolbar (Only when alternatives, controlled, or dosage labels exist) */}
+                  {/* Pharmacy quick actions (only when alternatives, controlled, or dosage labels exist) */}
                   {(onOpenAlternatives || item.isControlled || onPrintDosageLabel) && (
-                    <div className="flex items-center gap-1 text-[9.5px] shrink-0 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-2 text-micro shrink-0">
                       {/* Drug Alternatives (F8) */}
                       {onOpenAlternatives && (
                         <button
@@ -333,10 +459,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                             e.stopPropagation();
                             onOpenAlternatives(index);
                           }}
-                          className="h-5 px-1.5 rounded bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand dark:hover:bg-brand-soft/20 dark:hover:text-brand-bright border border-line dark:border-line-dark flex items-center gap-1 font-bold text-ink-muted dark:text-ink-dark-muted cursor-pointer transition-colors shadow-2xs"
+                          className="h-7 px-2.5 rounded-md bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand dark:hover:bg-brand-soft/20 dark:hover:text-brand-bright border border-line dark:border-line-dark flex items-center gap-1.5 text-xs font-semibold text-ink-muted dark:text-ink-dark-muted cursor-pointer transition-colors shadow-2xs"
                           title="البحث عن بدائل ومثائل دوائية لهذا الصنف (F8)"
                         >
-                          <Pill className="w-2.5 h-2.5 text-brand dark:text-brand-bright shrink-0" />
+                          <Pill className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                           <span>بدائل (F8)</span>
                         </button>
                       )}
@@ -349,10 +475,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                             e.stopPropagation();
                             onOpenControlledDispense?.(index);
                           }}
-                          className={`h-5 px-1.5 rounded flex items-center gap-1 font-bold cursor-pointer transition-colors shadow-2xs ${
+                          className={`h-7 px-2.5 rounded-md flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-colors shadow-2xs ${
                             item.controlledDispense
-                              ? 'bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 text-paid dark:text-paid-bright hover:bg-paid/20'
-                              : 'bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 text-warn dark:text-warn-bright hover:bg-warn/25 animate-pulse'
+                              ? 'bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 text-paid dark:text-paid-bright hover:border-paid dark:hover:border-paid-bright'
+                              : 'bg-warn-soft dark:bg-warn-dark-soft border border-warn dark:border-warn-bright text-ink dark:text-warn-bright font-bold hover:bg-warn-soft/70 dark:hover:bg-warn-dark-soft/70'
                           }`}
                           title={
                             item.controlledDispense
@@ -360,7 +486,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                               : 'دواء جدول ورقابة مشددة - اضغط لتوثيق بيانات المريض والطبيب'
                           }
                         >
-                          <ShieldAlert className="w-2.5 h-2.5 shrink-0" />
+                          <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
                           <span>{item.controlledDispense ? 'موثق' : 'جدول'}</span>
                         </button>
                       )}
@@ -373,120 +499,19 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                             e.stopPropagation();
                             onPrintDosageLabel(index);
                           }}
-                          className="h-5 px-1.5 rounded bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand dark:hover:bg-brand-soft/20 dark:hover:text-brand-bright border border-line dark:border-line-dark flex items-center gap-1 font-bold text-ink-muted dark:text-ink-dark-muted cursor-pointer transition-colors shadow-2xs"
+                          className="h-7 px-2.5 rounded-md bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand dark:hover:bg-brand-soft/20 dark:hover:text-brand-bright border border-line dark:border-line-dark flex items-center gap-1.5 text-xs font-semibold text-ink-muted dark:text-ink-dark-muted cursor-pointer transition-colors shadow-2xs"
                           title="طباعة ملصق جرعة حراري (استيكر صيدلي)"
                         >
-                          <Printer className="w-2.5 h-2.5 text-brand dark:text-brand-bright shrink-0" />
+                          <Printer className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                           <span>ملصق</span>
                         </button>
                       )}
                     </div>
                   )}
                 </div>
-
-                {/* Unit Price (Read-only from inventory) */}
-                <div className="w-14 sm:w-16 lg:w-20 shrink-0 text-center tabular-nums font-mono text-ink dark:text-ink-dark text-xs sm:text-[13px] font-bold">
-                  <span>{formatArabicCurrency(item.unitPricePiasters, false)}</span>
-                  <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted hidden sm:inline mr-0.5 font-normal">ج.م</span>
-                </div>
-
-                {/* Quantity Stepper or Weight Button */}
-                <div className="w-20 sm:w-24 lg:w-26 shrink-0 flex items-center justify-center">
-                  {item.unit === 'kg' ? (
-                    <button
-                      type="button"
-                      onClick={() => openWeightEditorForCartItem(index)}
-                      className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-brand-soft dark:bg-surface-dark-3 hover:bg-brand-soft/80 dark:hover:bg-surface-dark-2 border border-brand/20 dark:border-line-dark rounded flex items-center gap-1 text-brand-dark dark:text-ink-dark transition-all shadow-2xs group cursor-pointer active:scale-95"
-                      title="اضغط لتعديل الوزن بالجرام أو الكيلو"
-                    >
-                      <Scale className="w-2.5 h-2.5 text-brand dark:text-brand-bright shrink-0" />
-                      <span className="font-mono font-bold text-[10px] sm:text-[11px] tabular-nums truncate">
-                        {(item.quantityMilli / 1000).toFixed(3).replace(/\.?0+$/, '')} كجم
-                      </span>
-                    </button>
-                  ) : (
-                    <div className="flex items-center h-6.5 sm:h-7 bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded px-0.5 gap-0.5 shadow-2xs">
-                      <button 
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateQuantity(index, -1);
-                        }}
-                        className="w-4.5 h-4.5 sm:w-5 sm:h-5 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright font-bold text-xs rounded hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
-                        title="إنقاص الكمية"
-                      >
-                        <Minus className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[2.5]" />
-                      </button>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={item.quantityMilli / 1000}
-                        onChange={(e) => {
-                          const norm = normalizeArabicNumerals(e.target.value);
-                          if (/^[0-9]*$/.test(norm)) {
-                            const val = parseInt(norm, 10);
-                            if (!isNaN(val) && val >= 0) {
-                              setDirectQuantity(index, val);
-                            }
-                          }
-                        }}
-                        className="w-5 sm:w-6 lg:w-7 h-4.5 sm:h-5 text-center font-mono font-extrabold text-ink dark:text-ink-dark text-xs tabular-nums bg-transparent border-0 focus:outline-none focus:bg-surface dark:focus:bg-surface-dark rounded p-0"
-                        title="اضغط لتعديل الكمية بالكتابة مباشرة"
-                      />
-                      <button 
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateQuantity(index, 1);
-                        }}
-                        className="w-4.5 h-4.5 sm:w-5 sm:h-5 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright font-bold text-xs rounded hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
-                        title="زيادة الكمية"
-                      >
-                        <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[2.5]" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Item Discount Button */}
-                <div className="w-8 sm:w-10 shrink-0 text-center">
-                  <button
-                    type="button"
-                    onClick={() => onOpenItemDiscount(index)}
-                    className={`px-1 sm:px-1.5 py-0.5 rounded transition-colors text-[10px] font-bold inline-flex items-center gap-0.5 cursor-pointer ${
-                      item.discountPiasters > 0
-                        ? 'text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 hover:bg-warn-soft/80'
-                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-paid-bright hover:bg-paid-soft dark:hover:bg-paid-dark-soft'
-                    }`}
-                    title="تطبيق خصم خاص على هذا الصنف"
-                  >
-                    <Tag className="w-2.5 h-2.5" />
-                    <span className="hidden sm:inline">{item.discountPiasters > 0 ? '%' : 'خصم'}</span>
-                  </button>
-                </div>
-
-                {/* Line Total */}
-                <div className="w-14 sm:w-16 lg:w-20 shrink-0 text-left tabular-nums font-mono font-bold text-paid dark:text-brand-bright text-xs flex flex-col items-end justify-center">
-                  <span className="font-extrabold">{formatArabicCurrency(item.totalPiasters, false)}</span>
-                  {item.discountPiasters > 0 && (
-                    <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted line-through font-normal">
-                      {formatArabicCurrency(Math.round((item.unitPricePiasters * item.quantityMilli) / 1000), false)}
-                    </span>
-                  )}
-                </div>
-
-                {/* Delete Trigger */}
-                <div className="w-6 sm:w-7 shrink-0 text-center">
-                  <button 
-                    onClick={() => removeItem(index)}
-                    className="text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright p-1 rounded hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
-                    title="حذف الصنف"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

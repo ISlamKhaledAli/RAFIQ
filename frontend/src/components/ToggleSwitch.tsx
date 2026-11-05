@@ -54,7 +54,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
       {(label || description) && (
         <div className="flex flex-col select-none">
           {label && <span className="text-xs font-semibold text-ink dark:text-ink-dark whitespace-nowrap">{label}</span>}
-          {description && <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted leading-tight whitespace-nowrap">{description}</span>}
+          {description && <span className="text-micro text-ink-muted dark:text-ink-dark-muted leading-tight whitespace-nowrap">{description}</span>}
         </div>
       )}
 
@@ -67,7 +67,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         className={`relative inline-flex ${trackWidth} ${trackHeight} shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-          checked ? 'bg-[#006d41] hover:bg-[#005a36] dark:bg-paid dark:hover:bg-[#1D9A7E]' : 'bg-slate-300 hover:bg-slate-400 dark:bg-surface-dark-3 dark:hover:bg-line-dark'
+          checked ? 'bg-[#006d41] hover:bg-[#005a36] dark:bg-paid dark:hover:bg-paid-hover' : 'bg-slate-300 hover:bg-slate-400 dark:bg-surface-dark-3 dark:hover:bg-line-dark'
         } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <span

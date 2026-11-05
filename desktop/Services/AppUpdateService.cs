@@ -26,7 +26,9 @@ namespace RafiqPOS.Services
     // Informational only: updates are installed with the official Setup (elevated installer), never applied from inside the app.
     public class AppUpdateService
     {
-        public const string CURRENT_VERSION = "1.0.0";
+        // Single source of truth for the running version: the assembly version (AssemblyInfo.cs). The installer and
+        // frontend/package.json must carry the same number (guarded by frontend/test/app_update.test.js).
+        public static readonly string CurrentVersion = ReadAssemblyVersion();
         public const string DEFAULT_UPDATE_SERVER_URL = "https://rafiq-license-server.khaledislam9003.workers.dev/api/updates/check";
         private const int NETWORK_TIMEOUT_MS = 7000;
 
@@ -37,11 +39,22 @@ namespace RafiqPOS.Services
             this._settingsRepo = settingsRepo;
         }
 
+        private static string ReadAssemblyVersion()
+        {
+            Version v = typeof(AppUpdateService).Assembly.GetName().Version;
+            if (v == null) return "0.0.0";
+            string text = string.Format("{0}.{1}.{2}", v.Major, v.Minor, Math.Max(0, v.Build));
+            if (v.Revision > 0) text = text + "." + v.Revision;
+            return text;
+        }
+
         public AppUpdateInfo CheckForUpdates(string manifestJsonOrUrl = null)
         {
             AppUpdateInfo info = new AppUpdateInfo();
-            info.CurrentVersion = CURRENT_VERSION;
+            info.CurrentVersion = CurrentVersion;
             info.HasUpdate = false;
+            // Eligible unless the server says otherwise, so a network error is reported as an error and not as a licence problem
+            info.IsEligible = true;
 
             try
             {
@@ -58,6 +71,13 @@ namespace RafiqPOS.Services
                     ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | SecurityProtocolType.Tls12;
                     string targetUrl = string.IsNullOrEmpty(manifestJsonOrUrl) ? DEFAULT_UPDATE_SERVER_URL : manifestJsonOrUrl;
 
+                    // Only HTTPS manifests are fetched (the licence key and device id are attached for the official server)
+                    if (!targetUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        info.ErrorMessage = "عنوان خادم التحديثات غير آمن (يجب أن يبدأ بـ https).";
+                        return info;
+                    }
+
                     // Automatically attach license and machine identity if querying the official server
                     if (targetUrl.StartsWith(DEFAULT_UPDATE_SERVER_URL, StringComparison.OrdinalIgnoreCase))
                     {
@@ -65,14 +85,14 @@ namespace RafiqPOS.Services
                         string fp = EncryptionService.GenerateDeviceFingerprint();
                         string sep = targetUrl.Contains("?") ? "&" : "?";
                         targetUrl = string.Format("{0}{1}version={2}&license_key={3}&machine_fingerprint={4}",
-                            targetUrl, sep, Uri.EscapeDataString(CURRENT_VERSION), Uri.EscapeDataString(licKey), Uri.EscapeDataString(fp));
+                            targetUrl, sep, Uri.EscapeDataString(CurrentVersion), Uri.EscapeDataString(licKey), Uri.EscapeDataString(fp));
                     }
 
                     HttpWebRequest request = (HttpWebRequest)WebRequest.Create(targetUrl);
                     request.Method = "GET";
                     request.Timeout = NETWORK_TIMEOUT_MS;
                     request.ReadWriteTimeout = NETWORK_TIMEOUT_MS;
-                    request.UserAgent = "RafiqPOS/" + CURRENT_VERSION + " (.NET4.8; Win7-11)";
+                    request.UserAgent = "RafiqPOS/" + CurrentVersion + " (.NET4.8; Win7-11)";
 
                     using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
                     using (StreamReader reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
@@ -108,7 +128,7 @@ namespace RafiqPOS.Services
                         info.HasUpdate = false;
                         info.ErrorMessage = !string.IsNullOrEmpty(srvMsg) ? srvMsg : "الترخيص غير مؤهل لتلقي التحديثات.";
                     }
-                    else if (!string.IsNullOrEmpty(remoteVer) && CompareVersions(remoteVer, CURRENT_VERSION) > 0)
+                    else if (!string.IsNullOrEmpty(remoteVer) && CompareVersions(remoteVer, CurrentVersion) > 0)
                     {
                         info.HasUpdate = true;
                     }
@@ -122,7 +142,15 @@ namespace RafiqPOS.Services
             }
             catch (WebException webEx)
             {
-                info.ErrorMessage = "تعذر الاتصال بخادم التحديثات (تأكد من اتصال الإنترنت): " + webEx.Message;
+                // Server answered with an HTTP error vs. no connection at all
+                if (webEx.Status == WebExceptionStatus.ProtocolError)
+                {
+                    info.ErrorMessage = "خادم التحديثات رد بخطأ مؤقت، حاول لاحقاً: " + webEx.Message;
+                }
+                else
+                {
+                    info.ErrorMessage = "تعذر الاتصال بخادم التحديثات (تأكد من اتصال الإنترنت): " + webEx.Message;
+                }
                 Logger.Warn("AppUpdateService: فشل فحص التحديثات أونلاين: " + webEx.Message);
             }
             catch (Exception ex)

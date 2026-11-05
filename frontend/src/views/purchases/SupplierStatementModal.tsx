@@ -36,7 +36,7 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
             <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center shadow-2xs">
               <Receipt className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-sm text-ink dark:text-ink-dark">
+            <h3 className="t-modal-title text-ink dark:text-ink-dark">
               كشف حساب المورد: {supplier.name}
             </h3>
           </div>
@@ -69,7 +69,7 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
             >
               {supplier.balancePiasters !== 0
                 ? formatMoney(Math.abs(supplier.balancePiasters))
-                : 'خالص تماماً (0.00 ج.م)'}
+                : 'خالص تماماً'}
             </span>
           </div>
           <div className="text-left text-xs text-ink-muted dark:text-ink-dark-muted">
@@ -99,7 +99,7 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                       {tx.transactionType === 'MANUAL_ADJUSTMENT' && 'تسوية رصيد يدوية'}
                       {!['OPENING_BALANCE', 'PURCHASE_INVOICE', 'PURCHASE_OVERPAYMENT', 'PAYMENT', 'PAYMENT_CANCEL', 'PURCHASE_RETURN', 'PURCHASE_PAID_CASH', 'PURCHASE_RETURN_CASH', 'MANUAL_ADJUSTMENT'].includes(tx.transactionType) && (tx.transactionType || 'حركة حسابية')}
                     </span>
-                    <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                       {new Date(tx.createdAt).toLocaleDateString('ar-EG-u-nu-latn', {
                         year: 'numeric',
                         month: 'short',
@@ -109,9 +109,9 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                       })}
                     </span>
                   </div>
-                  {tx.notes && <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted block mt-0.5">{tx.notes}</span>}
+                  {tx.notes && <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mt-0.5">{tx.notes}</span>}
                   {tx.balanceAfterPiasters !== undefined && (
-                    <span className="text-[10px] font-mono text-ink-muted dark:text-ink-dark-muted block mt-0.5">
+                    <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted block mt-0.5">
                       الرصيد التراكمي: {formatMoney(tx.balanceAfterPiasters)}
                     </span>
                   )}
@@ -133,16 +133,6 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
               </div>
             ))
           )}
-        </div>
-
-        <div className="p-3.5 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex justify-end shrink-0">
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="px-5 h-9 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
-          >
-            إغلاق كشف الحساب
-          </button>
         </div>
       </div>
     </div>

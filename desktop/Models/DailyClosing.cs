@@ -281,6 +281,10 @@ namespace RafiqPOS.Models
         [JsonProperty("postClosingSalesCount")]
         public int PostClosingSalesCount { get; set; }
 
+        // Shifts of this business date still open; the day cannot be sealed until they are closed
+        [JsonProperty("openShiftsCount")]
+        public int OpenShiftsCount { get; set; }
+
         [JsonProperty("postClosingSalesPiasters")]
         public long PostClosingSalesPiasters { get; set; }
 

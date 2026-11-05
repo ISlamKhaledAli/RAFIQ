@@ -20,10 +20,10 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at, must_change_pin FROM users";
+                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at, must_change_pin FROM users WHERE deleted_at IS NULL";
                 if (onlyActive)
                 {
-                    sql += " WHERE is_active = 1";
+                    sql += " AND is_active = 1";
                 }
                 sql += " ORDER BY role DESC, display_name ASC;";
 
@@ -39,14 +39,26 @@ namespace RafiqPOS.Repositories
             return list;
         }
 
+        // Login, sessions and every management path use this: soft-deleted accounts are invisible
         public User GetById(string id)
+        {
+            return GetByIdCore(id, false);
+        }
+
+        // History screens only: resolves the display name of an account that was soft-deleted
+        public User GetByIdIncludingDeleted(string id)
+        {
+            return GetByIdCore(id, true);
+        }
+
+        private User GetByIdCore(string id, bool includeDeleted)
         {
             if (string.IsNullOrEmpty(id)) return null;
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at, must_change_pin FROM users WHERE id = @id LIMIT 1;";
+                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at, must_change_pin FROM users WHERE id = @id" + (includeDeleted ? "" : " AND deleted_at IS NULL") + " LIMIT 1;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@id", id);
@@ -69,7 +81,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at, must_change_pin FROM users WHERE username = @username COLLATE NOCASE LIMIT 1;";
+                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at, must_change_pin FROM users WHERE username = @username COLLATE NOCASE AND deleted_at IS NULL LIMIT 1;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@username", username);
@@ -91,7 +103,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at, must_change_pin FROM users WHERE parent_id = @parentId ORDER BY display_name ASC;";
+                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at, must_change_pin FROM users WHERE parent_id = @parentId AND deleted_at IS NULL ORDER BY display_name ASC;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@parentId", parentId);
@@ -113,7 +125,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT COUNT(*) FROM users WHERE parent_id = @id LIMIT 1;";
+                string sql = "SELECT COUNT(*) FROM users WHERE parent_id = @id AND deleted_at IS NULL LIMIT 1;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@id", userId);
@@ -173,6 +185,12 @@ namespace RafiqPOS.Repositories
 
         public void Update(User user)
         {
+            Update(user, null);
+        }
+
+        // reparentChildrenTo != null moves every direct child of this user to that parent in the same transaction
+        public void Update(User user, string reparentChildrenTo)
+        {
             if (user == null) throw new ArgumentNullException("user");
 
             user.UpdatedAt = DateTime.UtcNow.ToString("o");
@@ -180,6 +198,87 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    UpdateCore(conn, trans, user);
+                    if (!string.IsNullOrEmpty(reparentChildrenTo) && reparentChildrenTo != user.Id)
+                    {
+                        ReparentChildrenCore(conn, trans, user.Id, reparentChildrenTo, user.UpdatedAt);
+                    }
+                    trans.Commit();
+                }
+            }
+        }
+
+        private static void ReparentChildrenCore(SQLiteConnection conn, SQLiteTransaction trans, string oldParentId, string newParentId, string nowIso)
+        {
+            using (var cmd = new SQLiteCommand("UPDATE users SET parent_id = @newParent, updated_at = @now WHERE parent_id = @oldParent AND id != @newParent;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@newParent", newParentId);
+                cmd.Parameters.AddWithValue("@oldParent", oldParentId);
+                cmd.Parameters.AddWithValue("@now", nowIso);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        // Soft delete in one transaction: history keeps resolving the account, but it can never log in again
+        // and its username is released. Direct children move to newParentId. Returns false when already deleted/missing.
+        public bool SoftDelete(string id, string newParentId)
+        {
+            if (string.IsNullOrEmpty(id)) throw new ArgumentException("id");
+
+            // The full id tail (ids are unique) makes a username collision impossible
+            string idTail = id.StartsWith("usr_", StringComparison.Ordinal) ? id.Substring(4) : id;
+            string suffix = idTail;
+            string now = DateTime.UtcNow.ToString("o");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    int affected;
+                    using (var cmd = new SQLiteCommand(@"
+                        UPDATE users
+                        SET deleted_at = @now,
+                            is_active = 0,
+                            pin_code_hash = '',
+                            pin_salt = '',
+                            password_hash = '',
+                            password_salt = '',
+                            failed_attempts = 0,
+                            lockout_until = NULL,
+                            must_change_pin = 0,
+                            username = username || '#del' || @suffix,
+                            updated_at = @now
+                        WHERE id = @id AND deleted_at IS NULL;
+                    ", conn, trans))
+                    {
+                        cmd.Parameters.AddWithValue("@now", now);
+                        cmd.Parameters.AddWithValue("@suffix", suffix);
+                        cmd.Parameters.AddWithValue("@id", id);
+                        affected = cmd.ExecuteNonQuery();
+                    }
+
+                    if (affected == 0)
+                    {
+                        trans.Rollback();
+                        return false;
+                    }
+
+                    if (!string.IsNullOrEmpty(newParentId))
+                    {
+                        ReparentChildrenCore(conn, trans, id, newParentId, now);
+                    }
+                    trans.Commit();
+                    return true;
+                }
+            }
+        }
+
+        private static void UpdateCore(SQLiteConnection conn, SQLiteTransaction trans, User user)
+        {
+            {
                 string sql = @"
                     UPDATE users 
                     SET username = @username,
@@ -192,9 +291,9 @@ namespace RafiqPOS.Repositories
                         can_delegate = @canDelegate,
                         must_change_pin = @mustChangePin,
                         updated_at = @updatedAt
-                    WHERE id = @id;
+                    WHERE id = @id AND deleted_at IS NULL;
                 ";
-                using (var cmd = new SQLiteCommand(sql, conn))
+                using (var cmd = new SQLiteCommand(sql, conn, trans))
                 {
                     cmd.Parameters.AddWithValue("@id", user.Id);
                     cmd.Parameters.AddWithValue("@username", user.Username);
@@ -347,10 +446,25 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT COUNT(*) FROM users WHERE (role = 'admin' OR role = 'root') AND is_active = 1;";
+                string sql = "SELECT COUNT(*) FROM users WHERE (role = 'admin' OR role = 'root') AND is_active = 1 AND deleted_at IS NULL;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     return Convert.ToInt32(cmd.ExecuteScalar());
+                }
+            }
+        }
+
+        // Same predicate ShiftRepository.GetActiveShift uses (status = 'open' for this cashier); a user with an open shift cannot be deleted
+        public bool HasOpenShift(string userId)
+        {
+            if (string.IsNullOrEmpty(userId)) return false;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM shifts WHERE status = 'open' AND cashier_id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", userId);
+                    return Convert.ToInt64(cmd.ExecuteScalar()) > 0;
                 }
             }
         }
@@ -360,7 +474,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT COUNT(*) FROM users WHERE role = 'root' AND is_active = 1;";
+                string sql = "SELECT COUNT(*) FROM users WHERE role = 'root' AND is_active = 1 AND deleted_at IS NULL;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     return Convert.ToInt32(cmd.ExecuteScalar());

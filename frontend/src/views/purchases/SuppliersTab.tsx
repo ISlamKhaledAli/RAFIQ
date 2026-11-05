@@ -20,6 +20,7 @@ import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
+import { ToggleSwitch } from '../../components/ToggleSwitch';
 
 interface SuppliersTabProps {
   suppliers: Supplier[];
@@ -171,21 +172,28 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
             />
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-ink-muted dark:text-ink-dark-muted cursor-pointer select-none">
-            <input
-              type="checkbox"
+          <div className="h-10 px-3 flex items-center gap-2.5 shrink-0 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
+            <label
+              htmlFor="suppliers-show-archived"
+              className={`text-xs font-bold cursor-pointer select-none whitespace-nowrap ${
+                showArchivedSuppliers ? 'text-ink dark:text-ink-dark' : 'text-ink-muted dark:text-ink-dark-muted'
+              }`}
+            >
+              عرض الموردين المؤرشفين
+            </label>
+            <ToggleSwitch
+              id="suppliers-show-archived"
+              size="sm"
               checked={showArchivedSuppliers}
-              onChange={(e) => setShowArchivedSuppliers(e.target.checked)}
-              className="rounded border-line dark:border-line-dark text-brand dark:text-brand-bright focus:ring-brand dark:focus:ring-brand-bright"
+              onChange={setShowArchivedSuppliers}
             />
-            <span>عرض الموردين المؤرشفين</span>
-          </label>
+          </div>
         </div>
 
         <button
           type="button"
           onClick={onOpenAddSupplier}
-          className="h-10 px-4 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-emerald-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+          className="h-10 px-4 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
         >
           <Plus className="w-4 h-4" />
           <span>إضافة مورد جديد</span>
@@ -225,7 +233,7 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                 <div className="col-span-3">
                   <span className="font-bold text-ink dark:text-ink-dark block truncate">{sup.name}</span>
                   {sup.companyName && (
-                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted block truncate">{sup.companyName}</span>
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted block truncate">{sup.companyName}</span>
                   )}
                 </div>
 
@@ -250,27 +258,27 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                       <span className="text-danger dark:text-danger-bright block">
                         {formatMoney(sup.balancePiasters)}
                       </span>
-                      <span className="text-[10px] text-danger/80 dark:text-danger-bright/80 font-bold">له فلوس علينا</span>
+                      <span className="text-micro text-danger/80 dark:text-danger-bright/80 font-bold">له فلوس علينا</span>
                     </div>
                   ) : sup.balancePiasters < 0 ? (
                     <div>
                       <span className="text-paid dark:text-paid-bright block">
                         {formatMoney(Math.abs(sup.balancePiasters))}
                       </span>
-                      <span className="text-[10px] text-paid/90 dark:text-paid-bright/90 font-bold">لينا فلوس عنده (سايبينها)</span>
+                      <span className="text-micro text-paid/90 dark:text-paid-bright/90 font-bold">لينا فلوس عنده (سايبينها)</span>
                     </div>
                   ) : (
-                    <span className="text-ink-muted dark:text-ink-dark-muted font-medium">خالص تماماً (0.00 ج.م)</span>
+                    <span className="text-ink-muted dark:text-ink-dark-muted font-medium">خالص تماماً</span>
                   )}
                 </div>
 
                 <div className="col-span-1 text-center">
                   {sup.isActive ? (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-emerald-800/40">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-emerald-800/40">
                       نشط
                     </span>
                   ) : (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
                       مؤرشف
                     </span>
                   )}
@@ -282,20 +290,20 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                     onClick={(e) => handleToggleMenu(sup, e)}
                     className={`h-7 px-2.5 rounded-lg border text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer select-none ${
                       activeMenu?.supplier.id === sup.id
-                        ? 'bg-brand dark:bg-brand-bright dark:text-surface-dark text-white border-brand dark:border-brand-bright ring-2 ring-brand/20 shadow-xs'
+                        ? 'bg-brand dark:bg-brand-dark-soft dark:text-brand-bright text-white border-brand dark:border-brand-bright ring-2 ring-brand/20 shadow-xs dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                         : 'bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright hover:border-brand/40 dark:hover:border-brand-bright/40'
                     }`}
                     title="قائمة إجراءات وخيارات المورد"
                   >
                     <MoreHorizontal
                       className={`w-3.5 h-3.5 transition-colors ${
-                        activeMenu?.supplier.id === sup.id ? 'text-white dark:text-surface-dark' : 'text-brand dark:text-brand-bright'
+                        activeMenu?.supplier.id === sup.id ? 'text-white dark:text-brand-bright' : 'text-brand dark:text-brand-bright'
                       }`}
                     />
                     <span>إجراءات</span>
                     <ChevronDown
                       className={`w-3 h-3 transition-transform duration-150 ${
-                        activeMenu?.supplier.id === sup.id ? 'rotate-180 text-white dark:text-surface-dark' : 'text-ink-muted dark:text-ink-dark-muted'
+                        activeMenu?.supplier.id === sup.id ? 'rotate-180 text-white dark:text-brand-bright' : 'text-ink-muted dark:text-ink-dark-muted'
                       }`}
                     />
                   </button>
@@ -337,24 +345,6 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
             {/* Supplier Info Header */}
             <div className="p-2.5 bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark">
               <div className="font-bold text-xs text-ink dark:text-ink-dark truncate">{activeMenu.supplier.name}</div>
-              <div className="flex items-center justify-between text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1 font-mono">
-                <span className="truncate">{activeMenu.supplier.companyName || activeMenu.supplier.phone || 'مورد'}</span>
-                <span
-                  className={`font-bold shrink-0 font-sans ${
-                    activeMenu.supplier.balancePiasters > 0
-                      ? 'text-danger dark:text-danger-bright'
-                      : activeMenu.supplier.balancePiasters < 0
-                      ? 'text-paid dark:text-paid-bright'
-                      : 'text-ink-muted dark:text-ink-dark-muted'
-                  }`}
-                >
-                  {activeMenu.supplier.balancePiasters > 0
-                    ? `له: ${formatMoney(activeMenu.supplier.balancePiasters)}`
-                    : activeMenu.supplier.balancePiasters < 0
-                    ? `لينا: ${formatMoney(Math.abs(activeMenu.supplier.balancePiasters))}`
-                    : 'خالص (0.00)'}
-                </span>
-              </div>
             </div>
 
             {/* Menu Items */}
@@ -367,7 +357,7 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                   setActiveMenu(null);
                   onOpenPayment(s);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-ink dark:text-ink-dark hover:text-paid dark:hover:text-paid-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-ink dark:text-ink-dark hover:text-paid dark:hover:text-paid-bright text-xs font-bold transition-colors cursor-pointer group text-right"
               >
                 <div className="w-6 h-6 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright group-hover:bg-paid dark:group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                   <Banknote className="w-3.5 h-3.5" />
@@ -383,7 +373,7 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                   setActiveMenu(null);
                   onOpenStatement(s);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
               >
                 <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand dark:group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                   <Receipt className="w-3.5 h-3.5" />
@@ -399,7 +389,7 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                   setActiveMenu(null);
                   onOpenEditSupplier(s);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
               >
                 <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-brand-soft dark:group-hover:bg-brand-soft/20 group-hover:text-brand dark:group-hover:text-brand-bright flex items-center justify-center shrink-0 transition-colors">
                   <Edit2 className="w-3.5 h-3.5" />
@@ -419,7 +409,7 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                     setActiveMenu(null);
                     onRequestArchiveSupplier(s);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink dark:text-ink-dark hover:text-danger dark:hover:text-danger-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink dark:text-ink-dark hover:text-danger dark:hover:text-danger-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
                   <div className="w-6 h-6 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright group-hover:bg-danger group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Archive className="w-3.5 h-3.5" />
@@ -434,7 +424,7 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
                     setActiveMenu(null);
                     onRestoreSupplier(s.id);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
                   <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand dark:group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <RotateCcw className="w-3.5 h-3.5" />

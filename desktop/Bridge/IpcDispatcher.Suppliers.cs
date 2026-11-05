@@ -123,7 +123,8 @@ namespace RafiqPOS.Bridge
                         string pNotes = payObj["notes"] != null ? payObj["notes"].ToString() : "";
                         string pSource = payObj["paymentSource"] != null ? payObj["paymentSource"].ToString() : "cash_drawer";
                         string supPayUserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : null;
-                        DatabaseService.Suppliers.RecordPayment(pSupId, pAmount, pNotes, supPayUserId, pSource);
+                        string pIdemKey = payObj["idempotencyKey"] != null && payObj["idempotencyKey"].Type != JTokenType.Null ? payObj["idempotencyKey"].ToString() : null;
+                        DatabaseService.Suppliers.RecordPayment(pSupId, pAmount, pNotes, supPayUserId, pSource, pIdemKey);
                         var updatedSup = DatabaseService.Suppliers.GetById(pSupId);
                         response = BridgeResponse.Ok(request.Id, updatedSup);
                     }

@@ -3,7 +3,9 @@
 ; متوافق من Windows 7 SP1 (32 و 64 بت) حتى Windows 11
 ; =====================================================================
 
-#define MyAppName "رفيق POS"
+#define MyAppName "نظام رفيق"
+; الاسم القديم قبل التعريب الكامل: يُستخدم فقط لتنظيف اختصارات الإصدارات السابقة عند الترقية
+#define MyOldAppName "رفيق POS"
 #define MyAppEnglishName "Rafiq POS"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "ISlam Khaled Ali"
@@ -82,14 +84,14 @@ Name: "arabic"; MessagesFile: "compiler:Languages\Arabic.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-arabic.BeveledLabel=رفيق POS — Rafiq Enterprise POS
+arabic.BeveledLabel=نظام رفيق — Rafiq Enterprise POS
 english.BeveledLabel=Rafiq POS — Enterprise Edition
 
 ; تخصيص نصوص معالج التثبيت لتعكس الهوية الاحترافية لنظام رفيق
-arabic.WelcomeLabel1=مرحباً بك في معالج تثبيت منصة رفيق POS
+arabic.WelcomeLabel1=مرحباً بك في معالج تثبيت نظام رفيق
 arabic.WelcomeLabel2=سيقوم هذا المعالج بتثبيت منصة رفيق المتكاملة لنقاط البيع وإدارة المتاجر ومحلات التجزئة على جهاز الكمبيوتر الخاص بك.%n%nالمواصفات الهندسية الأساسية للنظام:%n• تشغيل أوفلاين 100%% بدون الحاجة لأي اتصال بالإنترنت.%n• محرك بيانات فائق الاستقرار ومعاملات مالية ذرية آمنة لحماية بيانات المحل.%n• توافق فوري مع قارئ الباركود، موازين الأوزان، وطابعات الإيصالات الحرارية.%n• توافق تام بنسخة واحدة مستقرة من Windows 7 SP1 حتى Windows 11.%n%nانقر على «التالي» للمتابعة، أو «إلغاء» للخروج من معالج التثبيت.
 
-arabic.FinishedHeadingLabel=اكتمل تثبيت رفيق POS بنجاح!
+arabic.FinishedHeadingLabel=اكتمل تثبيت نظام رفيق بنجاح!
 arabic.FinishedLabelNoIcons=تم تثبيت نظام رفيق لنقاط البيع وإدارة المتاجر بنجاح على جهازك.%n%nيمكنك الآن تشغيل البرنامج وبدء إعداد متجرك التجاري.
 arabic.FinishedLabel=تم تثبيت نظام رفيق لنقاط البيع وإدارة المتاجر بنجاح وهو جاهز للتشغيل الفوري.%n%nانقر على «إنهاء» لتشغيل رفيق والبدء مباشرة.
 
@@ -116,6 +118,11 @@ Name: "{commonappdata}\RafiqPOS\backups"; Permissions: users-modify
 [InstallDelete]
 ; إزالة مجلد التحديثات القديم القابل للكتابة من الإصدارات السابقة (لم يعد مستخدماً)
 Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\updates"
+; ترقية من الاسم القديم "رفيق POS": إزالة اختصاراته فقط (قائمة ابدأ وسطح المكتب) حتى لا تتكرر الاختصارات؛ لا تلمس {app} ولا ProgramData
+Type: filesandordirs; Name: "{commonprograms}\{#MyOldAppName}"
+Type: filesandordirs; Name: "{userprograms}\{#MyOldAppName}"
+Type: files; Name: "{commondesktop}\{#MyOldAppName}.lnk"
+Type: files; Name: "{userdesktop}\{#MyOldAppName}.lnk"
 
 [Files]
 ; ملفات البرنامج + الواجهة (dist). مجلد مشغل العرض fixed109 يُنسخ بسطر مستقل بالأسفل بدون استثناءات حتى لا يُحذف منه أي ملف

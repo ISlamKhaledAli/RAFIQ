@@ -6,6 +6,7 @@ import {
   DEFAULT_REGISTRY, 
   type FeatureDefinitionDto 
 } from './featureTypes';
+import { isFeatureEffectivelyEnabled } from './featureRequires';
 
 export const FeaturesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [flags, setFlags] = useState<Record<string, boolean>>(() => {
@@ -85,7 +86,7 @@ export const FeaturesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const isEnabled = (key: string): boolean => {
-    return flags[key] !== undefined ? flags[key] : false;
+    return isFeatureEffectivelyEnabled(key, flags, registry);
   };
 
   const toggleFlag = async (key: string, enabled: boolean) => {

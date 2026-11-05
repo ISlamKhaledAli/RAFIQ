@@ -35,7 +35,6 @@ interface UsePosShortcutsProps {
   cycleCartItemUnit?: () => void;
   onOpenAlternatives?: () => void;
   onOpenQuickShortage?: () => void;
-  onToggleCatalog?: () => void;
   hasPermission?: (key: string) => boolean;
   isAdmin?: boolean;
 }
@@ -68,7 +67,6 @@ export const usePosShortcuts = ({
   cycleCartItemUnit,
   onOpenAlternatives,
   onOpenQuickShortage,
-  onToggleCatalog,
   hasPermission,
   isAdmin,
 }: UsePosShortcutsProps) => {
@@ -189,13 +187,6 @@ export const usePosShortcuts = ({
       if ((e.ctrlKey && e.key.toLowerCase() === 'q') || (e.altKey && (e.key.toLowerCase() === 'n' || e.key === 'ى'))) {
         e.preventDefault();
         onOpenQuickShortage?.();
-        return;
-      }
-
-      // Ctrl+B / KeyB: Toggle Quick Catalog Panel (Expand / Collapse)
-      if (e.ctrlKey && (e.key.toLowerCase() === 'b' || e.key === 'لا' || e.code === 'KeyB')) {
-        e.preventDefault();
-        onToggleCatalog?.();
         return;
       }
 
@@ -398,7 +389,6 @@ export const usePosShortcuts = ({
     cycleCartItemUnit,
     onOpenAlternatives,
     onOpenQuickShortage,
-    onToggleCatalog,
     isActive,
     isAnyModalOpen,
     hasPermission,

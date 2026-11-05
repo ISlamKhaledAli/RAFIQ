@@ -136,7 +136,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
         storeType: selectedStoreType,
       });
       if (res && res.success) {
-        setMessage({ text: res.message || 'تم تحميل البيانات التجريبية بنجاح!', type: 'success' });
+        setMessage({ text: res.message || 'تم تحميل البيانات التجريبية', type: 'success' });
         await refreshStatus();
         if (onDataChanged) onDataChanged();
       } else {
@@ -164,7 +164,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
       }>('demo:clear');
       if (res && res.success) {
         setClearSuccessInfo({
-          message: res.message || 'تم مسح كافة البيانات التجريبية بنجاح!',
+          message: res.message || 'تم مسح البيانات التجريبية',
           deletedProducts: res.deletedProducts ?? 0,
           deletedSales: res.deletedSales ?? 0,
           deletedCustomers: res.deletedCustomers ?? 0,
@@ -227,7 +227,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
               <FlaskConical className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-black">البيانات التجريبية وتدريب الكاشير</h2>
+              <h2 className="t-modal-title">البيانات التجريبية وتدريب الكاشير</h2>
               <p className="text-xs text-white/80 mt-0.5">
                 جرب النظام ودرب الموظفين براحتك من غير ما تلمس أي بضاعة أو فواتير حقيقية في المحل
               </p>
@@ -249,7 +249,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-base font-black text-brand-dark dark:text-brand-bright">تم مسح كل البيانات التجريبية بنجاح!</h3>
+                <h3 className="t-card-title text-brand-dark dark:text-brand-bright">تم مسح البيانات التجريبية</h3>
                 <p className="text-xs text-paid dark:text-paid-bright mt-1 font-bold leading-relaxed">
                   {clearSuccessInfo.message}
                 </p>
@@ -257,15 +257,15 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
               <div className="grid grid-cols-3 gap-2.5 max-w-sm mx-auto">
                 <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-2.5 shadow-2xs">
                   <span className="block text-2xl font-black text-ink dark:text-ink-dark">{clearSuccessInfo.deletedProducts}</span>
-                  <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">أصناف اتحذفت</span>
+                  <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">أصناف اتحذفت</span>
                 </div>
                 <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-2.5 shadow-2xs">
                   <span className="block text-2xl font-black text-ink dark:text-ink-dark">{clearSuccessInfo.deletedSales}</span>
-                  <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">فواتير اتحذفت</span>
+                  <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">فواتير اتحذفت</span>
                 </div>
                 <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-2.5 shadow-2xs">
                   <span className="block text-2xl font-black text-ink dark:text-ink-dark">{clearSuccessInfo.deletedCustomers}</span>
-                  <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">زبائن اتحذفوا</span>
+                  <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">زبائن اتحذفوا</span>
                 </div>
               </div>
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
@@ -288,7 +288,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                   إغلاق النافذة
                 </button>
               </div>
-              <p className="text-[11px] text-paid dark:text-paid-bright font-semibold animate-pulse">
+              <p className="text-micro text-paid dark:text-paid-bright font-semibold animate-pulse">
                 الشاشة هتحدث نفسها والكتالوج هيتجدد تلقائياً حالا...
               </p>
             </div>
@@ -377,7 +377,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                     })()}
                   </div>
                   <div>
-                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-semibold block">نشاط المحل المعتمد تلقائياً:</span>
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-semibold block">نشاط المحل المعتمد تلقائياً:</span>
                     <span className="font-bold text-ink dark:text-ink-dark text-xs">
                       {(STORE_TYPE_OPTIONS.find(o => o.id === selectedStoreType) || STORE_TYPE_OPTIONS[0]).label}
                     </span>
@@ -387,7 +387,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowTypeSelector(prev => !prev)}
-                  className="px-2.5 py-1 text-[11px] font-bold text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-brand bg-canvas dark:bg-canvas-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg transition-colors cursor-pointer"
+                  className="px-2.5 py-1 text-micro font-bold text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-brand-bright bg-canvas dark:bg-canvas-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg transition-colors cursor-pointer"
                 >
                   {showTypeSelector ? 'إخفاء الخيارات' : 'تغيير النشاط'}
                 </button>
@@ -466,7 +466,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-6 h-6 text-danger dark:text-danger-bright shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-danger dark:text-danger-bright">متأكد إنك عاوز تمسح كل البيانات التجريبية واختبارات الحمل؟</h4>
+                      <h4 className="t-label text-danger dark:text-danger-bright">متأكد إنك عاوز تمسح كل البيانات التجريبية واختبارات الحمل؟</h4>
                       <p className="text-xs text-ink dark:text-ink-dark mt-1 leading-relaxed font-medium">
                         النظام هيفحص قاعدة البيانات بالكامل، ويمسح أي أصناف تجريبية (بما فيها أصناف اختبار الحمل والتدريب)
                         والفواتير والزبائن التجريبيين بأمان تام، ومش هيلمس أي فواتير أو أصناف حقيقية أنشأتها بنفسك.
@@ -511,7 +511,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
           <div className="border-t border-line dark:border-line-dark pt-4 flex items-center justify-between">
             <div>
               <span className="text-xs font-bold text-ink dark:text-ink-dark block">إعادة ضبط وإعداد المحل من الصفر</span>
-              <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">تحديد اسم المحل، النشاط، الفئات، ونظام البيع كأول تشغيل</span>
+              <span className="text-micro text-ink-muted dark:text-ink-dark-muted">تحديد اسم المحل، النشاط، الفئات، ونظام البيع كأول تشغيل</span>
             </div>
             <button
               type="button"
@@ -538,7 +538,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
             <div className="border-t border-line dark:border-line-dark pt-4 flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold text-ink dark:text-ink-dark block">الجولة السريعة لشرح النظام</span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">جولة من 5 خطوات تشرح شاشات البرنامج وأزرار البيع</span>
+                <span className="text-micro text-ink-muted dark:text-ink-dark-muted">جولة من 5 خطوات تشرح شاشات البرنامج وأزرار البيع</span>
               </div>
               <button
                 type="button"
@@ -553,17 +553,6 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
               </button>
             </div>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark px-6 py-3.5 flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2 text-sm font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors shadow-sm cursor-pointer"
-          >
-            إغلاق
-          </button>
         </div>
       </div>
     </div>

@@ -21,6 +21,8 @@ import {
 import { useAuth } from '../context/useAuth';
 import { invoke, type UserDto } from '../bridge/ipc';
 import { CustomSelect, type SelectOption } from '../components/CustomSelect';
+import { RequiredMark } from '../components/RequiredMark';
+import { getRoleLabel, getTier } from '../utils/roleLabels';
 
 export const LoginScreen: React.FC = () => {
   const { login, refreshUser } = useAuth();
@@ -108,11 +110,11 @@ export const LoginScreen: React.FC = () => {
     return activeUsers.map((u) => ({
       value: u.username,
       label: u.displayName,
-      badge: u.role === 'admin' ? 'صاحب المحل' : 'كاشير',
+      badge: getRoleLabel(u),
       icon: (
         <div
           className={`w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs shrink-0 ${
-            u.role === 'admin'
+            getTier(u) >= 1
               ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
               : 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20'
           }`}
@@ -130,7 +132,7 @@ export const LoginScreen: React.FC = () => {
         const nonRootUsers = (users || []).filter((u: UserDto) => u.role !== 'root');
         if (nonRootUsers.length > 0) {
           setActiveUsers(nonRootUsers);
-          const defaultUser = nonRootUsers.find((u: UserDto) => u.role === 'admin') || nonRootUsers[0];
+          const defaultUser = nonRootUsers.find((u: UserDto) => u.isOwner === true) || nonRootUsers.find((u: UserDto) => u.role === 'admin') || nonRootUsers[0];
           setUsername(defaultUser.username);
         }
       })
@@ -169,7 +171,7 @@ export const LoginScreen: React.FC = () => {
       return;
     }
     if (!password) {
-      setError('يرجى إدخال كلمة المرور أو الرقم السري.');
+      setError('يرجى إدخال الرقم السري (PIN).');
       return;
     }
     if (lockoutSeconds > 0) {
@@ -241,7 +243,7 @@ export const LoginScreen: React.FC = () => {
       if (!res.success) {
         setRecoveryError(res.message || 'كود الدعم الفني غير صحيح.');
       } else {
-        setRecoverySuccess('تم استرجاع الحساب وتحديث الرقم السري بنجاح. جاري الدخول...');
+        setRecoverySuccess('تم استرجاع الحساب وتحديث الرقم السري. جاري الدخول...');
         setTimeout(async () => {
           setIsRecoveryModalOpen(false);
           setUsername('admin');
@@ -302,7 +304,7 @@ export const LoginScreen: React.FC = () => {
 
           <div className="pt-6 border-t border-white/15 text-xs text-emerald-200/80 flex items-center justify-between">
             <span className="font-medium">يعمل محلياً بالكامل بدون إنترنت</span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-semibold">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-micro font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               جاهز للعمل
             </span>
@@ -356,9 +358,11 @@ export const LoginScreen: React.FC = () => {
                     {isDropdown ? 'اختر حساب الموظف من القائمة:' : 'اختر موظفاً سريعاً:'}
                   </label>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
-                      ({activeUsers.length} موظف متاح)
-                    </span>
+                    {isDropdown && (
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
+                        ({activeUsers.length} موظف متاح)
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() =>
@@ -367,7 +371,7 @@ export const LoginScreen: React.FC = () => {
                           return currentIsDropdown ? 'buttons' : 'dropdown';
                         })
                       }
-                      className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
+                      className="text-micro font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
                       title="التبديل بين القائمة المنسدلة والأزرار"
                     >
                       {isDropdown ? 'عرض كأزرار' : 'عرض كقائمة'}
@@ -415,12 +419,12 @@ export const LoginScreen: React.FC = () => {
                         >
                           <UserIcon className="w-3.5 h-3.5" />
                           <span>{u.displayName}</span>
-                          {u.role === 'admin' ? (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-brand-bright'}`}>
-                              صاحب المحل
+                          {getTier(u) >= 1 ? (
+                            <span className={`text-micro px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-brand-bright'}`}>
+                              {getRoleLabel(u)}
                             </span>
                           ) : (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'}`}>
+                            <span className={`text-micro px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'}`}>
                               كاشير
                             </span>
                           )}
@@ -437,7 +441,7 @@ export const LoginScreen: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark">
-                    اسم المستخدم (أو كتابة يدوية)
+                    اسم المستخدم (أو كتابة يدوية) <RequiredMark />
                   </label>
                   {username && (
                     <button
@@ -446,7 +450,7 @@ export const LoginScreen: React.FC = () => {
                         setUsername('');
                         setPassword('');
                       }}
-                      className="text-[11px] text-ink-muted dark:text-ink-dark-muted hover:text-danger cursor-pointer"
+                      className="text-micro text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer"
                     >
                       مسح
                     </button>
@@ -468,7 +472,7 @@ export const LoginScreen: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-ink dark:text-ink-dark">
-                    كلمة المرور أو الرقم السري
+                    الرقم السري (PIN) <RequiredMark />
                   </label>
                   <button
                     type="button"
@@ -480,7 +484,7 @@ export const LoginScreen: React.FC = () => {
                       setRecoveryNewPin('');
                       setRecoveryConfirmPin('');
                     }}
-                    className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-micro font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <KeyRound className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                     <span>نسيت الرمز؟ (كود الدعم الفني)</span>
@@ -492,7 +496,7 @@ export const LoginScreen: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="ادخل كلمة المرور أو PIN أو كود الدعم (RFK-...)"
+                    placeholder="ادخل الرقم السري (PIN)"
                     disabled={lockoutSeconds > 0 || isSubmitting}
                     className="w-full h-11 pr-10 pl-11 rounded-xl border border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-2 focus:ring-brand-soft dark:focus:ring-brand-soft/20 bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark text-sm transition-all"
                     autoFocus
@@ -599,7 +603,7 @@ export const LoginScreen: React.FC = () => {
                   <h3 className="text-sm font-bold text-ink dark:text-ink-dark">
                     جلسة دعم مطور النظام (Root)
                   </h3>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted">
                     بروتوكول التحدي والاستجابة الرقمي المشفر (Challenge-Response)
                   </p>
                 </div>
@@ -642,7 +646,7 @@ export const LoginScreen: React.FC = () => {
                     <span>{copiedChallenge ? 'تم النسخ!' : 'نسخ'}</span>
                   </button>
                 </div>
-                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 leading-relaxed">
+                <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 leading-relaxed">
                   أملِ هذا الكود لمطور النظام ليقوم بتوقيع تصريح الدخول المؤقت من لوحة التراخيص السحابية.
                 </p>
               </div>
@@ -650,7 +654,7 @@ export const LoginScreen: React.FC = () => {
               {/* Response Token Input */}
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  2. رمز تصريح Root الموقع (RFQ-ROOT-...)
+                  2. رمز تصريح Root الموقع (RFQ-ROOT-...) <RequiredMark />
                 </label>
                 <textarea
                   value={rootTokenInput}
@@ -706,7 +710,7 @@ export const LoginScreen: React.FC = () => {
                   <h3 className="text-sm font-bold text-ink dark:text-ink-dark">
                     استرجاع الدخول ورمز الطوارئ والدعم الفني
                   </h3>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted">
                     أدخل كود الدعم لتعيين رقم سري جديد لصاحب المتجر
                   </p>
                 </div>
@@ -738,7 +742,7 @@ export const LoginScreen: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  كود الدعم الفني / رمز الاسترجاع
+                  كود الدعم الفني / رمز الاسترجاع <RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -750,14 +754,14 @@ export const LoginScreen: React.FC = () => {
                   className="w-full h-11 px-3.5 rounded-xl border border-line dark:border-line-dark focus:border-brand focus:ring-2 focus:ring-brand-soft dark:focus:ring-brand-soft/20 bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark font-mono text-center tracking-wider text-sm font-bold"
                   autoFocus
                 />
-                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1">
                   كود الأمان المطبوع أو المُستلم من مسؤول الدعم الفني للمنصة
                 </p>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  الرقم السري (PIN) الجديد للمدير
+                  الرقم السري (PIN) الجديد للمدير <RequiredMark />
                 </label>
                 <input
                   type="password"
@@ -773,7 +777,7 @@ export const LoginScreen: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
-                  تأكيد الرقم السري الجديد
+                  تأكيد الرقم السري الجديد <RequiredMark />
                 </label>
                 <input
                   type="password"

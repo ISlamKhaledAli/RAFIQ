@@ -304,6 +304,15 @@ namespace RafiqPOS.Repositories
 
         public Customer RecordPayment(string customerId, long amountPiasters, string notes, string shiftId = null, string paymentMethod = "cash", string digitalAccountId = null, string idempotencyKey = null)
         {
+            // Same writer lock as purchases, expenses, wallets and e-pay so drawer balance checks cannot interleave
+            lock (Services.SaleService.FinancialWriteLock)
+            {
+                return RecordPaymentCore(customerId, amountPiasters, notes, shiftId, paymentMethod, digitalAccountId, idempotencyKey);
+            }
+        }
+
+        private Customer RecordPaymentCore(string customerId, long amountPiasters, string notes, string shiftId, string paymentMethod, string digitalAccountId, string idempotencyKey)
+        {
             if (string.IsNullOrWhiteSpace(customerId)) throw new ArgumentException("معرف العميل مطلوب");
             if (amountPiasters <= 0) throw new ArgumentException("مبلغ السداد يجب أن يكون أكبر من الصفر");
             if (customerId == "cust_general_cash")
@@ -624,6 +633,14 @@ namespace RafiqPOS.Repositories
         }
 
         public Customer CancelPayment(string customerId, string ledgerEntryId, string reason, string userName)
+        {
+            lock (Services.SaleService.FinancialWriteLock)
+            {
+                return CancelPaymentCore(customerId, ledgerEntryId, reason, userName);
+            }
+        }
+
+        private Customer CancelPaymentCore(string customerId, string ledgerEntryId, string reason, string userName)
         {
             if (string.IsNullOrWhiteSpace(customerId)) throw new ArgumentException("معرف العميل مطلوب");
             if (string.IsNullOrWhiteSpace(ledgerEntryId)) throw new ArgumentException("معرف حركة السداد مطلوب");

@@ -14,6 +14,26 @@ namespace RafiqPOS.Services
             return "628" + Math.Abs(Guid.NewGuid().GetHashCode()).ToString("D9");
         }
 
+        // Day closing refuses to seal a day with an open shift: close every open shift counting exactly the expected cash
+        internal static void CloseOpenShiftsWithExpectedCash(string connStr, DailyClosingService closingService)
+        {
+            var shiftRepo = new ShiftRepository(connStr);
+            var shiftService = new ShiftService(connStr, shiftRepo, new CounterRepository(connStr), new AuditLogRepository(connStr), closingService);
+            for (int guard = 0; guard < 20; guard++)
+            {
+                Shift active = shiftRepo.GetActiveShift();
+                if (active == null) return;
+                ShiftSummary shiftSummary = shiftService.GetShiftSummary(active.Id);
+                shiftService.CloseShift(new CloseShiftRequest
+                {
+                    ShiftId = active.Id,
+                    CashierId = active.CashierId,
+                    CashierName = active.CashierName,
+                    ActualCashPiasters = shiftSummary != null ? shiftSummary.ExpectedCashPiasters : 0
+                });
+            }
+        }
+
         public static AuditTestRunnerSummary RunAllTests()
         {
             var summary = new AuditTestRunnerSummary();
@@ -487,6 +507,7 @@ namespace RafiqPOS.Services
                         {
                             DatabaseService.Sales.ProcessSale(new Sale
                             {
+                                IsInternalSeed = true, // the shift is closed by the closing thread mid-race
                                 TotalPiasters = 1000,
                                 PaidPiasters = 1000,
                                 PaymentMethod = "cash",
@@ -514,6 +535,7 @@ namespace RafiqPOS.Services
                     startGate.WaitOne();
                     try
                     {
+                        CloseOpenShiftsWithExpectedCash(DatabaseService.ConnectionString, DatabaseService.DailyClosing);
                         closing = DatabaseService.DailyClosing.SaveClosing(new DailyClosingSaveRequest
                         {
                             BusinessDate = bDate,
@@ -555,6 +577,7 @@ namespace RafiqPOS.Services
                 {
                     DatabaseService.Sales.ProcessSale(new Sale
                     {
+                        IsInternalSeed = true,
                         TotalPiasters = 1000,
                         PaidPiasters = 1000,
                         PaymentMethod = "cash",

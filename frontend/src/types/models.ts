@@ -827,6 +827,7 @@ export interface DailyClosingPreview {
   existingClosing?: DailyClosing | null;
   postClosingSalesCount?: number;
   postClosingSalesPiasters?: number;
+  openShiftsCount?: number;
   isDateSuspicious: boolean;
   dateSuspiciousReason?: string | null;
 }
@@ -1551,11 +1552,15 @@ export interface DigitalAccount {
   name: string;
   accountType: DigitalAccountType;
   provider: DigitalAccountProvider;
+  /** Name of the person the account is registered to, as the customer sees it when sending money. */
+  holderName?: string;
   phoneNumber?: string;
   identifier?: string;
   balancePiasters: number;
   dailyLimitPiasters?: number;
   monthlyLimitPiasters?: number;
+  /** The main account of its type: the one shown at checkout and credited by sales. */
+  isDefault?: boolean;
   isActive: boolean;
   notes?: string;
   createdAt: string;
@@ -1638,7 +1643,7 @@ export interface Shift {
   status: 'open' | 'closed';
   openingFloatPiasters: number;
   cashSalesPiasters: number;
-  visaSalesPiasters: number;
+  cardSalesPiasters: number;
   instapaySalesPiasters: number;
   vodafoneCashSalesPiasters: number;
   creditSalesPiasters: number;
@@ -1664,7 +1669,8 @@ export interface Shift {
 export interface CashDrawerTransaction {
   id: string;
   shiftId: string;
-  type: 'cash_in' | 'cash_out';
+  /** المعتاد 'cash_in' أو 'cash_out'؛ أي كود آخر من الخادم يعرض بالاسم العربي إن وُجد */
+  type: string;
   amountPiasters: number;
   reason: string;
   performedById: string;
@@ -1672,33 +1678,28 @@ export interface CashDrawerTransaction {
   createdAt: string;
 }
 
+/** يطابق ShiftSummary في desktop/Models/ShiftModels.cs حرفياً (الوردية متداخلة في shift) */
 export interface ShiftSummary {
-  shiftId: string;
-  shiftNumber: number;
-  cashierId: string;
-  cashierName: string;
-  posRegisterId: string;
-  businessDate: string;
-  status: string;
-  openedAt: string;
+  shift: Shift | null;
   openingFloatPiasters: number;
   cashSalesPiasters: number;
-  returnsCashPiasters: number;
-  debtPaymentsCashPiasters: number;
-  cashInPiasters: number;
-  cashOutPiasters: number;
-  expensesCashPiasters: number;
-  purchasesCashPiasters: number;
-  supplierPaymentsCashPiasters: number;
-  epayCashPiasters: number;
-  walletsCashPiasters: number;
-  visaSalesPiasters: number;
+  cardSalesPiasters: number;
   instapaySalesPiasters: number;
   vodafoneCashSalesPiasters: number;
   creditSalesPiasters: number;
+  returnsCashPiasters: number;
+  debtPaymentsCashPiasters: number;
+  expensesCashPiasters: number;
+  cashInPiasters: number;
+  cashOutPiasters: number;
+  epayCashPiasters: number;
+  walletsCashPiasters: number;
+  purchasesCashPiasters: number;
+  supplierPaymentsCashPiasters: number;
   expectedCashPiasters: number;
+  availableCashInDrawerPiasters: number;
   invoicesCount: number;
-  isDanglingFromPreviousDay?: boolean;
+  recentMovements: CashDrawerTransaction[];
 }
 
 export interface OpenShiftRequest {

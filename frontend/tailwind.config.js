@@ -126,9 +126,10 @@ export default {
         'fadeIn': 'fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
         'scale-up': 'scaleUp 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
       },
+      // Type scale is rem-based so the app-wide text-size control (html font-size) scales it.
+      // xs..4xl keep the Tailwind defaults; `micro` is the smallest allowed size (badges, captions, dense meta).
       fontSize: {
-        '2xs': ['0.6875rem', { lineHeight: '0.95rem' }], // 11px
-        'md': ['0.9375rem', { lineHeight: '1.4rem' }],   // 15px
+        micro: ['0.6875rem', { lineHeight: '1rem' }], // 11px
       },
       fontFamily: {
         sans: ["'IBM Plex Sans Arabic'", "Cairo", "Tajawal", "Segoe UI", "Tahoma", "sans-serif"],

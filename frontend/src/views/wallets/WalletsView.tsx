@@ -22,6 +22,7 @@ import {
   User,
   Hash,
   Landmark,
+  Star,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription, emitDataChanged } from '../../utils/eventBus';
@@ -32,6 +33,8 @@ import { useFeatures } from '../../context/useFeatures';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
 import { PaginationBar } from '../../components/PaginationBar';
+import { RequiredMark } from '../../components/RequiredMark';
+import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useClientPagination } from '../../utils/usePagination';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import type {
@@ -337,6 +340,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<DigitalAccount | null>(null);
   const [accountFormName, setAccountFormName] = useState('');
+  const [accountFormHolder, setAccountFormHolder] = useState('');
+  const [accountFormIsDefault, setAccountFormIsDefault] = useState(false);
   const [accountFormType, setAccountFormType] = useState<DigitalAccountType>('instapay');
   const [accountFormProvider, setAccountFormProvider] = useState<string>('nbe');
   const [accountFormPhone, setAccountFormPhone] = useState('');
@@ -386,6 +391,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     if (editingAccount) {
       return (
         accountFormName !== editingAccount.name ||
+        accountFormHolder !== (editingAccount.holderName || '') ||
+        accountFormIsDefault !== (editingAccount.isDefault === true) ||
         accountFormType !== editingAccount.accountType ||
         accountFormProvider !== editingAccount.provider ||
         accountFormPhone !== (editingAccount.phoneNumber || '') ||
@@ -398,6 +405,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     }
     return Boolean(
       accountFormName.trim() ||
+      accountFormHolder.trim() ||
+      accountFormIsDefault ||
       accountFormPhone.trim() ||
       accountFormIdentifier.trim() ||
       accountFormBalance > 0 ||
@@ -406,6 +415,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   }, [
     editingAccount,
     accountFormName,
+    accountFormHolder,
+    accountFormIsDefault,
     accountFormType,
     accountFormProvider,
     accountFormPhone,
@@ -552,7 +563,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setLastProcessedTx(res);
       setFeedbackMsg({
         type: 'success',
-        text: `تم حفظ المعاملة بنجاح برقم إيصال (${res.transactionNumber}). تم تحديث رصيد المحفظة وأرباح الوردية.`,
+        text: `تم حفظ المعاملة رقم ${res.transactionNumber}`,
       });
 
       // Reset form
@@ -619,7 +630,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setIsFundingModalOpen(false);
       setFeedbackMsg({
         type: 'success',
-        text: `تم شحن رصيد المحفظة بنجاح بمبلغ (${formatArabicCurrency(fundingAmountPiasters)}).`,
+        text: `تم شحن رصيد المحفظة بمبلغ ${formatArabicCurrency(fundingAmountPiasters)}`,
       });
       await loadData();
     } catch (err: any) {
@@ -630,9 +641,16 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     }
   };
 
+  // The first active account of a type, and the current main account, are always the main one (the host enforces it too)
+  const accountHasActivePeer = accounts.some(
+    (a) => a.accountType === accountFormType && a.isActive !== false && a.id !== editingAccount?.id,
+  );
+  const accountMainLocked = !accountHasActivePeer || editingAccount?.isDefault === true;
+
   // Handle Account Type Switching in Modal
   const handleAccountTypeChange = (newType: DigitalAccountType) => {
     setAccountFormType(newType);
+    setAccountFormIsDefault(false);
     if (newType === 'instapay') {
       const defaultBank = INSTAPAY_BANKS[0];
       setAccountFormProvider(defaultBank.code);
@@ -669,6 +687,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     if (acc) {
       setEditingAccount(acc);
       setAccountFormName(acc.name);
+      setAccountFormHolder(acc.holderName || '');
+      setAccountFormIsDefault(acc.isDefault === true);
       setAccountFormType(acc.accountType);
       setAccountFormProvider(acc.provider);
       setAccountFormPhone(acc.phoneNumber || '');
@@ -683,6 +703,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setAccountFormType('instapay');
       setAccountFormProvider('nbe');
       setAccountFormName('إنستاباي - الأهلي المصري');
+      setAccountFormHolder('');
+      setAccountFormIsDefault(false);
       setAccountFormPhone('');
       setAccountFormIdentifier('');
       setAccountFormBalance(0);
@@ -705,6 +727,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       await invoke('wallets:saveAccount', {
         id: editingAccount ? editingAccount.id : undefined,
         name: accountFormName.trim(),
+        holderName: accountFormHolder.trim(),
+        isDefault: accountMainLocked ? true : accountFormIsDefault,
         type: accountFormType,
         accountType: accountFormType,
         provider: accountFormProvider,
@@ -722,8 +746,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setFeedbackMsg({
         type: 'success',
         text: editingAccount
-          ? `تم تحديث بيانات الحساب (${accountFormName}) بنجاح.`
-          : `تم حفظ وإضافة (${accountFormName}) بنجاح.`,
+          ? `تم تحديث الحساب (${accountFormName})`
+          : `تمت إضافة الحساب (${accountFormName})`,
       });
 
       setIsAccountModalOpen(false);
@@ -732,6 +756,25 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     } catch (err: any) {
       console.error('Failed to save account:', err);
       setFeedbackMsg({ type: 'error', text: err?.message || 'فشل حفظ بيانات الحساب.' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Make an account the main one of its type (dedicated host action: touches only the main flag, never balances or limits)
+  const handleSetDefaultAccount = async (acc: DigitalAccount) => {
+    try {
+      setActionLoading(true);
+      await invoke('wallets:setDefaultAccount', { id: acc.id });
+      setFeedbackMsg({
+        type: 'success',
+        text: `تم تعيين (${acc.name}) كحساب رئيسي لـ${acc.accountType === 'instapay' ? 'إنستاباي' : 'المحافظ'}`,
+      });
+      await loadData();
+      emitDataChanged('wallets');
+    } catch (err: any) {
+      console.error('Failed to set main account:', err);
+      setFeedbackMsg({ type: 'error', text: err?.message || 'تعذر تعيين الحساب الرئيسي.' });
     } finally {
       setActionLoading(false);
     }
@@ -751,7 +794,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setActionLoading(true);
       await invoke('wallets:deleteAccount', { id: acc.id });
       setIsAccountModalOpen(false);
-      setFeedbackMsg({ type: 'success', text: `تم حذف المحفظة (${acc.name}) بنجاح.` });
+      setFeedbackMsg({ type: 'success', text: `تم حذف المحفظة (${acc.name})` });
       await loadData();
       emitDataChanged('wallets');
     } catch (err: any) {
@@ -774,7 +817,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       });
       setCancellingTx(null);
       setCancelReason('');
-      setFeedbackMsg({ type: 'success', text: 'تم إلغاء العملية وتصحيح رصيد المحفظة والدرج بنجاح.' });
+      setFeedbackMsg({ type: 'success', text: 'تم إلغاء العملية وتصحيح رصيد المحفظة والدرج' });
       await loadData();
       emitDataChanged('wallets');
     } catch (err: unknown) {
@@ -858,9 +901,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">المحافظ الإلكترونية وإنستاباي</span>
-              <span className="text-ink-muted/40 dark:text-ink-dark-muted/40 font-bold">/</span>
-              <h1 className="text-base sm:text-lg font-black text-ink dark:text-white m-0">
+              <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">المحافظ الإلكترونية وإنستاباي</span>
+              <span className="text-ink-muted dark:text-ink-dark-muted font-bold" aria-hidden="true">/</span>
+              <h1 className="t-page-title text-ink dark:text-white m-0">
                 {currentTab === 'transact' && 'تنفيذ عملية سريعة (سحب / إيداع)'}
                 {currentTab === 'accounts' && 'أرصدة المحافظ والحسابات'}
                 {currentTab === 'history' && 'سجل العمليات والإيصالات'}
@@ -882,7 +925,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
             <button
               type="button"
               onClick={() => handleOpenAccountModal()}
-              className="h-9 px-3.5 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-slate-900 text-xs font-bold hover:bg-brand-dark flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-98"
+              className="h-9 px-3.5 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-bold hover:bg-brand-dark flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-98"
             >
               <PlusCircle className="w-4 h-4" />
               <span>إضافة محفظة / حساب بنكي</span>
@@ -929,20 +972,16 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
             {/* Right Column: 7 Cols - Main Entry Form */}
             <div className="lg:col-span-7 bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark p-5 sm:p-6 flex flex-col gap-5 shadow-2xs">
               
+              <p className="text-micro text-ink-muted dark:text-ink-muted-dark -mb-2">الحقول المميزة بعلامة * مطلوبة</p>
               {/* Step 1: Account Selection */}
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="mb-2">
                   <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1.5">
-                    <span className="w-4.5 h-4.5 rounded-full bg-brand-soft text-brand-dark dark:bg-brand-dark-soft dark:text-brand-bright inline-flex items-center justify-center text-[10px] font-black">
+                    <span className="w-4.5 h-4.5 rounded-full bg-brand-soft text-brand-dark dark:bg-brand-dark-soft dark:text-brand-bright inline-flex items-center justify-center text-micro font-black">
                       1
                     </span>
                     <span>اختيار المحفظة أو الحساب المطلوب</span>
                   </label>
-                  {selectedAccount && (
-                    <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted">
-                      الرصيد المتاح: <strong className="text-paid dark:text-paid-bright font-black">{formatArabicCurrency(selectedAccount.balancePiasters)}</strong>
-                    </span>
-                  )}
                 </div>
 
                 {accounts.length === 0 ? (
@@ -951,7 +990,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleOpenAccountModal()}
-                      className="px-3 py-1.5 bg-warn hover:bg-warn/90 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
+                      className="px-3 py-1.5 bg-warn hover:bg-warn/90 dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
                     >
                       إضافة حساب الآن
                     </button>
@@ -975,12 +1014,12 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                             <span className="font-bold text-xs text-ink dark:text-white truncate">
                               {acc.name}
                             </span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${info.border} ${info.bgSoft} ${info.text}`}>
+                            <span className={`text-micro font-bold px-2 py-0.5 rounded-full border ${info.border} ${info.bgSoft} ${info.text}`}>
                               {info.badge}
                             </span>
                           </div>
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted truncate max-w-[130px]">
+                            <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted truncate max-w-[130px]">
                               {acc.phoneNumber || acc.identifier || 'رقم الحساب'}
                             </span>
                             <span className="text-xs font-black font-mono text-paid dark:text-paid-bright tabular-nums">
@@ -997,7 +1036,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               {/* Step 2: Operation Type Segmented Control */}
               <div>
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1.5 mb-2">
-                  <span className="w-4.5 h-4.5 rounded-full bg-brand-soft text-brand-dark dark:bg-brand-dark-soft dark:text-brand-bright inline-flex items-center justify-center text-[10px] font-black">
+                  <span className="w-4.5 h-4.5 rounded-full bg-brand-soft text-brand-dark dark:bg-brand-dark-soft dark:text-brand-bright inline-flex items-center justify-center text-micro font-black">
                     2
                   </span>
                   <span>نوع العملية المطلوب تنفيذها</span>
@@ -1008,7 +1047,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     onClick={() => setTxType('cash_out')}
                     className={`h-11 rounded-lg text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
                       isCashOut
-                        ? 'bg-red-600 text-white shadow-xs'
+                        ? 'bg-danger dark:bg-danger-dark-fill text-white shadow-xs'
                         : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-white'
                     }`}
                   >
@@ -1029,7 +1068,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     <span>إيداع / استلام في المحفظة</span>
                   </button>
                 </div>
-                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1.5 font-medium px-1">
+                <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1.5 font-medium px-1">
                   {isCashOut
                     ? '• سحب كاش: الزبون يطلب تحويل كاش من محفظتك ➜ يُخصم المبلغ فقط من رصيد المحفظة وتستلم من الزبون كاش الدرج + ربح المحل.'
                     : '• إيداع رصيد: الزبون يحول رصيد لمحفظتك ➜ يزداد رصيد المحفظة بالمبلغ وتستلم من الزبون كاش الدرج + عمولتك.'}
@@ -1039,15 +1078,15 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               {/* Step 3: Customer & Transaction Details */}
               <div className="pt-1 border-t border-line dark:border-line-dark">
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1.5 mb-2.5">
-                  <span className="w-4.5 h-4.5 rounded-full bg-brand-soft text-brand-dark dark:bg-brand-dark-soft dark:text-brand-bright inline-flex items-center justify-center text-[10px] font-black">
+                  <span className="w-4.5 h-4.5 rounded-full bg-brand-soft text-brand-dark dark:bg-brand-dark-soft dark:text-brand-bright inline-flex items-center justify-center text-micro font-black">
                     3
                   </span>
-                  <span>بيانات الزبون والعملية (اختياري)</span>
+                  <span>بيانات الزبون والعملية</span>
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                    <label className="text-micro font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
                       <Phone className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                       <span>هاتف الزبون</span>
                     </label>
@@ -1062,7 +1101,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                    <label className="text-micro font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                       <span>اسم العميل</span>
                     </label>
@@ -1076,7 +1115,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                    <label className="text-micro font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
                       <Hash className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                       <span>رقم العملية / المرجع</span>
                     </label>
@@ -1095,7 +1134,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               {/* Step 4: The Core Financial Amount & Profit Inputs */}
               <div className="space-y-3.5 pt-1 border-t border-line dark:border-line-dark">
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1.5">
-                  <span className="w-4.5 h-4.5 rounded-full bg-brand-soft text-brand-dark dark:bg-brand-dark-soft dark:text-brand-bright inline-flex items-center justify-center text-[10px] font-black">
+                  <span className="w-4.5 h-4.5 rounded-full bg-brand-soft text-brand-dark dark:bg-brand-dark-soft dark:text-brand-bright inline-flex items-center justify-center text-micro font-black">
                     4
                   </span>
                   <span>المبالغ المالية والعمولة</span>
@@ -1106,9 +1145,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-black text-ink dark:text-white flex items-center gap-1.5">
                       <Coins className="w-4 h-4 text-brand dark:text-brand-bright" />
-                      <span>مبلغ العملية (المحول / المستلم)</span>
+                      <span>مبلغ العملية (المحول / المستلم) <RequiredMark /></span>
                     </label>
-                    <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">
+                    <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">
                       {isCashOut ? 'يُخصم فقط من رصيد المحفظة' : 'يُضاف إلى رصيد المحفظة'}
                     </span>
                   </div>
@@ -1129,7 +1168,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                       <TrendingUp className="w-4 h-4 text-paid dark:text-paid-bright" />
                       <span>ربح المحل / عمولة الوردية المكتسبة</span>
                     </label>
-                    <span className="text-[11px] font-bold text-paid dark:text-paid-bright">
+                    <span className="text-micro font-bold text-paid dark:text-paid-bright">
                       إيراد صافٍ • لا يدخل في رصيد المحفظة
                     </span>
                   </div>
@@ -1158,19 +1197,19 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                       <DollarSign className="w-4 h-4 text-brand dark:text-brand-bright" />
                     </div>
                     <div>
-                      <h2 className="text-xs font-black text-ink dark:text-white m-0">
+                      <h2 className="t-card-title text-ink dark:text-white m-0">
                         الأثر المالي اللحظي للعملية
                       </h2>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                         حساب دقيق ومنفصل عن بضاعة المحل
                       </span>
                     </div>
                   </div>
 
-                  <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  <span className={`text-micro font-bold px-2.5 py-0.5 rounded-full border ${
                     isCashOut
-                      ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800/40'
-                      : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800/40'
+                      ? 'bg-danger-soft text-danger border-danger-border dark:bg-danger-dark-soft dark:text-danger-bright dark:border-danger-bright/30'
+                      : 'bg-paid-soft text-paid border-paid-border dark:bg-paid-dark-soft dark:text-paid-bright dark:border-paid-bright/30'
                   }`}>
                     {isCashOut ? 'سحب كاش للزبون' : 'إيداع بالمحفظة'}
                   </span>
@@ -1226,14 +1265,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
                   {/* Summary Box */}
                   <div className="p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark mt-2">
-                    <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
+                    <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
                       {isCashOut ? 'المطلوب قبضه من الزبون كاش (للدرج):' : 'المطلوب تسليمه للزبون كاش:'}
                     </span>
                     <div className="flex items-baseline justify-between">
                       <span className="text-2xl font-black font-mono text-brand-dark dark:text-brand-bright">
                         {formatArabicCurrency(isCashOut ? cashTakenFromCustomer : cashGivenToCustomer)}
                       </span>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-medium">
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-medium">
                         (شامل الربح والمبلغ)
                       </span>
                     </div>
@@ -1242,8 +1281,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
                 {/* Warning if balance is insufficient */}
                 {hasInsufficientBalance && (
-                  <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 rounded-xl text-red-700 dark:text-red-300 text-xs font-bold flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                  <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 rounded-xl text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
                     <span>
                       رصيد المحفظة الحالي ({formatArabicCurrency(selectedAccount?.balancePiasters || 0)}) غير كافٍ لإتمام العملية.
                     </span>
@@ -1257,8 +1296,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   disabled={actionLoading || amountPiasters <= 0 || hasInsufficientBalance}
                   className={`h-12 w-full rounded-xl font-black text-sm text-white shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 disabled:pointer-events-none ${
                     isCashOut
-                      ? 'bg-red-600 hover:bg-red-700 active:bg-red-800'
-                      : 'bg-paid hover:bg-paid-dark active:bg-paid-darker'
+                      ? 'bg-danger hover:bg-danger/90 dark:bg-danger-dark-fill dark:hover:bg-danger-dark-fill/90'
+                      : 'bg-paid hover:bg-paid-dark'
                   }`}
                 >
                   <CheckCircle2 className="w-5 h-5" />
@@ -1282,13 +1321,13 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-black text-paid dark:text-paid-bright">
-                        تمت المعاملة بنجاح!
+                        تمت المعاملة
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setLastProcessedTx(null)}
-                      className="p-1 text-ink-muted hover:text-ink rounded-lg cursor-pointer"
+                      className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg cursor-pointer"
                       title="إخفاء"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -1297,19 +1336,19 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
                   <div className="grid grid-cols-2 gap-2 text-xs bg-surface-2 dark:bg-surface-dark-2 p-2.5 rounded-xl font-mono">
                     <div>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">رقم الإيصال</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">رقم الإيصال</span>
                       <strong className="text-ink dark:text-white">{lastProcessedTx.transactionNumber}</strong>
                     </div>
                     <div>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">المبلغ المنفذ</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">المبلغ المنفذ</span>
                       <strong className="text-ink dark:text-white">{lastProcessedTx.amountFormatted}</strong>
                     </div>
                     <div>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">ربح المحل</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">ربح المحل</span>
                       <strong className="text-paid dark:text-paid-bright">{lastProcessedTx.profitFormatted}</strong>
                     </div>
                     <div>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">الرصيد بعد</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">الرصيد بعد</span>
                       <strong className="text-ink dark:text-white">{lastProcessedTx.balanceAfterFormatted}</strong>
                     </div>
                   </div>
@@ -1319,7 +1358,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               {/* Card 3: Quick Integration Info Notice */}
               <div className="p-4 bg-surface-2/70 dark:bg-surface-dark-2/70 rounded-2xl border border-line dark:border-line-dark flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-paid dark:text-brand-bright shrink-0 mt-0.5" />
-                <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted leading-relaxed">
+                <div className="text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed">
                   <strong className="text-ink dark:text-white block mb-0.5">ربط آلي مع شاشة الكاشير:</strong>
                   أي عملية سداد عبر «إنستاباي» أو «محفظة» في شاشة البيع تُسجل تلقائياً هنا في سجل الحسابات وتزيد من رصيدك.
                 </div>
@@ -1335,23 +1374,12 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         {/* ================================================================ */}
         {currentTab === 'accounts' && (
           <div className="max-w-6xl mx-auto flex flex-col gap-4">
-            
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <h2 className="text-base font-black text-ink dark:text-white m-0">
-                  أرصدة المحافظ والحسابات البنكية وإنستاباي
-                </h2>
-                <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0">
-                  متابعة الأرصدة الحالية، الحدود الشهرية، وإمكانية تعديل وتغذية كل حساب
-                </p>
-              </div>
-            </div>
 
             {/* Quick 3 Balances Overview Row in Accounts Tab */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3.5 flex items-center justify-between shadow-2xs">
                 <div>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5">
                     إجمالي رصيد محافظ الكاش
                   </span>
                   <span className="text-lg font-black font-mono text-paid dark:text-paid-bright">
@@ -1365,7 +1393,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3.5 flex items-center justify-between shadow-2xs">
                 <div>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5">
                     إجمالي رصيد إنستاباي (البنوك)
                   </span>
                   <span className="text-lg font-black font-mono text-violet-700 dark:text-violet-300">
@@ -1379,7 +1407,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3.5 flex items-center justify-between shadow-2xs">
                 <div>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5">
                     إجمالي السيولة النقدية المتاحة
                   </span>
                   <span className="text-lg font-black font-mono text-brand dark:text-brand-bright">
@@ -1393,6 +1421,17 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
             </div>
 
             {/* Account Cards Grid */}
+            {accounts.length === 0 && (
+              <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-dashed border-line dark:border-line-dark p-8 flex flex-col items-center text-center gap-3 shadow-2xs">
+                <div className="w-12 h-12 rounded-2xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted">
+                  <Wallet className="w-6 h-6" />
+                </div>
+                <h3 className="t-card-title text-ink dark:text-white m-0">لا توجد محافظ أو حسابات مسجلة حتى الآن</h3>
+                <p className="text-xs text-ink-muted dark:text-ink-dark-muted max-w-sm m-0">
+                  أضف محفظة كاش أو حساب إنستاباي من زر الإضافة أعلى الصفحة لتبدأ تسجيل العمليات.
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {accounts.map((acc) => {
                 const info = getAccountDisplayInfo(acc);
@@ -1407,16 +1446,28 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   >
                     <div>
                       <div className="flex items-center justify-between mb-2.5">
-                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${info.border} ${info.bgSoft} ${info.text} flex items-center gap-1`}>
-                          {info.isBank ? <Landmark className="w-3 h-3" /> : <Smartphone className="w-3 h-3" />}
-                          <span>{info.badge}</span>
-                        </span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className={`text-micro font-bold px-2.5 py-0.5 rounded-full border ${info.border} ${info.bgSoft} ${info.text} flex items-center gap-1`}>
+                            {info.isBank ? <Landmark className="w-3 h-3" /> : <Smartphone className="w-3 h-3" />}
+                            <span>{info.badge}</span>
+                          </span>
+                          {acc.isDefault === true && (
+                            <span
+                              className="text-micro font-bold px-2 py-0.5 rounded-full border border-brand/40 dark:border-brand-bright/50 bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright flex items-center gap-1"
+                              title="الحساب الرئيسي: يظهر في شاشة الدفع ويُسجَّل فيه المبلغ المستلم"
+                              data-testid="main-account-badge"
+                            >
+                              <Star className="w-3 h-3 fill-current" />
+                              <span>رئيسي</span>
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1">
                           {canFund && (
                             <button
                               type="button"
                               onClick={() => handleOpenFundingModal(acc.id)}
-                              className="h-7 px-2.5 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-brand-bright hover:bg-paid hover:text-white text-[11px] font-bold transition-all cursor-pointer"
+                              className="h-7 px-2.5 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-brand-bright hover:bg-paid hover:text-white dark:hover:text-white text-micro font-bold transition-all cursor-pointer"
                             >
                               + شحن
                             </button>
@@ -1426,7 +1477,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleOpenAccountModal(acc)}
-                                className="w-7 h-7 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center justify-center transition-all cursor-pointer"
+                                className="w-7 h-7 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center justify-center transition-all cursor-pointer"
                                 title="تعديل بيانات الحساب"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
@@ -1434,7 +1485,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleDeleteAccount(acc)}
-                                className="w-7 h-7 rounded-lg text-ink-muted hover:text-danger hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center justify-center transition-all cursor-pointer"
+                                className="w-7 h-7 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center justify-center transition-all cursor-pointer"
                                 title="حذف / أرشفة الحساب"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1444,26 +1495,44 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                         </div>
                       </div>
 
-                      <h3 className="text-sm font-black text-ink dark:text-white mb-1">
+                      <h3 className="t-card-title text-ink dark:text-white mb-1">
                         {acc.name}
                       </h3>
+                      {acc.holderName && (
+                        <p className="text-xs font-bold text-ink dark:text-ink-dark mb-1 flex items-center gap-1.5 min-w-0">
+                          <User className="w-3.5 h-3.5 shrink-0 text-ink-muted dark:text-ink-dark-muted" />
+                          <span className="truncate">{acc.holderName}</span>
+                        </p>
+                      )}
                       <p className="text-xs font-mono text-ink-muted dark:text-ink-dark-muted mb-3 truncate">
                         {acc.identifier || acc.phoneNumber || 'بدون رقم مسجل'}
                       </p>
+                      {canManageAccounts && acc.isDefault !== true && (
+                        <button
+                          type="button"
+                          onClick={() => void handleSetDefaultAccount(acc)}
+                          disabled={actionLoading}
+                          className="w-full h-8 mb-3 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 hover:border-brand dark:hover:border-brand-bright text-brand dark:text-brand-bright text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                          title="يظهر هذا الحساب للكاشير عند الدفع، ويُسجَّل فيه المبلغ المستلم"
+                        >
+                          <Star className="w-3.5 h-3.5 shrink-0" />
+                          <span>اجعله الرئيسي</span>
+                        </button>
+                      )}
 
                       <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark font-mono flex items-center justify-between">
                         <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-sans font-bold">
                           الرصيد الفعلي:
                         </span>
                         <span className={`text-lg font-black ${
-                          isLow ? 'text-amber-600 dark:text-warn-bright' : 'text-paid dark:text-paid-bright'
+                          isLow ? 'text-warn dark:text-warn-bright' : 'text-paid dark:text-paid-bright'
                         }`}>
                           {formatArabicCurrency(acc.balancePiasters)}
                         </span>
                       </div>
                     </div>
 
-                    <div className="pt-2.5 border-t border-line dark:border-line-dark flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted font-mono">
+                    <div className="pt-2.5 border-t border-line dark:border-line-dark flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted font-mono">
                       <span>حد يومي: {formatArabicCurrency(dailyLimit)}</span>
                       <span>حد شهري: {formatArabicCurrency(monthlyLimit)}</span>
                     </div>
@@ -1514,9 +1583,11 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 </div>
               </div>
 
-              <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-mono">
-                إجمالي السجلات: {totalCount}
-              </span>
+              {totalPages <= 1 && (
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-mono">
+                  إجمالي السجلات: {totalCount}
+                </span>
+              )}
             </div>
 
             {/* Table */}
@@ -1577,16 +1648,16 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                               {t.transactionNumber || (t.id ? t.id.replace(/-/g, '').slice(-8).toUpperCase() : '—')}
                             </td>
                             <td className="px-4">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold ${
                                 isDeduction
-                                  ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300'
+                                  ? 'bg-danger-soft text-danger dark:bg-danger-dark-soft dark:text-danger-bright'
                                   : isSaleTx
-                                    ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-300'
+                                    ? 'bg-brand-soft text-brand dark:bg-brand-dark-soft dark:text-brand-bright'
                                     : isCustomerDebtTx
                                       ? 'bg-paid-soft text-paid dark:bg-paid-dark-soft dark:text-paid-bright'
                                       : isFundingTx
-                                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300'
-                                        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                                        ? 'bg-warn-soft text-warn dark:bg-warn-dark-soft dark:text-warn-bright'
+                                        : 'bg-paid-soft text-paid dark:bg-paid-dark-soft dark:text-paid-bright'
                               }`}>
                                 {isDeduction ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
                                 <span>{badgeLabel}</span>
@@ -1615,7 +1686,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                             </td>
                             <td className="px-4 text-center">
                               {isCancelled ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-danger/10 text-danger dark:bg-danger/20 dark:text-danger-bright">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-micro font-bold bg-danger/10 text-danger dark:bg-danger/20 dark:text-danger-bright">
                                   ملغاة
                                 </span>
                               ) : canCancelTx && t.txType !== 'sale_credit' && (t.txType as string) !== 'pos_sale' && (t.txType as string) !== 'pos_return' ? (
@@ -1625,14 +1696,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                                     setCancellingTx(t);
                                     setCancelReason('');
                                   }}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger/10 transition-colors cursor-pointer"
                                   title="إلغاء المعاملة وتصحيح الرصيد"
                                 >
                                   <RotateCcw className="w-3.5 h-3.5" />
                                   <span>إلغاء</span>
                                 </button>
                               ) : (
-                                <span className="text-ink-muted/40">—</span>
+                                <span className="text-ink-muted/40 dark:text-ink-dark-muted/40">—</span>
                               )}
                             </td>
                           </tr>
@@ -1664,34 +1735,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         {/* ================================================================ */}
         {currentTab === 'analytics' && (
           <div className="max-w-6xl mx-auto flex flex-col gap-5">
-            <div>
-              <h2 className="text-base font-black text-ink dark:text-white m-0">
-                تقارير وتحليلات أرباح المحافظ وإنستاباي
-              </h2>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0">
-                متابعة صافي أرباح المحل المستقلة من عمليات الشحن والسحب ودفع الفواتير
-              </p>
-            </div>
-
             {/* KPI Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 shadow-2xs flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
-                    إجمالي السيولة في المحافظ
-                  </span>
-                  <span className="text-xl font-black font-mono text-brand-dark dark:text-brand-bright">
-                    {analytics?.totalBalanceFormatted || formatArabicCurrency(calculatedTotalBalancePiasters)}
-                  </span>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">
-                    مجموع الأرصدة المتاحة للتحويل
-                  </span>
-                </div>
-                <div className="w-9 h-9 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
-                  <Wallet className="w-4.5 h-4.5" />
-                </div>
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 shadow-2xs flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
@@ -1700,7 +1745,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   <span className="text-xl font-black font-mono text-paid dark:text-brand-bright">
                     {analytics?.todayProfitFormatted || (analytics ? formatArabicCurrency(analytics.todayProfitPiasters || 0) : '0.00 ج.م')}
                   </span>
-                  <span className="text-[11px] text-paid dark:text-brand-bright mt-1 block font-bold">
+                  <span className="text-micro text-paid dark:text-brand-bright mt-1 block font-bold">
                     من {analytics?.todayTransactionsCount || 0} عملية اليوم
                   </span>
                 </div>
@@ -1714,14 +1759,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
                     أرباح المحل الإجمالية
                   </span>
-                  <span className="text-xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                  <span className="text-xl font-black font-mono text-paid dark:text-paid-bright">
                     {analytics?.monthProfitFormatted || (analytics ? formatArabicCurrency(analytics.monthProfitPiasters ?? analytics.totalProfitPiasters ?? 0) : '0.00 ج.م')}
                   </span>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 block">
                     أرباح العمليات المسجلة بالنظام
                   </span>
                 </div>
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shrink-0">
                   <Coins className="w-4.5 h-4.5" />
                 </div>
               </div>
@@ -1731,14 +1776,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
                     حجم التحويلات المنفذة اليوم
                   </span>
-                  <span className="text-xl font-black font-mono text-blue-600 dark:text-blue-400">
+                  <span className="text-xl font-black font-mono text-brand dark:text-brand-bright">
                     {analytics?.todayVolumeFormatted || (analytics ? formatArabicCurrency(analytics.todayVolumePiasters || 0) : '0.00 ج.م')}
                   </span>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 block">
                     إجمالي قيمة المبالغ المحولة
                   </span>
                 </div>
-                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
                   <Receipt className="w-4.5 h-4.5" />
                 </div>
               </div>
@@ -1771,13 +1816,13 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         <div onClick={handleFundingBackdropClick} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-4 border-b border-line dark:border-line-dark flex items-center justify-between">
-              <h3 className="text-sm font-black text-ink dark:text-white m-0">
+              <h3 className="t-card-title text-ink dark:text-white m-0">
                 شحن وتغذية رصيد المحفظة / إنستاباي
               </h3>
               <button
                 type="button"
                 onClick={() => void requestCloseFunding()}
-                className="w-7 h-7 rounded-lg text-ink-muted hover:text-ink flex items-center justify-center cursor-pointer"
+                className="w-7 h-7 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1797,7 +1842,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  مبلغ الشحن / الإيداع:
+                  مبلغ الشحن / الإيداع: <RequiredMark />
                 </label>
                 <MoneyInput
                   valuePiasters={fundingAmountPiasters}
@@ -1824,14 +1869,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 {fundingSource === 'cash_drawer' && (
                   <div className="space-y-1.5 mt-1">
                     <div className="p-2 rounded-xl border text-xs bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark flex items-center justify-between">
-                      <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">كاش الدرج المتوفر حالياً:</span>
+                      <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-micro">كاش الدرج المتوفر حالياً:</span>
                       <span className={`font-mono font-black text-xs ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
                         {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
                       </span>
                     </div>
 
                     {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (fundingAmountPiasters > 0 && fundingAmountPiasters > liveDrawerCashPiasters)) && (
-                      <div className="p-2 rounded-xl border text-[11px] bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-0.5">
+                      <div className="p-2 rounded-xl border text-micro bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-0.5">
                         <div className="flex items-center gap-1.5 font-bold">
                           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                           <span>
@@ -1840,7 +1885,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                               : 'رصيد الدرج غير كافٍ!'}
                           </span>
                         </div>
-                        <p className="text-[10.5px] leading-relaxed">
+                        <p className="text-micro leading-relaxed">
                           {liveDrawerCashPiasters <= 0
                             ? 'لا يمكن سحب نقدية من درج فارغ. إذا كان الشحن تم من مالك المحل أو نقدية خارجية، يرجى تغيير مصدر التمويل إلى: «كاش خارجي / صاحب المحل».'
                             : `المبلغ المطلوب (${formatArabicCurrency(fundingAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي / صاحب المحل» إذا كان المبلغ مدفوعاً من مالك المحل.`}
@@ -1853,7 +1898,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  ملاحظات الشحن (اختياري):
+                  ملاحظات الشحن:
                 </label>
                 <input
                   type="text"
@@ -1869,7 +1914,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               <button
                 type="button"
                 onClick={() => void requestCloseFunding()}
-                className="h-9 px-4 rounded-xl text-xs font-bold text-ink-muted hover:text-ink cursor-pointer"
+                className="h-9 px-4 rounded-xl text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
               >
                 إلغاء
               </button>
@@ -1906,12 +1951,12 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   {accountFormType === 'instapay' ? <Landmark className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-ink dark:text-white m-0">
+                  <h3 className="t-card-title text-ink dark:text-white m-0">
                     {editingAccount
                       ? (accountFormType === 'instapay' ? 'تعديل حساب إنستاباي البنكي' : 'تعديل محفظة الكاش')
                       : (accountFormType === 'instapay' ? 'إضافة حساب إنستاباي (InstaPay) جديد' : 'إضافة محفظة كاش جديدة')}
                   </h3>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                     {accountFormType === 'instapay'
                       ? 'ربط حساب بنكي معتمد بشبكة المدفوعات اللحظية IPN'
                       : 'محفظة هاتف محمول نقدية لعمليات الشحن والسحب'}
@@ -1921,7 +1966,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               <button
                 type="button"
                 onClick={() => void requestCloseAccount()}
-                className="w-7 h-7 rounded-lg text-ink-muted hover:text-ink flex items-center justify-center cursor-pointer"
+                className="w-7 h-7 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1929,6 +1974,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
             {/* Modal Body */}
             <div className="p-5 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
+              <p className="text-micro text-ink-muted dark:text-ink-muted-dark -mb-2">الحقول المميزة بعلامة * مطلوبة</p>
               
               {/* Type Switcher / Locked Indicator */}
               {editingAccount ? (
@@ -1937,8 +1983,8 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
                       نوع الحساب:
                     </label>
-                    <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
-                      <Lock className="w-3 h-3 text-ink-muted" />
+                    <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                       <span>ثابت لا يمكن تغييره</span>
                     </span>
                   </div>
@@ -1953,7 +1999,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                         {accountFormType === 'instapay' ? 'حساب إنستاباي بنكي (InstaPay IPN)' : 'محفظة هاتف كاش نقدية (Mobile Wallet)'}
                       </span>
                     </div>
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
+                    <span className="text-micro font-black px-2 py-0.5 rounded-md bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
                       {accountFormType === 'instapay' ? 'حساب بنكي' : 'محفظة كاش'}
                     </span>
                   </div>
@@ -2033,7 +2079,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               {/* Account Display Name */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  اسم الحساب أو المحفظة في البرنامج:
+                  اسم الحساب أو المحفظة في البرنامج: <RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -2043,6 +2089,23 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
                   autoFocus
                 />
+              </div>
+
+              {/* Account holder name: what the customer sees when sending money */}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="account-holder-name" className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                  اسم صاحب الحساب:
+                </label>
+                <input
+                  id="account-holder-name"
+                  type="text"
+                  value={accountFormHolder}
+                  onChange={(e) => setAccountFormHolder(e.target.value)}
+                  maxLength={60}
+                  placeholder="مثال: أحمد محمود السيد"
+                  className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
+                />
+                <span className="text-micro text-ink-muted dark:text-ink-dark-muted">الاسم الذي يظهر للزبون عند التحويل</span>
               </div>
 
               {/* Specific Fields: Phone & IPA / Account Number */}
@@ -2063,7 +2126,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                    {accountFormType === 'instapay' ? 'عنوان الدفع اللحظي (IPA) / المعرف:' : 'معرف إضافي أو كارت ميزة (اختياري):'}
+                    {accountFormType === 'instapay' ? 'عنوان الدفع اللحظي (IPA) / المعرف:' : 'معرف إضافي أو كارت ميزة:'}
                   </label>
                   <input
                     type="text"
@@ -2073,6 +2136,27 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-left focus:bg-surface dark:focus:bg-surface-dark focus:border-brand outline-hidden transition-all"
                     dir="ltr"
                   />
+                </div>
+              </div>
+
+              {/* Main account of its type (shown in the checkout dialog) */}
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
+                <ToggleSwitch
+                  checked={accountMainLocked ? true : accountFormIsDefault}
+                  onChange={(val) => setAccountFormIsDefault(val)}
+                  disabled={accountMainLocked}
+                  title="الحساب الرئيسي"
+                  className="shrink-0 mt-0.5"
+                />
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-xs font-bold text-ink dark:text-ink-dark">الحساب الرئيسي (يظهر في شاشة الدفع)</span>
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed">
+                    {editingAccount?.isDefault === true
+                      ? 'هذا هو الحساب الرئيسي الحالي. لتغييره اجعل حساباً آخر رئيسياً.'
+                      : !accountHasActivePeer
+                        ? 'أول حساب من هذا النوع يصبح رئيسياً تلقائياً.'
+                        : 'يظهر هذا الحساب للكاشير عند الدفع عبر انستاباي أو المحفظة، ويُسجَّل فيه المبلغ المستلم'}
+                  </span>
                 </div>
               </div>
 
@@ -2134,7 +2218,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleDeleteAccount(editingAccount)}
-                  className="text-xs font-bold text-danger hover:underline cursor-pointer flex items-center gap-1.5"
+                  className="text-xs font-bold text-danger dark:text-danger-bright hover:underline cursor-pointer flex items-center gap-1.5"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>حذف الحساب</span>
@@ -2145,7 +2229,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => void requestCloseAccount()}
-                  className="h-9 px-4 rounded-xl text-xs font-bold text-ink-muted hover:text-ink cursor-pointer"
+                  className="h-9 px-4 rounded-xl text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -2168,14 +2252,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-md w-full p-6 shadow-2xl border border-line dark:border-line-dark" dir="rtl">
             <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
-              <h3 className="text-base font-black text-danger flex items-center gap-2">
+              <h3 className="t-card-title text-danger flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-danger" />
                 <span>إلغاء معاملة محفظة / إنستاباي</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setCancellingTx(null)}
-                className="text-ink-muted hover:text-ink cursor-pointer p-1 rounded-lg"
+                className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2205,13 +2289,13 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     <span className="font-mono font-bold text-paid">{cancellingTx.profitFormatted || formatArabicCurrency(cancellingTx.profitPiasters)}</span>
                   </div>
                 )}
-                <div className="text-[11px] text-danger font-medium mt-1 pt-1 border-t border-line dark:border-line-dark">
+                <div className="text-micro text-danger font-medium mt-1 pt-1 border-t border-line dark:border-line-dark">
                   سيتم التراجع عن حركة الرصيد في المحفظة والدرج، ولا يمكن التراجع بعد الإلغاء.
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-ink-muted block mb-1">سبب الإلغاء (إلزامي):</label>
+                <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">سبب الإلغاء: <RequiredMark /></label>
                 <input
                   type="text"
                   value={cancelReason}
@@ -2225,7 +2309,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setCancellingTx(null)}
-                  className="px-4 py-2 bg-surface-2 hover:bg-surface border border-line text-ink rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-2 border border-line text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
                   تراجع
                 </button>

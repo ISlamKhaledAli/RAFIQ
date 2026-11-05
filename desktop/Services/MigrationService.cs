@@ -541,7 +541,7 @@ namespace RafiqPOS.Services
                     result.IsCompatible = true;
                     if (string.IsNullOrEmpty(result.CompatibilityNotes))
                     {
-                        result.CompatibilityNotes = "الحزمة مشفرة ومتوافقة تماماً مع هذا الإصدار من نظام رفيق.";
+                        result.CompatibilityNotes = "الحزمة مشفرة ومتوافقة تماماً مع هذا الإصدار من رفيق POS.";
                     }
                     result.Success = true;
                     result.Message = "تم فحص الحزمة بنجاح: البيانات مشفرة وسليمة ومتوافقة تماماً.";

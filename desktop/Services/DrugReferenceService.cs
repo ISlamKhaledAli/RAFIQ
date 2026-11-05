@@ -163,10 +163,13 @@ namespace RafiqPOS.Services
             var returnDoc = new PurchaseReturn
             {
                 SupplierId = request.SupplierId,
+                IdempotencyKey = request.IdempotencyKey,
                 ReturnDate = DateTime.Now.ToString("yyyy-MM-dd"),
                 Notes = "مرتجع أدوية منتهية أو قريبة الصلاحية: " + (request.Notes ?? ""),
                 Items = new List<PurchaseReturnItem>()
             };
+
+            int? supplierCreditBps = _repo.GetSupplierExpiryCreditBps(request.SupplierId);
 
             for (int i = 0; i < request.Items.Count; i++)
             {
@@ -185,11 +188,15 @@ namespace RafiqPOS.Services
                     throw new InvalidOperationException("التشغيلة المحددة غير موجودة: " + reqItem.BatchId);
                 }
 
-                // If creditBps is provided, calculate the actual credit unit cost
-                long effectiveUnitCost = reqItem.UnitCostPiasters > 0 ? reqItem.UnitCostPiasters : batch.CostPricePiasters;
-                if (reqItem.CreditBps > 0 && reqItem.CreditBps < 10000)
+                // The credit is the batch cost scaled by the supplier's configured expiry credit (same figure the UI estimates);
+                // a client credit is only used when the supplier has none configured, and never above 100%.
+                long effectiveUnitCost = batch.CostPricePiasters;
+                int creditBps = supplierCreditBps.HasValue && supplierCreditBps.Value > 0 && supplierCreditBps.Value <= 10000
+                    ? supplierCreditBps.Value
+                    : ((reqItem.CreditBps > 0 && reqItem.CreditBps <= 10000) ? reqItem.CreditBps : 10000);
+                if (creditBps < 10000)
                 {
-                    effectiveUnitCost = (long)Math.Round((double)effectiveUnitCost * (double)reqItem.CreditBps / 10000.0);
+                    effectiveUnitCost = (long)Math.Round((double)effectiveUnitCost * (double)creditBps / 10000.0);
                 }
 
                 returnDoc.Items.Add(new PurchaseReturnItem

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { 
-  Sparkles, 
-  X, 
-  Tag, 
-  Check, 
+import type { ReactNode } from 'react';
+import {
+  Sparkles,
+  X,
+  Tag,
+  Check,
   AlertCircle,
   Settings,
   Scale,
@@ -11,19 +12,34 @@ import {
   Search,
   Boxes,
   Plus,
+  Minus,
   Trash2,
   Store,
   ShoppingBag,
-  Percent,
   CheckCircle2,
-  Layers
+  Layers,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { extractProducts, type QuickItem, type Product } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
+import { SegmentedTabs, type SegmentedTabOption } from './SegmentedTabs';
+import { ToggleSwitch } from './ToggleSwitch';
 import { useFeatures } from '../context/useFeatures';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import {
+  QUICK_FIELD_LG,
+  QUICK_BTN_LG,
+  QUICK_BTN_SECONDARY,
+  QUICK_BTN_PRIMARY,
+  QUICK_BTN_ICON_LG,
+  FieldLabel,
+  FormSection,
+  ExtrasSection,
+  PriceInput,
+  InlineNotice,
+  SmallChip,
+} from './QuickItemFormParts';
 
 interface QuickFastItemModalProps {
   isOpen: boolean;
@@ -33,6 +49,159 @@ interface QuickFastItemModalProps {
   onOpenVariantMatrixModal?: () => void;
   existingCategories?: string[];
 }
+
+type QuickMode = 'warehouse' | 'bundle' | 'service';
+
+const MODE_OPTIONS: SegmentedTabOption<QuickMode>[] = [
+  { value: 'warehouse', label: 'صنف من المخزن', icon: Store, tone: 'paid' },
+  { value: 'bundle', label: 'عرض تجميعي (كومبو)', icon: Boxes, tone: 'paid' },
+  { value: 'service', label: 'صنف خدمة / كيس', icon: ShoppingBag, tone: 'paid' },
+];
+
+// Presets for standalone service mode
+const QUICK_PRESETS = [
+  { label: 'كيس بلاستيك كبير', price: '1.00', unit: 'piece' },
+  { label: 'كيس بلاستيك صغير', price: '0.50', unit: 'piece' },
+  { label: 'خدمة توصيل / دليفري', price: '15.00', unit: 'piece' },
+  { label: 'كرتونة فارغة', price: '5.00', unit: 'piece' },
+  { label: 'شاي / مشروب ساخن', price: '10.00', unit: 'piece' },
+  { label: 'سعر حر (مبلغ مفتوح)', price: '', isOpenPrice: true, unit: 'piece' },
+];
+
+interface BundleStatProps {
+  label: string;
+  value: string;
+  tone?: 'ok' | 'neutral';
+  extra?: ReactNode;
+}
+
+const BundleStat = ({ label, value, tone = 'neutral', extra }: BundleStatProps) => (
+  <div className="min-w-0">
+    <div className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">{label}</div>
+    <div
+      className={`mt-1 flex items-baseline gap-1 flex-wrap font-mono t-kpi ${
+        tone === 'ok' ? 'text-paid dark:text-paid-bright' : 'text-ink dark:text-ink-dark'
+      }`}
+    >
+      <span className="break-all">{value}</span>
+      <span className="text-xs font-bold">ج.م</span>
+      {extra && <span className="inline-flex items-center gap-0.5 text-xs font-bold">{extra}</span>}
+    </div>
+  </div>
+);
+
+interface CategoryFieldProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  isCustom: boolean;
+  setIsCustom: (value: boolean) => void;
+  customValue: string;
+  setCustomValue: (value: string) => void;
+}
+
+const CategoryField = ({ value, onChange, options, isCustom, setIsCustom, customValue, setCustomValue }: CategoryFieldProps) => (
+  <div>
+    <FieldLabel>القسم / التبويب</FieldLabel>
+    {!isCustom ? (
+      <div className="flex gap-2 items-center">
+        <div className="flex-1 min-w-0">
+          <CustomSelect value={value} onChange={onChange} size="lg" options={options} />
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsCustom(true)}
+          className={`${QUICK_BTN_LG} ${QUICK_BTN_SECONDARY}`}
+          title="كتابة قسم جديد"
+        >
+          <Plus className="w-4 h-4" />
+          <span>جديد</span>
+        </button>
+      </div>
+    ) : (
+      <div className="flex gap-2">
+        <input
+          type="text"
+          autoFocus
+          placeholder="اسم القسم الجديد..."
+          value={customValue}
+          onChange={(e) => setCustomValue(e.target.value)}
+          className={QUICK_FIELD_LG}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            setIsCustom(false);
+            setCustomValue('');
+          }}
+          className={QUICK_BTN_ICON_LG}
+          title="الرجوع للأقسام الحالية"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    )}
+  </div>
+);
+
+interface ProductSearchBoxProps {
+  label: string;
+  required?: boolean;
+  placeholder: string;
+  query: string;
+  onQueryChange: (query: string) => void;
+  searching: boolean;
+  results: Product[];
+  onPick: (product: Product) => void;
+  trailing: (product: Product) => ReactNode;
+}
+
+const ProductSearchBox = ({ label, required = false, placeholder, query, onQueryChange, searching, results, onPick, trailing }: ProductSearchBoxProps) => (
+  <div className="relative">
+    <label className="block">
+      <FieldLabel required={required}>{label}</FieldLabel>
+      <div className="relative">
+        <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder={placeholder}
+          className={`${QUICK_FIELD_LG} pr-10`}
+        />
+        {searching && (
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-ink-muted dark:text-ink-dark-muted font-bold animate-pulse">
+            جاري البحث...
+          </span>
+        )}
+      </div>
+    </label>
+
+    {results.length > 0 && (
+      <div className="absolute z-20 top-full mt-1 w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg shadow-xl max-h-64 overflow-y-auto divide-y divide-line dark:divide-line-dark">
+        {results.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onPick(p)}
+            className="w-full min-h-14 px-4 py-2.5 text-right hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer flex items-center justify-between gap-3 text-sm transition-colors"
+          >
+            <span className="flex flex-col min-w-0">
+              <span className="font-bold text-ink dark:text-ink-dark line-clamp-2 break-words">{p.name}</span>
+              <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-mono">{p.barcode || 'بدون باركود'}</span>
+            </span>
+            <span className="flex items-center gap-2 shrink-0">
+              <span className="font-mono font-bold tabular-nums text-paid dark:text-paid-bright">
+                {(p.pricePiasters / 100).toFixed(2)} ج.م
+              </span>
+              {trailing(p)}
+            </span>
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+);
 
 export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
   isOpen,
@@ -44,7 +213,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
 }) => {
   const { isEnabled } = useFeatures();
   // Mode selection: warehouse (default & primary) | bundle (combos like Ramadan box) | service (standalone/bags)
-  const [mode, setMode] = useState<'warehouse' | 'bundle' | 'service'>('warehouse');
+  const [mode, setMode] = useState<QuickMode>('warehouse');
 
   // Warehouse Mode State
   const [searchQuery, setSearchQuery] = useState('');
@@ -197,15 +366,13 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
       ? Math.round((bundleSavingsPiasters / totalBundleOriginalPiasters) * 100)
       : 0;
 
-  // Presets for standalone service mode
-  const quickPresets = [
-    { label: 'كيس بلاستيك كبير', price: '1.00', unit: 'piece' },
-    { label: 'كيس بلاستيك صغير', price: '0.50', unit: 'piece' },
-    { label: 'خدمة توصيل / دليفري', price: '15.00', unit: 'piece' },
-    { label: 'كرتونة فارغة', price: '5.00', unit: 'piece' },
-    { label: 'شاي / مشروب ساخن', price: '10.00', unit: 'piece' },
-    { label: 'سعر حر (مبلغ مفتوح)', price: '', isOpenPrice: true, unit: 'piece' }
-  ];
+  const handleModeChange = (next: QuickMode) => {
+    setMode(next);
+    setError(null);
+    if (next === 'bundle' && !bundlePriceEgp && totalBundleOriginalEgp !== '0.00') {
+      setBundlePriceEgp(totalBundleOriginalEgp);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -346,822 +513,451 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
     }
   };
 
+  const showUnitField = isEnabled('feature_scale_weight');
+  const shownCategory = isCustomCategory ? customCategoryInput.trim() || 'قسم جديد' : categoryName;
+  const shownBundleCategory = isCustomBundleCategory ? customBundleCategoryInput.trim() || 'قسم جديد' : bundleCategoryName;
+  const itemExtrasSummary = `${showUnitField ? `${unit === 'kg' ? 'بالوزن' : 'بالقطعة'} · ` : ''}${shownCategory}`;
+
+  const unitField = showUnitField ? (
+    <div>
+      <FieldLabel>وحدة البيع</FieldLabel>
+      <SegmentedTabs
+        ariaLabel="وحدة الصنف"
+        fullWidth
+        value={unit}
+        onChange={setUnit}
+        options={[
+          { value: 'piece', label: 'قطعة / عدد', icon: Package },
+          { value: 'kg', label: 'وزن (كجم)', icon: Scale },
+        ]}
+      />
+    </div>
+  ) : null;
+
+  const priceBlock = (
+    <div className="flex flex-col gap-3">
+      <label className="block">
+        <FieldLabel required={!isOpenPrice}>سعر البيع</FieldLabel>
+        <PriceInput
+          large
+          value={priceEgp}
+          onChange={(v) => setPriceEgp(normalizeArabicNumerals(v))}
+          step="0.25"
+          min="0"
+          required={!isOpenPrice}
+          disabled={isOpenPrice}
+          placeholder={isOpenPrice ? 'سعر حر' : '0.00'}
+        />
+        {!isOpenPrice && mode === 'warehouse' && originalPriceEgp && (
+          <span className="block mt-1.5 text-xs text-ink-muted dark:text-ink-dark-muted">
+            سعر الصنف في المخزن: <span className="font-mono font-bold tabular-nums text-paid dark:text-paid-bright">{originalPriceEgp} ج.م</span> - تقدر تعدله لهذا الزر.
+          </span>
+        )}
+      </label>
+      <div className="rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark px-4 py-3">
+        <ToggleSwitch
+          className="w-full justify-between"
+          checked={isOpenPrice}
+          onChange={(checked) => {
+            setIsOpenPrice(checked);
+            if (checked) setPriceEgp('');
+          }}
+          label="سعر حر"
+          description="الكاشير يكتب السعر عند البيع"
+        />
+      </div>
+    </div>
+  );
+
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 select-none animate-in fade-in duration-150" 
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 select-none animate-in fade-in duration-150"
       onClick={handleBackdropClick}
       dir="rtl"
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh] text-ink dark:text-ink-dark">
-        
+      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] text-ink dark:text-ink-dark">
+
         {/* Header */}
-        <div className="px-5 py-3.5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shadow-2xs">
-              <Sparkles className="w-4 h-4" />
+        <div className="h-16 px-5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-ink dark:text-ink-dark leading-tight m-0">إضافة صنف سريع أو عرض للمحل</h3>
-              <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted m-0 mt-0.5">
-                أزرار فورية بنقرة واحدة لشاشة البيع مع ربط بالمخزن وحسابات الجرد
+            <div className="min-w-0">
+              <h3 className="t-modal-title text-ink dark:text-ink-dark leading-tight m-0 truncate">إضافة صنف سريع أو عرض</h3>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 mt-0.5 truncate">
+                زر بنقرة واحدة في شاشة البيع
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="w-7 h-7 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 flex items-center justify-center transition-colors cursor-pointer"
+            className="w-10 h-10 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 flex items-center justify-center transition-colors cursor-pointer"
             title="إغلاق"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Mode Selector Tabs */}
-        <div className="p-3 bg-surface-2/60 dark:bg-surface-dark-2/60 border-b border-line dark:border-line-dark shrink-0">
-          <div className="grid grid-cols-3 gap-2 p-1 bg-surface dark:bg-surface-dark-3 rounded-lg border border-line dark:border-line-dark">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('warehouse');
-                setError(null);
-              }}
-              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                mode === 'warehouse'
-                  ? 'bg-paid text-white shadow-2xs'
-                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark'
-              }`}
-            >
-              <Store className="w-3.5 h-3.5" />
-              <span>صنف من المخزن</span>
-            </button>
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
+            <SegmentedTabs ariaLabel="نوع الصنف السريع" fullWidth value={mode} onChange={handleModeChange} options={MODE_OPTIONS} />
 
-            <button
-              type="button"
-              onClick={() => {
-                setMode('bundle');
-                setError(null);
-                if (!bundlePriceEgp && totalBundleOriginalEgp !== '0.00') {
-                  setBundlePriceEgp(totalBundleOriginalEgp);
-                }
-              }}
-              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                mode === 'bundle'
-                  ? 'bg-paid text-white shadow-2xs'
-                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark'
-              }`}
-            >
-              <Boxes className="w-3.5 h-3.5" />
-              <span>عرض تجميعي (كومبو)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setMode('service');
-                setError(null);
-              }}
-              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                mode === 'service'
-                  ? 'bg-paid text-white shadow-2xs'
-                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark'
-              }`}
-            >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>صنف خدمة / كيس</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 flex-1 overflow-y-auto flex flex-col gap-4">
-          
-          {/* Error Banner */}
-          {error && (
-            <div className="p-2.5 rounded-lg bg-danger-soft border border-danger-border text-danger text-xs font-semibold flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Matrix Variants Quick Action (Feature #114) */}
-          {isEnabled('feature_matrix_variants') && onOpenVariantMatrixModal && (
-            <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-between gap-3 text-xs shadow-2xs">
-              <div className="flex items-center gap-2.5 text-purple-950 font-bold">
-                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
-                  <Layers className="w-4 h-4 text-purple-700" />
-                </div>
-                <div>
-                  <div className="text-purple-950">هل تريد إنشاء صنف بـ مقاسات وألوان متعددة؟</div>
-                  <div className="text-[11px] text-purple-700 font-normal">مصفوفة سريعة لملابس وأحذية (مقاس × لون) بباركود لكل خيار</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenVariantMatrixModal();
-                }}
-                className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg transition-colors shrink-0 text-xs shadow-xs cursor-pointer active:scale-95"
-              >
-                + مصفوفة مقاسات وألوان
-              </button>
-            </div>
-          )}
-
-          {/* ============================================================== */}
-          {/* MODE 1: WAREHOUSE PRODUCT (PRIMARY & RECOMMENDED)             */}
-          {/* ============================================================== */}
-          {mode === 'warehouse' && (
-            <div className="flex flex-col gap-4 animate-in fade-in duration-100">
-              
-              {/* Product Search Field */}
-              <div className="relative">
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
-                  ابحث عن الصنف في المخزن لربطه بالزر السريع:
-                </label>
-                <div className="relative">
-                  <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => void handleProductSearch(e.target.value)}
-                    placeholder="اكتب اسم الصنف أو امسح الباركود للبحث في المخزن..."
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:border-paid dark:focus:border-brand-bright focus:outline-none transition-all font-medium"
-                  />
-                  {isSearching && (
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-ink-muted font-bold animate-pulse">
-                      جاري البحث...
-                    </span>
-                  )}
-                </div>
-
-                {/* Dropdown Results */}
-                {searchResults.length > 0 && (
-                  <div className="absolute z-20 top-full mt-1 w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg shadow-xl max-h-56 overflow-y-auto divide-y divide-line dark:divide-line-dark">
-                    {searchResults.map((p) => (
-                      <div
-                        key={p.id}
-                        onClick={() => selectWarehouseProduct(p)}
-                        className="p-2.5 hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer flex items-center justify-between text-xs transition-colors"
-                      >
-                        <div className="flex flex-col">
-                          <span className="font-bold text-ink dark:text-ink-dark">{p.name}</span>
-                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono">{p.barcode || 'بدون باركود'}</span>
-                        </div>
-                        <div className="flex items-center gap-2.5">
-                          <span className="font-mono font-bold text-paid">
-                            {(p.pricePiasters / 100).toFixed(2)} ج.م
-                          </span>
-                          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded font-mono">
-                            مخزون: {p.stockQuantityMilli / 1000}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+            {/* Matrix variants shortcut (Feature #114) */}
+            {isEnabled('feature_matrix_variants') && onOpenVariantMatrixModal && (
+              <div className="rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
+                    <Layers className="w-4 h-4" />
                   </div>
-                )}
-              </div>
-
-              {/* Selected Product Badge */}
-              {selectedProduct ? (
-                <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-paid shrink-0" />
-                    <div>
-                      <span className="font-bold text-paid">تم ربط الصنف المخزني: </span>
-                      <span className="font-semibold text-ink dark:text-ink-dark">{selectedProduct.name}</span>
-                      <span className="block text-[10.5px] text-ink-muted dark:text-ink-dark-muted font-mono mt-0.5">
-                        الرصيد المتاح: {selectedProduct.stockQuantityMilli / 1000} {selectedProduct.unit === 'kg' ? 'كجم' : 'قطعة'}
-                      </span>
-                    </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-ink dark:text-ink-dark">صنف بمقاسات وألوان؟</div>
+                    <div className="text-xs text-ink-muted dark:text-ink-dark-muted">مصفوفة سريعة (مقاس × لون) بباركود لكل خيار</div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedProduct(null);
-                      setName('');
-                      setPriceEgp('');
-                      setOriginalPriceEgp('');
-                    }}
-                    className="text-ink-muted dark:text-ink-dark-muted hover:text-danger text-[11px] underline cursor-pointer"
-                  >
-                    تغيير الصنف
-                  </button>
                 </div>
-              ) : (
-                <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-[11.5px] text-ink-muted dark:text-ink-dark-muted">
-                  اختر صنفاً من المخزن أعلاه لجلبه تلقائياً، أو اكتب بيانات الصنف أدناه مباشرة.
-                </div>
-              )}
-
-              {/* Item Name */}
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                  اسم الصنف السريع على الشاشة <span className="text-danger">*</span>
-                </label>
-                <div className="relative">
-                  <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="مثال: عيش فينو، لبن جهينة، خيار، إلخ..."
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:border-paid dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark-3 focus:outline-none transition-all font-medium"
-                  />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenVariantMatrixModal();
+                  }}
+                  className={`${QUICK_BTN_LG} ${QUICK_BTN_SECONDARY} shrink-0`}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>مصفوفة مقاسات</span>
+                </button>
               </div>
+            )}
 
-              {/* Pricing Options */}
-              <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 p-3 rounded-lg border border-line/80 dark:border-line-dark flex flex-col gap-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-ink dark:text-ink-dark">
-                    سعر البيع لهذا الزر
-                  </label>
-                  
-                  <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-700 dark:text-slate-300 font-bold">
-                    <input
-                      type="checkbox"
-                      checked={isOpenPrice}
-                      onChange={(e) => {
-                        setIsOpenPrice(e.target.checked);
-                        if (e.target.checked) setPriceEgp('');
-                      }}
-                      className="w-4 h-4 rounded border-line text-paid focus:ring-0 cursor-pointer"
-                    />
-                    <span>سعر حر (مفتوح عند البيع)</span>
-                  </label>
-                </div>
-
-                {!isOpenPrice ? (
-                  <div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-mono pointer-events-none">
-                        ج.م
-                      </span>
-                      <input
-                        type="number"
-                        step="0.25"
-                        min="0"
-                        required={!isOpenPrice}
-                        placeholder="0.00"
-                        value={priceEgp}
-                        onChange={(e) => setPriceEgp(normalizeArabicNumerals(e.target.value))}
-                        className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-paid dark:text-paid-bright focus:border-paid dark:focus:border-brand-bright focus:outline-none transition-all"
-                      />
-                    </div>
-                    {originalPriceEgp && (
-                      <div className="mt-1.5 flex items-center justify-between text-[11px] text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-1 rounded">
-                        <span>السعر الأساسي في المخزن: <strong>{originalPriceEgp} ج.م</strong></span>
-                        <span className="text-ink-muted dark:text-ink-dark-muted text-[10px]">(يمكنك تركه كما هو أو تعديله لهذا الزر)</span>
-                      </div>
+            {/* MODE 1: WAREHOUSE PRODUCT (primary) */}
+            {mode === 'warehouse' && (
+              <>
+                <FormSection card title="الأساسيات">
+                  <ProductSearchBox
+                    label="اربط الزر بصنف من المخزن"
+                    placeholder="اكتب اسم الصنف أو امسح الباركود..."
+                    query={searchQuery}
+                    onQueryChange={(q) => void handleProductSearch(q)}
+                    searching={isSearching}
+                    results={searchResults}
+                    onPick={selectWarehouseProduct}
+                    trailing={(p) => (
+                      <SmallChip tone="neutral">
+                        مخزون: <span className="font-mono tabular-nums">{p.stockQuantityMilli / 1000}</span>
+                      </SmallChip>
                     )}
-                  </div>
-                ) : (
-                  <div className="p-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-md text-[11.5px] text-warn dark:text-warn-bright font-medium">
-                    عند النقر على هذا الزر، سيطلب النظام من الكاشير كتابة السعر فورياً.
-                  </div>
-                )}
-              </div>
+                  />
 
-              {/* Unit & Category */}
-              <div className="grid grid-cols-2 gap-3">
-                {isEnabled('feature_scale_weight') ? (
-                  <div>
-                    <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                      وحدة الصنف
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5 h-10 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-lg border border-line dark:border-line-dark">
-                      <button
-                        type="button"
-                        onClick={() => setUnit('piece')}
-                        className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                          unit === 'piece'
-                            ? 'bg-surface dark:bg-surface-dark-3 text-paid dark:text-paid-bright shadow-2xs border border-line dark:border-line-dark'
-                            : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                        }`}
-                      >
-                        <Package className="w-3.5 h-3.5" />
-                        <span>قطعة/عدد</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setUnit('kg')}
-                        className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                          unit === 'kg'
-                            ? 'bg-surface dark:bg-surface-dark-3 text-paid dark:text-paid-bright shadow-2xs border border-line dark:border-line-dark'
-                            : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                        }`}
-                      >
-                        <Scale className="w-3.5 h-3.5" />
-                        <span>وزن (كجم)</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className={isEnabled('feature_scale_weight') ? '' : 'col-span-2'}>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                    القسم / التبويب
-                  </label>
-                  {!isCustomCategory ? (
-                    <div className="flex gap-1.5 items-center">
-                      <div className="flex-1">
-                        <CustomSelect
-                          value={categoryName}
-                          onChange={(val) => setCategoryName(val)}
-                          size="md"
-                          options={existingCategories}
-                        />
+                  {selectedProduct && (
+                    <InlineNotice tone="ok" icon={<CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-bold break-words">تم ربط الصنف: {selectedProduct.name}</div>
+                          <div className="font-mono tabular-nums opacity-90">
+                            الرصيد المتاح: {selectedProduct.stockQuantityMilli / 1000} {selectedProduct.unit === 'kg' ? 'كجم' : 'قطعة'}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProduct(null);
+                            setName('');
+                            setPriceEgp('');
+                            setOriginalPriceEgp('');
+                          }}
+                          className="h-10 px-4 rounded-lg text-sm font-bold border border-current/30 hover:bg-surface/50 dark:hover:bg-surface-dark/50 cursor-pointer shrink-0"
+                        >
+                          تغيير
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsCustomCategory(true)}
-                        className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
-                        title="كتابة قسم جديد"
-                      >
-                        + جديد
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-1.5 h-10">
+                    </InlineNotice>
+                  )}
+
+                  <label className="block">
+                    <FieldLabel required>اسم الزر على الشاشة</FieldLabel>
+                    <div className="relative">
+                      <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
-                        placeholder="اسم القسم الجديد..."
-                        value={customCategoryInput}
-                        onChange={(e) => setCustomCategoryInput(e.target.value)}
-                        className="flex-1 px-2.5 text-xs bg-surface dark:bg-surface-dark-3 border border-paid rounded-lg text-ink dark:text-ink-dark focus:outline-none"
+                        required
+                        placeholder="مثال: عيش فينو، لبن جهينة، خيار..."
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className={`${QUICK_FIELD_LG} pr-10`}
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCustomCategory(false);
-                          setCustomCategoryInput('');
-                        }}
-                        className="px-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                    </div>
+                  </label>
+
+                  {priceBlock}
+                </FormSection>
+
+                <ExtrasSection summary={itemExtrasSummary}>
+                  {unitField}
+                  <CategoryField
+                    value={categoryName}
+                    onChange={setCategoryName}
+                    options={existingCategories}
+                    isCustom={isCustomCategory}
+                    setIsCustom={setIsCustomCategory}
+                    customValue={customCategoryInput}
+                    setCustomValue={setCustomCategoryInput}
+                  />
+                </ExtrasSection>
+              </>
+            )}
+
+            {/* MODE 2: BUNDLE / COMBO OFFER (e.g. Ramadan Box) */}
+            {mode === 'bundle' && (
+              <>
+                <FormSection card title="الأساسيات">
+                  <label className="block">
+                    <FieldLabel required>اسم العرض / الكرتونة</FieldLabel>
+                    <div className="relative">
+                      <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="مثال: كرتونة رمضان الخير، باقة السحور..."
+                        value={bundleName}
+                        onChange={(e) => setBundleName(e.target.value)}
+                        className={`${QUICK_FIELD_LG} pr-10`}
+                      />
+                    </div>
+                  </label>
+
+                  <label className="block">
+                    <FieldLabel required>سعر بيع العرض (الإجمالي)</FieldLabel>
+                    <PriceInput
+                      large
+                      value={bundlePriceEgp}
+                      onChange={(v) => setBundlePriceEgp(normalizeArabicNumerals(v))}
+                      step="0.5"
+                      min="1"
+                      required
+                      placeholder="مثال: 150.00"
+                    />
+                  </label>
+
+                  {bundleItems.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-4">
+                      <BundleStat label="مجموع أسعار المكونات" value={totalBundleOriginalEgp} />
+                      <BundleStat label="سعر العرض" value={(bundleOfferPricePiasters / 100).toFixed(2)} />
+                      <BundleStat
+                        label="توفير الزبون"
+                        value={(bundleSavingsPiasters / 100).toFixed(2)}
+                        tone={bundleSavingsPiasters > 0 ? 'ok' : 'neutral'}
+                        extra={bundleSavingsPiasters > 0 ? <span className="tabular-nums">{bundleSavingsPercent}%</span> : null}
+                      />
                     </div>
                   )}
-                </div>
-              </div>
-            </div>
-          )}
+                </FormSection>
 
-          {/* ============================================================== */}
-          {/* MODE 2: BUNDLE / COMBO OFFER (e.g. Ramadan Box)               */}
-          {/* ============================================================== */}
-          {mode === 'bundle' && (
-            <div className="flex flex-col gap-4 animate-in fade-in duration-100">
-              
-              {/* Bundle Title */}
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                  اسم العرض التجميعي / الكرتونة <span className="text-danger">*</span>
-                </label>
-                <div className="relative">
-                  <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
+                <FormSection card title="مكونات العرض" hint={`${bundleItems.length} صنف`}>
+                  <ProductSearchBox
+                    label="أضف مكونات العرض من المخزن"
                     required
-                    placeholder="مثال: كرتونة رمضان الخير، عرض التوفير الأسبوعي، باقة السحور..."
-                    value={bundleName}
-                    onChange={(e) => setBundleName(e.target.value)}
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:border-paid dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark-3 focus:outline-none transition-all font-medium"
+                    placeholder="ابحث عن صنف لإضافته (زيت، سكر، أرز...)"
+                    query={bundleSearchQuery}
+                    onQueryChange={(q) => void handleBundleSearch(q)}
+                    searching={isBundleSearching}
+                    results={bundleSearchResults}
+                    onPick={addProductToBundle}
+                    trailing={() => (
+                      <SmallChip tone="ok">
+                        <Plus className="w-3 h-3" />
+                        <span>إضافة</span>
+                      </SmallChip>
+                    )}
                   />
-                </div>
-              </div>
 
-              {/* Add items to bundle search */}
-              <div className="relative">
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
-                  أضف الأصناف المكونة للعرض من المخزن:
-                </label>
-                <div className="relative">
-                  <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={bundleSearchQuery}
-                    onChange={(e) => void handleBundleSearch(e.target.value)}
-                    placeholder="ابحث عن صنف لإضافته للعرض (زيت، سكر، أرز...)..."
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:border-paid dark:focus:border-brand-bright focus:outline-none transition-all font-medium"
-                  />
-                  {isBundleSearching && (
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-ink-muted font-bold animate-pulse">
-                      جاري البحث...
-                    </span>
-                  )}
-                </div>
-
-                {/* Dropdown Results */}
-                {bundleSearchResults.length > 0 && (
-                  <div className="absolute z-20 top-full mt-1 w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg shadow-xl max-h-56 overflow-y-auto divide-y divide-line dark:divide-line-dark">
-                    {bundleSearchResults.map((p) => (
-                      <div
-                        key={p.id}
-                        onClick={() => addProductToBundle(p)}
-                        className="p-2.5 hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer flex items-center justify-between text-xs transition-colors"
-                      >
-                        <div className="flex flex-col">
-                          <span className="font-bold text-ink dark:text-ink-dark">{p.name}</span>
-                          <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono">{p.barcode || 'بدون باركود'}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-paid">
-                            {(p.pricePiasters / 100).toFixed(2)} ج.م
-                          </span>
-                          <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded font-bold flex items-center gap-0.5">
-                            <Plus className="w-3 h-3" /> إضافة للعرض
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Bundle Components List */}
-              <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 rounded-lg border border-line dark:border-line-dark p-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between text-xs font-bold text-ink dark:text-ink-dark border-b border-line dark:border-line-dark pb-2">
-                  <span>مكونات العرض ({bundleItems.length} أصناف)</span>
-                  <span className="font-mono text-[11px] text-ink-muted dark:text-ink-dark-muted">
-                    إجمالي سعر الأصناف في المخزن: {totalBundleOriginalEgp} ج.م
-                  </span>
-                </div>
-
-                {bundleItems.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-ink-muted dark:text-ink-dark-muted">
-                    لم تقم بإضافة أي أصناف للعرض بعد. ابحث في المخزن أعلاه لإدراج الأصناف.
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
-                    {bundleItems.map((item) => (
-                      <div
-                        key={item.product.id}
-                        className="bg-surface dark:bg-surface-dark-3 p-2 rounded-md border border-line dark:border-line-dark flex items-center justify-between text-xs"
-                      >
-                        <div className="flex-1 truncate pl-2">
-                          <span className="font-bold text-ink dark:text-ink-dark block truncate">{item.product.name}</span>
-                          <span className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted font-mono">
-                            {((item.product.pricePiasters * item.quantity) / 100).toFixed(2)} ج.م
-                          </span>
-                        </div>
-
-                        {/* Quantity Stepper */}
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center border border-line dark:border-line-dark rounded bg-surface-2 dark:bg-surface-dark-2">
+                  {bundleItems.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-line dark:border-line-dark bg-surface dark:bg-surface-dark py-8 px-4 text-center text-sm text-ink-muted dark:text-ink-dark-muted">
+                      لسه ما ضفتش أي مكونات. ابحث في المخزن فوق وأضفها هنا.
+                    </div>
+                  ) : (
+                    <ul className="m-0 p-0 list-none rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark divide-y divide-line dark:divide-line-dark overflow-hidden">
+                      {bundleItems.map((item) => (
+                        <li key={item.product.id} className="px-4 py-3 flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <span className="block text-sm font-bold text-ink dark:text-ink-dark line-clamp-2 break-words">{item.product.name}</span>
+                            <span className="block mt-0.5 text-xs text-ink-muted dark:text-ink-dark-muted font-mono tabular-nums">
+                              {(item.product.pricePiasters / 100).toFixed(2)} ج.م للقطعة
+                            </span>
+                          </div>
+                          <div className="flex items-center rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 shrink-0">
                             <button
                               type="button"
                               onClick={() => updateBundleItemQuantity(item.product.id, -1)}
-                              className="w-6 h-6 flex items-center justify-center font-bold text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 cursor-pointer"
+                              className="w-10 h-10 flex items-center justify-center text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-r-lg cursor-pointer"
+                              title="إنقاص الكمية"
                             >
-                              -
+                              <Minus className="w-4 h-4" />
                             </button>
-                            <span className="w-8 text-center font-mono font-bold text-xs text-ink dark:text-ink-dark">
+                            <span className="w-10 text-center font-mono font-extrabold text-sm tabular-nums text-ink dark:text-ink-dark">
                               {item.quantity}
                             </span>
                             <button
                               type="button"
                               onClick={() => updateBundleItemQuantity(item.product.id, 1)}
-                              className="w-6 h-6 flex items-center justify-center font-bold text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 cursor-pointer"
+                              className="w-10 h-10 flex items-center justify-center text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-l-lg cursor-pointer"
+                              title="زيادة الكمية"
                             >
-                              +
+                              <Plus className="w-4 h-4" />
                             </button>
                           </div>
-
+                          <span className="min-w-[6rem] text-left font-mono font-black text-sm tabular-nums text-ink dark:text-ink-dark shrink-0">
+                            {((item.product.pricePiasters * item.quantity) / 100).toFixed(2)} ج.م
+                          </span>
                           <button
                             type="button"
                             onClick={() => removeProductFromBundle(item.product.id)}
-                            className="w-6 h-6 text-ink-muted dark:text-ink-dark-muted hover:text-danger flex items-center justify-center rounded transition-colors cursor-pointer"
+                            className="w-10 h-10 shrink-0 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center justify-center rounded-lg transition-colors cursor-pointer"
                             title="حذف من العرض"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Bundle Pricing */}
-              <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 p-3 rounded-lg border border-line/80 dark:border-line-dark flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-ink dark:text-ink-dark">
-                    سعر بيع العرض للمستهلك (الإجمالي) <span className="text-danger">*</span>
-                  </label>
-                  {bundleSavingsPiasters > 0 && (
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-paid bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded">
-                      <Percent className="w-3 h-3" />
-                      <span>توفير للزبون: {(bundleSavingsPiasters / 100).toFixed(2)} ج.م ({bundleSavingsPercent}%)</span>
-                    </div>
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                </div>
 
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-mono pointer-events-none">
-                    ج.م
-                  </span>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="1"
-                    required
-                    placeholder="مثال: 150.00"
-                    value={bundlePriceEgp}
-                    onChange={(e) => setBundlePriceEgp(normalizeArabicNumerals(e.target.value))}
-                    className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-paid dark:text-paid-bright focus:border-paid dark:focus:border-brand-bright focus:outline-none transition-all"
+                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 leading-relaxed">
+                    عند بيع العرض بيتخصم تلقائياً مخزون كل مكون من المخزن.
+                  </p>
+                </FormSection>
+
+                <ExtrasSection summary={shownBundleCategory}>
+                  <CategoryField
+                    value={bundleCategoryName}
+                    onChange={setBundleCategoryName}
+                    options={['عروض وتوفير', ...existingCategories.filter((c) => c !== 'عروض وتوفير')]}
+                    isCustom={isCustomBundleCategory}
+                    setIsCustom={setIsCustomBundleCategory}
+                    customValue={customBundleCategoryInput}
+                    setCustomValue={setCustomBundleCategoryInput}
                   />
-                </div>
-                <p className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted m-0">
-                  عند بيع هذا العرض، سيقوم النظام تلقائياً بخصم كميات كافة الأصناف المكونة له من المخزن بدقة تامة.
-                </p>
-              </div>
+                </ExtrasSection>
+              </>
+            )}
 
-              {/* Category */}
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                  القسم / التبويب
-                </label>
-                {!isCustomBundleCategory ? (
-                  <div className="flex gap-1.5 items-center">
-                    <div className="flex-1">
-                      <CustomSelect
-                        value={bundleCategoryName}
-                        onChange={(val) => setBundleCategoryName(val)}
-                        size="md"
-                        options={['عروض وتوفير', ...existingCategories.filter((c) => c !== 'عروض وتوفير')]}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsCustomBundleCategory(true)}
-                      className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
-                      title="كتابة قسم جديد"
-                    >
-                      + جديد
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-1.5 h-10">
-                    <input
-                      type="text"
-                      placeholder="اسم القسم الجديد..."
-                      value={customBundleCategoryInput}
-                      onChange={(e) => setCustomBundleCategoryInput(e.target.value)}
-                      className="flex-1 px-2.5 text-xs bg-surface dark:bg-surface-dark-3 border border-paid rounded-lg text-ink dark:text-ink-dark focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomBundleCategory(false);
-                        setCustomBundleCategoryInput('');
-                      }}
-                      className="px-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ============================================================== */}
-          {/* MODE 3: SERVICE / STANDALONE (Bags, Delivery, etc.)           */}
-          {/* ============================================================== */}
-          {mode === 'service' && (
-            <div className="flex flex-col gap-4 animate-in fade-in duration-100">
-              
-              {/* Presets */}
-              <div>
-                <label className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">
-                  نماذج جاهزة للاختيار السريع:
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {quickPresets.map((preset) => (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => {
-                        setName(preset.label);
-                        if (preset.isOpenPrice) {
-                          setIsOpenPrice(true);
-                          setPriceEgp('');
-                        } else {
-                          setIsOpenPrice(false);
-                          setPriceEgp(preset.price);
-                        }
-                        setUnit((preset.unit as 'piece' | 'kg') || 'piece');
-                      }}
-                      className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark transition-all active:scale-95 text-right flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>{preset.label}</span>
-                      {!preset.isOpenPrice && preset.price && (
-                        <span className="font-mono text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
-                          ({preset.price} ج)
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Item Name */}
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                  اسم الصنف السريع <span className="text-danger">*</span>
-                </label>
-                <div className="relative">
-                  <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="مثال: كيس بلاستيك كبير، خدمة توصيل، فنجان شاي..."
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:border-paid dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark-3 focus:outline-none transition-all font-medium"
-                  />
-                </div>
-              </div>
-
-              {/* Pricing Options */}
-              <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 p-3 rounded-lg border border-line/80 dark:border-line-dark flex flex-col gap-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-ink dark:text-ink-dark">
-                    سعر البيع
-                  </label>
-                  
-                  <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-700 dark:text-slate-300 font-bold">
-                    <input
-                      type="checkbox"
-                      checked={isOpenPrice}
-                      onChange={(e) => {
-                        setIsOpenPrice(e.target.checked);
-                        if (e.target.checked) setPriceEgp('');
-                      }}
-                      className="w-4 h-4 rounded border-line text-paid focus:ring-0 cursor-pointer"
-                    />
-                    <span>سعر حر (مفتوح عند البيع)</span>
-                  </label>
-                </div>
-
-                {!isOpenPrice ? (
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-mono pointer-events-none">
-                      ج.م
-                    </span>
-                    <input
-                      type="number"
-                      step="0.25"
-                      min="0"
-                      required={!isOpenPrice}
-                      placeholder="0.00"
-                      value={priceEgp}
-                      onChange={(e) => setPriceEgp(normalizeArabicNumerals(e.target.value))}
-                      className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-paid dark:text-paid-bright focus:border-paid dark:focus:border-brand-bright focus:outline-none transition-all"
-                    />
-                  </div>
-                ) : (
-                  <div className="p-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-md text-[11.5px] text-warn dark:text-warn-bright font-medium">
-                    عند النقر على هذا الزر، سيطلب النظام من الكاشير كتابة السعر المطلوب لحظياً.
-                  </div>
-                )}
-              </div>
-
-              {/* Unit & Category */}
-              <div className="grid grid-cols-2 gap-3">
-                {isEnabled('feature_scale_weight') ? (
+            {/* MODE 3: SERVICE / STANDALONE (bags, delivery, ...) */}
+            {mode === 'service' && (
+              <>
+                <FormSection card title="الأساسيات">
                   <div>
-                    <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                      وحدة الصنف
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5 h-10 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-lg border border-line dark:border-line-dark">
-                      <button
-                        type="button"
-                        onClick={() => setUnit('piece')}
-                        className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                          unit === 'piece'
-                            ? 'bg-surface dark:bg-surface-dark-3 text-paid dark:text-paid-bright shadow-2xs border border-line dark:border-line-dark'
-                            : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                        }`}
-                      >
-                        <Package className="w-3.5 h-3.5" />
-                        <span>قطعة/عدد</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setUnit('kg')}
-                        className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                          unit === 'kg'
-                            ? 'bg-surface dark:bg-surface-dark-3 text-paid dark:text-paid-bright shadow-2xs border border-line dark:border-line-dark'
-                            : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                        }`}
-                      >
-                        <Scale className="w-3.5 h-3.5" />
-                        <span>وزن (كجم)</span>
-                      </button>
+                    <FieldLabel>نماذج جاهزة</FieldLabel>
+                    <div className="flex flex-wrap gap-2">
+                      {QUICK_PRESETS.map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            setName(preset.label);
+                            if (preset.isOpenPrice) {
+                              setIsOpenPrice(true);
+                              setPriceEgp('');
+                            } else {
+                              setIsOpenPrice(false);
+                              setPriceEgp(preset.price);
+                            }
+                            setUnit((preset.unit as 'piece' | 'kg') || 'piece');
+                          }}
+                          className="h-10 px-3.5 text-sm font-bold rounded-lg bg-surface dark:bg-surface-dark-3 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 transition-colors active:scale-95 inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <span>{preset.label}</span>
+                          {!preset.isOpenPrice && preset.price && (
+                            <span className="font-mono tabular-nums text-paid dark:text-paid-bright">{preset.price}</span>
+                          )}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                ) : null}
 
-                <div className={isEnabled('feature_scale_weight') ? '' : 'col-span-2'}>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                    القسم / التبويب
-                  </label>
-                  {!isCustomCategory ? (
-                    <div className="flex gap-1.5 items-center">
-                      <div className="flex-1">
-                        <CustomSelect
-                          value={categoryName}
-                          onChange={(val) => setCategoryName(val)}
-                          size="md"
-                          options={existingCategories}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsCustomCategory(true)}
-                        className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
-                        title="كتابة قسم جديد"
-                      >
-                        + جديد
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-1.5 h-10">
+                  <label className="block">
+                    <FieldLabel required>اسم الصنف السريع</FieldLabel>
+                    <div className="relative">
+                      <Tag className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
-                        placeholder="اسم القسم الجديد..."
-                        value={customCategoryInput}
-                        onChange={(e) => setCustomCategoryInput(e.target.value)}
-                        className="flex-1 px-2.5 text-xs bg-surface dark:bg-surface-dark-3 border border-paid rounded-lg text-ink dark:text-ink-dark focus:outline-none"
+                        required
+                        placeholder="مثال: كيس بلاستيك كبير، خدمة توصيل..."
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className={`${QUICK_FIELD_LG} pr-10`}
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCustomCategory(false);
-                          setCustomCategoryInput('');
-                        }}
-                        className="px-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
                     </div>
-                  )}
-                </div>
-              </div>
+                  </label>
+
+                  {priceBlock}
+                </FormSection>
+
+                <ExtrasSection summary={itemExtrasSummary}>
+                  {unitField}
+                  <CategoryField
+                    value={categoryName}
+                    onChange={setCategoryName}
+                    options={existingCategories}
+                    isCustom={isCustomCategory}
+                    setIsCustom={setIsCustomCategory}
+                    customValue={customCategoryInput}
+                    setCustomValue={setCustomCategoryInput}
+                  />
+                </ExtrasSection>
+              </>
+            )}
+          </div>
+
+          {error && (
+            <div className="px-5 pt-3 pb-1 shrink-0" role="alert">
+              <InlineNotice tone="danger" icon={<AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}>
+                {error}
+              </InlineNotice>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="mt-2 pt-3 border-t border-line dark:border-line-dark flex items-center justify-between gap-2 shrink-0">
-            {onOpenFullManager && (
+          {/* Footer */}
+          <div className="px-5 py-4 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between gap-3 flex-wrap shrink-0">
+            {onOpenFullManager ? (
               <button
                 type="button"
                 onClick={() => {
                   onClose();
                   onOpenFullManager();
                 }}
-                className="flex items-center gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-paid-bright font-semibold py-1.5 px-2 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
+                className="h-11 px-3 rounded-lg inline-flex items-center gap-2 text-sm font-bold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
               >
-                <Settings className="w-3.5 h-3.5" />
+                <Settings className="w-4 h-4" />
                 <span>إدارة وترتيب الأزرار السريعة</span>
               </button>
-            )}
+            ) : <span />}
 
-            <div className="flex items-center gap-2 mr-auto">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => void requestClose()}
                 disabled={loading}
-                className="px-4 h-9 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface-3 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                className={`${QUICK_BTN_LG} ${QUICK_BTN_SECONDARY}`}
               >
                 إلغاء
               </button>
-
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 h-9 bg-paid hover:bg-paid-hover active:bg-brand-dark text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                className={`${QUICK_BTN_LG} ${QUICK_BTN_PRIMARY} px-6`}
               >
                 {loading ? (
                   <span>جاري الحفظ...</span>
                 ) : (
                   <>
                     <Check className="w-4 h-4 stroke-[2.5]" />
-                    <span>
-                      {mode === 'bundle' ? 'حفظ العرض وإضافته للمحل' : 'حفظ وإضافة للمحل'}
-                    </span>
+                    <span>{mode === 'bundle' ? 'حفظ العرض' : 'حفظ وإضافة'}</span>
                   </>
                 )}
               </button>
             </div>
           </div>
         </form>
-
       </div>
     </div>
   );

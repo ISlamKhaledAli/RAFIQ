@@ -16,6 +16,7 @@ import {
 import type { Product, ProductUnit } from '../types/models';
 import { CustomSelect } from './CustomSelect';
 import { MoneyInput } from './MoneyInput';
+import { RequiredMark } from './RequiredMark';
 import { ToggleSwitch } from './ToggleSwitch';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 import { invoke } from '../bridge/ipc';
@@ -675,9 +676,9 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
               <Boxes className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-ink dark:text-ink-dark m-0 flex items-center gap-2 whitespace-nowrap">
+              <h2 className="t-modal-title text-ink dark:text-ink-dark m-0 flex items-center gap-2 whitespace-nowrap">
                 <span>معالج التعبئة وتجزئة العبوات</span>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand-soft dark:bg-brand-soft/30 text-brand-dark dark:text-brand-bright font-bold whitespace-nowrap">
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright font-bold whitespace-nowrap">
                   {storeCategoryLabel}
                 </span>
               </h2>
@@ -689,7 +690,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-ink-muted hover:text-ink hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -698,7 +699,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
           {errorMsg && (
-            <div className="p-3 bg-danger-soft text-danger border border-danger/30 rounded-xl text-xs font-bold flex items-center gap-2">
+            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30 rounded-xl text-xs font-bold flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -708,7 +709,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
           {showStockNotice && (
             <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/50 rounded-xl text-xs space-y-1">
               <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-200">
-                <RefreshCw className="w-4 h-4 shrink-0 text-amber-600" />
+                <RefreshCw className="w-4 h-4 shrink-0 text-amber-600 dark:text-warn-bright" />
                 <span>تنبيه ضبط رصيد المخزن تلقائياً:</span>
               </div>
               <p className="text-amber-700 dark:text-amber-300 m-0 leading-relaxed">
@@ -731,7 +732,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
             {/* Controls: Rounding, Premium Margin, Loose toggle */}
             <div className="flex items-center gap-4 shrink-0 flex-wrap justify-end">
               <div className="w-56">
-                <label className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 whitespace-nowrap">
+                <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1 whitespace-nowrap">
                   تقريب السعر:
                 </label>
                 <CustomSelect
@@ -752,7 +753,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
               </div>
 
               <div className="w-56">
-                <label className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 whitespace-nowrap">
+                <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1 whitespace-nowrap">
                   هامش بيع التجزئة:
                 </label>
                 <CustomSelect
@@ -774,7 +775,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
 
               {/* In-Place Loose Toggle */}
               <div className="flex flex-col justify-center border-r border-line dark:border-line-dark pr-4">
-                <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 whitespace-nowrap">
+                <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1 whitespace-nowrap">
                   {terminology.looseSellingLabel}
                 </span>
                 <div className="flex items-center gap-2 h-[32px] whitespace-nowrap">
@@ -793,10 +794,10 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
 
           {/* Pricing Warnings */}
           {pricingWarnings.length > 0 && (
-            <div className="p-3 rounded-xl bg-warn/10 border border-warn/30 text-warn-dark dark:text-warn text-xs space-y-1">
+            <div className="p-3 rounded-xl bg-warn/10 border border-warn/30 text-warn-dark dark:text-warn-bright text-xs space-y-1">
               {pricingWarnings.map((warning, wIdx) => (
                 <div key={wIdx} className="flex items-start gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-warn" />
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
                   <span>{warning}</span>
                 </div>
               ))}
@@ -816,7 +817,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                 type="button"
                 onClick={handleAddLevel}
                 disabled={levels.length >= 4}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-brand/30 hover:bg-brand-soft text-brand text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-2xs"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-brand/30 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{terminology.packagingLevelPlaceholder}</span>
@@ -828,10 +829,10 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
               <table className="w-full text-right text-xs table-fixed">
                 <thead>
                   <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                    <th className="py-2.5 px-3 w-[15%] whitespace-nowrap">المستوى والاسم</th>
+                    <th className="py-2.5 px-3 w-[15%] whitespace-nowrap">المستوى والاسم <RequiredMark /></th>
                     <th className="py-2.5 px-2 text-center w-[18%] whitespace-nowrap">المحتوى والتعبئة</th>
                     <th className="py-2.5 px-2 text-center w-[7%] whitespace-nowrap">المعامل</th>
-                    <th className="py-2.5 px-2 w-[16%] whitespace-nowrap">سعر البيع *</th>
+                    <th className="py-2.5 px-2 w-[16%] whitespace-nowrap">سعر البيع <RequiredMark /></th>
                     <th className="py-2.5 px-2 w-[13%] whitespace-nowrap">سعر التكلفة</th>
                     <th className="py-2.5 px-2 w-[14%] whitespace-nowrap">الباركود</th>
                     <th className="py-2.5 px-2 text-center w-[14%] whitespace-nowrap">افتراضية الكاشير</th>
@@ -843,7 +844,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                     <tr>
                       <td colSpan={8} className="py-8 text-center text-ink-muted dark:text-ink-dark-muted">
                         <div className="flex flex-col items-center justify-center gap-2">
-                          <Boxes className="w-8 h-8 text-line dark:text-line-dark stroke-[1.5]" />
+                          <Boxes className="w-8 h-8 text-line-hover dark:text-line-dark-strong stroke-[1.5]" />
                           <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
                             اضغط «إضافة مستوى فرعي» لتحديد وحدات الصنف
                           </span>
@@ -863,7 +864,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                         onClick={() => setSelectedRowIndex(idx)}
                         className={`transition-colors duration-100 ${
                           isRowSelected
-                            ? 'bg-brand-soft/30 dark:bg-brand-soft/20'
+                            ? 'bg-brand-soft/30 dark:bg-brand-dark-soft'
                             : 'hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 bg-surface dark:bg-surface-dark'
                         }`}
                       >
@@ -882,21 +883,21 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                         <td className="py-2.5 px-2 text-center">
                           {!isBase && nextUnit ? (
                             <div className="inline-flex items-center justify-center gap-1.5 bg-surface-2 dark:bg-surface-dark-2 px-3 py-1 rounded-lg border border-line dark:border-line-dark whitespace-nowrap">
-                              <span className="text-ink-muted text-xs whitespace-nowrap">تحتوي على</span>
+                              <span className="text-ink-muted dark:text-ink-dark-muted text-xs whitespace-nowrap">تحتوي على</span>
                               <input
                                 type="number"
                                 min="2"
                                 max="1000"
                                 value={lvl.ratioToNext}
                                 onChange={(e) => handleRatioChange(idx, e.target.value)}
-                                className="w-12 h-7 px-1 text-center bg-surface dark:bg-surface-dark border border-line rounded-md font-mono font-bold text-xs focus:ring-1 focus:ring-brand focus:border-brand"
+                                className="w-12 h-7 px-1 text-center bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md font-mono font-bold text-xs focus:ring-1 focus:ring-brand focus:border-brand"
                               />
                               <span className="text-ink dark:text-ink-dark font-bold text-xs truncate max-w-[100px] whitespace-nowrap">
                                 {nextUnit.name}
                               </span>
                             </div>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-surface-2 dark:bg-surface-dark-2 text-ink-muted text-xs font-bold border border-line dark:border-line-dark whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted text-xs font-bold border border-line dark:border-line-dark whitespace-nowrap">
                               أصغر وحدة (للمخزن)
                             </span>
                           )}
@@ -904,7 +905,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
 
                         {/* Factor */}
                         <td className="py-2.5 px-2 text-center">
-                          <span className="inline-block px-2.5 py-0.5 rounded bg-brand-soft/60 dark:bg-brand-soft/20 font-mono font-bold text-brand dark:text-brand-bright text-xs whitespace-nowrap">
+                          <span className="inline-block px-2.5 py-0.5 rounded bg-brand-soft/60 dark:bg-brand-dark-soft font-mono font-bold text-brand dark:text-brand-bright text-xs whitespace-nowrap">
                             {lvl.conversionFactor}×
                           </span>
                         </td>
@@ -925,7 +926,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                                   handleAutoCalculateRow(idx);
                                 }}
                                 title="إعادة الحساب التلقائي للسعر بناءً على المعامل وقاعدة التقريب"
-                                className="h-8 px-2 rounded-md bg-brand-soft dark:bg-brand-soft/30 hover:bg-brand hover:text-white text-brand dark:text-brand-bright transition-colors cursor-pointer shrink-0 text-xs font-bold flex items-center justify-center whitespace-nowrap"
+                                className="h-8 px-2 rounded-md bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand hover:text-white dark:hover:text-white text-brand dark:text-brand-bright transition-colors cursor-pointer shrink-0 text-xs font-bold flex items-center justify-center whitespace-nowrap"
                               >
                                 <span className="whitespace-nowrap">تلقائي</span>
                               </button>
@@ -959,7 +960,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                                 handleGenerateBarcode(idx);
                               }}
                               title="توليد باركود دولي عشوائي لهذه العبوة"
-                              className="h-8 w-8 rounded-md bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand hover:text-white text-ink-muted border border-line dark:border-line-dark transition-colors cursor-pointer shrink-0 flex items-center justify-center"
+                              className="h-8 w-8 rounded-md bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand hover:text-white dark:hover:text-white text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark transition-colors cursor-pointer shrink-0 flex items-center justify-center"
                             >
                               <BarcodeIcon className="w-3.5 h-3.5" />
                             </button>
@@ -980,7 +981,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                                 e.stopPropagation();
                                 setDefaultSaleUnitIndex(idx);
                               }}
-                              className="text-xs font-bold text-ink-muted hover:text-brand px-3 py-1 rounded-lg border border-line dark:border-line-dark hover:border-brand/40 bg-surface dark:bg-surface-dark cursor-pointer transition-colors shadow-2xs active:scale-95 whitespace-nowrap"
+                              className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright px-3 py-1 rounded-lg border border-line dark:border-line-dark hover:border-brand/40 bg-surface dark:bg-surface-dark cursor-pointer transition-colors shadow-2xs active:scale-95 whitespace-nowrap"
                               title="جعل هذه العبوة هي التي تنزل في الفاتورة افتراضياً ويظهر سعرها على كارت الصنف"
                             >
                               <span className="whitespace-nowrap">تعيين كافتراضية</span>
@@ -997,7 +998,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                                 e.stopPropagation();
                                 handleRemoveLevel(idx);
                               }}
-                              className="p-1.5 rounded-lg text-ink-muted hover:text-danger hover:bg-danger-soft transition-colors cursor-pointer inline-flex items-center justify-center"
+                              className="p-1.5 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer inline-flex items-center justify-center"
                               title="حذف هذا المستوى"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1019,7 +1020,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
               <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
               <span>المختصر المفيد لمنظومة التعبئة (على السريع بالمصري):</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-[11px] leading-relaxed">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-micro leading-relaxed">
               <div className="bg-surface dark:bg-surface-dark p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">
                 <span className="font-bold text-brand dark:text-brand-bright block mb-1">1. رصيد المخزن دايماً بأصغر وحدة:</span>
                 <span className="text-ink-muted dark:text-ink-dark-muted">
@@ -1060,7 +1061,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={isRebasing}
-              className="px-5 py-2 rounded-xl border border-line dark:border-line-dark hover:bg-surface-2 text-ink text-xs font-bold transition-all cursor-pointer"
+              className="px-5 py-2 rounded-xl border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark text-xs font-bold transition-all cursor-pointer"
             >
               إلغاء
             </button>
@@ -1068,7 +1069,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
               type="button"
               onClick={handleSaveAndConfirm}
               disabled={isRebasing}
-              className="px-6 py-2 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 active:scale-95"
+              className="px-6 py-2 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark active:scale-95"
             >
               {isRebasing ? (
                 <>

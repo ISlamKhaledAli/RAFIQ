@@ -9,6 +9,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import type { DebtorReportItem } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
+import { printReport } from '../utils/printReport';
 
 interface DebtorsReportModalProps {
   isOpen: boolean;
@@ -67,7 +68,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
   }, [debtors]);
 
   const handlePrint = () => {
-    window.print();
+    void printReport({ kind: 'a4only' });
   };
 
   useEffect(() => {
@@ -91,7 +92,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
       }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 print:p-0 print:bg-white print:static"
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:max-h-none print:w-full">
+      <div data-print-root className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:max-h-none print:w-full">
         
         {/* Header (hidden in print) */}
         <div className="px-6 py-4 bg-brand-dark text-white flex items-center justify-between print:hidden">
@@ -140,19 +141,19 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
             <span className="text-xl font-black text-danger dark:text-danger-bright">
               {formatArabicCurrency(totalDebtsPiasters)}
             </span>
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">رصيد آجل قائم طرف الزبائن</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 block">رصيد آجل قائم طرف الزبائن</span>
           </div>
 
           <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark shadow-xs">
             <span className="text-xs text-ink-muted dark:text-ink-dark-muted block mb-1">عدد العملاء المدينين</span>
             <span className="text-xl font-black text-ink dark:text-ink-dark">{debtors.length} عميل</span>
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">عليهم مبالغ غير مسددة</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 block">عليهم مبالغ غير مسددة</span>
           </div>
 
           <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark shadow-xs">
             <span className="text-xs text-ink-muted dark:text-ink-dark-muted block mb-1">تجاوزوا الحد الائتماني المسموح</span>
             <span className="text-xl font-black text-warn dark:text-warn-bright">{overLimitCount} عميل</span>
-            <span className="text-[11px] text-warn dark:text-warn-bright mt-1 block">يتطلب التوقف عن منح الآجل</span>
+            <span className="text-micro text-warn dark:text-warn-bright mt-1 block">يتطلب التوقف عن منح الآجل</span>
           </div>
         </div>
 
@@ -176,7 +177,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
                 filterMode === 'all' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs font-bold' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
-              جميع المدينين ({debtors.length})
+              جميع المدينين
             </button>
             <button
               onClick={() => setFilterMode('overlimit')}
@@ -184,7 +185,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
                 filterMode === 'overlimit' ? 'bg-surface dark:bg-surface-dark text-warn dark:text-warn-bright shadow-xs font-bold' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
-              تجاوزوا الحد ({overLimitCount})
+              تجاوزوا الحد
             </button>
           </div>
         </div>
@@ -261,12 +262,6 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
           <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
             جميع المبالغ مسجلة بالجنيه المصري ومطابقة لأرصدة حركة الحسابات التراكمية.
           </span>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl transition"
-          >
-            إغلاق
-          </button>
         </div>
 
       </div>

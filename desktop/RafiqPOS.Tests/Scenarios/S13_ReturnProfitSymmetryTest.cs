@@ -14,7 +14,18 @@ namespace RafiqPOS.Tests.Scenarios
         {
             // سعر شامل ضريبة 14%: 11400 = 10000 صافي + 1400 ضريبة، التكلفة 6000
             var shift = OpenTestShift("usr_cashier_1", "كاشير 1", 100000);
-            var prod = CreateTestProduct("صنف خاضع للضريبة", 11400, 6000, 100000);
+            // نسبة الضريبة تُقرأ من الكتالوج فقط (M3): الصنف يحمل 14% ولا تُرسل نسبة من العميل
+            var prod = ProductService.SaveProduct(new Product
+            {
+                Name = "صنف خاضع للضريبة",
+                Barcode = "BAR_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                PricePiasters = 11400,
+                CostPiasters = 6000,
+                StockQuantityMilli = 100000,
+                Unit = "piece",
+                TaxRatePercent = 14,
+                IsActive = true
+            }, true, true);
 
             var sale = SaleService.ProcessSale(new Sale
             {
@@ -25,7 +36,7 @@ namespace RafiqPOS.Tests.Scenarios
                 PaidPiasters = 34200,
                 Items = new List<SaleItem>
                 {
-                    new SaleItem { ProductId = prod.Id, ProductName = prod.Name, QuantityMilli = 3000, UnitPricePiasters = 11400, TotalPiasters = 34200, TaxRatePercent = 14 }
+                    new SaleItem { ProductId = prod.Id, ProductName = prod.Name, QuantityMilli = 3000, UnitPricePiasters = 11400, TotalPiasters = 34200 }
                 }
             }, null);
             Assert.AreEqual(4200, sale.TaxPiasters, "ضريبة الفاتورة");

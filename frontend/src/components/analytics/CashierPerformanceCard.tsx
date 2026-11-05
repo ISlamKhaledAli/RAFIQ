@@ -48,7 +48,7 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
 
   if (isLoading) {
     return (
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs flex flex-col items-center justify-center min-h-[160px] animate-pulse">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col items-center justify-center min-h-[160px] animate-pulse">
         <Users className="w-6 h-6 text-ink-muted dark:text-ink-dark-muted animate-spin mb-2" />
         <span className="text-xs text-ink-muted dark:text-ink-dark-muted">جاري تحليل إنتاجية الكاشير...</span>
       </div>
@@ -60,7 +60,7 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
       <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-6 text-center select-none shadow-2xs">
         <Users className="w-8 h-8 text-ink-muted/50 dark:text-ink-dark-muted/50 mx-auto mb-2" />
         <div className="text-xs font-bold text-ink dark:text-ink-dark">لا توجد بيانات نشاط مسجلة للكاشيرات في هذه الفترة</div>
-        <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1">تظهر إحصائيات كل كاشير ومبيعاته ومعدل الإلغاء فور تسجيل فواتير جديدة</div>
+        <div className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">تظهر إحصائيات كل كاشير ومبيعاته ومعدل الإلغاء فور تسجيل فواتير جديدة</div>
       </div>
     );
   }
@@ -68,7 +68,7 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
   const totalStoreSales = metrics.reduce((acc, m) => acc + m.totalSalesPiasters, 0);
 
   return (
-    <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs select-none">
+    <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs select-none">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-line/60 dark:border-line-dark/60">
         <div className="flex items-center gap-2">
@@ -76,8 +76,8 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
             <Users className="w-4 h-4 text-paid dark:text-paid-bright" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-ink dark:text-ink-dark">مقارنة كفاءة ونشاط الكاشيرات</h3>
-            <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
+            <h3 className="t-card-title text-ink dark:text-ink-dark">مقارنة كفاءة ونشاط الكاشيرات</h3>
+            <p className="text-sm text-ink-muted dark:text-ink-dark-muted mt-1">
               حجم المبيعات لكل كاشير، متوسط سلة المشتريات، ومعدل إلغاء الفواتير
             </p>
           </div>
@@ -104,11 +104,11 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
                   </div>
                   <div>
                     <div className="font-bold text-xs text-ink dark:text-ink-dark">{item.cashierName}</div>
-                    <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono">{item.role === 'admin' ? 'مدير نظام' : 'كاشير نقطة بيع'}</div>
+                    <div className="text-xs text-ink-muted dark:text-ink-dark-muted font-mono">{item.role === 'admin' ? 'مدير نظام' : 'كاشير نقطة بيع'}</div>
                   </div>
                 </div>
 
-                <div className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/40">
+                <div className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/40">
                   {sharePercent}% من المبيعات
                 </div>
               </div>
@@ -116,30 +116,30 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
               {/* Financial Stats */}
               <div className="grid grid-cols-2 gap-2 my-2.5 text-xs">
                 <div>
-                  <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted">إجمالي المبيعات</div>
+                  <div className="text-xs text-ink-muted dark:text-ink-dark-muted">إجمالي المبيعات</div>
                   <div className="font-mono font-bold text-ink dark:text-ink-dark mt-0.5">
                     {formatArabicCurrency(item.totalSalesPiasters)}
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted">عدد الفواتير</div>
+                  <div className="text-xs text-ink-muted dark:text-ink-dark-muted">عدد الفواتير</div>
                   <div className="font-mono font-bold text-brand dark:text-brand-bright mt-0.5">
-                    {item.invoicesCount} فاتورة
+                    {item.invoicesCount}
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted">متوسط الفاتورة</div>
+                  <div className="text-xs text-ink-muted dark:text-ink-dark-muted">متوسط الفاتورة</div>
                   <div className="font-mono font-bold text-ink-muted dark:text-ink-dark-muted mt-0.5">
                     {formatArabicCurrency(item.averageInvoicePiasters)}
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted">فواتير ملغاة</div>
+                  <div className="text-xs text-ink-muted dark:text-ink-dark-muted">فواتير ملغاة</div>
                   <div className={`font-mono font-bold mt-0.5 ${item.cancelledCount > 0 ? 'text-danger dark:text-danger-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
-                    {item.cancelledCount} ملغاة
+                    {item.cancelledCount}
                   </div>
                 </div>
               </div>
