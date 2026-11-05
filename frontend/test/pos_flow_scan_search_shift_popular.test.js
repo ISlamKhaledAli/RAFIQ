@@ -15,7 +15,8 @@ import { resolveDefaultSaleUnit } from '../src/views/pos/saleUnit.ts';
 import { POPULAR_ITEMS_LIMIT, POPULAR_WINDOW_DAYS, pickPopularItems } from '../src/views/pos/popularItems.ts';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const read = (...parts) => readFileSync(join(ROOT, ...parts), 'utf8');
+// Sources may be checked out with CRLF on Windows; the multi-line markers below use LF
+const read = (...parts) => readFileSync(join(ROOT, ...parts), 'utf8').replace(/\r\n/g, '\n');
 const posView = read('frontend', 'src', 'views', 'PosView.tsx');
 const barcodeBar = read('frontend', 'src', 'views', 'pos', 'PosBarcodeBar.tsx');
 const checkoutBar = read('frontend', 'src', 'views', 'pos', 'PosCartCheckoutBar.tsx');

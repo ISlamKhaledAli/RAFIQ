@@ -169,7 +169,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
             type="button"
             onClick={() => openHelpCenter('purchases')}
             className="h-10 w-10 flex items-center justify-center bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-paid dark:text-paid-bright rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
-            title="شرح ودليل فواتير المشتريات والموردين (F1)"
+            title="شرح ودليل فواتير المشتريات والموردين"
           >
             <HelpCircle className="w-4 h-4" />
           </button>

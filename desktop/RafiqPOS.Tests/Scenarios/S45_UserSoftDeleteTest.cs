@@ -76,7 +76,7 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.AreEqual(0, Scalar("SELECT failed_attempts FROM users WHERE id = @id;", "@id", c.Id));
             Assert.AreEqual(0, Scalar("SELECT must_change_pin FROM users WHERE id = @id;", "@id", c.Id));
 
-            string expectedName = "cash_sd2#del" + c.Id.Substring(4, 8);
+            string expectedName = "cash_sd2#del" + c.Id.Substring(4);
             Assert.AreEqual(expectedName, ScalarText("SELECT username FROM users WHERE id = @id;", "@id", c.Id), "اسم الدخول يُحرَّر بإضافة لاحقة");
 
             var ghost = UserRepo.GetByIdIncludingDeleted(c.Id);
@@ -319,9 +319,9 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.Throws<ArgumentException>(delegate { UserRepo.SoftDelete("", null); });
             Assert.Throws<ArgumentException>(delegate { UserRepo.SoftDelete(null, null); });
 
-            Assert.AreEqual("repo_one#delabcdef12", ScalarText("SELECT username FROM users WHERE id = @id;", "@id", "usr_abcdef1234567890"), "يُحذف usr_ ثم أول 8 محارف");
+            Assert.AreEqual("repo_one#delabcdef1234567890", ScalarText("SELECT username FROM users WHERE id = @id;", "@id", "usr_abcdef1234567890"), "يُحذف usr_ ثم يُلحق باقي المعرّف كاملاً");
             Assert.AreEqual("repo_two#delab1", ScalarText("SELECT username FROM users WHERE id = @id;", "@id", "ab1"), "معرّف قصير كما هو");
-            Assert.AreEqual("repo_three#delabcdefgh", ScalarText("SELECT username FROM users WHERE id = @id;", "@id", "abcdefghijkl"), "ومعرّف بلا بادئة usr_ أول 8 محارف");
+            Assert.AreEqual("repo_three#delabcdefghijkl", ScalarText("SELECT username FROM users WHERE id = @id;", "@id", "abcdefghijkl"), "ومعرّف بلا بادئة usr_ كاملاً");
             Assert.IsNull(UserRepo.GetByUsername("repo_one"));
         }
 

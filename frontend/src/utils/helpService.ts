@@ -3,17 +3,10 @@
  * Allows any screen or component to launch the offline Help Center with its specific section.
  */
 
-export type HelpSectionTarget = 
-  | 'pos' 
-  | 'products' 
-  | 'purchases' 
-  | 'customers' 
-  | 'sales' 
-  | 'backup_security' 
-  | 'faq' 
-  | 'support'
-  | 'dashboard'
-  | 'settings';
+import type { HelpSectionId } from './helpContent';
+
+/** A guide id, or the name of a screen that maps to a guide (dashboard, settings, epay). */
+export type HelpSectionTarget = HelpSectionId | 'dashboard' | 'settings' | 'epay';
 
 export function openHelpCenter(section?: HelpSectionTarget | string) {
   try {

@@ -151,6 +151,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
+  // Bumped when the sections rail is expanded so the catalog opens with it
+  const [catalogExpandSignal, setCatalogExpandSignal] = useState(0);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [heldSalesCount, setHeldSalesCount] = useState<number>(0);
   const [isHeldSalesModalOpen, setIsHeldSalesModalOpen] = useState(false);
@@ -2759,6 +2761,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             totalCatalogProductsCount={catalogProducts.length}
             categories={allPosCategories}
             onAfterToggle={() => barcodeInputRef.current?.focus()}
+            expandSignal={catalogExpandSignal}
           />
         )}
 
@@ -2773,6 +2776,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             isPopularFallback={isPopularFallback}
             customItemsCount={customItemsCount}
             categoryProductCounts={categoryProductCounts}
+            onExpand={() => setCatalogExpandSignal((n) => n + 1)}
           />
         )}
       </div>

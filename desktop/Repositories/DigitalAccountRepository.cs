@@ -82,66 +82,6 @@ namespace RafiqPOS.Repositories
             return null;
         }
 
-        private static bool _schemaEnsured = false;
-        private static readonly object _schemaLock = new object();
-
-        private void EnsureSchema(SQLiteConnection conn, SQLiteTransaction trans)
-        {
-            if (_schemaEnsured) return;
-            lock (_schemaLock)
-            {
-                if (_schemaEnsured) return;
-                try
-                {
-                    var cols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(digital_accounts);", conn, trans))
-                    using (var reader = pragmaCmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            cols.Add(reader["name"].ToString());
-                        }
-                    }
-                    if (cols.Count > 0)
-                    {
-                        if (!cols.Contains("daily_limit_piasters"))
-                        {
-                            using (var cmd = new SQLiteCommand("ALTER TABLE digital_accounts ADD COLUMN daily_limit_piasters INTEGER NOT NULL DEFAULT 6000000;", conn, trans))
-                            {
-                                cmd.ExecuteNonQuery();
-                            }
-                        }
-                        if (!cols.Contains("monthly_limit_piasters"))
-                        {
-                            using (var cmd = new SQLiteCommand("ALTER TABLE digital_accounts ADD COLUMN monthly_limit_piasters INTEGER NOT NULL DEFAULT 20000000;", conn, trans))
-                            {
-                                cmd.ExecuteNonQuery();
-                            }
-                        }
-                        if (!cols.Contains("phone_number"))
-                        {
-                            using (var cmd = new SQLiteCommand("ALTER TABLE digital_accounts ADD COLUMN phone_number TEXT;", conn, trans))
-                            {
-                                cmd.ExecuteNonQuery();
-                            }
-                        }
-                        if (!cols.Contains("identifier"))
-                        {
-                            using (var cmd = new SQLiteCommand("ALTER TABLE digital_accounts ADD COLUMN identifier TEXT;", conn, trans))
-                            {
-                                cmd.ExecuteNonQuery();
-                            }
-                        }
-                    }
-                    _schemaEnsured = true;
-                }
-                catch
-                {
-                    // Non-fatal fallback
-                }
-            }
-        }
-
         public const int HolderNameMaxLength = 60;
 
         // Trim, drop control characters (incl. newlines/tabs), collapse runs of spaces and cap the length
@@ -179,7 +119,6 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
-                        EnsureSchema(conn, trans);
                         string now = DateTime.UtcNow.ToString("o");
                         if (string.IsNullOrEmpty(account.Id))
                         {

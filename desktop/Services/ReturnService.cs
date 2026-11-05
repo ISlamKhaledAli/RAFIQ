@@ -532,7 +532,11 @@ namespace RafiqPOS.Services
                 long totalCashToRefund = 0;
                 for (int rItemIdx = 0; rItemIdx < returnObj.Items.Count; rItemIdx++)
                 {
-                    totalCashToRefund += returnObj.Items[rItemIdx].TotalPiasters;
+                    var cashItem = returnObj.Items[rItemIdx];
+                    // Without service-computed totals the repository stores price x quantity, so the client total must never reach the drawer check
+                    totalCashToRefund += returnObj.TotalsComputedByService
+                        ? cashItem.TotalPiasters
+                        : Money.FromPiasters(cashItem.UnitPricePiasters).MultiplyByMilliUnits(cashItem.QuantityMilli).Piasters;
                 }
 
                 if (closingSvc != null)

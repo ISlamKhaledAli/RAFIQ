@@ -582,10 +582,11 @@ namespace RafiqPOS.Tests.Scenarios
         public void SaleReceipt_PrintedGrossLinesSumToSubtotal_ThenOneTotalDiscount_ThenTotal()
         {
             // line discounts (500 + 300) + invoice discount 1500 + a weighed line: lines print GROSS, the one discount row sums all of them
+            // gross lines: 2 x 42.00 = 8400, 1.250 x 164.00 = 20500, 12 x 27.00 = 32400 => stored subtotal 61300
             Sale sale = new Sale
             {
                 Id = "s",
-                SubtotalPiasters = 44900,
+                SubtotalPiasters = 61300,
                 DiscountPiasters = 1500,
                 PaidPiasters = 50000,
                 PaymentMethod = "cash",

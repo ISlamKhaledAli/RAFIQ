@@ -6,10 +6,10 @@ import {
   Search, 
   X, 
   ChevronLeft,
-  PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftClose
 } from 'lucide-react';
 import type { Category } from '../../types/models';
+import { PANEL_TOGGLE_BUTTON_CLASS, PANEL_TOGGLE_ICON_CLASS } from '../../utils/panelToggle';
 import { normalizeArabicText } from '../../utils/money';
 import { POPULAR_ITEMS_LIMIT, POPULAR_WINDOW_DAYS } from './popularItems';
 import { getCategoryIconComponent, CATEGORY_ICONS_CHANGED_EVENT } from '../../utils/categoryIcons';
@@ -23,33 +23,9 @@ interface PosCategoriesPanelProps {
   isPopularFallback: boolean;
   customItemsCount: number;
   categoryProductCounts: Record<string, number>;
+  // Called when the rail is expanded, so the catalog panel can open with it
+  onExpand?: () => void;
 }
-
-interface RailItemProps {
-  label: string;
-  count: number;
-  title: string;
-  active: boolean;
-  activeClass: string;
-  onClick: () => void;
-}
-
-// Collapsed rail entry: the name (two lines at most) with the item count under it; the full name stays in the tooltip.
-const RailItem: React.FC<RailItemProps> = ({ label, count, title, active, activeClass, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    title={title}
-    className={`w-full min-h-[3rem] rounded-xl px-1 py-1.5 flex flex-col items-center justify-center gap-0.5 text-center transition-all cursor-pointer ${
-      active
-        ? activeClass
-        : 'bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark'
-    }`}
-  >
-    <span className="w-full text-micro font-bold leading-tight line-clamp-2 break-words">{label}</span>
-    <span className="font-mono text-micro leading-none font-extrabold tabular-nums opacity-80">{count}</span>
-  </button>
-);
 
 export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
   categories,
@@ -60,6 +36,7 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
   isPopularFallback,
   customItemsCount,
   categoryProductCounts,
+  onExpand,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
@@ -85,15 +62,14 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
   }, []);
 
   const toggleCollapsed = () => {
-    setIsCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('rafiq_pos_categories_collapsed', String(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+    const next = !isCollapsed;
+    setIsCollapsed(next);
+    try {
+      localStorage.setItem('rafiq_pos_categories_collapsed', String(next));
+    } catch {
+      // ignore
+    }
+    if (!next) onExpand?.();
   };
 
   // Combine categories with dynamic counts
@@ -103,26 +79,33 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
     return categories.filter((c) => c.name.toLowerCase().includes(q));
   }, [categories, searchQuery]);
 
+  // Collapsed: only the title as vertical text; the whole strip is the expand button (no icons, no items)
+  if (isCollapsed) {
+    return (
+      <section className="w-[3.625rem] min-w-[3.625rem] h-full bg-surface-2 dark:bg-surface-dark-2 border-r border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 shadow-2xs">
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title="توسيع قائمة الأقسام"
+          className="flex-1 w-full flex items-center justify-center cursor-pointer hover:bg-brand-soft dark:hover:bg-surface-dark-3 transition-colors"
+        >
+          <span
+            style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+            className="text-sm font-extrabold text-ink dark:text-ink-dark whitespace-nowrap"
+          >
+            أقسام المتجر
+          </span>
+        </button>
+      </section>
+    );
+  }
+
   return (
     <section 
-      className={`${
-        isCollapsed ? 'w-[4.75rem] min-w-[4.75rem] p-1.5 items-center' : 'w-[13.75rem] sm:w-[15rem] p-2.5 sm:p-3'
-      } h-full bg-surface-2 dark:bg-surface-dark-2 border-r border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 shadow-2xs`}
+      className="w-[13.75rem] sm:w-[15rem] p-2.5 sm:p-3 h-full bg-surface-2 dark:bg-surface-dark-2 border-r border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 shadow-2xs"
     >
       {/* Header */}
-      {isCollapsed ? (
-        <div className="w-full flex flex-col items-center pb-2 mb-2 border-b border-line dark:border-line-dark shrink-0">
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright border border-line dark:border-line-dark shadow-xs group"
-            title="توسيع قائمة الأقسام"
-          >
-            <PanelLeftOpen className="w-4 h-4 text-brand dark:text-brand-bright transition-transform group-hover:scale-110" />
-          </button>
-        </div>
-      ) : (
-        <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-line dark:border-line-dark shrink-0">
+      <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-line dark:border-line-dark shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-white shadow-2xs shrink-0">
               <LayoutGrid className="w-4 h-4" />
@@ -139,18 +122,16 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
             <button
               type="button"
               onClick={toggleCollapsed}
-              className="p-1 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-all cursor-pointer shadow-2xs"
+              className={PANEL_TOGGLE_BUTTON_CLASS}
               title="تصغير قائمة الأقسام"
             >
-              <PanelLeftClose className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright" />
+              <PanelLeftClose className={PANEL_TOGGLE_ICON_CLASS} />
             </button>
           </div>
-        </div>
-      )}
+      </div>
 
-      {/* Quick Search within Categories (Only when expanded) */}
-      {!isCollapsed && (
-        <div className="relative mb-2 shrink-0">
+      {/* Quick Search within Categories */}
+      <div className="relative mb-2 shrink-0">
           <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
@@ -169,22 +150,11 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
             </button>
           )}
         </div>
-      )}
 
       {/* Categories List Container */}
-      <div className={`flex-1 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar w-full ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
+      <div className="flex-1 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar w-full">
         {/* 1. All Products Main Card */}
-        {isCollapsed ? (
-          <RailItem
-            label="الكل"
-            count={totalProductsCount}
-            title={`جميع الأصناف (${totalProductsCount})`}
-            onClick={() => onSelectCategory('__ALL__')}
-            activeClass="bg-brand text-white shadow-xs"
-            active={activeCatalogTab === '__ALL__'}
-          />
-        ) : (
-          <button
+                  <button
             type="button"
             onClick={() => onSelectCategory('__ALL__')}
             className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group active:scale-[0.99] ${
@@ -216,22 +186,12 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
               <ChevronLeft className={`w-3.5 h-3.5 opacity-60 ${activeCatalogTab === '__ALL__' ? 'text-white' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
             </div>
           </button>
-        )}
 
         {/* 2. Top Sellers (الأكثر طلباً) Card */}
-        {isCollapsed ? (
-          <RailItem
-            label="الأكثر طلباً"
-            count={popularItemsCount}
-            title={`${popularHint} (${popularItemsCount})`}
-            onClick={() => onSelectCategory('__POPULAR__')}
-            activeClass="bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs"
-            active={activeCatalogTab === '__POPULAR__'}
-          />
-        ) : (
-          <button
+                  <button
             type="button"
             onClick={() => onSelectCategory('__POPULAR__')}
+            title={`${popularHint} (${popularItemsCount})`}
             className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group active:scale-[0.99] ${
               activeCatalogTab === '__POPULAR__'
                 ? 'bg-warn border-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs'
@@ -262,20 +222,9 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
               <ChevronLeft className={`w-3.5 h-3.5 opacity-60 ${activeCatalogTab === '__POPULAR__' ? 'text-white' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
             </div>
           </button>
-        )}
 
         {/* 3. Favorites & Fast Items (المفضلة) Card */}
-        {isCollapsed ? (
-          <RailItem
-            label="المفضلة"
-            count={customItemsCount}
-            title={`الأصناف المفضلة والسريعة (${customItemsCount})`}
-            onClick={() => onSelectCategory('__CUSTOM__')}
-            activeClass="bg-brand-dark text-white shadow-xs"
-            active={activeCatalogTab === '__CUSTOM__'}
-          />
-        ) : (
-          <button
+                  <button
             type="button"
             onClick={() => onSelectCategory('__CUSTOM__')}
             className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group active:scale-[0.99] ${
@@ -307,7 +256,6 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
               <ChevronLeft className={`w-3.5 h-3.5 opacity-60 ${activeCatalogTab === '__CUSTOM__' ? 'text-white' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
             </div>
           </button>
-        )}
 
         {/* Separator */}
         <div className="py-1 flex items-center w-full">
@@ -316,11 +264,9 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
 
         {/* 4. Real Store Categories */}
         {filteredCategories.length === 0 ? (
-          !isCollapsed && (
-            <div className="text-center py-4 text-xs text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark rounded-xl border border-dashed border-line dark:border-line-dark">
-              لا توجد أقسام مطابقة للبحث
-            </div>
-          )
+          <div className="text-center py-4 text-xs text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark rounded-xl border border-dashed border-line dark:border-line-dark">
+            لا توجد أقسام مطابقة للبحث
+          </div>
         ) : (
           filteredCategories.map((cat) => {
             const count = categoryProductCounts[cat.name] ?? categoryProductCounts[cat.id] ?? cat.productCount ?? 0;
@@ -331,20 +277,6 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
                activeCatalogTab !== '__CUSTOM__' && 
                normalizeArabicText(cat.name.trim()) === normalizeArabicText(activeCatalogTab.trim()));
             const IconComponent = getCategoryIconComponent(cat.name, cat.id);
-
-            if (isCollapsed) {
-              return (
-                <RailItem
-                  key={cat.id || cat.name}
-                  label={cat.name}
-                  count={count}
-                  title={`${cat.name} (${count} صنف)`}
-                  onClick={() => onSelectCategory(cat.name)}
-                  activeClass="bg-brand text-white shadow-xs"
-                  active={isSelected}
-                />
-              );
-            }
 
             return (
               <button

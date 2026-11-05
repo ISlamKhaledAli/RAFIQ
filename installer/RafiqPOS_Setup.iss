@@ -27,13 +27,11 @@
   #define PrereqDir AddBackslash(SourcePath) + "prerequisites"
 #endif
 
-#ifndef Slim
 #if !FileExists(AddBackslash(PrereqDir) + DotNetInstaller)
   #error Missing ndp48-x86-x64-allos-enu.exe in PrereqDir (.NET Framework 4.8 offline installer). See installer\prerequisites\README.md
 #endif
 #if !FileExists(AddBackslash(SourcePath) + ReleaseDir + "\runtimes\fixed109\msedgewebview2.exe")
   #error Missing desktop\bin\Release\runtimes\fixed109\msedgewebview2.exe (WebView2 Fixed Runtime 109 x86). Build with the Setup .bat script.
-#endif
 #endif
 #if !FileExists(AddBackslash(SourcePath) + ReleaseDir + "\dist\index.html")
   #error Missing desktop\bin\Release\dist\index.html (frontend build). Build with the Setup .bat script.
@@ -56,11 +54,7 @@ DefaultDirName={autopf}\RafiqPOS
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=Output
-#ifdef Slim
-OutputBaseFilename=RafiqPOS_Setup_Slim_v{#MyAppVersion}
-#else
 OutputBaseFilename=RafiqPOS_Setup_v{#MyAppVersion}
-#endif
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -70,12 +64,8 @@ WizardImageFile=wizard_sidebar.bmp,wizard_sidebar_2x.bmp
 WizardSmallImageFile=wizard_small.bmp,wizard_small_2x.bmp
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
-; التوافق مع الأنظمة: النسخة الخفيفة مخصصة لويندوز 10/11، والنسخة الشاملة تدعم ويندوز 7 الحزمة 1 حتى ويندوز 11
-#ifdef Slim
-MinVersion=10.0.10240
-#else
+; التوافق مع الأنظمة: ويندوز 7 الحزمة 1 كحد أدنى
 MinVersion=6.1sp1
-#endif
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 CloseApplications=yes
@@ -136,19 +126,16 @@ Type: files; Name: "{userdesktop}\{#MyOldAppName}.lnk"
 
 [Files]
 ; ملفات البرنامج + الواجهة (dist). مجلد مشغل العرض fixed109 يُنسخ بسطر مستقل بالأسفل بدون استثناءات حتى لا يُحذف منه أي ملف
-; يتم استبعاد فيديوهات الشرح التدريبية (\dist\videos\*) لتوفير ~20 ميجابايت من حجم ملف التثبيت
-Source: "{#ReleaseDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.xml,*_test_output.json,data\*,rollback_backup\*,update_staging\*,نسخة_تلقائية_*\*,*.db,*.db-wal,*.db-shm,\runtimes\fixed109\*,\dist\videos\*,dist\videos\*"
+Source: "{#ReleaseDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.xml,*_test_output.json,data\*,rollback_backup\*,update_staging\*,نسخة_تلقائية_*\*,*.db,*.db-wal,*.db-shm,\runtimes\fixed109\*"
 
-#ifndef Slim
 ; مشغل العرض WebView2 Fixed Runtime 109 (x86) — إلزامي لويندوز 7/8/8.1، واحتياطي بدون إنترنت لويندوز 10/11 إذا لم يكن Evergreen مثبتاً
 ; (البرنامج 32 بت x86 لذلك نسخة x86 تعمل على أنظمة 32 و 64 بت)
 Source: "{#ReleaseDir}\runtimes\fixed109\*"; DestDir: "{app}\runtimes\fixed109"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; .NET Framework 4.8 أوفلاين: لا يُنسخ للجهاز، يُستخرج مؤقتاً ويُشغّل من PrepareToInstall فقط إذا لم يكن مثبتاً
 Source: "{#PrereqDir}\{#DotNetInstaller}"; DestDir: "{tmp}"; Flags: dontcopy
-#endif
 
-; مثبت WebView2 Evergreen (يحتاج إنترنت) — اختياري من صفحة الإنهاء فقط في النسخة الشاملة؛ ومساعد في النسخة الخفيفة إذا كان WebView2 مفقوداً
+; مثبت WebView2 Evergreen (يحتاج إنترنت) — اختياري من صفحة الإنهاء فقط؛ البرنامج يعمل بدونه عبر fixed109
 Source: "{#PrereqDir}\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Check: IsWindows10OrLater and not IsWebView2Installed
 
 ; قاعدة البيانات: تُنشأ تلقائياً عند أول تشغيل عبر DatabaseService و MigrationRunner في {commonappdata}\RafiqPOS\data
@@ -169,8 +156,8 @@ Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\RafiqPOS\logs"" /gr
 Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\RafiqPOS\backups"" /grant *S-1-5-32-545:(OI)(CI)M /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsSafeDataDir('backups')
 ; 1. صلاحيات القراءة والتشغيل لعمليات WebView2 المعزولة (Sandbox) على مجلد المشغل الثابت (توصية مايكروسوفت للـ Fixed Runtime)
 ;    S-1-15-2-1 = ALL APPLICATION PACKAGES (ويندوز 8 فأحدث)، S-1-15-2-2 = ALL RESTRICTED APPLICATION PACKAGES (ويندوز 10 فأحدث)
-Filename: "{sys}\icacls.exe"; Parameters: """{app}\runtimes\fixed109"" /grant *S-1-15-2-1:(OI)(CI)(RX) /T /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsWindows8OrLater and DirExists(ExpandConstant('{app}\runtimes\fixed109'))
-Filename: "{sys}\icacls.exe"; Parameters: """{app}\runtimes\fixed109"" /grant *S-1-15-2-2:(OI)(CI)(RX) /T /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsWindows10OrLater and DirExists(ExpandConstant('{app}\runtimes\fixed109'))
+Filename: "{sys}\icacls.exe"; Parameters: """{app}\runtimes\fixed109"" /grant *S-1-15-2-1:(OI)(CI)(RX) /T /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsWindows8OrLater
+Filename: "{sys}\icacls.exe"; Parameters: """{app}\runtimes\fixed109"" /grant *S-1-15-2-2:(OI)(CI)(RX) /T /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsWindows10OrLater
 
 ; 2. اختياري (يحتاج إنترنت): تثبيت WebView2 Evergreen الأحدث على ويندوز 10/11 غير المحتوي عليه. غير محدد افتراضياً؛ البرنامج يعمل بدونه عبر fixed109
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; Description: "تثبيت أحدث نسخة من مشغل العرض WebView2 (يتطلب اتصال إنترنت — اختياري)"; StatusMsg: "جاري تثبيت مشغّل العرض (WebView2 Runtime)..."; Flags: postinstall unchecked skipifsilent waituntilterminated; Check: IsWindows10OrLater and not IsWebView2Installed and not DotNetRestartPending
@@ -830,18 +817,8 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
-#ifndef Slim
   if not IsDotNet48Installed() then
     Result := InstallDotNet48();
-#else
-  if not IsDotNet48Installed() then
-  begin
-    Result := 'يتطلب البرنامج وجود .NET Framework 4.8 مثبت مسبقاً في النظام.' + #13#10 +
-              'يرجى تحديث الويندوز أو استخدام النسخة الشاملة (Full Offline).' + #13#10 +
-              '.NET Framework 4.8 is required. Please update Windows or use the Full Offline installer.';
-    Exit;
-  end;
-#endif
   if Result = '' then
     Result := SecureDataRoot();
 end;
@@ -877,21 +854,6 @@ var
   Missing: String;
 begin
   Result := True;
-
-#ifdef Slim
-  // 0. النسخة الخفيفة (Slim) مخصصة فقط لأنظمة Windows 10 و Windows 11
-  if IsLegacyWindows() then
-  begin
-    Msg := 'نظام التشغيل الحالي غير مدعوم بواسطة هذه النسخة الخفيفة (Slim):' + #13#10 + #13#10 +
-           'هذا الملف مخصص لأجهزة Windows 10 و Windows 11 التي تحتوي مسبقاً على مشغل العرض والدوت نت.' + #13#10 + #13#10 +
-           'لتشغيل برنامج رفيق على Windows 7 أو 8 بدون إنترنت، يرجى تشغيل النسخة الشاملة (Full Offline):' + #13#10 +
-           'RafiqPOS_Setup_v{#MyAppVersion}.exe' + #13#10 + #13#10 +
-           'This Slim installer is optimized for Windows 10 & 11. For Windows 7/8, use the Full Offline installer.';
-    MsgBox(Msg, mbCriticalError, MB_OK);
-    Result := False;
-    Exit;
-  end;
-#endif
 
   // 1. فحص الحزمة الأولى على ويندوز 7 (Windows 7 SP1)
   if IsWin7MissingSP1() then
