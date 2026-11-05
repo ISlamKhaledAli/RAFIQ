@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { Save, Package, Clock, Wallet, ShieldAlert, CheckCircle } from 'lucide-react';
+import { Save, Package, Clock, Wallet, ShieldAlert, CheckCircle, Percent } from 'lucide-react';
 import { useFeatures } from '../../context/useFeatures';
 import { invoke } from '../../bridge/ipc';
 import { rafiqAlert } from '../../utils/dialogService';
@@ -23,6 +23,7 @@ interface SalesPoliciesTabProps {
   saveLoading: boolean;
   saved: boolean;
   onSave: (e: FormEvent) => void;
+  hasTaxNumber?: boolean;
 }
 
 const MANDATORY_FIELD_ROWS: { key: keyof ControlledMandatoryFields; title: string; subject: string }[] = [
@@ -46,8 +47,24 @@ export const SalesPoliciesTab = ({
   saveLoading,
   saved,
   onSave,
+  hasTaxNumber = false,
 }: SalesPoliciesTabProps) => {
-  const { isEnabled } = useFeatures();
+  const { isEnabled, toggleFlag } = useFeatures();
+  const taxesEnabled = isEnabled('feature_taxes');
+  const [taxToggling, setTaxToggling] = useState(false);
+
+  const handleToggleTaxes = async (val: boolean) => {
+    if (taxToggling) return;
+    setTaxToggling(true);
+    try {
+      await toggleFlag('feature_taxes', val);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      void rafiqAlert({ title: 'تعذر تغيير إعداد الضريبة', message: msg, variant: 'error' });
+    } finally {
+      setTaxToggling(false);
+    }
+  };
   // Only pharmacies that dispense controlled drugs ever use these rules
   const pharmacyEnabled = isEnabled('feature_controlled_drugs');
 
@@ -111,6 +128,19 @@ export const SalesPoliciesTab = ({
               checked={requireOpenShiftToSell}
               onChange={onToggleRequireOpenShift}
               warning={requireOpenShiftToSell ? null : 'المبيعات دون وردية يصعب ربطها بعهدة كاشير محدد، ويصعب مراجعة فروق الدرج وقت التقفيل.'}
+            />
+            <ToggleRow
+              icon={Percent}
+              title="تطبيق ضريبة القيمة المضافة (VAT)"
+              description="مفعّل: حساب وإظهار ضريبة القيمة المضافة في الفواتير وشاشة البيع والأصناف. متوقف: مبيعات معفاة أو غير خاضعة للضريبة وتبسيط شاشة الكاشير."
+              checked={taxesEnabled}
+              onChange={(val) => void handleToggleTaxes(val)}
+              disabled={taxToggling}
+              warning={
+                taxesEnabled && !hasTaxNumber
+                  ? 'الضريبة مفعّلة ولكن رقم التسجيل الضريبي غير مسجل. يُرجى تسجيله من تبويب (بيانات المحل والفاتورة) لطباعته رسمياً على الإيصالات.'
+                  : null
+              }
             />
           </div>
         </SettingsCard>

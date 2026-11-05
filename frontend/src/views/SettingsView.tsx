@@ -651,6 +651,7 @@ export const SettingsView = ({
           saveLoading={saveLoading}
           saved={savedTab === 'policies'}
           onSave={(e) => void handleSavePolicies(e)}
+          hasTaxNumber={Boolean(taxNumber && taxNumber.trim())}
         />
       )}
 
