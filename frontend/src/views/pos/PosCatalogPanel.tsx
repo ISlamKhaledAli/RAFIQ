@@ -1,6 +1,9 @@
 import React from 'react';
 import { 
   Sparkles, 
+  Flame,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus, 
   Search, 
   X, 
@@ -20,10 +23,15 @@ import type { SmartCatalogItem } from './types';
 import type { InsuranceClaimLine } from '../../types/insurance';
 import { useFeatures } from '../../context/useFeatures';
 import { getStoreTerminology } from '../../utils/storeTerminology';
+import { resolveDefaultSaleUnit } from './saleUnit';
+import { POPULAR_ITEMS_LIMIT, POPULAR_WINDOW_DAYS } from './popularItems';
+
+const CATALOG_COLLAPSED_KEY = 'rafiq_pos_catalog_collapsed';
 
 interface PosCatalogPanelProps {
   customItemsCount: number;
   popularItemsCount: number;
+  isPopularFallback: boolean;
   catalogSearchQuery: string;
   setCatalogSearchQuery: (q: string) => void;
   activeCatalogTab: string;
@@ -41,11 +49,14 @@ interface PosCatalogPanelProps {
   isCartEmpty?: boolean;
   totalCatalogProductsCount?: number;
   categories?: Category[];
+  /** Called after the panel is collapsed or expanded so the cashier's focus goes back to the barcode input. */
+  onAfterToggle?: () => void;
 }
 
 export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   customItemsCount: _customItemsCount,
   popularItemsCount: _popularItemsCount,
+  isPopularFallback,
   catalogSearchQuery,
   setCatalogSearchQuery,
   activeCatalogTab,
@@ -63,11 +74,38 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   isCartEmpty = false,
   totalCatalogProductsCount = 0,
   categories: _categories = [],
+  onAfterToggle,
 }) => {
   const { isEnabled } = useFeatures();
   // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
   const [prevFilter, setPrevFilter] = React.useState({ tab: activeCatalogTab, query: catalogSearchQuery });
   const [visibleCount, setVisibleCount] = React.useState(40);
+  const [isCollapsed, setIsCollapsed] = React.useState<boolean>(() => {
+    try {
+      return localStorage.getItem(CATALOG_COLLAPSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  // The body stays mounted while collapsed; only the grid's scroll position needs to be put back
+  const gridRef = React.useRef<HTMLDivElement>(null);
+  const savedScrollTopRef = React.useRef(0);
+
+  React.useEffect(() => {
+    if (!isCollapsed && gridRef.current) gridRef.current.scrollTop = savedScrollTopRef.current;
+  }, [isCollapsed]);
+
+  const toggleCollapsed = () => {
+    if (!isCollapsed && gridRef.current) savedScrollTopRef.current = gridRef.current.scrollTop;
+    const next = !isCollapsed;
+    setIsCollapsed(next);
+    try {
+      localStorage.setItem(CATALOG_COLLAPSED_KEY, String(next));
+    } catch {
+      // ignore
+    }
+    onAfterToggle?.();
+  };
 
   if (prevFilter.tab !== activeCatalogTab || prevFilter.query !== catalogSearchQuery) {
     setPrevFilter({ tab: activeCatalogTab, query: catalogSearchQuery });
@@ -90,7 +128,42 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   };
 
   return (
-    <section className="flex-1 min-w-[300px] h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex flex-col p-2.5 sm:p-3 select-none overflow-hidden shrink-0 shadow-2xs">
+    <section
+      className={`${
+        isCollapsed ? 'flex-none w-[3.625rem] min-w-[3.625rem] p-2 items-center' : 'flex-1 min-w-[300px] p-2.5 sm:p-3'
+      } h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 shadow-2xs`}
+    >
+      {isCollapsed && (
+        <div className="w-full flex-1 min-h-0 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-expanded={false}
+            aria-label="توسيع أصناف المحل"
+            title="توسيع أصناف المحل"
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all cursor-pointer bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright border border-line dark:border-line-dark shadow-xs group"
+          >
+            <PanelLeftOpen className="w-4 h-4 text-brand dark:text-brand-bright transition-transform group-hover:scale-110" />
+          </button>
+          <div className="w-7 h-7 rounded-lg bg-paid-soft dark:bg-paid-dark-soft flex items-center justify-center text-paid dark:text-paid-bright border border-paid-border dark:border-paid/30 shrink-0">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <span
+            className="min-w-8 px-1.5 py-0.5 rounded-md text-center text-sm font-mono font-extrabold tabular-nums bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid/30 shrink-0"
+            title="عدد الأصناف المعروضة"
+          >
+            {displayedCatalogItems.length}
+          </span>
+          <span
+            style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+            className="text-sm font-extrabold text-ink dark:text-ink-dark whitespace-nowrap overflow-hidden"
+          >
+            أصناف المحل
+          </span>
+        </div>
+      )}
+
+      <div className={isCollapsed ? 'hidden' : 'contents'}>
       {/* Section Header */}
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2 pb-2 border-b border-line dark:border-line-dark shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -176,6 +249,17 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             <Plus className="w-3.5 h-3.5" />
             <span>صنف سريع</span>
           </button>
+
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-expanded={true}
+            aria-label="طي أصناف المحل"
+            title="طي أصناف المحل"
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-all cursor-pointer shadow-2xs"
+          >
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -201,10 +285,22 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             </button>
           )}
         </div>
+
+        {activeCatalogTab === '__POPULAR__' && (
+          <p className="flex items-start gap-1.5 text-xs font-medium leading-relaxed text-ink-muted dark:text-ink-dark-muted">
+            <Flame className="w-3.5 h-3.5 mt-0.5 shrink-0 text-warn dark:text-warn-bright" />
+            <span>
+              {isPopularFallback
+                ? 'هتظهر هنا الأصناف الأكثر مبيعاً تلقائياً أول ما تبيع. لحد وقتها بنعرض آخر الأصناف اللي اتضافت.'
+                : `أعلى ${POPULAR_ITEMS_LIMIT} صنف مبيعاً في آخر ${POPULAR_WINDOW_DAYS} يوم، مرتبة بعدد القطع المباعة.`}
+            </span>
+          </p>
+        )}
       </div>
 
       {/* 2-Column Grid of Smart Catalog Items */}
       <div 
+        ref={gridRef}
         onScroll={handleScroll}
         className="flex-1 grid grid-cols-2 gap-2 overflow-y-auto pr-0.5 pt-2 pb-2 px-1 content-start custom-scrollbar"
       >
@@ -324,12 +420,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 {/* Multi-unit secondary package pills (excluding default sale unit which is already the card action) */}
                 {(() => {
                   if (!item.units || item.units.length <= 1) return null;
-                  const defaultUnit = (item.defaultSaleUnitId ? item.units.find((u) => u.id === item.defaultSaleUnitId) : null)
-                    || (item.isLooseSellable === false && item.units.length > 1
-                        ? [...item.units].filter((u) => !u.isBaseUnit).sort((a, b) => b.conversionFactor - a.conversionFactor)[0]
-                        : null)
-                    || item.units.find((u) => u.isBaseUnit)
-                    || item.units[0];
+                  const defaultUnit = resolveDefaultSaleUnit(item.units, item.defaultSaleUnitId, item.isLooseSellable);
 
                   const secondaryUnits = item.units.filter((u) => {
                     if (defaultUnit && u.id === defaultUnit.id) return false;
@@ -363,14 +454,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               {/* Bottom section: Price & Action Hint */}
               <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-1 w-full mt-auto pt-1.5 border-t border-line/60 dark:border-line-dark/60 shrink-0">
                 {(() => {
-                  const defaultUnit = (item.units && item.units.length > 0)
-                    ? (item.defaultSaleUnitId ? item.units.find((u) => u.id === item.defaultSaleUnitId) : null)
-                      || (item.isLooseSellable === false && item.units.length > 1
-                          ? [...item.units].filter((u) => !u.isBaseUnit).sort((a, b) => b.conversionFactor - a.conversionFactor)[0]
-                          : null)
-                      || item.units.find((u) => u.isBaseUnit)
-                      || item.units[0]
-                    : null;
+                  const defaultUnit = resolveDefaultSaleUnit(item.units, item.defaultSaleUnitId, item.isLooseSellable);
                   const effPrice = (defaultUnit && defaultUnit.sellPricePiasters > 0) ? defaultUnit.sellPricePiasters : item.pricePiasters;
                   const unitSuffix = (defaultUnit && !defaultUnit.isBaseUnit) ? ` / ${defaultUnit.unitName}` : '';
 
@@ -418,12 +502,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
         {displayedCatalogItems.length === 0 && (
           <div className="col-span-2 flex flex-col items-center justify-center p-6 text-center text-ink-muted dark:text-ink-dark-muted my-auto">
             <Sparkles className="w-8 h-8 mb-2 opacity-30 text-brand dark:text-brand-bright" />
-            {activeCatalogTab === '__POPULAR__' ? (
-              <p className="text-xs font-medium leading-relaxed">
-                لسه مفيش مبيعات اتسجلت عشان نحسب أكتر بضاعة بتتباع.<br />
-                الأصناف الأكثر مبيعاً هتظهر هنا تلقائياً أول ما تبيعها في الفواتير.
-              </p>
-            ) : activeCatalogTab === '__CUSTOM__' ? (
+            {activeCatalogTab === '__CUSTOM__' ? (
               <p className="text-xs font-medium leading-relaxed">
                 لسه ما عملتش أزرار سريعة لأصنافك المفضلة.<br />
                 اضغط على «صنف سريع» بالأعلى لإنشاء أزرارك السريعة.
@@ -442,6 +521,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             )}
           </div>
         )}
+      </div>
       </div>
     </section>
   );

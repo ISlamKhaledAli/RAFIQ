@@ -113,6 +113,9 @@
     <Compile Include="Scenarios\S50_OwnerGradeDelegationTest.cs" />
     <Compile Include="Scenarios\S51_ReceiptTextSettingsTest.cs" />
     <Compile Include="Scenarios\S52_DigitalAccountHolderAndDefaultTest.cs" />
+    <Compile Include="Scenarios\S53_InvoiceBarcodeReceiptTest.cs" />
+    <Compile Include="Scenarios\S54_ReceiptItemNameTest.cs" />
+    <Compile Include="Scenarios\S60_PosPopularItemsTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

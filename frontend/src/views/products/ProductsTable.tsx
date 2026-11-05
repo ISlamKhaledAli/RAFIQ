@@ -24,7 +24,6 @@ import { formatCompoundStock, hasOpenPackage } from '../../utils/packaging';
 import { RafiqTableLoading } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { getStoreTerminology } from '../../utils/storeTerminology';
-import { useFeatures } from '../../context/useFeatures';
 
 export interface ProductsTableProps {
   products: Product[];
@@ -75,7 +74,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   onViewVariants,
   onNavigateToBatches,
 }) => {
-  const { isEnabled } = useFeatures();
   const terminology = React.useMemo(() => getStoreTerminology(), []);
 
   const filteredProducts = products.filter(
@@ -236,14 +234,14 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                 const isSelected = selectedProductIds.includes(prod.id);
 
-                const isCompound = (isEnabled('feature_loose_selling') || isEnabled('feature_multi_units')) && ((prod.isLooseSellable && isEnabled('feature_loose_selling')) || (prod.units && prod.units.length > 1 && isEnabled('feature_multi_units'))) && !isKg;
+                const isCompound = (prod.isLooseSellable || (prod.units && prod.units.length > 1)) && !isKg;
                 const compoundStock = isCompound ? formatCompoundStock(prod.stockQuantityMilli, prod.units, prod.unit || 'قطعة') : null;
                 const openPackage = isCompound && hasOpenPackage(prod.stockQuantityMilli, prod.units);
 
                 const stockPcs = Math.floor(stockQuantityCurrent);
                 const largerUnits = (prod.units || []).filter((u) => !u.isBaseUnit && u.conversionFactor > 1);
                 let unitBreakdown: string | null = null;
-                if (isEnabled('feature_multi_units') && largerUnits.length > 0 && stockPcs > 0 && !isKg) {
+                if (largerUnits.length > 0 && stockPcs > 0 && !isKg) {
                   const primaryLargeUnit = largerUnits[0];
                   const wholeLarge = Math.floor(stockPcs / primaryLargeUnit.conversionFactor);
                   const rem = stockPcs % primaryLargeUnit.conversionFactor;
@@ -307,7 +305,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                             <span>وزن</span>
                           </span>
                         )}
-                        {isEnabled('feature_multi_units') && prod.units && prod.units.length > 1 && (
+                        {prod.units && prod.units.length > 1 && (
                           <span
                             className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold rounded-full border border-paid/20 dark:border-paid/30"
                             title={`وحدات البيع المسجلة:\n${prod.units.map((u) => `${u.unitName} (معامل ${u.conversionFactor})`).join('\n')}`}
@@ -315,12 +313,12 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                             {prod.units.length} وحدات
                           </span>
                         )}
-                        {isEnabled('feature_taxes') && prod.taxRatePercent > 0 && (
+                        {prod.taxRatePercent > 0 && (
                           <span className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold rounded-full border border-paid-border dark:border-paid-dark-border">
                             {prod.taxRatePercent}% ضريبة
                           </span>
                         )}
-                        {isEnabled('feature_matrix_variants') && prod.hasVariants && (
+                        {prod.hasVariants && (
                           <span
                             className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1"
                             title={terminology.variantsTitle}
@@ -329,7 +327,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                             <span>{terminology.variantsTitle}</span>
                           </span>
                         )}
-                        {isEnabled('feature_matrix_variants') && prod.variantColor && prod.variantSize && !/^[-—–_./\\]+$/.test(prod.variantColor.trim()) && !/^[-—–_./\\]+$/.test(prod.variantSize.trim()) && (
+                        {prod.variantColor && prod.variantSize && (
                           <span
                             className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro font-mono font-bold text-ink-muted dark:text-ink-dark-muted"
                             title={`تركيبة: ${prod.variantColor} - ${prod.variantSize}`}
@@ -337,7 +335,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                             {prod.variantColor} | {prod.variantSize}
                           </span>
                         )}
-                        {isEnabled('feature_loose_selling') && prod.isLooseSellable && (
+                        {prod.isLooseSellable && (
                           <span
                             className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1"
                             title="صنف مفكوك يباع بالتجزئة"
@@ -346,7 +344,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                             <span>تجزئة</span>
                           </span>
                         )}
-                        {isEnabled('feature_loose_selling') && openPackage && (
+                        {openPackage && (
                           <span
                             className="shrink-0 px-2 py-0.5 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold rounded-full border border-warn-border dark:border-warn-bright/30 flex items-center gap-1"
                             title="يوجد عبوة مفتوحة بالمخزن"
@@ -355,7 +353,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                             <span>علبة مفتوحة</span>
                           </span>
                         )}
-                        {isEnabled('feature_shelf_locations') && prod.locationCode && (
+                        {prod.locationCode && (
                           <span
                             className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro font-mono font-bold text-ink dark:text-ink-dark flex items-center gap-1"
                             title={`موقع التخزين والرف: ${prod.locationCode}${prod.locationName ? ` (${prod.locationName})` : ''}`}
@@ -701,7 +699,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               )}
 
               {/* 8. Variants / Matrix */}
-              {isEnabled('feature_matrix_variants') && activeMenu.product.hasVariants && onViewVariants && (
+              {activeMenu.product.hasVariants && onViewVariants && (
                 <button
                   type="button"
                   onClick={() => {

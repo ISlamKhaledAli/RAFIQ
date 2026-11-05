@@ -33,6 +33,12 @@ import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { openHelpCenter } from '../utils/helpService';
 import { rafiqAlert } from '../utils/dialogService';
+import {
+  INITIAL_PRODUCT_FILTER_REQUEST,
+  buildProductFilterState,
+  isNewProductFilterRequest,
+  type ProductFilterRequest,
+} from '../utils/productFilterRequest';
 import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult, BulkPriceRevertResult, StorageLocation, ProductBatch } from '../types/models';
 import type { ProductPharmaInfo } from '../types/pharma';
 import { normalizeArabicNumerals } from '../utils/money';
@@ -62,6 +68,7 @@ import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
 import { ProductFormModal } from './products/ProductFormModal';
 import { canSaveProductUnits, unitsLoadBlockMessage, type UnitsLoadState } from './products/unitsLoadGuard';
+import { resolveCategoryFilter } from './products/importRefresh';
 import { BulkMinStockModal } from './products/BulkMinStockModal';
 import { StockMovementsTab } from './products/StockMovementsTab';
 import { BatchesTab } from './products/BatchesTab';
@@ -86,7 +93,7 @@ export interface ProductsViewProps {
   isActive?: boolean;
   subView?: 'catalog' | 'movements' | 'batches';
   onSubViewChange?: (view: 'catalog' | 'movements' | 'batches') => void;
-  initialFilter?: 'all' | 'lowStock' | 'outOfStock';
+  filterRequest?: ProductFilterRequest;
   onResetFilter?: () => void;
   initialProductIdToEdit?: string | null;
   onClearInitialProductIdToEdit?: () => void;
@@ -96,7 +103,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   isActive = true,
   subView, 
   onSubViewChange,
-  initialFilter = 'all', 
+  filterRequest = INITIAL_PRODUCT_FILTER_REQUEST,
   onResetFilter,
   initialProductIdToEdit,
   onClearInitialProductIdToEdit
@@ -108,18 +115,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
   const [showModifierManagerModal, setShowModifierManagerModal] = useState(false);
   const [showRecipeManagerModal, setShowRecipeManagerModal] = useState(false);
-  const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
-  const [stockStatusFilter, setStockStatusFilter] = useState<StockStatusFilter>(initialFilter);
+  const [handledFilterNonce, setHandledFilterNonce] = useState(filterRequest.nonce);
+  const [stockStatusFilter, setStockStatusFilter] = useState<StockStatusFilter>(filterRequest.filter);
 
   // Pagination state
   const [totalCount, setTotalCount] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
-
-  if (initialFilter !== prevInitialFilter) {
-    setPrevInitialFilter(initialFilter);
-    setStockStatusFilter(initialFilter);
-  }
 
   // Form state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -314,6 +316,21 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [movementsLoading, setMovementsLoading] = useState(false);
   const [movementTypeFilter, setMovementTypeFilter] = useState('ALL');
   const [movementSearchQuery, setMovementSearchQuery] = useState('');
+
+  // A new request (even for the same filter) clears every filter first, then applies its own
+  if (isNewProductFilterRequest(handledFilterNonce, filterRequest)) {
+    const reset = buildProductFilterState(filterRequest.filter);
+    setHandledFilterNonce(filterRequest.nonce);
+    setSearchQuery(reset.searchQuery);
+    setStockStatusFilter(reset.stockStatus);
+    setSelectedCategoryFilter(reset.categoryId);
+    setCurrentPage(reset.page);
+    setSelectedProductIds(reset.selectedProductIds);
+    setMovementTypeFilter(reset.movementType);
+    setMovementSearchQuery(reset.movementSearchQuery);
+    setBatchesInitialSearch(reset.batchesSearchQuery);
+  }
+
   const [discrepancies, setDiscrepancies] = useState<StockDiscrepancy[]>([]);
   const [recalculating, setRecalculating] = useState(false);
   const [recalcSuccessMsg, setRecalcSuccessMsg] = useState<string | null>(null);
@@ -501,16 +518,38 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     }
   }, [searchQuery, currentPage, pageSize, stockStatusFilter, selectedCategoryFilter]);
 
-  const fetchCategoriesList = useCallback(async () => {
+  const fetchCategoriesList = useCallback(async (): Promise<Category[] | null> => {
     try {
       const res = await invoke<Category[]>('categories:getAll', { includeArchived: false });
       if (Array.isArray(res)) {
         setCategories(res);
+        setSelectedCategoryFilter((prev) => resolveCategoryFilter(prev, res));
+        return res;
       }
     } catch (err) {
       console.error(err);
     }
+    return null;
   }, []);
+
+  // Reload sections first so the product list is queried with a filter that still exists
+  const handleProductsImported = async (): Promise<Category[]> => {
+    setCurrentPage(1);
+    const fresh = await fetchCategoriesList();
+    const category = fresh ? resolveCategoryFilter(selectedCategoryFilter, fresh) : selectedCategoryFilter;
+    await loadProducts(searchQuery, 1, pageSize, stockStatusFilter, category);
+    return fresh ?? categories;
+  };
+
+  // The host lists the catalog newest first, so clearing every filter puts the imported products on top
+  const handleViewImportedProducts = () => {
+    setShowExcelImportModal(false);
+    setSearchQuery('');
+    setCurrentPage(1);
+    setStockStatusFilter('all');
+    setSelectedCategoryFilter('all');
+    void loadProducts('', 1, pageSize, 'all', 'all');
+  };
 
   const fetchStorageLocations = useCallback(async () => {
     try {
@@ -1656,6 +1695,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       ) : (
         /* Batches & Expiry Dates Tab (Story 93 / Feature #60) */
         <BatchesTab 
+          key={handledFilterNonce}
           onBatchChanged={() => void loadProducts(searchQuery)} 
           initialSearchQuery={batchesInitialSearch}
         />
@@ -1818,21 +1858,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       />
 
       {/* Excel Import Modal (Story 37 - Feature #21) */}
-      <ExcelImportModal
-        isOpen={showExcelImportModal}
-        onClose={() => setShowExcelImportModal(false)}
-        onSuccess={(msg) => {
-          setImportSuccessAlert(msg);
-          setSearchQuery('');
-          setCurrentPage(1);
-          setStockStatusFilter('all');
-          setSelectedCategoryFilter('all');
-          void loadProducts('', 1, pageSize, 'all', 'all');
-        }}
-        existingProducts={products}
-        categories={categories}
-      />
-
+      {showExcelImportModal && (
+        <ExcelImportModal
+          onClose={() => setShowExcelImportModal(false)}
+          onImported={handleProductsImported}
+          onViewImported={handleViewImportedProducts}
+          existingProducts={products}
+          categories={categories}
+        />
+      )}
       {/* Stock Movements Ledger Modal (Story 39 - Feature #35 / Task 35-3) */}
       <StockMovementsModal
         isOpen={selectedProdForMovements !== null}

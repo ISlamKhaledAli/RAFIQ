@@ -3,6 +3,7 @@
 // same sections, same order, same labels, so the preview shows what the thermal printer prints.
 // Money is integer piasters end to end: no float math, only display strings are built here.
 
+import JsBarcode from 'jsbarcode';
 import { resolveSignatureImageSrc } from './signatureImage.ts';
 
 export const RECEIPT_CURRENCY = 'ج.م';
@@ -99,7 +100,6 @@ export interface ReceiptLineModel {
   qty: string;
   price: string;
   total: string;
-  discount: string;
   details: string[];
 }
 
@@ -115,8 +115,6 @@ export interface ReceiptPaymentLine {
 }
 
 export interface ReceiptTotals {
-  itemCount: number;
-  pieceCount: number;
   subtotal: number;
   discountTotal: number;
   serviceCharge: number;
@@ -130,6 +128,11 @@ export interface ReceiptTotals {
   deposited: number;
   remaining: number;
   payments: ReceiptPaymentLine[];
+}
+
+export interface ReceiptBarcodeModel {
+  /** the invoice number as 8 digits (digits only, Code 128): scanning it finds the invoice again for a return */
+  value: string;
 }
 
 export interface ReceiptModel {
@@ -146,8 +149,6 @@ export interface ReceiptModel {
   customer: string;
   badges: string[];
   lines: ReceiptLineModel[];
-  itemsCountText: string;
-  piecesCountText: string;
   adjustmentRows: ReceiptRow[];
   grandTotal: string;
   taxText: string;
@@ -170,6 +171,8 @@ export interface ReceiptModel {
   signatureVisible: boolean;
   /** image above the signature lines, picked from the configured pool by the invoice id: a built-in image URL, a custom PNG data URL, or null for text only */
   signatureImageSrc: string | null;
+  /** real invoice barcode between the payments and the footer; null for pre-bills, training receipts and sales without a valid invoice number */
+  barcode: ReceiptBarcodeModel | null;
   totals: ReceiptTotals;
 }
 
@@ -272,12 +275,22 @@ export function receiptLineGross(unitPricePiasters: number, quantityMilli: numbe
   return sign * Math.floor((Math.abs(product) + 500) / 1000);
 }
 
-function isMeasureUnitLabel(label: string): boolean {
-  return label === 'كجم' || label === 'جم' || label === 'لتر' || label === 'متر';
-}
-
 function clean(value: string | null | undefined): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+/**
+ * Product name as printed: one clean line. Whitespace, newlines and tabs become one space; characters the receipt font has no
+ * glyph for (so the printer would draw a box) are dropped: emoji and other astral symbols, dingbats/arrows blocks, zero-width
+ * and bidi-override marks. Twin of PrinterService.CleanReceiptItemName.
+ */
+export function cleanReceiptItemName(value: string | null | undefined): string {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/\uFE0F/g, '')
+    .replace(/[\u{10000}-\u{10FFFF}\u200B\uFEFF\u202A-\u202E\u2066-\u2069\u2600-\u27BF\u2B00-\u2BFF]/gu, '')
+    .replace(/[\s\p{Cc}]+/gu, ' ')
+    .trim();
 }
 
 /**
@@ -323,8 +336,6 @@ export function receiptTextLimitError(value: string | null | undefined): string 
 
 export function computeReceiptTotals(sale: ReceiptSaleInput): ReceiptTotals {
   const t: ReceiptTotals = {
-    itemCount: 0,
-    pieceCount: 0,
     subtotal: 0,
     discountTotal: 0,
     serviceCharge: 0,
@@ -344,12 +355,8 @@ export function computeReceiptTotals(sale: ReceiptSaleInput): ReceiptTotals {
   let grossSum = 0;
   for (const item of sale.items ?? []) {
     if (!item) continue;
-    t.itemCount += 1;
     lineDiscounts += Math.max(0, toInt(item.discountPiasters));
     grossSum += receiptLineGross(item.unitPricePiasters, item.quantityMilli);
-    const label = receiptUnitLabel(item.unitName, item.unit, item.quantityMilli);
-    const qty = toInt(item.quantityMilli);
-    if (qty > 0 && qty % 1000 === 0 && !isMeasureUnitLabel(label)) t.pieceCount += qty / 1000;
   }
 
   t.subtotal = toInt(sale.subtotalPiasters) > 0 ? toInt(sale.subtotalPiasters) : grossSum;
@@ -431,22 +438,24 @@ export function buildReceiptLines(sale: ReceiptSaleInput): ReceiptLineModel[] {
     if (clean(item.notes)) details.push(`ملاحظة: ${clean(item.notes)}`);
 
     lines.push({
-      name: clean(item.productName) || 'صنف',
+      name: cleanReceiptItemName(item.productName) || 'صنف',
       qty: formatReceiptQuantityWithUnit(item.quantityMilli, item.unitName, item.unit),
       price: formatReceiptMoney(item.unitPricePiasters),
       total: formatReceiptMoney(receiptLineGross(item.unitPricePiasters, item.quantityMilli)),
-      discount: toInt(item.discountPiasters) > 0 ? formatReceiptMoney(item.discountPiasters) : '',
       details,
     });
   }
   return lines;
 }
 
+// The call number belongs to cafe orders only: a supermarket sale (order type 'retail') never prints it.
+const CALL_NUMBER_ORDER_TYPES: readonly string[] = ['dine_in', 'takeaway', 'delivery'];
+
 export function buildOrderMetaText(sale: ReceiptSaleInput): string {
   const orderType = clean(sale.orderType).toLowerCase();
   const table = clean(sale.tableName);
   const waiter = clean(sale.waiterName);
-  const hasCall = toInt(sale.orderCallNumber) > 0;
+  const hasCall = toInt(sale.orderCallNumber) > 0 && CALL_NUMBER_ORDER_TYPES.includes(orderType);
   if (!table && !hasCall && !waiter && orderType !== 'dine_in' && orderType !== 'delivery') return '';
 
   const parts: string[] = [];
@@ -483,6 +492,20 @@ export function resolveReceiptSignature(signature: string | null | undefined): s
   const text = normalizeReceiptText(signature);
   if (text === '' || LEGACY_DEVELOPER_SIGNATURES.includes(text)) return DEFAULT_DEVELOPER_SIGNATURE;
   return text;
+}
+
+/** Invoice barcode value: the number zero-padded to 8 digits, digits only (letters get garbled by Arabic keyboard layouts). Twin of PrinterService.FormatInvoiceBarcodeValue. */
+export function formatInvoiceBarcodeValue(invoiceNumber: number | null | undefined): string {
+  const n = toInt(invoiceNumber);
+  return n > 0 ? String(n).padStart(8, '0') : '';
+}
+
+/** What a barcode scan or a typed invoice number means for the invoice search: an exact 8-digit value loses its padding zeros ("00001042" -> "1042"). Anything else (a phone number, a name, an amount) is left alone. */
+export function normalizeInvoiceSearchText(text: string): string {
+  const trimmed = text.trim().replace(/^#/, '');
+  if (!/^\d{8}$/.test(trimmed)) return trimmed;
+  const n = Number.parseInt(trimmed, 10);
+  return n > 0 ? String(n) : trimmed;
 }
 
 export interface BuildReceiptOptions {
@@ -528,7 +551,7 @@ export function buildReceiptModel(
   if (t.discountTotal > 0 || t.serviceCharge > 0 || t.deliveryFee > 0) {
     adjustmentRows.push({ label: 'الإجمالي قبل الخصم', value: formatReceiptMoney(t.subtotal), emphasis: false });
   }
-  if (t.discountTotal > 0) adjustmentRows.push({ label: 'الخصم', value: `-${formatReceiptMoney(t.discountTotal)}`, emphasis: false });
+  if (t.discountTotal > 0) adjustmentRows.push({ label: 'إجمالي الخصم', value: `-${formatReceiptMoney(t.discountTotal)}`, emphasis: false });
   if (t.serviceCharge > 0) adjustmentRows.push({ label: 'خدمة الصالة', value: formatReceiptMoney(t.serviceCharge), emphasis: false });
   if (t.deliveryFee > 0) adjustmentRows.push({ label: 'رسوم التوصيل', value: formatReceiptMoney(t.deliveryFee), emphasis: false });
 
@@ -566,8 +589,6 @@ export function buildReceiptModel(
     customer,
     badges,
     lines: buildReceiptLines(sale),
-    itemsCountText: `عدد الأصناف: ${t.itemCount}`,
-    piecesCountText: t.pieceCount > 0 && t.pieceCount !== t.itemCount ? `عدد القطع: ${t.pieceCount}` : '',
     adjustmentRows,
     grandTotal: formatReceiptMoney(t.total),
     taxText: t.tax > 0 ? formatReceiptMoney(t.tax) : '',
@@ -586,6 +607,7 @@ export function buildReceiptModel(
     signatureLines,
     signatureVisible: options.signatureVisible !== false,
     signatureImageSrc: resolveSignatureImageSrc(options.signatureImage, isPreBill ? '' : clean(sale.id), options.builtInSignatureImages ?? [], options.signatureImageIndex),
+    barcode: !isPreBill && status.toUpperCase() !== 'TEST_PILOT' && invoiceNumber > 0 ? { value: formatInvoiceBarcodeValue(invoiceNumber) } : null,
     totals: t,
   };
 }
@@ -599,6 +621,34 @@ export type ReceiptPaperWidth = '57mm' | '80mm';
 // Characters per printed line at 203 dpi (same figures as the printer settings screen), minus a safety margin
 // because the preview measures columns in "ch" units of a different font than the thermal printer.
 export const RECEIPT_CHARS_PER_LINE: Record<ReceiptPaperWidth, number> = { '57mm': 32, '80mm': 46 };
+
+// Invoice barcode geometry in printer dots (203 dpi): the module is a whole number of dots so bars never blur. Twin of PrinterService.ComputeInvoiceBarcodeModuleDots.
+export const RECEIPT_PAPER_DOTS: Record<ReceiptPaperWidth, number> = { '57mm': 384, '80mm': 576 };
+export const RECEIPT_DPI = 203;
+const BARCODE_SIDE_MARGIN_DOTS = 10;
+const BARCODE_QUIET_MODULES = 10;
+const BARCODE_HEIGHT_DOTS: Record<ReceiptPaperWidth, number> = { '57mm': 60, '80mm': 68 };
+
+export interface ReceiptBarcodeLayout {
+  moduleDots: number;
+  /** bars only (without the quiet zones) */
+  widthDots: number;
+  heightDots: number;
+}
+
+/** Code 128 bits (1 = bar) of the invoice barcode value: digits use subset C, so 8 digits are 79 modules. */
+export function encodeInvoiceBarcode(value: string): string {
+  if (!value) return '';
+  const target: { encodings?: Array<{ data: string }> } = {};
+  JsBarcode(target, value, { format: 'CODE128' });
+  return target.encodings?.[0]?.data ?? '';
+}
+
+export function layoutReceiptBarcode(modules: number, paper: ReceiptPaperWidth): ReceiptBarcodeLayout {
+  const available = RECEIPT_PAPER_DOTS[paper] - 2 * BARCODE_SIDE_MARGIN_DOTS;
+  const moduleDots = Math.max(1, Math.floor(available / (modules + 2 * BARCODE_QUIET_MODULES)));
+  return { moduleDots, widthDots: modules * moduleDots, heightDots: BARCODE_HEIGHT_DOTS[paper] };
+}
 
 export interface ReceiptTableLayout {
   /** false when qty | price | total cannot share one row: each line then shows "qty x price" and the total apart */

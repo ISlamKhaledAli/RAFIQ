@@ -136,24 +136,42 @@ export function getAutoTopicsForAction(action: string): RafiqDataTopic[] {
   ) {
     return ['sales', 'products', 'customers', 'dashboard'];
   } else if (
+    // Changes which products exist or in which section they sit; an import also creates sections on the fly
     action.startsWith('products:save') || 
     action.startsWith('products:delete') || 
-    action.startsWith('products:bulk') || 
+    action.startsWith('products:bulkDelete') || 
+    action.startsWith('products:clearAll') || 
     action.startsWith('products:import') || 
+    action.startsWith('excel:importProducts')
+  ) {
+    return ['products', 'categories', 'dashboard'];
+  } else if (
+    action.startsWith('products:bulk') || 
+    action.startsWith('products:applyBulkPriceAdjustment') ||
+    action.startsWith('products:revertBulkPriceAdjustment') ||
+    action.startsWith('products:assignInternalBarcode') ||
+    action.startsWith('products:rebase') ||
     action.startsWith('inventory:adjust') || 
     action.startsWith('inventory:recordPurchase') || 
     action.startsWith('inventory:recalculate') || 
     action.startsWith('productUnits:save') ||
     action.startsWith('productUnits:delete') ||
     action.startsWith('productUnits:setBase') ||
-    action.startsWith('products:rebaseUnit') ||
     action.startsWith('packaging:saveLevels') ||
-    action.startsWith('excel:importProducts')
+    action.startsWith('locations:save') ||
+    action.startsWith('locations:delete') ||
+    action.startsWith('locations:assignProduct') ||
+    action.startsWith('variants:createMatrix') ||
+    action.startsWith('pharma:applyStocktaking') ||
+    action.startsWith('pharma:writeOffExpiredBatches') ||
+    action.startsWith('pharma:createExpiryReturn')
   ) {
     return ['products', 'dashboard'];
   } else if (
     action.startsWith('categories:save') || 
-    action.startsWith('categories:delete')
+    action.startsWith('categories:delete') ||
+    action.startsWith('categories:archive') ||
+    action.startsWith('categories:reorder')
   ) {
     return ['categories', 'products'];
   } else if (

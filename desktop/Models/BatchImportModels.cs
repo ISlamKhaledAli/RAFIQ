@@ -94,6 +94,12 @@ namespace RafiqPOS.Models
         [JsonProperty("skippedCount")]
         public int SkippedCount { get; set; }
 
+        [JsonProperty("categoriesCreatedCount")]
+        public int CategoriesCreatedCount { get; set; }
+
+        [JsonProperty("categoriesRestoredCount")]
+        public int CategoriesRestoredCount { get; set; }
+
         [JsonProperty("errors")]
         public List<string> Errors { get; set; }
 

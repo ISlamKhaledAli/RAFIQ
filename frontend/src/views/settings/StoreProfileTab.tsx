@@ -1,12 +1,9 @@
 import { useState, type FormEvent, type ChangeEvent } from 'react';
 import {
   Save,
-  Sparkles,
   Image as ImageIcon,
   Upload,
   RotateCcw,
-  ShieldCheck,
-  Smartphone,
   Store,
   FileText,
   Receipt,
@@ -21,12 +18,9 @@ import {
   buildReceiptModel,
   buildSampleReceiptSale,
   DEFAULT_DEVELOPER_SIGNATURE,
-  normalizeReceiptText,
   receiptTextLimitError,
-  RECEIPT_TEXT_MAX_CHARS,
 } from '../../utils/receiptLayout';
-import { FIELD_INPUT_CLASS, Field, SettingsCard, ToggleRow } from './settingsParts';
-import { SignatureImageField } from './SignatureImageField';
+import { FIELD_INPUT_CLASS, Field, ReceiptTextField, SettingsCard, ToggleRow } from './settingsParts';
 import { BUILT_IN_SIGNATURE_IMAGES } from '../../utils/signatureDefaults';
 
 interface StoreProfileTabProps {
@@ -48,72 +42,23 @@ interface StoreProfileTabProps {
   setShowReceiptCashier?: (val: boolean) => void;
   storeLogoUrl?: string;
   setStoreLogoUrl?: (val: string) => void;
+  /** Developer signature settings, read only here (edited on the root console): they only feed the live preview */
   developerSignature?: string;
-  setDeveloperSignature?: (val: string) => void;
-  /** developer_signature_visible: false hides the whole signature block (root only) */
   developerSignatureVisible?: boolean;
-  setDeveloperSignatureVisible?: (val: boolean) => void;
-  /** developer_signature_image: '' built-in banner, 'none' no image, or a PNG data URL (root only) */
   developerSignatureImage?: string;
-  setDeveloperSignatureImage?: (val: string) => void;
-  storeInstapayAddress?: string;
-  setStoreInstapayAddress?: (val: string) => void;
-  storeWalletNumber?: string;
-  setStoreWalletNumber?: (val: string) => void;
   /** Receipt paper width chosen in the printer settings: the preview follows it */
   paperWidth?: '80mm' | '57mm' | 'a4';
-  isRoot?: boolean;
   /** true when something on this screen differs from what is saved */
   dirty: boolean;
   saved: boolean;
   saveLoading: boolean;
   handleSave: (e: FormEvent) => void;
-  onOpenWizard?: () => void;
   /** Shortcut to the printer settings (paper width and test print); omitted when the user cannot open them */
   onOpenPrinterSettings?: () => void;
 }
 
 const DEFAULT_LOGOS = ['/receipt_logo.png', '/receipt_logo_square.png', '/logo.png'];
 const DEFAULT_LOGO_URL = '/receipt_logo_square.png';
-
-interface ReceiptTextFieldProps {
-  label: string;
-  value: string;
-  onChange: (next: string) => void;
-  rows: number;
-  placeholder: string;
-  hint?: string;
-  error: string;
-}
-
-/** Multi-line receipt text: Enter starts a new line and the line breaks are printed as typed. */
-const ReceiptTextField = ({ label, value, onChange, rows, placeholder, hint, error }: ReceiptTextFieldProps) => (
-  <label className="flex flex-col gap-2">
-    <span className="t-label text-ink dark:text-ink-dark">{label}</span>
-    <textarea
-      rows={rows}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      aria-invalid={error !== ''}
-      className={`w-full bg-surface dark:bg-surface-dark-2 border rounded-lg px-3 py-2.5 text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-muted-dark/70 focus:outline-none focus:ring-1 transition-colors resize-none leading-relaxed ${
-        error
-          ? 'border-danger dark:border-danger-bright focus:border-danger dark:focus:border-danger-bright focus:ring-danger dark:focus:ring-danger-bright'
-          : 'border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-brand dark:focus:ring-brand-bright'
-      }`}
-    />
-    <span className="flex flex-wrap items-center justify-between gap-x-3 text-xs leading-relaxed">
-      {error ? (
-        <span className="text-danger dark:text-danger-bright font-semibold">{error}</span>
-      ) : (
-        <span className="text-ink-muted dark:text-ink-muted-dark">{hint ?? ''}</span>
-      )}
-      <span dir="ltr" className="text-ink-muted dark:text-ink-muted-dark tabular-nums">
-        {normalizeReceiptText(value).length} / {RECEIPT_TEXT_MAX_CHARS}
-      </span>
-    </span>
-  </label>
-);
 
 export const StoreProfileTab = ({
   storeName,
@@ -135,33 +80,21 @@ export const StoreProfileTab = ({
   storeLogoUrl = DEFAULT_LOGO_URL,
   setStoreLogoUrl,
   developerSignature = DEFAULT_DEVELOPER_SIGNATURE,
-  setDeveloperSignature,
   developerSignatureVisible = true,
-  setDeveloperSignatureVisible,
   developerSignatureImage = '',
-  setDeveloperSignatureImage,
-  storeInstapayAddress = '',
-  setStoreInstapayAddress,
-  storeWalletNumber = '',
-  setStoreWalletNumber,
   paperWidth = '80mm',
-  isRoot = false,
   dirty,
   saved,
   saveLoading,
   handleSave,
-  onOpenWizard,
   onOpenPrinterSettings,
 }: StoreProfileTabProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
-  // Pool image the root clicked to see on the sample receipt (null = the sample invoice's own pick)
-  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null);
 
   const headerError = receiptTextLimitError(receiptHeader);
   const footerError = receiptTextLimitError(receiptFooter);
-  const signatureError = isRoot ? receiptTextLimitError(developerSignature) : '';
-  const hasTextError = headerError !== '' || footerError !== '' || signatureError !== '';
+  const hasTextError = headerError !== '' || footerError !== '';
   const isDefaultLogo = DEFAULT_LOGOS.includes(storeLogoUrl);
   const previewPaper = paperWidth === '57mm' ? '57mm' : '80mm';
 
@@ -226,18 +159,6 @@ export const StoreProfileTab = ({
           icon={Store}
           title="هوية المحل"
           description="الاسم والعنوان والهاتف والرقم الضريبي تظهر أعلى الوصل المطبوع، والاسم يظهر أيضاً في عنوان البرنامج."
-          action={
-            isRoot && onOpenWizard ? (
-              <button
-                type="button"
-                onClick={onOpenWizard}
-                className="h-10 px-4 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand/20 dark:hover:bg-brand-bright/25 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>معالج تهيئة المحل والنشاط</span>
-              </button>
-            ) : undefined
-          }
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Field label="اسم المحل أو المنشأة" required className="md:col-span-2">
@@ -277,35 +198,6 @@ export const StoreProfileTab = ({
                 placeholder="934-210-884"
                 dir="ltr"
                 className={`${FIELD_INPUT_CLASS} text-right tabular-nums font-mono`}
-              />
-            </Field>
-          </div>
-        </SettingsCard>
-
-        <SettingsCard
-          icon={Smartphone}
-          title="الدفع الإلكتروني المباشر"
-          description="تظهر للكاشير في شاشة الدفع عند تحويل الزبون مباشرة بإنستاباي أو محفظة كاش، دون الحاجة لتشغيل خدمات المحافظ."
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Field label="عنوان إنستاباي (IPA أو رقم الهاتف)">
-              <input
-                type="text"
-                value={storeInstapayAddress}
-                onChange={(e) => setStoreInstapayAddress?.(e.target.value)}
-                placeholder="username@instapay"
-                dir="ltr"
-                className={`${FIELD_INPUT_CLASS} text-right font-mono`}
-              />
-            </Field>
-            <Field label="رقم محفظة كاش (فودافون وغيرها)">
-              <input
-                type="text"
-                value={storeWalletNumber}
-                onChange={(e) => setStoreWalletNumber?.(e.target.value)}
-                placeholder="01012345678"
-                dir="ltr"
-                className={`${FIELD_INPUT_CLASS} text-right font-mono tabular-nums`}
               />
             </Field>
           </div>
@@ -418,37 +310,6 @@ export const StoreProfileTab = ({
           />
         </SettingsCard>
 
-        {isRoot && (
-          <SettingsCard
-            icon={ShieldCheck}
-            title="توقيع المطور أسفل الوصل"
-            description="يظهر أسفل كل فواتير البيع، ويعدله حساب المطور (روت) فقط."
-          >
-            <ToggleRow
-              title="إظهار توقيع الإيصال"
-              description="يظهر أسفل كل وصل: صورة ثم أسطر النص."
-              checked={developerSignatureVisible}
-              onChange={(next) => setDeveloperSignatureVisible?.(next)}
-            />
-            <ReceiptTextField
-              label="نص التوقيع"
-              value={developerSignature}
-              onChange={(next) => setDeveloperSignature?.(next)}
-              rows={4}
-              placeholder={DEFAULT_DEVELOPER_SIGNATURE}
-              hint="تُطبع الصورة فوق هذه الأسطر، ويسمح بأربعة أسطر."
-              error={signatureError}
-            />
-            <SignatureImageField
-              value={developerSignatureImage}
-              onChange={(next) => setDeveloperSignatureImage?.(next)}
-              builtIns={BUILT_IN_SIGNATURE_IMAGES}
-              selectedIndex={previewImageIndex}
-              onSelect={setPreviewImageIndex}
-            />
-          </SettingsCard>
-        )}
-
         <div className="sticky bottom-0 z-10 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-md rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs" role="status">
             {statusNode}
@@ -489,7 +350,7 @@ export const StoreProfileTab = ({
                   footer: receiptFooter,
                   signature: developerSignature,
                 },
-                { showCashier: showReceiptCashier, signatureVisible: developerSignatureVisible, signatureImage: developerSignatureImage, builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES, signatureImageIndex: previewImageIndex },
+                { showCashier: showReceiptCashier, signatureVisible: developerSignatureVisible, signatureImage: developerSignatureImage, builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES },
               )}
               paper={previewPaper}
               logoUrl={showReceiptLogo ? storeLogoUrl : null}

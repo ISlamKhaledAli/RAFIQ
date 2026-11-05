@@ -38,6 +38,8 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setSearchQuery('');
+      setFilterMode('all');
       void loadData();
     }
   }, [isOpen]);

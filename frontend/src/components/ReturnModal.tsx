@@ -612,9 +612,10 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                       <input
                         type="text"
                         aria-label="رقم الفاتورة"
-                        placeholder="اكتب رقم الفاتورة هنا..."
+                        placeholder="امسح باركود الفاتورة أو اكتب رقمها..."
                         value={invoiceQuery}
                         onChange={(e) => setInvoiceQuery(e.target.value)}
+                        autoFocus
                         className={`${FIELD} h-12 pr-12 text-base font-mono font-bold`}
                       />
                     </div>

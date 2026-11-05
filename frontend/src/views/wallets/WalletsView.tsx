@@ -967,7 +967,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         {/* SUB-TAB 1: TRANSACT (The 2-Input High-Speed Senior Workstation)   */}
         {/* ================================================================ */}
         {currentTab === 'transact' && (
-          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5">
             
             {/* Right Column: 7 Cols - Main Entry Form */}
             <div className="lg:col-span-7 bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark p-5 sm:p-6 flex flex-col gap-5 shadow-2xs">
@@ -1373,7 +1373,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         {/* SUB-TAB 2: ACCOUNTS LIST & MANAGEMENT                           */}
         {/* ================================================================ */}
         {currentTab === 'accounts' && (
-          <div className="max-w-6xl mx-auto flex flex-col gap-4">
+          <div className="w-full flex flex-col gap-4">
 
             {/* Quick 3 Balances Overview Row in Accounts Tab */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1548,7 +1548,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         {/* SUB-TAB 3: TRANSACTION HISTORY & RECEIPTS                        */}
         {/* ================================================================ */}
         {currentTab === 'history' && (
-          <div className="max-w-6xl mx-auto flex flex-col gap-4">
+          <div className="w-full flex flex-col gap-4">
             
             {/* Filter Bar */}
             <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
@@ -1734,7 +1734,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         {/* SUB-TAB 4: ANALYTICS & PROFIT METRICS                            */}
         {/* ================================================================ */}
         {currentTab === 'analytics' && (
-          <div className="max-w-6xl mx-auto flex flex-col gap-5">
+          <div className="w-full flex flex-col gap-5">
             {/* KPI Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 shadow-2xs flex items-center justify-between">

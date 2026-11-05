@@ -82,19 +82,61 @@ describe('Story 59: First-run Setup Wizard by Store Type (Feature #106)', () => 
 
     // Step 1: Store type selection
     assert.ok(wizardContent.includes('templates.map'), 'Must render template selection cards');
-    assert.ok(wizardContent.includes('handleSelectTemplate'), 'Must support switching store template');
+    assert.ok(wizardContent.includes('setSelectedTemplateId'), 'Must support switching store template');
 
-    // Step 2: Store profile
+    // Step 2: only the must-have data (name required, phone + address quick fields)
     assert.ok(wizardContent.includes('storeName'), 'Step 2 must collect store name');
-    assert.ok(wizardContent.includes('receiptHeader'), 'Step 2 must configure receipt header');
+    assert.ok(wizardContent.includes('<RequiredMark />'), 'Store name must carry the required mark');
+    assert.ok(wizardContent.includes('storePhone: phone.trim()'), 'Step 2 must send the phone');
+    assert.ok(wizardContent.includes('storeAddress: address.trim()'), 'Step 2 must send the address');
+    assert.ok(wizardContent.includes('handleApply'), 'Last step must trigger template application');
+    assert.ok(wizardContent.includes('إنهاء التجهيز'), 'Must have final confirmation button');
+    assert.ok(!wizardContent.includes('اختياري'), 'No optional wording in the wizard');
+  });
 
-    // Step 3: Hardware & Backup
-    assert.ok(wizardContent.includes('selectedPrinter'), 'Step 3 must select default receipt printer');
-    assert.ok(wizardContent.includes('backupFolder'), 'Step 3 must configure backup folder');
+  it('First-run wizard is 2 steps: printer, backup and receipt identity moved to settings', () => {
+    const wizardContent = fs.readFileSync(wizardModalPath, 'utf8');
+    assert.ok(wizardContent.includes('const TOTAL_STEPS = 2'), 'Wizard must have exactly 2 steps');
+    for (const redundant of ['receiptHeader', 'receiptFooter', 'showReceiptLogo', 'storeLogoUrl', 'selectedPrinter', 'backupFolder', 'defaultPrinter', 'printer:list', 'CustomSelect']) {
+      assert.ok(!wizardContent.includes(redundant), `Wizard must not collect ${redundant} any more (it lives in settings)`);
+    }
+    assert.ok(wizardContent.includes('seedInitialProducts: false'), 'Wizard must keep the clean-slate policy');
+    // Everything is applied by one host call; the old duplicate settings:save is gone
+    assert.ok(!wizardContent.includes("'settings:save'"), 'templates:apply persists the store data on its own');
+    assert.equal((wizardContent.match(/invoke<[^>]*>\('templates:apply'/g) || []).length, 1, 'Single templates:apply call');
+  });
 
-    // Step 4: Review and start
-    assert.ok(wizardContent.includes('handleApply'), 'Step 4 must trigger template application');
-    assert.ok(wizardContent.includes('تجهيز النظام والبدء الآن'), 'Must have final confirmation button');
+  it('Finish screen offers the post-setup checklist deep links to settings sub-tabs', () => {
+    const checklistPath = path.resolve('src', 'components', 'SetupChecklist.tsx');
+    assert.ok(fs.existsSync(checklistPath), 'SetupChecklist.tsx must exist');
+    const checklist = fs.readFileSync(checklistPath, 'utf8');
+    const wizardContent = fs.readFileSync(wizardModalPath, 'utf8');
+    assert.ok(checklist.includes("target: 'printer'") && checklist.includes('اختيار طابعة الفواتير'), 'Printer row');
+    assert.ok(checklist.includes("target: 'backup'") && checklist.includes('تحديد مجلد النسخ الاحتياطي'), 'Backup row');
+    assert.ok(checklist.includes("target: 'profile'") && checklist.includes('مراجعة بيانات الفاتورة'), 'Receipt identity row');
+    assert.ok(wizardContent.includes('onNavigateToSettings?:'), 'Wizard must expose an additive optional navigation prop');
+    assert.ok(wizardContent.includes('<SetupChecklist onNavigate={onNavigateToSettings} />'), 'Finish screen renders the checklist');
+  });
+
+  it('Host keeps backups safe without the wizard (defaults on, safe local folder)', () => {
+    const backupService = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'BackupService.cs'), 'utf8');
+    assert.ok(backupService.includes('_settingsRepo.Get("backup_auto_daily", "1")'), 'Daily auto backup defaults to on');
+    assert.ok(backupService.includes('GetDefaultBackupFolder()'), 'A safe default backup folder exists');
+    assert.ok(backupService.includes('CanWriteToFolder(targetFolder)'), 'An unwritable folder falls back to the default');
+  });
+
+  it('Exit button: danger-outline Power control with confirmation, available on every step', () => {
+    const wizardContent = fs.readFileSync(wizardModalPath, 'utf8');
+    assert.ok(wizardContent.includes('Power'), 'Wizard must use the lucide Power icon');
+    assert.ok(wizardContent.includes('إغلاق البرنامج'), 'Wizard must label the exit button');
+    assert.ok(wizardContent.includes("variant: 'danger'"), 'Exit confirmation must be a danger dialog');
+    assert.ok(wizardContent.includes('rafiqConfirm'), 'Exit must be confirmed with the shared dialog helper');
+    assert.ok(wizardContent.includes("invoke('window:close')"), 'Exit must call window:close');
+    assert.ok(wizardContent.includes('سيظهر معالج التجهيز مجدداً'), 'Message must say setup resumes next launch');
+    // The button lives in the header that is rendered for steps 1, 2 and the finish screen
+    const headerStart = wizardContent.indexOf('<header');
+    const headerEnd = wizardContent.indexOf('</header>');
+    assert.ok(wizardContent.indexOf('handleExitApp()', headerStart) > headerStart && wizardContent.indexOf('handleExitApp()', headerStart) < headerEnd, 'Exit button must be in the shared header');
   });
 
   it('Task 106-4: Integration in App.tsx (auto-trigger on first run) and SettingsView (rerun)', () => {
@@ -103,11 +145,13 @@ describe('Story 59: First-run Setup Wizard by Store Type (Feature #106)', () => 
     assert.ok(appContent.includes('templates:isFirstRunNeeded'), 'App.tsx must check if first run wizard is needed on launch');
     assert.ok(appContent.includes('isFirstRunWizardOpen'), 'App.tsx must manage wizard open state');
 
-    const settingsContent = fs.readFileSync(settingsViewPath, 'utf8');
-    const storeProfilePath = path.resolve('src', 'views', 'settings', 'StoreProfileTab.tsx');
-    const storeProfileContent = fs.existsSync(storeProfilePath) ? fs.readFileSync(storeProfilePath, 'utf8') : '';
-    assert.ok(settingsContent.includes('FirstRunWizardModal'), 'SettingsView must import FirstRunWizardModal');
-    assert.ok(settingsContent.includes('معالج نوع المحل (Setup Wizard)') || storeProfileContent.includes('معالج نوع المحل (Setup Wizard)') || storeProfileContent.includes('معالج تهيئة المحل والنشاط'), 'SettingsView must offer button to rerun setup wizard');
+    // The wizard can be reopened from the root console only (owner screens carry no root-only control)
+    const consolePath = path.resolve('src', 'views', 'root', 'RootConsoleView.tsx');
+    const consoleContent = fs.readFileSync(consolePath, 'utf8');
+    const featuresContent = fs.readFileSync(path.resolve('src', 'views', 'root', 'RootFeaturesPage.tsx'), 'utf8');
+    assert.ok(consoleContent.includes('FirstRunWizardModal'), 'The root console must import FirstRunWizardModal');
+    assert.ok(featuresContent.includes('تغيير نشاط المتجر (معالج الإعداد)'), 'The root features page must offer the button to rerun the setup wizard');
+    assert.ok(!fs.readFileSync(settingsViewPath, 'utf8').includes('FirstRunWizardModal'), 'SettingsView (owner) must not host the wizard');
   });
 
   it('Task 106-5: Template data validation enforces clean database (0 categories, 0 quick items)', () => {

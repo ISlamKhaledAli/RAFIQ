@@ -13,6 +13,7 @@ import {
 import { CustomSelect } from '../../components/CustomSelect';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { CertifiedHardwareModal } from '../../components/CertifiedHardwareModal';
+import { DRAWER_PULSE_MAX_MS, DRAWER_PULSE_MIN_MS, DRAWER_PULSE_PRESETS, formatDrawerPulse, normalizeDrawerPulse } from '../../utils/drawerPulse';
 import { invoke } from '../../bridge/ipc';
 import { rafiqAlert } from '../../utils/dialogService';
 import { useFeatures } from '../../context/useFeatures';
@@ -88,11 +89,11 @@ export const PrinterSettingsTab = ({
   const [labelTestMessage, setLabelTestMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [drawerTesting, setDrawerTesting] = useState(false);
   const [drawerTestMessage, setDrawerTestMessage] = useState<{ text: string; isError: boolean } | null>(null);
-  const [customPulse, setCustomPulse] = useState<string>(drawerPulseMs || '30');
+  const [customPulse, setCustomPulse] = useState<string>(String(normalizeDrawerPulse(drawerPulseMs)));
 
   useEffect(() => {
     if (drawerPulseMs) {
-      setCustomPulse(drawerPulseMs);
+      setCustomPulse(String(normalizeDrawerPulse(drawerPulseMs)));
     }
   }, [drawerPulseMs]);
 
@@ -194,7 +195,7 @@ export const PrinterSettingsTab = ({
       });
       return;
     }
-    const pulseToUse = Number(pulseOverride || drawerPulseMs || '30');
+    const pulseToUse = normalizeDrawerPulse(pulseOverride || drawerPulseMs);
     const pinToUse = Number(drawerPin || '0');
     setDrawerTesting(true);
     setDrawerTestMessage(null);
@@ -399,7 +400,7 @@ export const PrinterSettingsTab = ({
             />
           </div>
 
-          {/* Cash Drawer Pulse Duration Control & Test */}
+          {/* Cash drawer pulse control and test */}
           <div className="p-5 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
               <div className="flex items-start gap-3 flex-1 min-w-[16rem]">
@@ -409,14 +410,11 @@ export const PrinterSettingsTab = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-ink dark:text-ink-dark text-xs">
-                      قوة ومدة نبضة فتح الدرج (Pulse Duration)
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20">
-                      تبدأ من 2 مللي ثانية (الأهدأ)
+                      قوة نبضة فتح الدرج
                     </span>
                   </div>
                   <p className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 mt-1">
-                    التحكم الدقيق في زمن الشرارة الكهربائية لملف الدرج (Solenoid)؛ تم تقليل الحد الأدنى وإلغاء كود الرنين القديم تماماً لمنع قفز الدرج وارتداده العنيف.
+                    مدة الإشارة الكهربائية التي تفتح الدرج. ابدأ بالافتراضية، وإذا لم يفتح الدرج جرّب الدرجة التالية.
                   </p>
                 </div>
               </div>
@@ -429,37 +427,20 @@ export const PrinterSettingsTab = ({
                 title="إرسال نبضة فورية لاختبار فتح الدرج بالقوة المحددة حالياً"
               >
                 <Zap className={'w-3.5 h-3.5 text-brand dark:text-brand-bright ' + (drawerTesting ? 'animate-spin' : '')} />
-                <span>{drawerTesting ? 'جاري الفتح...' : `تجربة النبضة الحالية (${drawerPulseMs || '30'} ms)`}</span>
+                <span>{drawerTesting ? 'جاري الفتح...' : `تجربة النبضة الحالية (${formatDrawerPulse(normalizeDrawerPulse(drawerPulseMs))})`}</span>
               </button>
             </div>
 
-            {/* Note badge */}
-            <div className="p-3 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-start gap-2.5 text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-              <Sliders className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
-              <div>
-                <strong className="text-ink dark:text-ink-dark font-bold">طريقة التجربة السريعة: </strong>
-                اضغط على زر <span className="font-bold text-brand dark:text-brand-bright">[تجربة]</span> في أي كارت أدناه لاختبار النبضة فوراً دون الحاجة لتغيير الشاشة. ابدأ من درجة <strong className="text-brand dark:text-brand-bright">2 ms</strong> أو <strong className="text-brand dark:text-brand-bright">5 ms</strong>؛ إذا فتح الدرج بهدوء فاختره، وإذا لم يفتح انتقل للدرجة التالية تدريجياً.
-              </div>
-            </div>
-
             {/* Presets Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { id: '2', title: '2 ms', tag: 'الأهدأ إطلاقاً', label: 'أقل نبضة ممكنة', desc: 'للأدراج ذات السوستة القوية؛ تفتح بهدوء وتمنع الارتداد تماماً' },
-                { id: '5', title: '5 ms', tag: 'خفيفة جداً', label: 'حساسة وخفيفة', desc: 'للأدراج الخفيفة لمنع الصدمة والصوت العالي' },
-                { id: '10', title: '10 ms', tag: 'هادئة', label: 'خفيفة ومعتدلة', desc: 'للأدراج القياسية لفتح هادئ وغير مزعج' },
-                { id: '20', title: '20 ms', tag: 'معتدلة', label: 'متوسطة', desc: 'مناسبة لمعظم الأدراج الجديدة' },
-                { id: '30', title: '30 ms', tag: 'متوازنة', label: 'الافتراضي القياسي', desc: 'النبضة الشائعة لطابعات الفواتير' },
-                { id: '50', title: '50 ms', tag: 'قوية', label: 'سريعة وقوية', desc: 'للأدراج الثقيلة أو المشدودة' },
-                { id: '100', title: '100 ms', tag: 'أقصى قوة', label: 'للأدراج الكبيرة', desc: 'للأدراج الكبيرة جداً وممتلئة النقدية' },
-              ].map((opt) => {
-                const isSelected = (drawerPulseMs || '30') === opt.id;
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {DRAWER_PULSE_PRESETS.map((opt) => {
+                const isSelected = normalizeDrawerPulse(drawerPulseMs) === opt.ms;
                 return (
                   <div
-                    key={opt.id}
+                    key={opt.ms}
                     onClick={() => {
-                      setDrawerPulseMs?.(opt.id);
-                      if (onChangeDrawerPulse) onChangeDrawerPulse(opt.id);
+                      setDrawerPulseMs?.(String(opt.ms));
+                      if (onChangeDrawerPulse) onChangeDrawerPulse(String(opt.ms));
                     }}
                     className={`p-3 rounded-lg border text-right flex flex-col justify-between gap-2 transition-all cursor-pointer ${
                       isSelected
@@ -469,18 +450,15 @@ export const PrinterSettingsTab = ({
                   >
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-black tracking-tight tabular-nums">{opt.title}</span>
+                        <span className="text-sm font-black tracking-tight tabular-nums">{formatDrawerPulse(opt.ms)}</span>
                         {isSelected ? (
                           <CheckCircle className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
                         ) : (
-                          <span className="text-micro px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark whitespace-nowrap">
-                            {opt.tag}
-                          </span>
+                          <span className="text-micro font-bold text-ink-muted dark:text-ink-muted-dark whitespace-nowrap">{opt.label}</span>
                         )}
                       </div>
-                      <span className="text-micro font-bold text-ink dark:text-ink-dark">{opt.label}</span>
                       <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                        {opt.desc}
+                        {opt.hint}
                       </span>
                     </div>
 
@@ -488,13 +466,13 @@ export const PrinterSettingsTab = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setDrawerPulseMs?.(opt.id);
-                        if (onChangeDrawerPulse) onChangeDrawerPulse(opt.id);
-                        void handleTestDrawer(opt.id);
+                        setDrawerPulseMs?.(String(opt.ms));
+                        if (onChangeDrawerPulse) onChangeDrawerPulse(String(opt.ms));
+                        void handleTestDrawer(String(opt.ms));
                       }}
                       disabled={drawerTesting || !selectedPrinter}
                       className="mt-1 w-full h-8 px-2 rounded-md bg-surface-2 dark:bg-surface-dark-2 hover:bg-white dark:hover:bg-surface-dark border border-line dark:border-line-dark hover:border-brand text-ink dark:text-ink-dark text-micro font-bold flex items-center justify-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
-                      title={`تجربة فتح الدرج بقوة ${opt.title} فوراً`}
+                      title={`تجربة فتح الدرج بنبضة ${formatDrawerPulse(opt.ms)} فوراً`}
                     >
                       <Zap className="w-3 h-3 text-brand dark:text-brand-bright" />
                       <span>تجربة</span>
@@ -510,28 +488,28 @@ export const PrinterSettingsTab = ({
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
                   <Sliders className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                  <span>تحديد رقم مخصص بالميللي ثانية (2 - 250 ms)</span>
+                  <span>رقم مخصص بالمللي ثانية (من 2 إلى 250، أرقام زوجية فقط)</span>
                 </label>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative flex-1 min-w-[9rem]">
                     <input
                       type="number"
-                      min={2}
-                      max={250}
+                      min={DRAWER_PULSE_MIN_MS}
+                      max={DRAWER_PULSE_MAX_MS}
+                      step={2}
                       value={customPulse}
                       onChange={(e) => setCustomPulse(e.target.value)}
-                      placeholder="مثال: 3 أو 4 أو 8"
+                      placeholder="مثال: 30 أو 40 أو 80"
                       className="w-full h-10 px-3 text-sm rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark font-mono font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-micro text-ink-muted dark:text-ink-muted-dark font-bold">
-                      ms
+                      مللي ثانية
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => {
-                      const valNum = parseInt(customPulse, 10);
-                      const safeVal = isNaN(valNum) || valNum < 2 ? '2' : (valNum > 250 ? '250' : String(valNum));
+                      const safeVal = String(normalizeDrawerPulse(customPulse));
                       setCustomPulse(safeVal);
                       setDrawerPulseMs?.(safeVal);
                       if (onChangeDrawerPulse) onChangeDrawerPulse(safeVal);
@@ -547,8 +525,7 @@ export const PrinterSettingsTab = ({
                   <button
                     type="button"
                     onClick={() => {
-                      const valNum = parseInt(customPulse, 10);
-                      const safeVal = isNaN(valNum) || valNum < 2 ? '2' : (valNum > 250 ? '250' : String(valNum));
+                      const safeVal = String(normalizeDrawerPulse(customPulse));
                       setCustomPulse(safeVal);
                       setDrawerPulseMs?.(safeVal);
                       if (onChangeDrawerPulse) onChangeDrawerPulse(safeVal);

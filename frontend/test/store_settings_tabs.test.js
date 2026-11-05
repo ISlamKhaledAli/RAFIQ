@@ -7,7 +7,8 @@ const read = (rel) => readFileSync(fileURLToPath(new URL(`../src/${rel}`, import
 const profileTab = read('views/settings/StoreProfileTab.tsx');
 const policiesTab = read('views/settings/SalesPoliciesTab.tsx');
 const settingsView = read('views/SettingsView.tsx');
-const signatureField = read('views/settings/SignatureImageField.tsx');
+const signatureField = read('views/root/SignatureImageField.tsx');
+const rootReceipt = read('views/root/RootReceiptPage.tsx');
 const ipc = read('bridge/ipc.ts');
 
 describe('store settings screens: dead settings are gone, live ones still saved', () => {
@@ -29,17 +30,19 @@ describe('store settings screens: dead settings are gone, live ones still saved'
     assert.ok(!profileTab.includes('شعار عريض'));
   });
 
-  it('every live store key is still saved by the profile save', () => {
+  it('every live store key is still saved by the profile save; root-only and wallet keys are not', () => {
     const start = settingsView.indexOf('const handleSave = async');
     const end = settingsView.indexOf('const handleSavePolicies');
     const body = settingsView.slice(start, end);
     for (const key of [
       'store_name', 'store_phone', 'store_address', 'tax_number', 'receipt_header', 'receipt_footer',
-      'show_receipt_logo', 'receipt_show_cashier', 'store_logo_url', 'store_instapay_address', 'store_wallet_number',
+      'show_receipt_logo', 'receipt_show_cashier', 'store_logo_url',
     ]) {
       assert.ok(body.includes(`${key}:`), `${key} is saved by the profile save`);
     }
-    assert.ok(/\.\.\.\(isRoot\s*\?\s*\{\s*developer_signature: normalizeReceiptText/.test(body), 'the developer signature is only sent for root');
+    for (const gone of ['developer_signature', 'store_instapay_address', 'store_wallet_number', 'isRoot']) {
+      assert.ok(!body.includes(gone), `the owner profile save never sends ${gone}`);
+    }
   });
 
   it('save buttons stay disabled until something changed', () => {
@@ -72,13 +75,23 @@ describe('store settings screens: dead settings are gone, live ones still saved'
     assert.ok(settingsView.includes('setReceiptFooter(resolveReceiptFooter(settings.receipt_footer))'), 'an untouched old default footer shows as the plain thanks line, so what you see is what prints');
   });
 
-  it('the root-only signature card: visibility switch, text, and the image control with three actions', () => {
-    const card = profileTab.slice(profileTab.indexOf('{isRoot && ('), profileTab.indexOf('sticky bottom-0'));
-    assert.ok(card.includes('title="توقيع المطور أسفل الوصل"'), 'the card is inside the isRoot block');
+  it('the store InstaPay address / wallet number card is gone from the store profile (legacy values keep working in the payment modal)', () => {
+    for (const [name, src] of [['StoreProfileTab', profileTab], ['SettingsView', settingsView]]) {
+      assert.ok(!/store_instapay_address|store_wallet_number|storeInstapayAddress|storeWalletNumber|الدفع الإلكتروني المباشر/.test(src), `${name} still handles the direct-payment card`);
+    }
+    const modal = read('components/DigitalPaymentModal.tsx');
+    assert.ok(modal.includes('store_instapay_address') && modal.includes('store_wallet_number'), 'stored values still feed the checkout fallback');
+    assert.ok(read('views/wallets/WalletsView.tsx').includes('accounts'), 'the wallets screen owns the accounts');
+  });
+
+  it('the root-only signature page: visibility switch, text, and the image control with three actions', () => {
+    const card = rootReceipt;
+    assert.ok(card.includes('title="توقيع المطور أسفل الوصل"'));
     assert.ok(card.includes('title="إظهار توقيع الإيصال"') && card.includes('يظهر أسفل كل وصل: صورة ثم أسطر النص.'));
-    assert.ok(/<SignatureImageField\s+value=\{developerSignatureImage\}/.test(card));
+    assert.ok(/<SignatureImageField\s+value=\{image\}/.test(card));
     assert.ok(card.includes('تُطبع الصورة فوق هذه الأسطر، ويسمح بأربعة أسطر.'), 'the text hint is accurate');
-    assert.ok(!profileTab.includes('السطر الأول يُطبع غامقاً'), 'no stale bold-first-line hint');
+    assert.ok(!card.includes('السطر الأول يُطبع غامقاً'), 'no stale bold-first-line hint');
+    assert.ok(!profileTab.includes('SignatureImageField') && !profileTab.includes('توقيع المطور أسفل الوصل'), 'the owner profile has no signature card');
     for (const label of ['إضافة صورة', 'إرجاع الافتراضية', 'بدون صور']) {
       assert.ok(signatureField.includes(`<span>${label}</span>`) || signatureField.includes(`'${label}'`), `${label} action`);
     }
@@ -100,22 +113,26 @@ describe('store settings screens: dead settings are gone, live ones still saved'
     assert.ok(signatureField.includes('عرض الصورة التالية في معاينة الوصل') && signatureField.includes('else if (selectedIndex + 1 < end) onSelect(selectedIndex + 1);'), 'clicking the default tile steps through its images');
     assert.ok(signatureField.includes('current.length >= MAX_SIGNATURE_IMAGES'), 'the 8-entry cap counts the default entry as one');
     assert.ok(signatureField.includes('بدون صورة') && signatureField.includes('ImageOff'), 'empty-list placeholder');
-    assert.ok(signatureField.includes('onClick={() => clickTile(index)}') && profileTab.includes('signatureImageIndex: previewImageIndex'), 'clicking a tile previews that image on the sample receipt');
+    assert.ok(signatureField.includes('onClick={() => clickTile(index)}') && rootReceipt.includes('signatureImageIndex: previewImageIndex'), 'clicking a tile previews that image on the sample receipt');
     assert.ok(signatureField.includes('aria-pressed'), 'the current mode is visibly selected');
     assert.ok(signatureField.includes('h-11'), '44px buttons');
     assert.ok(!/#[0-9a-fA-F]{3,8}\b|text-\[\d+px\]|amber-|red-|gray-|slate-/.test(signatureField), 'theme tokens only');
     assert.ok(signatureField.includes('dark:'), 'dark pairs');
   });
 
-  it('visibility and image are loaded with safe defaults, tracked as dirty and sent for root only', () => {
-    assert.ok(settingsView.includes("setDeveloperSignatureVisible(settings.developer_signature_visible !== '0')"), 'missing key means visible');
-    assert.ok(settingsView.includes("setDeveloperSignatureImage(settings.developer_signature_image ?? '')"), 'missing key means the built-in banner');
-    const snapshot = settingsView.slice(settingsView.indexOf('const profileSnapshot'), settingsView.indexOf('const profileDirty'));
-    assert.ok(snapshot.includes('isRoot ? developerSignatureVisible : true') && snapshot.includes("isRoot ? developerSignatureImage : ''"));
-    const save = settingsView.slice(settingsView.indexOf('const handleSave = async'), settingsView.indexOf('const handleSavePolicies'));
-    assert.ok(/\.\.\.\(isRoot\s*\?\s*\{[^}]*developer_signature_visible: developerSignatureVisible \? '1' : '0'[^}]*developer_signature_image: developerSignatureImage[^}]*\}\s*:\s*\{\}\)/.test(save), 'both keys are inside the root-only spread');
-    assert.equal(settingsView.split('developer_signature_image').length - 1, 2, 'only the load and the root save payload (other tabs never re-send it)');
-    assert.ok(profileTab.includes('signatureVisible: developerSignatureVisible, signatureImage: developerSignatureImage'), 'the live preview uses the unsaved form state');
+  it('visibility and image load with safe defaults on the root page, are dirty-tracked and saved only there', () => {
+    assert.ok(rootReceipt.includes("s.developer_signature_visible !== '0'"), 'missing key means visible');
+    assert.ok(rootReceipt.includes("s.developer_signature_image ?? ''"), 'missing key means the built-in banner');
+    assert.ok(rootReceipt.includes('const snapshot = JSON.stringify([normalizeReceiptText(signature), visible, image])'), 'text, switch and image drive the save bar');
+    assert.ok(rootReceipt.includes('disabled={saving || !!signatureError || !dirty}'), 'save stays disabled until something changed');
+    const save = rootReceipt.slice(rootReceipt.indexOf("invoke('settings:save'"), rootReceipt.indexOf('setBaseline(snapshot)'));
+    for (const key of ["developer_signature: normalizeReceiptText(signature)", "developer_signature_visible: visible ? '1' : '0'", 'developer_signature_image: image']) {
+      assert.ok(save.includes(key), `${key} is saved by the root page`);
+    }
+    assert.ok(!/store_name|receipt_header|store_logo_url/.test(save), 'the root page never re-sends owner keys');
+    assert.equal(settingsView.split('developer_signature_image').length - 1, 1, 'SettingsView only reads the image for the owner preview');
+    assert.ok(!settingsView.includes("'developer_signature"), 'SettingsView never saves a signature key');
+    assert.ok(/signatureVisible: visible,\s*signatureImage: image/.test(rootReceipt), 'the live preview uses the unsaved form state');
     assert.ok(ipc.includes("developer_signature_visible: '1'") && ipc.includes("developer_signature_image: ''"), 'mock defaults');
   });
 
@@ -131,7 +148,8 @@ describe('store settings screens: dead settings are gone, live ones still saved'
   });
 
   it('new screens use the shared look: no native select, no ad-hoc pixel text sizes', () => {
-    for (const [name, src] of [['StoreProfileTab', profileTab], ['SalesPoliciesTab', policiesTab], ['settingsParts', read('views/settings/settingsParts.tsx')], ['ThemeModeCard', read('views/settings/ThemeModeCard.tsx')]]) {
+    const rootFiles = ['RootConsoleView', 'RootStatusPage', 'RootReceiptPage', 'RootFeaturesPage', 'RootDevicesPage', 'RootDataPage'].map((f) => [f, read(`views/root/${f}.tsx`)]);
+    for (const [name, src] of [['StoreProfileTab', profileTab], ['SalesPoliciesTab', policiesTab], ['settingsParts', read('views/settings/settingsParts.tsx')], ...rootFiles]) {
       assert.ok(!/<select/.test(src), `${name} uses a native select`);
       assert.ok(!/text-\[\d+px\]/.test(src), `${name} uses an arbitrary text size`);
     }

@@ -3,6 +3,8 @@ import type { FormEvent } from 'react';
 import type { Product, QuickItem, QuickBundleItem, ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
 import { normalizeArabicNumerals, normalizeArabicText } from '../../utils/money';
+import { resolveDefaultSaleUnit } from './saleUnit';
+import { pickPopularItems } from './popularItems';
 
 interface UsePosCatalogProps {
   catalogProducts: Product[];
@@ -80,14 +82,7 @@ export const usePosCatalog = ({
         resolvedCategoryId = categoryNameToId.get(resolvedCategoryName.toLowerCase()) || null;
       }
 
-      const defaultUnit = (p.units && p.units.length > 0)
-        ? (p.defaultSaleUnitId ? p.units.find(u => u.id === p.defaultSaleUnitId) : null)
-          || (p.isLooseSellable === false && p.units.length > 1
-              ? [...p.units].filter(u => !u.isBaseUnit).sort((a, b) => b.conversionFactor - a.conversionFactor)[0]
-              : null)
-          || p.units.find(u => u.isBaseUnit)
-          || p.units[0]
-        : null;
+      const defaultUnit = resolveDefaultSaleUnit(p.units, p.defaultSaleUnitId, p.isLooseSellable);
       const baseOrProductPrice = (defaultUnit && defaultUnit.sellPricePiasters > 0)
         ? defaultUnit.sellPricePiasters
         : p.pricePiasters;
@@ -167,19 +162,18 @@ export const usePosCatalog = ({
     return smartItems.filter((i) => i.isCustomQuickItem).length;
   }, [smartItems]);
 
-  const popularItemsCount = useMemo(() => {
-    const count = smartItems.filter((i) => (i.salesCount || 0) > 0).length;
-    return Math.min(count, 100);
-  }, [smartItems]);
+  const popularSelection = useMemo(() => pickPopularItems(smartItems), [smartItems]);
+  const popularItemsCount = popularSelection.items.length;
+  const isPopularFallback = popularSelection.isFallback;
 
   const displayedCatalogItems = useMemo(() => {
-    let result = smartItems;
+    let matchesQuery: (it: SmartCatalogItem) => boolean = () => true;
 
     const rawQuery = catalogSearchQuery.trim();
     if (rawQuery) {
       const normQuery = normalizeArabicText(normalizeArabicNumerals(rawQuery));
       const lowerRaw = rawQuery.toLowerCase();
-      result = result.filter((it) => {
+      matchesQuery = (it) => {
         const normName = normalizeArabicText(it.name);
         const matchName = normName.includes(normQuery);
         const matchBarcode = it.barcode ? it.barcode.toLowerCase().includes(lowerRaw) : false;
@@ -192,21 +186,15 @@ export const usePosCatalog = ({
         const matchVariant = (it.variantColor ? normalizeArabicText(it.variantColor).includes(normQuery) : false) ||
                              (it.variantSize ? it.variantSize.toLowerCase().includes(lowerRaw) : false);
         return matchName || matchBarcode || matchBarcodes || matchUnits || matchCategory || matchVariant;
-      });
+      };
     }
 
+    // The popular list is fixed first (top N), the search box then narrows what is shown in it
     if (activeCatalogTab === '__POPULAR__') {
-      return result
-        .filter((it) => (it.salesCount || 0) > 0)
-        .sort((a, b) => {
-          const countB = b.salesCount || 0;
-          const countA = a.salesCount || 0;
-          if (countB !== countA) return countB - countA;
-          if (a.isCustomQuickItem !== b.isCustomQuickItem) return a.isCustomQuickItem ? -1 : 1;
-          return a.name.localeCompare(b.name, 'ar');
-        })
-        .slice(0, 100);
+      return popularSelection.items.filter(matchesQuery);
     }
+
+    const result = rawQuery ? smartItems.filter(matchesQuery) : smartItems;
 
     if (activeCatalogTab === '__CUSTOM__') {
       return result
@@ -239,7 +227,7 @@ export const usePosCatalog = ({
         if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount;
         return a.name.localeCompare(b.name, 'ar');
       });
-  }, [smartItems, catalogSearchQuery, activeCatalogTab, categories]);
+  }, [smartItems, popularSelection, catalogSearchQuery, activeCatalogTab, categories]);
 
   const handleSmartItemClick = useCallback((item: SmartCatalogItem, specificUnit?: ProductUnit) => {
     if (item.isOpenPrice) {
@@ -321,14 +309,7 @@ export const usePosCatalog = ({
     }
 
     if (item.productRef) {
-      const defaultUnit = (item.productRef.units && item.productRef.units.length > 0)
-        ? (item.productRef.defaultSaleUnitId ? item.productRef.units.find(u => u.id === item.productRef!.defaultSaleUnitId) : null)
-          || (item.productRef.isLooseSellable === false && item.productRef.units.length > 1
-              ? [...item.productRef.units].filter(u => !u.isBaseUnit).sort((a, b) => b.conversionFactor - a.conversionFactor)[0]
-              : null)
-          || item.productRef.units.find(u => u.isBaseUnit)
-          || item.productRef.units[0]
-        : null;
+      const defaultUnit = resolveDefaultSaleUnit(item.productRef.units, item.productRef.defaultSaleUnitId, item.productRef.isLooseSellable);
       const targetUnit = specificUnit || defaultUnit || undefined;
       const effectivePrice = (targetUnit && targetUnit.sellPricePiasters > 0)
         ? targetUnit.sellPricePiasters
@@ -403,14 +384,7 @@ export const usePosCatalog = ({
       updatedAt: new Date().toISOString()
     };
 
-    const defaultDummyUnit = (dummyProduct.units && dummyProduct.units.length > 0)
-      ? (dummyProduct.defaultSaleUnitId ? dummyProduct.units.find(u => u.id === dummyProduct.defaultSaleUnitId) : null)
-        || (dummyProduct.isLooseSellable === false && dummyProduct.units.length > 1
-            ? [...dummyProduct.units].filter(u => !u.isBaseUnit).sort((a, b) => b.conversionFactor - a.conversionFactor)[0]
-            : null)
-        || dummyProduct.units.find(u => u.isBaseUnit)
-        || dummyProduct.units[0]
-      : null;
+    const defaultDummyUnit = resolveDefaultSaleUnit(dummyProduct.units, dummyProduct.defaultSaleUnitId, dummyProduct.isLooseSellable);
     const targetUnit = specificUnit || defaultDummyUnit || undefined;
     const effectiveDummyPrice = (targetUnit && targetUnit.sellPricePiasters > 0)
       ? targetUnit.sellPricePiasters
@@ -475,6 +449,7 @@ export const usePosCatalog = ({
     categoryTabs,
     customItemsCount,
     popularItemsCount,
+    isPopularFallback,
     displayedCatalogItems,
     catalogSearchQuery,
     setCatalogSearchQuery,

@@ -27,9 +27,8 @@ describe('top bar visibility by role', () => {
     assert.equal(getHeaderVisibility({ ...base, user: manager }).showEmployees, true);
   });
 
-  it('readiness check is root only and the shift button follows the shift permissions', () => {
-    assert.equal(getHeaderVisibility({ ...base, user: root }).showReadiness, true);
-    assert.equal(getHeaderVisibility({ ...base, user: owner }).showReadiness, false);
+  it('the shift button follows the shift permissions; the readiness check is no longer a top bar item (root console owns it)', () => {
+    assert.equal('showReadiness' in getHeaderVisibility({ ...base, user: root }), false);
     assert.equal(getHeaderVisibility({ ...base, user: cashier, canOpenShiftPanel: false }).showShift, false);
     assert.equal(getHeaderVisibility({ ...base, user: cashier }).showShift, true);
   });
@@ -62,11 +61,17 @@ describe('role-appropriate notifications', () => {
   const idsOf = (kind, canViewProducts = true) =>
     filterNotificationsForAudience(all, { kind, canViewProducts, ...noGrants }).map((n) => n.id);
 
-  it('owner and root see everything, with working actions', () => {
-    for (const kind of ['owner', 'root']) {
+  it('root sees everything with working actions; the owner too, except the demo-data action that lives in the root console', () => {
+    const rootOut = filterNotificationsForAudience(all, { kind: 'root', canViewProducts: true, ...grants });
+    assert.equal(rootOut.length, all.length);
+    assert.ok(rootOut.every((n) => typeof n.onAction === 'function'));
+    for (const kind of ['owner', 'manager']) {
       const out = filterNotificationsForAudience(all, { kind, canViewProducts: true, ...grants });
-      assert.equal(out.length, all.length);
-      assert.ok(out.every((n) => typeof n.onAction === 'function'));
+      const demo = out.find((n) => n.id === 'demo_data_active');
+      assert.ok(demo, `${kind} still gets the demo-data notice`);
+      assert.equal(demo.onAction, undefined, `${kind} gets no action into a root-only screen`);
+      assert.equal(demo.actionLabel, undefined);
+      assert.ok(out.filter((n) => n.id !== 'demo_data_active').every((n) => typeof n.onAction === 'function'));
     }
   });
 
@@ -139,10 +144,11 @@ describe('top bar source rules', () => {
     assert.ok(app.includes("e.key === 'F11'") && app.includes("e.key === 'F5'") && app.includes("e.key === 'F1'"));
   });
 
-  it('every capability removed from the bar has a menu entry', () => {
-    for (const id of ["'shortcuts'", "'help'", "'logout'", "'minimize'", "'employees'", "'updates'", "'readiness'"]) {
+  it('every capability removed from the bar has a menu entry, and root-only ones are not in the menus', () => {
+    for (const id of ["'shortcuts'", "'help'", "'logout'", "'minimize'", "'employees'", "'updates'"]) {
       assert.ok(app.includes(`id: ${id}`), `${id} menu item`);
     }
+    assert.ok(!app.includes("id: 'readiness'"), 'the readiness check moved to the root console');
   });
 
   it('icon-only header controls expose an accessible name and the header has no emojis', () => {

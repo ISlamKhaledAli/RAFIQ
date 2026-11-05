@@ -61,9 +61,11 @@ describe('built-in signature images: the frontend loader', () => {
     assert.ok(src.includes('export const BUILT_IN_SIGNATURE_IMAGES'));
   });
 
-  it('the settings tab and the receipt modal pass the built-in set to the model', () => {
+  it('the settings tab, the root receipt page and the receipt modal pass the built-in set to the model', () => {
     const tab = read('src', 'views', 'settings', 'StoreProfileTab.tsx');
-    assert.ok(tab.includes('builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES') && tab.includes('builtIns={BUILT_IN_SIGNATURE_IMAGES}'));
+    assert.ok(tab.includes('builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES'), 'owner preview');
+    const rootPage = read('src', 'views', 'root', 'RootReceiptPage.tsx');
+    assert.ok(rootPage.includes('builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES') && rootPage.includes('builtIns={BUILT_IN_SIGNATURE_IMAGES}'), 'root editor + preview');
     assert.ok(read('src', 'components', 'ReceiptModal.tsx').includes('builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES'));
   });
 });

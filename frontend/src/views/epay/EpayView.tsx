@@ -808,7 +808,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
       <div className="flex-1 p-4 sm:p-6">
         {/* TAB 1: POS QUICK TRANSACTION */}
         {activeTab === 'pos' && (
-          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Left 7 Columns: Form Input */}
             <div className="lg:col-span-7 bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark p-5 sm:p-6 flex flex-col gap-5 shadow-2xs">
               <p className="text-micro text-ink-muted dark:text-ink-muted-dark -mb-2">الحقول المميزة بعلامة * مطلوبة</p>
@@ -1158,7 +1158,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
         {/* TAB 2: TERMINALS & FUNDING */}
         {activeTab === 'terminals' && canAccessTerminals && (
-          <div className="max-w-6xl mx-auto flex flex-col gap-5">
+          <div className="w-full flex flex-col gap-5">
             {/* Terminals Cards Grid */}
             {terminals.length === 0 ? (
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-dashed border-line dark:border-line-dark p-8 flex flex-col items-center justify-center text-center gap-3 shadow-2xs">
@@ -1383,7 +1383,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
         {/* TAB 3: TRANSACTION HISTORY */}
         {activeTab === 'history' && canViewHistory && (
-          <div className="max-w-6xl mx-auto flex flex-col gap-5">
+          <div className="w-full flex flex-col gap-5">
             {/* Filter Bar */}
             <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-4 flex flex-col gap-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1609,7 +1609,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </p>
             </div>
           ) : (
-          <div className="max-w-6xl mx-auto flex flex-col gap-5">
+          <div className="w-full flex flex-col gap-5">
             {/* KPI Cards Row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-paid/40 dark:hover:border-paid-bright/40 transition-colors">
