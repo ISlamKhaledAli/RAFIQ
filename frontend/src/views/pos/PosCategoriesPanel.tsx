@@ -5,7 +5,6 @@ import {
   Star, 
   Search, 
   X, 
-  FolderTree, 
   ChevronLeft,
   PanelLeftClose,
   PanelLeftOpen
@@ -73,7 +72,7 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
   return (
     <section 
       className={`${
-        isCollapsed ? 'w-[58px] min-w-[58px] p-2 items-center' : 'w-[220px] sm:w-[240px] p-2.5 sm:p-3'
+        isCollapsed ? 'w-[3.625rem] min-w-[3.625rem] p-2 items-center' : 'w-[13.75rem] sm:w-[15rem] p-2.5 sm:p-3'
       } h-full bg-surface-2 dark:bg-surface-dark-2 border-r border-line dark:border-line-dark flex flex-col select-none overflow-hidden shrink-0 transition-all duration-150 shadow-2xs`}
     >
       {/* Header */}
@@ -95,9 +94,9 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
               <LayoutGrid className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-xs font-bold text-ink dark:text-ink-dark truncate">أقسام المتجر</h2>
-              <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted truncate">
-                {categories.length} أقسام رئيسية
+              <h2 className="t-card-title text-ink dark:text-ink-dark truncate">أقسام المتجر</h2>
+              <div className="text-micro text-ink-muted dark:text-ink-dark-muted truncate">
+                <span className="text-xs font-extrabold tabular-nums text-ink dark:text-ink-dark">{categories.length}</span> أقسام رئيسية
               </div>
             </div>
           </div>
@@ -153,7 +152,7 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
             }`}
           >
             <LayoutGrid className="w-4 h-4" />
-            <span className="absolute -top-1 -right-1 font-mono text-[9px] font-bold px-1 rounded-full bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark">
+            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center font-mono text-micro leading-none font-extrabold tabular-nums px-1 rounded-full bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark">
               {totalProductsCount > 99 ? '99+' : totalProductsCount}
             </span>
           </button>
@@ -177,15 +176,12 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold truncate">جميع الأصناف</div>
-                <div className={`text-[10px] ${activeCatalogTab === '__ALL__' ? 'text-white/80' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
-                  كافة منتجات المتجر
-                </div>
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <span className={`text-[11px] font-mono font-bold px-1.5 py-0.2 rounded-md ${
+              <span className={`text-xs font-mono font-extrabold tabular-nums px-2 py-0.5 rounded-md ${
                 activeCatalogTab === '__ALL__'
-                  ? 'bg-white text-brand'
+                  ? 'bg-white dark:bg-surface-dark text-brand dark:text-brand-bright'
                   : 'bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark'
               }`}>
                 {totalProductsCount}
@@ -203,12 +199,12 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
             title={`الأكثر طلباً (${popularItemsCount})`}
             className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
               activeCatalogTab === '__POPULAR__'
-                ? 'bg-warn text-white shadow-xs'
+                ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs'
                 : 'bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark border border-line dark:border-line-dark'
             }`}
           >
             <Flame className="w-4 h-4 text-warn dark:text-warn-bright" />
-            <span className="absolute -top-1 -right-1 font-mono text-[9px] font-bold px-1 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
+            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center font-mono text-micro leading-none font-extrabold tabular-nums px-1 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
               {popularItemsCount > 99 ? '99+' : popularItemsCount}
             </span>
           </button>
@@ -218,7 +214,7 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
             onClick={() => onSelectCategory('__POPULAR__')}
             className={`w-full p-2 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer group active:scale-[0.99] ${
               activeCatalogTab === '__POPULAR__'
-                ? 'bg-warn border-warn text-white shadow-xs'
+                ? 'bg-warn border-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs'
                 : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark hover:border-warn/40 hover:bg-warn-soft/50 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark'
             }`}
           >
@@ -232,15 +228,12 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold truncate">الأكثر طلباً ومبيعاً</div>
-                <div className={`text-[10px] ${activeCatalogTab === '__POPULAR__' ? 'text-amber-100' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
-                  الأكثر تكراراً بالكاشير
-                </div>
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <span className={`text-[11px] font-mono font-bold px-1.5 py-0.2 rounded-md ${
+              <span className={`text-xs font-mono font-extrabold tabular-nums px-2 py-0.5 rounded-md ${
                 activeCatalogTab === '__POPULAR__'
-                  ? 'bg-white text-warn'
+                  ? 'bg-white dark:bg-surface-dark text-warn dark:text-warn-bright'
                   : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30'
               }`}>
                 {popularItemsCount}
@@ -263,7 +256,7 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
             }`}
           >
             <Star className="w-4 h-4 text-paid dark:text-emerald-300" />
-            <span className="absolute -top-1 -right-1 font-mono text-[9px] font-bold px-1 rounded-full bg-paid-soft dark:bg-emerald-950/60 text-paid dark:text-emerald-300 border border-paid-border dark:border-emerald-600/40">
+            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center font-mono text-micro leading-none font-extrabold tabular-nums px-1 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border">
               {customItemsCount > 99 ? '99+' : customItemsCount}
             </span>
           </button>
@@ -287,15 +280,12 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold truncate">الأصناف المفضلة والسريعة</div>
-                <div className={`text-[10px] ${activeCatalogTab === '__CUSTOM__' ? 'text-white/80' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
-                  أزرار المحل المخصصة
-                </div>
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <span className={`text-[11px] font-mono font-bold px-1.5 py-0.2 rounded-md ${
+              <span className={`text-xs font-mono font-extrabold tabular-nums px-2 py-0.5 rounded-md ${
                 activeCatalogTab === '__CUSTOM__'
-                  ? 'bg-white text-brand-dark'
+                  ? 'bg-white dark:bg-surface-dark text-brand-dark dark:text-brand-bright'
                   : 'bg-paid-soft dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-paid-border dark:border-emerald-600/40'
               }`}>
                 {customItemsCount}
@@ -306,16 +296,7 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
         )}
 
         {/* Separator */}
-        <div className="py-1 flex items-center gap-2 w-full">
-          <div className="h-px bg-line dark:bg-line-dark flex-1" />
-          {!isCollapsed && (
-            <div className="flex items-center justify-between w-full px-1">
-              <span className="text-[10px] font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider flex items-center gap-1">
-                <FolderTree className="w-3 h-3 text-brand dark:text-brand-bright" />
-                <span>أقسام المتجر</span>
-              </span>
-            </div>
-          )}
+        <div className="py-1 flex items-center w-full">
           <div className="h-px bg-line dark:bg-line-dark flex-1" />
         </div>
 
@@ -352,7 +333,7 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
                 >
                   <IconComponent className="w-4 h-4" />
                   {count > 0 && (
-                    <span className="absolute -top-1 -right-1 font-mono text-[9px] font-bold px-1 rounded-full bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark">
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center font-mono text-micro leading-none font-extrabold tabular-nums px-1 rounded-full bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark">
                       {count > 99 ? '99+' : count}
                     </span>
                   )}
@@ -383,16 +364,13 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
                     <div className="text-xs font-bold truncate">
                       {cat.name}
                     </div>
-                    <div className={`text-[10px] ${isSelected ? 'text-white/80' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
-                      {count} {count === 1 ? 'صنف' : 'أصناف'}
-                    </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                  <span className={`text-[11px] font-mono font-bold px-1.5 py-0.2 rounded-md ${
+                  <span className={`text-xs font-mono font-extrabold tabular-nums px-2 py-0.5 rounded-md ${
                     isSelected
-                      ? 'bg-white text-brand'
+                      ? 'bg-white dark:bg-surface-dark text-brand dark:text-brand-bright'
                       : 'bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark border border-line dark:border-line-dark'
                   }`}>
                     {count}

@@ -115,7 +115,7 @@ export const RafiqDialogContainer: React.FC = () => {
             <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 shadow-2xs ${vStyles.badge}`}>
               {vStyles.headerIcon}
             </div>
-            <h3 className="font-black text-sm text-slate-900 dark:text-ink-dark">{state.title}</h3>
+            <h3 className="t-card-title text-slate-900 dark:text-ink-dark">{state.title}</h3>
           </div>
           <button
             type="button"

@@ -30,10 +30,15 @@ describe('Security hardening: forced PIN change and PIN policy', () => {
 
   it('App gates every screen (including the first-launch LoginScreen path) behind the shared forced-change form', () => {
     const app = fs.readFileSync(path.resolve('src', 'App.tsx'), 'utf8');
-    const modal = fs.readFileSync(path.resolve('src', 'components', 'LoginModal.tsx'), 'utf8');
     assert.ok(app.includes('requiresForcedPinChange(currentUser)'), 'App must gate the shell on mustChangePin');
     assert.ok(app.includes('<ForcedPinChangeForm'), 'App must render the shared forced-change form');
-    assert.ok(modal.includes('<ForcedPinChangeForm'), 'LoginModal must reuse the shared forced-change form');
+  });
+
+  it('the idle auto-lock really logs the user out instead of opening a dismissable modal', () => {
+    const app = fs.readFileSync(path.resolve('src', 'App.tsx'), 'utf8');
+    assert.ok(app.includes('logoutRef.current()'), 'idle timeout must call logout');
+    assert.ok(!app.includes('LoginModal'), 'the dismissable login modal must be gone');
+    assert.ok(!fs.existsSync(path.resolve('src', 'components', 'LoginModal.tsx')), 'LoginModal.tsx must be deleted');
   });
 
   it('recovery code modal is only requested for owner sessions', () => {
@@ -41,7 +46,7 @@ describe('Security hardening: forced PIN change and PIN policy', () => {
     const idx = app.indexOf("invoke<{ isConfirmed: boolean; recoveryCode?: string }>('backup:getRecoveryStatus')");
     assert.ok(idx > 0, 'recovery status request must exist');
     const before = app.slice(Math.max(0, idx - 400), idx);
-    assert.ok(before.includes('if (!isAdmin'), 'recovery status must be requested only for admin sessions');
+    assert.ok(before.includes('if (!isOwnerOrRoot'), 'recovery status must be requested only for owner or root sessions');
   });
 
   it('line discounts never leak into the invoice-level discount (R1)', () => {
@@ -63,7 +68,8 @@ describe('Security hardening: forced PIN change and PIN policy', () => {
     const only = (perms) => (key) => perms.includes(key);
     assert.deepEqual(getAllowedSettingsSubTabs({ isRoot: false, isAdmin: false, hasPermission: only(['settings.store']) }), ['profile']);
     assert.deepEqual(getAllowedSettingsSubTabs({ isRoot: false, isAdmin: false, hasPermission: only(['settings.printer']) }), ['printer']);
-    assert.deepEqual(getAllowedSettingsSubTabs({ isRoot: false, isAdmin: true, hasPermission: only([]) }), ['profile', 'printer', 'backup']);
+    assert.deepEqual(getAllowedSettingsSubTabs({ isRoot: false, isAdmin: true, hasPermission: only([]) }), ['profile', 'policies', 'printer', 'backup']);
+    assert.equal(getAllowedSettingsSubTabs({ isRoot: false, isAdmin: false, hasPermission: only(['settings.store', 'settings.printer']) }).includes('policies'), false, 'policies are admin-only on the server');
     assert.ok(getAllowedSettingsSubTabs({ isRoot: true, isAdmin: true, hasPermission: only([]) }).includes('security'));
   });
 

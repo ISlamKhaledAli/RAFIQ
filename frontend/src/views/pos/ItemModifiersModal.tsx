@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Sliders, Check, MessageSquare } from 'lucide-react';
 import type { ModifierGroup, ModifierOption, SaleItemModifier } from '../../types/cafe';
 import { formatArabicCurrency } from '../../utils/money';
+import { RequiredMark } from '../../components/RequiredMark';
 
 interface ItemModifiersModalProps {
   isOpen: boolean;
@@ -128,7 +129,7 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-black text-ink dark:text-ink-dark">تخصيص الصنف والإضافات: {productName}</h3>
+              <h3 className="t-modal-title text-ink dark:text-ink-dark">تخصيص الصنف والإضافات: {productName}</h3>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                 السعر الأساسي: {formatArabicCurrency(basePricePiasters)}
                 {extraTotalPiasters > 0 && ` • إضافات: +${formatArabicCurrency(extraTotalPiasters)}`}
@@ -160,18 +161,9 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
               <div key={group.id} className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-ink dark:text-ink-dark">{group.name}</span>
-                    {group.isRequired ? (
-                      <span className="px-2 py-0.5 rounded-full bg-warn/20 dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-[10px] font-black">
-                        إجباري
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted text-[10px] font-bold">
-                        اختياري
-                      </span>
-                    )}
+                    <span className="text-sm font-black text-ink dark:text-ink-dark">{group.name}{group.isRequired && <> <RequiredMark /></>}</span>
                   </div>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
                     {group.selectionType === 'single' ? 'اختيار واحد' : `اختيار متعدد (حتى ${group.maxSelections || 5})`}
                   </span>
                 </div>
@@ -186,13 +178,13 @@ export const ItemModifiersModal: React.FC<ItemModifiersModalProps> = ({
                         onClick={() => toggleOption(group, opt)}
                         className={`p-3 rounded-xl border text-right transition-all flex items-center justify-between gap-2 cursor-pointer ${
                           isSelected
-                            ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark border-brand dark:border-brand-bright shadow-xs'
+                            ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright border-brand dark:border-brand-bright shadow-xs dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                             : 'bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-brand/50 dark:hover:border-brand-bright/50'
                         }`}
                       >
                         <div>
                           <div className="text-xs font-black">{opt.name}</div>
-                          <div className={`text-[11px] font-bold ${isSelected ? 'text-white/90 dark:text-surface-dark/90' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
+                          <div className={`text-micro font-bold ${isSelected ? 'text-white/90 dark:text-brand-bright/90' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
                             {opt.extraPricePiasters > 0
                               ? `+ ${formatArabicCurrency(opt.extraPricePiasters)}`
                               : 'بدون تكلفة إضافية'}

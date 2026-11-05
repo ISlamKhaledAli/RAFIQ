@@ -14,8 +14,6 @@ import {
   HeartPulse,
   ClipboardList,
   ShieldAlert,
-  PanelLeftClose,
-  PanelLeftOpen,
 } from 'lucide-react';
 import type { ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
@@ -24,7 +22,6 @@ import { useFeatures } from '../../context/useFeatures';
 import { getStoreTerminology } from '../../utils/storeTerminology';
 
 interface PosCatalogPanelProps {
-  smartItems: SmartCatalogItem[];
   customItemsCount: number;
   popularItemsCount: number;
   catalogSearchQuery: string;
@@ -44,12 +41,9 @@ interface PosCatalogPanelProps {
   isCartEmpty?: boolean;
   totalCatalogProductsCount?: number;
   categories?: Category[];
-  isCollapsed?: boolean;
-  onToggleCollapse?: () => void;
 }
 
 export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
-  smartItems,
   customItemsCount: _customItemsCount,
   popularItemsCount: _popularItemsCount,
   catalogSearchQuery,
@@ -69,8 +63,6 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   isCartEmpty = false,
   totalCatalogProductsCount = 0,
   categories: _categories = [],
-  isCollapsed = false,
-  onToggleCollapse,
 }) => {
   const { isEnabled } = useFeatures();
   // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
@@ -98,86 +90,15 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   };
 
   return (
-    <aside
-      className={`h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex select-none overflow-hidden shrink-0 shadow-2xs relative transition-[width,min-width,max-width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-        isCollapsed
-          ? 'w-11 min-w-[44px] max-w-[44px]'
-          : 'w-[380px] min-w-[340px] sm:w-[400px] lg:w-[440px] xl:w-[480px] max-w-[560px]'
-      }`}
-    >
-      {/* 1. SLIM COLLAPSED DOCKED RAIL */}
-      <div
-        onClick={onToggleCollapse}
-        className={`w-11 min-w-[44px] h-full flex flex-col items-center py-2.5 px-1 select-none overflow-hidden shrink-0 group hover:bg-brand-soft/40 hover:border-brand/40 cursor-pointer transition-opacity duration-200 ${
-          isCollapsed
-            ? 'opacity-100 pointer-events-auto delay-100'
-            : 'opacity-0 pointer-events-none w-0 min-w-0 overflow-hidden hidden'
-        }`}
-        title="انقر لتوسيع لوحة أصناف المحل السريعة (Ctrl+B)"
-        role="button"
-        tabIndex={isCollapsed ? 0 : -1}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onToggleCollapse?.();
-          }
-        }}
-      >
-        {/* Expand Action Button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleCollapse?.();
-          }}
-          className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark text-ink hover:text-brand dark:hover:text-brand-bright border border-line dark:border-line-dark group-hover:border-brand/40 group-hover:bg-brand group-hover:text-white flex items-center justify-center transition-all shadow-2xs mb-2 cursor-pointer"
-          title="توسيع لوحة الأصناف (Ctrl+B)"
-        >
-          <PanelLeftOpen className="w-4 h-4 stroke-[2.2]" />
-        </button>
-
-        {/* Sparkles Icon & Count */}
-        <div className="w-7 h-7 rounded-lg bg-paid-soft dark:bg-paid-dark-soft flex items-center justify-center text-paid dark:text-paid-bright border border-paid-border dark:border-paid/30 mb-1.5 shrink-0">
-          <Sparkles className="w-3.5 h-3.5" />
-        </div>
-        <span className="text-[10px] font-mono font-bold bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted px-1 py-0.5 rounded-md border border-line dark:border-line-dark shrink-0 mb-3" title={`إجمالي الأصناف: ${smartItems.length}`}>
-          {smartItems.length}
-        </span>
-
-        {/* Vertical Text Label */}
-        <div className="flex-1 flex items-center justify-center py-2">
-          <span className="text-xs font-bold text-ink dark:text-ink-dark [writing-mode:vertical-rl] rotate-180 tracking-wide select-none opacity-80 group-hover:opacity-100 group-hover:text-brand transition-colors whitespace-nowrap">
-            أصناف المحل
-          </span>
-        </div>
-
-        {/* Shortcut Hint */}
-        <div className="mt-auto pt-2 flex flex-col items-center gap-1 shrink-0">
-          <span className="text-[9px] font-mono font-bold text-ink-muted dark:text-ink-dark-muted px-1 py-0.5 rounded bg-surface dark:bg-surface-dark border border-line dark:border-line-dark tracking-tighter" title="اختصار لوحة المفاتيح">
-            Ctrl+B
-          </span>
-        </div>
-      </div>
-
-      {/* 2. FULL EXPANDED CATALOG WORKSPACE */}
-      <div 
-        className={`h-full flex-1 flex flex-col p-2.5 sm:p-3 overflow-hidden min-w-[340px] transition-opacity duration-200 ${
-          isCollapsed
-            ? 'opacity-0 pointer-events-none hidden'
-            : 'opacity-100 pointer-events-auto delay-75'
-        }`}
-      >
+    <section className="flex-1 min-w-[300px] h-full bg-surface-2 dark:bg-surface-dark-2 border-l border-line dark:border-line-dark flex flex-col p-2.5 sm:p-3 select-none overflow-hidden shrink-0 shadow-2xs">
       {/* Section Header */}
-      <div className="flex items-center justify-between mb-2 pb-2 border-b border-line dark:border-line-dark shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2 pb-2 border-b border-line dark:border-line-dark shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-paid-soft dark:bg-paid-dark-soft flex items-center justify-center text-paid dark:text-paid-bright border border-paid-border dark:border-paid/30 shrink-0">
             <Sparkles className="w-4 h-4" />
           </div>
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-xs sm:text-sm font-bold text-ink dark:text-ink-dark truncate">أصناف المحل</span>
-            <span className="text-[10px] font-mono bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted font-bold px-1.5 py-0.2 rounded-md border border-line dark:border-line-dark shrink-0">
-              {smartItems.length}
-            </span>
+          <div className="min-w-0">
+            <span className="text-sm sm:text-base font-extrabold text-ink dark:text-ink-dark truncate">أصناف المحل</span>
           </div>
         </div>
 
@@ -187,10 +108,10 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               type="button"
               onClick={onOpenInsuranceModal}
               disabled={isCartEmpty}
-              className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap border disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`flex items-center gap-1 text-micro font-bold px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap border disabled:opacity-50 disabled:cursor-not-allowed ${
                 activeInsuranceClaim
-                  ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/30 hover:bg-paid-soft/80'
-                  : 'bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft text-brand dark:text-brand-bright border-line dark:border-line-dark hover:border-brand/30'
+                  ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/30 hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80'
+                  : 'bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright border-line dark:border-line-dark hover:border-brand/30'
               }`}
               title={isCartEmpty ? "يرجى إضافة أدوية للسلة أولاً لتطبيق التأمين" : activeInsuranceClaim ? "تعديل روشتة التأمين المطبقة" : "تطبيق روشتة تأمين طبي للشركات والتعاقدات"}
             >
@@ -203,7 +124,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             <button
               type="button"
               onClick={onOpenChronicDispense}
-              className="flex items-center gap-1 text-[11px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 hover:bg-paid/20 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1 text-micro font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 hover:bg-paid/20 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
               title="صرف أدوية الأمراض المزمنة للمرضى المسجلين بنقرة واحدة"
             >
               <HeartPulse className="w-3.5 h-3.5 shrink-0 text-paid dark:text-paid-bright" />
@@ -215,7 +136,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             <button
               type="button"
               onClick={onOpenVariantMatrixModal}
-              className="flex items-center gap-1 text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95"
+              className="flex items-center gap-1 text-micro font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-brand-dark-soft px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95"
               title="إضافة منتج بمقاسات وألوان متعددة للملابس والأحذية"
             >
               <Layers className="w-3.5 h-3.5" />
@@ -226,7 +147,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             <button
               type="button"
               onClick={onOpenQuickShortage}
-              className="flex items-center gap-1 text-[11px] font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-bright/30 hover:bg-warn-border/40 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1 text-micro font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-bright/30 hover:bg-warn-border/40 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
               title="تسجيل النواقص السريع في كشكول النواقص (Ctrl+Q)"
             >
               <ClipboardList className="w-3.5 h-3.5 shrink-0 text-warn dark:text-warn-bright" />
@@ -238,7 +159,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             <button
               type="button"
               onClick={onOpenDdiManager}
-              className="flex items-center gap-1 text-[11px] font-bold text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand/40 hover:bg-brand-soft/80 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1 text-micro font-bold text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand/40 hover:bg-brand-soft/80 dark:hover:bg-brand-dark-soft/80 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
               title="إدارة وتعديل قاعدة بيانات التعارضات والتداخلات الدوائية"
             >
               <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-brand dark:text-brand-bright" />
@@ -249,23 +170,12 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
           <button
             type="button"
             onClick={onOpenQuickFastItemModal}
-            className="flex items-center gap-1 text-[11px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 hover:bg-paid/20 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95"
+            className="flex items-center gap-1 text-micro font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 hover:bg-paid/20 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95"
             title="إضافة صنف سريع يظهر في أزرار المحل بدون مخزن"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>صنف سريع</span>
           </button>
-
-          {onToggleCollapse && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="w-7 h-7 rounded-lg bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright border border-line dark:border-line-dark hover:border-brand/30 flex items-center justify-center transition-all shadow-2xs cursor-pointer active:scale-95"
-              title="تصغير لوحة الأصناف وتوسيع السلة (Ctrl+B)"
-            >
-              <PanelLeftClose className="w-4 h-4 stroke-[2]" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -333,7 +243,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               <div className="w-full shrink-0">
                 <div className="flex items-start justify-between gap-1.5 mb-1">
                   <span
-                    className="text-xs sm:text-[13px] font-bold text-ink dark:text-ink-dark line-clamp-2 leading-[1.3] group-hover:text-brand dark:group-hover:text-brand-bright transition-colors"
+                    className="text-xs sm:text-sm font-bold text-ink dark:text-ink-dark line-clamp-2 leading-[1.3] group-hover:text-brand dark:group-hover:text-brand-bright transition-colors"
                     title={item.name}
                   >
                     {item.name}
@@ -341,7 +251,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
 
                   <div className="flex items-center gap-1 shrink-0 mt-0.5">
                     {item.isOpenPrice && (
-                      <span className="text-[10px] font-extrabold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/50 px-1.5 py-0.2 rounded shadow-2xs">
+                      <span className="text-micro font-extrabold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/50 px-1.5 py-0.2 rounded shadow-2xs">
                         حر
                       </span>
                     )}
@@ -356,19 +266,19 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 {/* Status & Stock Tags */}
                 <div className="flex items-center gap-1 flex-wrap">
                   {isScale ? (
-                    <span className="text-[10px] font-semibold bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800/50 px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                    <span className="text-micro font-semibold bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800/50 px-1.5 py-0.2 rounded flex items-center gap-0.5">
                       <Scale className="w-2.5 h-2.5 text-sky-600 dark:text-sky-400" />
                       <span>ميزان</span>
                     </span>
                   ) : item.hasVariants ? (
-                    <span className="text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50 px-1.5 py-0.2 rounded flex items-center gap-1" title="صنف يحتوي على ألوان ومقاسات متعددة">
+                    <span className="text-micro font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50 px-1.5 py-0.2 rounded flex items-center gap-1" title="صنف يحتوي على ألوان ومقاسات متعددة">
                       <Layers className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400" />
                       <span>مقاسات وألوان{item.variantsCount ? ` (${item.variantsCount})` : ''}</span>
                     </span>
                   ) : null}
 
                   {(item.variantColor || item.variantSize) && (
-                    <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50 px-1.5 py-0.2 rounded flex items-center gap-1 font-mono">
+                    <span className="text-micro font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50 px-1.5 py-0.2 rounded flex items-center gap-1 font-mono">
                       {item.variantColor && <span>{item.variantColor}</span>}
                       {item.variantColor && item.variantSize && <span className="opacity-40">|</span>}
                       {item.variantSize && <span>{terminology.badgePrefix}: {item.variantSize}</span>}
@@ -376,26 +286,26 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   )}
 
                   {isEnabled('feature_expiry_dates') && item.isExpired && (
-                    <span className="text-[10px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/40 px-1.5 py-0.2 rounded flex items-center gap-1 animate-pulse" title="يحتوي على دفعات منتهية الصلاحية!">
+                    <span className="text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/40 px-1.5 py-0.2 rounded flex items-center gap-1 animate-pulse" title="يحتوي على دفعات منتهية الصلاحية!">
                       <AlertTriangle className="w-2.5 h-2.5 text-danger dark:text-danger-bright shrink-0" />
                       <span>منتهي الصلاحية</span>
                     </span>
                   )}
 
                   {isEnabled('feature_expiry_dates') && !item.isExpired && item.nearestExpiryDate && (
-                    <span className="text-[10px] font-semibold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 px-1.5 py-0.2 rounded flex items-center gap-0.5 font-mono" title={`أقرب تشغيلة: ${item.suggestedBatchNumber || 'افتراضية'} - تاريخ الصلاحية: ${item.nearestExpiryDate}`}>
+                    <span className="text-micro font-semibold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 px-1.5 py-0.2 rounded flex items-center gap-0.5 font-mono" title={`أقرب تشغيلة: ${item.suggestedBatchNumber || 'افتراضية'} - تاريخ الصلاحية: ${item.nearestExpiryDate}`}>
                       <Calendar className="w-2.5 h-2.5 text-warn dark:text-warn-bright shrink-0" />
                       <span>{item.suggestedBatchNumber ? `${item.suggestedBatchNumber} (${item.nearestExpiryDate})` : `صلاحية: ${item.nearestExpiryDate}`}</span>
                     </span>
                   )}
 
                   {isOutOfStock ? (
-                    <span className="text-[10px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/40 px-1.5 py-0.2 rounded flex items-center gap-1">
+                    <span className="text-xs font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/40 px-2 py-0.5 rounded-md flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-danger dark:bg-danger-bright" />
                       <span>نفد</span>
                     </span>
                   ) : isLowStock && stockMilli !== null ? (
-                    <span className="text-[10px] font-semibold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 px-1.5 py-0.2 rounded font-mono">
+                    <span className="text-xs font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 px-2 py-0.5 rounded-md font-mono tabular-nums">
                       متبقي: {isScale ? `${(stockMilli / 1000).toFixed(1)} كجم` : Math.floor(stockMilli / 1000)}
                     </span>
                   ) : stockMilli !== null && stockMilli > 0 ? (
@@ -403,7 +313,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                       const packUnit = item.units?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
                       const wholePacks = packUnit && packUnit.conversionFactor > 0 ? Math.floor(stockMilli / (packUnit.conversionFactor * 1000)) : null;
                       return (
-                        <span className="text-[10px] font-medium text-ink-muted dark:text-ink-dark-muted font-mono tabular-nums opacity-85">
+                        <span className="text-xs font-semibold text-ink-muted dark:text-ink-dark-muted font-mono tabular-nums">
                           {isScale ? `${(stockMilli / 1000).toFixed(1)} كجم` : `${Math.floor(stockMilli / 1000)} ق${wholePacks !== null && wholePacks > 0 ? ` (${wholePacks} ${packUnit?.unitName})` : ''}`}
                         </span>
                       );
@@ -438,7 +348,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                             e.stopPropagation();
                             handleSmartItemClick(item, u);
                           }}
-                          className="px-1.5 py-0.2 text-[10px] font-bold rounded bg-paid-soft dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-paid dark:text-paid-bright hover:text-white border border-paid-border dark:border-line-dark transition-colors flex items-center gap-0.5 cursor-pointer shadow-2xs active:scale-95"
+                          className="px-1.5 py-0.2 text-micro font-bold rounded bg-paid-soft dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-paid dark:text-paid-bright hover:text-white dark:hover:text-white border border-paid-border dark:border-line-dark transition-colors flex items-center gap-0.5 cursor-pointer shadow-2xs active:scale-95"
                           title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) بسعر ${(u.sellPricePiasters / 100).toFixed(2)} ج.م`}
                         >
                           <Package className="w-2.5 h-2.5" />
@@ -451,7 +361,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               </div>
 
               {/* Bottom section: Price & Action Hint */}
-              <div className="flex items-center justify-between w-full mt-auto pt-1.5 border-t border-line/60 dark:border-line-dark/60 shrink-0">
+              <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-1 w-full mt-auto pt-1.5 border-t border-line/60 dark:border-line-dark/60 shrink-0">
                 {(() => {
                   const defaultUnit = (item.units && item.units.length > 0)
                     ? (item.defaultSaleUnitId ? item.units.find((u) => u.id === item.defaultSaleUnitId) : null)
@@ -465,12 +375,12 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   const unitSuffix = (defaultUnit && !defaultUnit.isBaseUnit) ? ` / ${defaultUnit.unitName}` : '';
 
                   return (
-                    <div className="flex items-baseline gap-1 px-2 py-0.5 rounded-lg bg-paid-soft dark:bg-surface-dark-3 border border-paid-border dark:border-line-dark group-hover:bg-paid dark:group-hover:bg-brand group-hover:border-paid transition-all duration-150">
-                      <span className="text-xs sm:text-[13px] font-bold font-mono text-paid dark:text-paid-bright group-hover:text-white tabular-nums tracking-tight transition-colors">
+                    <div className="shrink-0 whitespace-nowrap flex items-baseline gap-1 px-2 py-0.5 rounded-lg bg-paid-soft dark:bg-surface-dark-3 border border-paid-border dark:border-line-dark group-hover:bg-paid dark:group-hover:bg-brand group-hover:border-paid transition-all duration-150">
+                      <span className="text-lg sm:text-xl font-extrabold font-mono text-paid dark:text-paid-bright group-hover:text-white tabular-nums tracking-tight transition-colors">
                         {item.isOpenPrice ? 'سعر حر' : (effPrice / 100).toFixed(2)}
                       </span>
                       {!item.isOpenPrice && (
-                        <span className="text-[10px] font-bold text-paid/80 dark:text-paid-bright/80 group-hover:text-white/90 transition-colors">
+                        <span className="text-xs font-bold text-paid/80 dark:text-paid-bright/80 group-hover:text-white/90 transition-colors">
                           ج.م{unitSuffix}
                         </span>
                       )}
@@ -479,12 +389,12 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 })()}
 
                 {item.hasVariants ? (
-                  <span className="text-[10px] font-bold text-purple-700 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-2xs group-hover:bg-purple-600 group-hover:text-white transition-all">
-                    <Layers className="w-3 h-3 text-purple-600 group-hover:text-white transition-colors" />
+                  <span className="text-micro font-bold text-purple-700 dark:text-brand-bright bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-2xs group-hover:bg-purple-600 group-hover:text-white transition-all">
+                    <Layers className="w-3 h-3 text-purple-600 dark:text-brand-bright group-hover:text-white transition-colors" />
                     <span>{terminology.pickVariantPrompt}</span>
                   </span>
                 ) : (
-                  <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+                  <span className="min-w-0 truncate text-micro text-ink-muted dark:text-ink-dark-muted opacity-0 group-hover:opacity-100 transition-opacity font-medium">
                     إضافة للسلة ↵
                   </span>
                 )}
@@ -516,7 +426,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             ) : activeCatalogTab === '__CUSTOM__' ? (
               <p className="text-xs font-medium leading-relaxed">
                 لسه ما عملتش أزرار سريعة لأصنافك المفضلة.<br />
-                اضغط على «تخصيص» بالأسفل لإنشاء أزرارك السريعة.
+                اضغط على «صنف سريع» بالأعلى لإنشاء أزرارك السريعة.
               </p>
             ) : (
               <div>
@@ -524,26 +434,15 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   {totalCatalogProductsCount === 0 ? 'مفيش أصناف متسجلة في المحل حالياً' : 'مفيش أصناف مطابقة للبحث أو القسم ده'}
                 </p>
                 {totalCatalogProductsCount === 0 && (
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 leading-relaxed">
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 leading-relaxed">
                     تقدر تضيف بضاعتك من شاشة «الأصناف والمخزن» أو تستورد ملف إكسل جاهز.
                   </p>
                 )}
               </div>
             )}
-            {activeCatalogTab === '__CUSTOM__' && (
-              <button
-                type="button"
-                onClick={onOpenQuickFastItemModal}
-                className="mt-3 px-3.5 py-1.5 bg-paid hover:bg-paid-hover text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>ضيف أول صنف سريع دلوقتي</span>
-              </button>
-            )}
           </div>
         )}
       </div>
-      </div>
-    </aside>
+    </section>
   );
 };

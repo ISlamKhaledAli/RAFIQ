@@ -77,6 +77,8 @@ namespace RafiqPOS.Services
                 preview.DateSuspiciousReason = clockCheck.Message;
             }
 
+            preview.OpenShiftsCount = CountOpenShifts(businessDate);
+
             // 2. Check if already closed
             var existing = _closingRepo.GetByBusinessDate(businessDate);
             if (existing != null)
@@ -309,7 +311,7 @@ namespace RafiqPOS.Services
                 // 7. Gross profit & zero cost warning count
                 string profitSql = @"
                     SELECT 
-                        COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - (si.quantity_milli * si.unit_cost_piasters / 1000)), 0) AS total_profit,
+                        COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - ((si.quantity_milli * si.unit_cost_piasters + 500) / 1000)), 0) AS total_profit,
                         COUNT(CASE WHEN si.unit_cost_piasters <= 0 THEN 1 END) AS zero_cost_count
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
@@ -595,6 +597,20 @@ namespace RafiqPOS.Services
             return preview;
         }
 
+        private int CountOpenShifts(string businessDate)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM shifts WHERE status = 'open' AND business_date = @bdate;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@bdate", businessDate);
+                    object res = cmd.ExecuteScalar();
+                    return res != null && res != DBNull.Value ? Convert.ToInt32(res) : 0;
+                }
+            }
+        }
+
         public LiveDrawerBalanceResult GetLiveDrawerBalance(string businessDate = null)
         {
             var preview = GetClosingPreview(businessDate);
@@ -644,6 +660,13 @@ namespace RafiqPOS.Services
             if (existing != null)
             {
                 throw new InvalidOperationException(string.Format("تم إقفال هذا اليوم بالفعل مسبقاً برقم إقفال #{0} بتاريخ {1}.", existing.ClosingNumber, existing.ClosedAt));
+            }
+
+            // Sealing a day while a shift is still open would freeze totals that the open shift keeps changing
+            int openShifts = CountOpenShifts(businessDate);
+            if (openShifts > 0)
+            {
+                throw new InvalidOperationException(string.Format("لا يمكن إقفال اليومية لتاريخ {0} لوجود {1} وردية مفتوحة. يرجى إغلاق جميع الورديات أولاً ثم إقفال اليومية.", businessDate, openShifts));
             }
 
             // Check suspicious clock date (Task 127-4)

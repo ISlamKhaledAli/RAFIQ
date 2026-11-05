@@ -178,11 +178,11 @@ export const useSystemNotifications = ({
       list.push({
         id: 'app_update_available',
         type: availableUpdate.isMandatory ? 'critical' : 'info',
-        title: availableUpdate.isMandatory ? 'تحديث أمني إجباري متاح' : 'تحديث جديد متاح للبرنامج',
-        message: `يتوفر إصدار جديد من رفيق (${availableUpdate.latestVersion || 'v1.1.0'}). اضغط للتثبيت الآمن مع النسخ الاحتياطي التلقائي.`,
-        badge: availableUpdate.isMandatory ? 'إصدار إجباري' : 'تحديث متاح',
+        title: availableUpdate.isMandatory ? 'تحديث مهم متاح للبرنامج' : 'تحديث جديد متاح للبرنامج',
+        message: `يتوفر إصدار جديد من رفيق (${availableUpdate.latestVersion || ''}). افتح نافذة التحديثات لمعرفة طريقة التثبيت؛ بياناتك تبقى محفوظة ولا يتم تثبيت شيء تلقائياً.`,
+        badge: availableUpdate.isMandatory ? 'تحديث مهم' : 'تحديث متاح',
         iconType: 'update',
-        actionLabel: 'تثبيت التحديث الآن',
+        actionLabel: 'عرض تفاصيل التحديث',
         onAction: onOpenUpdateModal,
         priority: availableUpdate.isMandatory ? 98 : 75,
       });

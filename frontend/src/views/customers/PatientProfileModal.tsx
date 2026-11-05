@@ -23,6 +23,7 @@ import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import type { CustomerPatientInfo, ChronicMedication } from '../../types/patient';
 import type { Product } from '../../types/models';
+import { RequiredMark } from '../../components/RequiredMark';
 
 interface PatientProfileModalProps {
   isOpen: boolean;
@@ -247,7 +248,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
 
       const res = await invoke<CustomerPatientInfo>('patients:saveProfile', info);
       if (res) {
-        setStatusMessage({ text: 'تم حفظ الملف الطبي للمريض بنجاح وتحديث سجل الحساسية السريرية', type: 'success' });
+        setStatusMessage({ text: 'تم حفظ الملف الطبي للمريض', type: 'success' });
         if (onProfileUpdated) onProfileUpdated();
       }
     } catch (err: unknown) {
@@ -317,11 +318,11 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm sm:text-base text-ink dark:text-ink-dark">
+                <h3 className="t-modal-title text-ink dark:text-ink-dark">
                   الملف الطبي للمريض: {customerName}
                 </h3>
                 {calculatedAge !== null && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 dark:bg-brand-bright/10 text-brand dark:text-brand-bright border border-brand/20">
+                  <span className="px-2 py-0.5 rounded-full text-micro font-bold bg-brand/10 dark:bg-brand-bright/10 text-brand dark:text-brand-bright border border-brand/20">
                     {calculatedAge} سنة
                   </span>
                 )}
@@ -374,7 +375,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
           >
             <Pill className="w-4 h-4" />
             <span>الأدوية المزمنة ومواعيد الصرف</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-mono font-bold">
+            <span className="px-1.5 py-0.2 rounded-full text-micro bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-mono font-bold">
               {chronicMeds.length}
             </span>
           </button>
@@ -446,9 +447,9 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-1.5 text-xs font-bold text-danger dark:text-danger-bright">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>الحساسية الدوائية المسجلة (Clinical Drug Allergies)</span>
+                    <span>الحساسية الدوائية المسجلة</span>
                   </label>
-                  <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                     مهم: يتم إطلاق تنبيه تحذيري عند صرف أي دواء يحتوي عليها
                   </span>
                 </div>
@@ -464,7 +465,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
 
                 {/* Quick Allergen Pills */}
                 <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                  <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted ml-1">
+                  <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted ml-1">
                     إضافة سريعة:
                   </span>
                   {COMMON_ALLERGIES.map((item) => {
@@ -475,7 +476,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                         type="button"
                         onClick={() => toggleAllergyPill(item)}
                         disabled={!canEdit}
-                        className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        className={`px-2 py-0.5 rounded-lg text-micro font-bold transition-all cursor-pointer ${
                           isSelected
                             ? 'bg-danger text-white border border-danger'
                             : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-danger/40'
@@ -494,7 +495,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-1.5 text-xs font-bold text-warn dark:text-warn-bright">
                     <Activity className="w-4 h-4 shrink-0" />
-                    <span>الأمراض المزمنة والحالة الصحية (Chronic Conditions)</span>
+                    <span>الأمراض المزمنة والحالة الصحية</span>
                   </label>
                 </div>
 
@@ -509,7 +510,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
 
                 {/* Quick Condition Pills */}
                 <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                  <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted ml-1">
+                  <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted ml-1">
                     أشهر الحالات:
                   </span>
                   {COMMON_CONDITIONS.map((item) => {
@@ -520,9 +521,9 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                         type="button"
                         onClick={() => toggleConditionPill(item)}
                         disabled={!canEdit}
-                        className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        className={`px-2 py-0.5 rounded-lg text-micro font-bold transition-all cursor-pointer ${
                           isSelected
-                            ? 'bg-warn text-white border border-warn'
+                            ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border border-warn'
                             : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-warn/40'
                         }`}
                       >
@@ -572,10 +573,10 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
               {/* Header Action: Add Medication Toggle */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-bold text-ink dark:text-ink-dark">
+                  <h4 className="t-label text-ink dark:text-ink-dark">
                     قائمة الأدوية المزمنة المسجلة للصرف الدوري
                   </h4>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">
                     السيستم يحسب مواعيد الاستحقاق القادمة تلقائياً وينبهك قبل نفاد دواء المريض
                   </p>
                 </div>
@@ -584,7 +585,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsAddingMed(true)}
-                    className="flex items-center gap-1 h-8 px-3 bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright rounded-xl text-xs font-bold transition-all hover:bg-brand hover:text-white cursor-pointer"
+                    className="flex items-center gap-1 h-8 px-3 bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright rounded-xl text-xs font-bold transition-all hover:bg-brand hover:text-white dark:hover:text-white cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>إضافة دواء مزمن</span>
@@ -610,7 +611,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                         setSelectedProduct(null);
                         setProductSearch('');
                       }}
-                      className="text-ink-muted hover:text-ink cursor-pointer"
+                      className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -619,7 +620,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                   {/* Product Search */}
                   <div className="relative">
                     <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">
-                      الصنف الدوائي *
+                      الصنف الدوائي <RequiredMark />
                     </label>
                     <div className="relative">
                       <input
@@ -722,7 +723,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                         setSelectedProduct(null);
                         setProductSearch('');
                       }}
-                      className="h-8.5 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-bold text-ink-muted cursor-pointer"
+                      className="h-8.5 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-bold text-ink-muted dark:text-ink-dark-muted cursor-pointer"
                     >
                       إلغاء
                     </button>
@@ -743,7 +744,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                 <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted border border-dashed border-line dark:border-line-dark rounded-xl">
                   <Package className="w-10 h-10 text-ink-muted/30 mx-auto mb-2" />
                   <p className="text-xs font-bold">لا يوجد أدوية مزمنة مسجلة لهذا المريض حتى الآن</p>
-                  <p className="text-[11px] text-ink-muted/70 mt-1">
+                  <p className="text-micro text-ink-muted/70 mt-1">
                     اضغط على "إضافة دواء مزمن" لتسجيل علاجه الدوري ومتابعة استحقاقاته
                   </p>
                 </div>
@@ -772,7 +773,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                                 {m.productName}
                               </span>
                               {m.notes && (
-                                <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mt-0.5">
+                                <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mt-0.5">
                                   {m.notes}
                                 </span>
                               )}
@@ -784,7 +785,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                             </td>
 
                             {/* Last Dispensed */}
-                            <td className="py-3 px-3 text-center text-ink-muted font-mono text-[11px]">
+                            <td className="py-3 px-3 text-center text-ink-muted dark:text-ink-dark-muted font-mono text-micro">
                               {m.lastDispensedAt ? m.lastDispensedAt.split(' ')[0] : '---'}
                             </td>
 
@@ -792,19 +793,19 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                             <td className="py-3 px-3 text-center">
                               {m.nextDueDate ? (
                                 <span
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono font-bold text-[11px] ${
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono font-bold text-micro ${
                                     isOverdue
-                                      ? 'bg-danger-soft text-danger border border-danger/30'
+                                      ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30'
                                       : isDueSoon
-                                      ? 'bg-warn-soft text-warn border border-warn/30'
-                                      : 'bg-paid-soft text-paid border border-paid/30'
+                                      ? 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/30'
+                                      : 'bg-paid-soft dark:bg-paid-dark-soft text-paid border border-paid/30'
                                   }`}
                                 >
                                   <Clock className="w-3 h-3" />
                                   {m.nextDueDate}
                                 </span>
                               ) : (
-                                <span className="text-ink-muted/50">غير محدد</span>
+                                <span className="text-ink-muted/50 dark:text-ink-dark-muted/50">غير محدد</span>
                               )}
                             </td>
 
@@ -813,7 +814,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                               <span
                                 className={`font-bold ${
                                   (m.stockQuantityMilli || 0) <= 0
-                                    ? 'text-danger font-bold'
+                                    ? 'text-danger dark:text-danger-bright font-bold'
                                     : 'text-ink dark:text-ink-dark'
                                 }`}
                               >
@@ -828,11 +829,11 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                                   type="button"
                                   onClick={() => handleDeleteMed(m.id, m.productName || 'الدواء')}
                                   disabled={deletingMedId === m.id}
-                                  className="w-7 h-7 inline-flex items-center justify-center rounded-lg text-danger hover:bg-danger-soft border border-transparent hover:border-danger/30 cursor-pointer"
+                                  className="w-7 h-7 inline-flex items-center justify-center rounded-lg text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-transparent hover:border-danger/30 cursor-pointer"
                                   title="حذف من أدوية المريض المزمنة"
                                 >
                                   {deletingMedId === m.id ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-danger" />
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-danger dark:text-danger-bright" />
                                   ) : (
                                     <Trash2 className="w-3.5 h-3.5" />
                                   )}
@@ -851,19 +852,11 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2 text-[11px] text-ink-muted dark:text-ink-dark-muted">
+        <div className="px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center shrink-0">
+          <div className="flex items-center gap-2 text-micro text-ink-muted dark:text-ink-dark-muted">
             <Activity className="w-3.5 h-3.5 text-brand" />
             <span>معرف العميل الطبي: {customerId}</span>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-8.5 px-4 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl text-xs font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
-          >
-            إغلاق النافذة
-          </button>
         </div>
       </div>
     </div>

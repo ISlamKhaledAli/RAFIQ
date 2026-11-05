@@ -53,6 +53,19 @@ describe('Story 56 & 57: Installer & Prerequisites Verification (Features #12 & 
     assert.ok(content.includes('{autopf}\\RafiqPOS'), 'App binaries must be in Program Files');
   });
 
+  it('Installer uses the all-Arabic name, keeps AppId/install dir and cleans old shortcuts on upgrade', () => {
+    const content = fs.readFileSync(issPath, 'utf8');
+    assert.ok(content.includes('#define MyAppName "نظام رفيق"'), 'MyAppName must be the all-Arabic product name');
+    assert.ok(content.includes('#define MyOldAppName "رفيق POS"'), 'old name kept only for upgrade cleanup');
+    assert.ok(content.includes('AppId={{A879E05E-9F93-4B9F-84E3-8E5F92CE3C81}'), 'AppId must stay unchanged so upgrades work');
+    assert.ok(content.includes('DefaultDirName={autopf}\\RafiqPOS'), 'install folder must not move');
+    assert.ok(/OutputBaseFilename=[\x20-\x7E]+$/m.test(content), 'output file name must stay ASCII');
+    const installDelete = content.slice(content.indexOf('[InstallDelete]'), content.indexOf('[Files]'));
+    assert.ok(installDelete.includes('{commonprograms}\\{#MyOldAppName}'), 'old start-menu group must be removed on upgrade');
+    assert.ok(installDelete.includes('{commondesktop}\\{#MyOldAppName}.lnk'), 'old desktop shortcut must be removed on upgrade');
+    assert.ok(!/Name: "\{(app|commonappdata)\}[^"]*"[^\n]*MyOldAppName/.test(installDelete), 'cleanup must never target app/data folders');
+  });
+
   it('Task 12-4: Code signing decision document exists with comprehensive engineering rationale', () => {
     const docPath = path.resolve('..', 'قرار_التوقيع_الرقمي_Code_Signing.md');
     assert.ok(fs.existsSync(docPath), 'قرار_التوقيع_الرقمي_Code_Signing.md must exist');

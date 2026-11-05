@@ -190,7 +190,7 @@ async function run() {
   const sheetData = [];
 
   // Title Banner
-  sheetData.push(["نظام رفيق - دليل الأدوية والمستحضرات المرجعي الصيدلي الشامل (السوق المصري)"]);
+  sheetData.push(["رفيق POS - دليل الأدوية والمستحضرات المرجعي الصيدلي الشامل (السوق المصري)"]);
   // Guidance Banner
   sheetData.push(["إرشادات: الباركود والاسم التجاري وسعر الجمهور إلزامية (*) | يدعم الشكل، التركيز، طريقة الاستخدام، فئة الحمل، مضاد حيوي، وسلسلة التبريد"]);
   // Header Row (All 19 Columns matching UI & C# exactly)

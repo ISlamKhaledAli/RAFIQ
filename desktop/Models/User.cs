@@ -108,6 +108,9 @@ namespace RafiqPOS.Models
         [JsonProperty("hasPassword")]
         public bool HasPassword { get; set; }
 
+        [JsonProperty("hasPin")]
+        public bool HasPin { get; set; }
+
         [JsonProperty("children")]
         public List<UserDto> Children { get; set; }
 
@@ -119,6 +122,10 @@ namespace RafiqPOS.Models
 
         [JsonProperty("mustChangePin")]
         public bool MustChangePin { get; set; }
+
+        // True only for the store owner account (role admin, id usr_admin_default); managers are admins with isOwner=false
+        [JsonProperty("isOwner")]
+        public bool IsOwner { get; set; }
 
         // True only for the live session opened with the owner recovery code (it may set a new PIN without the old one)
         [JsonProperty("isRecoverySession")]

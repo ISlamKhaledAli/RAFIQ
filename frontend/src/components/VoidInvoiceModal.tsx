@@ -90,7 +90,7 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
         <div className="h-[52px] px-4 border-b border-danger/20 dark:border-danger-bright/30 flex items-center justify-between bg-danger-soft dark:bg-danger-dark-soft shrink-0">
           <div className="flex items-center gap-2">
             <Ban className="w-5 h-5 text-danger dark:text-danger-bright" />
-            <h2 className="text-[17px] font-bold text-danger dark:text-danger-bright m-0">إلغاء الفاتورة بالكامل</h2>
+            <h2 className="t-modal-title text-danger dark:text-danger-bright m-0">إلغاء الفاتورة بالكامل</h2>
           </div>
           <button 
             type="button"
@@ -104,7 +104,7 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
         {/* Modal Form */}
         <form onSubmit={handleConfirmCancel} className="p-4 space-y-4">
           {/* Warning Banner */}
-          <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-lg p-3 text-[13px] text-ink dark:text-ink-dark leading-relaxed flex items-start gap-2.5">
+          <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-lg p-3 text-sm text-ink dark:text-ink-dark leading-relaxed flex items-start gap-2.5">
             <AlertTriangle className="w-5 h-5 text-danger dark:text-danger-bright shrink-0 mt-0.5" />
             <div>
               <span>سيتم إلغاء الفاتورة رقم </span>
@@ -123,8 +123,8 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
 
           {/* Reason Selection */}
           <div>
-            <label className="block text-[13px] font-bold text-ink dark:text-ink-dark mb-1.5">
-              سبب الإلغاء <span className="text-danger dark:text-danger-bright">*</span>
+            <label className="block text-sm font-bold text-ink dark:text-ink-dark mb-1.5">
+              سبب الإلغاء
             </label>
             <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden bg-surface dark:bg-surface-dark shadow-2xs divide-y divide-line dark:divide-line-dark">
               {PRESET_REASONS.map((r) => {
@@ -146,7 +146,7 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
                       <span>{r}</span>
                     </div>
                     {isSelected && (
-                      <span className="text-[10px] text-danger dark:text-danger-bright font-bold bg-surface dark:bg-surface-dark-2 px-2 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30">
+                      <span className="text-micro text-danger dark:text-danger-bright font-bold bg-surface dark:bg-surface-dark-2 px-2 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30">
                         محدد
                       </span>
                     )}
@@ -169,21 +169,19 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
 
           {/* Supervisor PIN Input */}
           <div>
-            <label className="text-[13px] font-bold text-ink mb-1.5 flex items-center justify-between">
+            <label className="text-sm font-bold text-ink mb-1.5 flex items-center justify-between">
               <span>الرقم السري للمدير</span>
-              <span className="text-[11px] text-ink-muted font-normal">(إن وُجد)</span>
             </label>
             <div className="relative">
               <input
                 type="password"
-                placeholder="••••"
                 value={supervisorPin}
                 onChange={(e) => setSupervisorPin(e.target.value)}
-                className="w-full h-[40px] bg-surface-2 border border-line rounded-lg px-4 pr-10 text-[18px] font-bold text-center tracking-[4px] text-ink focus:outline-none focus:border-danger focus:bg-surface"
+                className="w-full h-[40px] bg-surface-2 border border-line rounded-lg px-4 pr-10 text-lg font-bold text-center tracking-[4px] text-ink focus:outline-none focus:border-danger focus:bg-surface"
               />
               <Lock className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2" />
             </div>
-            <span className="block text-[11px] text-ink-muted mt-1">
+            <span className="block text-micro text-ink-muted mt-1">
               مطلوب لو عمليات إلغاء الفواتير محمية برقم المدير السري
             </span>
           </div>

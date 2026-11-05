@@ -5,7 +5,6 @@ import {
   Search,
   ShoppingCart,
   DollarSign,
-  ArrowLeft,
   HelpCircle,
   Sparkles,
   Pill,
@@ -275,7 +274,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
 
     if (isEnabled('feature_digital_wallets') || isEnabled('feature_epay_services')) {
       storeShortcuts.push({
-        key: 'Alt + 2 / Alt + 3',
+        key: 'Alt + 6 / Alt + 7',
         label: 'ماكينات فوري والمحافظ الإلكترونية',
         desc: 'الوصول السريع لماكينات الدفع والتحويلات النقدية وإنستاباي من داخل شاشات العمل',
         category: 'store_specific',
@@ -298,15 +297,15 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
       title: 'التنقل السريع بين أقسام النظام (Alt + 1..9)',
       icon: <Compass className="w-4 h-4 text-brand dark:text-brand-bright" />,
       shortcuts: [
-        { key: 'Alt + 1', label: 'شاشة الكاشير والمبيعات (POS)', desc: 'الرجوع الفوري لشاشة البيع الرئيسية من أي مكان', category: 'navigation' },
-        { key: 'Alt + 2', label: 'ماكينات الدفع الإلكتروني وفوري', desc: 'فتح شاشة ماكينات فوري والخدمات', category: 'navigation' },
-        { key: 'Alt + 3', label: 'المحافظ الإلكترونية وإنستاباي', desc: 'فتح شاشة حسابات المحافظ والسحب والإيداع', category: 'navigation' },
-        { key: 'Alt + 4', label: 'لوحة اليوم والوردية الجارية', desc: 'استعراض مبيعات اليوم وتقرير الدرج النقدي', category: 'navigation' },
-        { key: 'Alt + 5', label: 'العملاء وحسابات الشكك', desc: 'فتح كشوف حسابات العملاء وسندات السداد الآجل', category: 'navigation' },
-        { key: 'Alt + 6', label: 'الأصناف والمخزن والأسعار', desc: 'فتح قائمة المنتجات وجرد المخزون وتعديل الأسعار', category: 'navigation' },
-        { key: 'Alt + 7', label: 'فواتير الشراء ودليل الموردين', desc: 'فتح شاشات المشتريات وفواتير الاستلام ودليل الشركات', category: 'navigation' },
-        { key: 'Alt + 8', label: 'سجل وفواتير المبيعات السابقة', desc: 'استعراض وطباعة الفواتير السابقة وعمل المرتجعات', category: 'navigation' },
-        { key: 'Alt + 9', label: 'سجل المراقبة والأمان (Audit Log)', desc: 'استعراض الحركات الحساسة وتتبع نشاط المستخدمين', category: 'navigation' },
+        { key: 'Alt + 1', label: 'الكاشير وشاشة البيع (POS)', desc: 'الرجوع الفوري لشاشة البيع الرئيسية من أي مكان', category: 'navigation' },
+        { key: 'Alt + 2', label: 'سجل وفواتير البيع', desc: 'استعراض وطباعة الفواتير السابقة وعمل المرتجعات', category: 'navigation' },
+        { key: 'Alt + 3', label: 'العملاء وحسابات الشكك', desc: 'فتح كشوف حسابات العملاء وسندات السداد الآجل', category: 'navigation' },
+        { key: 'Alt + 4', label: 'الأصناف والمخزن', desc: 'فتح قائمة المنتجات وجرد المخزون وتعديل الأسعار', category: 'navigation' },
+        { key: 'Alt + 5', label: 'فواتير الشراء والموردين', desc: 'فتح شاشات المشتريات وفواتير الاستلام ودليل الشركات', category: 'navigation' },
+        { key: 'Alt + 6', label: 'المحافظ وإنستاباي', desc: 'فتح شاشة حسابات المحافظ والسحب والإيداع', category: 'navigation' },
+        { key: 'Alt + 7', label: 'خدمات وماكينات الدفع', desc: 'فتح شاشة ماكينات فوري والخدمات', category: 'navigation' },
+        { key: 'Alt + 8', label: 'التأمين الطبي والتعاقدات', desc: 'فتح شاشات الأعضاء والمطالبات والتعاقدات', category: 'navigation' },
+        { key: 'Alt + 9', label: 'المتابعة والتقارير', desc: 'لوحة اليوم والوردية وتحليلات الإيرادات والمخزن والعملاء', category: 'navigation' },
         { key: 'F5', label: 'تحديث شامل لكافة البيانات والعمليات', desc: 'تحديث فوري لقواعد البيانات والمزامنة دون إعادة تشغيل', category: 'navigation' },
         { key: 'F11', label: 'وضع ملء الشاشة الكامل (Kiosk Mode)', desc: 'تكبير البرنامج بكامل مساحة الشاشة وإخفاء شريط ويندوز', category: 'navigation' },
       ],
@@ -367,14 +366,14 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-bold text-ink dark:text-ink-dark m-0 truncate">
+                <h3 className="t-modal-title text-ink dark:text-ink-dark m-0 truncate">
                   دليل اختصارات الكيبورد السريعة للكاشير
                 </h3>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-brand-soft text-brand border border-brand/20 dark:bg-brand-dark-soft dark:text-brand-bright dark:border-brand-bright/30 hidden sm:inline-block">
+                <span className="text-micro font-mono font-bold px-2 py-0.5 rounded-full bg-brand-soft text-brand border border-brand/20 dark:bg-brand-dark-soft dark:text-brand-bright dark:border-brand-bright/30 hidden sm:inline-block">
                   F1
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-[11px] text-ink-muted dark:text-ink-dark-muted truncate">
+              <div className="flex items-center gap-2 text-micro text-ink-muted dark:text-ink-dark-muted truncate">
                 <span>سرعة فائقة بدون لمس الماوس</span>
                 <span className="text-line-hover">•</span>
                 <span className="flex items-center gap-1 font-bold text-paid dark:text-paid-bright">
@@ -388,7 +387,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg border border-line dark:border-line-dark flex items-center justify-center text-ink-muted hover:text-danger hover:border-danger/30 transition-colors cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-lg border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:border-danger/30 transition-colors cursor-pointer shrink-0"
             title="إغلاق (Esc)"
           >
             <X className="w-4 h-4" />
@@ -411,7 +410,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="w-4 h-4 text-ink-muted hover:text-ink absolute left-2.5 top-1/2 -translate-y-1/2"
+                className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark absolute left-2.5 top-1/2 -translate-y-1/2"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -426,7 +425,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeCategory === 'all'
                   ? 'bg-brand text-white shadow-2xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
               الكل ({totalShortcutsCount})
@@ -437,7 +436,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeCategory === 'pos'
                   ? 'bg-brand text-white shadow-2xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
               الكاشير والبيع
@@ -448,7 +447,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeCategory === 'payment'
                   ? 'bg-brand text-white shadow-2xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
               السداد والمالية
@@ -471,7 +470,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeCategory === 'navigation'
                   ? 'bg-brand text-white shadow-2xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
               التنقل
@@ -515,18 +514,18 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
                               {sc.label}
                             </span>
                             {sc.badge && (
-                              <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-brand-soft text-brand dark:bg-brand-dark-soft dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20">
+                              <span className="text-micro font-bold px-1.5 py-0.2 rounded bg-brand-soft text-brand dark:bg-brand-dark-soft dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20">
                                 {sc.badge}
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">
+                          <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">
                             {sc.desc}
                           </p>
                         </div>
 
                         {/* Visual KBD Key Styling */}
-                        <kbd className="shrink-0 px-2 py-1 font-mono text-[11px] font-extrabold bg-surface dark:bg-surface-dark border border-line-hover dark:border-line-dark text-brand dark:text-brand-bright rounded-lg shadow-xs select-all text-center min-w-[38px]">
+                        <kbd className="shrink-0 px-2 py-1 font-mono text-micro font-extrabold bg-surface dark:bg-surface-dark border border-line-hover dark:border-line-dark text-brand dark:text-brand-bright rounded-lg shadow-xs select-all text-center min-w-[38px]">
                           {sc.key}
                         </kbd>
                       </div>
@@ -554,17 +553,8 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               }}
               className="h-8 px-3 rounded-lg bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
             >
-              <HelpCircle className="w-3.5 h-3.5 text-brand" />
+              <HelpCircle className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
               <span>دليل الكاشير والدعم</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-8 px-4 bg-brand hover:bg-brand-hover text-white text-xs font-bold rounded-lg flex items-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95"
-            >
-              <span>تمام، فهمت (Esc)</span>
-              <ArrowLeft className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

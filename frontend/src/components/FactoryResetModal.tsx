@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { RequiredMark } from './RequiredMark';
 
 interface FactoryResetModalProps {
   isOpen: boolean;
@@ -103,10 +104,10 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
               <ShieldAlert className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white m-0">
+              <h3 className="t-modal-title text-white m-0">
                 تصفير ومسح كافة البيانات نهائياً (إعادة ضبط المصنع)
               </h3>
-              <p className="text-[11px] text-white/80 m-0">
+              <p className="text-micro text-white/80 m-0">
                 تنظيف كامل لقاعدة البيانات لتبدأ العمل من الصفر كأن النظام مثبت لأول مرة
               </p>
             </div>
@@ -142,14 +143,14 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
                 <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-danger" />
                 <div className="text-xs leading-relaxed space-y-1">
                   <div className="font-bold">تحذير حرج — هذه العملية لا يمكن التراجع عنها:</div>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0">
+                  <p className="text-micro text-ink-muted dark:text-ink-muted-dark m-0">
                     سيتم مسح كافة البيانات المسجلة على هذا الجهاز، بما في ذلك المبيعات والمخزن والديون ليعود البرنامج جديداً ونظيفاً تماماً 100%.
                   </p>
                 </div>
               </div>
 
               {/* What will be deleted breakdown */}
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="grid grid-cols-2 gap-2 text-micro">
                 <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center gap-2">
                   <Database className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
                   <span>المبيعات والفواتير والمرتجعات</span>
@@ -180,7 +181,7 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
                   <span className="font-bold text-xs text-ink dark:text-ink-dark">
                     مسح كافة ملفات النسخ الاحتياطي السابقة من الجهاز (تنظيف شامل لكافة النسخ)
                   </span>
-                  <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
+                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark">
                     حذف أي ملفات باك أب قديمة ومسح الذاكرة المؤقتة لضمان بداية نظيفة وخالية من أي سجلات سابقة.
                   </span>
                 </div>
@@ -189,7 +190,7 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
               {/* Confirmation Input */}
               <div className="flex flex-col gap-1.5 pt-1">
                 <label className="text-xs font-semibold text-ink dark:text-ink-dark">
-                  لتأكيد رغبتك بالمسح التام، اكتب كلمة <strong className="text-danger font-bold text-sm underline">&quot;مسح&quot;</strong> في الحقل التالي:
+                  لتأكيد رغبتك بالمسح التام، اكتب كلمة <strong className="text-danger dark:text-danger-bright font-bold text-sm underline">&quot;مسح&quot;</strong> في الحقل التالي: <RequiredMark />
                 </label>
                 <input
                   type="text"
@@ -217,7 +218,7 @@ export const FactoryResetModal: React.FC<FactoryResetModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 font-bold text-xs transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 font-bold text-xs transition-colors cursor-pointer"
             >
               إلغاء وتراجع
             </button>

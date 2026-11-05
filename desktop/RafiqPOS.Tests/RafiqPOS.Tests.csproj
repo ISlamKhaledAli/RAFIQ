@@ -82,6 +82,11 @@
     <Compile Include="Scenarios\S16_CancelSaleClosedShiftTest.cs" />
     <Compile Include="Scenarios\S17_SupervisorPriceOverrideTest.cs" />
     <Compile Include="Scenarios\S18_PurchaseReturnProportionalTest.cs" />
+    <Compile Include="Scenarios\S19_StocktakingAndAdjustmentPathsTest.cs" />
+    <Compile Include="Scenarios\S20_ExcelImportStockTest.cs" />
+    <Compile Include="Scenarios\S21_PurchasePackagingTest.cs" />
+    <Compile Include="Scenarios\S22_PurchaseReturnAggregationTest.cs" />
+    <Compile Include="Scenarios\S23_ImportUnitRowsAndPharmaPricingTest.cs" />
     <Compile Include="Scenarios\S30_Step3BFixtureBase.cs" />
     <Compile Include="Scenarios\S30_CafeRecipeStockTest.cs" />
     <Compile Include="Scenarios\S31_CustomerCreditTest.cs" />
@@ -89,6 +94,25 @@
     <Compile Include="Scenarios\S33_ReturnsClosingIdempotencyTest.cs" />
     <Compile Include="Scenarios\S34_Step3BRound2Test.cs" />
     <Compile Include="Scenarios\S35_MigrationUpgradeTest.cs" />
+    <Compile Include="Scenarios\S36_PurchasingIdempotencyTest.cs" />
+    <Compile Include="Scenarios\S37_ClosingGuardsAndStaleShiftTest.cs" />
+    <Compile Include="Scenarios\S38_PackagedUnitPriceAuthorityTest.cs" />
+    <Compile Include="Scenarios\S39_ServerAuthoritativeTaxAndFeesTest.cs" />
+    <Compile Include="Scenarios\S40_ReturnsAndExpensesServerAuthorityTest.cs" />
+    <Compile Include="Scenarios\S41_ConcurrentDrawerWritersTest.cs" />
+    <Compile Include="Scenarios\S42_CostRoundingAndDiscountDistributionTest.cs" />
+    <Compile Include="Scenarios\S43_ReturnAndExpiryRound2Test.cs" />
+    <Compile Include="Scenarios\S44_UserHierarchyFixtureBase.cs" />
+    <Compile Include="Scenarios\S44_UserHierarchyAuthorityTest.cs" />
+    <Compile Include="Scenarios\S45_UserSoftDeleteTest.cs" />
+    <Compile Include="Scenarios\S46_OwnerOnlyActionsTest.cs" />
+    <Compile Include="Scenarios\S47_ReceiptMathAndRasterTest.cs" />
+    <Compile Include="Scenarios\S48_ReceiptPrintFixtureBase.cs" />
+    <Compile Include="Scenarios\S48_ReceiptPrintingBridgeTest.cs" />
+    <Compile Include="Scenarios\S49_PreBillAndReturnPrintTest.cs" />
+    <Compile Include="Scenarios\S50_OwnerGradeDelegationTest.cs" />
+    <Compile Include="Scenarios\S51_ReceiptTextSettingsTest.cs" />
+    <Compile Include="Scenarios\S52_DigitalAccountHolderAndDefaultTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

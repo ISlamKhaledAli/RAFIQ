@@ -16,6 +16,7 @@ import {
   FileText
 } from 'lucide-react';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { printReport } from '../utils/printReport';
 
 interface CertifiedDevice {
   id: string;
@@ -382,6 +383,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
       onClick={handleBackdropClick}
     >
       <div
+        data-print-root
         className="w-full max-w-4xl h-[86vh] max-h-[800px] bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark flex flex-col overflow-hidden font-sans text-ink dark:text-ink-dark"
         role="dialog"
         aria-modal="true"
@@ -398,11 +400,11 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                 <h2 className="text-base font-bold text-white tracking-wide">
                   دليل أجهزة الكاشير المعتمدة والمجربة
                 </h2>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
                   متوافق 100%
                 </span>
               </div>
-              <p className="text-[11px] text-white/80 m-0">
+              <p className="text-micro text-white/80 m-0">
                 قائمة الطابعات، وقارئات الباركود، وأدراج النقدية، والموازين المجربة مع خطوات تشغيل كل جهاز
               </p>
             </div>
@@ -506,7 +508,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                 <strong>ضمان التوافق 100%:</strong> كل الأجهزة دي متجربة عملياً وشغالة بامتياز على كل نسخ الويندوز (ويندوز 7 و 8 و 10 و 11) مع دعم كامل للغة العربي بدون أي تشويه.
               </span>
             </div>
-            <span className="text-[10px] font-bold text-paid dark:text-paid-bright bg-surface dark:bg-surface-dark px-2 py-0.5 rounded border border-line dark:border-line-dark shrink-0">
+            <span className="text-micro font-bold text-paid dark:text-paid-bright bg-surface dark:bg-surface-dark px-2 py-0.5 rounded border border-line dark:border-line-dark shrink-0">
               100% Plug & Play
             </span>
           </div>
@@ -540,23 +542,23 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                         <span className="font-bold text-xs text-ink dark:text-ink-dark truncate">
                           {device.brand} — {device.model}
                         </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
+                        <span className="text-micro font-bold px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
                           {device.type}
                         </span>
                         {device.status === 'recommended' && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
+                          <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
                             موصى به للمتاجر المزدحمة
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted truncate m-0 mt-0.5">
+                      <p className="text-micro text-ink-muted dark:text-ink-dark-muted truncate m-0 mt-0.5">
                         {device.notes}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
-                    <div className="hidden sm:flex items-center gap-2 text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted">
+                    <div className="hidden sm:flex items-center gap-2 text-micro font-medium text-ink-muted dark:text-ink-dark-muted">
                       <span className="font-mono bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark px-2 py-0.5 rounded border border-line dark:border-line-dark">
                         {device.connectionType}
                       </span>
@@ -581,22 +583,22 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                     {/* Test Results Summary Grid */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                       <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mb-0.5">سرعة الاستجابة</span>
+                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mb-0.5">سرعة الاستجابة</span>
                         <span className="font-bold text-paid dark:text-paid-bright">{device.testResults.latency}</span>
                       </div>
                       <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mb-0.5">دعم اللغة العربية</span>
+                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mb-0.5">دعم اللغة العربية</span>
                         <span className="font-bold text-ink dark:text-ink-dark">{device.arabicSupport}</span>
                       </div>
                       <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mb-0.5">ويندوز 7 و 8 و 10 و 11</span>
+                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mb-0.5">ويندوز 7 و 8 و 10 و 11</span>
                         <span className="font-bold text-paid dark:text-paid-bright flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>متوافق ومجرّب 100%</span>
                         </span>
                       </div>
                       <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block mb-0.5">القاطع / الزناد</span>
+                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mb-0.5">القاطع / الزناد</span>
                         <span className="font-bold text-ink dark:text-ink-dark truncate block">
                           {device.testResults.autoCutterOrTrigger}
                         </span>
@@ -613,7 +615,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                       <div className="p-3 rounded-xl bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1.5">
                         {device.setupSteps.map((step, sIdx) => (
                           <div key={sIdx} className="flex items-start gap-2 text-xs text-ink dark:text-ink-dark">
-                            <span className="w-4 h-4 rounded-full bg-brand dark:bg-brand-bright text-white dark:text-brand-dark text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                            <span className="w-4 h-4 rounded-full bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-micro font-bold flex items-center justify-center shrink-0 mt-0.5">
                               {sIdx + 1}
                             </span>
                             <span className="leading-relaxed">{step}</span>
@@ -627,19 +629,19 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                       <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs flex flex-wrap items-center justify-between gap-3 text-ink dark:text-ink-dark">
                         {device.recommendedSettings.driverName && (
                           <div>
-                            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">اسم التعريف المعتمد:</span>
+                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">اسم التعريف المعتمد:</span>
                             <strong className="font-mono text-brand dark:text-brand-bright">{device.recommendedSettings.driverName}</strong>
                           </div>
                         )}
                         {device.recommendedSettings.paperOrCode && (
                           <div>
-                            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">المقاس / الشفرة:</span>
+                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">المقاس / الشفرة:</span>
                             <strong className="font-mono text-brand dark:text-brand-bright">{device.recommendedSettings.paperOrCode}</strong>
                           </div>
                         )}
                         {device.recommendedSettings.drawerCode && (
                           <div>
-                            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">أمر فتح الدرج:</span>
+                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">أمر فتح الدرج:</span>
                             <strong className="font-mono text-paid dark:text-paid-bright">{device.recommendedSettings.drawerCode}</strong>
                           </div>
                         )}
@@ -664,19 +666,11 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={() => void printReport({ kind: 'a4only' })}
               className="px-3.5 py-1.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <FileText className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
               <span>طباعة ورقة المواصفات</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-1.5 rounded-lg bg-brand hover:bg-brand-dark text-white font-bold text-xs transition-colors cursor-pointer"
-            >
-              إغلاق
             </button>
           </div>
         </div>

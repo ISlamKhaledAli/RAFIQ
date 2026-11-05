@@ -242,6 +242,9 @@ namespace RafiqPOS.Models
         [JsonProperty("notes")]
         public string Notes { get; set; }
 
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
+
         public BatchExpiryReturnRequest()
         {
             Items = new List<BatchExpiryReturnItemRequest>();

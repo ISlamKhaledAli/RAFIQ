@@ -13,20 +13,19 @@ import {
   Layers,
   TrendingUp,
   TrendingDown,
-  Minus,
-  Calculator,
-  Zap,
   Sparkles,
   Calendar,
   ChevronDown,
-  ChevronUp,
   Package,
   Pill,
   Tag,
+  ScanBarcode,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { MoneyInput } from '../../components/MoneyInput';
+import { RequiredMark } from '../../components/RequiredMark';
 import { useFeatures } from '../../context/useFeatures';
 import type { Supplier, Product, ProductUnit } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
@@ -35,6 +34,12 @@ import { normalizeArabicNumerals, formatArabicCurrency } from '../../utils/money
 import { invoke } from '../../bridge/ipc';
 import { getStoreTerminology } from '../../utils/storeTerminology';
 import { formatCompoundStock } from '../../utils/packaging';
+
+const DETAIL_LABEL_CLS = 'text-micro font-bold text-ink-muted dark:text-ink-dark-muted';
+const DETAIL_INPUT_CLS =
+  'w-full h-9 text-center font-mono font-bold tabular-nums bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md text-sm text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none';
+const DETAIL_MONEY_CLS =
+  '!h-9 !px-2 !py-0 !text-center !text-sm !font-bold !bg-surface dark:!bg-surface-dark !border-line dark:!border-line-dark !rounded-md text-ink dark:text-ink-dark';
 
 interface NewPurchaseTabProps {
   suppliers: Supplier[];
@@ -63,6 +68,7 @@ interface NewPurchaseTabProps {
   onAddProduct: (prod: Product) => void;
   onOpenAddSupplier: () => void;
   onSavePurchase: () => void;
+  isSaving: boolean;
   onRequestCancel: () => void;
 }
 
@@ -93,6 +99,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   onAddProduct,
   onOpenAddSupplier,
   onSavePurchase,
+  isSaving,
   onRequestCancel,
 }) => {
   const { isEnabled } = useFeatures();
@@ -119,18 +126,10 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   const [expandedItemIds, setExpandedItemIds] = useState<Record<string, boolean>>({});
 
   const toggleItemExpand = (productId: string) => {
-    setExpandedItemIds((prev) => {
-      const currentVal = prev[productId];
-      return {
-        ...prev,
-        [productId]: currentVal !== undefined ? !currentVal : true,
-      };
-    });
+    setExpandedItemIds((prev) => ({ ...prev, [productId]: !prev[productId] }));
   };
 
-  const isItemExpanded = (productId: string, _item?: NewPurchaseLineItem) => {
-    return Boolean(expandedItemIds[productId]);
-  };
+  const isItemExpanded = (productId: string) => Boolean(expandedItemIds[productId]);
 
   const displayedCatalogProducts = useMemo(() => {
     if (!productSearchQuery.trim() || isDropdownDismissed) return [];
@@ -549,19 +548,143 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     }
   };
 
+  const [showErrors, setShowErrors] = useState(false);
+  const [extrasOpen, setExtrasOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const supplierWrapRef = useRef<HTMLDivElement>(null);
+  const lineRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const seenLineIdsRef = useRef<Set<string>>(new Set());
+
+  const supplierRequired = remainingAmountPiasters > 0 || excessPaidPiasters > 0;
+  const supplierMissing = supplierRequired && !selectedSupplierId;
+
+  // Lines that need input beyond qty/cost open their details once, when first added, so nothing stays hidden.
+  useEffect(() => {
+    const seen = seenLineIdsRef.current;
+    const needy = lineItems
+      .filter((item) => !seen.has(item.productId))
+      .filter((item) => {
+        const noSellPrice = item.newSellingPricePiasters <= 0 && item.currentPricePiasters <= 0;
+        const noExpiry = isEnabled('feature_expiry_dates') && !item.expiryDate;
+        return noSellPrice || noExpiry;
+      })
+      .map((item) => item.productId);
+    seenLineIdsRef.current = new Set(lineItems.map((item) => item.productId));
+    if (needy.length > 0) {
+      setExpandedItemIds((prev) => {
+        const next = { ...prev };
+        needy.forEach((id) => {
+          next[id] = true;
+        });
+        return next;
+      });
+    }
+  }, [lineItems, isEnabled]);
+
+  const handleRemoveLine = (idx: number) => {
+    const removedId = lineItems[idx]?.productId;
+    setLineItems(lineItems.filter((_, i) => i !== idx));
+    if (removedId) {
+      setExpandedItemIds((prev) => {
+        const next = { ...prev };
+        delete next[removedId];
+        return next;
+      });
+    }
+  };
+
+  // Takes the user to the first thing the save validation will complain about (toast text stays in the parent).
+  const handleSaveClick = () => {
+    setShowErrors(true);
+    if (lineItems.length === 0) {
+      searchInputRef.current?.focus();
+    } else if (supplierMissing) {
+      supplierWrapRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      supplierWrapRef.current?.querySelector('button')?.focus({ preventScroll: true });
+    } else {
+      const badLine = lineItems.find((it) => it.quantityUnits <= 0 || it.unitCostPiasters < 0);
+      if (badLine) {
+        const row = lineRefs.current.get(badLine.productId);
+        row?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        row?.querySelector<HTMLInputElement>('input[data-field="qty"]')?.focus({ preventScroll: true });
+      }
+    }
+    onSavePurchase();
+  };
+
+  const formatBalanceLabel = (balance: number): string =>
+    balance > 0 ? `علينا ${formatMoney(balance)}` : balance < 0 ? `لنا ${formatMoney(Math.abs(balance))}` : 'خالص';
+
+  const cashDrawerBlocked =
+    paymentMode === 'PAID' &&
+    paymentSource === 'cash_drawer' &&
+    paidAmountPiasters > 0 &&
+    liveDrawerCashPiasters !== null &&
+    (liveDrawerCashPiasters <= 0 || paidAmountPiasters > liveDrawerCashPiasters);
+
+  const fromAdvanceCreditPiasters = Math.min(remainingAmountPiasters, advanceCreditPiasters);
+  const settlementTone: 'paid' | 'warn' | 'danger' =
+    excessPaidPiasters > 0 || remainingAmountPiasters === 0 ? 'paid' : advanceCreditPiasters > 0 ? 'warn' : 'danger';
+  const settlementLabel =
+    excessPaidPiasters > 0
+      ? 'زيادة تُضاف لرصيدنا'
+      : remainingAmountPiasters === 0
+      ? 'المتبقي'
+      : advanceCreditPiasters > 0
+      ? 'المتبقي (يُخصم من رصيدنا أولاً)'
+      : 'المتبقي آجل على حساب المورد';
+  const settlementAmount = excessPaidPiasters > 0 ? excessPaidPiasters : remainingAmountPiasters;
+  const settlementNote =
+    excessPaidPiasters > 0
+      ? supplierDebtPiasters > 0
+        ? 'الزيادة تُخصم من الحساب القديم والباقي يترحل رصيد لنا.'
+        : 'تُسجل رصيداً لنا عند المورد وتُخصم من فواتير البضاعة الجاية.'
+      : remainingAmountPiasters === 0
+      ? 'الفاتورة مسددة بالكامل.'
+      : advanceCreditPiasters > 0
+      ? remainingAmountPiasters > fromAdvanceCreditPiasters
+        ? `يُخصم ${formatMoney(fromAdvanceCreditPiasters)} من رصيدنا والباقي ${formatMoney(remainingAmountPiasters - fromAdvanceCreditPiasters)} دين علينا.`
+        : 'يُخصم بالكامل من رصيدنا السابق.'
+      : 'يُسجل في دفتر حساب المورد كدين علينا.';
+
+  const SETTLEMENT_TONE_CLS: Record<'paid' | 'warn' | 'danger', string> = {
+    paid: 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid-dark-border text-paid-dark dark:text-paid-bright',
+    warn: 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright',
+    danger: 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright',
+  };
+
+  const quickBtnCls = (active: boolean) =>
+    `h-9 px-3 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+      active
+        ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright border border-brand/40 dark:border-brand-bright/50'
+        : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+    }`;
+
+  const extrasChips: string[] = [];
+  if (supplierInvoiceNumber.trim()) extrasChips.push(`فاتورة رقم ${supplierInvoiceNumber.trim()}`);
+  if (discountPiasters > 0) extrasChips.push(`خصم ${formatMoney(discountPiasters)}`);
+  if (costingMethod === 'LATEST') extrasChips.push('آخر سعر شراء');
+  if (purchaseNotes.trim()) extrasChips.push('ملاحظة');
+
   return (
-    <div className="flex-1 flex gap-3 sm:gap-4 overflow-hidden">
-      {/* Left: Line Items & Search (Canvas) */}
-      <div className="flex-1 flex flex-col gap-3 overflow-hidden">
-        {/* Invoice Master Header Inputs */}
-        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 sm:p-3.5 shadow-2xs shrink-0 flex flex-col gap-2.5">
-          <div className="grid grid-cols-12 gap-2.5 sm:gap-3 items-center">
-            {/* Supplier Selection */}
-            <div className="col-span-12 sm:col-span-5 md:col-span-4">
-              <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
-                المورد <span className="text-danger dark:text-danger-bright">*</span>
+    <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
+      {/* Scrollable workspace: header, search, line items, settlement */}
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-3 pb-1">
+        {/* Invoice header: supplier + date always visible, the rest folded away */}
+        <section className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs space-y-3">
+          {(supplierRequired || lineItems.length > 0) && (
+            <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
+          )}
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <div ref={supplierWrapRef} className="flex-1 min-w-0">
+              <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1.5">
+                المورد {supplierRequired && <RequiredMark />}
               </label>
-              <div className="flex items-center gap-1.5">
+              <div
+                className={`flex items-center gap-2 rounded-xl ${
+                  showErrors && supplierMissing ? 'ring-2 ring-danger/40 dark:ring-danger-bright/50' : ''
+                }`}
+              >
                 <CustomSelect
                   value={selectedSupplierId}
                   onChange={handleSupplierChange}
@@ -582,123 +705,173 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       })),
                   ]}
                   className="flex-1 min-w-0"
-                  size="md"
+                  size="lg"
                   searchable
                 />
                 <button
                   type="button"
                   onClick={onOpenAddSupplier}
-                  className="h-8 px-2.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand/30 text-brand-dark dark:text-brand-bright rounded-lg text-xs font-bold flex items-center gap-1 shrink-0 border border-brand/20 dark:border-brand-bright/40 shadow-2xs transition-colors cursor-pointer"
+                  className="h-10 px-3 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand/30 text-brand-dark dark:text-brand-bright rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 border border-brand/20 dark:border-brand-bright/40 shadow-2xs transition-colors cursor-pointer"
                   title="إضافة مورد جديد سريعاً"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-4 h-4" />
                   <span>مورد جديد</span>
                 </button>
               </div>
             </div>
 
-            {/* Supplier Invoice Number */}
-            <div className="col-span-6 sm:col-span-3 md:col-span-3">
-              <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
-                رقم فاتورة المورد (الورقية)
-              </label>
-              <input
-                type="text"
-                placeholder="مثال: INV-8840"
-                value={supplierInvoiceNumber}
-                onChange={(e) => setSupplierInvoiceNumber(e.target.value)}
-                className="w-full h-8 px-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-xs font-mono font-medium text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
-              />
-            </div>
-
-            {/* Costing Method */}
-            <div className="col-span-6 sm:col-span-4 md:col-span-3">
-              <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 mb-1">
-                <span>تحديث التكلفة</span>
-                <div className="group relative inline-flex items-center justify-center cursor-help">
-                  <Info className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-colors" />
-                  <div className="absolute top-full mt-1.5 right-0 hidden group-hover:block w-64 p-2.5 bg-ink dark:bg-surface-dark-3 text-white text-[10px] rounded-xl shadow-xl z-50 pointer-events-none leading-relaxed border border-white/10">
-                    <div className="font-bold text-emerald-300 mb-1 border-b border-white/10 pb-1">
-                      طريقة تحديث سعر التكلفة في كارت الصنف:
-                    </div>
-                    <div className="space-y-1">
-                      <p className="m-0">• <b className="text-white">آخر سعر شراء:</b> يثبت تكلفة الصنف على سعر الفاتورة دي فوراً.</p>
-                      <p className="m-0">• <b className="text-white">متوسط التكلفة:</b> يحسب متوسط سعر البضاعة القديمة مع الشحنة الجديدة بدقة محاسبية.</p>
-                    </div>
-                  </div>
-                </div>
-              </label>
-              <CustomSelect
-                value={costingMethod}
-                onChange={(val) => setCostingMethod(val as 'LATEST' | 'WEIGHTED_AVERAGE')}
-                options={[
-                  { value: 'WEIGHTED_AVERAGE', label: 'متوسط التكلفة (محاسبي دقيق)' },
-                  { value: 'LATEST', label: 'آخر سعر شراء (المتعارف عليه)' },
-                ]}
-                className="w-full"
-                size="md"
-              />
-            </div>
-
-            {/* Invoice Date */}
-            <div className="col-span-12 sm:col-span-2 md:col-span-2">
-              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">تاريخ الفاتورة</span>
-              <div className="h-8 px-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg flex items-center gap-1.5 text-xs font-mono font-bold text-ink dark:text-ink-dark">
-                <Calendar className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted shrink-0" />
+            <div className="sm:w-48 shrink-0">
+              <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1.5">تاريخ الفاتورة</span>
+              <div className="h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg flex items-center gap-2 text-sm font-mono font-bold text-ink dark:text-ink-dark whitespace-nowrap">
+                <Calendar className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted shrink-0" />
                 <span>{new Date().toLocaleDateString('ar-EG-u-nu-latn', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
               </div>
             </div>
           </div>
-        </div>
+
+          {/* Optional invoice-level fields */}
+          <div className="border-t border-line dark:border-line-dark pt-3">
+            <button
+              type="button"
+              onClick={() => setExtrasOpen((v) => !v)}
+              aria-expanded={extrasOpen}
+              aria-controls="purchase-extras"
+              className="w-full flex items-center gap-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
+            >
+              <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${extrasOpen ? 'rotate-180' : ''}`} />
+              <span>بيانات إضافية</span>
+              {extrasChips.length > 0 ? (
+                <span className="flex items-center gap-1.5 flex-wrap min-w-0">
+                  {extrasChips.map((chip) => (
+                    <span
+                      key={chip}
+                      className="px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-micro font-bold"
+                    >
+                      {chip}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                <span className="font-medium truncate">رقم فاتورة المورد، طريقة تحديث التكلفة، الخصم، الملاحظات</span>
+              )}
+            </button>
+
+            {extrasOpen && (
+              <div id="purchase-extras" className="grid grid-cols-12 gap-3 items-start mt-3">
+                <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1.5">
+                    رقم فاتورة المورد (الورقية)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="مثال: INV-8840"
+                    value={supplierInvoiceNumber}
+                    onChange={(e) => setSupplierInvoiceNumber(e.target.value)}
+                    className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-sm font-mono font-medium text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
+                  />
+                </div>
+
+                <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 mb-1.5">
+                    <span>تحديث التكلفة</span>
+                    <div className="group relative inline-flex items-center justify-center cursor-help">
+                      <Info className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-colors" />
+                      <div className="absolute top-full mt-1.5 right-0 hidden group-hover:block w-64 p-2.5 bg-ink dark:bg-surface-dark-3 text-white text-micro rounded-xl shadow-xl z-50 pointer-events-none leading-relaxed border border-white/10">
+                        <div className="font-bold text-paid-bright mb-1 border-b border-white/10 pb-1">
+                          طريقة تحديث سعر التكلفة في كارت الصنف:
+                        </div>
+                        <div className="space-y-1">
+                          <p className="m-0">• <b className="text-white">آخر سعر شراء:</b> يثبت تكلفة الصنف على سعر الفاتورة دي فوراً.</p>
+                          <p className="m-0">• <b className="text-white">متوسط التكلفة:</b> يحسب متوسط سعر البضاعة القديمة مع الشحنة الجديدة بدقة محاسبية.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                  <CustomSelect
+                    value={costingMethod}
+                    onChange={(val) => setCostingMethod(val as 'LATEST' | 'WEIGHTED_AVERAGE')}
+                    options={[
+                      { value: 'WEIGHTED_AVERAGE', label: 'متوسط التكلفة (محاسبي دقيق)' },
+                      { value: 'LATEST', label: 'آخر سعر شراء (المتعارف عليه)' },
+                    ]}
+                    className="w-full"
+                    size="lg"
+                  />
+                </div>
+
+                <div className="col-span-12 sm:col-span-6 lg:col-span-2">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1.5">خصم المورد</label>
+                  <MoneyInput
+                    valuePiasters={discountPiasters}
+                    onChangePiasters={setDiscountPiasters}
+                    className="!h-10 !px-2 !text-center !text-sm font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark shadow-2xs focus:border-brand"
+                  />
+                </div>
+
+                <div className="col-span-12 sm:col-span-6 lg:col-span-4">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1.5">ملاحظات على الفاتورة</label>
+                  <input
+                    type="text"
+                    placeholder="اكتب أي ملاحظة أو رقم إذن الاستلام..."
+                    value={purchaseNotes}
+                    onChange={(e) => setPurchaseNotes(e.target.value)}
+                    className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* Barcode & Product Scanner Search Bar */}
-        <div ref={searchContainerRef} className="relative shrink-0">
-          <div className="h-11 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark focus-within:border-brand dark:focus-within:border-brand-bright rounded-xl flex items-center px-3 gap-2.5 shadow-2xs transition-colors">
-            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
+        <div ref={searchContainerRef} className="sticky top-0 z-30 bg-canvas dark:bg-canvas-dark py-1">
+          <div className="h-12 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark focus-within:border-brand dark:focus-within:border-brand-bright focus-within:ring-2 focus-within:ring-brand/20 dark:focus-within:ring-brand-bright/20 rounded-xl flex items-center px-4 gap-3 shadow-2xs transition-colors">
+            <Search className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted shrink-0" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="اضرب باركود الصنف بالاسكانر أو اكتب اسمه عشان ينزل في الفاتورة..."
               value={productSearchQuery}
               onChange={(e) => setProductSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              className="flex-1 bg-transparent border-none text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-dark-muted/70 focus:outline-none"
+              className="flex-1 min-w-0 bg-transparent border-none text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-dark-muted/70 focus:outline-none"
               autoFocus
             />
             {isSearchingProduct && (
-              <span className="text-xs text-ink-muted dark:text-ink-dark-muted animate-pulse">بندور على الصنف...</span>
+              <span className="text-xs text-ink-muted dark:text-ink-dark-muted animate-pulse shrink-0">بندور على الصنف...</span>
             )}
           </div>
 
           {/* Dropdown Results */}
           {displayedCatalogProducts.length > 0 && (
-            <div className="absolute top-14 left-0 right-0 z-40 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-xl overflow-hidden divide-y divide-line dark:divide-line-dark max-h-72 overflow-y-auto">
+            <div className="absolute top-[3.75rem] left-0 right-0 z-40 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-xl overflow-hidden divide-y divide-line dark:divide-line-dark max-h-72 overflow-y-auto">
               {displayedCatalogProducts.map((p, idx) => (
                 <button
                   type="button"
                   key={p.id}
                   onClick={() => onAddProduct(p)}
-                  className={`w-full p-3 text-right flex items-center justify-between transition-colors cursor-pointer ${
+                  className={`w-full px-4 py-3 text-right flex items-center justify-between gap-4 transition-colors cursor-pointer ${
                     idx === selectedProductIndex ? 'bg-surface-2 dark:bg-surface-dark-2 ring-1 ring-inset ring-brand/30 dark:ring-brand-bright/30' : 'hover:bg-surface-2 dark:hover:bg-surface-dark-2'
                   }`}
                 >
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-xs text-ink dark:text-ink-dark">{p.name}</span>
+                      <span className="font-bold text-sm text-ink dark:text-ink-dark">{p.name}</span>
                       {p.hasVariants && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-[10px] font-bold">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-micro font-bold">
                           <Layers className="w-2.5 h-2.5" />
                           <span>{terminology.variantsTitle}</span>
                         </span>
                       )}
                       {(p.variantColor || p.variantSize) && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-[10px] font-mono">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-micro font-mono">
                           {p.variantColor && <span>{p.variantColor}</span>}
                           {p.variantColor && p.variantSize && <span>/</span>}
                           {p.variantSize && <span>{p.variantSize}</span>}
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-mono block mt-0.5">
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono block mt-0.5">
                       باركود: {p.barcode || 'بدون'} | الرصيد الحالي: {(p.stockQuantityMilli / 1000).toFixed(0)} {p.unit}
                     </span>
                   </div>
@@ -706,7 +879,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                     <span className="text-xs font-bold font-mono text-paid dark:text-paid-bright block">
                       سعر البيع: {formatMoney(p.pricePiasters)}
                     </span>
-                    <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted">
+                    <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
                       التكلفة السابقة: {formatMoney(p.costPiasters)}
                     </span>
                   </div>
@@ -717,23 +890,45 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
         </div>
 
         {/* Line Items Table */}
-        <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden flex flex-col shadow-2xs">
-          {/* Table Header */}
-          <div className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 sm:px-6 grid grid-cols-12 gap-2 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted shrink-0">
-            <div className="col-span-12 sm:col-span-3 text-right">اسم الصنف والوحدات والرصيد</div>
-            <div className="col-span-4 sm:col-span-2 text-center">الكمية وطريقة الشراء</div>
-            <div className="col-span-4 sm:col-span-2 text-center">سعر الشراء (التكلفة)</div>
-            <div className="col-span-4 sm:col-span-2 text-center">سعر البيع والربح</div>
-            <div className="hidden sm:block sm:col-span-2 text-center">الإجمالي</div>
-            <div className="col-span-12 sm:col-span-1 text-center">إجراءات</div>
+        <section className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
+          <div className="px-4 py-3 border-b border-line dark:border-line-dark flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+            <h2 className="t-card-title text-ink dark:text-ink-dark">أصناف الفاتورة</h2>
+            {lineItems.length > 0 && (
+              <span className="text-xs font-bold tabular-nums bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright px-2.5 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/30">
+                {lineItems.length} صنف ({totalItemsPieces} قطعة)
+              </span>
+            )}
           </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-line dark:divide-line-dark p-2 sm:p-2.5 space-y-2">
+          {lineItems.length > 0 && (
+            <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_176px_128px_112px_120px] gap-x-3 h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+              <div className="text-right">الصنف</div>
+              <div className="text-center">الكمية <RequiredMark /></div>
+              <div className="text-center">سعر الشراء</div>
+              <div className="text-center">الإجمالي</div>
+              <div />
+            </div>
+          )}
+
+          <div className="divide-y divide-line dark:divide-line-dark">
             {lineItems.length === 0 ? (
-              <div className="h-56 flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2">
-                <ShoppingCart className="w-10 h-10 opacity-30" />
-                <span className="text-sm font-semibold">لسه ما ضفتش أصناف للفاتورة</span>
-                <span className="text-xs text-ink-muted dark:text-ink-dark-muted">اضرب الباركود بالاسكانر أو اكتب اسم الصنف فوق عشان ينزل هنا</span>
+              <div className="py-10 px-4 flex flex-col items-center justify-center text-center gap-2">
+                <div className="w-14 h-14 rounded-2xl bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center">
+                  <ScanBarcode className="w-7 h-7 text-brand dark:text-brand-bright" />
+                </div>
+                <span className="text-sm font-bold text-ink dark:text-ink-dark">ابدأ بإضافة أول صنف للفاتورة</span>
+                <span className="text-xs text-ink-muted dark:text-ink-dark-muted max-w-sm leading-relaxed">
+                  اضرب الباركود بالاسكانر أو اكتب اسم الصنف في خانة البحث، واضغط Enter عشان ينزل هنا. بعدها حدد الكمية وسعر الشراء بس.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => searchInputRef.current?.focus()}
+                  className="mt-1 h-9 px-4 rounded-lg bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand/30 text-brand-dark dark:text-brand-bright border border-brand/20 dark:border-brand-bright/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>اذهب لخانة البحث</span>
+                </button>
               </div>
             ) : (
               lineItems.map((item, idx) => {
@@ -742,15 +937,16 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 const lineTotal = lineAmounts.lineGrossPiasters;
                 const currentStockUnits = Math.max(0, item.currentStockMilli / 1000);
                 const incomingUnits = item.quantityUnits || 0;
+                const isOpen = isItemExpanded(item.productId);
+                const detailsId = `purchase-line-details-${item.productId}`;
 
-                // 1. Cost Comparison (السعر كان كام وبقى كام)
                 const costDiffPiasters = item.unitCostPiasters - item.currentCostPiasters;
                 const hasPrevCost = item.currentCostPiasters > 0;
                 const costDiffPercent = hasPrevCost
                   ? ((costDiffPiasters / item.currentCostPiasters) * 100).toFixed(1)
                   : null;
 
-                // 2. Selling Price & Profit Margin Analysis
+                const hasSellPrice = item.newSellingPricePiasters > 0 || item.currentPricePiasters > 0;
                 const effectiveSellingPricePiasters =
                   item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters : item.currentPricePiasters;
                 const profitPiasters = effectiveSellingPricePiasters - item.unitCostPiasters;
@@ -759,29 +955,35 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                   : '0';
                 const totalBatchProfitPiasters = Math.round(incomingUnits * profitPiasters);
 
-                // 3. Projected Cost
                 const projectedCostPiasters = calculateProjectedCost(item, costingMethod);
-
-                // 4. Suggested Selling Prices (Weighted Average)
                 const weightedSuggestedPricePiasters = getWeightedSuggestedSellingPrice(item);
-
                 const currentPackageCost = item.packageCostPiasters || (item.unitCostPiasters * meta.packSize);
+                const isPackageMode = meta.unitMode === 'package' && meta.packSize > 1;
+
+                const hasDistributorTerms =
+                  (item.distributorDiscountPercent || 0) > 0 || (item.bonusQuantityUnits || 0) > 0;
+                const missingExpiry = isEnabled('feature_expiry_dates') && !item.expiryDate;
+                const qtyInvalid = showErrors && item.quantityUnits <= 0;
 
                 return (
                   <div
                     key={item.productId}
-                    className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 p-3 sm:p-3.5 flex flex-col gap-2.5 shadow-2xs transition-colors"
+                    ref={(el) => {
+                      if (el) lineRefs.current.set(item.productId, el);
+                      else lineRefs.current.delete(item.productId);
+                    }}
+                    className="px-4 py-3 flex flex-col gap-3 scroll-mt-16 hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40 transition-colors"
                   >
-                    {/* Main Row: Core Columns */}
-                    <div className="grid grid-cols-12 items-center gap-2 text-xs">
-                      {/* 1. Product Name & Info (col-span-3) */}
-                      <div className="col-span-12 sm:col-span-3 min-w-0">
+                    {/* Essentials: name, quantity, unit cost, total, actions */}
+                    <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1fr)_176px_128px_112px_120px] items-start gap-x-3 gap-y-3 text-xs">
+                      {/* 1. Product */}
+                      <div className="col-span-2 lg:col-span-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-extrabold text-ink dark:text-ink-dark text-sm block truncate" title={item.productName}>
+                          <span className="font-extrabold text-ink dark:text-ink-dark text-sm block line-clamp-2" title={item.productName}>
                             {item.productName}
                           </span>
                           {(item.variantColor || item.variantSize) && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-[10px] font-bold shrink-0">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-micro font-bold shrink-0">
                               <Layers className="w-2.5 h-2.5" />
                               {item.variantColor && <span>{item.variantColor}</span>}
                               {item.variantColor && item.variantSize && <span>/</span>}
@@ -789,37 +991,55 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap mt-1">
-                          <span className="text-xs font-mono text-ink-muted dark:text-ink-dark-muted">
-                            كود: {item.barcode || '—'}
-                          </span>
-                          <span className="text-line dark:text-line-dark">•</span>
-                          <span className="text-xs font-mono text-ink-muted dark:text-ink-dark-muted">
-                            السابق: <b className="text-ink dark:text-ink-dark font-sans">{formatMoney(item.currentCostPiasters)}</b>
-                          </span>
-                        </div>
-                        {/* Dynamic Compound Stock Display */}
-                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted mt-1 flex-wrap">
-                          <span className="bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
+                        <div className="flex items-center gap-x-2 gap-y-1 flex-wrap mt-1 text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
+                          {item.barcode && <span>{item.barcode}</span>}
+                          <span>
                             المخزن: <b className="text-ink dark:text-ink-dark font-sans">{formatCompoundStock(item.currentStockMilli, meta.unitsForDisplay, meta.baseUnitName)}</b>
                           </span>
                           {incomingUnits > 0 && (
-                            <span className="bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40 font-bold">
-                              ← بعد الشراء: {formatCompoundStock(item.currentStockMilli + (item.quantityUnits * 1000), meta.unitsForDisplay, meta.baseUnitName)}
+                            <span className="text-paid dark:text-paid-bright font-bold">
+                              ← {formatCompoundStock(item.currentStockMilli + (item.quantityUnits * 1000), meta.unitsForDisplay, meta.baseUnitName)}
                             </span>
                           )}
                         </div>
+                        {/* Attention chips only while the details are folded */}
+                        {!isOpen && (profitPiasters < 0 || !hasSellPrice || missingExpiry || hasDistributorTerms) && (
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                            {!hasSellPrice && (
+                              <span className="text-micro font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft px-1.5 py-0.5 rounded border border-warn-border dark:border-warn-bright/30">
+                                حدد سعر البيع
+                              </span>
+                            )}
+                            {hasSellPrice && profitPiasters < 0 && (
+                              <span className="inline-flex items-center gap-1 text-micro font-bold text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30">
+                                <AlertCircle className="w-3 h-3 shrink-0" />
+                                <span>البيع أقل من التكلفة</span>
+                              </span>
+                            )}
+                            {missingExpiry && (
+                              <span className="text-micro font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft px-1.5 py-0.5 rounded border border-warn-border dark:border-warn-bright/30">
+                                أدخل تاريخ الانتهاء
+                              </span>
+                            )}
+                            {hasDistributorTerms && (
+                              <span className="text-micro font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-paid-dark-border">
+                                خصم موزع {item.distributorDiscountPercent || 0}%
+                                {item.bonusQuantityUnits ? ` + ${item.bonusQuantityUnits} بونص` : ''}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {/* 2. Quantity & Unit Mode Control (col-span-2) */}
-                      <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
-                        {/* Unit Mode Selector (بالعلبة vs بالبرشامة) */}
+                      {/* 2. Quantity */}
+                      <div className="flex flex-col items-center justify-start gap-1.5">
+                        <span className="lg:hidden self-start text-xs font-bold text-ink-muted dark:text-ink-dark-muted">الكمية</span>
                         {meta.hasPackaging && meta.packSize > 1 && (
-                          <div className="inline-flex items-center p-0.5 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-[10px] font-bold">
+                          <div className="inline-flex items-center p-0.5 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-micro font-bold">
                             <button
                               type="button"
                               onClick={() => handleTogglePurchaseUnitMode(idx, 'package')}
-                              className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                              className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
                                 meta.unitMode === 'package'
                                   ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
                                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -832,7 +1052,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             <button
                               type="button"
                               onClick={() => handleTogglePurchaseUnitMode(idx, 'base')}
-                              className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                              className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
                                 meta.unitMode === 'base'
                                   ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
                                   : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -845,12 +1065,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           </div>
                         )}
 
-                        {/* Stepper + Input */}
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
                             onClick={() => handleQuantityStep(idx, -1)}
-                            className="w-7 h-7 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-xs font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
+                            className="w-9 h-10 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-base font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
                             title="إنقاص الكمية"
                           >
                             -
@@ -858,8 +1077,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           <input
                             type="text"
                             inputMode="decimal"
+                            data-field="qty"
                             value={
-                              meta.unitMode === 'package' && meta.packSize > 1
+                              isPackageMode
                                 ? (item.packageQuantityInput ?? (item.quantityUnits > 0 ? String(Math.floor(item.quantityUnits / meta.packSize)) : ''))
                                 : (item.quantityInput !== undefined ? item.quantityInput : (item.quantityUnits > 0 ? String(item.quantityUnits) : ''))
                             }
@@ -875,89 +1095,45 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               }
                             }}
                             placeholder="0"
-                            className="w-16 h-7 text-center font-mono font-bold bg-brand-soft dark:bg-brand-soft/20 border border-brand/30 dark:border-brand-bright/30 rounded-lg text-xs text-brand dark:text-brand-bright focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                            title={meta.unitMode === 'package' ? `عدد ال${meta.packageUnitName}` : `عدد ال${meta.baseUnitName}`}
+                            className={`w-16 h-10 text-center font-mono font-bold tabular-nums bg-brand-soft dark:bg-brand-dark-soft border rounded-lg text-sm text-brand dark:text-brand-bright focus:outline-none ${
+                              qtyInvalid
+                                ? 'border-danger dark:border-danger-bright ring-2 ring-danger/30 dark:ring-danger-bright/40'
+                                : 'border-brand/30 dark:border-brand-bright/30 focus:border-brand dark:focus:border-brand-bright'
+                            }`}
+                            title={isPackageMode ? `عدد ال${meta.packageUnitName}` : `عدد ال${meta.baseUnitName}`}
                           />
                           <button
                             type="button"
                             onClick={() => handleQuantityStep(idx, 1)}
-                            className="w-7 h-7 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-xs font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
+                            className="w-9 h-10 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-base font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
                             title="زيادة الكمية"
                           >
                             +
                           </button>
                         </div>
 
-                        {/* Under stepper: Conversion Indicator */}
                         {meta.packSize > 1 && (
-                          <div className="flex flex-col items-center gap-0.5 text-[10px] font-mono text-ink-muted dark:text-ink-dark-muted">
-                            {meta.unitMode === 'package' ? (
+                          <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
+                            {isPackageMode ? (
                               <span className="text-brand dark:text-brand-bright font-bold">
                                 = {item.quantityUnits} {meta.baseUnitName}
                               </span>
                             ) : (
-                              <span>
-                                سعة ال{meta.packageUnitName}: {meta.packSize} {meta.baseUnitName}
-                              </span>
+                              `سعة ال${meta.packageUnitName}: ${meta.packSize} ${meta.baseUnitName}`
                             )}
-                          </div>
-                        )}
-
-                        {/* Pharmacy or Carton shortcut button */}
-                        {isEnabled('feature_pharmacy') ? (
-                          ((item.distributorDiscountPercent !== undefined && item.distributorDiscountPercent > 0) || (item.bonusQuantityUnits !== undefined && item.bonusQuantityUnits > 0)) ? (
-                            <button
-                              type="button"
-                              onClick={() => toggleItemExpand(item.productId)}
-                              className="text-[10px] font-mono text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40 cursor-pointer"
-                            >
-                              خصم موزع: {item.distributorDiscountPercent || 0}% {item.bonusQuantityUnits ? `+ ${item.bonusQuantityUnits} بونص` : ''}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => toggleItemExpand(item.productId)}
-                              className="text-[10px] text-brand dark:text-brand-bright hover:underline font-bold flex items-center gap-0.5 cursor-pointer transition-colors"
-                            >
-                              <Sparkles className="w-2.5 h-2.5" />
-                              <span>خصم موزع وبونص</span>
-                            </button>
-                          )
-                        ) : (
-                          ((item.cartonsInput && parseInt(item.cartonsInput, 10) > 0) || (item.looseInput && parseInt(item.looseInput, 10) > 0)) ? (
-                            <button
-                              type="button"
-                              onClick={() => toggleItemExpand(item.productId)}
-                              className="text-[10px] font-mono text-brand dark:text-brand-bright font-bold bg-brand-soft dark:bg-brand-soft/20 px-1.5 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30 cursor-pointer"
-                            >
-                              {parseInt(item.cartonsInput || '0', 10) > 0 ? `${item.cartonsInput} كرتونة ` : ''}
-                              {parseInt(item.looseInput || '0', 10) > 0 ? `+ ${item.looseInput} فرط` : ''}
-                            </button>
-                          ) : meta.hasPackaging && meta.packSize > 1 ? (
-                            <button
-                              type="button"
-                              onClick={() => toggleItemExpand(item.productId)}
-                              className="text-[10px] text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright font-medium flex items-center gap-0.5 cursor-pointer transition-colors"
-                            >
-                              <Layers className="w-2.5 h-2.5" />
-                              <span>حاسبة التجزئة</span>
-                            </button>
-                          ) : null
+                          </span>
                         )}
                       </div>
 
-                      {/* 3. Unit Cost (col-span-2) */}
-                      <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
-                        <div className="w-24 sm:w-28">
+                      {/* 3. Unit cost */}
+                      <div className="flex flex-col items-center justify-start gap-1.5">
+                        <span className="lg:hidden self-start text-xs font-bold text-ink-muted dark:text-ink-dark-muted">سعر الشراء</span>
+                        <div className="w-full">
                           <MoneyInput
-                            valuePiasters={
-                              meta.unitMode === 'package' && meta.packSize > 1
-                                ? currentPackageCost
-                                : item.unitCostPiasters
-                            }
+                            valuePiasters={isPackageMode ? currentPackageCost : item.unitCostPiasters}
                             onChangePiasters={(p) => {
                               const updated = [...lineItems];
-                              if (meta.unitMode === 'package' && meta.packSize > 1) {
+                              if (isPackageMode) {
                                 updated[idx].packageCostPiasters = p;
                                 updated[idx].unitCostPiasters = Math.round(p / meta.packSize);
                               } else {
@@ -968,152 +1144,72 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               }
                               setLineItems(updated);
                             }}
-                            className="!h-8 !px-2 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
+                            className="!h-10 !px-2 !py-0 !text-center !text-sm !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
                           />
                         </div>
 
-                        {/* Sublabel for unit cost */}
                         {meta.packSize > 1 && (
-                          <span className="text-[10px] font-mono text-ink-muted dark:text-ink-dark-muted">
-                            {meta.unitMode === 'package'
+                          <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
+                            {isPackageMode
                               ? `(${meta.baseUnitName}: ${formatArabicCurrency(item.unitCostPiasters, true)})`
                               : `(${meta.packageUnitName}: ${formatArabicCurrency(currentPackageCost, true)})`}
                           </span>
                         )}
 
-                        {/* Price Change Indicator */}
-                        {hasPrevCost ? (
-                          costDiffPiasters > 0 ? (
-                            <div
-                              className="flex items-center gap-1 text-[10.5px] text-danger dark:text-danger-bright font-extrabold bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30"
-                              title="ارتفاع في سعر الشراء"
-                            >
-                              <TrendingUp className="w-3 h-3 shrink-0" />
-                              <span>+{formatArabicCurrency(costDiffPiasters, true)} (+{costDiffPercent}%)</span>
-                            </div>
-                          ) : costDiffPiasters < 0 ? (
-                            <div
-                              className="flex items-center gap-1 text-[10.5px] text-paid dark:text-paid-bright font-extrabold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40"
-                              title="انخفاض في سعر الشراء (وفر)"
-                            >
-                              <TrendingDown className="w-3 h-3 shrink-0" />
-                              <span>وفر -{formatArabicCurrency(Math.abs(costDiffPiasters), true)} ({costDiffPercent}%)</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-0.5 text-[10.5px] text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
-                              <Minus className="w-3 h-3 shrink-0" />
-                              <span>نفس التكلفة</span>
-                            </div>
-                          )
-                        ) : (
-                          <span className="text-[10.5px] text-brand dark:text-brand-bright font-bold bg-brand-soft dark:bg-brand-soft/20 px-1.5 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30">تكلفة أول مرة</span>
-                        )}
-                      </div>
-
-                      {/* 4. New Selling Price & Profit Margin (col-span-2) */}
-                      <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
-                        <div className="w-24 sm:w-28">
-                          <MoneyInput
-                            valuePiasters={
-                              meta.unitMode === 'package' && meta.packSize > 1
-                                ? (item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters * meta.packSize : item.currentPricePiasters * meta.packSize)
-                                : item.newSellingPricePiasters
-                            }
-                            onChangePiasters={(p) => {
-                              const updated = [...lineItems];
-                              if (meta.unitMode === 'package' && meta.packSize > 1) {
-                                updated[idx].newSellingPricePiasters = Math.round(p / meta.packSize);
-                              } else {
-                                updated[idx].newSellingPricePiasters = p;
-                              }
-                              setLineItems(updated);
-                            }}
-                            className="!h-8 !px-2 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
-                          />
-                        </div>
-
-                        {/* Sublabel for unit selling price */}
-                        {meta.packSize > 1 && (
-                          <span className="text-[10px] font-mono text-ink-muted dark:text-ink-dark-muted">
-                            {meta.unitMode === 'package'
-                              ? `(بيع ال${meta.baseUnitName}: ${formatArabicCurrency(effectiveSellingPricePiasters, true)})`
-                              : `(بيع ال${meta.packageUnitName}: ${formatArabicCurrency(effectiveSellingPricePiasters * meta.packSize, true)})`}
-                          </span>
-                        )}
-
-                        {/* Profit margin badge */}
-                        {profitPiasters < 0 ? (
-                          <div className="flex items-center gap-1 text-[10.5px] text-danger dark:text-danger-bright font-extrabold bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30">
-                            <AlertCircle className="w-3 h-3 shrink-0" />
-                            <span>خسارة: {formatArabicCurrency(profitPiasters, true)}</span>
-                          </div>
-                        ) : profitPiasters === 0 ? (
-                          <div className="text-[10.5px] text-warn dark:text-warn-bright font-extrabold bg-warn-soft dark:bg-warn-dark-soft px-1.5 py-0.5 rounded border border-warn-border dark:border-warn-bright/30">
-                            <span>بيع = تكلفة</span>
-                          </div>
-                        ) : (
+                        {hasPrevCost && costDiffPiasters > 0 && (
                           <div
-                            className="flex items-center gap-1 text-[10.5px] text-paid dark:text-paid-bright font-extrabold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40"
-                            title={`هامش مجمل الربح: ${marginPercent}%`}
+                            className="flex items-center gap-1 text-micro text-danger dark:text-danger-bright font-extrabold bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30"
+                            title={`ارتفاع في سعر الشراء عن آخر تكلفة (${formatMoney(item.currentCostPiasters)})`}
                           >
-                            <span>الربح: +{formatArabicCurrency(profitPiasters, true)}</span>
-                            <span className="text-[10px] opacity-80">({marginPercent}%)</span>
+                            <TrendingUp className="w-3 h-3 shrink-0" />
+                            <span>+{formatArabicCurrency(costDiffPiasters, true)} ({costDiffPercent}%)</span>
                           </div>
                         )}
-
-                        {/* Suggested Selling Price Button */}
-                        {weightedSuggestedPricePiasters !== null &&
-                          Math.abs(weightedSuggestedPricePiasters - item.newSellingPricePiasters) > 50 && (
-                            <button
-                              type="button"
-                              onClick={() => handleApplySuggestedPrice(idx, weightedSuggestedPricePiasters)}
-                              className="text-[10px] font-bold text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-emerald-300 flex items-center gap-1 bg-brand-soft dark:bg-brand-soft/20 hover:bg-brand/20 dark:hover:bg-brand-bright/20 px-1.5 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30 transition-colors cursor-pointer"
-                              title="تعديل سعر البيع لاعتماد متوسط التكلفة"
-                            >
-                              <Sparkles className="w-2.5 h-2.5 text-brand dark:text-brand-bright shrink-0" />
-                              <span>مقترح: {formatArabicCurrency(meta.unitMode === 'package' && meta.packSize > 1 ? weightedSuggestedPricePiasters * meta.packSize : weightedSuggestedPricePiasters, true)}</span>
-                            </button>
-                          )}
+                        {hasPrevCost && costDiffPiasters < 0 && (
+                          <div
+                            className="flex items-center gap-1 text-micro text-paid dark:text-paid-bright font-extrabold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-paid-dark-border"
+                            title={`انخفاض في سعر الشراء عن آخر تكلفة (${formatMoney(item.currentCostPiasters)})`}
+                          >
+                            <TrendingDown className="w-3 h-3 shrink-0" />
+                            <span>وفر -{formatArabicCurrency(Math.abs(costDiffPiasters), true)} ({costDiffPercent}%)</span>
+                          </div>
+                        )}
                       </div>
 
-                      {/* 5. Line Total (col-span-2) */}
-                      <div className="col-span-6 sm:col-span-2 text-center">
-                        <div className="font-mono font-extrabold text-ink dark:text-ink-dark text-sm sm:text-base">
+                      {/* 4. Line total */}
+                      <div className="text-center">
+                        <div className="font-mono font-extrabold tabular-nums whitespace-nowrap text-ink dark:text-ink-dark text-base">
                           {formatMoney(lineTotal)}
                         </div>
-                        <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted block mt-0.5">
-                          {meta.unitMode === 'package' && meta.packSize > 1 ? (
-                            `${Math.round(item.quantityUnits / meta.packSize)} ${meta.packageUnitName} × ${formatArabicCurrency(currentPackageCost, true)}`
-                          ) : (
-                            `${item.quantityUnits} ${meta.baseUnitName} × ${formatArabicCurrency(item.unitCostPiasters, true)}`
-                          )}
+                        <span className="text-micro font-mono tabular-nums text-ink-muted dark:text-ink-dark-muted block mt-1 leading-snug">
+                          {isPackageMode
+                            ? `${Math.round(item.quantityUnits / meta.packSize)} ${meta.packageUnitName} × ${formatArabicCurrency(currentPackageCost, true)}`
+                            : `${item.quantityUnits} ${meta.baseUnitName} × ${formatArabicCurrency(item.unitCostPiasters, true)}`}
                         </span>
                       </div>
 
-                      {/* 6. Actions (col-span-1) */}
-                      <div className="col-span-6 sm:col-span-1 flex items-center justify-center gap-1">
+                      {/* 5. Actions: details toggle follows the cost field in tab order */}
+                      <div className="col-span-2 lg:col-span-1 flex items-center justify-end lg:justify-center gap-1">
                         <button
                           type="button"
                           onClick={() => toggleItemExpand(item.productId)}
-                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                            isItemExpanded(item.productId)
-                              ? 'text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-soft/20'
-                              : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                          aria-expanded={isOpen}
+                          aria-controls={detailsId}
+                          className={`h-9 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                            isOpen
+                              ? 'text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-dark-soft'
+                              : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark'
                           }`}
-                          title="عرض / إخفاء تفاصيل وحاسبة الصنف"
+                          title="سعر البيع والتعبئة والصلاحية وباقي تفاصيل الصنف"
                         >
-                          {isItemExpanded(item.productId) ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )}
+                          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+                          <span>تفاصيل</span>
+                          <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setLineItems(lineItems.filter((_, i) => i !== idx));
-                          }}
-                          className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft rounded-lg transition-colors cursor-pointer"
+                          onClick={() => handleRemoveLine(idx)}
+                          className="h-9 w-9 flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft rounded-lg transition-colors cursor-pointer"
                           title="حذف هذا الصنف من الفاتورة"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1121,24 +1217,82 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       </div>
                     </div>
 
-                    {/* Integrated Sub-Tools: Store-Tailored Breakdown & Smart Pricing Insights */}
-                    {isItemExpanded(item.productId) && (
-                      <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark rounded-xl p-3 flex flex-col gap-2.5 transition-all text-xs">
-                        {/* ZONE 1: Store-Tailored Packaging & Supplier Pricing */}
-                        {isEnabled('feature_pharmacy') ? (
-                          /* Pharmacy Specific: Box packaging & Distributor discount & Bonus */
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col gap-2">
-                            <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark border-b border-line/60 dark:border-line-dark/60 pb-1.5">
-                              <Pill className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
-                              <span>تعبئة وتسعير الصيدلية (سعر الجمهور وخصم الموزع والبونص)</span>
-                            </div>
+                    {/* Details drawer: pricing, packaging, expiry */}
+                    {isOpen && (
+                      <div
+                        id={detailsId}
+                        className="bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark rounded-xl p-3 flex flex-col gap-3 text-xs"
+                      >
+                        {/* Pricing and packaging */}
+                        <div className="flex flex-wrap items-start gap-3">
+                          <div className="flex flex-col gap-1 w-40">
+                            <span className={DETAIL_LABEL_CLS}>
+                              سعر البيع{isPackageMode ? ` (لل${meta.packageUnitName})` : ''}
+                            </span>
+                            <MoneyInput
+                              valuePiasters={
+                                isPackageMode
+                                  ? (item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters * meta.packSize : item.currentPricePiasters * meta.packSize)
+                                  : item.newSellingPricePiasters
+                              }
+                              onChangePiasters={(p) => {
+                                const updated = [...lineItems];
+                                if (isPackageMode) {
+                                  updated[idx].newSellingPricePiasters = Math.round(p / meta.packSize);
+                                } else {
+                                  updated[idx].newSellingPricePiasters = p;
+                                }
+                                setLineItems(updated);
+                              }}
+                              className={DETAIL_MONEY_CLS}
+                            />
+                            {meta.packSize > 1 && (
+                              <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
+                                {isPackageMode
+                                  ? `(بيع ال${meta.baseUnitName}: ${formatArabicCurrency(effectiveSellingPricePiasters, true)})`
+                                  : `(بيع ال${meta.packageUnitName}: ${formatArabicCurrency(effectiveSellingPricePiasters * meta.packSize, true)})`}
+                              </span>
+                            )}
+                            {hasSellPrice && profitPiasters < 0 ? (
+                              <div className="flex items-center gap-1 text-micro text-danger dark:text-danger-bright font-extrabold bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30 self-start">
+                                <AlertCircle className="w-3 h-3 shrink-0" />
+                                <span>خسارة: {formatArabicCurrency(profitPiasters, true)}</span>
+                              </div>
+                            ) : hasSellPrice && profitPiasters === 0 ? (
+                              <div className="text-micro text-warn dark:text-warn-bright font-extrabold bg-warn-soft dark:bg-warn-dark-soft px-1.5 py-0.5 rounded border border-warn-border dark:border-warn-bright/30 self-start">
+                                بيع = تكلفة
+                              </div>
+                            ) : hasSellPrice ? (
+                              <div
+                                className="flex items-center gap-1 text-micro text-paid dark:text-paid-bright font-extrabold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-paid-dark-border self-start"
+                                title={`هامش مجمل الربح: ${marginPercent}%`}
+                              >
+                                <span>الربح: +{formatArabicCurrency(profitPiasters, true)}</span>
+                                <span className="text-micro opacity-80">({marginPercent}%)</span>
+                              </div>
+                            ) : (
+                              <span className="text-micro font-bold text-warn dark:text-warn-bright">حدد سعر البيع</span>
+                            )}
+                            {weightedSuggestedPricePiasters !== null &&
+                              Math.abs(weightedSuggestedPricePiasters - item.newSellingPricePiasters) > 50 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplySuggestedPrice(idx, weightedSuggestedPricePiasters)}
+                                  className="text-micro font-bold text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-paid-bright flex items-center gap-1 bg-brand-soft dark:bg-brand-soft/20 hover:bg-brand/20 dark:hover:bg-brand-bright/20 px-1.5 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30 transition-colors cursor-pointer self-start"
+                                  title="تعديل سعر البيع لاعتماد متوسط التكلفة"
+                                >
+                                  <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                                  <span>
+                                    مقترح: {formatArabicCurrency(isPackageMode ? weightedSuggestedPricePiasters * meta.packSize : weightedSuggestedPricePiasters, true)}
+                                  </span>
+                                </button>
+                              )}
+                          </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
-                              {/* 1. Pack Size */}
-                              <div className="flex flex-col gap-1">
-                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">
-                                  سعة ال{meta.packageUnitName} ({meta.baseUnitName}):
-                                </span>
+                          {isEnabled('feature_pharmacy') ? (
+                            <>
+                              <div className="flex flex-col gap-1 w-32">
+                                <span className={DETAIL_LABEL_CLS}>سعة ال{meta.packageUnitName} ({meta.baseUnitName})</span>
                                 <input
                                   type="text"
                                   inputMode="numeric"
@@ -1146,15 +1300,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   onChange={(e) => handlePackSizeChange(idx, e.target.value)}
                                   onFocus={(e) => e.target.select()}
                                   placeholder="20"
-                                  className="w-full h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                  className={DETAIL_INPUT_CLS}
                                 />
                               </div>
-
-                              {/* 2. Public Price */}
-                              <div className="flex flex-col gap-1">
-                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">
-                                  سعر الجمهور الرسمي (للعلبة):
-                                </span>
+                              <div className="flex flex-col gap-1 w-40">
+                                <span className={DETAIL_LABEL_CLS}>سعر الجمهور (لل{meta.packageUnitName})</span>
                                 <MoneyInput
                                   valuePiasters={
                                     item.publicPricePiasters ??
@@ -1173,15 +1323,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                     }
                                     setLineItems(updated);
                                   }}
-                                  className="!h-7 !px-2 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-md text-ink dark:text-ink-dark"
+                                  className={DETAIL_MONEY_CLS}
                                 />
                               </div>
-
-                              {/* 3. Distributor Discount % */}
-                              <div className="flex flex-col gap-1">
-                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">
-                                  خصم الموزع %:
-                                </span>
+                              <div className="flex flex-col gap-1 w-24">
+                                <span className={DETAIL_LABEL_CLS}>خصم الموزع %</span>
                                 <input
                                   type="text"
                                   inputMode="decimal"
@@ -1203,15 +1349,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   }}
                                   onFocus={(e) => e.target.select()}
                                   placeholder="0%"
-                                  className="w-full h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-brand dark:text-brand-bright focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                  className={DETAIL_INPUT_CLS}
                                 />
                               </div>
-
-                              {/* 4. Bonus Quantity */}
-                              <div className="flex flex-col gap-1">
-                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">
-                                  بونص مجاني ({meta.packageUnitName}):
-                                </span>
+                              <div className="flex flex-col gap-1 w-28">
+                                <span className={DETAIL_LABEL_CLS}>بونص مجاني ({meta.packageUnitName})</span>
                                 <input
                                   type="text"
                                   inputMode="numeric"
@@ -1226,190 +1368,96 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   }}
                                   onFocus={(e) => e.target.select()}
                                   placeholder="0"
-                                  className="w-full h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-paid dark:text-paid-bright focus:border-paid dark:focus:border-paid focus:outline-none"
+                                  className={DETAIL_INPUT_CLS}
                                 />
                               </div>
-                            </div>
-
-                            {/* Pricing summary ribbon if discount or bonus is active */}
-                            {((item.distributorDiscountPercent || 0) > 0 || (item.bonusQuantityUnits || 0) > 0) && (
-                              <div className="flex items-center gap-3 text-[11px] font-mono flex-wrap bg-surface-2 dark:bg-surface-dark-2 p-1.5 rounded border border-line/60 dark:border-line-dark/60 mt-1">
-                                <span className="text-brand dark:text-brand-bright font-bold">
-                                  سعر العلبة بعد الخصم: {formatArabicCurrency(currentPackageCost, true)}
-                                </span>
-                                <span className="text-line dark:text-line-dark">•</span>
-                                <span className="text-ink dark:text-ink-dark">
-                                  تكلفة ال{meta.baseUnitName}: {formatArabicCurrency(item.unitCostPiasters, true)}
-                                </span>
-                                {(item.bonusQuantityUnits || 0) > 0 && (item.quantityUnits || 0) > 0 && (
-                                  <>
-                                    <span className="text-line dark:text-line-dark">•</span>
-                                    <span className="text-paid dark:text-paid-bright font-bold">
-                                      صافي التكلفة بالبونص: {formatArabicCurrency(Math.round((lineAmounts.lineGrossPiasters * 1000) / (lineAmounts.quantityMilli + lineAmounts.bonusQuantityMilli)), true)} / {meta.baseUnitName}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ) : isEnabled('feature_multi_units') ? (
-                          /* Supermarket / Multi-unit Grocery specific: Cartons Calculator */
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center justify-between gap-3 flex-wrap">
-                            <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark shrink-0">
-                              <Layers className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
-                              <span>حاسبة ال{meta.packageUnitName} والتجزئة:</span>
-                            </div>
-                            <div className="flex items-center gap-2 flex-wrap text-xs">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">عدد ال{meta.packageUnitName}:</span>
+                            </>
+                          ) : isEnabled('feature_multi_units') ? (
+                            <div className="flex flex-col gap-1">
+                              <span className={DETAIL_LABEL_CLS}>حاسبة ال{meta.packageUnitName} والتجزئة</span>
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <input
                                   type="text"
                                   inputMode="numeric"
+                                  aria-label={`عدد ال${meta.packageUnitName}`}
                                   value={item.cartonsInput ?? ''}
                                   onChange={(e) => handleCartonsChange(idx, e.target.value)}
                                   onFocus={(e) => e.target.select()}
                                   placeholder="0"
-                                  className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-brand dark:text-brand-bright focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                  className="w-14 h-9 text-center font-mono font-bold tabular-nums bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md text-sm text-brand dark:text-brand-bright focus:border-brand dark:focus:border-brand-bright focus:outline-none"
                                 />
-                              </div>
-                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold">×</span>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">سعة ال{meta.packageUnitName}:</span>
+                                <span className="text-micro text-ink-muted dark:text-ink-dark-muted">{meta.packageUnitName} ×</span>
                                 <input
                                   type="text"
                                   inputMode="numeric"
+                                  aria-label={`سعة ال${meta.packageUnitName}`}
                                   value={item.packSizeInput ?? ''}
                                   onChange={(e) => handlePackSizeChange(idx, e.target.value)}
                                   onFocus={(e) => e.target.select()}
                                   placeholder="0"
-                                  className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                  className="w-14 h-9 text-center font-mono font-bold tabular-nums bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md text-sm text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
                                 />
-                                <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">{meta.baseUnitName}</span>
-                              </div>
-                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold">+</span>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">فرط:</span>
+                                <span className="text-micro text-ink-muted dark:text-ink-dark-muted">{meta.baseUnitName} +</span>
                                 <input
                                   type="text"
                                   inputMode="numeric"
+                                  aria-label="فرط"
                                   value={item.looseInput ?? ''}
                                   onChange={(e) => handleLoosePiecesChange(idx, e.target.value)}
                                   onFocus={(e) => e.target.select()}
                                   placeholder="0"
-                                  className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                  className="w-14 h-9 text-center font-mono font-bold tabular-nums bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md text-sm text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
                                 />
-                                <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">{meta.baseUnitName}</span>
-                              </div>
-                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold">=</span>
-                              <div className="px-2.5 py-1 bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright font-mono font-extrabold rounded-md text-xs">
-                                {incomingUnits} {meta.baseUnitName} إجمالي
-                              </div>
-                            </div>
-                          </div>
-                        ) : isEnabled('feature_matrix_variants') && (item.variantColor || item.variantSize) ? (
-                          /* Apparel / Matrix Variants specific */
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center gap-3">
-                            <Layers className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
-                            <span className="text-xs font-bold text-ink dark:text-ink-dark">مواصفات الموديل:</span>
-                            {item.variantColor && (
-                              <span className="bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded text-xs border border-line dark:border-line-dark">
-                                اللون: <b>{item.variantColor}</b>
-                              </span>
-                            )}
-                            {item.variantSize && (
-                              <span className="bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded text-xs border border-line dark:border-line-dark">
-                                المقاس: <b>{item.variantSize}</b>
-                              </span>
-                            )}
-                          </div>
-                        ) : null}
-
-                        {/* ZONE 2: Streamlined Financial Intelligence Ribbon */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
-                          {/* Metric 1: Projected Cost */}
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1 shadow-2xs">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs">
-                                {costingMethod === 'LATEST' ? (
-                                  <Zap className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
-                                ) : (
-                                  <Calculator className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
-                                )}
-                                <span>متوسط التكلفة الجديد:</span>
-                              </span>
-                              <span className="font-mono font-extrabold text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-soft/20 px-2 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30 text-xs">
-                                {formatArabicCurrency(projectedCostPiasters, true)}
-                              </span>
-                            </div>
-                            <p className="text-ink-muted dark:text-ink-dark-muted text-[10.5px] leading-relaxed m-0 truncate">
-                              {costingMethod === 'LATEST'
-                                ? 'اعتماد سعر الشراء الأخير كتكلفة للمخزن'
-                                : `متوسط مرجح بين ${currentStockUnits.toFixed(0)} سابقة و ${incomingUnits.toFixed(0)} جديدة`}
-                            </p>
-                          </div>
-
-                          {/* Metric 2: Suggested Selling Price */}
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1 shadow-2xs">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs">
-                                <Sparkles className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
-                                <span>سعر البيع المقترح:</span>
-                              </span>
-                              {weightedSuggestedPricePiasters ? (
-                                <span className="font-mono font-extrabold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40 text-xs">
-                                  {formatArabicCurrency(weightedSuggestedPricePiasters, true)}
+                                <span className="text-micro text-ink-muted dark:text-ink-dark-muted">فرط =</span>
+                                <span className="px-2.5 py-1 bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright font-mono font-extrabold rounded-md text-xs">
+                                  {incomingUnits} {meta.baseUnitName}
                                 </span>
-                              ) : (
-                                <span className="text-ink-muted dark:text-ink-dark-muted text-xs font-mono">—</span>
-                              )}
+                              </div>
                             </div>
-                            {weightedSuggestedPricePiasters ? (
-                              <button
-                                type="button"
-                                onClick={() => handleApplySuggestedPrice(idx, weightedSuggestedPricePiasters)}
-                                className="w-full py-0.5 px-2 bg-paid dark:bg-emerald-600 text-white hover:bg-paid/90 rounded text-[10.5px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                              >
-                                <Sparkles className="w-2.5 h-2.5 shrink-0" />
-                                <span>تطبيق المقترح ({formatArabicCurrency(weightedSuggestedPricePiasters, true)})</span>
-                              </button>
-                            ) : (
-                              <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">لا توجد مبيعات سابقة للاقتراح</span>
-                            )}
-                          </div>
-
-                          {/* Metric 3: Total Batch Profit */}
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1 shadow-2xs">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs">
-                                <Banknote className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
-                                <span>مكسب الشحنة المتوقع:</span>
-                              </span>
-                              <span
-                                className={`font-mono font-extrabold px-2 py-0.5 rounded text-xs ${
-                                  totalBatchProfitPiasters > 0
-                                    ? 'text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-emerald-800/40'
-                                    : totalBatchProfitPiasters < 0
-                                    ? 'text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30'
-                                    : 'text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark'
-                                }`}
-                              >
-                                {totalBatchProfitPiasters > 0 ? '+' : ''}
-                                {formatArabicCurrency(totalBatchProfitPiasters, true)}
-                              </span>
+                          ) : isEnabled('feature_matrix_variants') && (item.variantColor || item.variantSize) ? (
+                            <div className="flex flex-col gap-1">
+                              <span className={DETAIL_LABEL_CLS}>مواصفات الموديل</span>
+                              <div className="flex items-center gap-2 h-9">
+                                {item.variantColor && (
+                                  <span className="bg-surface dark:bg-surface-dark px-2 py-0.5 rounded text-xs border border-line dark:border-line-dark text-ink dark:text-ink-dark">
+                                    اللون: <b>{item.variantColor}</b>
+                                  </span>
+                                )}
+                                {item.variantSize && (
+                                  <span className="bg-surface dark:bg-surface-dark px-2 py-0.5 rounded text-xs border border-line dark:border-line-dark text-ink dark:text-ink-dark">
+                                    المقاس: <b>{item.variantSize}</b>
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <p className="text-ink-muted dark:text-ink-dark-muted text-[10.5px] leading-relaxed m-0 truncate">
-                              {incomingUnits > 0
-                                ? `ربح ال${meta.baseUnitName}: ${formatArabicCurrency(profitPiasters, true)} (هامش: ${marginPercent}%)`
-                                : 'حدد الكمية لحساب المكسب'}
-                            </p>
-                          </div>
+                          ) : null}
                         </div>
 
-                        {/* ZONE 3: Batch Number & Expiry Dates */}
+                        {isEnabled('feature_pharmacy') && hasDistributorTerms && (
+                          <div className="flex items-center gap-3 text-micro font-mono flex-wrap bg-surface dark:bg-surface-dark p-1.5 rounded border border-line/60 dark:border-line-dark/60">
+                            <span className="text-brand dark:text-brand-bright font-bold">
+                              سعر العلبة بعد الخصم: {formatArabicCurrency(currentPackageCost, true)}
+                            </span>
+                            <span className="text-line dark:text-line-dark">•</span>
+                            <span className="text-ink dark:text-ink-dark">
+                              تكلفة ال{meta.baseUnitName}: {formatArabicCurrency(item.unitCostPiasters, true)}
+                            </span>
+                            {(item.bonusQuantityUnits || 0) > 0 && (item.quantityUnits || 0) > 0 && (
+                              <>
+                                <span className="text-line dark:text-line-dark">•</span>
+                                <span className="text-paid dark:text-paid-bright font-bold">
+                                  صافي التكلفة بالبونص: {formatArabicCurrency(Math.round((lineAmounts.lineGrossPiasters * 1000) / (lineAmounts.quantityMilli + lineAmounts.bonusQuantityMilli)), true)} / {meta.baseUnitName}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Batch number & expiry */}
                         {isEnabled('feature_expiry_dates') && (
-                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center gap-4 flex-wrap text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">رقم الشحنة:</span>
+                          <div className="flex flex-wrap items-end gap-3">
+                            <div className="flex flex-col gap-1 w-36">
+                              <span className={DETAIL_LABEL_CLS}>رقم الشحنة</span>
                               <input
                                 type="text"
                                 placeholder="رقم الشحنة"
@@ -1419,11 +1467,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   updated[idx].batchNumber = e.target.value;
                                   setLineItems(updated);
                                 }}
-                                className="h-7 w-28 px-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-xs font-mono focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                className="w-full h-9 px-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-md text-sm font-mono focus:border-brand dark:focus:border-brand-bright focus:outline-none"
                               />
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">تاريخ الانتهاء:</span>
+                            <div className="flex flex-col gap-1 w-40">
+                              <span className={DETAIL_LABEL_CLS}>تاريخ الانتهاء</span>
                               <CustomDatePicker
                                 value={item.expiryDate || ''}
                                 onChange={(val) => {
@@ -1434,11 +1482,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 placeholder="الصلاحية"
                                 size="sm"
                                 placement="top"
-                                className="w-[120px]"
+                                className="w-full"
                               />
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">تاريخ الإنتاج:</span>
+                            <div className="flex flex-col gap-1 w-40">
+                              <span className={DETAIL_LABEL_CLS}>تاريخ الإنتاج</span>
                               <CustomDatePicker
                                 value={item.productionDate || ''}
                                 onChange={(val) => {
@@ -1450,11 +1498,39 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 size="sm"
                                 placement="top"
                                 align="left"
-                                className="w-[120px]"
+                                className="w-full"
                               />
                             </div>
                           </div>
                         )}
+
+                        {/* Cost and batch profit */}
+                        <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-micro text-ink-muted dark:text-ink-dark-muted border-t border-line/60 dark:border-line-dark/60 pt-2">
+                          <span>
+                            آخر تكلفة: <b className="font-mono text-ink dark:text-ink-dark">{formatMoney(item.currentCostPiasters)}</b>
+                          </span>
+                          <span title={costingMethod === 'LATEST' ? 'اعتماد سعر الشراء الأخير كتكلفة للمخزن' : `متوسط مرجح بين ${currentStockUnits.toFixed(0)} سابقة و ${incomingUnits.toFixed(0)} جديدة`}>
+                            {costingMethod === 'LATEST' ? 'التكلفة المعتمدة' : 'متوسط التكلفة الجديد'}:{' '}
+                            <b className="font-mono text-brand dark:text-brand-bright">{formatArabicCurrency(projectedCostPiasters, true)}</b>
+                          </span>
+                          {incomingUnits > 0 && (
+                            <span>
+                              مكسب الشحنة المتوقع:{' '}
+                              <b
+                                className={`font-mono ${
+                                  totalBatchProfitPiasters > 0
+                                    ? 'text-paid dark:text-paid-bright'
+                                    : totalBatchProfitPiasters < 0
+                                    ? 'text-danger dark:text-danger-bright'
+                                    : 'text-ink dark:text-ink-dark'
+                                }`}
+                              >
+                                {totalBatchProfitPiasters > 0 ? '+' : ''}
+                                {formatArabicCurrency(totalBatchProfitPiasters, true)}
+                              </b>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1462,427 +1538,228 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               })
             )}
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Right: Settlement & Totals Dock */}
-      <div className="w-[280px] sm:w-[300px] xl:w-[320px] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col h-full min-h-0 shrink-0 shadow-2xs overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-          {/* Header */}
-          <div className="pb-2.5 border-b border-line dark:border-line-dark flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Receipt className="w-4 h-4 text-brand dark:text-brand-bright" />
-              <h2 className="text-[13px] font-bold text-ink dark:text-ink-dark">حساب الفاتورة</h2>
+        {/* Settlement: invoice summary + payment */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+          {/* Invoice summary: three figures */}
+          <section className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs space-y-3">
+            <div className="flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+              <h2 className="t-card-title text-ink dark:text-ink-dark">ملخص الفاتورة</h2>
             </div>
-            <span className="text-[10px] font-mono font-bold bg-brand-soft dark:bg-brand-soft/20 text-brand-dark dark:text-brand-bright px-2 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/20">
-              {lineItems.length} صنف ({totalItemsPieces} قطعة)
-            </span>
-          </div>
-
-          {/* Totals Breakdown */}
-          <div className="space-y-2 text-xs">
-            <div className="flex justify-between items-center text-ink-muted dark:text-ink-dark-muted">
-              <span className="text-[11.5px]">إجمالي الأصناف:</span>
-              <span className="font-mono font-bold text-ink dark:text-ink-dark text-xs">
-                {formatMoney(totalCostPiasters)}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-1 text-ink-muted dark:text-ink-dark-muted">
-              <span className="text-xs font-bold text-ink dark:text-ink-dark">خصم المورد:</span>
-              <div className="w-28 sm:w-32">
-                <MoneyInput
-                  valuePiasters={discountPiasters}
-                  onChangePiasters={setDiscountPiasters}
-                  className="!h-8 !px-2 !py-0 !text-center !text-xs font-bold !bg-surface dark:!bg-surface-dark !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark shadow-2xs focus:border-brand"
-                />
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark p-3 min-w-0">
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">الأصناف</span>
+                <span className="block t-kpi font-mono whitespace-nowrap text-ink dark:text-ink-dark">{lineItems.length}</span>
+                <span className="block text-micro text-ink-muted dark:text-ink-dark-muted">{totalItemsPieces} قطعة</span>
               </div>
-            </div>
-
-            {/* Net Payable Highlight Card */}
-            <div className="p-2.5 rounded-xl bg-paid-soft/80 dark:bg-paid-dark-soft/80 border border-paid/20 dark:border-paid/40 flex flex-col gap-0.5">
-              <div className="flex justify-between items-baseline">
-                <span className="font-bold text-[11.5px] text-paid-dark dark:text-paid-bright">المطلوب دفعه للشركة:</span>
-                <span className="text-base font-extrabold font-mono text-paid-dark dark:text-paid-bright">
-                  {formatMoney(netCostPiasters)}
-                </span>
+              <div className="rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark p-3 min-w-0">
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">إجمالي الأصناف</span>
+                <span className="block t-kpi font-mono whitespace-nowrap text-ink dark:text-ink-dark">{formatMoney(totalCostPiasters)}</span>
               </div>
-              <div className="flex justify-between text-[10px] text-paid dark:text-paid-bright font-medium">
-                <span>حالة السداد:</span>
-                <span>
-                  {paidAmountPiasters >= netCostPiasters
-                    ? excessPaidPiasters > 0
-                      ? `مدفوع بالزيادة (+${formatMoney(excessPaidPiasters)})`
-                      : 'مدفوع كاش بالكامل'
-                    : paidAmountPiasters === 0
-                    ? advanceCreditPiasters >= netCostPiasters
-                      ? 'خصم كامل من رصيدنا المتاح (0 كاش)'
-                      : advanceCreditPiasters > 0
-                      ? 'خصم رصيدنا + الباقي آجل'
-                      : 'آجل بالكامل على الحساب'
-                    : `سداد جزئي (${formatMoney(paidAmountPiasters)} كاش)`}
+              <div className="rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark p-3 min-w-0">
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">خصم المورد</span>
+                <span
+                  className={`block text-xl font-extrabold font-mono tabular-nums whitespace-nowrap ${
+                    discountPiasters > 0 ? 'text-paid dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark-muted'
+                  }`}
+                >
+                  {discountPiasters > 0 ? `-${formatMoney(discountPiasters)}` : '—'}
                 </span>
               </div>
             </div>
+          </section>
 
-            {/* Advance Credit Notice for Selected Supplier */}
-            {advanceCreditPiasters > 0 && (
-              <div className="p-2.5 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid/40 flex flex-col gap-1 text-[11px] text-paid-dark dark:text-paid-bright">
-                <div className="flex items-center justify-between font-bold">
-                  <span className="flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
-                    <span>رصيد متاح لنا عند الشركة:</span>
-                  </span>
-                  <span className="font-mono text-paid dark:text-paid-bright font-extrabold text-xs">{formatMoney(advanceCreditPiasters)}</span>
-                </div>
-                <p className="text-[10px] text-paid dark:text-paid-bright leading-tight">
-                  {netCostPiasters <= advanceCreditPiasters
-                    ? `رصيدنا السابق يغطي الفاتورة بالكامل، وهيتبقى لنا ${formatMoney(advanceCreditPiasters - netCostPiasters)} تحت الحساب.`
-                    : `هيغطي من رصيدنا ${formatMoney(advanceCreditPiasters)}، والباقي ندفعه ${formatMoney(netCostPiasters - advanceCreditPiasters)}.`}
-                </p>
-              </div>
-            )}
+          {/* Payment */}
+          <section className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs space-y-3">
+            <div className="flex items-center gap-2">
+              <Banknote className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+              <h2 className="t-card-title text-ink dark:text-ink-dark">السداد للمورد</h2>
+            </div>
 
-            {supplierDebtPiasters > 0 && (
-              <div className="p-2 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 flex items-center justify-between text-[11px]">
-                <span className="font-bold text-warn-dark dark:text-warn-bright">حساب قديم علينا للمورد:</span>
-                <span className="font-mono font-bold text-warn-dark dark:text-warn-bright">{formatMoney(supplierDebtPiasters)}</span>
-              </div>
-            )}
-          </div>
+            <div>
+              <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1.5">المدفوع الآن</span>
+              <MoneyInput
+                valuePiasters={paidAmountPiasters}
+                onChangePiasters={(val) => {
+                  if (paymentMode === 'CREDIT' && val > 0) setPaymentMode('PAID');
+                  setCustomPaidAmountPiasters(val);
+                }}
+                className="!h-11 !px-2 !py-0 !text-center !text-base font-mono font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark shadow-2xs focus:border-paid"
+              />
+            </div>
 
-          {/* Payment Options */}
-          <div className="pt-2 border-t border-line dark:border-line-dark space-y-1.5">
-            <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block">طريقة سداد الفاتورة للمورد</label>
-            <div className="grid grid-cols-2 gap-1.5 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark">
-              {/* Option 1: Cash */}
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setPaymentMode('PAID');
-                  if (customPaidAmountPiasters === 0) {
-                    setCustomPaidAmountPiasters(null);
-                  }
+                  setCustomPaidAmountPiasters(null);
                 }}
-                className={`h-8 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  paymentMode === 'PAID'
-                    ? 'bg-paid dark:bg-paid-bright dark:text-surface-dark text-white shadow-2xs'
-                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                }`}
+                className={quickBtnCls(paymentMode === 'PAID' && paidAmountPiasters === netCostPiasters)}
               >
-                <Banknote className="w-3.5 h-3.5" />
-                <span>كاش / سداد نقدي</span>
+                <Banknote className="w-3.5 h-3.5 shrink-0" />
+                <span>دفع كامل</span>
               </button>
-
-              {/* Option 2: Credit / Advance */}
               <button
                 type="button"
                 onClick={() => {
                   setPaymentMode('CREDIT');
                   setCustomPaidAmountPiasters(0);
                 }}
-                className={`h-8 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  paymentMode === 'CREDIT'
-                    ? advanceCreditPiasters > 0
-                      ? 'bg-brand dark:bg-brand-bright dark:text-surface-dark text-white shadow-2xs'
-                      : 'bg-warn dark:bg-warn text-white shadow-2xs'
-                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                }`}
+                className={quickBtnCls(paidAmountPiasters === 0)}
               >
-                {advanceCreditPiasters > 0 ? (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>من رصيدنا المتاح</span>
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="w-3.5 h-3.5" />
-                    <span>آجل بالكامل (0 كاش)</span>
-                  </>
-                )}
+                {advanceCreditPiasters > 0 ? <Sparkles className="w-3.5 h-3.5 shrink-0" /> : <CreditCard className="w-3.5 h-3.5 shrink-0" />}
+                <span>{advanceCreditPiasters > 0 ? 'من رصيدنا المتاح' : 'آجل بالكامل'}</span>
               </button>
+              {advanceCreditPiasters > 0 && advanceCreditPiasters < netCostPiasters && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMode('PAID');
+                    setCustomPaidAmountPiasters(netCostPiasters - advanceCreditPiasters);
+                  }}
+                  className={quickBtnCls(paymentMode === 'PAID' && paidAmountPiasters === netCostPiasters - advanceCreditPiasters)}
+                >
+                  <span>سداد الفرق ({formatMoney(netCostPiasters - advanceCreditPiasters)})</span>
+                </button>
+              )}
+              {supplierDebtPiasters > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMode('PAID');
+                    setCustomPaidAmountPiasters(supplierDebtPiasters + netCostPiasters);
+                  }}
+                  className={quickBtnCls(paymentMode === 'PAID' && paidAmountPiasters === supplierDebtPiasters + netCostPiasters)}
+                >
+                  <span>تصفية الدين ({formatMoney(supplierDebtPiasters + netCostPiasters)})</span>
+                </button>
+              )}
             </div>
 
-            {/* Credit Notice Details */}
-            {paymentMode === 'CREDIT' && (
-              <div className="p-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-[10.5px] mt-1 space-y-1">
-                {advanceCreditPiasters > 0 ? (
-                  <div className="p-1.5 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/40 text-paid-dark dark:text-paid-bright rounded flex flex-col gap-1">
-                    <div className="flex items-center gap-1 font-bold">
-                      <Sparkles className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
-                      <span>خصم تلقائي من رصيدنا المتاح (0 كاش من الخزينة):</span>
-                    </div>
-                    <span className="leading-tight">
-                      {netCostPiasters <= advanceCreditPiasters
-                        ? `الفاتورة هتتخصم بالكامل من رصيدنا السابق. المتبقي لنا بعد الخصم: ${formatMoney(advanceCreditPiasters - netCostPiasters)}.`
-                        : `هيتم استهلاك كامل رصيدنا السابق (${formatMoney(advanceCreditPiasters)})، والمتبقي (${formatMoney(netCostPiasters - advanceCreditPiasters)}) هيتسجل دين علينا للمورد.`}
-                    </span>
-                    {netCostPiasters > advanceCreditPiasters && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPaymentMode('PAID');
-                          setCustomPaidAmountPiasters(netCostPiasters - advanceCreditPiasters);
-                        }}
-                        className="self-start mt-0.5 px-2 py-0.5 rounded bg-paid dark:bg-paid-bright dark:text-surface-dark text-white text-[10px] font-bold cursor-pointer hover:bg-paid/90 transition-colors"
-                      >
-                        دفع الفرق كاش الآن ({formatMoney(netCostPiasters - advanceCreditPiasters)})
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="p-1.5 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn-dark dark:text-warn-bright rounded flex items-center gap-1.5">
-                    <CreditCard className="w-3.5 h-3.5 shrink-0" />
-                    <span>
-                      {supplierDebtPiasters > 0
-                        ? `الفاتورة بالكامل ستُضاف للدين القديم، فيصبح إجمالي المديونية ${formatMoney(supplierDebtPiasters + netCostPiasters)}.`
-                        : `هيتسجل المبلغ كله في دفتر حساب المورد الآجل (${formatMoney(netCostPiasters)}).`}
-                    </span>
-                  </div>
-                )}
+            {/* Remaining amount */}
+            <div className={`p-3 rounded-xl border flex flex-col gap-1 ${SETTLEMENT_TONE_CLS[settlementTone]}`}>
+              <div className="flex justify-between items-baseline gap-3 flex-wrap">
+                <span className="font-bold text-xs">{settlementLabel}</span>
+                <span className="t-kpi-lg font-mono whitespace-nowrap">
+                  {excessPaidPiasters > 0 ? '+' : ''}
+                  {formatMoney(settlementAmount)}
+                </span>
               </div>
+              <span className="text-xs leading-relaxed">{settlementNote}</span>
+            </div>
+            {supplierMissing && (
+              <p className="text-xs font-bold text-warn dark:text-warn-bright m-0 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>اختر المورد من أعلى الصفحة عشان نقدر نسجل المتبقي أو الزيادة على حسابه.</span>
+              </p>
             )}
 
-            {/* Cash Payment Section */}
-            {paymentMode === 'PAID' && (
-              <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl space-y-2 mt-1 text-[11px]">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-xs shrink-0">المبلغ اللي دفعته كاش:</span>
-                  <div className="w-36 sm:w-40">
-                    <MoneyInput
-                      valuePiasters={customPaidAmountPiasters !== null ? customPaidAmountPiasters : netCostPiasters}
-                      onChangePiasters={(val) => setCustomPaidAmountPiasters(val)}
-                      className="!h-8.5 !px-2 !py-0 !text-center !text-xs font-mono font-bold !bg-surface dark:!bg-surface-dark !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark shadow-2xs focus:border-paid"
-                    />
-                  </div>
-                </div>
+            {/* Cash source: only when cash actually leaves */}
+            {paymentMode === 'PAID' && paidAmountPiasters > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block">
+                  مصدر النقدية المسددة للمورد
+                </label>
+                <CustomSelect
+                  value={paymentSource}
+                  onChange={(val) => setPaymentSource(val as 'cash_drawer' | 'external_cash')}
+                  size="lg"
+                  options={[
+                    { value: 'cash_drawer', label: 'من درج كاشير المحل (يخصم من نقدية الدرج)' },
+                    { value: 'external_cash', label: 'كاش خارجي من صاحب المحل (لا يخصم من الدرج)' },
+                  ]}
+                />
 
-                {/* Quick Shortcuts */}
-                <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-line/60 dark:border-line-dark/60">
-                  <button
-                    type="button"
-                    onClick={() => setCustomPaidAmountPiasters(0)}
-                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
-                      paidAmountPiasters === 0
-                        ? 'bg-ink dark:bg-surface-dark-3 text-white dark:text-ink-dark'
-                        : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                    }`}
-                  >
-                    0 كاش
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setCustomPaidAmountPiasters(netCostPiasters)}
-                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
-                      paidAmountPiasters === netCostPiasters
-                        ? 'bg-ink dark:bg-surface-dark-3 text-white dark:text-ink-dark'
-                        : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                    }`}
-                  >
-                    الفاتورة كاملة ({formatMoney(netCostPiasters)})
-                  </button>
-
-                  {advanceCreditPiasters > 0 && advanceCreditPiasters < netCostPiasters && (
-                    <button
-                      type="button"
-                      onClick={() => setCustomPaidAmountPiasters(netCostPiasters - advanceCreditPiasters)}
-                      className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
-                        paidAmountPiasters === netCostPiasters - advanceCreditPiasters
-                          ? 'bg-paid dark:bg-paid-bright dark:text-surface-dark text-white'
-                          : 'bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid/40 text-paid-dark dark:text-paid-bright hover:bg-paid hover:text-white'
-                      }`}
-                    >
-                      سداد الفرق ({formatMoney(netCostPiasters - advanceCreditPiasters)})
-                    </button>
-                  )}
-
-                  {supplierDebtPiasters > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setCustomPaidAmountPiasters(supplierDebtPiasters + netCostPiasters)}
-                      className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
-                        paidAmountPiasters === supplierDebtPiasters + netCostPiasters
-                          ? 'bg-brand dark:bg-brand-bright dark:text-surface-dark text-white'
-                          : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-brand-dark dark:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-soft/20'
-                      }`}
-                    >
-                      تصفية الدين بالكامل ({formatMoney(supplierDebtPiasters + netCostPiasters)})
-                    </button>
-                  )}
-                </div>
-
-                {/* Payment Source Selection */}
-                <div className="pt-2 border-t border-line/60 dark:border-line-dark/60 space-y-1">
-                  <label className="text-[10.5px] font-bold text-ink-muted dark:text-ink-dark-muted block">
-                    مصدر النقدية المسددة للمورد:
-                  </label>
-                  <CustomSelect
-                    value={paymentSource}
-                    onChange={(val) => setPaymentSource(val as any)}
-                    options={[
-                      { value: 'cash_drawer', label: 'من درج كاشير المحل (يخصم من نقدية الدرج)' },
-                      { value: 'external_cash', label: 'كاش خارجي من صاحب المحل (لا يخصم من الدرج)' },
-                    ]}
-                  />
-
-                  {paymentSource === 'cash_drawer' && (
-                    <div className="space-y-1 mt-1">
-                      <div className="p-1.5 rounded-lg border text-[10.5px] bg-surface dark:bg-surface-dark border-line dark:border-line-dark flex items-center justify-between">
-                        <span className="text-ink-muted dark:text-ink-dark-muted font-bold">كاش الدرج المتوفر حالياً:</span>
-                        <span className={`font-mono font-black ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
-                          {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
-                        </span>
-                      </div>
-
-                      {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (paidAmountPiasters > 0 && paidAmountPiasters > liveDrawerCashPiasters)) && (
-                        <div className="p-2 rounded-lg border text-[10px] bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-0.5">
-                          <div className="flex items-center gap-1 font-bold">
-                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                            <span>
-                              {liveDrawerCashPiasters <= 0
-                                ? 'درج الكاشير فارغ (0.00 ج.م)!'
-                                : 'رصيد نقدية الدرج غير كافٍ!'}
-                            </span>
-                          </div>
-                          <p className="leading-relaxed">
-                            {liveDrawerCashPiasters <= 0
-                              ? 'لا يمكن سحب نقدية من درج فارغ لسداد الفاتورة. إذا كان السداد من مالك المحل، يرجى اختيار «كاش خارجي من صاحب المحل» أو تسجيل الفاتورة آجلة.'
-                              : `المبلغ المطلوب (${formatArabicCurrency(paidAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي من صاحب المحل» أو خفض المبلغ المسدد.`}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {excessPaidPiasters > 0 && (
-                  <div className="p-1.5 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid/40 rounded-lg text-paid-dark dark:text-paid-bright text-[10px] flex flex-col gap-0.5">
-                    <div className="flex justify-between items-center font-bold">
-                      <span className="flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-paid dark:text-paid-bright" />
-                        <span>فلوس زيادة سايبينها تحت الحساب:</span>
+                {paymentSource === 'cash_drawer' && (
+                  <>
+                    <div className="px-3 py-2 rounded-lg border text-xs bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark flex items-center justify-between gap-3">
+                      <span className="text-ink-muted dark:text-ink-dark-muted font-bold">كاش الدرج المتوفر حالياً:</span>
+                      <span className={`font-mono font-black tabular-nums whitespace-nowrap text-sm ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
+                        {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
                       </span>
-                      <span className="font-mono font-extrabold text-paid dark:text-paid-bright">+{formatMoney(excessPaidPiasters)}</span>
                     </div>
-                    <span className="leading-tight">
-                      {supplierDebtPiasters > 0
-                        ? 'الزيادة هتتخصم علطول من الحساب القديم، والباقي يترحل رصيد لنا.'
-                        : 'الزيادة هتتسجل كرصيد لنا عند الشركة تتخصم من فواتير البضاعة اللي جاية.'}
-                    </span>
-                  </div>
-                )}
 
-                {paidAmountPiasters < netCostPiasters && (
-                  <div className="flex justify-between text-danger dark:text-danger-bright font-bold text-[10.5px]">
-                    <span>{advanceCreditPiasters > 0 ? 'المتبقي يُخصم من رصيدنا:' : 'الباقي علينا آجل:'}</span>
-                    <span className="font-mono">{formatMoney(remainingAmountPiasters)}</span>
-                  </div>
+                    {cashDrawerBlocked && (
+                      <div className="p-3 rounded-lg border text-xs bg-danger-soft dark:bg-danger-dark-soft border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>
+                            {(liveDrawerCashPiasters ?? 0) <= 0
+                              ? 'درج الكاشير فارغ (0.00 ج.م)!'
+                              : 'رصيد نقدية الدرج غير كافٍ!'}
+                          </span>
+                        </div>
+                        <p className="leading-relaxed m-0">
+                          {(liveDrawerCashPiasters ?? 0) <= 0
+                            ? 'لا يمكن سحب نقدية من درج فارغ لسداد الفاتورة. إذا كان السداد من مالك المحل، يرجى اختيار «كاش خارجي من صاحب المحل» أو تسجيل الفاتورة آجلة.'
+                            : `المبلغ المطلوب (${formatArabicCurrency(paidAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters ?? 0)}). يرجى اختيار «كاش خارجي من صاحب المحل» أو خفض المبلغ المسدد.`}
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
 
-            {/* Interactive Supplier Ledger Impact Card */}
+            {/* Supplier account before / after */}
             {selectedSupplier && (
-              <div className="p-2.5 rounded-xl border border-line dark:border-line-dark bg-surface-2/80 dark:bg-surface-dark-2/80 space-y-1.5 mt-1.5">
-                <div className="flex items-center justify-between text-[10.5px] font-bold border-b border-line dark:border-line-dark pb-1">
-                  <span className="text-ink dark:text-ink-dark flex items-center gap-1">
-                    <Receipt className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                    <span>كشف حساب المورد بعد العملية:</span>
-                  </span>
-                  <span className="font-mono text-[11px]">
-                    {selectedSupplier.balancePiasters < 0 ? (
-                      <span className="text-paid dark:text-paid-bright">رصيد متاح لنا: {formatMoney(Math.abs(selectedSupplier.balancePiasters))}</span>
-                    ) : selectedSupplier.balancePiasters > 0 ? (
-                      <span className="text-warn-dark dark:text-warn-bright">مديونية قديمة علينا: {formatMoney(selectedSupplier.balancePiasters)}</span>
-                    ) : (
-                      <span className="text-ink-muted dark:text-ink-dark-muted">الحساب السابق خالص</span>
-                    )}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                  <div className="bg-surface dark:bg-surface-dark p-1 rounded-lg border border-line dark:border-line-dark flex flex-col">
-                    <span className="text-ink-muted dark:text-ink-dark-muted">المدفوع كاش الآن:</span>
-                    <span className="font-mono font-bold text-ink dark:text-ink-dark text-[11px] mt-0.5">{formatMoney(paidAmountPiasters)}</span>
-                  </div>
-                  <div className="bg-surface dark:bg-surface-dark p-1 rounded-lg border border-line dark:border-line-dark flex flex-col">
-                    <span className="text-ink-muted dark:text-ink-dark-muted">
-                      {paidAmountPiasters >= netCostPiasters
-                        ? (paidAmountPiasters > netCostPiasters ? 'زيادة تضاف لرصيدنا:' : 'المتبقي من الفاتورة:')
-                        : (advanceCreditPiasters > 0 ? 'يُخصم من رصيدنا:' : 'المتبقي دين علينا:')
-                      }
-                    </span>
-                    <span className="font-mono font-bold text-ink dark:text-ink-dark text-[11px] mt-0.5">
-                      {paidAmountPiasters > netCostPiasters
-                        ? `+${formatMoney(paidAmountPiasters - netCostPiasters)}`
-                        : advanceCreditPiasters > 0
-                        ? formatMoney(Math.min(remainingAmountPiasters, advanceCreditPiasters))
-                        : formatMoney(remainingAmountPiasters)
-                      }
-                    </span>
-                  </div>
-                </div>
-
-                {/* Final Projected Outcome Banner */}
-                <div className={`p-1.5 rounded-lg border flex items-center justify-between text-[10.5px] font-bold ${
-                  projectedBalance < 0
-                    ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid-dark dark:text-paid-bright border-paid/30 dark:border-paid/40'
-                    : projectedBalance > 0
-                    ? 'bg-warn-soft dark:bg-warn-dark-soft text-warn-dark dark:text-warn-bright border-warn/30 dark:border-warn-bright/30'
-                    : 'bg-paid-soft dark:bg-paid-dark-soft text-paid-dark dark:text-paid-bright border-paid/30 dark:border-paid/40'
-                }`}>
-                  <span className="flex items-center gap-1">
-                    {projectedBalance < 0 ? (
-                      <Sparkles className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
-                    ) : projectedBalance > 0 ? (
-                      <AlertCircle className="w-3.5 h-3.5 text-warn dark:text-warn-bright shrink-0" />
-                    ) : (
-                      <Receipt className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
-                    )}
-                    <span>
-                      {projectedBalance < 0
-                        ? 'الموقف النهائي: رصيد متبقي لنا عند المورد'
-                        : projectedBalance > 0
-                        ? 'الموقف النهائي: إجمالي مديونية علينا للمورد'
-                        : 'الموقف النهائي: الحساب خالص تماماً'}
-                    </span>
-                  </span>
-                  <span className="font-mono text-xs font-extrabold">
-                    {projectedBalance === 0 ? '0.00 ج.م' : formatMoney(Math.abs(projectedBalance))}
-                  </span>
-                </div>
+              <div className="px-3 py-2.5 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between gap-3 flex-wrap text-xs">
+                <span className="font-bold text-ink-muted dark:text-ink-dark-muted">حساب المورد</span>
+                <span className="font-mono tabular-nums flex items-center gap-2 flex-wrap">
+                  <span className="text-ink-muted dark:text-ink-dark-muted">{formatBalanceLabel(currentSupplierBalance)}</span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted">←</span>
+                  <b
+                    className={
+                      projectedBalance > 0
+                        ? 'text-warn dark:text-warn-bright'
+                        : projectedBalance < 0
+                        ? 'text-paid dark:text-paid-bright'
+                        : 'text-ink dark:text-ink-dark'
+                    }
+                  >
+                    {formatBalanceLabel(projectedBalance)}
+                  </b>
+                </span>
               </div>
             )}
-          </div>
-
-          {/* Notes Input */}
-          <div className="pt-2">
-            <label className="text-[10.5px] font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">ملاحظات على الفاتورة</label>
-            <input
-              type="text"
-              placeholder="اكتب أي ملاحظة أو رقم إذن الاستلام..."
-              value={purchaseNotes}
-              onChange={(e) => setPurchaseNotes(e.target.value)}
-              className="w-full h-8 px-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
-            />
-          </div>
+          </section>
         </div>
+      </div>
 
-        {/* Action Buttons (Pinned Bottom) */}
-        <div className="p-3 border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark shrink-0 space-y-1.5 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] dark:shadow-[0_-4px_10px_rgba(0,0,0,0.2)]">
+      {/* Sticky action bar: net payable + primary actions */}
+      <div className="shrink-0 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl px-4 py-3 shadow-card flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col">
+            <span className="text-xs text-ink-muted dark:text-ink-dark-muted">المطلوب دفعه للشركة</span>
+            <span className="t-kpi font-mono whitespace-nowrap text-paid-dark dark:text-paid-bright">
+              {formatMoney(netCostPiasters)}
+            </span>
+          </div>
+          {lineItems.length > 0 && (
+            <span
+              className={`px-2.5 py-1 rounded-full border text-xs font-bold ${
+                SETTLEMENT_TONE_CLS[remainingAmountPiasters > 0 ? 'warn' : 'paid']
+              }`}
+            >
+              {excessPaidPiasters > 0
+                ? 'سداد بزيادة'
+                : remainingAmountPiasters === 0
+                ? 'مسددة بالكامل'
+                : paidAmountPiasters === 0
+                ? 'آجل بالكامل'
+                : 'سداد جزئي'}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             type="button"
-            onClick={onSavePurchase}
-            disabled={
-              lineItems.length === 0 ||
-              (paymentMode === 'PAID' &&
-                paymentSource === 'cash_drawer' &&
-                paidAmountPiasters > 0 &&
-                liveDrawerCashPiasters !== null &&
-                (liveDrawerCashPiasters <= 0 || paidAmountPiasters > liveDrawerCashPiasters))
-            }
-            className="w-full h-10 bg-paid hover:bg-paid-hover dark:bg-paid-bright dark:text-surface-dark dark:hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+            onClick={handleSaveClick}
+            disabled={isSaving || lineItems.length === 0 || cashDrawerBlocked}
+            className="h-11 px-6 bg-paid hover:bg-paid-hover dark:bg-paid-bright dark:text-surface-dark dark:hover:bg-paid-bright-hover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
           >
             <Receipt className="w-4 h-4" />
             <span>حفظ الفاتورة وتزويد رصيد البضاعة</span>
@@ -1890,7 +1767,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           <button
             type="button"
             onClick={onRequestCancel}
-            className="w-full h-8 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            className="h-11 px-5 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-xl text-sm font-semibold transition-colors cursor-pointer"
           >
             إلغاء وتراجع
           </button>

@@ -20,6 +20,30 @@ namespace RafiqPOS.Repositories
             _auditRepo = auditRepo ?? new AuditLogRepository(connectionString);
         }
 
+        private static bool TryGetSaleItemTotal(SQLiteConnection conn, SQLiteTransaction trans, string saleId, string saleItemId, out long totalPiasters)
+        {
+            totalPiasters = 0;
+            using (var cmd = new SQLiteCommand("SELECT total_piasters FROM sale_items WHERE id = @id AND sale_id = @sid LIMIT 1;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@id", saleItemId);
+                cmd.Parameters.AddWithValue("@sid", saleId);
+                object res = cmd.ExecuteScalar();
+                if (res == null || res == DBNull.Value) return false;
+                totalPiasters = Convert.ToInt64(res);
+                return true;
+            }
+        }
+
+        private static long GetRefundedForSaleItem(SQLiteConnection conn, SQLiteTransaction trans, string saleItemId)
+        {
+            using (var cmd = new SQLiteCommand("SELECT COALESCE(SUM(total_piasters), 0) FROM return_items WHERE sale_item_id = @id;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@id", saleItemId);
+                object res = cmd.ExecuteScalar();
+                return res != null && res != DBNull.Value ? Convert.ToInt64(res) : 0;
+            }
+        }
+
         public Return CreateReturnAtomic(Return returnObj)
         {
             if (returnObj == null) throw new ArgumentNullException("returnObj");
@@ -32,10 +56,8 @@ namespace RafiqPOS.Repositories
             {
                 returnObj.Id = Guid.NewGuid().ToString();
             }
-            if (string.IsNullOrEmpty(returnObj.CreatedAt))
-            {
-                returnObj.CreatedAt = DateTime.UtcNow.ToString("o");
-            }
+            // Always stamped by the server (same UTC format as sales); a client time would move the return between business days
+            returnObj.CreatedAt = DateTime.UtcNow.ToString("o");
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -104,6 +126,7 @@ namespace RafiqPOS.Repositories
 
                         // Calculate total and enforce consistency (prevent tampering)
                         long calculatedTotal = 0;
+                        var refundedInRequestBySaleItem = new System.Collections.Generic.Dictionary<string, long>();
                         for (int i = 0; i < returnObj.Items.Count; i++)
                         {
                             var it = returnObj.Items[i];
@@ -127,15 +150,34 @@ namespace RafiqPOS.Repositories
                             decimal lineDec = ((decimal)it.UnitPricePiasters * it.QuantityMilli) / 1000m;
                             long expectedLineTotal = (long)Math.Round(lineDec, 0, MidpointRounding.AwayFromZero);
                             // Invoice-linked line totals are computed by ReturnService from the original sale line
-                            // (proportional, remainder-exact - Audit F-19); returns without an invoice use price x qty.
-                            bool serviceComputed = !string.IsNullOrEmpty(returnObj.SaleId);
+                            // (proportional, remainder-exact - Audit F-19); every other path uses price x qty.
+                            bool serviceComputed = returnObj.TotalsComputedByService;
                             if (!serviceComputed || it.TotalPiasters < 0)
                             {
                                 it.TotalPiasters = expectedLineTotal;
                             }
-                            else if (it.TotalPiasters > expectedLineTotal)
+                            else
                             {
-                                it.TotalPiasters = expectedLineTotal;
+                                // The service total (remainder-exact for the line that exhausts the sold quantity) is trusted,
+                                // bounded by what is still refundable on the original line; a rounded price x qty cap would
+                                // refund less than was paid. Without a resolvable original line the price-based cap applies.
+                                long origLineTotal;
+                                if (!string.IsNullOrEmpty(it.SaleItemId) && TryGetSaleItemTotal(conn, trans, returnObj.SaleId, it.SaleItemId, out origLineTotal))
+                                {
+                                    long refundedBefore = GetRefundedForSaleItem(conn, trans, it.SaleItemId);
+                                    long inRequest;
+                                    refundedInRequestBySaleItem.TryGetValue(it.SaleItemId, out inRequest);
+                                    long remainingValue = Math.Max(0, origLineTotal - refundedBefore - inRequest);
+                                    if (it.TotalPiasters > remainingValue)
+                                    {
+                                        it.TotalPiasters = remainingValue;
+                                    }
+                                    refundedInRequestBySaleItem[it.SaleItemId] = inRequest + it.TotalPiasters;
+                                }
+                                else if (it.TotalPiasters > expectedLineTotal)
+                                {
+                                    it.TotalPiasters = expectedLineTotal;
+                                }
                             }
                             calculatedTotal += it.TotalPiasters;
                         }
@@ -167,16 +209,14 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // F-15: Link return to current active shift if not already provided
-                        if (string.IsNullOrEmpty(returnObj.ShiftId))
+                        // F-15: The return always belongs to the server's current open shift; a client shift id is ignored
+                        returnObj.ShiftId = null;
+                        using (var shiftCmd = new SQLiteCommand("SELECT id FROM shifts WHERE status = 'open' ORDER BY opened_at DESC LIMIT 1;", conn, trans))
                         {
-                            using (var shiftCmd = new SQLiteCommand("SELECT id FROM shifts WHERE status = 'open' ORDER BY opened_at DESC LIMIT 1;", conn, trans))
+                            object openShiftId = shiftCmd.ExecuteScalar();
+                            if (openShiftId != null && openShiftId != DBNull.Value)
                             {
-                                object openShiftId = shiftCmd.ExecuteScalar();
-                                if (openShiftId != null && openShiftId != DBNull.Value)
-                                {
-                                    returnObj.ShiftId = openShiftId.ToString();
-                                }
+                                returnObj.ShiftId = openShiftId.ToString();
                             }
                         }
 

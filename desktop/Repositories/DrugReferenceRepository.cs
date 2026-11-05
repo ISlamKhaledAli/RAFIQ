@@ -411,6 +411,23 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        /// <summary>Supplier's configured expiry-return credit in basis points, or null when none is configured.</summary>
+        public int? GetSupplierExpiryCreditBps(string supplierId)
+        {
+            if (string.IsNullOrWhiteSpace(supplierId)) return null;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("SELECT expiry_return_credit_bps FROM suppliers WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", supplierId.Trim());
+                    object val = cmd.ExecuteScalar();
+                    if (val == null || val == DBNull.Value) return null;
+                    return Convert.ToInt32(val);
+                }
+            }
+        }
+
         public List<ExpiryReturnableBatch> GetExpiryReturnableBatches(string supplierId = null, int? customWindowDays = null)
         {
             var list = new List<ExpiryReturnableBatch>();

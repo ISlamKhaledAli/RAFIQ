@@ -142,6 +142,31 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        public const int HolderNameMaxLength = 60;
+
+        // Trim, drop control characters (incl. newlines/tabs), collapse runs of spaces and cap the length
+        public static string NormalizeHolderName(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+            var sb = new System.Text.StringBuilder(value.Length);
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (char.IsControl(c) || c == '\u200E' || c == '\u200F' || c == '\u202A' || c == '\u202B' || c == '\u202C' || c == '\u202D' || c == '\u202E')
+                {
+                    c = ' ';
+                }
+                if (c == ' ' && (sb.Length == 0 || sb[sb.Length - 1] == ' ')) continue;
+                sb.Append(c);
+            }
+            string cleaned = sb.ToString().Trim();
+            if (cleaned.Length > HolderNameMaxLength)
+            {
+                cleaned = cleaned.Substring(0, HolderNameMaxLength).TrimEnd();
+            }
+            return cleaned;
+        }
+
         public DigitalAccount SaveAccount(DigitalAccount account)
         {
             if (account == null) throw new ArgumentNullException("account");
@@ -159,6 +184,31 @@ namespace RafiqPOS.Repositories
                         if (string.IsNullOrEmpty(account.Id))
                         {
                             account.Id = Guid.NewGuid().ToString();
+                        }
+
+                        // Holder name is cleaned here (the authoritative boundary): null means "leave unchanged" on update
+                        string holderName = account.HolderName == null ? null : NormalizeHolderName(account.HolderName);
+                        account.HolderName = holderName;
+
+                        // The first active account of a type becomes its main account; an inactive account is never the main one
+                        if (!account.IsActive)
+                        {
+                            account.IsDefault = false;
+                        }
+                        else if (!account.IsDefault)
+                        {
+                            bool hasOtherActive = false;
+                            string otherSql = "SELECT 1 FROM digital_accounts WHERE type = @type AND is_active = 1 AND id != @id LIMIT 1;";
+                            using (var oCmd = new SQLiteCommand(otherSql, conn, trans))
+                            {
+                                oCmd.Parameters.AddWithValue("@type", account.Type ?? "wallet");
+                                oCmd.Parameters.AddWithValue("@id", account.Id);
+                                hasOtherActive = oCmd.ExecuteScalar() != null;
+                            }
+                            if (!hasOtherActive)
+                            {
+                                account.IsDefault = true;
+                            }
                         }
 
                         // If setting as default, unset other defaults for the same type
@@ -196,11 +246,11 @@ namespace RafiqPOS.Repositories
 
                             string insertSql = @"
                                 INSERT INTO digital_accounts (
-                                    id, name, type, provider, account_number, phone_number, identifier, balance_piasters, low_balance_alert_piasters,
+                                    id, name, type, provider, account_number, holder_name, phone_number, identifier, balance_piasters, low_balance_alert_piasters,
                                     daily_limit_piasters, monthly_limit_piasters,
                                     is_default, is_active, notes, created_at, updated_at
                                 ) VALUES (
-                                    @id, @name, @type, @provider, @accountNumber, @phone, @ident, @balance, @lowAlert,
+                                    @id, @name, @type, @provider, @accountNumber, @holder, @phone, @ident, @balance, @lowAlert,
                                     @dailyLimit, @monthlyLimit,
                                     @isDefault, @isActive, @notes, @now, @now
                                 );";
@@ -211,6 +261,7 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@type", account.Type ?? "wallet");
                                 cmd.Parameters.AddWithValue("@provider", account.Provider ?? "vodafone_cash");
                                 cmd.Parameters.AddWithValue("@accountNumber", (object)account.AccountNumber ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@holder", holderName ?? "");
                                 cmd.Parameters.AddWithValue("@phone", (object)account.PhoneNumber ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@ident", (object)account.Identifier ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@balance", account.BalancePiasters);
@@ -250,6 +301,7 @@ namespace RafiqPOS.Repositories
                                     type = @type,
                                     provider = @provider,
                                     account_number = @accountNumber,
+                                    holder_name = COALESCE(@holder, holder_name),
                                     phone_number = @phone,
                                     identifier = @ident,
                                     low_balance_alert_piasters = @lowAlert,
@@ -266,6 +318,7 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@type", account.Type ?? "wallet");
                                 cmd.Parameters.AddWithValue("@provider", account.Provider ?? "vodafone_cash");
                                 cmd.Parameters.AddWithValue("@accountNumber", (object)account.AccountNumber ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@holder", (object)holderName ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@phone", (object)account.PhoneNumber ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@ident", (object)account.Identifier ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@lowAlert", account.LowBalanceAlertPiasters > 0 ? account.LowBalanceAlertPiasters : 50000);
@@ -304,6 +357,85 @@ namespace RafiqPOS.Repositories
                     }
                 }
             }
+        }
+
+        // Makes one active account the main one of its type; touches only is_default (no balances, limits or other fields)
+        public DigitalAccount SetDefaultAccount(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("معرف الحساب مطلوب");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        string name = null;
+                        string type = null;
+                        bool isActive = false;
+                        bool exists = false;
+                        using (var getCmd = new SQLiteCommand("SELECT name, type, is_active FROM digital_accounts WHERE id = @id LIMIT 1;", conn, trans))
+                        {
+                            getCmd.Parameters.AddWithValue("@id", id);
+                            using (var reader = getCmd.ExecuteReader())
+                            {
+                                if (reader.Read())
+                                {
+                                    exists = true;
+                                    name = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                                    type = reader.IsDBNull(1) ? "wallet" : reader.GetString(1);
+                                    isActive = !reader.IsDBNull(2) && Convert.ToInt32(reader.GetValue(2)) == 1;
+                                }
+                            }
+                        }
+
+                        if (!exists)
+                        {
+                            throw new InvalidOperationException("حساب المحفظة غير موجود في قاعدة البيانات");
+                        }
+                        if (!isActive)
+                        {
+                            throw new InvalidOperationException("لا يمكن جعل حساب موقوف أو مؤرشف هو الحساب الرئيسي");
+                        }
+
+                        string now = DateTime.UtcNow.ToString("o");
+                        using (var uCmd = new SQLiteCommand("UPDATE digital_accounts SET is_default = 0 WHERE type = @type AND id != @id AND is_default != 0;", conn, trans))
+                        {
+                            uCmd.Parameters.AddWithValue("@type", type);
+                            uCmd.Parameters.AddWithValue("@id", id);
+                            uCmd.ExecuteNonQuery();
+                        }
+                        using (var sCmd = new SQLiteCommand("UPDATE digital_accounts SET is_default = 1, updated_at = @now WHERE id = @id;", conn, trans))
+                        {
+                            sCmd.Parameters.AddWithValue("@now", now);
+                            sCmd.Parameters.AddWithValue("@id", id);
+                            sCmd.ExecuteNonQuery();
+                        }
+
+                        if (_auditRepo != null)
+                        {
+                            _auditRepo.Log(conn, trans, new AuditLog
+                            {
+                                UserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "system",
+                                Action = "edit",
+                                EntityType = "digital_account",
+                                EntityId = id,
+                                DetailsJson = string.Format("تعيين الحساب الرئيسي لمعاملات {0}: {1}", type == "instapay" ? "إنستاباي" : "المحافظ الإلكترونية", name),
+                                CreatedAt = now
+                            });
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
+            return GetAccountById(id);
         }
 
         public void DeleteAccount(string id)
@@ -1027,10 +1159,15 @@ namespace RafiqPOS.Repositories
 
             string phone = null;
             string ident = null;
+            string holder = null;
 
             for (int i = 0; i < r.FieldCount; i++)
             {
-                if (string.Equals(r.GetName(i), "daily_limit_piasters", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(r.GetName(i), "holder_name", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (r[i] != DBNull.Value) holder = r[i].ToString();
+                }
+                else if (string.Equals(r.GetName(i), "daily_limit_piasters", StringComparison.OrdinalIgnoreCase))
                 {
                     if (r[i] != DBNull.Value) dailyLimit = Convert.ToInt64(r[i]);
                 }
@@ -1055,6 +1192,7 @@ namespace RafiqPOS.Repositories
                 Type = accType,
                 Provider = r["provider"].ToString(),
                 AccountNumber = r["account_number"] != DBNull.Value ? r["account_number"].ToString() : null,
+                HolderName = holder ?? "",
                 BalancePiasters = Convert.ToInt64(r["balance_piasters"]),
                 LowBalanceAlertPiasters = Convert.ToInt64(r["low_balance_alert_piasters"]),
                 DailyLimitPiasters = dailyLimit,

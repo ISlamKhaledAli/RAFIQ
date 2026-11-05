@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '../bridge/ipc';
 
 interface SupervisorPromptModalProps {
@@ -19,11 +19,13 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleNumberClick = useCallback((digit: string) => {
     if (loading || pin.length >= 8) return;
     setPin((prev) => prev + digit);
     setError('');
+    inputRef.current?.focus();
   }, [loading, pin.length]);
 
   const handleBackspace = useCallback(() => {
@@ -70,15 +72,19 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key >= '0' && e.key <= '9') {
+      const typingInField = e.target === inputRef.current;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+      } else if (typingInField) {
+        // The visible input handles digits, Backspace and Enter itself
+        return;
+      } else if (e.key >= '0' && e.key <= '9') {
         handleNumberClick(e.key);
       } else if (e.key === 'Backspace') {
         handleBackspace();
       } else if (e.key === 'Enter') {
         void handleSubmit();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        onCancel();
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -109,7 +115,7 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
               </svg>
             </div>
             <div>
-              <h2 className="text-base font-black text-ink dark:text-ink-dark">موافقة مدير النظام مطلوبة</h2>
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">موافقة مدير النظام مطلوبة</h2>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">{actionTitle}</p>
             </div>
           </div>
@@ -132,24 +138,29 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
             </div>
           )}
 
-          {/* Dynamic Dots Display (4 to 8 digits) */}
-          <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-3 flex items-center justify-center h-12 shadow-2xs">
-            <div className="flex items-center gap-2.5" dir="ltr">
-              {Array.from({ length: Math.max(4, pin.length) }).map((_, idx) => {
-                const filled = idx < pin.length;
-                return (
-                  <div
-                    key={idx}
-                    className={`w-3.5 h-3.5 rounded-full transition-all duration-150 ${
-                      filled
-                        ? 'bg-paid dark:bg-paid-bright scale-110 shadow-xs shadow-paid/50'
-                        : 'border-2 border-line dark:border-line-dark bg-transparent'
-                    }`}
-                  />
-                );
-              })}
-            </div>
-          </div>
+          {/* Masked PIN input (visible, with caret) */}
+          <input
+            ref={inputRef}
+            type="password"
+            inputMode="numeric"
+            maxLength={8}
+            autoFocus
+            autoComplete="off"
+            aria-label="الرقم السري (PIN)"
+            value={pin}
+            readOnly={loading}
+            onChange={(e) => {
+              setPin(e.target.value.replace(/\D/g, '').slice(0, 8));
+              setError('');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void handleSubmit();
+              }
+            }}
+            className="w-full h-12 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 text-center text-xl font-mono text-ink dark:text-ink-dark shadow-2xs caret-brand dark:caret-brand-bright focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+          />
 
           {error && (
             <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 text-danger dark:text-danger-bright text-xs px-3 py-2 rounded-lg flex items-center gap-2">

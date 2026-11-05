@@ -19,3 +19,10 @@ export function createAttemptKey(prefix: string): { current: () => string; compl
     },
   };
 }
+
+// Server rejection when the same key is reused for different data (see Common/IdempotencyGuard.cs); the key must then be rotated.
+const IDEMPOTENCY_MISMATCH_MARKER = 'نفس رقم العملية لطلب مختلف';
+
+export function isIdempotencyMismatchError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes(IDEMPOTENCY_MISMATCH_MARKER);
+}

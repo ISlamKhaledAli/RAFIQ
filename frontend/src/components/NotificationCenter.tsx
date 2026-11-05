@@ -63,12 +63,12 @@ export const NotificationBellButton: React.FC<{
       onClick={onClick}
       className={`relative group flex items-center justify-center w-8.5 h-8.5 min-w-[34px] min-h-[34px] rounded-xl border transition-all cursor-pointer active:scale-95 ${buttonStyle}`}
       title={count > 0 ? `مركز الإشعارات والتنبيهات (${count} تنبيه نشط)` : 'مركز الإشعارات (لا توجد تنبيهات)'}
-      aria-label="مركز الإشعارات"
+      aria-label={count > 0 ? `مركز الإشعارات، ${count} تنبيه نشط` : 'مركز الإشعارات'}
     >
       <Bell className={`w-4 h-4 shrink-0 transition-transform ${iconColor}`} />
       {count > 0 && (
         <span
-          className={`absolute -top-1.5 -end-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black font-mono flex items-center justify-center text-white border-2 border-surface dark:border-surface-dark shadow-xs pointer-events-none select-none ${
+          className={`absolute -top-2 -end-2 min-w-[20px] h-5 px-1 rounded-full text-micro font-black font-mono flex items-center justify-center text-white border-2 border-surface dark:border-surface-dark shadow-xs pointer-events-none select-none ${
             hasCritical ? 'bg-danger' : 'bg-warn'
           }`}
         >
@@ -128,12 +128,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
               <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-paid-soft">
                 <Bell className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <span>مركز التنبيهات والإشعارات</span>
-                <span className="text-[10px] bg-white/20 text-paid-soft font-mono px-2 py-0.5 rounded-full font-bold">
-                  {notifications.length}
-                </span>
-              </h3>
+              <h3 className="t-card-title text-white m-0">مركز التنبيهات والإشعارات</h3>
             </div>
             <button
               type="button"
@@ -159,7 +154,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                   key={item.id}
                   className={`p-3 rounded-xl border text-right transition-all shadow-2xs relative flex flex-col gap-2 ${
                     item.type === 'critical'
-                      ? 'bg-danger-soft/90 dark:bg-danger-dark-soft/90 border-danger-border dark:border-danger/30 text-danger-ink dark:text-danger'
+                      ? 'bg-danger-soft/90 dark:bg-danger-dark-soft/90 border-danger-border dark:border-danger/30 text-danger-ink dark:text-danger-bright'
                       : item.type === 'warning'
                       ? 'bg-warn-soft/90 dark:bg-warn-dark-soft/90 border-warn-border dark:border-warn/30 text-ink dark:text-ink-dark'
                       : item.type === 'info'
@@ -177,11 +172,11 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                           <span className="text-xs font-bold text-ink dark:text-ink-dark">{item.title}</span>
                           {item.badge && (
                             <span
-                              className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-md ${
+                              className={`text-micro font-bold px-1.5 py-0.2 rounded-md ${
                                 item.type === 'critical'
                                   ? 'bg-danger text-white'
                                   : item.type === 'warning'
-                                  ? 'bg-warn text-white'
+                                  ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40'
                                   : 'bg-blue-600 text-white'
                               }`}
                             >
@@ -189,7 +184,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                             </span>
                           )}
                         </div>
-                        <p className="text-[11.5px] text-ink-muted dark:text-ink-dark-muted leading-relaxed mt-1 font-medium whitespace-pre-line">
+                        <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed mt-1 font-medium whitespace-pre-line">
                           {item.message}
                         </p>
                       </div>
@@ -210,12 +205,12 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                   {/* Actions / Live Counter footer */}
                   <div className="flex items-center justify-between pt-1 border-t border-black/5 dark:border-white/10 mt-1 text-xs">
                     {item.countdown ? (
-                      <div className="flex items-center gap-1 font-mono text-[11px] font-bold text-danger dark:text-danger-bright">
+                      <div className="flex items-center gap-1 font-mono text-micro font-bold text-danger dark:text-danger-bright">
                         <Clock className="w-3.5 h-3.5" />
                         <span>متبقي: {item.countdown}</span>
                       </div>
                     ) : (
-                      <span className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted">تنبيه نظام معتمد</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted">تنبيه نظام معتمد</span>
                     )}
 
                     {item.actionLabel && item.onAction && (
@@ -225,7 +220,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                           item.onAction?.();
                           onCloseDrawer();
                         }}
-                        className="bg-brand-dark hover:bg-brand text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer"
+                        className="bg-brand-dark hover:bg-brand text-white text-micro font-bold px-3 py-1 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer"
                       >
                         {item.actionLabel}
                       </button>
@@ -281,18 +276,18 @@ export const CompactAlertTickerBar: React.FC<{
 
   return (
     <div
-      className={`h-[34px] px-4 flex items-center justify-between text-[11.5px] font-medium shrink-0 select-none shadow-2xs animate-in slide-in-from-top-1 duration-150 ${barBg}`}
+      className={`h-[34px] px-4 flex items-center justify-between text-micro font-medium shrink-0 select-none shadow-2xs animate-in slide-in-from-top-1 duration-150 ${barBg}`}
     >
       {/* Right side: Badge + Message + Cycling */}
       <div className="flex items-center gap-2.5 overflow-hidden">
         {/* Priority Badge */}
         {current.badge && (
           <span
-            className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 shadow-2xs ${
+            className={`text-micro font-bold px-2 py-0.5 rounded-full shrink-0 shadow-2xs ${
               isCritical
                 ? 'bg-danger text-white'
                 : isWarning
-                ? 'bg-warn text-white'
+                ? 'bg-warn text-white dark:bg-warn-bright dark:text-surface-dark'
                 : isInfo
                 ? 'bg-blue-600 text-white'
                 : 'bg-paid text-white'
@@ -307,18 +302,18 @@ export const CompactAlertTickerBar: React.FC<{
 
         {/* Live Countdown if present */}
         {current.countdown && (
-          <span className="font-mono font-bold bg-surface/80 dark:bg-danger-dark-soft px-2 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-[11px] shrink-0 shadow-2xs">
+          <span className="font-mono font-bold bg-surface/80 dark:bg-danger-dark-soft px-2 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-micro shrink-0 shadow-2xs">
             متبقي: {current.countdown}
           </span>
         )}
 
         {/* Multi-notification ticker indicator (e.g. 1/3) */}
         {notifications.length > 1 && (
-          <div className="flex items-center gap-1 bg-black/5 dark:bg-white/10 px-2 py-0.5 rounded-md font-mono text-[10.5px] font-bold shrink-0">
+          <div className="flex items-center gap-1 bg-black/5 dark:bg-white/10 px-2 py-0.5 rounded-md font-mono text-micro font-bold shrink-0">
             <button
               type="button"
               onClick={handlePrev}
-              className="hover:text-black p-0.5 cursor-pointer"
+              className="hover:text-black dark:hover:text-ink-dark p-0.5 cursor-pointer"
               title="السابق"
             >
               <ChevronRight className="w-3 h-3" />
@@ -329,7 +324,7 @@ export const CompactAlertTickerBar: React.FC<{
             <button
               type="button"
               onClick={handleNext}
-              className="hover:text-black p-0.5 cursor-pointer"
+              className="hover:text-black dark:hover:text-ink-dark p-0.5 cursor-pointer"
               title="التالي"
             >
               <ChevronLeft className="w-3 h-3" />
@@ -344,7 +339,7 @@ export const CompactAlertTickerBar: React.FC<{
           <button
             type="button"
             onClick={current.onAction}
-            className={`text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
+            className={`text-white text-micro font-bold px-3 py-1 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
               isCritical
                 ? 'bg-danger hover:bg-danger/90'
                 : isWarning
@@ -362,10 +357,10 @@ export const CompactAlertTickerBar: React.FC<{
           <button
             type="button"
             onClick={onOpenDrawer}
-            className="text-[11px] font-bold underline hover:opacity-80 px-1 cursor-pointer flex items-center gap-1"
+            className="text-micro font-bold underline hover:opacity-80 px-1 cursor-pointer flex items-center gap-1"
           >
             <Layers className="w-3 h-3" />
-            <span>عرض الكل ({notifications.length})</span>
+            <span>عرض الكل</span>
           </button>
         )}
 

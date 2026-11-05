@@ -5,6 +5,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Printing;
 using System.Drawing.Text;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using RafiqPOS.Common;
 using RafiqPOS.Models;
 
@@ -495,40 +496,30 @@ namespace RafiqPOS.Services
                 return new PrintResult { Success = false, Message = "سلة الطاولة فارغة." };
             }
 
-            // Update table status to bill_printed so floor map highlights it
-            if (DatabaseService.Tables != null && table.Status == "occupied")
+            HeldSale held = null;
+            if (!string.IsNullOrWhiteSpace(table.ActiveHeldSaleId) && DatabaseService.HeldSaleRepo != null)
             {
-                try
-                {
-                    DatabaseService.Tables.SetTableStatus(table.Id, "bill_printed");
-                }
-                catch { }
+                held = DatabaseService.HeldSaleRepo.GetHeldSaleById(table.ActiveHeldSaleId);
+            }
+            if (held == null)
+            {
+                Logger.Warn("تعذر طباعة الشيك المبدئي: لا يوجد طلب محفوظ للطاولة " + table.Id);
+                return new PrintResult { Success = false, Message = "تعذر قراءة الطلب المحفوظ للطاولة. احفظ الطلب ثم أعد طباعة الشيك المبدئي." };
             }
 
-            var items = new List<SaleItem>();
-            long subtotal = 0;
-            try
+            List<SaleItem> items;
+            long subtotal;
+            long invoiceDiscount;
+            long serviceCharge;
+            string billError;
+            if (!TryComputePreBillTotals(cartJson, held.SubtotalPiasters, held.DiscountPiasters, held.TotalPiasters,
+                    out items, out subtotal, out invoiceDiscount, out serviceCharge, out billError))
             {
-                var parsed = JsonConvert.DeserializeObject<List<SaleItem>>(cartJson);
-                if (parsed != null)
-                {
-                    for (int i = 0; i < parsed.Count; i++)
-                    {
-                        var it = parsed[i];
-                        if (it == null) continue;
-                        if (it.QuantityMilli <= 0) it.QuantityMilli = 1000;
-                        long lineTot = it.TotalPiasters > 0
-                            ? it.TotalPiasters
-                            : (long)Math.Round((double)it.UnitPricePiasters * it.QuantityMilli / 1000.0, MidpointRounding.AwayFromZero);
-                        it.TotalPiasters = lineTot;
-                        subtotal += lineTot;
-                        items.Add(it);
-                    }
-                }
+                Logger.Warn(string.Format("رفض طباعة الشيك المبدئي للطاولة {0}: {1}", table.Id, billError));
+                return new PrintResult { Success = false, Message = billError };
             }
-            catch { }
 
-            long total = table.CurrentTotalPiasters > 0 ? table.CurrentTotalPiasters : subtotal;
+            long total = held.TotalPiasters;
 
             var preBillSale = new Sale
             {
@@ -541,8 +532,8 @@ namespace RafiqPOS.Services
                 WaiterName = table.WaiterName ?? "",
                 CustomerName = "",
                 SubtotalPiasters = subtotal,
-                DiscountPiasters = 0,
-                ServiceChargePiasters = Math.Max(0, total - subtotal),
+                DiscountPiasters = invoiceDiscount,
+                ServiceChargePiasters = serviceCharge,
                 TotalPiasters = total,
                 PaidPiasters = 0,
                 PaymentMethod = "cash",
@@ -551,7 +542,139 @@ namespace RafiqPOS.Services
                 Items = items
             };
 
-            return PrintSaleReceipt(preBillSale, null, null, false, false);
+            PrintResult printResult = PrintSaleReceipt(preBillSale, null, null, false, false);
+
+            // The floor map status changes only after the bill was actually sent to the printer
+            if (printResult != null && printResult.Success && DatabaseService.Tables != null && table.Status == "occupied")
+            {
+                try
+                {
+                    DatabaseService.Tables.SetTableStatus(table.Id, "bill_printed");
+                }
+                catch (Exception exStatus)
+                {
+                    Logger.Warn("تمت طباعة الشيك المبدئي لكن تعذر تحديث حالة الطاولة: " + exStatus.Message);
+                }
+            }
+
+            return printResult;
+        }
+
+        /// <summary>
+        /// حساب إجماليات الشيك المبدئي من سلة الطاولة المحفوظة: الأصناف بالسعر الكامل (قبل الخصم)، خصم الفاتورة من الطلب المحفوظ،
+        /// ورسوم الخدمة = الإجمالي المحفوظ - صافي الأصناف بعد الخصم. يفشل (بدون طباعة) إذا لم تتسق الأرقام.
+        /// </summary>
+        public static bool TryComputePreBillTotals(
+            string cartJson,
+            long heldSubtotalPiasters,
+            long heldDiscountPiasters,
+            long heldTotalPiasters,
+            out List<SaleItem> items,
+            out long grossSubtotalPiasters,
+            out long invoiceDiscountPiasters,
+            out long serviceChargePiasters,
+            out string error)
+        {
+            items = new List<SaleItem>();
+            grossSubtotalPiasters = 0;
+            invoiceDiscountPiasters = 0;
+            serviceChargePiasters = 0;
+            error = null;
+
+            const string inconsistentMsg = "تعذر طباعة الشيك المبدئي لأن أرقام الطلب المحفوظ غير متسقة (الأصناف والخصم والخدمة والإجمالي). احفظ الطلب من جديد ثم أعد المحاولة.";
+
+            JArray cartArray;
+            List<SaleItem> parsed;
+            try
+            {
+                cartArray = JArray.Parse(cartJson ?? "[]");
+                parsed = cartArray.ToObject<List<SaleItem>>();
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر قراءة سلة الطاولة للشيك المبدئي: " + ex.Message);
+                error = "تعذر قراءة أصناف طلب الطاولة المحفوظ. احفظ الطلب من جديد ثم أعد المحاولة.";
+                return false;
+            }
+
+            if (parsed == null || parsed.Count == 0)
+            {
+                error = "سلة الطاولة فارغة.";
+                return false;
+            }
+
+            long lineDiscountsTotal = 0;
+            bool hasV2Marker = false;
+            for (int i = 0; i < cartArray.Count; i++)
+            {
+                JObject lineObj = cartArray[i] as JObject;
+                JToken marker = lineObj != null ? lineObj["heldFormatVersion"] : null;
+                if (marker != null && marker.Type == JTokenType.Integer && marker.Value<int>() == 2)
+                {
+                    hasV2Marker = true;
+                    break;
+                }
+            }
+
+            for (int i = 0; i < parsed.Count; i++)
+            {
+                SaleItem it = parsed[i];
+                if (it == null) continue;
+                if (it.QuantityMilli <= 0 || it.UnitPricePiasters < 0 || it.DiscountPiasters < 0)
+                {
+                    items = new List<SaleItem>();
+                    grossSubtotalPiasters = 0;
+                    error = inconsistentMsg;
+                    return false;
+                }
+
+                long gross = Money.FromPiasters(it.UnitPricePiasters).MultiplyByMilliUnits(it.QuantityMilli).Piasters;
+                long lineDiscount = it.DiscountPiasters;
+                if (lineDiscount > gross) lineDiscount = gross;
+                it.DiscountPiasters = lineDiscount;
+                it.TotalPiasters = gross - lineDiscount;
+
+                grossSubtotalPiasters += gross;
+                lineDiscountsTotal += lineDiscount;
+                items.Add(it);
+            }
+
+            if (items.Count == 0)
+            {
+                error = "سلة الطاولة فارغة.";
+                return false;
+            }
+
+            // Old held carts (no line marker) also stored the sum of line discounts in the invoice discount
+            invoiceDiscountPiasters = heldDiscountPiasters;
+            if (!hasV2Marker && lineDiscountsTotal > 0 && invoiceDiscountPiasters == lineDiscountsTotal)
+            {
+                invoiceDiscountPiasters = 0;
+            }
+
+            long netAfterDiscounts = grossSubtotalPiasters - lineDiscountsTotal - invoiceDiscountPiasters;
+            serviceChargePiasters = heldTotalPiasters - netAfterDiscounts;
+
+            bool consistent = invoiceDiscountPiasters >= 0
+                && netAfterDiscounts >= 0
+                && heldTotalPiasters >= 0
+                && serviceChargePiasters >= 0
+                && serviceChargePiasters <= netAfterDiscounts
+                && (heldSubtotalPiasters <= 0 || heldSubtotalPiasters == grossSubtotalPiasters)
+                && grossSubtotalPiasters - lineDiscountsTotal - invoiceDiscountPiasters + serviceChargePiasters == heldTotalPiasters;
+
+            if (!consistent)
+            {
+                // A refused bill never exposes partial lines or totals
+                items = new List<SaleItem>();
+                grossSubtotalPiasters = 0;
+                invoiceDiscountPiasters = 0;
+                serviceChargePiasters = 0;
+                error = inconsistentMsg;
+                return false;
+            }
+
+            return true;
         }
     }
 }

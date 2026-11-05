@@ -8,6 +8,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import type { LowStockReportItem } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
+import { printReport } from '../utils/printReport';
 
 interface LowStockReportModalProps {
   isOpen: boolean;
@@ -67,7 +68,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
   }, [items]);
 
   const handlePrint = () => {
-    window.print();
+    void printReport({ kind: 'a4only' });
   };
 
   useEffect(() => {
@@ -91,7 +92,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
       }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 print:p-0 print:bg-white print:static"
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:max-h-none print:w-full">
+      <div data-print-root className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:max-h-none print:w-full">
         
         {/* Header (hidden in print) */}
         <div className="px-6 py-4 bg-brand-dark text-white flex items-center justify-between print:hidden">
@@ -138,13 +139,13 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
           <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark shadow-xs">
             <span className="text-xs text-ink-muted dark:text-ink-dark-muted block mb-1">الأصناف المطلوب شراؤها</span>
             <span className="text-xl font-black text-ink dark:text-ink-dark">{filteredItems.length} صنف</span>
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">تحت حد الأمان للمخزن</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 block">تحت حد الأمان للمخزن</span>
           </div>
 
           <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark shadow-xs">
             <span className="text-xs text-ink-muted dark:text-ink-dark-muted block mb-1">أصناف نفدت تماماً (رصيد صفر)</span>
             <span className="text-xl font-black text-danger dark:text-danger-bright">{zeroStockCount} صنف</span>
-            <span className="text-[11px] text-danger dark:text-danger-bright mt-1 block">تتطلب طلبية فورية عاجلة</span>
+            <span className="text-micro text-danger dark:text-danger-bright mt-1 block">تتطلب طلبية فورية عاجلة</span>
           </div>
 
           <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark shadow-xs">
@@ -152,7 +153,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
             <span className="text-xl font-black text-brand dark:text-brand-bright">
               {formatArabicCurrency(totalSuggestedCost)}
             </span>
-            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">محسوب بأسعار التكلفة الأخيرة</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 block">محسوب بأسعار التكلفة الأخيرة</span>
           </div>
         </div>
 
@@ -176,7 +177,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
                 filterMode === 'all' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs font-bold' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
-              كل النواقص ({items.length})
+              كل النواقص
             </button>
             <button
               onClick={() => setFilterMode('zero')}
@@ -184,7 +185,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
                 filterMode === 'zero' ? 'bg-surface dark:bg-surface-dark text-danger dark:text-danger-bright shadow-xs font-bold' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
-              المنتهية تماماً ({zeroStockCount})
+              المنتهية تماماً
             </button>
           </div>
         </div>
@@ -228,7 +229,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
                         <td className="p-3 font-mono text-xs text-ink-muted dark:text-ink-dark-muted">{item.barcode || '-'}</td>
                         <td className="p-3 font-bold text-ink dark:text-ink-dark">
                           <div>{item.name}</div>
-                          <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-normal">{item.unit || 'قطعة'}</span>
+                          <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal">{item.unit || 'قطعة'}</span>
                         </td>
                         <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted">{item.categoryName || '-'}</td>
                         <td className="p-3 text-center">
@@ -261,12 +262,6 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
           <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
             معادلة الاقتراح: ضعف حد الأمان مطروحاً منه الرصيد الحالي بما يضمن عدم انقطاع الصنف.
           </span>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl transition"
-          >
-            إغلاق
-          </button>
         </div>
 
       </div>

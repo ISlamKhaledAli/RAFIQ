@@ -102,7 +102,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
       if (created) {
         setNewGroupName('');
         setSelectedGroupId(created.id);
-        setSuccessMsg('تم إنشاء مجموعة الإضافات بنجاح.');
+        setSuccessMsg('تم إنشاء مجموعة الإضافات');
         await fetchGroups();
       }
     } catch (err: unknown) {
@@ -145,7 +145,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
       setNewOptIngredientId('');
       setNewOptIngredientQtyUnits('0');
       setNewOptIsDefault(false);
-      setSuccessMsg('تمت إضافة الخيار للمجموعة بنجاح.');
+      setSuccessMsg('تمت إضافة الخيار');
       await fetchGroups();
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'فشل حفظ خيار الإضافة');
@@ -172,7 +172,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
         productId: targetProductId,
         groupIds: linkedGroupIds,
       });
-      setSuccessMsg('تم ربط مجموعات الإضافات المحددة بالصنف بنجاح.');
+      setSuccessMsg('تم ربط مجموعات الإضافات بالصنف');
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'فشل ربط المجموعات بالصنف');
     } finally {
@@ -196,7 +196,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-ink dark:text-ink-dark">إدارة مجموعات الإضافات وتخصيصات الأصناف (Modifiers)</h2>
+              <h2 className="t-modal-title text-ink dark:text-ink-dark">إدارة مجموعات الإضافات وتخصيصات الأصناف (Modifiers)</h2>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                 تعريف مجموعات التخصيص (مستوى السكر، نوع الحليب، الصوصات، الإضافات المدفوعة) وربطها بأصناف المنيو
               </p>
@@ -230,7 +230,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
         <div className="p-6 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: Groups List & Create Group */}
           <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
-            <h3 className="text-sm font-black text-ink dark:text-ink-dark">1. مجموعات الإضافات ({groups.length})</h3>
+            <h3 className="t-card-title text-ink dark:text-ink-dark">1. مجموعات الإضافات ({groups.length})</h3>
             <form onSubmit={handleCreateGroup} className="space-y-2.5 bg-surface dark:bg-surface-dark p-3 rounded-xl border border-line dark:border-line-dark">
               <input
                 type="text"
@@ -281,7 +281,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                 >
                   <div>
                     <div className="text-xs font-black">{g.name}</div>
-                    <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">
+                    <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
                       {(g.options || []).length} خيارات • {g.selectionType === 'single' ? 'واحد' : 'متعدد'}
                     </div>
                   </div>
@@ -302,7 +302,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
 
           {/* Middle: Options inside Selected Group */}
           <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
-            <h3 className="text-sm font-black text-ink dark:text-ink-dark">
+            <h3 className="t-card-title text-ink dark:text-ink-dark">
               2. خيارات المجموعة: {selectedGroup ? selectedGroup.name : 'اختر مجموعة'}
             </h3>
 
@@ -318,7 +318,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold mb-0.5">السعر الإضافي (ج.م)</label>
+                      <label className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold mb-0.5">السعر الإضافي (ج.م)</label>
                       <input
                         type="number"
                         min={0}
@@ -342,8 +342,8 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold mb-0.5">
-                      ربط بخامة مخزنية لخصمها تلقائياً (اختياري)
+                    <label className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold mb-0.5">
+                      ربط بخامة مخزنية لخصمها تلقائياً
                     </label>
                     <CustomSelect
                       value={newOptIngredientId}
@@ -357,7 +357,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
 
                   {newOptIngredientId && (
                     <div>
-                      <label className="block text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold mb-0.5">
+                      <label className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold mb-0.5">
                         الكمية المخصومة من الخامة لكل وحدة
                       </label>
                       <input
@@ -411,7 +411,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
 
           {/* Right: Link Modifier Groups to Product */}
           <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
-            <h3 className="text-sm font-black text-ink dark:text-ink-dark flex items-center gap-1.5">
+            <h3 className="t-card-title text-ink dark:text-ink-dark flex items-center gap-1.5">
               <Link2 className="w-4 h-4 text-brand dark:text-brand-bright" />
               <span>3. ربط الإضافات بصنف في المنيو</span>
             </h3>
@@ -458,7 +458,7 @@ export const ModifierManagerModal: React.FC<ModifierManagerModalProps> = ({
                   type="button"
                   disabled={loading}
                   onClick={handleSaveProductLinks}
-                  className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black flex items-center justify-center gap-1.5 hover:opacity-95 disabled:opacity-50 transition-opacity shadow-sm"
+                  className="w-full py-2.5 rounded-xl bg-paid text-white text-xs font-black flex items-center justify-center gap-1.5 hover:opacity-95 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-opacity shadow-sm"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>حفظ ربط الإضافات بالصنف</span>

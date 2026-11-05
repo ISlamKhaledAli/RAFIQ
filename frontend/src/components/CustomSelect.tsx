@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Check, Plus } from 'lucide-react';
 
 export interface SelectOption {
@@ -38,7 +39,9 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties | null>(null);
 
   // Normalize options and ensure distinct values (prevent duplicate rendering)
   const normalizedOptions: SelectOption[] = useMemo(() => {
@@ -72,6 +75,47 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     setSearchQuery('');
   };
 
+  // The list is drawn in a portal with fixed coordinates so a modal's scroll area can never clip it;
+  // it opens downward when there is room, otherwise upward, and its height follows the free space.
+  const updateMenuPosition = useCallback(() => {
+    const trigger = containerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const margin = 8;
+    const preferred = 260;
+    const spaceBelow = window.innerHeight - rect.bottom - margin;
+    const spaceAbove = rect.top - margin;
+    const openUp = spaceBelow < Math.min(preferred, 180) && spaceAbove > spaceBelow;
+    const available = Math.max(120, openUp ? spaceAbove : spaceBelow);
+    const style: React.CSSProperties = {
+      position: 'fixed',
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.min(preferred, available),
+      zIndex: 10000,
+    };
+    if (openUp) {
+      style.bottom = window.innerHeight - rect.top + 4;
+    } else {
+      style.top = rect.bottom + 4;
+    }
+    setMenuStyle(style);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setMenuStyle(null);
+      return;
+    }
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
+    };
+  }, [isOpen, updateMenuPosition]);
+
   // Focus search input when opened
   useEffect(() => {
     if (isOpen && isSearchEnabled) {
@@ -87,7 +131,10 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideTrigger = containerRef.current && containerRef.current.contains(target);
+      const insideMenu = menuRef.current && menuRef.current.contains(target);
+      if (!insideTrigger && !insideMenu) {
         closeDropdown();
       }
     };
@@ -115,7 +162,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   };
 
   const sizeClasses = {
-    sm: 'min-h-[26px] h-[26px] px-2 py-0 text-[11px]',
+    sm: 'min-h-[26px] h-[26px] px-2 py-0 text-micro',
     md: 'min-h-[32px] px-2.5 py-1.5 text-xs',
     lg: 'min-h-[40px] px-3 py-2 text-sm',
   }[size];
@@ -165,8 +212,14 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       )}
 
       {/* Floating Menu */}
-      {isOpen && (
-        <div className="absolute right-0 left-0 top-full mt-1 z-50 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg shadow-xl py-1 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 flex flex-col">
+      {isOpen && menuStyle && createPortal(
+        <div
+          ref={menuRef}
+          dir="rtl"
+          data-select-menu=""
+          style={menuStyle}
+          className="select-none text-right bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg shadow-xl py-1 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 flex flex-col"
+        >
           {isSearchEnabled && (
             <div className="p-1.5 border-b border-line/60 dark:border-line-dark/60 sticky top-0 bg-surface dark:bg-surface-dark z-10">
               <input
@@ -192,8 +245,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     <button
                       type="button"
                       onClick={() => handleSelect(opt.value)}
-                      className={`w-full px-3 py-2 text-xs font-bold text-brand dark:text-brand-bright hover:bg-brand dark:hover:bg-brand-bright hover:text-white dark:hover:text-ink flex items-center justify-between gap-1.5 transition-colors text-right ${
-                        isSelected ? 'bg-brand dark:bg-brand-bright text-white dark:text-ink' : 'bg-brand-soft/20 dark:bg-brand-dark-soft'
+                      className={`w-full px-3 py-2 text-xs font-bold text-brand dark:text-brand-bright hover:bg-brand dark:hover:bg-brand-container hover:text-white dark:hover:text-white flex items-center justify-between gap-1.5 transition-colors text-right ${
+                        isSelected ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40' : 'bg-brand-soft/20 dark:bg-brand-dark-soft'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 truncate">
@@ -224,7 +277,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     {opt.badge && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
+                      <span className="text-micro px-1.5 py-0.5 rounded font-mono bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
                         {opt.badge}
                       </span>
                     )}
@@ -234,7 +287,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
               );
             })
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

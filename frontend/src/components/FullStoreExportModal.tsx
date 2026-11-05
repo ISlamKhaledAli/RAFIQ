@@ -143,7 +143,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white dark:text-ink-dark">تصدير كل بيانات المحل بضغطة واحدة</h2>
+              <h2 className="t-modal-title text-white dark:text-ink-dark">تصدير كل بيانات المحل بضغطة واحدة</h2>
               <p className="text-xs text-white/70 dark:text-ink-dark-muted">
                 بياناتك ملكك 100% في ملفات إكسل مفتوحة بدون أي قيود
               </p>
@@ -173,7 +173,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
 
           {/* Files Summary Grid */}
           <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-xl border border-line dark:border-line-dark space-y-3">
-            <h4 className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
+            <h4 className="t-label text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
               الملفات اللي هتتعمل في المجلد ده:
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-ink dark:text-ink-dark font-medium">
@@ -202,7 +202,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
                 <span>06. الورديات والتقفيل اليومي</span>
               </div>
             </div>
-            <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-normal pt-1">
+            <p className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal pt-1">
               معاهم شيت مجمّع فيه كل البيانات في ملف واحد، ووثيقة رسمية بملكية البيانات.
             </p>
           </div>
@@ -238,7 +238,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-paid dark:text-paid-bright font-bold text-sm">
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
-                  <span>تم تصدير {exportResult.generatedFiles.length} ملفات بنجاح تام!</span>
+                  <span>تم تصدير {exportResult.generatedFiles.length} ملفات</span>
                 </div>
                 <button
                   onClick={handleOpenFolder}
@@ -261,7 +261,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
                 </div>
               </div>
 
-              <div className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted break-all" dir="ltr">
+              <div className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted break-all" dir="ltr">
                 Folder: {exportResult.exportFolder}
               </div>
             </div>

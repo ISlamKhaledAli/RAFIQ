@@ -53,7 +53,7 @@ export const ClinicalAllergyAlertModal: React.FC<ClinicalAllergyAlertModalProps>
               <ShieldAlert className="w-6 h-6 animate-pulse" />
             </div>
             <div>
-              <h2 id="allergy-modal-title" className="text-base font-bold flex items-center gap-2">
+              <h2 id="allergy-modal-title" className="t-modal-title flex items-center gap-2">
                 تحذير سريري خطير: تعارض حساسية دوائية
               </h2>
               <p className="text-xs text-white/90">
@@ -82,7 +82,7 @@ export const ClinicalAllergyAlertModal: React.FC<ClinicalAllergyAlertModalProps>
 
           {/* List of Conflicts */}
           <div className="space-y-2.5">
-            <h3 className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted px-1">
+            <h3 className="t-card-title text-ink-muted dark:text-ink-dark-muted px-1">
               الأصناف المتعارضة ({alertResult.conflicts.length}):
             </h3>
             {alertResult.conflicts.map((conflict) => (
@@ -101,7 +101,7 @@ export const ClinicalAllergyAlertModal: React.FC<ClinicalAllergyAlertModalProps>
                     <span className="text-danger dark:text-danger-bright font-semibold bg-danger-soft dark:bg-danger-dark-soft px-2 py-0.5 rounded-md border border-danger/20">
                       الحساسية المطابقة: {conflict.matchedAllergy || conflict.allergyMatch}
                     </span>
-                    <span className="text-ink-muted dark:text-ink-dark-muted text-[11px] truncate">
+                    <span className="text-ink-muted dark:text-ink-dark-muted text-micro truncate">
                       {conflict.conflictReason || conflict.warningDetails}
                     </span>
                   </div>

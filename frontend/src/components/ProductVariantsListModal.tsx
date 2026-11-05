@@ -84,7 +84,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
     setSuccessMessage(null);
     try {
       await invoke('variants:delete', { variantProductId: variantToDelete.variantProductId });
-      setSuccessMessage(`تم حذف المتغير (${variantToDelete.color || 'عام'} - ${variantToDelete.size || 'حر'}) بنجاح`);
+      setSuccessMessage(`تم حذف المتغير (${variantToDelete.color || 'عام'} - ${variantToDelete.size || 'حر'})`);
       setVariantToDelete(null);
       if (parentProduct?.id) {
         const res = await invoke<ProductVariant[]>('variants:getByParentId', { parentId: parentProduct.id });
@@ -118,8 +118,8 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-ink dark:text-ink-dark">{parentProduct.name}</h3>
-                <span className="px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-[11px] font-bold border border-brand/20 dark:border-brand-bright/20">
+                <h3 className="t-modal-title text-ink dark:text-ink-dark">{parentProduct.name}</h3>
+                <span className="px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro font-bold border border-brand/20 dark:border-brand-bright/20">
                   {variants.length} صنف متفرع
                 </span>
               </div>
@@ -194,7 +194,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
             </div>
           ) : variants.length === 0 ? (
             <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted text-xs flex flex-col items-center gap-3">
-              <Package className="w-10 h-10 opacity-40 text-brand dark:text-brand-bright" />
+              <Package className="w-10 h-10 opacity-40 dark:opacity-100 text-brand dark:text-brand-bright" />
               <span>لا توجد أصناف متفرعة مسجلة لهذا الصنف حالياً</span>
               {onOpenMatrixModal && (
                 <button
@@ -241,7 +241,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                           </span>
                         </td>
                         <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
-                          <Barcode className="w-3.5 h-3.5 opacity-60" />
+                          <Barcode className="w-3.5 h-3.5 opacity-60 dark:opacity-100" />
                           <span>{v.barcode || '—'}</span>
                         </td>
                         <td className="py-2.5 px-3 text-center font-mono font-bold">
@@ -297,11 +297,11 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
               <div className="w-10 h-10 rounded-xl bg-danger/10 dark:bg-danger-dark-soft text-danger dark:text-danger-bright flex items-center justify-center mb-3">
                 <Trash2 className="w-5 h-5" />
               </div>
-              <h4 className="text-sm font-bold text-ink dark:text-ink-dark mb-1">تأكيد حذف المتغير</h4>
+              <h4 className="t-label text-ink dark:text-ink-dark mb-1">تأكيد حذف المتغير</h4>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted mb-4 leading-relaxed">
                 هل أنت متأكد من حذف المتغير <strong className="text-ink dark:text-ink-dark">({variantToDelete.color || 'عام'} - {variantToDelete.size || 'حر'})</strong>؟
                 <br />
-                <span className="text-[11px] text-warn dark:text-warn-bright font-semibold">تنبيه: سيتم رفض الحذف تلقائياً إذا كان للمتغير مبيعات أو حركات مخزنية سابقة.</span>
+                <span className="text-micro text-warn dark:text-warn-bright font-semibold">تنبيه: سيتم رفض الحذف تلقائياً إذا كان للمتغير مبيعات أو حركات مخزنية سابقة.</span>
               </p>
               <div className="flex items-center justify-end gap-2">
                 <button
@@ -316,7 +316,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                   type="button"
                   onClick={() => void handleDeleteVariant()}
                   disabled={isDeleting}
-                  className="px-4 py-1.5 rounded-lg bg-danger text-white text-xs font-bold hover:bg-danger/90 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-lg bg-danger text-white text-xs font-bold hover:bg-danger/90 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                 >
                   {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                   <span>{isDeleting ? 'جاري الحذف...' : 'تأكيد الحذف'}</span>
@@ -328,7 +328,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
 
         {/* Footer */}
         <div className="px-5 py-3.5 border-t border-line dark:border-line-dark bg-surface-2/40 dark:bg-surface-dark-2/40 flex items-center justify-between shrink-0">
-          <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted flex items-center gap-1.5">
+          <div className="text-micro text-ink-muted dark:text-ink-dark-muted flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
             <span>يتم بيع كل مقاس بالباركود الخاص به أو باختياره من شاشة الكاشير.</span>
           </div>
@@ -340,19 +340,12 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                   onClose();
                   onOpenMatrixModal();
                 }}
-                className="px-3.5 py-1.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand-soft/80 text-brand dark:text-brand-bright border border-brand/30 dark:border-brand-bright/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand-soft/80 dark:hover:bg-brand-dark-soft/80 text-brand dark:text-brand-bright border border-brand/30 dark:border-brand-bright/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>إضافة مقاسات جديدة</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
-            >
-              إغلاق
-            </button>
           </div>
         </div>
       </div>

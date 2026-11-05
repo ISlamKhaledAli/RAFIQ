@@ -62,8 +62,8 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-ink dark:text-ink-dark">استيراد العملاء وديونهم الافتتاحية من إكسل</h3>
-              <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">نقل بيانات العملاء وأرصدة الدفتر القديم دفعة واحدة إلى النظام في ثوانٍ</p>
+              <h3 className="t-modal-title text-ink dark:text-ink-dark">استيراد العملاء وديونهم الافتتاحية من إكسل</h3>
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted">نقل بيانات العملاء وأرصدة الدفتر القديم دفعة واحدة إلى النظام في ثوانٍ</p>
             </div>
           </div>
           <button
@@ -92,13 +92,13 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
                 <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
                 <span>{importResult.message}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2 pt-2 text-[11px] border-t border-paid-border dark:border-emerald-800/40">
+              <div className="grid grid-cols-3 gap-2 pt-2 text-micro border-t border-paid-border dark:border-emerald-800/40">
                 <div>العملاء المضافون: <strong className="font-mono text-ink dark:text-ink-dark">{importResult.importedCount}</strong></div>
                 <div>السطور المتخطاة: <strong className="font-mono text-ink dark:text-ink-dark">{importResult.skippedCount}</strong></div>
                 <div>إجمالي الديون الافتتاحية: <strong className="font-mono text-paid dark:text-paid-bright">{importResult.totalOpeningDebtsFormatted}</strong></div>
               </div>
               {importResult.rowErrors && importResult.rowErrors.length > 0 && (
-                <ul className="pt-2 border-t border-paid-border dark:border-emerald-800/40 space-y-1 text-[11px] text-danger dark:text-danger-bright max-h-32 overflow-y-auto">
+                <ul className="pt-2 border-t border-paid-border dark:border-emerald-800/40 space-y-1 text-micro text-danger dark:text-danger-bright max-h-32 overflow-y-auto">
                   {importResult.rowErrors.map((rowError) => (
                     <li key={rowError} className="flex items-start gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -115,11 +115,11 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
             {/* Download Template Box */}
             <div className="p-3.5 bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-lg flex flex-col justify-between">
               <div>
-                <h4 className="font-bold text-xs text-ink dark:text-ink-dark flex items-center gap-1.5 mb-1">
+                <h4 className="t-label text-ink dark:text-ink-dark flex items-center gap-1.5 mb-1">
                   <Download className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                   <span>1. تحميل النموذج المعتمد</span>
                 </h4>
-                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted leading-relaxed">
+                <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed">
                   قم بتحميل قالب الإكسل المنسق خصيصاً بنظام رفيق، والذي يحتوي على الأعمدة: اسم العميل، الهاتف، الرصيد الافتتاحي، وحد الائتمان.
                 </p>
               </div>
@@ -137,11 +137,11 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
             {/* Upload File Box */}
             <div className="p-3.5 bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-lg flex flex-col justify-between">
               <div>
-                <h4 className="font-bold text-xs text-ink dark:text-ink-dark flex items-center gap-1.5 mb-1">
+                <h4 className="t-label text-ink dark:text-ink-dark flex items-center gap-1.5 mb-1">
                   <Upload className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                   <span>2. رفع وتدقيق ملف الإكسل</span>
                 </h4>
-                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted leading-relaxed">
+                <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-relaxed">
                   اختر ملف الإكسل بعد ملء بيانات العملاء. سيقوم النظام بفحص الأسماء وتفادي تكرار الهواتف وحساب مجموع الديون.
                 </p>
               </div>
@@ -165,19 +165,19 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
               {/* Stats Strip */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 <div className="p-2.5 bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded">
-                  <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block">إجمالي السطور بالملف</span>
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">إجمالي السطور بالملف</span>
                   <span className="text-base font-bold font-mono text-ink dark:text-ink-dark">{importPreview.totalRowsCount}</span>
                 </div>
                 <div className="p-2.5 bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-emerald-800/40 rounded">
-                  <span className="text-[10px] text-paid dark:text-paid-bright block">سطور صالحة للاستيراد</span>
+                  <span className="text-micro text-paid dark:text-paid-bright block">سطور صالحة للاستيراد</span>
                   <span className="text-base font-bold font-mono text-paid dark:text-paid-bright">{importPreview.validRowsCount}</span>
                 </div>
                 <div className="p-2.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 rounded">
-                  <span className="text-[10px] text-danger dark:text-danger-bright block">سطور غير صالحة / أخطاء</span>
+                  <span className="text-micro text-danger dark:text-danger-bright block">سطور غير صالحة / أخطاء</span>
                   <span className="text-base font-bold font-mono text-danger dark:text-danger-bright">{importPreview.invalidRowsCount}</span>
                 </div>
                 <div className="p-2.5 bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/30 rounded">
-                  <span className="text-[10px] text-brand dark:text-brand-bright block">إجمالي الديون الافتتاحية</span>
+                  <span className="text-micro text-brand dark:text-brand-bright block">إجمالي الديون الافتتاحية</span>
                   <span className="text-base font-bold font-mono text-brand dark:text-brand-bright">{importPreview.totalOpeningDebtsFormatted}</span>
                 </div>
               </div>
@@ -193,7 +193,7 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
               {/* Preview Table */}
               <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden max-h-60 overflow-y-auto">
                 <table className="w-full text-right text-xs">
-                  <thead className="bg-surface-2 dark:bg-surface-dark-2 hairline-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-[11px] sticky top-0">
+                  <thead className="bg-surface-2 dark:bg-surface-dark-2 hairline-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-micro sticky top-0">
                     <tr>
                       <th className="px-3 py-2 w-12">السطر</th>
                       <th className="px-3 py-2">اسم العميل</th>
@@ -207,27 +207,27 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
                   <tbody className="divide-y divide-line dark:divide-line-dark">
                     {importPreview.rows.map((row) => (
                       <tr key={row.rowIndex} className={row.isValid ? 'hover:bg-canvas dark:hover:bg-canvas-dark' : 'bg-danger-soft/30 dark:bg-danger-dark-soft/30'}>
-                        <td className="px-3 py-1.5 font-mono text-ink-muted dark:text-ink-dark-muted text-[11px]">{row.rowIndex}</td>
+                        <td className="px-3 py-1.5 font-mono text-ink-muted dark:text-ink-dark-muted text-micro">{row.rowIndex}</td>
                         <td className="px-3 py-1.5 font-bold text-ink dark:text-ink-dark">{row.name || '—'}</td>
                         <td className="px-3 py-1.5 font-mono text-ink-muted dark:text-ink-dark-muted">{row.phone || '—'}</td>
                         <td className="px-3 py-1.5 font-mono font-bold text-center text-ink dark:text-ink-dark">
-                          {row.initialBalanceFormatted || '0.00 ج.م'}
+                          {row.initialBalanceFormatted || '—'}
                         </td>
                         <td className="px-3 py-1.5 font-mono text-center text-ink-muted dark:text-ink-dark-muted">
                           {row.creditLimitFormatted || '—'}
                         </td>
-                        <td className="px-3 py-1.5 text-ink-muted dark:text-ink-dark-muted text-[11px] truncate max-w-[140px]" title={row.notes}>
+                        <td className="px-3 py-1.5 text-ink-muted dark:text-ink-dark-muted text-micro truncate max-w-[140px]" title={row.notes}>
                           {row.notes || '—'}
                         </td>
                         <td className="px-3 py-1.5 text-center">
                           {row.isValid ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-emerald-800/40">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-emerald-800/40">
                               <CheckCircle2 className="w-3 h-3" />
                               <span>جاهز</span>
                             </span>
                           ) : (
                             <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30"
                               title={row.errors.join(' | ')}
                             >
                               <AlertCircle className="w-3 h-3" />
@@ -263,7 +263,7 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
                 className="px-5 py-2 rounded bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{isImporting ? 'جاري الاستيراد والحفظ...' : `تأكيد واستيراد (${importPreview.validRowsCount}) عميل إلى النظام`}</span>
+                <span>{isImporting ? 'جاري الاستيراد والحفظ...' : 'تأكيد واستيراد العملاء إلى النظام'}</span>
               </button>
             )}
           </div>

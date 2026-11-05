@@ -32,6 +32,10 @@ namespace RafiqPOS.Models
         [JsonProperty("accountNumber")]
         public string AccountNumber { get; set; }
 
+        // Name of the person the account is registered to, as the customer sees it when sending money
+        [JsonProperty("holderName")]
+        public string HolderName { get; set; }
+
         [JsonProperty("phoneNumber")]
         public string PhoneNumber
         {

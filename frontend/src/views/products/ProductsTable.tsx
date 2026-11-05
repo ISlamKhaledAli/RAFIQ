@@ -229,7 +229,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 if (stockQuantityCurrent <= 0) {
                   stockStatus = { label: 'خلصان', class: 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/30' };
                 } else if (stockQuantityCurrent <= minStockQuantityItem) {
-                  stockStatus = { label: `ناقص (${minStockDisplay})`, class: 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border-warn-border dark:border-warn-bright/30' };
+                  stockStatus = { label: 'ناقص', class: 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border-warn-border dark:border-warn-bright/30' };
                 }
 
                 const isSelected = selectedProductIds.includes(prod.id);
@@ -280,10 +280,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     {/* 2. Barcode */}
                     <td className="w-36 px-3 text-right font-mono text-xs text-ink dark:text-ink-dark tabular-nums">
                       <div className="flex items-center gap-1">
-                        <span className="truncate">{prod.barcode || <span className="text-ink-muted/50 dark:text-ink-dark-muted/50">—</span>}</span>
+                        <span className="truncate">{prod.barcode || <span className="text-ink-muted/50 dark:text-ink-dark-muted/70">—</span>}</span>
                         {prod.barcodes && prod.barcodes.length > 1 && (
                           <span
-                            className="px-1.5 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-[10px] text-ink-muted dark:text-ink-dark-muted shrink-0 font-bold"
+                            className="px-1.5 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro text-ink-muted dark:text-ink-dark-muted shrink-0 font-bold"
                             title={`باركودات إضافية مسجلة للصنف:\n${prod.barcodes.join('\n')}`}
                           >
                             +{prod.barcodes.length - 1}
@@ -298,7 +298,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         <span className="font-bold text-ink dark:text-ink-dark">{prod.name}</span>
                         {isKg && (
                           <span
-                            className="shrink-0 px-2 py-0.5 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-[10px] font-bold rounded-full flex items-center gap-0.5"
+                            className="shrink-0 px-2 py-0.5 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-micro font-bold rounded-full flex items-center gap-0.5"
                             title="يباع بالوزن (ميزان)"
                           >
                             <Scale className="w-2.5 h-2.5" />
@@ -307,20 +307,20 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         )}
                         {prod.units && prod.units.length > 1 && (
                           <span
-                            className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-[10px] font-bold rounded-full border border-paid/20 dark:border-paid/30"
+                            className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold rounded-full border border-paid/20 dark:border-paid/30"
                             title={`وحدات البيع المسجلة:\n${prod.units.map((u) => `${u.unitName} (معامل ${u.conversionFactor})`).join('\n')}`}
                           >
                             {prod.units.length} وحدات
                           </span>
                         )}
                         {prod.taxRatePercent > 0 && (
-                          <span className="shrink-0 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-paid dark:text-paid-bright text-[10px] font-bold rounded-full border border-emerald-200 dark:border-emerald-800/40">
+                          <span className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold rounded-full border border-paid-border dark:border-paid-dark-border">
                             {prod.taxRatePercent}% ضريبة
                           </span>
                         )}
                         {prod.hasVariants && (
                           <span
-                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright text-[10px] font-bold rounded-full border border-brand/20 flex items-center gap-1"
+                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1"
                             title={terminology.variantsTitle}
                           >
                             <Layers className="w-2.5 h-2.5" />
@@ -329,7 +329,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         )}
                         {prod.variantColor && prod.variantSize && (
                           <span
-                            className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-[10px] font-mono font-bold text-ink-muted dark:text-ink-dark-muted"
+                            className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro font-mono font-bold text-ink-muted dark:text-ink-dark-muted"
                             title={`تركيبة: ${prod.variantColor} - ${prod.variantSize}`}
                           >
                             {prod.variantColor} | {prod.variantSize}
@@ -337,7 +337,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         )}
                         {prod.isLooseSellable && (
                           <span
-                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-soft/20 text-brand-dark dark:text-brand-bright text-[10px] font-bold rounded-full border border-brand/20 flex items-center gap-1"
+                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright text-micro font-bold rounded-full border border-brand/20 flex items-center gap-1"
                             title="صنف مفكوك يباع بالتجزئة"
                           >
                             <Boxes className="w-2.5 h-2.5" />
@@ -346,7 +346,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         )}
                         {openPackage && (
                           <span
-                            className="shrink-0 px-2 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded-full border border-amber-200 dark:border-amber-800/50 flex items-center gap-1"
+                            className="shrink-0 px-2 py-0.5 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold rounded-full border border-warn-border dark:border-warn-bright/30 flex items-center gap-1"
                             title="يوجد عبوة مفتوحة بالمخزن"
                           >
                             <Box className="w-2.5 h-2.5" />
@@ -355,7 +355,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         )}
                         {prod.locationCode && (
                           <span
-                            className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-[10px] font-mono font-bold text-ink dark:text-ink-dark flex items-center gap-1"
+                            className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-micro font-mono font-bold text-ink dark:text-ink-dark flex items-center gap-1"
                             title={`موقع التخزين والرف: ${prod.locationCode}${prod.locationName ? ` (${prod.locationName})` : ''}`}
                           >
                             <span>[{prod.locationCode}]</span>
@@ -363,7 +363,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         )}
                         {prod.isColdChain && (
                           <span
-                            className="shrink-0 px-2 py-0.5 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-[10px] font-bold rounded-full border border-cyan-200 dark:border-cyan-800 flex items-center gap-1"
+                            className="shrink-0 px-2 py-0.5 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-micro font-bold rounded-full border border-cyan-200 dark:border-cyan-800 flex items-center gap-1"
                             title="سلسلة تبريد (يحفظ في الثلاجة 2-8 مئوية)"
                           >
                             <Snowflake className="w-2.5 h-2.5" />
@@ -379,18 +379,18 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         <span className="font-black text-paid dark:text-paid-bright text-xs">
                           {formatArabicCurrency(prod.pricePiasters)}
                         </span>
-                        {isKg && <span className="text-[10px] text-paid/80 dark:text-paid-bright/80 font-normal">/كجم</span>}
+                        {isKg && <span className="text-micro text-paid/80 dark:text-paid-bright font-normal">/كجم</span>}
                         {prod.costPiasters > 0 &&
                           (prod.pricePiasters < prod.costPiasters ? (
                             <span
-                              className="text-[10px] px-1.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 font-bold shrink-0"
+                              className="text-micro px-1.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 font-bold shrink-0"
                               title="سعر البيع أقل من التكلفة (خسارة)"
                             >
                               خسارة
                             </span>
                           ) : (
                             <span
-                              className="text-[10px] px-1.5 py-0.5 rounded-full bg-paid-soft dark:bg-emerald-950/60 text-paid dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/50 font-bold shrink-0"
+                              className="text-micro px-1.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border font-bold shrink-0"
                               title="نسبة الربح من التكلفة"
                             >
                               +{(((prod.pricePiasters - prod.costPiasters) / prod.costPiasters) * 100).toFixed(0)}%
@@ -416,21 +416,21 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         </span>
                         {compoundStock ? (
                           <span
-                            className="text-[9px] text-paid dark:text-paid-bright font-bold truncate max-w-[130px]"
+                            className="text-micro text-paid dark:text-paid-bright font-bold truncate max-w-[130px]"
                             title={`المخزون المركب: ${compoundStock}`}
                           >
                             {compoundStock}
                           </span>
                         ) : unitBreakdown ? (
                           <span
-                            className="text-[9px] text-paid dark:text-paid-bright font-bold truncate max-w-[110px]"
+                            className="text-micro text-paid dark:text-paid-bright font-bold truncate max-w-[110px]"
                             title={`المكافئ بالوحدة الكبيرة: ${unitBreakdown}`}
                           >
                             ≈ {unitBreakdown}
                           </span>
                         ) : (
                           <span
-                            className="text-[10px] text-ink-muted dark:text-ink-dark-muted"
+                            className="text-micro text-ink-muted dark:text-ink-dark-muted"
                             title={`حد النواقص: ${minStockDisplay} ${isKg ? 'كجم' : 'قطعة'}`}
                           >
                             حد {minStockDisplay}
@@ -441,7 +441,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                     {/* 7. Status */}
                     <td className="w-24 px-3 text-center whitespace-nowrap">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${stockStatus.class}`}>
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-micro font-bold border ${stockStatus.class}`}>
                         {stockStatus.label}
                       </span>
                     </td>
@@ -479,25 +479,25 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         </table>
       </div>
 
-      {/* Floating Bulk Action Bar - Executive Pill Capsule */}
+      {/* Bulk Action Bar: shown inline above the table while rows are selected */}
       {selectedProductIds.length > 0 && (
-        <div className="absolute bottom-11 left-1/2 -translate-x-1/2 bg-ink/95 dark:bg-surface-dark-2/95 backdrop-blur-md text-white rounded-full p-1.5 px-3.5 shadow-2xl flex items-center gap-2 z-30 border border-white/10 dark:border-line-dark text-xs font-bold animate-in fade-in select-none">
-          <div className="flex items-center gap-2 pl-2 border-l border-white/15 dark:border-line-dark">
-            <span className="flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono text-[11px] font-black border border-emerald-500/30">
+        <div className="order-first shrink-0 flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 bg-brand-soft dark:bg-brand-dark-soft border-b border-brand/20 dark:border-brand-bright/30 text-xs font-bold animate-in fade-in select-none">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-mono text-sm font-black tabular-nums">
               {selectedProductIds.length}
             </span>
-            <span className="text-[11px] text-white/90 whitespace-nowrap">صنف محدد</span>
+            <span className="text-sm text-brand dark:text-brand-bright whitespace-nowrap">صنف محدد</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
             {onBulkPrintLabels && (
               <button
                 type="button"
                 onClick={onBulkPrintLabels}
-                className="px-3 h-8 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-full text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-white/5 whitespace-nowrap"
+                className="px-3 h-9 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 active:scale-95 text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-line dark:border-line-dark whitespace-nowrap"
                 title="طباعة استيكرات الباركود للأصناف المحددة"
               >
-                <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                <Tag className="w-4 h-4 text-brand dark:text-brand-bright" />
                 <span>طباعة استيكرات</span>
               </button>
             )}
@@ -506,10 +506,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               <button
                 type="button"
                 onClick={onOpenBulkPriceAdjustment}
-                className="px-3 h-8 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-full text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-white/5 whitespace-nowrap"
+                className="px-3 h-9 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 active:scale-95 text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-line dark:border-line-dark whitespace-nowrap"
                 title="تعديل الأسعار والتكلفة بالجملة"
               >
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                <TrendingUp className="w-4 h-4 text-brand dark:text-brand-bright" />
                 <span>تعديل الأسعار</span>
               </button>
             )}
@@ -517,10 +517,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             <button
               type="button"
               onClick={onOpenBulkMinStockModal}
-              className="px-3 h-8 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-full text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-white/5 whitespace-nowrap"
+              className="px-3 h-9 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 active:scale-95 text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-line dark:border-line-dark whitespace-nowrap"
               title="تعديل حد النواقص والطلب"
             >
-              <Boxes className="w-3.5 h-3.5 text-emerald-400" />
+              <Boxes className="w-4 h-4 text-brand dark:text-brand-bright" />
               <span>حد النواقص</span>
             </button>
 
@@ -528,30 +528,29 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               <button
                 type="button"
                 onClick={onBulkDelete}
-                className="px-3 h-8 bg-danger/20 hover:bg-danger active:scale-95 text-red-200 hover:text-white rounded-full text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-danger/30 whitespace-nowrap"
+                className="px-3 h-9 bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/70 dark:hover:bg-danger-dark-soft/70 active:scale-95 text-danger dark:text-danger-bright rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-danger/30 dark:border-danger-bright/40 whitespace-nowrap"
                 title="حذف الأصناف المحددة"
               >
-                <Trash2 className="w-3.5 h-3.5 text-red-300" />
+                <Trash2 className="w-4 h-4 text-danger dark:text-danger-bright" />
                 <span>حذف</span>
               </button>
             )}
           </div>
 
-          <div className="pr-1 border-r border-white/15 dark:border-line-dark">
-            <button
-              type="button"
-              onClick={onClearSelection}
-              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/15 active:scale-90 text-white/60 hover:text-white transition-all cursor-pointer"
-              title="إلغاء التحديد"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClearSelection}
+            className="mr-auto h-9 px-3 flex items-center gap-1.5 rounded-xl hover:bg-surface dark:hover:bg-surface-dark active:scale-95 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-all cursor-pointer"
+            title="إلغاء التحديد"
+          >
+            <X className="w-4 h-4" />
+            <span>إلغاء التحديد</span>
+          </button>
         </div>
       )}
 
       {/* Table Footer Status */}
-      <div className="h-8 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted shrink-0">
+      <div className="h-8 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted shrink-0">
         <span>حركات المخزن وتغيير الأسعار بتتسجل تلقائياً أول بأول بدون نت.</span>
       </div>
 
@@ -575,12 +574,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             {/* Product Info Header */}
             <div className="p-2.5 bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark">
               <div className="font-bold text-xs text-ink dark:text-ink-dark truncate">{activeMenu.product.name}</div>
-              <div className="flex items-center justify-between text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1 font-mono">
-                <span className="truncate">كود: {activeMenu.product.barcode || '—'}</span>
-                <span className="font-bold text-paid dark:text-paid-bright shrink-0 font-sans">
-                  {formatArabicCurrency(activeMenu.product.pricePiasters)}
-                </span>
-              </div>
             </div>
 
             {/* Actions List */}
@@ -594,9 +587,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     setActiveMenu(null);
                     onEditProduct(p);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Edit2 className="w-3.5 h-3.5" />
                   </div>
                   <span className="flex-1 min-w-0 truncate">تعديل بيانات الصنف</span>
@@ -611,7 +604,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   setActiveMenu(null);
                   onSelectProdForMovements(p);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-ink dark:text-ink-dark hover:text-paid dark:hover:text-paid-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-ink dark:text-ink-dark hover:text-paid dark:hover:text-paid-bright text-xs font-bold transition-colors cursor-pointer group text-right"
               >
                 <div className="w-6 h-6 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright group-hover:bg-paid group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                   <Boxes className="w-3.5 h-3.5" />
@@ -627,9 +620,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   setActiveMenu(null);
                   onSelectProdForAdjustment(p);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-warn-soft dark:hover:bg-warn-soft/20 text-ink dark:text-ink-dark hover:text-warn dark:hover:text-warn-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-warn-soft dark:hover:bg-warn-dark-soft text-ink dark:text-ink-dark hover:text-warn dark:hover:text-warn-bright text-xs font-bold transition-colors cursor-pointer group text-right"
               >
-                <div className="w-6 h-6 rounded-md bg-warn-soft dark:bg-warn-soft/20 text-warn dark:text-warn-bright group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                <div className="w-6 h-6 rounded-md bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                   <Scale className="w-3.5 h-3.5" />
                 </div>
                 <span className="flex-1 min-w-0 truncate">تسوية جرد وعدّ المخزن</span>
@@ -644,9 +637,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     setActiveMenu(null);
                     onPrintLabel(p);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
-                  <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-brand-soft dark:group-hover:bg-brand-soft/20 group-hover:text-brand dark:group-hover:text-brand-bright flex items-center justify-center shrink-0 transition-colors">
+                  <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-brand-soft dark:group-hover:bg-brand-dark-soft group-hover:text-brand dark:group-hover:text-brand-bright flex items-center justify-center shrink-0 transition-colors">
                     <Tag className="w-3.5 h-3.5" />
                   </div>
                   <span className="flex-1 min-w-0 truncate">طباعة استيكر باركود</span>
@@ -661,9 +654,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   setActiveMenu(null);
                   onOpenPriceHistory(p);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
               >
-                <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-brand-soft dark:group-hover:bg-brand-soft/20 group-hover:text-brand dark:group-hover:text-brand-bright flex items-center justify-center shrink-0 transition-colors">
+                <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-brand-soft dark:group-hover:bg-brand-dark-soft group-hover:text-brand dark:group-hover:text-brand-bright flex items-center justify-center shrink-0 transition-colors">
                   <History className="w-3.5 h-3.5" />
                 </div>
                 <span className="flex-1 min-w-0 truncate">سجل وتاريخ تغيير الأسعار</span>
@@ -678,9 +671,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     setActiveMenu(null);
                     onSelectProdForPurchase(p);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Truck className="w-3.5 h-3.5" />
                   </div>
                   <span className="flex-1 min-w-0 truncate">استلام وتزويد بضاعة للمخزن</span>
@@ -696,9 +689,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     setActiveMenu(null);
                     onNavigateToBatches(p.name);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-warn-soft dark:hover:bg-warn-soft/20 text-ink dark:text-ink-dark hover:text-warn dark:hover:text-warn-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-warn-soft dark:hover:bg-warn-dark-soft text-ink dark:text-ink-dark hover:text-warn dark:hover:text-warn-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
-                  <div className="w-6 h-6 rounded-md bg-warn-soft dark:bg-warn-soft/20 text-warn dark:text-warn-bright group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <div className="w-6 h-6 rounded-md bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Clock className="w-3.5 h-3.5" />
                   </div>
                   <span className="flex-1 min-w-0 truncate">تواريخ الصلاحية والتشغيلات</span>
@@ -714,9 +707,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     setActiveMenu(null);
                     onViewVariants(p);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
-                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Layers className="w-3.5 h-3.5" />
                   </div>
                   <span className="flex-1 min-w-0 truncate">{terminology.variantsTitle}</span>
@@ -735,7 +728,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     setActiveMenu(null);
                     onDeleteProduct(p);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink dark:text-ink-dark hover:text-danger dark:hover:text-danger-bright text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink dark:text-ink-dark hover:text-danger dark:hover:text-danger-bright text-xs font-bold transition-colors cursor-pointer group text-right"
                 >
                   <div className="w-6 h-6 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright group-hover:bg-danger group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                     <Trash2 className="w-3.5 h-3.5" />

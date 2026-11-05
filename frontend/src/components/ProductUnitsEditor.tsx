@@ -203,7 +203,7 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
       {/* Packaging Banner Card */}
       <div className="p-3 flex items-center justify-between gap-3 bg-surface-2/60 dark:bg-surface-dark-2/60">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 border border-brand/30 flex items-center justify-center shrink-0 text-brand dark:text-brand-bright">
+          <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft border border-brand/30 flex items-center justify-center shrink-0 text-brand dark:text-brand-bright">
             <Boxes className="w-4 h-4" />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -211,11 +211,11 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
               {terminology.packagingSectionTitle}
             </span>
             {isConfigured ? (
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20">
+              <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20">
                 مفعل ({additionalUnits.length} عبوة)
               </span>
             ) : (
-              <span className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted">
+              <span className="text-micro font-semibold text-ink-muted dark:text-ink-dark-muted">
                 ({effectiveBaseUnitName} فقط)
               </span>
             )}
@@ -228,7 +228,7 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
             <button
               type="button"
               onClick={handleResetPackaging}
-              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark hover:border-danger/50 hover:bg-danger-soft text-ink-muted hover:text-danger text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
+              className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark hover:border-danger/50 hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
               title={`إلغاء العبوات الإضافية والرجوع لـ (${effectiveBaseUnitName}) فقط`}
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -248,7 +248,7 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
       </div>
 
       {errorMsg && (
-        <div className="mx-3.5 mt-2.5 p-2 rounded-lg bg-danger-soft border border-danger-border text-danger flex items-center gap-1.5 text-xs font-bold">
+        <div className="mx-3.5 mt-2.5 p-2 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright flex items-center gap-1.5 text-xs font-bold">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           <span>{errorMsg}</span>
         </div>

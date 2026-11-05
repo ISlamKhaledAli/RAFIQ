@@ -3,6 +3,7 @@ import { CreditCard, Sparkles, X, Coins, ArrowLeftRight, Check, AlertCircle, Sma
 import type { Customer } from '../../types/models';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
+import { RequiredMark } from '../../components/RequiredMark';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatArabicCurrency } from '../../utils/money';
 import { invoke } from '../../bridge/ipc';
@@ -134,10 +135,10 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               {isDebt ? <CreditCard className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
             </div>
             <div>
-              <h3 className="font-bold text-sm text-ink dark:text-ink-dark">
+              <h3 className="t-modal-title text-ink dark:text-ink-dark">
                 {isDebt ? 'سداد مديونية العميل' : 'استلام دفعة نقدية تحت الحساب'}
               </h3>
-              <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted block -mt-0.5">
+              <span className="text-micro text-ink-muted dark:text-ink-dark-muted block -mt-0.5">
                 {selectedCustomer.name}
               </span>
             </div>
@@ -154,13 +155,8 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs flex-1 min-h-0 overflow-y-auto">
           {/* Customer Balance Summary Card */}
-          <div className="p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark space-y-2">
+          <div className="p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-ink-muted dark:text-ink-dark-muted font-medium">اسم العميل في الدفتر:</span>
-              <span className="font-bold text-ink dark:text-ink-dark text-sm">{selectedCustomer.name}</span>
-            </div>
-
-            <div className="flex justify-between items-center pt-2 border-t border-line dark:border-line-dark text-xs">
               <span className="text-ink-muted dark:text-ink-dark-muted">
                 {currentBal > 0
                   ? 'إجمالي المديونية المستحقة عليه:'
@@ -179,7 +175,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               >
                 {currentBal !== 0
                   ? formatArabicCurrency(Math.abs(currentBal))
-                  : 'خالص تماماً (0.00 ج.م)'}
+                  : 'خالص تماماً'}
               </span>
             </div>
           </div>
@@ -187,7 +183,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           {/* Payment Method Selector */}
           <div>
             <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1.5">
-              طريقة استلام وسداد الدفعة <span className="text-danger dark:text-danger-bright">*</span>
+              طريقة استلام وسداد الدفعة
             </label>
             <CustomSelect
               value={paymentMethod}
@@ -232,16 +228,16 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                 {paymentMethod === 'cash'
                   ? 'المبلغ المستلم كاش من يد العميل'
                   : 'المبلغ المحول إلكترونياً من العميل'}{' '}
-                <span className="text-danger dark:text-danger-bright">*</span>
+                <RequiredMark />
               </label>
               {isDebt && (
                 <button
                   type="button"
                   onClick={() => setPaymentAmountPiasters(currentBal)}
-                  className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer flex items-center gap-1"
+                  className="text-micro font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer flex items-center gap-1"
                 >
                   <Coins className="w-3 h-3" />
-                  <span>دفع كامل الدين بالظبط ({formatArabicCurrency(currentBal)})</span>
+                  <span>دفع كامل الدين بالظبط</span>
                 </button>
               )}
             </div>
@@ -279,7 +275,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               >
                 <div className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
                   excessAction === 'return_change'
-                    ? 'border-brand dark:border-brand-bright bg-brand dark:bg-brand-bright text-white dark:text-ink'
+                    ? 'border-brand dark:border-brand-bright bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                     : 'border-line dark:border-line-dark'
                 }`}>
                   {excessAction === 'return_change' && <Check className="w-2.5 h-2.5" />}
@@ -291,8 +287,8 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                       <span>رجّع الباقي كاش للزبون</span>
                     </span>
                   </div>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
-                    سداد الدين كامل، وترد له <b>{formatArabicCurrency(excessPiasters)}</b> فكة في إيده.
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
+                    سداد الدين كامل، وترد له الزيادة فكة في إيده.
                   </p>
                 </div>
               </button>
@@ -309,7 +305,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               >
                 <div className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
                   excessAction === 'credit_account'
-                    ? 'border-paid dark:border-paid-bright bg-paid dark:bg-paid-bright text-white dark:text-ink'
+                    ? 'border-paid dark:border-paid-bright bg-paid dark:bg-paid-dark-soft text-white dark:text-paid-bright dark:ring-1 dark:ring-inset dark:ring-paid-bright/40'
                     : 'border-line dark:border-line-dark'
                 }`}>
                   {excessAction === 'credit_account' && <Check className="w-2.5 h-2.5" />}
@@ -321,8 +317,8 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                       <span>سيب الزيادة رصيد في حسابه</span>
                     </span>
                   </div>
-                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
-                    تسجيل <b>{formatArabicCurrency(excessPiasters)}</b> رصيد له تتخصم من فواتيره الجاية.
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
+                    تسجيل الزيادة رصيد له تتخصم من فواتيره الجاية.
                   </p>
                 </div>
               </button>
@@ -335,8 +331,8 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block">دفعة مقدّمة تحت الحساب:</span>
-                <span className="text-[11px] block mt-0.5">
-                  الزبون معلهوش دين حالياً — المبلغ (<b className="font-mono font-bold">{formatArabicCurrency(paymentAmountPiasters)}</b>) هيتسجل رصيد في حسابه يتخصم من مشترياته الجاية.
+                <span className="text-micro block mt-0.5">
+                  الزبون معلهوش دين حالياً — الدفعة هتتسجل رصيد في حسابه يتخصم من مشترياته الجاية.
                 </span>
               </div>
             </div>
@@ -344,7 +340,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
 
           {/* Outcome Preview Banner */}
           {paymentAmountPiasters > 0 && (
-            <div className={`p-3 rounded-xl border text-[11.5px] flex items-center justify-between font-medium ${
+            <div className={`p-3 rounded-xl border text-micro flex items-center justify-between font-medium ${
               balanceAfter > 0
                 ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
                 : balanceAfter < 0
@@ -359,7 +355,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                   ? `متبقي عليه: ${formatArabicCurrency(balanceAfter)}`
                   : balanceAfter < 0
                   ? `له في المحل: ${formatArabicCurrency(Math.abs(balanceAfter))} (دائن)`
-                  : 'خالص تماماً (0.00 ج.م)'}
+                  : 'خالص تماماً'}
               </span>
             </div>
           )}
@@ -367,7 +363,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           {/* Notes Input */}
           <div>
             <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-              ملاحظات أو بيان السند (اختياري)
+              ملاحظات أو بيان السند
             </label>
             <input
               type="text"

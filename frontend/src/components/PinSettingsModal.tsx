@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { RequiredMark } from './RequiredMark';
 
 export interface PinSettingsModalProps {
   isOpen: boolean;
@@ -219,7 +220,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
         actions: updated,
         currentPin: '',
       });
-      setSuccessMsg('تم حفظ وتحديث إعدادات الحماية بنجاح.');
+      setSuccessMsg('تم حفظ إعدادات الحماية');
       setTimeout(() => setSuccessMsg(null), 2500);
       if (onStatusChanged) onStatusChanged();
     } catch (err: unknown) {
@@ -256,7 +257,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
               <KeyRound className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white dark:text-ink-dark">الرقم السري وأمان النظام</h3>
+              <h3 className="t-modal-title text-white dark:text-ink-dark">الرقم السري وأمان النظام</h3>
               <p className="text-xs text-white/80 dark:text-ink-dark-muted">
                 حماية الشاشات والعمليات الحساسة في المحل لمنع أي تلاعب غير مصرح به
               </p>
@@ -376,7 +377,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
 
           {/* Form to Set or Change PIN */}
           <form onSubmit={handleSavePin} className="space-y-3 pt-2 border-t border-line dark:border-line-dark">
-            <h4 className="font-bold text-xs text-ink dark:text-ink-dark flex items-center gap-1.5">
+            <h4 className="t-label text-ink dark:text-ink-dark flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
               <span>{isPinSet ? 'تغيير الرقم السري' : 'عمل رقم سري جديد'}</span>
             </h4>
@@ -384,7 +385,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
             {isPinSet && (
               <div>
                 <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                  الرقم السري الحالي
+                  الرقم السري الحالي <RequiredMark />
                 </label>
                 <input
                   type="password"
@@ -392,7 +393,6 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
                   maxLength={8}
                   value={currentPin}
                   onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••"
                   className="w-full px-3 py-2 text-sm rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark font-mono tracking-widest focus:outline-none focus:border-brand"
                   required
                 />
@@ -402,7 +402,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                  الرقم السري الجديد (4-8 أرقام)
+                  الرقم السري الجديد (4-8 أرقام) <RequiredMark />
                 </label>
                 <input
                   type="password"
@@ -410,14 +410,13 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
                   maxLength={8}
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••"
                   className="w-full px-3 py-2 text-sm rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark font-mono tracking-widest focus:outline-none focus:border-brand"
                   required
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                  تأكيد الرقم السري
+                  تأكيد الرقم السري <RequiredMark />
                 </label>
                 <input
                   type="password"
@@ -425,7 +424,6 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
                   maxLength={8}
                   value={newPinConfirm}
                   onChange={(e) => setNewPinConfirm(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••"
                   className="w-full px-3 py-2 text-sm rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark font-mono tracking-widest focus:outline-none focus:border-brand"
                   required
                 />
@@ -457,7 +455,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
             <div className="bg-brand dark:bg-surface-dark-2 text-white dark:text-ink-dark px-5 py-3.5 flex items-center justify-between border-b border-brand-dark dark:border-line-dark">
               <div className="flex items-center gap-2.5">
                 <Lock className="w-4 h-4 text-white dark:text-brand-bright" />
-                <h4 className="font-bold text-sm text-white dark:text-ink-dark">تأكيد العملية الحساسة</h4>
+                <h4 className="t-label text-white dark:text-ink-dark">تأكيد العملية الحساسة</h4>
               </div>
               <button
                 type="button"
@@ -479,7 +477,6 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
                   autoFocus
                   value={togglePinInput}
                   onChange={(e) => setTogglePinInput(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••"
                   className="w-full text-center px-4 py-3 text-lg rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark font-mono tracking-widest focus:outline-none focus:border-brand"
                   required
                 />

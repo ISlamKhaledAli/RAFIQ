@@ -5,6 +5,7 @@ import { MoneyInput } from '../../components/MoneyInput';
 import { normalizeArabicNumerals } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { useAuth } from '../../context/useAuth';
+import { RequiredMark } from '../../components/RequiredMark';
 
 export interface CustomerFormModalProps {
   isOpen: boolean;
@@ -82,8 +83,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
         </div>
 
         <form onSubmit={onSave} className="p-4 space-y-3.5 text-xs flex-1 min-h-0 overflow-y-auto">
+          <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
           <div>
-            <label className="block text-ink dark:text-ink-dark font-semibold mb-1">اسم الزبون *</label>
+            <label className="block text-ink dark:text-ink-dark font-semibold mb-1">اسم الزبون <RequiredMark /></label>
             <input 
               type="text"
               required
@@ -97,7 +99,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-ink dark:text-ink-dark font-semibold">رقم الموبايل</label>
-              {isCheckingPhone && <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">بنتأكد من الرقم...</span>}
+              {isCheckingPhone && <span className="text-micro text-ink-muted dark:text-ink-dark-muted">بنتأكد من الرقم...</span>}
             </div>
             <input 
               type="text"
@@ -114,7 +116,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
             />
 
             {duplicateCustomer && (
-              <div className="mt-1.5 p-2.5 rounded bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-[11px] flex flex-col gap-1.5">
+              <div className="mt-1.5 p-2.5 rounded bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-micro flex flex-col gap-1.5">
                 <div className="flex items-start gap-1.5">
                   <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0 mt-0.5" />
                   <div>
@@ -130,7 +132,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                       onClose();
                       onOpenStatementForDuplicate(duplicateCustomer);
                     }}
-                    className="text-[11px] text-brand dark:text-brand-bright font-bold hover:underline cursor-pointer"
+                    className="text-micro text-brand dark:text-brand-bright font-bold hover:underline cursor-pointer"
                   >
                     افتح كشف حساب الزبون ده ←
                   </button>
@@ -141,9 +143,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-ink dark:text-ink-dark font-semibold">سقف الشكك المسموح (أقصى مبلغ شكك)</label>
+              <label className="block text-ink dark:text-ink-dark font-semibold">سقف الشكك المسموح</label>
               {!canSetCreditLimit && (
-                <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark flex items-center gap-1">
+                <span className="text-micro text-ink-muted dark:text-ink-muted-dark flex items-center gap-1">
                   <Lock className="w-3 h-3" /> يتطلب صلاحية المشرف
                 </span>
               )}
@@ -155,7 +157,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
               />
             ) : (
               <div className="h-8 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded flex items-center text-ink-muted dark:text-ink-muted-dark font-mono text-xs">
-                {(creditLimitPiasters / 100).toFixed(2)} ج.م (للقراءة فقط)
+                {(creditLimitPiasters / 100).toFixed(2)} ج.م
               </div>
             )}
           </div>
@@ -165,7 +167,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-ink dark:text-ink-dark font-semibold">حساب قديم عليه قبل ما تسجله (إن وجد)</label>
                 {!canSetOpeningBalance && (
-                  <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark flex items-center gap-1">
+                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark flex items-center gap-1">
                     <Lock className="w-3 h-3" /> يتطلب صلاحية المشرف
                   </span>
                 )}
@@ -176,11 +178,11 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                     valuePiasters={initialBalancePiasters}
                     onChangePiasters={setInitialBalancePiasters}
                   />
-                  <p className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">سيبه صفر لو زبون جديد ومفيش عليه أي حساب قديم.</p>
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1">سيبه صفر لو زبون جديد ومفيش عليه أي حساب قديم.</p>
                 </>
               ) : (
                 <div className="h-8 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded flex items-center text-ink-muted dark:text-ink-muted-dark text-xs">
-                  0.00 ج.م (بدون رصيد افتتاحي - غير مصرح)
+                  —
                 </div>
               )}
             </div>

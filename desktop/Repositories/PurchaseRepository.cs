@@ -41,6 +41,11 @@ namespace RafiqPOS.Repositories
             }
 
             string now = DateTime.UtcNow.ToString("o");
+
+            // Fingerprint is taken before the lines are normalised below so a retry of the same request compares equal
+            string idemKey = IdempotencyGuard.NormalizeKey(purchase.IdempotencyKey);
+            string idemFingerprint = idemKey != null ? PurchaseFingerprint(purchase, costingMethod) : null;
+
             purchase.Id = string.IsNullOrWhiteSpace(purchase.Id) ? "pur_" + Guid.NewGuid().ToString("N") : purchase.Id;
             purchase.CreatedAt = now;
             purchase.UpdatedAt = now;
@@ -54,6 +59,14 @@ namespace RafiqPOS.Repositories
                 using (var conn = new SQLiteConnection(_connectionString))
                 {
                     conn.Open();
+
+                    // A repeated key with the same payload returns the first invoice without touching stock, payable or drawer again
+                    string existingPurchaseId = IdempotencyGuard.FindExisting(conn, null, "purchases", "id", idemKey, idemFingerprint);
+                    if (existingPurchaseId != null)
+                    {
+                        return GetById(existingPurchaseId);
+                    }
+
                     using (var trans = conn.BeginTransaction())
                     {
                     try
@@ -232,13 +245,13 @@ namespace RafiqPOS.Repositories
                                 invoice_date, total_cost_piasters, discount_piasters,
                                 net_cost_piasters, paid_amount_piasters, remaining_amount_piasters,
                                 payment_status, payment_source, status, notes, created_by_user_id,
-                                created_at, updated_at
+                                created_at, updated_at, idempotency_key, idempotency_fingerprint
                             ) VALUES (
                                 @id, @invNum, @supId, @supInvNum,
                                 @invDate, @totalCost, @discount,
                                 @netCost, @paidAmt, @remAmt,
                                 @payStatus, @paySource, @status, @notes, @userId,
-                                @createdAt, @updatedAt
+                                @createdAt, @updatedAt, @idemKey, @idemFp
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertMasterSql, conn, trans))
@@ -260,6 +273,8 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@userId", (object)userId ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@createdAt", purchase.CreatedAt);
                             cmd.Parameters.AddWithValue("@updatedAt", purchase.UpdatedAt);
+                            cmd.Parameters.AddWithValue("@idemKey", (object)idemKey ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idemFp", (object)idemFingerprint ?? DBNull.Value);
                             cmd.ExecuteNonQuery();
                         }
 
@@ -981,6 +996,40 @@ namespace RafiqPOS.Repositories
             return (long)Math.Round(((decimal)lineTotalPiasters * partMilli) / wholeMilli, MidpointRounding.AwayFromZero);
         }
 
+        // Request fingerprints for client retries: every field the caller controls that changes money or stock
+        private static string PurchaseFingerprint(Purchase p, string costingMethod)
+        {
+            var lines = new System.Text.StringBuilder();
+            if (p.Items != null)
+            {
+                for (int i = 0; i < p.Items.Count; i++)
+                {
+                    var it = p.Items[i];
+                    lines.Append(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        "{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7};",
+                        it.ProductId, it.QuantityMilli, it.BonusQuantityMilli, it.UnitCostPiasters,
+                        it.PackageCostPiasters, it.DiscountPiasters, it.ConversionFactor, it.BatchNumber));
+                }
+            }
+            return IdempotencyGuard.Fingerprint("purchase", p.SupplierId, p.SupplierName, p.SupplierInvoiceNumber,
+                p.DiscountPiasters, p.PaidAmountPiasters, p.PayInFull, p.PaymentSource, costingMethod, lines.ToString());
+        }
+
+        private static string PurchaseReturnFingerprint(PurchaseReturn r)
+        {
+            var lines = new System.Text.StringBuilder();
+            if (r.Items != null)
+            {
+                for (int i = 0; i < r.Items.Count; i++)
+                {
+                    var it = r.Items[i];
+                    lines.Append(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        "{0}|{1}|{2}|{3};", it.ProductId, it.QuantityMilli, it.UnitCostPiasters, it.BatchNumber));
+                }
+            }
+            return IdempotencyGuard.Fingerprint("purchase_return", r.SupplierId, r.PurchaseId, r.RefundMethod, lines.ToString());
+        }
+
         public PurchaseReturn CreatePurchaseReturn(PurchaseReturn returnDoc, string userId = null)
         {
             if (returnDoc == null) throw new ArgumentNullException("returnDoc");
@@ -989,11 +1038,22 @@ namespace RafiqPOS.Repositories
 
             string now = DateTime.UtcNow.ToString("o");
 
+            string idemKey = IdempotencyGuard.NormalizeKey(returnDoc.IdempotencyKey);
+            string idemFingerprint = idemKey != null ? PurchaseReturnFingerprint(returnDoc) : null;
+
             lock (SaleService.FinancialWriteLock)
             {
                 using (var conn = new SQLiteConnection(_connectionString))
                 {
                     conn.Open();
+
+                    // A repeated key with the same payload returns the first return without touching stock, payable or drawer again
+                    string existingReturnId = IdempotencyGuard.FindExisting(conn, null, "purchase_returns", "id", idemKey, idemFingerprint);
+                    if (existingReturnId != null)
+                    {
+                        return GetReturnById(existingReturnId);
+                    }
+
                     using (var trans = conn.BeginTransaction())
                     {
                         try
@@ -1291,15 +1351,17 @@ namespace RafiqPOS.Repositories
                                 INSERT INTO purchase_returns (
                                     id, return_number, purchase_id, supplier_id,
                                     return_date, total_cost_piasters, refund_method,
-                                    notes, created_by_user_id, created_at
+                                    notes, created_by_user_id, created_at, idempotency_key, idempotency_fingerprint
                                 ) VALUES (
                                     @id, @retNum, @purId, @supId,
                                     @retDate, @totalCost, @refundMethod,
-                                    @notes, @userId, @createdAt
+                                    @notes, @userId, @createdAt, @idemKey, @idemFp
                                 );
                             ";
                             using (var cmd = new SQLiteCommand(insertMasterSql, conn, trans))
                             {
+                                cmd.Parameters.AddWithValue("@idemKey", (object)idemKey ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@idemFp", (object)idemFingerprint ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@id", returnDoc.Id);
                                 cmd.Parameters.AddWithValue("@retNum", returnDoc.ReturnNumber);
                                 cmd.Parameters.AddWithValue("@purId", (object)returnDoc.PurchaseId ?? DBNull.Value);

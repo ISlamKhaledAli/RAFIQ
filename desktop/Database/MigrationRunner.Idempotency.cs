@@ -24,6 +24,63 @@ namespace RafiqPOS.Database
                 BackupDatabaseBeforeMigration(dbPath);
                 ApplyMigration61(conn);
             }
+
+            // 65. Apply Migration 62: Idempotency keys for purchases, purchase returns and supplier payments (Phase 1 money audit H1)
+            if (currentVersion < 62)
+            {
+                BackupDatabaseBeforeMigration(dbPath);
+                ApplyMigration62(conn);
+            }
+        }
+
+        // Purchasing writes the UI may retry (double-click, timeout): client key and request fingerprint per row
+        private static readonly string[] PURCHASING_IDEMPOTENT_TABLES = new string[]
+        {
+            "purchases", "purchase_returns", "supplier_transactions"
+        };
+
+        private static void ApplyMigration62(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    EnsurePurchasingIdempotencyColumns(conn, trans);
+
+                    using (var migCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (62, 'Idempotency keys for purchases, purchase returns and supplier payments', datetime('now'));
+                    ", conn, trans))
+                    {
+                        migCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void EnsurePurchasingIdempotencyColumns(SQLiteConnection conn, SQLiteTransaction trans)
+        {
+            for (int i = 0; i < PURCHASING_IDEMPOTENT_TABLES.Length; i++)
+            {
+                string table = PURCHASING_IDEMPOTENT_TABLES[i];
+                if (!TableExists(conn, trans, table)) continue;
+                EnsureColumn(conn, trans, table, "idempotency_key", "TEXT DEFAULT NULL");
+                EnsureColumn(conn, trans, table, "idempotency_fingerprint", "TEXT DEFAULT NULL");
+                string indexSql = string.Format(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_{0}_idempotency ON {0}(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key != '';",
+                    table);
+                using (var idx = new SQLiteCommand(indexSql, conn, trans))
+                {
+                    idx.ExecuteNonQuery();
+                }
+            }
         }
 
         // Tables that the UI may retry, with the client key and the request fingerprint stored per row
@@ -91,6 +148,7 @@ namespace RafiqPOS.Database
                 try
                 {
                     EnsureStep3BColumns(conn, trans);
+                    EnsurePurchasingIdempotencyColumns(conn, trans);
                     trans.Commit();
                 }
                 catch

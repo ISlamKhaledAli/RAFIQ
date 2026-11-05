@@ -1,18 +1,37 @@
-import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
-import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, ShieldCheck, Info, ShieldAlert, Smartphone } from 'lucide-react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
+import {
+  Save,
+  Sparkles,
+  Image as ImageIcon,
+  Upload,
+  RotateCcw,
+  ShieldCheck,
+  Smartphone,
+  Store,
+  FileText,
+  Receipt,
+  Printer,
+  CheckCircle,
+  UserRound,
+} from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
-import { useTheme } from '../../context/useTheme';
-import { processUploadedLogo } from '../../utils/thermalImageOptimizer';
-import { rafiqAlert } from '../../utils/dialogService';
-import { invoke } from '../../bridge/ipc';
-import { useFeatures } from '../../context/useFeatures';
-import type { ControlledMandatoryFields } from '../../types/pharma';
+import { optimizeImageForThermal } from '../../utils/thermalImageOptimizer';
+import { ReceiptPaper } from '../../components/ReceiptPaper';
+import {
+  buildReceiptModel,
+  buildSampleReceiptSale,
+  DEFAULT_DEVELOPER_SIGNATURE,
+  normalizeReceiptText,
+  receiptTextLimitError,
+  RECEIPT_TEXT_MAX_CHARS,
+} from '../../utils/receiptLayout';
+import { FIELD_INPUT_CLASS, Field, SettingsCard, ToggleRow } from './settingsParts';
+import { SignatureImageField } from './SignatureImageField';
+import { BUILT_IN_SIGNATURE_IMAGES } from '../../utils/signatureDefaults';
 
 interface StoreProfileTabProps {
   storeName: string;
   setStoreName: (val: string) => void;
-  cashierName: string;
-  setCashierName: (val: string) => void;
   phone: string;
   setPhone: (val: string) => void;
   address: string;
@@ -23,39 +42,82 @@ interface StoreProfileTabProps {
   setReceiptHeader: (val: string) => void;
   receiptFooter: string;
   setReceiptFooter: (val: string) => void;
-  allowNegativeStock: boolean;
-  setAllowNegativeStock: (val: boolean) => void;
-  onToggleNegativeStock?: (val: boolean) => void;
-  requireOpenShiftToSell?: boolean;
-  setRequireOpenShiftToSell?: (val: boolean) => void;
-  onToggleRequireOpenShift?: (val: boolean) => void;
-  defaultCustomerCreditLimitEgp: number;
-  setDefaultCustomerCreditLimitEgp: (val: number) => void;
-  logoVariant?: 'classic' | 'modern';
-  setLogoVariant?: (val: 'classic' | 'modern') => void;
   showReceiptLogo?: boolean;
   setShowReceiptLogo?: (val: boolean) => void;
+  showReceiptCashier?: boolean;
+  setShowReceiptCashier?: (val: boolean) => void;
   storeLogoUrl?: string;
   setStoreLogoUrl?: (val: string) => void;
   developerSignature?: string;
   setDeveloperSignature?: (val: string) => void;
+  /** developer_signature_visible: false hides the whole signature block (root only) */
+  developerSignatureVisible?: boolean;
+  setDeveloperSignatureVisible?: (val: boolean) => void;
+  /** developer_signature_image: '' built-in banner, 'none' no image, or a PNG data URL (root only) */
+  developerSignatureImage?: string;
+  setDeveloperSignatureImage?: (val: string) => void;
   storeInstapayAddress?: string;
   setStoreInstapayAddress?: (val: string) => void;
   storeWalletNumber?: string;
   setStoreWalletNumber?: (val: string) => void;
+  /** Receipt paper width chosen in the printer settings: the preview follows it */
+  paperWidth?: '80mm' | '57mm' | 'a4';
   isRoot?: boolean;
-  /** Owner/admin only: negative-stock, open-shift and default credit limit policies */
-  canEditStorePolicies?: boolean;
+  /** true when something on this screen differs from what is saved */
+  dirty: boolean;
+  saved: boolean;
   saveLoading: boolean;
   handleSave: (e: FormEvent) => void;
   onOpenWizard?: () => void;
+  /** Shortcut to the printer settings (paper width and test print); omitted when the user cannot open them */
+  onOpenPrinterSettings?: () => void;
 }
+
+const DEFAULT_LOGOS = ['/receipt_logo.png', '/receipt_logo_square.png', '/logo.png'];
+const DEFAULT_LOGO_URL = '/receipt_logo_square.png';
+
+interface ReceiptTextFieldProps {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  rows: number;
+  placeholder: string;
+  hint?: string;
+  error: string;
+}
+
+/** Multi-line receipt text: Enter starts a new line and the line breaks are printed as typed. */
+const ReceiptTextField = ({ label, value, onChange, rows, placeholder, hint, error }: ReceiptTextFieldProps) => (
+  <label className="flex flex-col gap-2">
+    <span className="t-label text-ink dark:text-ink-dark">{label}</span>
+    <textarea
+      rows={rows}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      aria-invalid={error !== ''}
+      className={`w-full bg-surface dark:bg-surface-dark-2 border rounded-lg px-3 py-2.5 text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-muted-dark/70 focus:outline-none focus:ring-1 transition-colors resize-none leading-relaxed ${
+        error
+          ? 'border-danger dark:border-danger-bright focus:border-danger dark:focus:border-danger-bright focus:ring-danger dark:focus:ring-danger-bright'
+          : 'border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-brand dark:focus:ring-brand-bright'
+      }`}
+    />
+    <span className="flex flex-wrap items-center justify-between gap-x-3 text-xs leading-relaxed">
+      {error ? (
+        <span className="text-danger dark:text-danger-bright font-semibold">{error}</span>
+      ) : (
+        <span className="text-ink-muted dark:text-ink-muted-dark">{hint ?? ''}</span>
+      )}
+      <span dir="ltr" className="text-ink-muted dark:text-ink-muted-dark tabular-nums">
+        {normalizeReceiptText(value).length} / {RECEIPT_TEXT_MAX_CHARS}
+      </span>
+    </span>
+  </label>
+);
 
 export const StoreProfileTab = ({
   storeName,
   setStoreName,
-  cashierName,
-  setCashierName,
   phone,
   setPhone,
   address,
@@ -66,793 +128,388 @@ export const StoreProfileTab = ({
   setReceiptHeader,
   receiptFooter,
   setReceiptFooter,
-  allowNegativeStock,
-  setAllowNegativeStock,
-  onToggleNegativeStock,
-  requireOpenShiftToSell = true,
-  setRequireOpenShiftToSell,
-  onToggleRequireOpenShift,
-  defaultCustomerCreditLimitEgp,
-  setDefaultCustomerCreditLimitEgp,
   showReceiptLogo = true,
   setShowReceiptLogo,
-  storeLogoUrl = '/receipt_logo_square.png',
+  showReceiptCashier = true,
+  setShowReceiptCashier,
+  storeLogoUrl = DEFAULT_LOGO_URL,
   setStoreLogoUrl,
-  developerSignature = 'نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965',
+  developerSignature = DEFAULT_DEVELOPER_SIGNATURE,
   setDeveloperSignature,
-  storeInstapayAddress,
+  developerSignatureVisible = true,
+  setDeveloperSignatureVisible,
+  developerSignatureImage = '',
+  setDeveloperSignatureImage,
+  storeInstapayAddress = '',
   setStoreInstapayAddress,
-  storeWalletNumber,
+  storeWalletNumber = '',
   setStoreWalletNumber,
+  paperWidth = '80mm',
   isRoot = false,
-  canEditStorePolicies = false,
+  dirty,
+  saved,
   saveLoading,
   handleSave,
   onOpenWizard,
+  onOpenPrinterSettings,
 }: StoreProfileTabProps) => {
-  const { theme, setTheme, resolvedTheme } = useTheme();
-  const { isEnabled } = useFeatures();
-  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [logoError, setLogoError] = useState('');
+  // Pool image the root clicked to see on the sample receipt (null = the sample invoice's own pick)
+  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null);
 
-  const [mandatoryFields, setMandatoryFields] = useState<ControlledMandatoryFields>({
-    requirePatientNationalId: true,
-    requireDoctorLicense: false,
-    requireDoctorName: true,
-    requirePrescriptionNo: false,
-    requirePrescriptionDate: true,
-    requirePatientPhone: false,
-  });
-
-  useEffect(() => {
-    if (isEnabled('feature_pharmacy')) {
-      void invoke<ControlledMandatoryFields>('pharma:getControlledMandatoryFields').then((res) => {
-        if (res) setMandatoryFields(res);
-      }).catch(() => null);
-    }
-  }, [isEnabled]);
-
-  const handleToggleMandatoryField = async (field: keyof ControlledMandatoryFields, val: boolean) => {
-    const updated = { ...mandatoryFields, [field]: val };
-    setMandatoryFields(updated);
-    try {
-      await invoke('pharma:saveControlledMandatoryFields', updated);
-    } catch {
-      // ignore
-    }
-  };
+  const headerError = receiptTextLimitError(receiptHeader);
+  const footerError = receiptTextLimitError(receiptFooter);
+  const signatureError = isRoot ? receiptTextLimitError(developerSignature) : '';
+  const hasTextError = headerError !== '' || footerError !== '' || signatureError !== '';
+  const isDefaultLogo = DEFAULT_LOGOS.includes(storeLogoUrl);
+  const previewPaper = paperWidth === '57mm' ? '57mm' : '80mm';
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    // تفريغ القيمة للسماح بإعادة اختيار نفس الملف إذا رغب المستخدم
-    e.target.value = '';
-
-    if (!file) return;
-
+    const input = e.target;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || !setStoreLogoUrl) return;
     if (!file.type.startsWith('image/')) {
-      void rafiqAlert({
-        title: 'صيغة غير مدعومة',
-        message: 'يرجى اختيار ملف صورة صالح (PNG أو JPG أو WEBP).',
-        variant: 'warning',
-      });
+      setLogoError('الملف المختار ليس صورة. اختر ملف PNG أو JPG.');
       return;
     }
-
-    if (file.size > 5 * 1024 * 1024) {
-      void rafiqAlert({
-        title: 'حجم الصورة كبير',
-        message: 'حجم ملف الشعار يتجاوز 5 ميجابايت. يرجى اختيار صورة أصغر حجماً لتفادي بطء الطباعة.',
-        variant: 'warning',
-      });
-      return;
-    }
-
-    setIsOptimizing(true);
+    setLogoError('');
+    setIsUploading(true);
     const reader = new FileReader();
+    reader.onerror = () => {
+      setLogoError('تعذر قراءة الملف. جرّب صورة أخرى.');
+      setIsUploading(false);
+    };
     reader.onload = async () => {
-      if (typeof reader.result === 'string' && setStoreLogoUrl) {
+      if (typeof reader.result === 'string') {
         try {
-          // المعالجة الاحترافية: ضبط الأبعاد بنسب متناسقة حتى 240×240 دون مط أو تشويه ألوان
-          const processed = await processUploadedLogo(reader.result, 240);
-          setStoreLogoUrl(processed);
+          // Auto-optimize to recommended thermal dimensions (200x70) & pure high contrast monochrome
+          setStoreLogoUrl(await optimizeImageForThermal(reader.result, 200, 70));
         } catch {
           setStoreLogoUrl(reader.result);
-        } finally {
-          setIsOptimizing(false);
         }
-      } else {
-        setIsOptimizing(false);
       }
-    };
-    reader.onerror = () => {
-      setIsOptimizing(false);
-      void rafiqAlert({
-        title: 'فشل قراءة الملف',
-        message: 'تعذر قراءة ملف الصورة المختارة. يرجى إعادة المحاولة.',
-        variant: 'error',
-      });
+      setIsUploading(false);
     };
     reader.readAsDataURL(file);
   };
 
-  const handleResetLogo = () => {
-    if (setStoreLogoUrl) {
-      setStoreLogoUrl('/receipt_logo_square.png');
-    }
-  };
+  let statusNode;
+  if (saveLoading) {
+    statusNode = <span className="text-ink-muted dark:text-ink-muted-dark">جاري الحفظ...</span>;
+  } else if (hasTextError) {
+    statusNode = <span className="text-danger dark:text-danger-bright font-semibold">قصّر نصوص الوصل ثم احفظ</span>;
+  } else if (dirty) {
+    statusNode = (
+      <span className="flex items-center gap-2 text-warn dark:text-warn-bright font-semibold">
+        <span className="w-2 h-2 rounded-full bg-warn dark:bg-warn-bright" />
+        تغييرات لم تُحفظ بعد
+      </span>
+    );
+  } else if (saved) {
+    statusNode = (
+      <span className="flex items-center gap-2 text-paid dark:text-paid-bright font-bold">
+        <CheckCircle className="w-4 h-4" />
+        تم حفظ التغييرات
+      </span>
+    );
+  } else {
+    statusNode = <span className="text-ink-muted dark:text-ink-muted-dark">كل التغييرات محفوظة</span>;
+  }
 
   return (
     <div className="grid grid-cols-12 gap-5 flex-1 items-start">
-      {/* RIGHT COLUMN: Store Profile Form (7 cols) */}
-      <div className="col-span-12 lg:col-span-7 flex flex-col gap-4">
-        <form 
-          onSubmit={handleSave} 
-          className="bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark shadow-subtle p-5 flex flex-col gap-4 text-xs"
-        >
-          {/* Header Card */}
-          <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-3.5">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded bg-brand/10 dark:bg-brand-bright/15 text-brand dark:text-brand-bright flex items-center justify-center font-bold">
-                <Store className="w-4 h-4 text-brand dark:text-brand-bright" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-ink dark:text-ink-dark m-0">بيانات وتفاصيل المحل</h3>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">بتظهر في وصل الكاشير الحراري وفواتير البيع للزبائن</span>
-              </div>
-            </div>
-            {isRoot && onOpenWizard && (
+      {/* Form column */}
+      <form onSubmit={handleSave} className="col-span-12 xl:col-span-7 flex flex-col gap-5">
+        <SettingsCard
+          icon={Store}
+          title="هوية المحل"
+          description="الاسم والعنوان والهاتف والرقم الضريبي تظهر أعلى الوصل المطبوع، والاسم يظهر أيضاً في عنوان البرنامج."
+          action={
+            isRoot && onOpenWizard ? (
               <button
                 type="button"
                 onClick={onOpenWizard}
-                className="px-3 py-1.5 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand/20 dark:hover:bg-brand-bright/25 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="h-10 px-4 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand/20 dark:hover:bg-brand-bright/25 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors cursor-pointer"
               >
-                <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                <Sparkles className="w-4 h-4" />
                 <span>معالج تهيئة المحل والنشاط</span>
               </button>
-            )}
-          </div>
-
-          {/* Section: Basic Identity */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-ink dark:text-ink-dark">
-                اسم المحل أو المنشأة <span className="text-danger">*</span>
-              </label>
+            ) : undefined
+          }
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Field label="اسم المحل أو المنشأة" required className="md:col-span-2">
               <input
                 type="text"
                 value={storeName}
                 onChange={(e) => setStoreName(e.target.value)}
-                placeholder="مثلاً: سوبر ماركت رفيق / مؤسسة النور"
-                className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors"
+                placeholder="مثلاً: سوبر ماركت رفيق"
+                className={FIELD_INPUT_CLASS}
                 required
               />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-ink dark:text-ink-dark">اسم الكاشير أو الوردية</label>
-              <input
-                type="text"
-                value={cashierName}
-                onChange={(e) => setCashierName(e.target.value)}
-                placeholder="مثلاً: كاشير (1) / وردية الصباح"
-                className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-ink dark:text-ink-dark">رقم الهاتف للتواصل</label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="مثلاً: 01000000000"
-                dir="ltr"
-                className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors text-right tabular-nums font-mono"
-              />
-            </div>
-          </div>
-
-          {/* Section: Address & Tax */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-ink dark:text-ink-dark">العنوان والفرع</label>
+            </Field>
+            <Field label="العنوان والفرع" className="md:col-span-2">
               <input
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="مثلاً: 23 شارع الجمهورية - وسط البلد"
-                className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors"
+                className={FIELD_INPUT_CLASS}
               />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-ink dark:text-ink-dark">الرقم الضريبي / السجل التجاري (اختياري)</label>
+            </Field>
+            <Field label="رقم الهاتف">
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="01000000000"
+                dir="ltr"
+                className={`${FIELD_INPUT_CLASS} text-right tabular-nums font-mono`}
+              />
+            </Field>
+            <Field label="الرقم الضريبي أو السجل التجاري">
               <input
                 type="text"
                 value={taxNumber}
                 onChange={(e) => setTaxNumber(e.target.value)}
-                placeholder="مثلاً: 934-210-884"
+                placeholder="934-210-884"
                 dir="ltr"
-                className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors text-right tabular-nums font-mono"
+                className={`${FIELD_INPUT_CLASS} text-right tabular-nums font-mono`}
               />
-            </div>
+            </Field>
           </div>
+        </SettingsCard>
 
-          {/* Section: Direct Store Electronic Payments (InstaPay & Wallets) */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-xl border border-line dark:border-line-dark flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Smartphone className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <span className="font-bold text-ink dark:text-ink-dark text-xs">
-                  المدفوعات الإلكترونية المباشرة للمحل (إنستاباي ومحافظ كاش)
-                </span>
-              </div>
-              <span className="text-[10px] text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 px-2 py-0.5 rounded font-bold">
-                دفع سريع في الكاشير
-              </span>
-            </div>
-            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
-              تظهر هذه البيانات للكاشير في شاشة الدفع عند رغبة الزبون بالتحويل المباشر، وتتيح البيع السريع بإنستاباي والمحافظ دون الحاجة لتشغيل قسم خدمات وكالة سحب وإيداع المحافظ.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-ink dark:text-ink-dark">
-                  عنوان إنستاباي للمحل (IPA أو رقم الهاتف)
-                </label>
-                <input
-                  type="text"
-                  value={storeInstapayAddress || ''}
-                  onChange={(e) => setStoreInstapayAddress && setStoreInstapayAddress(e.target.value)}
-                  placeholder="مثلاً: username@instapay أو 010xxxxxxxx"
-                  dir="ltr"
-                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors text-right font-mono"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-ink dark:text-ink-dark">
-                  رقم محفظة كاش للمحل (فودافون كاش / أورانج / اتصالات / وي)
-                </label>
-                <input
-                  type="text"
-                  value={storeWalletNumber || ''}
-                  onChange={(e) => setStoreWalletNumber && setStoreWalletNumber(e.target.value)}
-                  placeholder="مثلاً: 01012345678"
-                  dir="ltr"
-                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors text-right font-mono tabular-nums"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section: Receipt Header & Footer */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-ink dark:text-ink-dark">كلام الترحيب أول الوصل (الترويسة)</label>
-            <input
-              type="text"
-              value={receiptHeader}
-              onChange={(e) => setReceiptHeader(e.target.value)}
-              placeholder="مثلاً: أهلاً بكم، شرفتمونا!"
-              className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-10 px-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-ink dark:text-ink-dark">كلام تذييل الوصل (سياسة الاسترجاع ورسالة الشكر)</label>
-            <textarea
-              rows={2}
-              value={receiptFooter}
-              onChange={(e) => setReceiptFooter(e.target.value)}
-              placeholder="مثلاً: شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بالفاتورة."
-              className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded p-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors resize-none leading-relaxed"
-            />
-          </div>
-
-          {/* Section: Receipt Logo Customization & Technical Guidance */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-brand dark:text-brand-bright" />
-                <span className="font-bold text-ink dark:text-ink-dark text-xs">شعار المتجر أعلى الإيصال الحراري</span>
-              </div>
-              <ToggleSwitch
-                checked={showReceiptLogo}
-                onChange={(next) => setShowReceiptLogo && setShowReceiptLogo(next)}
-                title={showReceiptLogo ? 'مفعّل (طباعة الشعار أعلى الوصل)' : 'معطّل (إلغاء طباعة الشعار)'}
+        <SettingsCard
+          icon={Smartphone}
+          title="الدفع الإلكتروني المباشر"
+          description="تظهر للكاشير في شاشة الدفع عند تحويل الزبون مباشرة بإنستاباي أو محفظة كاش، دون الحاجة لتشغيل خدمات المحافظ."
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Field label="عنوان إنستاباي (IPA أو رقم الهاتف)">
+              <input
+                type="text"
+                value={storeInstapayAddress}
+                onChange={(e) => setStoreInstapayAddress?.(e.target.value)}
+                placeholder="username@instapay"
+                dir="ltr"
+                className={`${FIELD_INPUT_CLASS} text-right font-mono`}
               />
-            </div>
-
-            {showReceiptLogo && (
-              <div className="flex flex-col gap-3 pt-1 border-t border-line dark:border-line-dark">
-                {/* Controls and current preview */}
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-surface dark:bg-surface-dark p-3 rounded-lg border border-line dark:border-line-dark shadow-2xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-lg border border-line dark:border-line-dark bg-white dark:bg-surface-dark-3 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
-                      <img
-                        src={storeLogoUrl}
-                        alt="معاينة الشعار"
-                        className="max-h-full max-w-full object-contain"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = '/receipt_logo_square.png';
-                        }}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-bold text-ink dark:text-ink-dark">
-                        {storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/logo.png'
-                          ? 'شعار المتجر (يظهر في الإيصالات وفواتير البيع)'
-                          : 'شعار رفيق المعتمد (الافتراضي)'}
-                      </span>
-                      <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                        {storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/logo.png'
-                          ? 'يتم الحفاظ على الألوان والتفاصيل الطبيعية للشعار بدقة عالية متوافقة مع الطباعة'
-                          : 'الشعار الرسمي المعتمد لنظام رفيق بكامل ألوانه الطبيعية'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center flex-wrap gap-2">
-                    <label className="px-3.5 py-2 bg-brand text-white hover:bg-brand-hover rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{isOptimizing ? 'جاري الرفع...' : 'رفع شعار جديد'}</span>
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        className="hidden"
-                        onChange={handleLogoUpload}
-                        disabled={isOptimizing}
-                      />
-                    </label>
-
-                    {storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/logo.png' && (
-                      <button
-                        type="button"
-                        onClick={handleResetLogo}
-                        className="px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark border border-line dark:border-line-dark rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="استعادة شعار رفيق الافتراضي المعتمد"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>استعادة الشعار الافتراضي</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Technical Recommended Dimensions Banner */}
-                <div className="bg-brand-soft/40 dark:bg-brand-dark/20 border border-brand/20 dark:border-brand-bright/20 rounded-lg p-2.5 text-[11px] leading-relaxed text-ink dark:text-ink-dark flex items-start gap-2">
-                  <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <div className="font-bold text-brand dark:text-brand-bright">
-                      إرشادات شعار الإيصال وفواتير البيع:
-                    </div>
-                    <ul className="list-disc list-inside space-y-0.5 text-ink-muted dark:text-ink-muted-dark text-[10.5px]">
-                      <li>
-                        <strong className="text-ink dark:text-ink-dark">المقاس القياسي الموصى به:</strong> تصميم مربع بدقة <span dir="ltr" className="font-mono font-semibold">120 × 120</span> حتى <span dir="ltr" className="font-mono font-semibold">240 × 240</span> بكسل لملاءمة مثالية لورق 80 مم و 57 مم.
-                      </li>
-                      <li>
-                        <strong className="text-ink dark:text-ink-dark">نقاء الألوان والجودة:</strong> يحتفظ النظام بكامل ألوان الشعار الطبيعية ونقاء خطوطه وتفاصيله؛ وتقوم الطابعة الحرارية بتدريج الظلال تلقائياً بأعلى نقاء ممكن.
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
+            </Field>
+            <Field label="رقم محفظة كاش (فودافون وغيرها)">
+              <input
+                type="text"
+                value={storeWalletNumber}
+                onChange={(e) => setStoreWalletNumber?.(e.target.value)}
+                placeholder="01012345678"
+                dir="ltr"
+                className={`${FIELD_INPUT_CLASS} text-right font-mono tabular-nums`}
+              />
+            </Field>
           </div>
+        </SettingsCard>
 
-          {/* Section: Developer Signature & Branding (Root Protected) */}
-          {isRoot && (
-            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright" />
-                  <span className="font-bold text-ink dark:text-ink-dark text-xs">
-                    حقوق وتوقيع مطور النظام (دعاية النظام أسفل الفاتورة)
+        <SettingsCard
+          icon={ImageIcon}
+          title="شعار الوصل"
+          description="يُطبع أعلى الوصل قبل اسم المحل."
+          action={
+            <ToggleSwitch
+              checked={showReceiptLogo}
+              onChange={(next) => setShowReceiptLogo?.(next)}
+              title={showReceiptLogo ? 'الشعار يُطبع على الوصل' : 'الشعار لا يُطبع على الوصل'}
+            />
+          }
+        >
+          {showReceiptLogo && (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-4 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-4">
+                <div className="w-20 h-14 rounded-lg border border-line dark:border-line-dark bg-white p-1 flex items-center justify-center overflow-hidden shrink-0">
+                  <img
+                    src={storeLogoUrl}
+                    alt="معاينة الشعار"
+                    className="max-h-full max-w-full object-contain"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = DEFAULT_LOGO_URL;
+                    }}
+                  />
+                </div>
+                <div className="flex-1 min-w-48 flex flex-col gap-1">
+                  <span className="t-label text-ink dark:text-ink-dark">
+                    {isDefaultLogo ? 'شعار رفيق الافتراضي' : 'شعار المحل المخصص'}
+                  </span>
+                  <span className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                    {isDefaultLogo
+                      ? 'ارفع شعار محلك ليحل محله على الوصل.'
+                      : 'جُهّز تلقائياً للطباعة الحرارية: أبيض وأسود عالي التباين.'}
                   </span>
                 </div>
-
-                <span className="text-[10px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark/30 border border-paid/30 px-2 py-0.5 rounded flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" />
-                  <span>صلاحية روت مفعّلة (المطور)</span>
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    className={`h-10 px-4 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid-bright-hover text-white dark:text-surface-dark rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
+                      isUploading ? 'opacity-60 pointer-events-none' : 'cursor-pointer'
+                    }`}
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>{isUploading ? 'جاري تجهيز الشعار...' : 'رفع شعار جديد'}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      disabled={isUploading}
+                      onChange={handleLogoUpload}
+                    />
+                  </label>
+                  {!isDefaultLogo && (
+                    <button
+                      type="button"
+                      onClick={() => setStoreLogoUrl?.(DEFAULT_LOGO_URL)}
+                      className="h-10 px-4 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>الشعار الافتراضي</span>
+                    </button>
+                  )}
+                </div>
               </div>
-
-              <div className="flex flex-col gap-1">
-                <input
-                  type="text"
-                  value={developerSignature}
-                  onChange={(e) => setDeveloperSignature && setDeveloperSignature(e.target.value)}
-                  placeholder="نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965"
-                  className="w-full rounded h-9 px-3 text-xs font-medium transition-colors bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                />
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                  بصفتك المطور (روت)، يمكنك تخصيص عبارة الدعاية والتوقيع البرمجي التي تظهر في سطر أسفل جميع فواتير البيع.
+              {logoError ? (
+                <span className="text-xs font-semibold text-danger dark:text-danger-bright">{logoError}</span>
+              ) : (
+                <span className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                  الأفضل ملف PNG بخلفية بيضاء، بعرض حتى 200 بكسل لورق 80 مم أو 150 بكسل لورق 57 مم.
                 </span>
-              </div>
+              )}
             </div>
           )}
+        </SettingsCard>
 
-          {/* Store policies are admin-only on the server (IpcDispatcher settings allowlists) */}
-          {canEditStorePolicies && (
-            <>
-            {/* Feature #30: Negative Stock Policy */}
-            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
-              <div className="flex flex-col gap-0.5">
-                <span className="font-bold text-ink dark:text-ink-dark text-xs">السماح بالبيع بالسالب لما البضاعة تخلص</span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                  مفيد في أول التشغيل عشان حركة البيع والزبائن في الطابور ما تقفش لو لسه ما خلصتش جرد المحل.
-                </span>
-              </div>
-              <ToggleSwitch
-                checked={allowNegativeStock}
-                onChange={(next) => {
-                  setAllowNegativeStock(next);
-                  if (onToggleNegativeStock) onToggleNegativeStock(next);
-                }}
-                title={allowNegativeStock ? 'مفعّل (البيع شغال مع تنبيه بالسالب)' : 'معطّل (منع البيع لو الرصيد خلص)'}
-              />
-            </div>
+        <SettingsCard
+          icon={FileText}
+          title="نصوص الوصل"
+          description="اضغط Enter للانتقال لسطر جديد (حتى 4 أسطر)، وتُطبع الأسطر كما كتبتها."
+        >
+          <ReceiptTextField
+            label="ترحيب أول الوصل"
+            value={receiptHeader}
+            onChange={setReceiptHeader}
+            rows={2}
+            placeholder="مثلاً: أهلاً بكم، شرفتمونا!"
+            error={headerError}
+          />
+          <ReceiptTextField
+            label="تذييل الوصل (سياسة الاسترجاع ورسالة الشكر)"
+            value={receiptFooter}
+            onChange={setReceiptFooter}
+            rows={3}
+            placeholder="مثلاً: البضاعة المباعة ترد وتستبدل خلال 14 يوماً بالفاتورة."
+            hint="لو تُرك فارغاً لا يُطبع شيء."
+            error={footerError}
+          />
+        </SettingsCard>
 
-            {/* Feature: Require Open Shift to Sell */}
-            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
-              <div className="flex flex-col gap-0.5">
-                <span className="font-bold text-ink dark:text-ink-dark text-xs">إلزام فتح وردية واستلام الدرج لإتمام البيع</span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                  عند التفعيل: يمنع الكاشير من البيع إلا بعد فتح وردية واستلام عهدة الدرج لحماية أموال المحل ضد التلاعب. عند الإيقاف: يتيح البيع السريع المباشر في المحلات الفردية دون الحاجة لفتح وردية.
-                </span>
-              </div>
-              <ToggleSwitch
-                checked={requireOpenShiftToSell}
-                onChange={(next) => {
-                  if (setRequireOpenShiftToSell) setRequireOpenShiftToSell(next);
-                  if (onToggleRequireOpenShift) onToggleRequireOpenShift(next);
-                }}
-                title={requireOpenShiftToSell ? 'مفعّل (يمنع البيع إلا بعد فتح وردية)' : 'معطّل (بيع مباشر وسريع بدون وردية)'}
-              />
-            </div>
+        <SettingsCard icon={UserRound} title="بيانات الفاتورة" description="ما يظهر في رأس الوصل.">
+          <ToggleRow
+            title="إظهار اسم الكاشير في الوصل"
+            description="يُطبع اسم الكاشير الذي أتمّ البيع تلقائياً."
+            checked={showReceiptCashier}
+            onChange={(next) => setShowReceiptCashier?.(next)}
+          />
+        </SettingsCard>
 
-            {/* Feature #110: Default Customer Credit Limit */}
-            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
-              <div className="flex flex-col gap-0.5">
-                <span className="font-bold text-ink dark:text-ink-dark text-xs">حد الشكك والتنبيه الافتراضي للزبائن الجدد</span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                  المبلغ بالجنيه لأقصى دين للزبون الجديد. أول ما حسابه يتعدى الرقم ده يظهر تنبيه للكاشير وقت البيع الآجل.
-                </span>
-              </div>
-              <div className="w-32 shrink-0 flex items-center gap-1.5">
-                <input
-                  type="number"
-                  min="0"
-                  step="50"
-                  value={defaultCustomerCreditLimitEgp}
-                  onChange={(e) => setDefaultCustomerCreditLimitEgp(Number(e.target.value) || 0)}
-                  className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-9 px-2 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright text-center font-bold tabular-nums font-mono"
-                />
-                <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-semibold shrink-0">ج.م</span>
-              </div>
-            </div>
-            </>
-          )}
+        {isRoot && (
+          <SettingsCard
+            icon={ShieldCheck}
+            title="توقيع المطور أسفل الوصل"
+            description="يظهر أسفل كل فواتير البيع، ويعدله حساب المطور (روت) فقط."
+          >
+            <ToggleRow
+              title="إظهار توقيع الإيصال"
+              description="يظهر أسفل كل وصل: صورة ثم أسطر النص."
+              checked={developerSignatureVisible}
+              onChange={(next) => setDeveloperSignatureVisible?.(next)}
+            />
+            <ReceiptTextField
+              label="نص التوقيع"
+              value={developerSignature}
+              onChange={(next) => setDeveloperSignature?.(next)}
+              rows={4}
+              placeholder={DEFAULT_DEVELOPER_SIGNATURE}
+              hint="تُطبع الصورة فوق هذه الأسطر، ويسمح بأربعة أسطر."
+              error={signatureError}
+            />
+            <SignatureImageField
+              value={developerSignatureImage}
+              onChange={(next) => setDeveloperSignatureImage?.(next)}
+              builtIns={BUILT_IN_SIGNATURE_IMAGES}
+              selectedIndex={previewImageIndex}
+              onSelect={setPreviewImageIndex}
+            />
+          </SettingsCard>
+        )}
 
-          {/* Pharmacy Controlled Drugs Mandatory Fields (Story 131 / Task 188-3) */}
-          {isEnabled('feature_pharmacy') && (
-            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-warn" />
-                  <span className="font-bold text-ink dark:text-ink-dark text-xs">
-                    ضوابط الرقابة والتسجيل الإلزامي لأدوية الجدول والمهدئات (صيدليات)
-                  </span>
-                </div>
-                <span className="text-[10px] text-warn bg-warn/15 border border-warn/30 px-2 py-0.5 rounded font-bold">
-                  تفتيش صيدلي
-                </span>
-              </div>
-              <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
-                حدد البيانات التي يُلزم الكاشير بإدخالها وتوثيقها رسمياً في شاشة البيع ودفتر التفتيش قبل السماح بصرف أي صنف خاضع للجدول.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
-                  <div>
-                    <div className="text-xs font-bold text-ink dark:text-ink-dark">الرقم القومي للمريض (14 رقماً)</div>
-                    <div className="text-[10px] text-ink-muted">إلزام إدخال بطاقة الرقم القومي للمريض المستلم</div>
-                  </div>
-                  <ToggleSwitch
-                    checked={mandatoryFields.requirePatientNationalId}
-                    onChange={(checked) => void handleToggleMandatoryField('requirePatientNationalId', checked)}
-                    size="sm"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
-                  <div>
-                    <div className="text-xs font-bold text-ink dark:text-ink-dark">اسم الطبيب المعالج</div>
-                    <div className="text-[10px] text-ink-muted">إلزام إدخال اسم الطبيب محرر الوصفة الطبية</div>
-                  </div>
-                  <ToggleSwitch
-                    checked={mandatoryFields.requireDoctorName}
-                    onChange={(checked) => void handleToggleMandatoryField('requireDoctorName', checked)}
-                    size="sm"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
-                  <div>
-                    <div className="text-xs font-bold text-ink dark:text-ink-dark">رقم قيد / ترخيص الطبيب</div>
-                    <div className="text-[10px] text-ink-muted">إلزام إدخال رقم القيد بالنقابة أو ترخيص العيادة</div>
-                  </div>
-                  <ToggleSwitch
-                    checked={mandatoryFields.requireDoctorLicense}
-                    onChange={(checked) => void handleToggleMandatoryField('requireDoctorLicense', checked)}
-                    size="sm"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
-                  <div>
-                    <div className="text-xs font-bold text-ink dark:text-ink-dark">رقم الروشتة الطبية</div>
-                    <div className="text-[10px] text-ink-muted">إلزام إدخال رقم إذن الصرف أو الروشتة</div>
-                  </div>
-                  <ToggleSwitch
-                    checked={mandatoryFields.requirePrescriptionNo}
-                    onChange={(checked) => void handleToggleMandatoryField('requirePrescriptionNo', checked)}
-                    size="sm"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
-                  <div>
-                    <div className="text-xs font-bold text-ink dark:text-ink-dark">تاريخ تحرير الروشتة</div>
-                    <div className="text-[10px] text-ink-muted">إلزام إدخال تاريخ توقيع الكشف الطبي</div>
-                  </div>
-                  <ToggleSwitch
-                    checked={mandatoryFields.requirePrescriptionDate}
-                    onChange={(checked) => void handleToggleMandatoryField('requirePrescriptionDate', checked)}
-                    size="sm"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
-                  <div>
-                    <div className="text-xs font-bold text-ink dark:text-ink-dark">هاتف المريض / المستلم</div>
-                    <div className="text-[10px] text-ink-muted">إلزام تسجيل رقم الهاتف للتواصل والمتابعة</div>
-                  </div>
-                  <ToggleSwitch
-                    checked={mandatoryFields.requirePatientPhone}
-                    onChange={(checked) => void handleToggleMandatoryField('requirePatientPhone', checked)}
-                    size="sm"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Feature: Theme Mode (Light / Dark / System) */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Palette className="w-4 h-4 text-paid dark:text-paid-bright" />
-                <span className="font-bold text-ink dark:text-ink-dark text-xs">مظهر البرنامج والسمة البصرية (الوضع النهاري والداكن)</span>
-              </div>
-              <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark px-2 py-0.5 rounded font-medium">
-                {theme === 'system' ? `تلقائي (${resolvedTheme === 'dark' ? 'داكن' : 'نهاري'})` : theme === 'dark' ? 'الوضع الليلي' : 'الوضع النهاري'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              {/* Option 1: Light Mode */}
-              <button
-                type="button"
-                onClick={() => setTheme('light')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border transition-all text-right cursor-pointer ${
-                  theme === 'light'
-                    ? 'bg-surface dark:bg-surface-dark border-paid dark:border-paid-bright shadow-xs ring-2 ring-paid/30 dark:ring-paid-bright/30'
-                    : 'bg-surface/60 dark:bg-surface-dark/60 hover:bg-surface dark:hover:bg-surface-dark border-line dark:border-line-dark'
-                }`}
-              >
-                <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-surface-dark-3 border border-amber-200 dark:border-line-dark text-amber-500 dark:text-warn-bright flex items-center justify-center shrink-0">
-                  <Sun className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-xs font-bold text-ink dark:text-ink-dark">نهاري (فاتح)</span>
-                    {theme === 'light' && <CheckCircle2 className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />}
-                  </div>
-                  <p className="text-[10px] text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5 leading-snug">
-                    الوضع الافتراضي عالي الإشراق
-                  </p>
-                </div>
-              </button>
-
-              {/* Option 2: Dark Mode */}
-              <button
-                type="button"
-                onClick={() => setTheme('dark')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border transition-all text-right cursor-pointer ${
-                  theme === 'dark'
-                    ? 'bg-surface dark:bg-surface-dark border-paid dark:border-paid-bright shadow-xs ring-2 ring-paid/30 dark:ring-paid-bright/30'
-                    : 'bg-surface/60 dark:bg-surface-dark/60 hover:bg-surface dark:hover:bg-surface-dark border-line dark:border-line-dark'
-                }`}
-              >
-                <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-surface-dark-3 border border-indigo-200 dark:border-line-dark text-indigo-600 dark:text-brand-bright flex items-center justify-center shrink-0">
-                  <Moon className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-xs font-bold text-ink dark:text-ink-dark">ليلي (داكن)</span>
-                    {theme === 'dark' && <CheckCircle2 className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />}
-                  </div>
-                  <p className="text-[10px] text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5 leading-snug">
-                    مريح للعينين في الإضاءة المنخفضة
-                  </p>
-                </div>
-              </button>
-
-              {/* Option 3: System Mode */}
-              <button
-                type="button"
-                onClick={() => setTheme('system')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border transition-all text-right cursor-pointer ${
-                  theme === 'system'
-                    ? 'bg-surface dark:bg-surface-dark border-paid dark:border-paid-bright shadow-xs ring-2 ring-paid/30 dark:ring-paid-bright/30'
-                    : 'bg-surface/60 dark:bg-surface-dark/60 hover:bg-surface dark:hover:bg-surface-dark border-line dark:border-line-dark'
-                }`}
-              >
-                <div className="w-9 h-9 rounded-lg bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark flex items-center justify-center shrink-0">
-                  <Monitor className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-xs font-bold text-ink dark:text-ink-dark">تلقائي (الويندوز)</span>
-                    {theme === 'system' && <CheckCircle2 className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />}
-                  </div>
-                  <p className="text-[10px] text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5 leading-snug">
-                    يتوافق تلقائياً مع نظام التشغيل
-                  </p>
-                </div>
-              </button>
-            </div>
+        <div className="sticky bottom-0 z-10 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-md rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs" role="status">
+            {statusNode}
           </div>
-
-          {/* Save Action Button */}
           <button
             type="submit"
-            disabled={saveLoading}
-            className="mt-1 h-11 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-muted-dark text-white dark:text-slate-900 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
+            disabled={saveLoading || hasTextError || !dirty}
+            className="h-11 px-6 bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid-bright-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-muted-dark disabled:cursor-not-allowed text-white dark:text-surface-dark rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             <Save className="w-4 h-4" />
-            <span>{saveLoading ? 'جاري حفظ البيانات...' : 'حفظ وتطبيق بيانات المحل في البرنامج'}</span>
+            <span>حفظ التغييرات</span>
           </button>
-        </form>
-      </div>
-
-      {/* LEFT COLUMN: Real 80mm Live Thermal Receipt Preview */}
-      <div className="col-span-12 lg:col-span-5 flex flex-col items-center justify-start sticky top-2">
-        <div className="w-full max-w-[320px] flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">معاينة وصل الكاشير الحراري (80 مم)</span>
-          <span className="text-[10px] font-mono bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark px-2 py-0.5 rounded text-ink-muted dark:text-ink-muted-dark">
-            203 DPI • ESC/POS
-          </span>
         </div>
+      </form>
 
-        {/* Realistic Receipt Canvas Paper */}
-        <div className="w-full max-w-[320px] bg-white text-ink font-mono text-[11.5px] p-5 shadow-card border border-line dark:border-line-dark rounded flex flex-col relative select-text">
-          {/* Top Zigzag Cut */}
-          <div className="w-full h-2 receipt-zigzag mb-2 opacity-30"></div>
-
-          {/* Receipt Header & Logo */}
-          <div className="text-center flex flex-col gap-0.5 items-center">
-            {showReceiptLogo && (
-              <div className="flex justify-center mb-1">
-                <img
-                  src={storeLogoUrl}
-                  alt="شعار المتجر"
-                  className="max-h-11 max-w-[150px] object-contain"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = '/receipt_logo_square.png';
-                  }}
-                />
-              </div>
-            )}
-            <h4 className="text-base font-bold m-0 font-sans text-black">{storeName || 'متجر رفيق'}</h4>
-            {address ? <p className="text-[11px] text-gray-700 m-0">{address}</p> : null}
-            {phone && <p className="text-[11px] text-gray-700 m-0 dir-ltr text-center">تليفون: {phone}</p>}
-            {taxNumber && <p className="text-[10px] text-gray-500 m-0">ر.ض: {taxNumber}</p>}
-            {receiptHeader && (
-              <p className="text-[11px] font-semibold text-gray-800 mt-1 border-t border-b border-dashed border-gray-400 py-1 font-sans">
-                {receiptHeader}
-              </p>
-            )}
+      {/* Preview column: built by the same layout code the printer follows, with a sample basket */}
+      <aside className="col-span-12 xl:col-span-5 xl:sticky xl:top-0">
+        <SettingsCard
+          icon={Receipt}
+          title="معاينة الوصل"
+          description="بأصناف تجريبية، وتتحدث مع كل تعديل."
+          action={
+            <span className="text-micro font-bold text-ink-muted dark:text-ink-muted-dark bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark px-2.5 py-1 rounded-lg">
+              ورق {previewPaper === '57mm' ? '57' : '80'} مم
+            </span>
+          }
+        >
+          <div className="flex justify-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-4">
+            <ReceiptPaper
+              model={buildReceiptModel(
+                buildSampleReceiptSale(),
+                {
+                  name: storeName,
+                  phone,
+                  address,
+                  taxNumber,
+                  header: receiptHeader,
+                  footer: receiptFooter,
+                  signature: developerSignature,
+                },
+                { showCashier: showReceiptCashier, signatureVisible: developerSignatureVisible, signatureImage: developerSignatureImage, builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES, signatureImageIndex: previewImageIndex },
+              )}
+              paper={previewPaper}
+              logoUrl={showReceiptLogo ? storeLogoUrl : null}
+            />
           </div>
-
-          {/* Meta Row */}
-          <div className="flex justify-between text-[10px] text-gray-600 my-2 border-b border-dashed border-gray-300 pb-1">
-            <span>فاتورة: #1042</span>
-            <span>2026/09/27 19:35</span>
-          </div>
-
-          {/* Table Line Items */}
-          <div className="pt-0.5 pb-1 flex flex-col gap-1 text-[11px]">
-            <div className="flex justify-between font-bold text-[10px] text-gray-600 pb-0.5 border-b border-gray-300">
-              <span>الصنف</span>
-              <span>الكمية × السعر</span>
-              <span>الإجمالي</span>
-            </div>
-            <div className="flex justify-between pt-1">
-              <span className="truncate max-w-[130px]">جبنة عبور لاند 500 جم</span>
-              <span>1 × 38.00</span>
-              <span className="font-bold">38.00</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="truncate max-w-[130px]">شاي العروسة 100 جم</span>
-              <span>2 × 15.00</span>
-              <span className="font-bold">30.00</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="truncate max-w-[130px]">سكر حر 1 كجم</span>
-              <span>1 × 27.00</span>
-              <span className="font-bold">27.00</span>
-            </div>
-          </div>
-
-          {/* Totals */}
-          <div className="border-t border-dashed border-black pt-1.5 flex flex-col gap-1 text-xs">
-            <div className="flex justify-between text-gray-700">
-              <span>المجموع الفرعي:</span>
-              <span>95.00 ج.م</span>
-            </div>
-            <div className="flex justify-between text-gray-600">
-              <span>الخصم:</span>
-              <span>0.00 ج.م</span>
-            </div>
-            <div className="flex justify-between font-bold text-sm border-t border-black pt-1 mt-0.5 text-black">
-              <span>الإجمالي المطلوب:</span>
-              <span>95.00 ج.م</span>
-            </div>
-            <div className="flex justify-between text-[11px] text-gray-700">
-              <span>المدفوع كاش:</span>
-              <span>100.00 ج.م</span>
-            </div>
-            <div className="flex justify-between text-[11px] font-bold text-black">
-              <span>الباقي للزبون:</span>
-              <span>5.00 ج.م</span>
-            </div>
-          </div>
-
-          {/* Barcode Simulation */}
-          <div className="my-3 flex flex-col items-center">
-            <div className="h-8 w-44 bg-black flex items-center justify-center text-white text-[8px] font-mono tracking-widest">
-              ||| | |||| | ||| |||| | ||
-            </div>
-            <span className="text-[9px] text-gray-500 mt-0.5">2026104200095</span>
-          </div>
-
-          {/* Receipt Footer */}
-          {receiptFooter && (
-            <div className="text-center text-[10px] text-gray-700 border-t border-dashed border-gray-400 pt-1.5 font-sans leading-relaxed">
-              {receiptFooter}
-            </div>
+          <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0">
+            الأسماء والأصناف في المعاينة أمثلة فقط، والوصل الحقيقي يطبع بيانات الفاتورة الفعلية.
+          </p>
+          {onOpenPrinterSettings && (
+            <button
+              type="button"
+              onClick={onOpenPrinterSettings}
+              className="h-10 px-4 self-start bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>عرض الورق واختبار الطباعة</span>
+            </button>
           )}
-
-          {/* Developer Branding Signature */}
-          <div className="border-t border-dotted border-gray-400 pt-1.5 mt-2 text-center text-[9px] text-gray-500 font-sans tracking-tight leading-relaxed">
-            {developerSignature.includes('\n') ? (
-              developerSignature.split('\n').map((line, i) => (
-                <div key={i}>{line.trim()}</div>
-              ))
-            ) : developerSignature.includes(' | ') ? (
-              developerSignature.split(' | ').map((line, i) => (
-                <div key={i}>{line.trim()}</div>
-              ))
-            ) : (
-              <div>{developerSignature}</div>
-            )}
-          </div>
-
-          {/* Bottom Zigzag Cut */}
-          <div className="w-full h-2 receipt-zigzag mt-3 opacity-30"></div>
-        </div>
-      </div>
+        </SettingsCard>
+      </aside>
     </div>
   );
 };

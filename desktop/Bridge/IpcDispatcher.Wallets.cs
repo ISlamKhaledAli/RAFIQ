@@ -68,6 +68,37 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
 
+                case "wallets:setDefaultAccount":
+                    {
+                        var repo = GetWalletsRepo();
+                        string accountId = null;
+                        var setPayload = request.Payload as JObject;
+                        if (setPayload != null)
+                        {
+                            if (setPayload["id"] != null)
+                            {
+                                accountId = setPayload["id"].ToString();
+                            }
+                        }
+                        else if (request.Payload != null)
+                        {
+                            accountId = request.Payload.ToString();
+                        }
+
+                        if (string.IsNullOrWhiteSpace(accountId))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "معرف الحساب مطلوب لتعيينه رئيسياً");
+                            return true;
+                        }
+
+                        lock (SaleService.FinancialWriteLock)
+                        {
+                            var updated = repo.SetDefaultAccount(accountId);
+                            response = BridgeResponse.Ok(request.Id, updated);
+                        }
+                        return true;
+                    }
+
                 case "wallets:deleteAccount":
                     {
                         var repo = GetWalletsRepo();

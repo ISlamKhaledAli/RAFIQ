@@ -19,6 +19,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { RequiredMark } from './RequiredMark';
 
 export interface DriveItem {
   name: string;
@@ -176,7 +177,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
       });
       if (res && res.success) {
         setExportResult(res);
-        await rafiqAlert('تم إنشاء حزمة النقل بنجاح! تم حفظ الملف في: ' + res.filePath);
+        await rafiqAlert('تم إنشاء حزمة النقل. الملف في: ' + res.filePath);
       } else {
         setErrorMessage(res?.message || 'فشل إنشاء حزمة النقل');
       }
@@ -275,21 +276,21 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
       onClick={handleBackdropClick}
     >
       <div
-        className="bg-surface rounded-2xl border border-line shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden text-right"
+        className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden text-right"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface-2">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-soft border border-brand/20 flex items-center justify-center text-brand">
-              <Laptop className="w-5 h-5 text-brand" />
+            <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 flex items-center justify-center text-brand dark:text-brand-bright">
+              <Laptop className="w-5 h-5 text-brand dark:text-brand-bright" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-ink m-0">
+              <h2 className="t-modal-title text-ink dark:text-ink-dark m-0">
                 نقل بيانات المحل لجهاز جديد (عبر الفلاشة)
               </h2>
-              <p className="text-[11.5px] text-ink-muted m-0 mt-0.5">
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0 mt-0.5">
                 انقل كل شغلك (البضاعة، الفواتير، الحسابات، والعملاء) للكمبيوتر الجديد في خطوة واحدة وبأمان تام
               </p>
             </div>
@@ -297,7 +298,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
           <button
             type="button"
             onClick={requestClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface border border-transparent hover:border-line transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 border border-transparent hover:border-line transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -307,7 +308,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
           {/* Error Banner */}
           {errorMessage && (
-            <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-[12.5px] flex items-center gap-2 animate-in fade-in">
+            <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs flex items-center gap-2 animate-in fade-in">
               <AlertTriangle className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
               <span>{errorMessage}</span>
             </div>
@@ -317,11 +318,11 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
           {step === 'role_select' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="text-center max-w-lg mx-auto space-y-2">
-                <span className="inline-block px-3 py-1 rounded-full bg-brand-soft text-brand text-xs font-bold">
+                <span className="inline-block px-3 py-1 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-xs font-bold">
                   نقل المحل
                 </span>
-                <h3 className="text-lg font-bold text-ink m-0">انت قاعد على أنهي جهاز دلوقتي؟</h3>
-                <p className="text-xs text-ink-muted leading-relaxed m-0">
+                <h3 className="t-card-title text-ink dark:text-ink-dark m-0">انت قاعد على أنهي جهاز دلوقتي؟</h3>
+                <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0">
                   اختار الخطوة المناسبة حسب الكمبيوتر اللي انت فاتح من عليه البرنامج دلوقتي:
                 </p>
               </div>
@@ -331,20 +332,20 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setStep('export_step')}
-                  className="p-5 rounded-2xl border-2 border-line hover:border-brand bg-surface hover:bg-brand-soft/20 text-right transition-all flex flex-col justify-between group cursor-pointer shadow-2xs hover:shadow-md"
+                  className="p-5 rounded-2xl border-2 border-line dark:border-line-dark hover:border-brand bg-surface dark:bg-surface-dark hover:bg-brand-soft/20 dark:hover:bg-brand-dark-soft/20 text-right transition-all flex flex-col justify-between group cursor-pointer shadow-2xs hover:shadow-md"
                 >
                   <div className="space-y-3">
-                    <div className="w-12 h-12 rounded-xl bg-brand-soft text-brand flex items-center justify-center group-hover:scale-105 transition-transform">
-                      <Download className="w-6 h-6 text-brand" />
+                    <div className="w-12 h-12 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <Download className="w-6 h-6 text-brand dark:text-brand-bright" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-ink m-0">1. على جهازك القديم (نسخ المحل على الفلاشة)</h4>
-                      <p className="text-xs text-ink-muted mt-1 leading-relaxed m-0">
+                      <h4 className="t-label text-ink dark:text-ink-dark m-0">1. على جهازك القديم (نسخ المحل على الفلاشة)</h4>
+                      <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1 leading-relaxed m-0">
                         اضغط هنا وإنت على جهازك القديم.. البرنامج هيجمعلك كل بضاعة المحل وحساباته ويحفظهملك في ملف واحد على الفلاشة.
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-line/60 flex items-center justify-between text-xs font-bold text-brand">
+                  <div className="mt-4 pt-3 border-t border-line/60 dark:border-line-dark flex items-center justify-between text-xs font-bold text-brand dark:text-brand-bright">
                     <span>حفظ بيانات المحل على الفلاشة</span>
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                   </div>
@@ -354,20 +355,20 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setStep('import_step')}
-                  className="p-5 rounded-2xl border-2 border-line hover:border-paid bg-surface hover:bg-paid-soft/20 text-right transition-all flex flex-col justify-between group cursor-pointer shadow-2xs hover:shadow-md"
+                  className="p-5 rounded-2xl border-2 border-line dark:border-line-dark hover:border-paid bg-surface dark:bg-surface-dark hover:bg-paid-soft/20 dark:hover:bg-paid-dark-soft/20 text-right transition-all flex flex-col justify-between group cursor-pointer shadow-2xs hover:shadow-md"
                 >
                   <div className="space-y-3">
-                    <div className="w-12 h-12 rounded-xl bg-paid-soft text-paid flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <div className="w-12 h-12 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid flex items-center justify-center group-hover:scale-105 transition-transform">
                       <Upload className="w-6 h-6 text-paid" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-ink m-0">2. على جهازك الجديد (تنزيل المحل من الفلاشة)</h4>
-                      <p className="text-xs text-ink-muted mt-1 leading-relaxed m-0">
+                      <h4 className="t-label text-ink dark:text-ink-dark m-0">2. على جهازك الجديد (تنزيل المحل من الفلاشة)</h4>
+                      <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1 leading-relaxed m-0">
                         اضغط هنا وإنت على جهازك الجديد.. البرنامج هيقرأ الملف من الفلاشة وينزل كل بضاعتك وحساباتك هنا بضغطة واحدة.
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-line/60 flex items-center justify-between text-xs font-bold text-paid">
+                  <div className="mt-4 pt-3 border-t border-line/60 dark:border-line-dark flex items-center justify-between text-xs font-bold text-paid">
                     <span>تنزيل وتشغيل البيانات من الفلاشة</span>
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                   </div>
@@ -376,26 +377,26 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
               {/* Current Local Stats Preview */}
               {currentMetrics && (
-                <div className="p-4 rounded-xl bg-surface-2 border border-line space-y-2">
+                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-ink">البيانات المتسجلة على الجهاز ده حالياً:</span>
-                    <span className="text-[11px] text-ink-muted">تأكيد الأرقام الموجودة عندك</span>
+                    <span className="text-xs font-bold text-ink dark:text-ink-dark">البيانات المتسجلة على الجهاز ده حالياً:</span>
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted">تأكيد الأرقام الموجودة عندك</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                    <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">أصناف البضاعة</span>
-                      <span className="font-bold text-ink">{currentMetrics.productsCount} صنف</span>
+                    <div className="p-2 rounded bg-surface dark:bg-surface-dark border border-line/50 dark:border-line-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted block text-micro">أصناف البضاعة</span>
+                      <span className="font-bold text-ink dark:text-ink-dark">{currentMetrics.productsCount} صنف</span>
                     </div>
-                    <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">الزبائن المسجلين</span>
-                      <span className="font-bold text-ink">{currentMetrics.customersCount} عميل</span>
+                    <div className="p-2 rounded bg-surface dark:bg-surface-dark border border-line/50 dark:border-line-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted block text-micro">الزبائن المسجلين</span>
+                      <span className="font-bold text-ink dark:text-ink-dark">{currentMetrics.customersCount} عميل</span>
                     </div>
-                    <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">فواتير المبيعات</span>
-                      <span className="font-bold text-ink">{currentMetrics.invoicesCount} فاتورة</span>
+                    <div className="p-2 rounded bg-surface dark:bg-surface-dark border border-line/50 dark:border-line-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted block text-micro">فواتير المبيعات</span>
+                      <span className="font-bold text-ink dark:text-ink-dark">{currentMetrics.invoicesCount} فاتورة</span>
                     </div>
-                    <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">إجمالي حسابات الشكك والديون</span>
+                    <div className="p-2 rounded bg-surface dark:bg-surface-dark border border-line/50 dark:border-line-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted block text-micro">إجمالي حسابات الشكك والديون</span>
                       <span className="font-bold text-paid">{formatPiasters(currentMetrics.totalCustomerDebtPiasters)}</span>
                     </div>
                   </div>
@@ -409,15 +410,15 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
             <div className="space-y-5 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-ink m-0">حفظ بيانات المحل على الفلاشة (من جهازك القديم)</h3>
-                  <p className="text-xs text-ink-muted m-0 mt-0.5">
+                  <h3 className="t-card-title text-ink dark:text-ink-dark m-0">حفظ بيانات المحل على الفلاشة (من جهازك القديم)</h3>
+                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 mt-0.5">
                     اختار الفلاشة واضغط "حفظ البيانات" عشان تاخد نسخة كاملة من المحل في جيبك.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setStep('role_select')}
-                  className="flex items-center gap-1 text-xs text-ink-muted hover:text-ink transition-colors cursor-pointer"
+                  className="flex items-center gap-1 text-xs text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
                   <span>رجوع للاختيارات</span>
@@ -426,7 +427,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
               {/* Connected Drives Selection */}
               <div>
-                <label className="block text-ink font-semibold text-xs mb-2">
+                <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2">
                   الفلاشات المتوصلة بالجهاز (اضغط على الفلاشة بتاعتك):
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
@@ -437,25 +438,25 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       onClick={() => setTargetFolder(`${d.name}RafiqMigration`)}
                       className={`p-2.5 rounded-xl border text-right transition-all flex items-center justify-between cursor-pointer ${
                         targetFolder.startsWith(d.name)
-                          ? 'bg-brand-soft border-brand text-brand'
-                          : 'bg-surface-2 border-line hover:border-line-hover text-ink'
+                          ? 'bg-brand-soft dark:bg-brand-dark-soft border-brand text-brand dark:text-brand-bright'
+                          : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-line-hover text-ink dark:text-ink-dark'
                       }`}
                     >
                       <div className="flex items-center gap-2 truncate">
                         {d.isRemovable ? (
-                          <Usb className="w-4 h-4 text-brand shrink-0" />
+                          <Usb className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
                         ) : (
-                          <HardDrive className="w-4 h-4 text-ink-muted shrink-0" />
+                          <HardDrive className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted shrink-0" />
                         )}
                         <div className="truncate">
                           <span className="font-bold text-xs block truncate">{d.name} {d.label}</span>
-                          <span className="text-[10px] text-ink-muted font-mono block">
+                          <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono block">
                             متاح: {formatBytes(d.freeSpaceBytes)}
                           </span>
                         </div>
                       </div>
                       {d.isRemovable && (
-                        <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-brand text-white font-bold shrink-0">
+                        <span className="text-micro px-1.5 py-0.5 rounded bg-brand text-white font-bold shrink-0">
                           فلاشة USB
                         </span>
                       )}
@@ -466,7 +467,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
               {/* Target folder input */}
               <div>
-                <label className="block text-ink font-semibold text-xs mb-1.5">
+                <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-1.5">
                   مكان حفظ الملف:
                 </label>
                 <div className="flex gap-2">
@@ -475,18 +476,18 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                     value={targetFolder}
                     onChange={(e) => setTargetFolder(e.target.value)}
                     placeholder="مثال: E:\RafiqMigration أو C:\Users\Desktop"
-                    className="flex-1 bg-surface border border-line rounded-xl h-10 px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
+                    className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl h-10 px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
                   />
                 </div>
               </div>
 
               {/* Export Action Card */}
-              <div className="p-4 rounded-xl bg-brand-soft/30 border border-brand/20 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="p-4 rounded-xl bg-brand-soft/30 dark:bg-brand-dark-soft/30 border border-brand/20 flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <span className="font-bold text-xs text-brand block">
+                  <span className="font-bold text-xs text-brand dark:text-brand-bright block">
                     نسخة شاملة بضغطة واحدة (البضاعة + الفواتير + الحسابات والإعدادات)
                   </span>
-                  <p className="text-[11px] text-ink-muted m-0">
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">
                     البرنامج بيقفل كل الحسابات بدقة لضمان إن مفيش مليم أو صنف يضيع أثناء النقل.
                   </p>
                 </div>
@@ -494,7 +495,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   type="button"
                   onClick={() => void handleExport()}
                   disabled={loading}
-                  className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                 >
                   {loading ? (
                     <>
@@ -512,28 +513,28 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
               {/* Success Result */}
               {exportResult && (
-                <div className="p-4 rounded-xl bg-paid-soft border border-paid/30 space-y-3 animate-in fade-in">
+                <div className="p-4 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 space-y-3 animate-in fade-in">
                   <div className="flex items-center gap-2 text-paid font-bold text-xs">
                     <CheckCircle2 className="w-4 h-4 text-paid" />
-                    <span>تم حفظ بيانات المحل بنجاح على الفلاشة!</span>
+                    <span>تم حفظ بيانات المحل على الفلاشة</span>
                   </div>
-                  <div className="bg-surface p-3 rounded-lg border border-line space-y-1.5 text-xs font-mono">
+                  <div className="bg-surface dark:bg-surface-dark p-3 rounded-lg border border-line dark:border-line-dark space-y-1.5 text-xs font-mono">
                     <div className="flex justify-between">
-                      <span className="text-ink-muted">اسم الملف:</span>
-                      <span className="font-bold text-ink select-all">{exportResult.fileName}</span>
+                      <span className="text-ink-muted dark:text-ink-dark-muted">اسم الملف:</span>
+                      <span className="font-bold text-ink dark:text-ink-dark select-all">{exportResult.fileName}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-ink-muted">حجم الملف:</span>
-                      <span className="text-ink">{formatBytes(exportResult.fileSizeBytes)}</span>
+                      <span className="text-ink-muted dark:text-ink-dark-muted">حجم الملف:</span>
+                      <span className="text-ink dark:text-ink-dark">{formatBytes(exportResult.fileSizeBytes)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-ink-muted">مكان الحفظ:</span>
-                      <span className="text-ink truncate max-w-md select-all" title={exportResult.filePath}>
+                      <span className="text-ink-muted dark:text-ink-dark-muted">مكان الحفظ:</span>
+                      <span className="text-ink dark:text-ink-dark truncate max-w-md select-all" title={exportResult.filePath}>
                         {exportResult.filePath}
                       </span>
                     </div>
                   </div>
-                  <div className="p-2.5 rounded bg-paid/10 text-paid text-[11.5px] leading-relaxed flex items-center gap-2">
+                  <div className="p-2.5 rounded bg-paid/10 text-paid text-micro leading-relaxed flex items-center gap-2">
                     <Info className="w-4 h-4 text-paid shrink-0" />
                     <span><strong>الخطوة الجاية:</strong> خد الفلاشة وركّبها في جهازك الجديد، وافتح نفس الشاشة دي واختار «2. على جهازك الجديد (تنزيل المحل من الفلاشة)».</span>
                   </div>
@@ -547,15 +548,15 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
             <div className="space-y-5 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-ink m-0">تنزيل وتشغيل بيانات المحل (على جهازك الجديد)</h3>
-                  <p className="text-xs text-ink-muted m-0 mt-0.5">
+                  <h3 className="t-card-title text-ink dark:text-ink-dark m-0">تنزيل وتشغيل بيانات المحل (على جهازك الجديد)</h3>
+                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 mt-0.5">
                     اختار ملف المحل من الفلاشة، والبرنامج هيراجع كل البضاعة والأرقام الأول قبل التثبيت.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setStep('role_select')}
-                  className="flex items-center gap-1 text-xs text-ink-muted hover:text-ink transition-colors cursor-pointer"
+                  className="flex items-center gap-1 text-xs text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
                   <span>رجوع للاختيارات</span>
@@ -564,8 +565,8 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
               {/* Package Path input & Browse button */}
               <div>
-                <label className="block text-ink font-semibold text-xs mb-1.5">
-                  مكان ملف المحل على الفلاشة:
+                <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-1.5">
+                  مكان ملف المحل على الفلاشة: <RequiredMark />
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -576,21 +577,21 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       setInspectResult(null);
                     }}
                     placeholder="مثال: E:\RafiqMigration\rafiq_migration_albaraka.rafiqpkg"
-                    className="flex-1 bg-surface border border-line rounded-xl h-10 px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
+                    className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl h-10 px-3 text-xs text-ink focus:outline-none focus:border-brand font-mono"
                   />
                   <button
                     type="button"
                     onClick={() => void handleBrowsePackage()}
-                    className="px-4 h-10 bg-surface-2 border border-line hover:border-line-hover rounded-xl text-xs font-bold text-ink flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-4 h-10 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover rounded-xl text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    <FolderOpen className="w-4 h-4 text-brand" />
+                    <FolderOpen className="w-4 h-4 text-brand dark:text-brand-bright" />
                     <span>اختيار الملف...</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleInspectPackage()}
                     disabled={loading || !packagePath.trim()}
-                    className="px-4 h-10 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                    className="px-4 h-10 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                   >
                     فحص الملف
                   </button>
@@ -599,55 +600,55 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
 
               {/* Inspection Preview Card */}
               {inspectResult && (
-                <div className="p-4 rounded-xl bg-surface-2 border border-line space-y-4 animate-in fade-in">
-                  <div className="flex items-center justify-between border-b border-line pb-3">
+                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark space-y-4 animate-in fade-in">
+                  <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-3">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-5 h-5 text-paid" />
                       <div>
-                        <span className="font-bold text-xs text-ink block">
+                        <span className="font-bold text-xs text-ink dark:text-ink-dark block">
                           بيانات المحل في الملف: {inspectResult.manifest.storeName}
                         </span>
-                        <span className="text-[10px] text-ink-muted">
+                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                           تاريخ النسخ: {inspectResult.manifest.createdAtLocal} — من جهاز: {inspectResult.manifest.sourceMachineName} ({inspectResult.manifest.sourceOsName})
                         </span>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-paid-soft text-paid text-[11px] font-bold">
+                    <span className="px-2.5 py-1 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid text-micro font-bold">
                       الملف سليم ومطابق 100%
                     </span>
                   </div>
 
                   {/* Numbers in package */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                    <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">أصناف البضاعة</span>
-                      <span className="font-bold text-ink">{inspectResult.manifest.metrics.productsCount} صنف</span>
+                    <div className="p-2.5 rounded bg-surface dark:bg-surface-dark border border-line/60 dark:border-line-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted text-micro block">أصناف البضاعة</span>
+                      <span className="font-bold text-ink dark:text-ink-dark">{inspectResult.manifest.metrics.productsCount} صنف</span>
                     </div>
-                    <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">الزبائن المسجلين</span>
-                      <span className="font-bold text-ink">{inspectResult.manifest.metrics.customersCount} عميل</span>
+                    <div className="p-2.5 rounded bg-surface dark:bg-surface-dark border border-line/60 dark:border-line-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted text-micro block">الزبائن المسجلين</span>
+                      <span className="font-bold text-ink dark:text-ink-dark">{inspectResult.manifest.metrics.customersCount} عميل</span>
                     </div>
-                    <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">إجمالي الفواتير</span>
-                      <span className="font-bold text-ink">{inspectResult.manifest.metrics.invoicesCount} فاتورة</span>
+                    <div className="p-2.5 rounded bg-surface dark:bg-surface-dark border border-line/60 dark:border-line-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted text-micro block">إجمالي الفواتير</span>
+                      <span className="font-bold text-ink dark:text-ink-dark">{inspectResult.manifest.metrics.invoicesCount} فاتورة</span>
                     </div>
-                    <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">حسابات الشكك والديون</span>
+                    <div className="p-2.5 rounded bg-surface dark:bg-surface-dark border border-line/60 dark:border-line-dark">
+                      <span className="text-ink-muted dark:text-ink-dark-muted text-micro block">حسابات الشكك والديون</span>
                       <span className="font-bold text-paid">{formatPiasters(inspectResult.manifest.metrics.totalCustomerDebtPiasters)}</span>
                     </div>
                   </div>
 
                   {/* Safety note */}
-                  <div className="p-2.5 rounded bg-brand-soft/50 border border-brand/20 text-ink text-[11px] flex items-center justify-between gap-2">
+                  <div className="p-2.5 rounded bg-brand-soft/50 dark:bg-brand-dark-soft/50 border border-brand/20 text-ink dark:text-ink-dark text-micro flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-brand shrink-0" />
+                      <ShieldCheck className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
                       <span><strong>أمان وحماية تامة:</strong> البرنامج بياخد نسخة أمان تلقائية قبل أي خطوة عشان مفيش حاجة تضيع.</span>
                     </span>
                     <button
                       type="button"
                       onClick={() => void handleRestorePackage()}
                       disabled={loading}
-                      className="px-5 py-2 rounded-xl bg-paid hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0"
+                      className="px-5 py-2 rounded-xl bg-paid hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark shrink-0"
                     >
                       {loading ? (
                         <>
@@ -670,24 +671,24 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
           {/* STEP 4: RECONCILE / AUDIT COMPARISON STEP (TASK 139-3) */}
           {step === 'reconcile_step' && restoreResult && (
             <div className="space-y-5 animate-in fade-in">
-              <div className="p-4 rounded-xl bg-paid-soft border border-paid/30 flex items-center gap-3">
+              <div className="p-4 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-paid text-white flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-paid m-0">
-                    تم نقل وتثبيت بيانات المحل بنجاح على الجهاز الجديد!
+                  <h3 className="t-card-title text-paid m-0">
+                    تم نقل بيانات المحل للجهاز الجديد
                   </h3>
-                  <p className="text-xs text-ink-muted m-0 mt-0.5">
+                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0 mt-0.5">
                     مقارنة مباشرة بين أرقام الجهاز القديم والجديد (كل مليم وصنف في مكانه):
                   </p>
                 </div>
               </div>
 
               {/* Side-by-side Reconcile Table */}
-              <div className="border border-line rounded-xl overflow-hidden shadow-2xs">
+              <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
                 <table className="w-full text-right text-xs">
-                  <thead className="bg-surface-2 text-ink border-b border-line font-bold">
+                  <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border-b border-line dark:border-line-dark font-bold">
                     <tr>
                       <th className="py-2.5 px-4">البيان</th>
                       <th className="py-2.5 px-4 text-center">أرقام الجهاز القديم</th>
@@ -695,27 +696,27 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       <th className="py-2.5 px-4 text-center">حالة التطابق</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-line bg-surface">
+                  <tbody className="divide-y divide-line dark:divide-line-dark bg-surface dark:bg-surface-dark">
                     {restoreResult.comparisons.map((c) => (
-                      <tr key={c.metricKey} className="hover:bg-surface-2/40 transition-colors">
-                        <td className="py-2.5 px-4 font-semibold text-ink flex items-center gap-2">
-                          <FileCheck className="w-3.5 h-3.5 text-brand" />
+                      <tr key={c.metricKey} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40 transition-colors">
+                        <td className="py-2.5 px-4 font-semibold text-ink dark:text-ink-dark flex items-center gap-2">
+                          <FileCheck className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                           <span>{c.labelAr}</span>
                         </td>
-                        <td className="py-2.5 px-4 text-center font-mono font-bold text-ink">
+                        <td className="py-2.5 px-4 text-center font-mono font-bold text-ink dark:text-ink-dark">
                           {c.sourceValue}
                         </td>
-                        <td className="py-2.5 px-4 text-center font-mono font-bold text-brand">
+                        <td className="py-2.5 px-4 text-center font-mono font-bold text-brand dark:text-brand-bright">
                           {c.restoredValue}
                         </td>
                         <td className="py-2.5 px-4 text-center">
                           {c.isMatched ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold text-[11px] border border-paid/20 dark:border-paid/30">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold text-micro border border-paid/20 dark:border-paid/30">
                               <CheckCircle2 className="w-3 h-3 text-paid dark:text-paid-bright" />
                               <span>100% متطابق</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright font-bold text-[11px] border border-danger/20 dark:border-danger-bright/30">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright font-bold text-micro border border-danger/20 dark:border-danger-bright/30">
                               <AlertTriangle className="w-3 h-3 text-danger dark:text-danger-bright" />
                               <span>يوجد اختلاف</span>
                             </span>
@@ -728,8 +729,8 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
               </div>
 
               {/* Final Success Call to Action */}
-              <div className="p-4 rounded-xl bg-surface-2 border border-line flex items-center justify-between gap-4">
-                <span className="text-xs text-ink-muted">
+              <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-between gap-4">
+                <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
                   كل الأرقام مطابقة 100%، تقدر تفتح شاشة البيع وتبدأ الشغل فوراً!
                 </span>
                 <button
@@ -746,15 +747,8 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-line bg-surface-2 flex items-center justify-between text-xs text-ink-muted">
+        <div className="px-6 py-3 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted">
           <span>نظام رفيق — إصدار معتمد لويندوز 7 و 10 و 11</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-lg border border-line hover:bg-surface text-ink transition-colors cursor-pointer"
-          >
-            إغلاق
-          </button>
         </div>
       </div>
     </div>

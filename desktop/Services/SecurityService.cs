@@ -70,6 +70,112 @@ namespace RafiqPOS.Services
         // Session that was opened with the owner recovery code; it may set a new PIN without the forgotten one
         private static string _recoveryLoginUserId;
 
+        // The store owner is role "admin" with this id; managers are other role "admin" accounts (no extra role value exists)
+        public const string OWNER_ID = "usr_admin_default";
+        private const string OWNER_USERNAME = "admin";
+        public const int TIER_CASHIER = 0;
+        public const int TIER_MANAGER = 1;
+        public const int TIER_OWNER = 2;
+        public const int TIER_ROOT = 3;
+        private const string OWNER_ONLY_MESSAGE = "هذه العملية متاحة لصاحب المحل فقط";
+
+        // Owner-grade keys: always on for the owner/root, off for a manager until the owner explicitly grants each one; never held by cashiers
+        public static readonly string[] DELEGABLE_OWNER_PERMISSIONS = new string[] { "system.updates", "settings.restore", "settings.license" };
+
+        private static bool IsOwnerIdentity(string id, string username, string role)
+        {
+            // Both the id match and the username match only count for an account that really is role "admin"
+            if (role != "admin") return false;
+            return id == OWNER_ID || string.Equals(username, OWNER_USERNAME, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsOwnerUser(User u)
+        {
+            return u != null && IsOwnerIdentity(u.Id, u.Username, u.Role);
+        }
+
+        // root=3, owner=2, manager (any other admin)=1, cashier=0
+        public static int Tier(User u)
+        {
+            if (u == null) return -1;
+            return TierOf(u.Id, u.Username, u.Role);
+        }
+
+        public static int TierOf(string id, string username, string role)
+        {
+            if (role == "root") return TIER_ROOT;
+            if (IsOwnerIdentity(id, username, role)) return TIER_OWNER;
+            if (role == "admin") return TIER_MANAGER;
+            return TIER_CASHIER;
+        }
+
+        // True for the owner-grade keys (owner/root by default, a manager only when the owner granted the key)
+        public static bool IsOwnerOnlyPermission(string permKey)
+        {
+            for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+            {
+                if (DELEGABLE_OWNER_PERMISSIONS[i] == permKey) return true;
+            }
+            return false;
+        }
+
+        // A manager holds an owner-grade key only when his own PermissionsJson explicitly says true
+        private static bool IsOwnerGradeGranted(User manager, string permKey)
+        {
+            if (manager == null || string.IsNullOrEmpty(manager.PermissionsJson)) return false;
+            try
+            {
+                var custom = JsonConvert.DeserializeObject<Dictionary<string, bool>>(manager.PermissionsJson);
+                bool granted;
+                return custom != null && custom.TryGetValue(permKey, out granted) && granted;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Owner-grade keys currently granted to a manager, in DELEGABLE_OWNER_PERMISSIONS order
+        private static List<string> GrantedOwnerGradeKeys(User manager)
+        {
+            var granted = new List<string>();
+            for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+            {
+                if (IsOwnerGradeGranted(manager, DELEGABLE_OWNER_PERMISSIONS[i])) granted.Add(DELEGABLE_OWNER_PERMISSIONS[i]);
+            }
+            return granted;
+        }
+
+        // Owner or developer root: the only accounts allowed to run store-wide dangerous operations
+        public bool IsCurrentSessionOwner()
+        {
+            if (_currentUserSession == null) return false;
+            int tier = TierOf(_currentUserSession.Id, _currentUserSession.Username, _currentUserSession.Role);
+            return tier >= TIER_OWNER;
+        }
+
+        private string GetOwnerId()
+        {
+            if (_userRepo == null) return OWNER_ID;
+            User owner = _userRepo.GetById(OWNER_ID);
+            if (owner == null) owner = _userRepo.GetByUsername(OWNER_USERNAME);
+            return owner != null ? owner.Id : OWNER_ID;
+        }
+
+        private User GetSessionUser()
+        {
+            if (_currentUserSession == null || _userRepo == null) return null;
+            return _userRepo.GetById(_currentUserSession.Id);
+        }
+
+        // Fetched-from-DB caller must outrank the target (root outranks everyone); admins edit their own record only through the self paths
+        private static bool CallerOutranks(User caller, User target)
+        {
+            int callerTier = Tier(caller);
+            if (callerTier >= TIER_ROOT) return true;
+            return callerTier > Tier(target);
+        }
+
 
         public SecurityService(SettingsRepository settingsRepo, AuditLogRepository auditRepo, UserRepository userRepo = null)
         {
@@ -121,7 +227,8 @@ namespace RafiqPOS.Services
                 {
                     bool oChanged = false;
                     if (ownerUser.Role != "admin") { ownerUser.Role = "admin"; oChanged = true; }
-                    if (ownerUser.DisplayName != "صاحب المحل") { ownerUser.DisplayName = "صاحب المحل"; oChanged = true; }
+                    // The owner may rename the account; only an empty name is restored
+                    if (string.IsNullOrWhiteSpace(ownerUser.DisplayName)) { ownerUser.DisplayName = "صاحب المحل"; oChanged = true; }
                     if (!ownerUser.CanDelegate) { ownerUser.CanDelegate = true; oChanged = true; }
                     if (ownerUser.MaxDepth < 10) { ownerUser.MaxDepth = 10; oChanged = true; }
                     if (ownerUser.ParentId == "usr_root_developer" || ownerUser.ParentId == ownerUser.Id) { ownerUser.ParentId = null; oChanged = true; }
@@ -136,6 +243,17 @@ namespace RafiqPOS.Services
                 {
                     foreach (var u in allUsers)
                     {
+                        // Managers (non-owner admins): always directly under the owner and allowed to create cashiers
+                        if (u != null && u.Role == "admin" && !IsOwnerUser(u))
+                        {
+                            bool mChanged = false;
+                            if (!u.CanDelegate) { u.CanDelegate = true; mChanged = true; }
+                            if (u.MaxDepth < 1) { u.MaxDepth = 1; mChanged = true; }
+                            if (ownerUser != null && u.ParentId != ownerUser.Id) { u.ParentId = ownerUser.Id; mChanged = true; }
+                            if (mChanged) _userRepo.Update(u);
+                            continue;
+                        }
+
                         if (u != null && u.Role == "cashier")
                         {
                             bool uChanged = false;
@@ -191,8 +309,10 @@ namespace RafiqPOS.Services
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                // Startup must never fail because of normalisation, but a failed heal must be visible in the log
+                Logger.Error("فشل تطبيع حسابات المديرين عند بدء التشغيل (NormalizeAdminRoles): " + ex.Message, ex);
             }
         }
 
@@ -474,9 +594,9 @@ namespace RafiqPOS.Services
 
             bool matches = false;
 
-            // 2. Emergency Recovery Code for Store Owner (admin)
+            // Emergency Recovery Code for Store Owner only (managers never receive or use it)
             // Root stays challenge-only: recovery codes are never accepted for it
-            if (user.Role == "admin" && !string.IsNullOrEmpty(pin) &&
+            if (user.Role == "admin" && IsOwnerUser(user) && !string.IsNullOrEmpty(pin) &&
                 (pin.Trim().StartsWith("RFQ-REC-", StringComparison.OrdinalIgnoreCase) || pin.Trim().StartsWith("RFK", StringComparison.OrdinalIgnoreCase)))
             {
                 if (VerifyRecoveryCodeInternal(pin))
@@ -613,8 +733,72 @@ namespace RafiqPOS.Services
                     if (!isRootCaller && users[i].Role == "root") continue;
                     list.Add(MapToDto(users[i]));
                 }
+                list.Sort(CompareTreeNodes);
             }
             return list;
+        }
+
+        // Soft delete: the account is disabled, its credentials are wiped and its username is released, but history keeps resolving the name
+        public bool DeleteUser(string userId)
+        {
+            if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
+            if (string.IsNullOrEmpty(userId)) throw new ArgumentException("الموظف غير موجود");
+
+            User user = _userRepo.GetById(userId);
+            if (user == null) throw new ArgumentException("الموظف غير موجود");
+
+            User caller = GetSessionUser();
+            if (caller == null || !caller.IsActive)
+            {
+                throw new UnauthorizedAccessException("يجب تسجيل الدخول بحساب نشط لحذف الموظفين.");
+            }
+            if (caller.Id == user.Id)
+            {
+                throw new InvalidOperationException("لا يمكنك حذف حسابك بنفسك.");
+            }
+
+            int targetTier = Tier(user);
+            if (targetTier >= TIER_OWNER)
+            {
+                throw new InvalidOperationException("لا يمكن حذف حساب صاحب المحل أو حساب المطور.");
+            }
+            if (Tier(caller) < TIER_MANAGER)
+            {
+                throw new UnauthorizedAccessException("غير مصرح: حذف الموظفين يتطلب صلاحيات مدير النظام.");
+            }
+            if (!CallerOutranks(caller, user))
+            {
+                throw new UnauthorizedAccessException("حذف حسابات المديرين متاح لصاحب المحل فقط.");
+            }
+
+            if (user.IsActive && (user.Role == "admin" || user.Role == "root") && _userRepo.GetActiveAdminCount() <= 1)
+            {
+                throw new InvalidOperationException("لا يمكن حذف آخر مدير نظام نشط.");
+            }
+            if (_userRepo.HasOpenShift(user.Id))
+            {
+                throw new InvalidOperationException("لا يمكن حذف موظف لديه وردية مفتوحة. يرجى إغلاق الوردية أولاً.");
+            }
+
+            // Subordinates move to the owner (managers) or to the deleted user's own parent (legacy delegating cashiers)
+            string ownerId = GetOwnerId();
+            string newParentId = ownerId;
+            if (targetTier == TIER_CASHIER && !string.IsNullOrEmpty(user.ParentId) && user.ParentId != user.Id)
+            {
+                User oldParent = _userRepo.GetById(user.ParentId);
+                if (oldParent != null) newParentId = oldParent.Id;
+            }
+
+            string originalUsername = user.Username;
+            string displayName = user.DisplayName;
+            string role = user.Role;
+            if (!_userRepo.SoftDelete(user.Id, newParentId))
+            {
+                throw new InvalidOperationException("تعذر حذف الموظف: الحساب محذوف بالفعل.");
+            }
+
+            LogAudit("USER_DELETED", "SECURITY", originalUsername, string.Format("تم حذف الموظف: {0} ({1}) بواسطة: {2} ({3})", displayName, role, caller.DisplayName, caller.Username));
+            return true;
         }
 
         public UserDto CreateUser(string username, string displayName, string pin, string role)
@@ -637,11 +821,37 @@ namespace RafiqPOS.Services
                 throw new InvalidOperationException("اسم المستخدم موجود بالفعل");
             }
 
-            // Parent is always the session user or (for admin/root) any account; non-admins may only nest under their own subtree
+            string targetRole = string.IsNullOrEmpty(role) ? "cashier" : role.Trim().ToLowerInvariant();
+            if (targetRole == "root")
+            {
+                throw new UnauthorizedAccessException("غير مصرح بإنشاء حسابات برتبة Root نهائياً.");
+            }
+            if (targetRole != "admin")
+            {
+                targetRole = "cashier";
+            }
+
+            // Cashiers nest under the creator (or a requested parent the caller may reach); managers always sit directly under the owner
             User caller = _currentUserSession != null ? _userRepo.GetById(_currentUserSession.Id) : null;
             bool callerIsAdmin = caller != null && (caller.Role == "admin" || caller.Role == "root");
+            bool callerIsOwnerOrRoot = caller != null && Tier(caller) >= TIER_OWNER;
             User parent = caller;
-            if (caller != null && !string.IsNullOrEmpty(parentUserId) && parentUserId != caller.Id)
+
+            if (targetRole == "admin")
+            {
+                if (!callerIsAdmin)
+                {
+                    throw new UnauthorizedAccessException("غير مصرح بإنشاء حساب برتبة مدير نظام إلا من قبل مدير نظام آخر.");
+                }
+                if (!callerIsOwnerOrRoot)
+                {
+                    throw new UnauthorizedAccessException(OWNER_ONLY_MESSAGE);
+                }
+                // The client-supplied parent is ignored for managers
+                User ownerParent = _userRepo.GetById(OWNER_ID) ?? _userRepo.GetByUsername(OWNER_USERNAME);
+                parent = ownerParent ?? caller;
+            }
+            else if (caller != null && !string.IsNullOrEmpty(parentUserId) && parentUserId != caller.Id)
             {
                 User requestedParent = _userRepo.GetById(parentUserId);
                 if (requestedParent == null)
@@ -652,7 +862,8 @@ namespace RafiqPOS.Services
                 {
                     throw new UnauthorizedAccessException("غير مصرح بإنشاء حسابات تحت حساب المطور.");
                 }
-                if (!callerIsAdmin && !IsDescendantOf(requestedParent.Id, caller.Id))
+                // Only the owner/root may place accounts anywhere; managers and legacy delegates stay inside their own subtree
+                if (!callerIsOwnerOrRoot && !IsDescendantOf(requestedParent.Id, caller.Id))
                 {
                     throw new UnauthorizedAccessException("لا يمكن إنشاء حساب إلا تحت حسابك أو أحد الحسابات التابعة لك.");
                 }
@@ -680,13 +891,17 @@ namespace RafiqPOS.Services
 
                 if (!isParentRoot)
                 {
-                    if (!parent.CanDelegate)
+                    // Admin parents (owner and managers) create cashiers without any delegation flag; only legacy cashier parents are checked
+                    if (parent.Role != "admin")
                     {
-                        throw new UnauthorizedAccessException("المستخدم لا يملك صلاحية تفويض أو إنشاء حسابات فرعية.");
-                    }
-                    if (parent.MaxDepth <= 0)
-                    {
-                        throw new InvalidOperationException("تم الوصول إلى أقصى عمق مسموح به للتفويض الفرعي.");
+                        if (!parent.CanDelegate)
+                        {
+                            throw new UnauthorizedAccessException("المستخدم لا يملك صلاحية تفويض أو إنشاء حسابات فرعية.");
+                        }
+                        if (parent.MaxDepth <= 0)
+                        {
+                            throw new InvalidOperationException("تم الوصول إلى أقصى عمق مسموح به للتفويض الفرعي.");
+                        }
                     }
 
                     childMaxDepth = Math.Min(maxDepth, parent.MaxDepth - 1);
@@ -697,16 +912,24 @@ namespace RafiqPOS.Services
                     var parentPerms = GetEffectivePermissions(parent);
                     if (callerIsAdmin)
                     {
-                        var filtered = new Dictionary<string, bool>();
-                        if (permissions != null)
+                        if (targetRole == "cashier" && permissions != null)
                         {
-                            foreach (var kvp in permissions)
-                            {
-                                bool parentHas = parentPerms.ContainsKey(kvp.Key) && parentPerms[kvp.Key];
-                                filtered[kvp.Key] = kvp.Value && parentHas;
-                            }
+                            // A provided map is authoritative: every key not explicitly true is stored false (no silent role-default grants)
+                            permissions = BuildExplicitPermissionMap(permissions, GetEffectivePermissions(caller), parentPerms);
                         }
-                        permissions = filtered;
+                        else
+                        {
+                            var filtered = new Dictionary<string, bool>();
+                            if (permissions != null)
+                            {
+                                foreach (var kvp in permissions)
+                                {
+                                    bool parentHas = parentPerms.ContainsKey(kvp.Key) && parentPerms[kvp.Key];
+                                    filtered[kvp.Key] = kvp.Value && parentHas;
+                                }
+                            }
+                            permissions = filtered;
+                        }
                     }
                     else
                     {
@@ -716,9 +939,26 @@ namespace RafiqPOS.Services
                 }
                 else
                 {
+                    if (callerIsAdmin && targetRole == "cashier" && permissions != null)
+                    {
+                        permissions = BuildExplicitPermissionMap(permissions, GetEffectivePermissions(caller), GetEffectivePermissions(parent));
+                    }
                     childMaxDepth = maxDepth > 0 ? maxDepth : 2;
                     childCanDelegate = canDelegate;
                 }
+            }
+
+            if (targetRole == "admin")
+            {
+                // Managers are the delegation unit of the new model: they may create cashiers under themselves
+                childCanDelegate = true;
+                childMaxDepth = 1;
+            }
+            else if (callerIsAdmin && (!callerIsOwnerOrRoot || !childCanDelegate))
+            {
+                // Cashiers created by admins no longer delegate (only the owner/root may still create a legacy delegating cashier explicitly)
+                childCanDelegate = false;
+                childMaxDepth = 0;
             }
 
             string passSaltStr = null;
@@ -741,21 +981,17 @@ namespace RafiqPOS.Services
                 pinHashStr = Convert.ToBase64String(pHash);
             }
 
-            string targetRole = string.IsNullOrEmpty(role) ? "cashier" : role.Trim().ToLowerInvariant();
-            if (targetRole == "root")
-            {
-                throw new UnauthorizedAccessException("غير مصرح بإنشاء حسابات برتبة Root نهائياً.");
-            }
+            // New managers start without owner-grade grants (the owner grants them later); cashiers can never hold them
             if (targetRole == "admin")
             {
-                if (!callerIsAdmin)
-                {
-                    throw new UnauthorizedAccessException("غير مصرح بإنشاء حساب برتبة مدير نظام إلا من قبل مدير نظام آخر.");
-                }
+                permissions = null;
             }
-            else
+            else if (permissions != null)
             {
-                targetRole = "cashier";
+                for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+                {
+                    permissions[DELEGABLE_OWNER_PERMISSIONS[i]] = false;
+                }
             }
 
             string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : null;
@@ -786,26 +1022,79 @@ namespace RafiqPOS.Services
             return MapToDto(user);
         }
 
-        public void UpdateUser(string userId, string displayName, string role, bool isActive)
+        // role == null/empty keeps the account's current role; isActiveArg == null keeps its current status
+        public void UpdateUser(string userId, string displayName, string role, bool? isActiveArg)
         {
             if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
 
             var user = _userRepo.GetById(userId);
             if (user == null) throw new ArgumentException("الموظف غير موجود");
 
-            if (user.Role == "root" || user.Role == "admin" || user.Username == "admin")
+            User caller = GetSessionUser();
+            if (caller == null || !caller.IsActive)
+            {
+                throw new UnauthorizedAccessException("يجب تسجيل الدخول بحساب نشط لتعديل بيانات الموظفين.");
+            }
+
+            bool isActive = isActiveArg.HasValue ? isActiveArg.Value : user.IsActive;
+            bool isSelf = caller.Id == user.Id;
+            int targetTier = Tier(user);
+            string targetRole = string.IsNullOrWhiteSpace(role) ? (string.IsNullOrEmpty(user.Role) ? "cashier" : user.Role) : role.Trim().ToLowerInvariant();
+
+            // The owner can never be disabled or demoted, by anyone
+            if (targetTier >= TIER_OWNER)
             {
                 if (!isActive)
                 {
                     throw new InvalidOperationException("لا يمكن تعطيل حساب صاحب المحل المالك للنظام.");
                 }
-                if (role != "root" && role != "admin")
+                if (targetRole != "root" && targetRole != "admin")
                 {
                     throw new InvalidOperationException("لا يمكن خفض رتبة حساب صاحب المحل.");
                 }
             }
 
-            if ((user.Role == "admin" || user.Role == "root") && (role != "admin" && role != "root" || !isActive))
+            if (targetRole == "root" && user.Role != "root")
+            {
+                throw new UnauthorizedAccessException("غير مصرح بترقية أي حساب إلى رتبة Root.");
+            }
+
+            // Authority: a caller may only modify a strictly lower tier (root may modify anyone); everybody may rename themselves
+            if (isSelf)
+            {
+                if (user.Role != "root" && targetRole != (user.Role == "admin" ? "admin" : "cashier"))
+                {
+                    throw new UnauthorizedAccessException("لا يمكنك تغيير رتبتك بنفسك.");
+                }
+                if (isActive != user.IsActive)
+                {
+                    throw new UnauthorizedAccessException("لا يمكنك تغيير حالة حسابك بنفسك.");
+                }
+            }
+            else
+            {
+                if (Tier(caller) < TIER_MANAGER)
+                {
+                    throw new UnauthorizedAccessException("غير مصرح: تعديل بيانات الموظفين يتطلب صلاحيات مدير النظام.");
+                }
+                if (!CallerOutranks(caller, user))
+                {
+                    if (targetTier >= TIER_OWNER)
+                    {
+                        throw new UnauthorizedAccessException("لا يمكن تعديل حساب صاحب المحل.");
+                    }
+                    throw new UnauthorizedAccessException("إدارة حسابات المديرين متاحة لصاحب المحل فقط.");
+                }
+            }
+
+            bool promoting = user.Role != "root" && user.Role != "admin" && targetRole == "admin";
+            bool demoting = user.Role == "admin" && targetTier == TIER_MANAGER && targetRole != "admin";
+            if (promoting && Tier(caller) < TIER_OWNER)
+            {
+                throw new UnauthorizedAccessException("ترقية موظف إلى رتبة مدير متاحة لصاحب المحل فقط.");
+            }
+
+            if (user.IsActive && (user.Role == "admin" || user.Role == "root") && (targetRole != "admin" && targetRole != "root" || !isActive))
             {
                 int activeAdmins = _userRepo.GetActiveAdminCount();
                 if (activeAdmins <= 1)
@@ -815,31 +1104,44 @@ namespace RafiqPOS.Services
             }
 
             bool wasActive = user.IsActive;
-            user.DisplayName = displayName.Trim();
-            string targetRole = string.IsNullOrEmpty(role) ? "cashier" : role.Trim().ToLowerInvariant();
-            if (targetRole == "root")
+            string oldRole = user.Role;
+            if (!string.IsNullOrWhiteSpace(displayName))
             {
-                throw new UnauthorizedAccessException("غير مصرح بترقية أي حساب إلى رتبة Root.");
+                user.DisplayName = displayName.Trim();
             }
 
-            if (user.Role != "root")
+            string reparentChildrenTo = null;
+            if (promoting)
             {
-                if (targetRole == "admin")
-                {
-                    bool callerIsAdmin = _currentUserSession != null && (_currentUserSession.Role == "admin" || _currentUserSession.Role == "root");
-                    if (!callerIsAdmin)
-                    {
-                        throw new UnauthorizedAccessException("غير مصرح بترقية موظف إلى رتبة مدير نظام بدون صلاحيات مدير النظام.");
-                    }
-                }
-                user.Role = (targetRole == "admin") ? "admin" : "cashier";
+                // Promoted accounts become managers directly under the owner
+                user.Role = "admin";
+                user.ParentId = GetOwnerId();
+                user.CanDelegate = true;
+                user.MaxDepth = 1;
+                user.PermissionsJson = null;
+            }
+            else if (demoting)
+            {
+                // Demoted managers become plain cashiers under the owner; their cashiers move to the owner too
+                string ownerId = GetOwnerId();
+                user.Role = "cashier";
+                user.ParentId = ownerId;
+                user.CanDelegate = false;
+                user.MaxDepth = 0;
+                user.PermissionsJson = null;
+                reparentChildrenTo = ownerId;
             }
             user.IsActive = isActive;
 
-            _userRepo.Update(user);
+            _userRepo.Update(user, reparentChildrenTo);
             LogAudit("USER_UPDATED", "SECURITY", user.Username, string.Format("تم تحديث بيانات الموظف: {0} ({1}) - الحالة: {2}", user.DisplayName, user.Role, isActive ? "نشط" : "معطّل"));
+            if (promoting || demoting)
+            {
+                LogAudit("USER_ROLE_CHANGED", "SECURITY", user.Username, string.Format("تغيير رتبة الموظف {0} من {1} إلى {2}", user.DisplayName, oldRole, user.Role));
+            }
 
-            if (wasActive && !isActive)
+            // Disabling a manager never disables his cashiers; only legacy delegating cashiers cascade to their subordinates
+            if (wasActive && !isActive && user.Role != "admin" && user.Role != "root")
             {
                 CascadeDeactivate(user.Id);
             }
@@ -856,26 +1158,69 @@ namespace RafiqPOS.Services
                 throw new InvalidOperationException("حساب الـ Root يملك جميع الصلاحيات دائماً ولا يمكن تقييده أو سحب الصلاحيات منه.");
             }
 
-            if ((user.Role == "admin" || user.Username == "admin") && !IsCurrentSessionRoot())
+            if (IsOwnerUser(user) && !IsCurrentSessionRoot())
             {
                 throw new InvalidOperationException("لا يمكن تعديل صلاحيات صاحب المحل إلا من خلال حساب الـ Root الأعلى.");
             }
 
             User caller = RequireHierarchyAuthority(user);
-            if (caller.Role != "admin" && caller.Role != "root")
+            bool targetIsManager = Tier(user) == TIER_MANAGER;
+            List<string> grantedBefore = GrantedOwnerGradeKeys(user);
+            if (targetIsManager)
             {
-                // Non-admins persist a complete map bounded by their own and the target's parent permissions
-                User targetParent = !string.IsNullOrEmpty(user.ParentId) ? _userRepo.GetById(user.ParentId) : null;
-                permissions = BuildBoundedPermissionMap(user.Role, permissions, GetEffectivePermissions(caller),
-                    targetParent != null ? GetEffectivePermissions(targetParent) : null);
+                // Only the owner/root reach here (tier rule). A manager keeps every daily power, so only the owner-grade grants are stored
+                var grants = new Dictionary<string, bool>();
+                for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+                {
+                    string key = DELEGABLE_OWNER_PERMISSIONS[i];
+                    if (permissions != null && permissions.ContainsKey(key) && permissions[key]) grants[key] = true;
+                }
+                permissions = grants;
+            }
+            else
+            {
+                if (caller.Role != "admin" && caller.Role != "root")
+                {
+                    // Non-admins persist a complete map bounded by their own and the target's parent permissions
+                    User targetParent = !string.IsNullOrEmpty(user.ParentId) ? _userRepo.GetById(user.ParentId) : null;
+                    permissions = BuildBoundedPermissionMap(user.Role, permissions, GetEffectivePermissions(caller),
+                        targetParent != null ? GetEffectivePermissions(targetParent) : null);
+                }
+                if (permissions != null)
+                {
+                    // Cashiers can never hold owner-grade keys, whoever edits them
+                    for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+                    {
+                        permissions[DELEGABLE_OWNER_PERMISSIONS[i]] = false;
+                    }
+                }
             }
 
             string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : "{}";
             user.PermissionsJson = permsJson;
             _userRepo.Update(user);
             LogAudit("USER_PERMISSIONS_UPDATED", "SECURITY", user.Username, string.Format("تم تحديث صلاحيات الحساب: {0}", user.DisplayName));
+            if (targetIsManager) LogOwnerGradeChanges(caller, user, grantedBefore, GrantedOwnerGradeKeys(user));
 
-            CascadeRevokePermissions(user.Id, permissions);
+            CascadeRevokePermissions(user.Id, targetIsManager ? GetEffectivePermissions(user) : permissions);
+        }
+
+        private void LogOwnerGradeChanges(User caller, User target, List<string> before, List<string> after)
+        {
+            var granted = new List<string>();
+            var revoked = new List<string>();
+            for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+            {
+                string key = DELEGABLE_OWNER_PERMISSIONS[i];
+                bool was = before.Contains(key);
+                bool now = after.Contains(key);
+                if (now && !was) granted.Add(key);
+                else if (was && !now) revoked.Add(key);
+            }
+            if (granted.Count == 0 && revoked.Count == 0) return;
+            LogAudit("USER_PERMISSIONS_CHANGED", "SECURITY", target.Username, string.Format(
+                "صلاحيات خاصة بالمالك للمدير {0}: منح [{1}] - سحب [{2}] - بواسطة: {3}",
+                target.DisplayName, string.Join(", ", granted.ToArray()), string.Join(", ", revoked.ToArray()), caller.Username));
         }
 
         public void SetUserDelegation(string userId, bool canDelegate, int maxDepth)
@@ -927,6 +1272,29 @@ namespace RafiqPOS.Services
             return result;
         }
 
+        // Authoritative map: only keys explicitly true in the request survive (aliases normalised), still bounded by caller and parent
+        private static Dictionary<string, bool> BuildExplicitPermissionMap(Dictionary<string, bool> requested,
+            Dictionary<string, bool> callerPerms, Dictionary<string, bool> parentPerms)
+        {
+            var normalized = new Dictionary<string, bool>();
+            if (requested != null)
+            {
+                foreach (var kvp in requested) normalized[kvp.Key] = kvp.Value;
+            }
+            SyncPermissionAliases(normalized);
+
+            var result = new Dictionary<string, bool>();
+            for (int i = 0; i < ALL_PERMISSIONS.Length; i++)
+            {
+                string key = ALL_PERMISSIONS[i];
+                bool wanted = normalized.ContainsKey(key) && normalized[key];
+                bool callerHas = callerPerms.ContainsKey(key) && callerPerms[key];
+                bool parentHas = parentPerms == null || (parentPerms.ContainsKey(key) && parentPerms[key]);
+                result[key] = wanted && callerHas && parentHas;
+            }
+            return result;
+        }
+
         // Caller must be logged in, may not edit itself, and (unless admin/root) must be an ancestor of the target
         private User RequireHierarchyAuthority(User target)
         {
@@ -940,6 +1308,15 @@ namespace RafiqPOS.Services
                 throw new UnauthorizedAccessException("لا يمكن تعديل صلاحيات أو تفويض حسابك بنفسك.");
             }
             bool callerIsAdmin = caller.Role == "admin" || caller.Role == "root";
+            // Tier rule: managers manage cashiers only; owner and root manage managers; nobody edits an equal or higher tier
+            if (callerIsAdmin && !CallerOutranks(caller, target))
+            {
+                throw new UnauthorizedAccessException("غير مصرح: لا يمكنك تعديل حساب بنفس مستواك أو أعلى منه. إدارة المديرين متاحة لصاحب المحل فقط.");
+            }
+            if (!callerIsAdmin && Tier(target) >= TIER_MANAGER)
+            {
+                throw new UnauthorizedAccessException("غير مصرح: لا يمكنك تعديل حساب مدير.");
+            }
             if (!callerIsAdmin && !IsDescendantOf(target.Id, caller.Id))
             {
                 throw new UnauthorizedAccessException("غير مصرح: يمكنك تعديل الحسابات التابعة لك فقط.");
@@ -968,13 +1345,17 @@ namespace RafiqPOS.Services
             return 0;
         }
 
+        // Cascades only through legacy delegating cashiers: disabling a manager (or the owner) never disables his cashiers
         private void CascadeDeactivate(string parentId)
         {
             if (string.IsNullOrEmpty(parentId) || _userRepo == null) return;
+            User parentUser = _userRepo.GetById(parentId);
+            if (parentUser != null && (parentUser.Role == "admin" || parentUser.Role == "root")) return;
             var children = _userRepo.GetByParentId(parentId);
             for (int i = 0; i < children.Count; i++)
             {
                 var child = children[i];
+                if (child.Role == "admin" || child.Role == "root") continue;
                 if (child.IsActive)
                 {
                     _userRepo.SetStatus(child.Id, false);
@@ -1029,9 +1410,12 @@ namespace RafiqPOS.Services
             if (_userRepo == null) return new List<UserDto>();
 
             var allUsers = _userRepo.GetAll(false);
+            bool isRootCaller = _currentUserSession != null && _currentUserSession.Role == "root";
             var dtos = new Dictionary<string, UserDto>();
             for (int i = 0; i < allUsers.Count; i++)
             {
+                // The developer root account is invisible to everyone else (same rule as GetAllUsers)
+                if (!isRootCaller && allUsers[i].Role == "root") continue;
                 var d = MapToDto(allUsers[i]);
                 d.Children = new List<UserDto>();
                 dtos[d.Id] = d;
@@ -1051,6 +1435,13 @@ namespace RafiqPOS.Services
                 }
             }
 
+            // Managers before cashiers (root and owner first at the top level), then alphabetical
+            rootNodes.Sort(CompareTreeNodes);
+            foreach (var kvp2 in dtos)
+            {
+                kvp2.Value.Children.Sort(CompareTreeNodes);
+            }
+
             if (!string.IsNullOrEmpty(parentUserId) && dtos.ContainsKey(parentUserId))
             {
                 return new List<UserDto> { dtos[parentUserId] };
@@ -1065,6 +1456,14 @@ namespace RafiqPOS.Services
             }
 
             return rootNodes;
+        }
+
+        private static int CompareTreeNodes(UserDto a, UserDto b)
+        {
+            int tierA = TierOf(a.Id, a.Username, a.Role);
+            int tierB = TierOf(b.Id, b.Username, b.Role);
+            if (tierA != tierB) return tierB.CompareTo(tierA);
+            return string.Compare(a.DisplayName, b.DisplayName, StringComparison.CurrentCultureIgnoreCase);
         }
 
         public void SetUserPassword(string userId, string newPassword, string currentPasswordOrSupervisorPin)
@@ -1159,7 +1558,13 @@ namespace RafiqPOS.Services
             if (user == null) return false;
 
             // Authorization is decided by role only (Audit F-13); the owner account is enforced as role "admin" at startup.
-            if (user.Role == "root" || user.Role == "admin") return true;
+            // Managers (non-owner admins) keep every key except the owner-grade ones, which need an explicit owner grant.
+            if (user.Role == "root") return true;
+            if (user.Role == "admin")
+            {
+                if (IsOwnerUser(user) || !IsOwnerOnlyPermission(permKey)) return true;
+                return IsOwnerGradeGranted(user, permKey);
+            }
 
             var perms = GetEffectivePermissions(user);
             return perms.ContainsKey(permKey) && perms[permKey];
@@ -1210,15 +1615,21 @@ namespace RafiqPOS.Services
 
             if (targetUser.Role == "admin")
             {
-                // Changing Admin PIN strictly requires the current PIN of this admin OR supervisor approval
+                // Changing an admin PIN requires: the account's own current PIN, the developer root session,
+                // or approval from an admin strictly above the target (owner for a manager). A manager can never reset the owner or another manager.
+                int approverTier = Tier(targetUser) + 1;
                 bool verified = recoverySession;
+                if (!verified && IsCurrentSessionRoot())
+                {
+                    verified = true;
+                }
                 if (!verified && !string.IsNullOrEmpty(currentPin))
                 {
                     verified = VerifyCurrentPinThrottled(targetUser, currentPin);
                 }
                 if (!verified && !string.IsNullOrEmpty(supervisorPin))
                 {
-                    verified = VerifySupervisorPin(supervisorPin, "CHANGE_ADMIN_PIN").Success;
+                    verified = VerifySupervisorPin(supervisorPin, "CHANGE_ADMIN_PIN", approverTier).Success;
                 }
 
                 if (!verified)
@@ -1318,6 +1729,12 @@ namespace RafiqPOS.Services
 
         public PinVerificationResult VerifySupervisorPin(string pin, string action)
         {
+            return VerifySupervisorPin(pin, action, TIER_MANAGER);
+        }
+
+        // minApproverTier: 1 = any admin (manager/owner/root), 2 = owner or root only
+        public PinVerificationResult VerifySupervisorPin(string pin, string action, int minApproverTier)
+        {
             var result = new PinVerificationResult();
 
             if (string.IsNullOrEmpty(pin))
@@ -1358,6 +1775,8 @@ namespace RafiqPOS.Services
             {
                 var admin = allUsers[i];
                 if (!admin.IsActive || (admin.Role != "admin" && admin.Role != "root")) continue;
+                // Approval must come from an account of at least the requested tier
+                if (Tier(admin) < minApproverTier) continue;
                 anyAdmin = true;
                 if (string.IsNullOrEmpty(admin.PinCodeHash)) continue;
                 // An admin whose login is locked cannot approve operations either
@@ -2000,7 +2419,7 @@ namespace RafiqPOS.Services
             "customers.payment", "customers.payment_cancel", "customers.credit_sale", "customers.credit_limit_override",
             "customers.credit_limit", "customers.opening_balance",
             "reports.sales", "reports.profit", "reports.inventory", "reports.customers", "reports.cashier", "reports.daily_closing",
-            "settings.store", "settings.printer", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license",
+            "settings.store", "settings.printer", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license", "system.updates",
             "users.view", "users.create", "users.edit", "users.deactivate", "users.reset_pin", "users.delegate",
             "audit_log.view", "expenses.view", "expenses.create", "expenses.edit", "expenses.delete", "expenses.cancel",
             "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.history", "epay.analytics", "epay.cancel", "epay.balance_adjust",
@@ -2064,6 +2483,24 @@ namespace RafiqPOS.Services
             }
 
             SyncPermissionAliases(p);
+
+            // Owner-grade keys follow the same rule HasPermission enforces, so the UI shows what the server will allow
+            if (u.Role == "admin" && IsOwnerUser(u))
+            {
+                for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+                {
+                    p[DELEGABLE_OWNER_PERMISSIONS[i]] = true;
+                }
+            }
+            else
+            {
+                bool isManager = u.Role == "admin";
+                for (int i = 0; i < DELEGABLE_OWNER_PERMISSIONS.Length; i++)
+                {
+                    string key = DELEGABLE_OWNER_PERMISSIONS[i];
+                    p[key] = isManager && IsOwnerGradeGranted(u, key);
+                }
+            }
             return p;
         }
 
@@ -2146,7 +2583,9 @@ namespace RafiqPOS.Services
                 CreatedBy = u.CreatedBy,
                 CanDelegate = u.CanDelegate,
                 HasPassword = !string.IsNullOrEmpty(u.PasswordHash),
+                HasPin = !string.IsNullOrEmpty(u.PinCodeHash),
                 MustChangePin = u.MustChangePin,
+                IsOwner = IsOwnerUser(u),
                 Children = new List<UserDto>(),
                 CreatedAt = u.CreatedAt,
                 LastLoginAt = u.LastLoginAt
@@ -2237,7 +2676,7 @@ namespace RafiqPOS.Services
             p["settings.backup"] = isAdmin;
             p["settings.restore"] = isAdmin;
             p["settings.license"] = isAdmin;
-
+            p["system.updates"] = isAdmin;
             // Users
             p["users.view"] = isAdmin;
             p["users.create"] = isAdmin;

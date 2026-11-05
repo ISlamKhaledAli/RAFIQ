@@ -97,6 +97,10 @@ namespace RafiqPOS.Models
         [JsonIgnore]
         public string IdempotencyFingerprint { get; set; }
 
+        /// <summary>Set only by ReturnService after it priced every line from the validated original invoice; never from the client.</summary>
+        [JsonIgnore]
+        public bool TotalsComputedByService { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

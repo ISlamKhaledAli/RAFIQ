@@ -1237,8 +1237,8 @@ namespace RafiqPOS.Services
             {
                 TestNumber = 12,
                 TestCode = "TEST-13a",
-                Title = "فرض ضريبة على سطر محدد ضريبته صفر (Zero-tax line override)",
-                Expected = "سطر الفاتورة يحتفظ بضريبة 0% و0 قرش ضريبة",
+                Title = "نسبة الضريبة من الكتالوج فقط: تجاهل نسبة 0% المرسلة من العميل (Client tax rate ignored)",
+                Expected = "سطر الفاتورة يأخذ ضريبة الصنف (14%) من الكتالوج مهما أرسل العميل، بقيمة ضريبة مستخرجة من السعر الشامل",
                 Passed = false
             };
 
@@ -1260,7 +1260,7 @@ namespace RafiqPOS.Services
                 };
                 DatabaseService.Products.SaveProduct(prod);
 
-                // Create sale item explicitly setting TaxRatePercent = 0
+                // The client sends TaxRatePercent = 0; the server must still apply the catalogue 14%
                 var sale = new Sale
                 {
                     PaymentMethod = "CASH",
@@ -1279,15 +1279,16 @@ namespace RafiqPOS.Services
 
                 var loadedItem = createdSale.Items[0];
 
-                if (loadedItem.TaxRatePercent == 0 && loadedItem.TaxPiasters == 0)
+                long expectedTax = Money.CalculateTaxPiasters(loadedItem.TotalPiasters, 14, true);
+                if (loadedItem.TaxRatePercent == 14 && loadedItem.TaxPiasters == expectedTax && expectedTax > 0)
                 {
                     test.Passed = true;
-                    test.Observed = "سطر الفاتورة احتفظ بضريبة 0% و0 قرش ضريبة.";
+                    test.Observed = string.Format("السطر أخذ ضريبة الكتالوج 14% بقيمة {0} قرش رغم إرسال العميل 0%.", loadedItem.TaxPiasters);
                 }
                 else
                 {
                     test.Passed = false;
-                    test.Observed = string.Format("تم فرض ضريبة {0}% وقيمتها {1} قرش على السطر المعفى! العطل موجود: النظام يتجاهل نسبة 0% ويستبدلها بضريبة الصنف الافتراضية 14%.", loadedItem.TaxRatePercent, loadedItem.TaxPiasters);
+                    test.Observed = string.Format("نسبة الضريبة المسجلة {0}% وقيمتها {1} قرش (المتوقع 14% و{2} قرش من الكتالوج).", loadedItem.TaxRatePercent, loadedItem.TaxPiasters, expectedTax);
                 }
                 test.Details = string.Format("النسبة المسجلة: {0}%، قيمة الضريبة: {1} قرش", loadedItem.TaxRatePercent, loadedItem.TaxPiasters);
             }

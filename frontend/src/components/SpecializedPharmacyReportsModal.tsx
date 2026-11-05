@@ -16,6 +16,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { printReport } from '../utils/printReport';
 import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from './CustomSelect';
 import { formatArabicCurrency } from '../utils/money';
@@ -238,13 +239,14 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
       <div 
+        data-print-root
         className="w-full max-w-6xl bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark flex flex-col h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright">
+            <div className="p-2.5 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright">
               <BarChart2 className="w-5 h-5" />
             </div>
             <div>
@@ -252,12 +254,12 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                 <h2 className="text-base font-black text-ink dark:text-ink-dark leading-tight">
                   التقارير والتحليلات الصيدلية التخصصية
                 </h2>
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-brand-soft text-brand font-bold">
+                <span className="text-micro px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-bold">
                   رقابة مالية وطبية
                 </span>
                 {loading && (
-                  <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark flex items-center gap-1 font-normal animate-pulse">
-                    <Loader2 className="w-3 h-3 animate-spin text-brand" />
+                  <span className="text-micro text-ink-muted dark:text-ink-muted-dark flex items-center gap-1 font-normal animate-pulse">
+                    <Loader2 className="w-3 h-3 animate-spin text-brand dark:text-brand-bright" />
                     جاري التحميل...
                   </span>
                 )}
@@ -271,17 +273,17 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-3 transition-colors"
+              onClick={() => void printReport({ kind: 'a4only', orientation: 'landscape' })}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
             >
-              <Printer className="w-3.5 h-3.5 text-ink-muted" />
+              <Printer className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
               <span>طباعة التقرير</span>
             </button>
 
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 transition-colors"
+              className="p-1.5 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -297,7 +299,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
               className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all ${
                 activeTab === 'expiry'
                   ? 'border-brand text-brand dark:text-brand-bright'
-                  : 'border-transparent text-ink-muted hover:text-ink'
+                  : 'border-transparent text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <Calendar className="w-4 h-4" />
@@ -310,7 +312,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
               className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all ${
                 activeTab === 'stagnant'
                   ? 'border-brand text-brand dark:text-brand-bright'
-                  : 'border-transparent text-ink-muted hover:text-ink'
+                  : 'border-transparent text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <Clock className="w-4 h-4" />
@@ -323,7 +325,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
               className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all ${
                 activeTab === 'profitability'
                   ? 'border-brand text-brand dark:text-brand-bright'
-                  : 'border-transparent text-ink-muted hover:text-ink'
+                  : 'border-transparent text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <TrendingUp className="w-4 h-4" />
@@ -334,7 +336,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
 
         {/* Error Alert */}
         {errorMsg && (
-          <div className="mx-6 mt-3 p-3 rounded-lg bg-danger/10 border border-danger/20 flex items-center gap-2 text-danger text-xs shrink-0">
+          <div className="mx-6 mt-3 p-3 rounded-lg bg-danger/10 border border-danger/20 flex items-center gap-2 text-danger dark:text-danger-bright text-xs shrink-0">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span>{errorMsg}</span>
           </div>
@@ -347,56 +349,56 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
             <div className="space-y-6">
               {/* Metric Cards Ribbon */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line">
-                  <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                  <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted mb-1">
                     <span>إجمالي التشغيلات النشطة</span>
-                    <Layers className="w-4 h-4 text-brand" />
+                    <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
                   </div>
                   <div className="text-xl font-black font-mono text-ink dark:text-ink-dark">
                     {heatmap?.totalBatchesCount || 0}
                   </div>
-                  <div className="text-[11px] text-ink-muted mt-1">تشغيلة مسجلة ومتاحة</div>
+                  <div className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1">تشغيلة مسجلة ومتاحة</div>
                 </div>
 
                 <div className="p-4 rounded-xl bg-danger/10 border border-danger/20">
-                  <div className="flex items-center justify-between text-xs text-danger mb-1 font-bold">
+                  <div className="flex items-center justify-between text-xs text-danger dark:text-danger-bright mb-1 font-bold">
                     <span>منتهية الصلاحية</span>
-                    <AlertTriangle className="w-4 h-4 text-danger" />
+                    <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright" />
                   </div>
-                  <div className="text-xl font-black font-mono text-danger">
+                  <div className="text-xl font-black font-mono text-danger dark:text-danger-bright">
                     {formatArabicCurrency(heatmap?.totalExpiredCapitalPiasters || 0)}
                   </div>
-                  <div className="text-[11px] text-danger/80 mt-1 font-mono">
+                  <div className="text-micro text-danger/80 dark:text-danger-bright mt-1 font-mono">
                     {heatmap?.totalExpiredBatchesCount || 0} تشغيلة منتهية بالكامل
                   </div>
                 </div>
 
                 <div className="p-4 rounded-xl bg-warn/10 border border-warn/20">
-                  <div className="flex items-center justify-between text-xs text-warn mb-1 font-bold">
+                  <div className="flex items-center justify-between text-xs text-warn dark:text-warn-bright mb-1 font-bold">
                     <span>تنتهي خلال 30 يوماً</span>
-                    <Clock className="w-4 h-4 text-warn" />
+                    <Clock className="w-4 h-4 text-warn dark:text-warn-bright" />
                   </div>
-                  <div className="text-xl font-black font-mono text-warn">
+                  <div className="text-xl font-black font-mono text-warn dark:text-warn-bright">
                     {heatmap?.totalExpiringSoonBatchesCount || 0}
                   </div>
-                  <div className="text-[11px] text-warn/80 mt-1">تشغيلة حرجة عاجلة للإرجاع أو البيع</div>
+                  <div className="text-micro text-warn/80 dark:text-warn-bright mt-1">تشغيلة حرجة عاجلة للإرجاع أو البيع</div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line">
-                  <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                  <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted mb-1">
                     <span>رأس المال المهدد</span>
                     <DollarSign className="w-4 h-4 text-paid" />
                   </div>
                   <div className="text-xl font-black font-mono text-brand dark:text-brand-bright">
                     {formatArabicCurrency(heatmap?.totalCapitalAtRiskPiasters || 0)}
                   </div>
-                  <div className="text-[11px] text-ink-muted mt-1">إجمالي تكلفة التشغيلات المتبقية</div>
+                  <div className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1">إجمالي تكلفة التشغيلات المتبقية</div>
                 </div>
               </div>
 
               {/* Month Buckets Accordion */}
               <div className="space-y-3">
-                <h3 className="text-xs font-bold text-ink-muted uppercase tracking-wider">
+                <h3 className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
                   جدول استحقاق وانتهاء الصلاحيات حسب الشهور
                 </h3>
 
@@ -410,7 +412,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                           ? 'border-danger/40 bg-danger/5'
                           : bucket.isUrgent
                           ? 'border-warn/40 bg-warn/5'
-                          : 'border-line bg-surface dark:bg-surface-dark'
+                          : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark'
                       }`}
                     >
                       {/* Bucket Header */}
@@ -424,8 +426,8 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                             bucket.isExpired
                               ? 'bg-danger text-white'
                               : bucket.isUrgent
-                              ? 'bg-warn text-white'
-                              : 'bg-brand-soft text-brand'
+                              ? 'bg-warn text-white dark:bg-warn-bright dark:text-surface-dark'
+                              : 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
                           }`}>
                             {bucket.isExpired ? (
                               <AlertTriangle className="w-4 h-4" />
@@ -438,7 +440,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                             <div className="text-sm font-black text-ink dark:text-ink-dark">
                               {bucket.monthLabel}
                             </div>
-                            <div className="text-[11px] text-ink-muted font-mono">
+                            <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">
                               {bucket.batchCount} تشغيلة ({bucket.productCount} صنف) - {(bucket.totalQuantityMilli / 1000).toFixed(0)} عبوة
                             </div>
                           </div>
@@ -449,15 +451,15 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                             <div className="text-xs font-black text-ink dark:text-ink-dark">
                               {formatArabicCurrency(bucket.totalCostPiasters)}
                             </div>
-                            <div className="text-[10px] text-ink-muted">
+                            <div className="text-micro text-ink-muted dark:text-ink-dark-muted">
                               سعر البيع: {formatArabicCurrency(bucket.totalRetailPiasters)}
                             </div>
                           </div>
 
                           {isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-ink-muted" />
+                            <ChevronDown className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
                           ) : (
-                            <ChevronLeft className="w-4 h-4 text-ink-muted" />
+                            <ChevronLeft className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
                           )}
                         </div>
                       </button>
@@ -467,7 +469,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                         <div className="px-5 pb-4 overflow-x-auto">
                           <table className="w-full text-right text-xs">
                             <thead>
-                              <tr className="border-b border-line/60 text-ink-muted text-[11px]">
+                              <tr className="border-b border-line/60 dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-micro">
                                 <th className="py-2 font-bold">اسم الدواء والصنف</th>
                                 <th className="py-2 font-bold">رقم التشغيلة</th>
                                 <th className="py-2 font-bold">تاريخ الانتهاء</th>
@@ -477,23 +479,23 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                                 <th className="py-2 font-bold">الموقع</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-line/40">
+                            <tbody className="divide-y divide-line/40 dark:divide-line-dark">
                               {bucket.batches.map((b) => (
-                                <tr key={b.batchId} className="hover:bg-surface-2/60">
+                                <tr key={b.batchId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60">
                                   <td className="py-2 font-bold text-ink dark:text-ink-dark">
                                     {b.productName}
                                     {b.scientificName && (
-                                      <span className="block text-[10px] text-ink-muted font-sans">
+                                      <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-sans">
                                         {b.scientificName}
                                       </span>
                                     )}
                                   </td>
-                                  <td className="py-2 font-mono text-brand font-bold">{b.batchNumber}</td>
+                                  <td className="py-2 font-mono text-brand dark:text-brand-bright font-bold">{b.batchNumber}</td>
                                   <td className="py-2 font-mono">{b.expiryDate}</td>
                                   <td className="py-2 font-mono">{(b.quantityMilli / 1000).toFixed(0)}</td>
                                   <td className="py-2 font-mono">{formatArabicCurrency(b.costPricePiasters)}</td>
                                   <td className="py-2 font-mono font-bold">{formatArabicCurrency(b.totalCostPiasters)}</td>
-                                  <td className="py-2 font-mono text-ink-muted">{b.locationCode || '—'}</td>
+                                  <td className="py-2 font-mono text-ink-muted dark:text-ink-dark-muted">{b.locationCode || '—'}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -511,9 +513,9 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
           {activeTab === 'stagnant' && (
             <div className="space-y-6">
               {/* Filter & Summary Header */}
-              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line">
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-ink">فترة الركود بدون بيع:</span>
+                  <span className="text-xs font-bold text-ink dark:text-ink-dark">فترة الركود بدون بيع:</span>
                   <div className="w-48">
                     <CustomSelect
                       value={String(stagnantThreshold)}
@@ -530,14 +532,14 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
 
                 <div className="flex items-center gap-6 font-mono text-xs">
                   <div>
-                    <span className="text-ink-muted">الأصناف الراكدة:</span>{' '}
+                    <span className="text-ink-muted dark:text-ink-dark-muted">الأصناف الراكدة:</span>{' '}
                     <strong className="text-ink dark:text-ink-dark font-bold">
                       {stagnantReport?.totalStagnantCount || 0}
                     </strong>
                   </div>
                   <div>
-                    <span className="text-ink-muted">رأس المال المجمد:</span>{' '}
-                    <strong className="text-danger font-bold">
+                    <span className="text-ink-muted dark:text-ink-dark-muted">رأس المال المجمد:</span>{' '}
+                    <strong className="text-danger dark:text-danger-bright font-bold">
                       {formatArabicCurrency(stagnantReport?.totalTiedCapitalPiasters || 0)}
                     </strong>
                   </div>
@@ -545,10 +547,10 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
               </div>
 
               {/* Table */}
-              <div className="overflow-x-auto rounded-xl border border-line bg-surface dark:bg-surface-dark">
+              <div className="overflow-x-auto rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark">
                 <table className="w-full text-right text-xs">
                   <thead>
-                    <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line text-ink-muted text-[11px]">
+                    <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-micro">
                       <th className="p-3 font-bold">اسم الدواء والصنف</th>
                       <th className="p-3 font-bold">الاسم العلمي والشكل</th>
                       <th className="p-3 font-bold">الشركة المصنعة</th>
@@ -560,24 +562,24 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                       <th className="p-3 font-bold">الرف</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-line/60">
+                  <tbody className="divide-y divide-line/60 dark:divide-line-dark">
                     {stagnantReport?.items.map((item) => (
-                      <tr key={item.productId} className="hover:bg-surface-2/60">
+                      <tr key={item.productId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60">
                         <td className="p-3 font-bold text-ink dark:text-ink-dark">{item.productName}</td>
-                        <td className="p-3 text-ink-muted">
+                        <td className="p-3 text-ink-muted dark:text-ink-dark-muted">
                           {item.scientificName || '—'} {item.dosageForm ? `(${item.dosageForm})` : ''}
                         </td>
-                        <td className="p-3 text-ink-muted">{item.manufacturerName || '—'}</td>
+                        <td className="p-3 text-ink-muted dark:text-ink-dark-muted">{item.manufacturerName || '—'}</td>
                         <td className="p-3 font-mono font-bold">{item.mixedStockDisplay}</td>
-                        <td className="p-3 font-mono font-bold text-danger">
+                        <td className="p-3 font-mono font-bold text-danger dark:text-danger-bright">
                           {formatArabicCurrency(item.totalCostPiasters)}
                         </td>
-                        <td className="p-3 font-mono text-ink-muted">
+                        <td className="p-3 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {item.lastSaleDate ? item.lastSaleDate.split('T')[0] : 'لم يباع قط'}
                         </td>
-                        <td className="p-3 font-mono font-bold text-warn">{item.daysWithoutSale} يوم</td>
+                        <td className="p-3 font-mono font-bold text-warn dark:text-warn-bright">{item.daysWithoutSale} يوم</td>
                         <td className="p-3 font-mono">{item.closestExpiryDate || '—'}</td>
-                        <td className="p-3 font-mono text-brand">{item.locationCode || '—'}</td>
+                        <td className="p-3 font-mono text-brand dark:text-brand-bright">{item.locationCode || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -590,7 +592,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
           {activeTab === 'profitability' && (
             <div className="space-y-6">
               {/* Filter Bar & Summary Ribbon */}
-              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line">
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
                 <div className="flex items-center gap-3">
                   <div className="w-40">
                     <CustomSelect
@@ -605,14 +607,14 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                     />
                   </div>
 
-                  <div className="flex rounded-lg border border-line bg-surface p-0.5">
+                  <div className="flex rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-0.5">
                     <button
                       type="button"
                       onClick={() => setProfSubView('manufacturers')}
                       className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
                         profSubView === 'manufacturers'
                           ? 'bg-brand text-white'
-                          : 'text-ink-muted hover:text-ink'
+                          : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                       }`}
                     >
                       الشركات المصنعة
@@ -623,7 +625,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                       className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
                         profSubView === 'ingredients'
                           ? 'bg-brand text-white'
-                          : 'text-ink-muted hover:text-ink'
+                          : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                       }`}
                     >
                       المواد الفعالة
@@ -633,26 +635,26 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
 
                 <div className="flex items-center gap-6 font-mono text-xs">
                   <div>
-                    <span className="text-ink-muted">المبيعات:</span>{' '}
+                    <span className="text-ink-muted dark:text-ink-dark-muted">المبيعات:</span>{' '}
                     <strong className="text-ink dark:text-ink-dark font-bold">
                       {formatArabicCurrency(profReport?.totalSalesPiasters || 0)}
                     </strong>
                   </div>
                   <div>
-                    <span className="text-ink-muted">التكلفة:</span>{' '}
+                    <span className="text-ink-muted dark:text-ink-dark-muted">التكلفة:</span>{' '}
                     <strong className="text-ink dark:text-ink-dark font-bold">
                       {formatArabicCurrency(profReport?.totalCostPiasters || 0)}
                     </strong>
                   </div>
                   <div>
-                    <span className="text-ink-muted">صافي الربح:</span>{' '}
+                    <span className="text-ink-muted dark:text-ink-dark-muted">صافي الربح:</span>{' '}
                     <strong className="text-paid font-bold">
                       {formatArabicCurrency(profReport?.grossProfitPiasters || 0)}
                     </strong>
                   </div>
                   <div>
-                    <span className="text-ink-muted">الهامش:</span>{' '}
-                    <strong className="text-brand font-bold">
+                    <span className="text-ink-muted dark:text-ink-dark-muted">الهامش:</span>{' '}
+                    <strong className="text-brand dark:text-brand-bright font-bold">
                       {((profReport?.overallMarginBps || 0) / 100).toFixed(1)}%
                     </strong>
                   </div>
@@ -660,11 +662,11 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
               </div>
 
               {/* Data Table */}
-              <div className="overflow-x-auto rounded-xl border border-line bg-surface dark:bg-surface-dark">
+              <div className="overflow-x-auto rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark">
                 {profSubView === 'manufacturers' ? (
                   <table className="w-full text-right text-xs">
                     <thead>
-                      <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line text-ink-muted text-[11px]">
+                      <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-micro">
                         <th className="p-3 font-bold">الشركة المصنعة</th>
                         <th className="p-3 font-bold">بلد المنشأ</th>
                         <th className="p-3 font-bold">عدد الأصناف</th>
@@ -675,26 +677,26 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                         <th className="p-3 font-bold">هامش الربح %</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-line/60">
+                    <tbody className="divide-y divide-line/60 dark:divide-line-dark">
                       {profReport?.manufacturers.map((m) => (
-                        <tr key={m.manufacturerId} className="hover:bg-surface-2/60">
+                        <tr key={m.manufacturerId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60">
                           <td className="p-3 font-bold text-ink dark:text-ink-dark flex items-center gap-2">
-                            <Building2 className="w-3.5 h-3.5 text-brand" />
+                            <Building2 className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                             <span>{m.manufacturerName}</span>
                           </td>
-                          <td className="p-3 text-ink-muted">{m.country}</td>
+                          <td className="p-3 text-ink-muted dark:text-ink-dark-muted">{m.country}</td>
                           <td className="p-3 font-mono">{m.productsCount}</td>
                           <td className="p-3 font-mono">{m.invoicesCount}</td>
                           <td className="p-3 font-mono font-bold">{formatArabicCurrency(m.totalSalesPiasters)}</td>
-                          <td className="p-3 font-mono text-ink-muted">{formatArabicCurrency(m.totalCostPiasters)}</td>
+                          <td className="p-3 font-mono text-ink-muted dark:text-ink-dark-muted">{formatArabicCurrency(m.totalCostPiasters)}</td>
                           <td className="p-3 font-mono font-bold text-paid">{formatArabicCurrency(m.grossProfitPiasters)}</td>
                           <td className="p-3 font-mono font-bold">
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] ${
+                            <span className={`px-2 py-0.5 rounded-full text-micro ${
                               m.profitMarginBps >= 2000
-                                ? 'bg-paid-soft text-paid'
+                                ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid'
                                 : m.profitMarginBps >= 1000
-                                ? 'bg-brand-soft text-brand'
-                                : 'bg-warn/10 text-warn'
+                                ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
+                                : 'bg-warn/10 text-warn dark:text-warn-bright'
                             }`}>
                               {(m.profitMarginBps / 100).toFixed(1)}%
                             </span>
@@ -706,7 +708,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                 ) : (
                   <table className="w-full text-right text-xs">
                     <thead>
-                      <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line text-ink-muted text-[11px]">
+                      <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-micro">
                         <th className="p-3 font-bold">المادة الفعالة</th>
                         <th className="p-3 font-bold">الاسم الإنجليزي</th>
                         <th className="p-3 font-bold">عدد الأصناف</th>
@@ -717,26 +719,26 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                         <th className="p-3 font-bold">هامش الربح %</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-line/60">
+                    <tbody className="divide-y divide-line/60 dark:divide-line-dark">
                       {profReport?.activeIngredients.map((ing) => (
-                        <tr key={ing.ingredientId} className="hover:bg-surface-2/60">
+                        <tr key={ing.ingredientId} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60">
                           <td className="p-3 font-bold text-ink dark:text-ink-dark flex items-center gap-2">
-                            <Pill className="w-3.5 h-3.5 text-brand" />
+                            <Pill className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                             <span>{ing.ingredientNameAr}</span>
                           </td>
-                          <td className="p-3 font-sans text-ink-muted">{ing.ingredientNameEn}</td>
+                          <td className="p-3 font-sans text-ink-muted dark:text-ink-dark-muted">{ing.ingredientNameEn}</td>
                           <td className="p-3 font-mono">{ing.productsCount}</td>
                           <td className="p-3 font-mono">{ing.invoicesCount}</td>
                           <td className="p-3 font-mono font-bold">{formatArabicCurrency(ing.totalSalesPiasters)}</td>
-                          <td className="p-3 font-mono text-ink-muted">{formatArabicCurrency(ing.totalCostPiasters)}</td>
+                          <td className="p-3 font-mono text-ink-muted dark:text-ink-dark-muted">{formatArabicCurrency(ing.totalCostPiasters)}</td>
                           <td className="p-3 font-mono font-bold text-paid">{formatArabicCurrency(ing.grossProfitPiasters)}</td>
                           <td className="p-3 font-mono font-bold">
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] ${
+                            <span className={`px-2 py-0.5 rounded-full text-micro ${
                               ing.profitMarginBps >= 2000
-                                ? 'bg-paid-soft text-paid'
+                                ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid'
                                 : ing.profitMarginBps >= 1000
-                                ? 'bg-brand-soft text-brand'
-                                : 'bg-warn/10 text-warn'
+                                ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
+                                : 'bg-warn/10 text-warn dark:text-warn-bright'
                             }`}>
                               {(ing.profitMarginBps / 100).toFixed(1)}%
                             </span>

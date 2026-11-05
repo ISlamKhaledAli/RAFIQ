@@ -213,7 +213,7 @@ namespace RafiqPOS.Services
                               AND (source = 'drawer' OR source IS NULL OR source = '')
                               AND (
                                   (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND " + Window("created_at", halfOpen) + @")))
-                                  OR (@shiftId IS NULL AND (business_date = date(@start) OR (" + Window("created_at", halfOpen) + @")))
+                                  OR (@shiftId IS NULL AND (business_date = date(@start) OR ((business_date IS NULL OR business_date = '') AND " + Window("created_at", halfOpen) + @")))
                               );"
                         : @"SELECT COALESCE(SUM(amount_piasters), 0)
                             FROM expenses

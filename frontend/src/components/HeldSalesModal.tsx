@@ -115,7 +115,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
         <div className="h-14 px-5 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
           <div className="flex items-center gap-2.5">
             <PauseCircle className="w-5 h-5 text-brand dark:text-brand-bright" />
-            <h2 className="text-base font-bold text-ink dark:text-ink-dark m-0">الفواتير المعلقة (المحجوزة مؤقتاً)</h2>
+            <h2 className="t-modal-title text-ink dark:text-ink-dark m-0">الفواتير المعلقة (المحجوزة مؤقتاً)</h2>
             <span className="text-xs font-mono font-bold bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright px-2.5 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/20">
               {heldSales.length} معلقة
             </span>
@@ -123,7 +123,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
           <button 
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
             title="إغلاق النافذة"
           >
             <X className="w-4 h-4" />
@@ -155,7 +155,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
             <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
               <table className="w-full text-right border-collapse text-xs">
                 <thead>
-                  <tr className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">
+                  <tr className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-micro font-bold text-ink-muted dark:text-ink-dark-muted">
                     <th className="px-3">اسم الزبون / الملاحظة</th>
                     <th className="px-3">الساعة</th>
                     <th className="px-3">الأصناف</th>
@@ -172,7 +172,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
                           <div className="truncate max-w-[140px]">
                             <span>{sale.customerName || sale.notes || `معلقة #${idx + 1}`}</span>
                             {sale.notes && sale.customerName && (
-                              <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-normal truncate">
+                              <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-normal truncate">
                                 {sale.notes}
                               </span>
                             )}
@@ -212,7 +212,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
                               if (sale.id) void handleDelete(sale.id);
                             }}
                             disabled={deletingId === sale.id || loading}
-                            className="h-7.5 w-7.5 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger hover:border-danger/30 hover:bg-danger-soft dark:hover:bg-danger/20 rounded-lg flex items-center justify-center transition-colors shadow-2xs cursor-pointer shrink-0"
+                            className="h-7.5 w-7.5 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:border-danger/30 hover:bg-danger-soft dark:hover:bg-danger/20 rounded-lg flex items-center justify-center transition-colors shadow-2xs cursor-pointer shrink-0"
                             title="مسح الفاتورة المعلقة"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -235,21 +235,9 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
           )}
 
           {/* Indicator */}
-          <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted flex items-center justify-between px-1">
-            <span>السيستم بيشيل لحد 50 فاتورة معلقة وبينظفهم تلقائي بعد أسبوع</span>
-            <span className="font-semibold text-brand dark:text-brand-bright">النشطة: {heldSales.length}</span>
+          <div className="text-micro text-ink-muted dark:text-ink-dark-muted px-1">
+            السيستم بيشيل لحد 50 فاتورة معلقة وبينظفهم تلقائي بعد أسبوع
           </div>
-        </div>
-
-        {/* Modal Footer */}
-        <div className="h-13 px-5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-9 px-5 border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-xs font-bold text-ink dark:text-ink-dark rounded-xl transition-colors cursor-pointer shadow-2xs"
-          >
-            إغلاق
-          </button>
         </div>
       </div>
     </div>

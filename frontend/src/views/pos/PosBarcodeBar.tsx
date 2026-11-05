@@ -1,8 +1,9 @@
 import React from 'react';
 import type { FormEvent } from 'react';
-import { Barcode, Search, Loader2, Package, Snowflake, Sparkles } from 'lucide-react';
+import { Barcode, Search, Loader2, Package, Snowflake } from 'lucide-react';
 import type { Product, ProductUnit } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
+import { usePermissions } from '../../utils/usePermission';
 
 interface PosBarcodeBarProps {
   searchContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -22,8 +23,6 @@ interface PosBarcodeBarProps {
   setSelectedDropdownIndex: (val: number) => void;
   onSelectProduct: (prod: Product, specificUnit?: ProductUnit) => void;
   onNavigateToEpay?: () => void;
-  onToggleCatalog?: () => void;
-  isCatalogCollapsed?: boolean;
 }
 
 export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
@@ -43,9 +42,10 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
   selectedDropdownIndex,
   setSelectedDropdownIndex,
   onSelectProduct,
-  onToggleCatalog,
-  isCatalogCollapsed = false,
 }) => {
+  // Reader tuning is an owner/manager task (same rule as the F8 shortcut); cashiers never need it.
+  const { hasPermission, isAdmin } = usePermissions();
+  const canConfigureScanner = isAdmin || hasPermission('settings.barcode');
   return (
     <div ref={searchContainerRef} className="p-2 sm:p-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark shrink-0 relative">
       <form onSubmit={handleBarcodeSubmit} className="flex items-center gap-1.5 sm:gap-2">
@@ -91,31 +91,15 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
           <span>إضافة</span>
         </button>
 
-        <button
-          type="button"
-          onClick={onOpenScannerModal}
-          className="h-11 px-2.5 sm:px-3 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
-          title="فحص واختبار قارئ الباركود (F8)"
-        >
-          <Barcode className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
-          <span className="hidden md:inline">فحص القارئ</span>
-        </button>
-
-        {onToggleCatalog && (
+        {canConfigureScanner && (
           <button
             type="button"
-            onClick={onToggleCatalog}
-            className={`h-11 px-2.5 sm:px-3 border rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer shadow-2xs active:scale-[0.98] ${
-              isCatalogCollapsed
-                ? 'bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border-line dark:border-line-dark text-ink-muted hover:text-ink'
-                : 'bg-paid-soft dark:bg-paid-dark-soft border-paid/30 text-paid dark:text-paid-bright hover:bg-paid-soft/80'
-            }`}
-            title={isCatalogCollapsed ? "عرض أصناف المحل السريعة (Ctrl+B)" : "إخفاء لوحة أصناف المحل وتوسيع السلة (Ctrl+B)"}
+            onClick={onOpenScannerModal}
+            className="h-11 px-2.5 sm:px-3 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
+            title="فحص وضبط قارئ الباركود (F8) - للمالك والمدير فقط"
           >
-            <Sparkles className="w-4 h-4" />
-            <span className="hidden md:inline">
-              {isCatalogCollapsed ? 'عرض الأصناف' : 'إخفاء الأصناف'}
-            </span>
+            <Barcode className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
+            <span className="hidden md:inline">فحص القارئ</span>
           </button>
         )}
       </form>
@@ -128,7 +112,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
           <div className="px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between text-xs font-semibold text-ink-muted dark:text-ink-dark-muted select-none">
             <div className="flex items-center gap-2">
               <span className="font-bold text-ink dark:text-ink-dark">نتائج البحث الفورية ({liveSearchResults.length})</span>
-              <span className="text-[10px] bg-surface dark:bg-surface-dark px-2 py-0.5 rounded border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
+              <span className="text-micro bg-surface dark:bg-surface-dark px-2 py-0.5 rounded border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
                 استخدم الأسهم ↑ ↓ ثم اضغط Enter للإضافة
               </span>
             </div>
@@ -178,39 +162,39 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                   <div className="flex items-center justify-between gap-3 w-full">
                     {/* Right: Product Info */}
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-bold text-[13px] text-ink dark:text-ink-dark truncate">{prod.name}</span>
+                      <span className="font-bold text-sm text-ink dark:text-ink-dark truncate">{prod.name}</span>
                       {prod.unit === 'kg' && (
-                        <span className="px-1.5 py-0.2 text-[10px] font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 rounded border border-sky-200 dark:border-sky-800/50 shrink-0">
+                        <span className="px-1.5 py-0.2 text-micro font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 rounded border border-sky-200 dark:border-sky-800/50 shrink-0">
                           بالوزن (كجم)
                         </span>
                       )}
                       {prod.barcode && (
-                        <span className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-line/60 dark:border-line-dark text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">
-                          <Barcode className="w-3 h-3 text-ink-muted" />
+                        <span className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-line/60 dark:border-line-dark text-micro text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">
+                          <Barcode className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                           {prod.barcode}
                         </span>
                       )}
                       {prod.internalCode && (
-                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">كود: {prod.internalCode}</span>
+                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">كود: {prod.internalCode}</span>
                       )}
                       {prod.locationCode && (
-                        <span className="px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-3 border border-line/60 dark:border-line-dark text-[10px] text-ink dark:text-ink-dark font-mono font-bold shrink-0" title={`مكان الصنف: ${prod.locationCode}`}>
+                        <span className="px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-3 border border-line/60 dark:border-line-dark text-micro text-ink dark:text-ink-dark font-mono font-bold shrink-0" title={`مكان الصنف: ${prod.locationCode}`}>
                           [{prod.locationCode}]
                         </span>
                       )}
                       {prod.isColdChain && (
-                        <span className="flex items-center gap-0.5 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-200 dark:border-cyan-800 text-[10px] font-bold shrink-0" title="سلسلة تبريد (يحفظ في الثلاجة 2-8 مئوية)">
+                        <span className="flex items-center gap-0.5 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-200 dark:border-cyan-800 text-micro font-bold shrink-0" title="سلسلة تبريد (يحفظ في الثلاجة 2-8 مئوية)">
                           <Snowflake className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
                           <span>ثلاجة</span>
                         </span>
                       )}
                       {prod.scientificName && (
-                        <span className="px-1.5 py-0.2 bg-brand-soft/50 dark:bg-brand-soft/20 text-brand dark:text-brand-bright rounded border border-brand/20 text-[10.5px] font-mono shrink-0" title={`الاسم العلمي: ${prod.scientificName}`}>
+                        <span className="px-1.5 py-0.2 bg-brand-soft/50 dark:bg-brand-soft/20 text-brand dark:text-brand-bright rounded border border-brand/20 text-micro font-mono shrink-0" title={`الاسم العلمي: ${prod.scientificName}`}>
                           {prod.scientificName}
                         </span>
                       )}
                       {prod.dosageFormName && (
-                        <span className="px-1.5 py-0.2 bg-surface-2 dark:bg-surface-dark-3 text-ink-muted text-[10px] rounded shrink-0">
+                        <span className="px-1.5 py-0.2 bg-surface-2 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted text-micro rounded shrink-0">
                           {prod.dosageFormName}
                         </span>
                       )}
@@ -221,16 +205,16 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                       {/* Stock status badge with dynamic carton breakdown */}
                       <div className="shrink-0 whitespace-nowrap">
                         {isOutOfStock ? (
-                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright">
-                            نفد من المخزن (0)
+                          <span className="px-2 py-0.5 rounded text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright">
+                            نفد من المخزن
                           </span>
                         ) : isLowStock ? (
-                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright">
+                          <span className="px-2 py-0.5 rounded text-micro font-bold bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright">
                             مخزون منخفض ({stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'}
                             {packUnit && wholePacks !== null && wholePacks > 0 ? ` = ${wholePacks} ${packUnit.unitName}` : ''})
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright">
+                          <span className="px-2 py-0.5 rounded text-micro font-semibold bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright">
                             متاح: {stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'}
                             {packUnit && wholePacks !== null && wholePacks > 0 ? ` (${wholePacks} ${packUnit.unitName}${remPieces && remPieces > 0 ? ` و ${remPieces} ق` : ''})` : ''}
                           </span>
@@ -238,7 +222,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                       </div>
 
                       {/* Price formatted */}
-                      <div className="text-[14px] font-mono font-bold text-paid dark:text-brand-bright min-w-[70px] text-left shrink-0">
+                      <div className="text-sm font-mono font-bold text-paid dark:text-brand-bright min-w-[70px] text-left shrink-0">
                         {formatArabicCurrency(effectiveDisplayPrice)}
                       </div>
                     </div>
@@ -247,8 +231,8 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                   {/* Bottom Row: Quick Package Action Buttons (Units Shelf) */}
                   {prod.units && prod.units.length > 1 && (
                     <div className="flex items-center gap-1.5 pt-1.5 border-t border-line/40 dark:border-line-dark/40 flex-wrap">
-                      <span className="text-[10px] font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 shrink-0 ml-1">
-                        <Package className="w-3 h-3 text-brand" />
+                      <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 shrink-0 ml-1">
+                        <Package className="w-3 h-3 text-brand dark:text-brand-bright" />
                         <span>الوحدات:</span>
                       </span>
                       {prod.units.map((u) => {
@@ -261,14 +245,14 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                               e.stopPropagation();
                               onSelectProduct(prod, u);
                             }}
-                            className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-surface-2 dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-ink dark:text-ink-dark hover:text-white border border-line dark:border-line-dark hover:border-paid transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 group"
+                            className="px-2 py-0.5 text-micro font-bold rounded-lg bg-surface-2 dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-ink dark:text-ink-dark hover:text-white dark:hover:text-white border border-line dark:border-line-dark hover:border-paid transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 group"
                             title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) - ${formatArabicCurrency(uPrice)}`}
                           >
                             <span>{u.unitName}</span>
-                            <span className="text-[10px] text-ink-muted group-hover:text-white/80 font-mono">
+                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted group-hover:text-white/80 font-mono">
                               (×{u.conversionFactor})
                             </span>
-                            <span className="font-mono text-[10px] text-paid group-hover:text-white font-bold mr-0.5">
+                            <span className="font-mono text-micro text-paid group-hover:text-white font-bold mr-0.5">
                               {formatArabicCurrency(uPrice)}
                             </span>
                           </button>

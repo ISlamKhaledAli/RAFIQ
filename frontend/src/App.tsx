@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import type { FC } from 'react';
 import { 
   ShoppingCart, 
@@ -48,7 +48,12 @@ import {
   Percent,
   Keyboard,
   DownloadCloud,
+  Ellipsis,
+  LogOut,
 } from 'lucide-react';
+import { HeaderMenu, type HeaderMenuItem } from './components/HeaderMenu';
+import { TextScaleControl } from './components/TextScaleControl';
+import { getHeaderVisibility, filterNotificationsForAudience, getRoleAvatarClasses } from './utils/headerVisibility';
 import { 
   NotificationBellButton, 
   NotificationCenterDrawer, 
@@ -83,7 +88,6 @@ import { ReadinessCheckModal } from './components/ReadinessCheckModal';
 import { RafiqLoadingState } from './components/RafiqLoadingState';
 import { RafiqDialogContainer } from './components/RafiqDialog';
 import { rafiqConfirm, rafiqAlert } from './utils/dialogService';
-import { LoginModal } from './components/LoginModal';
 import { UserManagerModal } from './components/UserManagerModal';
 import { ShiftModal } from './components/ShiftModal';
 import { SupervisorPromptModal } from './components/SupervisorPromptModal';
@@ -99,6 +103,8 @@ import { LoginScreen } from './views/LoginScreen';
 import { ForcedPinChangeForm } from './components/ForcedPinChangeForm';
 import { requiresForcedPinChange } from './utils/pinPolicy';
 import { getAllowedSettingsSubTabs } from './utils/settingsAccess';
+import { getRoleLabel, getRoleNameClasses } from './utils/roleLabels';
+import { APP_TITLE, getShopSubtitle } from './utils/appBranding';
 import { AppUpdateModal } from './components/AppUpdateModal';
 import type { AppUpdateInfo } from './bridge/ipc';
 
@@ -139,8 +145,8 @@ const HeaderClock: FC = memo(() => {
   return (
     <div className="flex items-center gap-1.5 sm:gap-2 bg-white dark:bg-surface-dark-2 border border-line dark:border-line-dark px-2.5 py-1 rounded-lg tabular-nums text-xs font-semibold text-ink dark:text-ink-dark shadow-2xs shrink-0">
       <Clock className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted shrink-0" />
-      <span className="text-ink-muted dark:text-ink-dark-muted font-normal text-[11px] hidden xl:inline">{date}</span>
-      <span className="text-line dark:text-line-dark hidden xl:inline">|</span>
+      <span className="text-ink-muted dark:text-ink-dark-muted font-normal text-micro hidden xl:inline">{date}</span>
+      <span className="text-line dark:text-line-dark-strong hidden xl:inline">|</span>
       <span className="font-mono text-paid dark:text-brand-bright font-bold tracking-wide text-xs">{time || '00:00:00'}</span>
     </div>
   );
@@ -148,7 +154,7 @@ const HeaderClock: FC = memo(() => {
 
 export default function App() {
   const { isEnabled } = useFeatures();
-  const { currentUser, isLoading, logout, hasPermission, isRoot, isAdmin, refreshUser } = useAuth();
+  const { currentUser, isLoading, logout, hasPermission, isRoot, isAdmin, isOwnerOrRoot, refreshUser } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('pos');
   // Effects key on stable primitives, never on the user object, so a user refresh cannot re-trigger them.
@@ -168,6 +174,28 @@ export default function App() {
   const canAccessSales = isRoot || hasPermission('invoices.view');
   const canAccessAudit = isRoot && hasPermission('audit_log.view');
   const canAccessSettings = isRoot || hasPermission('settings.store') || hasPermission('settings');
+  const canCheckBackup = hasPermission('settings.backup');
+  const canViewShifts = hasPermission('shifts.view');
+  const canOpenShiftPanel = canViewShifts || hasPermission('shifts.open');
+  // Top bar visibility per role (updates need system.updates, an owner-grade key; users.view gates the staff screen)
+  const canUpdateApp = hasPermission('system.updates');
+  const canManageLicense = hasPermission('settings.license');
+  const headerAccess = getHeaderVisibility({
+    user: currentUser,
+    canOpenShiftPanel,
+    canManageUsers: hasPermission('users.view'),
+    canViewProducts: canAccessProducts,
+    canUpdateApp,
+  });
+  const canSeeUpdates = headerAccess.showUpdates;
+  // Land on the first purchases screen the user may actually use
+  const defaultPurchasesSubView: PurchasesSubView = hasPermission('purchases.create')
+    ? 'new_invoice'
+    : hasPermission('purchases.view')
+    ? 'invoices'
+    : hasPermission('shortage.view')
+    ? 'shortages'
+    : 'suppliers';
 
   const canAccessTab = useCallback((id: TabType): boolean => {
     switch (id) {
@@ -202,6 +230,8 @@ export default function App() {
   const [dashboardSubTab, setDashboardSubTab] = useState<DashboardSubTab>('today');
   const [isDashboardMenuExpanded, setIsDashboardMenuExpanded] = useState(false);
   const [purchasesSubView, setPurchasesSubView] = useState<PurchasesSubView>('new_invoice');
+  const effectivePurchasesSubView: PurchasesSubView =
+    purchasesSubView === 'new_invoice' && !hasPermission('purchases.create') ? defaultPurchasesSubView : purchasesSubView;
   const [isPurchasesMenuExpanded, setIsPurchasesMenuExpanded] = useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
   const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(false);
@@ -211,21 +241,19 @@ export default function App() {
     setAvailableUpdate(info);
   }, []);
 
-  // Automatic Background Update Check on Startup & Periodically
+  // Background update check for owner/manager only. It never opens a modal by itself (it must not interrupt a sale).
   useEffect(() => {
+    if (!canSeeUpdates) {
+      setAvailableUpdate(null);
+      return;
+    }
     let isMounted = true;
     const checkUpdates = async () => {
       try {
         const info = await invoke<AppUpdateInfo>('updates:check');
         if (isMounted && info) {
-          if (info.hasUpdate) {
-            setAvailableUpdate(info);
-            if (info.isMandatory) {
-              setIsAppUpdateModalOpen(true);
-            }
-          } else {
-            setAvailableUpdate(null);
-          }
+          // An ineligible licence returns no update, so the badge never shows for it
+          setAvailableUpdate(info.hasUpdate && info.isEligible !== false ? info : null);
         }
       } catch {
         // Silent in offline / normal mode
@@ -238,7 +266,7 @@ export default function App() {
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, []);
+  }, [canSeeUpdates]);
 
   // Senior Architecture: Lazy Keep-Alive Tabs
   // Views are mounted on first visit, then retained in DOM and toggled via CSS
@@ -303,8 +331,8 @@ export default function App() {
   });
   const [isReadinessOpen, setIsReadinessOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(true);
-  const [storeName, setStoreName] = useState('نظام رفيق');
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [storeName, setStoreName] = useState(APP_TITLE);
+  // Idle auto-lock: after the idle timeout the session is really closed (log out), so the next person must log in again
   const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
@@ -369,18 +397,21 @@ export default function App() {
   const [isLicenseReadOnlyMode, setIsLicenseReadOnlyMode] = useState(false);
 
   useEffect(() => {
-    const handleOpenLicenseEvent = () => setIsLicenseModalOpen(true);
+    // License activation / transfer needs settings.license (owner/root, or a manager the owner granted it to; server-enforced too)
+    const handleOpenLicenseEvent = () => {
+      if (canManageLicense) setIsLicenseModalOpen(true);
+    };
     window.addEventListener('rafiq:open-license', handleOpenLicenseEvent);
     return () => {
       window.removeEventListener('rafiq:open-license', handleOpenLicenseEvent);
     };
-  }, []);
+  }, [canManageLicense]);
 
   // Feature #176: Unified Notification & Alert System State
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
   const [isAlertTickerDismissed, setIsAlertTickerDismissed] = useState(false);
 
-  const systemNotifications = useSystemNotifications({
+  const allSystemNotifications = useSystemNotifications({
     clockWarning,
     setClockWarning,
     licenseExpiry,
@@ -392,7 +423,11 @@ export default function App() {
     lowStockDismissed,
     setLowStockDismissed,
     hasDemoData,
-    onOpenLicenseModal: () => setIsLicenseModalOpen(true),
+    availableUpdate: canSeeUpdates ? availableUpdate : null,
+    onOpenUpdateModal: () => setIsAppUpdateModalOpen(true),
+    onOpenLicenseModal: () => {
+      if (canManageLicense) setIsLicenseModalOpen(true);
+    },
     onOpenLockScreen: () => setIsLockScreenOpen(true),
     onOpenBackupSettings: () => {
       setActiveTab('settings');
@@ -411,6 +446,17 @@ export default function App() {
       setIsSettingsMenuExpanded(true);
     },
   });
+
+  // Role-appropriate alerts: a cashier never gets owner-only alerts or action buttons they cannot use
+  const systemNotifications = useMemo(
+    () => filterNotificationsForAudience(allSystemNotifications, {
+      kind: headerAccess.kind,
+      canViewProducts: canAccessProducts,
+      canUpdateApp,
+      canManageLicense,
+    }),
+    [allSystemNotifications, headerAccess.kind, canAccessProducts, canUpdateApp, canManageLicense],
+  );
 
   const refreshLicenseStatus = useCallback(async () => {
     try {
@@ -473,15 +519,20 @@ export default function App() {
     };
   }, [isLicenseReadOnlyMode]);
 
-  // Track user idle timeout to lock session automatically (Task 166-6)
+  // Track user idle timeout to lock session automatically (Task 166-6): the session is closed, not just covered
+  const logoutRef = useRef(logout);
   useEffect(() => {
-    if (idleTimeoutMinutes <= 0) return;
+    logoutRef.current = logout;
+  });
+  const isSignedIn = Boolean(currentUser);
+  useEffect(() => {
+    if (idleTimeoutMinutes <= 0 || !isSignedIn) return;
 
     let timeoutId: any;
     const resetIdleTimer = () => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        setIsLoginModalOpen(true);
+        void logoutRef.current();
       }, idleTimeoutMinutes * 60 * 1000);
     };
 
@@ -493,7 +544,7 @@ export default function App() {
       clearTimeout(timeoutId);
       events.forEach((evt) => window.removeEventListener(evt, resetIdleTimer));
     };
-  }, [idleTimeoutMinutes]);
+  }, [idleTimeoutMinutes, isSignedIn]);
 
   const handleToggleFullscreen = async () => {
     try {
@@ -578,7 +629,7 @@ export default function App() {
         // Ignore in dev
       }
     };
-    void checkBackup();
+    if (canCheckBackup) void checkBackup();
 
     const checkIntegrity = async () => {
       try {
@@ -590,7 +641,7 @@ export default function App() {
         // Ignore in dev
       }
     };
-    void checkIntegrity();
+    if (canCheckBackup) void checkIntegrity();
 
     const checkFirstRun = async () => {
       try {
@@ -621,18 +672,18 @@ export default function App() {
         // Ignore in dev
       }
     };
-    void checkDemo();
+    if (isAdmin) void checkDemo();
 
     return () => {
       isMounted = false;
     };
-  }, [activeTab]);
+  }, [activeTab, canCheckBackup, isAdmin]);
 
   // The owner recovery code can reset the owner PIN, so it is only ever requested for owner sessions
   useEffect(() => {
     let isMounted = true;
     const checkRecoveryCode = async () => {
-      if (!isAdmin || mustChangePinNow) return;
+      if (!isOwnerOrRoot || mustChangePinNow) return;
       try {
         const res = await invoke<{ isConfirmed: boolean; recoveryCode?: string }>('backup:getRecoveryStatus');
         if (res && isMounted) {
@@ -649,16 +700,17 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [isAdmin, mustChangePinNow, currentUserId]);
+  }, [isOwnerOrRoot, mustChangePinNow, currentUserId]);
 
   const loadActiveShift = useCallback(async () => {
+    if (!canViewShifts) return;
     try {
       const active = await invoke<Shift | null>('shifts:getActive', { posRegisterId: 'default_pos' });
       setActiveShift(active);
     } catch {
       // Ignore in offline
     }
-  }, []);
+  }, [canViewShifts]);
 
   useEffect(() => {
     void loadActiveShift();
@@ -825,7 +877,7 @@ export default function App() {
       ]);
       // Keep loading visible for a pleasant smooth feedback moment (600ms)
       await new Promise((resolve) => setTimeout(resolve, 600));
-      setRefreshToastMsg('تم تحديث كافة بيانات النظام والعمليات بنجاح');
+      setRefreshToastMsg('تم تحديث البيانات');
       setTimeout(() => {
         setRefreshToastMsg(null);
       }, 2500);
@@ -974,6 +1026,7 @@ export default function App() {
   const settingsTreeItems = useMemo<SettingsTreeItem[]>(() => {
     const labels: Record<SettingsSubTab, { label: string; icon: any }> = {
       profile: { label: 'بيانات المحل والفاتورة', icon: Store },
+      policies: { label: 'سياسات البيع والمخزون', icon: ClipboardList },
       features: { label: 'ميزات ونشاط المحل', icon: SlidersHorizontal },
       printer: { label: 'إعدادات الطابعة والورق', icon: Printer },
       scanner: { label: 'قارئ الباركود والاسكانر', icon: Barcode },
@@ -994,7 +1047,7 @@ export default function App() {
     { id: 'wallets' as TabType, label: 'المحافظ وإنستاباي', icon: Wallet, shortcut: 'Alt+6' },
     { id: 'epay' as TabType, label: 'خدمات وماكينات الدفع', icon: CreditCard, shortcut: 'Alt+7' },
     { id: 'insurance' as TabType, label: 'التأمين الطبي والتعاقدات', icon: Building2, shortcut: 'Alt+8' },
-    { id: 'dashboard' as TabType, label: 'لوحة اليوم والوردية', icon: LayoutDashboard, shortcut: 'Alt+9' },
+    { id: 'dashboard' as TabType, label: 'المتابعة والتقارير', icon: BarChart3, shortcut: 'Alt+9' },
     { id: 'audit' as TabType, label: 'سجل المراقبة والأمان', icon: ShieldAlert, shortcut: '' },
     { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: '' },
   ];
@@ -1122,11 +1175,6 @@ export default function App() {
             window.location.reload();
           }}
         />
-        <AppUpdateModal
-        isOpen={isAppUpdateModalOpen}
-        onClose={() => setIsAppUpdateModalOpen(false)}
-        autoCheck={true}
-      />
 
       <RafiqDialogContainer />
       </div>
@@ -1162,17 +1210,18 @@ export default function App() {
   // Server blocks every action until the PIN is changed, so no screen is rendered before that
   if (requiresForcedPinChange(currentUser)) {
     return (
-      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-auto select-none bg-canvas flex items-center justify-center p-4" dir="rtl">
-        <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
-          <div className="h-1.5 w-full bg-brand" />
-          <div className="px-6 py-4 flex items-center justify-between gap-3 border-b border-line">
-            <h2 className="text-lg font-black text-ink">تحديث أمني إلزامي: تعيين رقم سري جديد</h2>
+      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-auto select-none bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark flex items-center justify-center p-4" dir="rtl">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
+          <div className="h-1.5 w-full bg-brand dark:bg-brand-bright" />
+          <div className="px-6 py-4 flex items-center justify-between gap-3 border-b border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2">
+            <h2 className="t-modal-title text-ink dark:text-ink-dark">تحديث أمني إلزامي: تعيين رقم سري جديد</h2>
             <button
               type="button"
               onClick={() => void logout()}
-              className="text-xs font-bold text-ink-muted hover:text-ink px-3 py-1.5 rounded-lg border border-line hover:bg-surface-2 transition-colors cursor-pointer"
+              className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-high focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:focus-visible:ring-brand-bright transition-colors cursor-pointer"
             >
-              تسجيل الخروج
+              <LogOut className="w-3.5 h-3.5" />
+              <span>تسجيل الخروج</span>
             </button>
           </div>
           <ForcedPinChangeForm user={currentUser} onPinChanged={() => void refreshUser()} />
@@ -1181,6 +1230,43 @@ export default function App() {
       </div>
     );
   }
+
+  const shopSubtitle = getShopSubtitle(storeName);
+
+  const handleLogoutClick = async () => {
+    const confirmed = await rafiqConfirm({
+      title: 'تسجيل الخروج',
+      message: 'هل تريد تسجيل الخروج الآن؟ ستحتاج لإدخال الرقم السري للدخول مرة أخرى.',
+      confirmText: 'تسجيل الخروج',
+      cancelText: 'إلغاء',
+      variant: 'danger',
+    });
+    if (confirmed) {
+      await logout();
+    }
+  };
+
+  // Top bar menus. Every capability removed from the bar has a home here (the F1/F5/F11 shortcuts are unchanged).
+  const userMenuItems: HeaderMenuItem[] = [
+    { id: 'shortcuts', label: 'اختصارات الكيبورد', icon: Keyboard, hint: 'F1', onSelect: () => setIsShortcutsModalOpen(true) },
+    { id: 'help', label: 'مركز المساعدة والدعم', icon: HelpCircle, onSelect: () => openHelpCenterModal(effectiveActiveTab) },
+    { id: 'logout', label: 'تسجيل الخروج', icon: LogOut, tone: 'danger', separatorBefore: true, onSelect: () => void handleLogoutClick() },
+  ];
+  const moreMenuItems: HeaderMenuItem[] = [
+    { id: 'minimize', label: 'تصغير إلى شريط المهام', icon: Minus, onSelect: () => void handleMinimizeWindow() },
+    ...(headerAccess.showEmployees
+      ? [{ id: 'employees', label: 'الموظفون والصلاحيات', icon: Users, separatorBefore: true, onSelect: () => setIsUserManagerOpen(true) } satisfies HeaderMenuItem]
+      : []),
+    ...(headerAccess.showUpdates
+      ? [{ id: 'updates', label: 'تحديثات رفيق', icon: DownloadCloud, onSelect: () => setIsAppUpdateModalOpen(true) } satisfies HeaderMenuItem]
+      : []),
+    ...(headerAccess.showReadiness
+      ? [{ id: 'readiness', label: 'فحص جاهزية التشغيل والعتاد', icon: CheckCircle2, onSelect: () => setIsReadinessOpen(true) } satisfies HeaderMenuItem]
+      : []),
+  ];
+  const SingleMoreIcon = moreMenuItems[0].icon;
+  const moreTriggerClassName =
+    'w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer';
 
   return (
     <div className="flex flex-col h-screen w-screen bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-hidden relative">
@@ -1197,7 +1283,7 @@ export default function App() {
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           <div
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-surface-dark-2 border border-[#DCE1DC] dark:border-line-dark flex items-center justify-center p-1 shadow-2xs shrink-0 select-none"
-            title="نظام رفيق"
+            title={APP_TITLE}
           >
             <img 
               src={isDark ? '/logo_modern.png' : '/logo_classic.png'} 
@@ -1206,14 +1292,19 @@ export default function App() {
             />
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm sm:text-base font-extrabold text-ink dark:text-ink-dark leading-tight m-0 truncate">{storeName || 'نظام رفيق'}</h1>
-            <p className="text-[10px] sm:text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted m-0 truncate">نظام نقاط البيع وإدارة المتاجر والمحلات</p>
+            <h1 className="text-sm sm:text-base font-extrabold text-ink dark:text-ink-dark leading-tight m-0 truncate">{APP_TITLE}</h1>
+            {shopSubtitle ? (
+              <p className="text-micro sm:text-micro font-medium text-ink-muted dark:text-ink-dark-muted m-0 truncate max-w-[150px] sm:max-w-[240px]" title={shopSubtitle}>{shopSubtitle}</p>
+            ) : (
+              <p className="text-micro sm:text-micro font-medium text-ink-muted dark:text-ink-dark-muted m-0 truncate">نظام نقاط البيع وإدارة المتاجر والمحلات</p>
+            )}
           </div>
         </div>
 
         {/* Left Side: Staff Management, Action Buttons, Window Controls, Date & Time */}
         <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
           {/* Shift & Cash Drawer Quick Access Button (Always accessible to open or manage/close shift) */}
+          {canOpenShiftPanel && (
           <button
             type="button"
             onClick={() => setIsShiftModalOpen(true)}
@@ -1235,76 +1326,45 @@ export default function App() {
                 : 'فتح وردية'}
             </span>
           </button>
+          )}
 
-          {/* Fast Switch User / Profile Badge */}
-          <button
-            type="button"
-            onClick={() => setIsLoginModalOpen(true)}
-            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft/70 dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-brand/40 text-ink dark:text-ink-dark text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
-            title="تبديل المستخدم الحالي سريعاً برقم الـ PIN"
-          >
-            <div className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] ${
-              isAdmin ? 'bg-paid-soft text-paid border border-paid-border dark:bg-paid-dark-soft dark:text-paid-bright dark:border-paid-dark-border' : 'bg-brand-soft text-brand border border-brand/20 dark:bg-brand-dark-soft dark:text-brand-bright dark:border-brand-bright/20'
-            }`}>
-              {currentUser?.displayName ? currentUser.displayName.slice(0, 1) : 'U'}
-            </div>
-            <span className="font-bold hidden md:inline truncate max-w-[90px]">{currentUser?.displayName}</span>
-            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted hidden lg:inline">({currentUser?.role === 'root' ? 'المالك' : (isAdmin ? 'صاحب المحل' : 'كاشير')})</span>
-          </button>
-
-          {/* Manage Users Button for Admin/Root or authorized managers (Task 166-4) */}
-          {(isAdmin || hasPermission('users.view')) && (
+          {/* Update badge: owner/manager only, and only while a newer version exists (the full check lives in the more menu) */}
+          {canSeeUpdates && availableUpdate && availableUpdate.hasUpdate && availableUpdate.isEligible !== false && (
             <button
               type="button"
-              onClick={() => setIsUserManagerOpen(true)}
-              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-warn-soft/60 dark:hover:bg-warn-dark-soft border border-line dark:border-line-dark hover:border-warn/40 dark:hover:border-warn-bright/40 text-ink dark:text-ink-dark hover:text-warn dark:hover:text-warn-bright font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
-              title="إدارة حسابات الموظفين والصلاحيات والشجرة"
+              onClick={() => setIsAppUpdateModalOpen(true)}
+              className={`flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg border text-xs font-bold shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0 ${
+                availableUpdate.isMandatory
+                  ? 'bg-danger-soft hover:bg-danger-soft/80 text-danger border-danger/30 dark:bg-danger-dark-soft dark:hover:bg-danger-dark-soft/80 dark:text-danger-bright dark:border-danger-bright/40'
+                  : 'bg-paid-soft hover:bg-paid-soft/80 text-paid border-paid/30 dark:bg-paid-dark-soft dark:hover:bg-paid-dark-soft/80 dark:text-paid-bright dark:border-paid-dark-border'
+              }`}
+              title={`إصدار جديد متاح: v${availableUpdate.latestVersion || ''} - اضغط لعرض التفاصيل وطريقة التثبيت`}
+              aria-label={`إصدار جديد متاح ${availableUpdate.latestVersion || ''}`}
             >
-              <Users className="w-3.5 h-3.5 text-warn dark:text-warn-bright shrink-0" />
-              <span>الموظفون</span>
+              <DownloadCloud className="w-4 h-4 shrink-0" />
+              <span className="hidden xl:inline text-xs font-extrabold">تحديث متاح</span>
+              <span className="font-mono text-xs font-black tracking-tight">v{availableUpdate.latestVersion}</span>
             </button>
           )}
 
-          {/* Readiness Checklist Button (Feature #137) - Root/Developer Only */}
-          {isRoot && (
-            <button
-              type="button"
-              onClick={() => setIsReadinessOpen(true)}
-              className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-paid-soft dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-paid dark:hover:border-brand-bright text-paid dark:text-brand-bright flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
-              title="فحص جاهزية التشغيل والعتاد (Root)"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-            </button>
-          )}
+          {/* Notification Bell Button with live Badge (license, backup, stock, clock and update alerts live here) */}
+          <NotificationBellButton
+            count={systemNotifications.length}
+            hasCritical={systemNotifications.some((n) => n.type === 'critical')}
+            isOpen={isNotificationDrawerOpen}
+            onClick={() => setIsNotificationDrawerOpen((prev) => !prev)}
+          />
 
-          {/* Logout Button */}
+          {/* Refresh all data (F5) */}
           <button
             type="button"
-            onClick={async () => {
-              const confirmed = await rafiqConfirm({
-                title: 'تسجيل الخروج',
-                message: 'هل تريد تسجيل الخروج وقفل شاشة الكاشير الآن؟',
-                confirmText: 'تسجيل الخروج',
-                cancelText: 'إلغاء',
-              });
-              if (confirmed) {
-                await logout();
-              }
-            }}
-            className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-danger/10 dark:hover:bg-danger-dark-soft border border-line dark:border-line-dark hover:border-danger/30 text-ink-muted dark:text-ink-dark-muted hover:text-danger flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
-            title="تسجيل الخروج وقفل النظام"
-          >
-            <Power className="w-4 h-4 text-danger" />
-          </button>
-
-          {/* Minimize Window Button */}
-          <button
-            type="button"
-            onClick={handleMinimizeWindow}
+            onClick={() => void handleUniversalRefresh()}
+            aria-label="تحديث البيانات"
+            aria-busy={isUniversalRefreshing}
             className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
-            title="تصغير التطبيق إلى شريط المهام"
+            title="تحديث البيانات (F5)"
           >
-            <Minus className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${isUniversalRefreshing ? 'animate-spin text-brand dark:text-brand-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`} />
           </button>
 
           {/* Fullscreen Kiosk Mode Toggle */}
@@ -1321,19 +1381,6 @@ export default function App() {
             )}
           </button>
 
-          {/* Universal System Refresh Button */}
-          <button
-            type="button"
-            onClick={() => void handleUniversalRefresh()}
-            disabled={isUniversalRefreshing}
-            className={`w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-paid-soft dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-paid dark:hover:border-brand-bright text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-brand-bright flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-60 ${
-              isUniversalRefreshing ? 'bg-paid-soft text-paid border-paid/50' : ''
-            }`}
-            title="تحديث شامل لكافة البيانات والعمليات في النظام (F5)"
-          >
-            <RefreshCw className={`w-4 h-4 ${isUniversalRefreshing ? 'animate-spin text-paid dark:text-brand-bright' : ''}`} />
-          </button>
-
           {/* Quick Theme Toggle (Light / Dark) */}
           <button
             type="button"
@@ -1342,70 +1389,64 @@ export default function App() {
             title={isDark ? 'التبديل إلى الوضع النهاري (الفاتح)' : 'التبديل إلى الوضع الليلي (الداكن)'}
           >
             {isDark ? (
-              <Sun className="w-4 h-4 text-amber-500" />
+              <Sun className="w-4 h-4 text-amber-500 dark:text-warn-bright" />
             ) : (
               <Moon className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
             )}
           </button>
 
-          {/* Universal Keyboard Shortcuts Guide Button (F1) */}
-          <button
-            type="button"
-            onClick={() => setIsShortcutsModalOpen(true)}
-            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft/70 dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-brand/40 text-ink dark:text-ink-dark text-xs font-bold shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
-            title="دليل اختصارات الكيبورد الذكي السريع لكافة الشاشات (F1)"
-          >
-            <Keyboard className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
-            <span className="hidden xl:inline text-[11.5px]">الاختصارات</span>
-            <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-brand dark:text-brand-bright shadow-2xs">
-              F1
-            </kbd>
-          </button>
-
-          {/* Over-the-Air & Manual Update Button (Always Present for Admin/Root) */}
-          {(isAdmin || isRoot || hasPermission('settings')) && (
-            availableUpdate && availableUpdate.hasUpdate ? (
-              <button
-                type="button"
-                onClick={() => setIsAppUpdateModalOpen(true)}
-                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-paid dark:bg-paid hover:bg-paid/90 text-white text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer animate-pulse shrink-0 ring-2 ring-paid/50"
-                title={`تحديث جديد متاح: v${availableUpdate.latestVersion || ''} - اضغط للفحص والتثبيت الآن`}
-              >
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                </span>
-                <DownloadCloud className="w-3.5 h-3.5 text-white shrink-0 animate-bounce" />
-                <span className="text-[11.5px] font-extrabold text-white">تحديث متاح</span>
-                <span className="font-mono text-[10.5px] bg-white/25 text-white px-1.5 py-0.5 rounded font-black tracking-tight">
-                  v{availableUpdate.latestVersion}
-                </span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsAppUpdateModalOpen(true)}
-                className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft/70 dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-brand/40 text-ink dark:text-ink-dark text-xs font-bold shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
-                title="فحص وتنزيل تحديثات رفيق (أونلاين أو فلاشة أوفلاين)"
-              >
-                <DownloadCloud className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
-                <span className="hidden xl:inline text-[11.5px]">تحديثات رفيق</span>
-              </button>
-            )
+          {/* More menu: shown only when it has several items; with a single item that item is shown directly */}
+          {moreMenuItems.length === 1 ? (
+            <button
+              type="button"
+              onClick={moreMenuItems[0].onSelect}
+              className={moreTriggerClassName}
+              title={moreMenuItems[0].label}
+              aria-label={moreMenuItems[0].label}
+            >
+              <SingleMoreIcon className="w-4 h-4" />
+            </button>
+          ) : (
+            <HeaderMenu
+              ariaLabel="المزيد من الأدوات"
+              title="المزيد: تصغير النافذة وأدوات أخرى"
+              triggerClassName={moreTriggerClassName}
+              triggerContent={<Ellipsis className="w-4 h-4" />}
+              items={moreMenuItems}
+            />
           )}
-
-            {/* Notification Bell Button with live Badge */}
-          <NotificationBellButton
-            count={systemNotifications.length}
-            hasCritical={systemNotifications.some((n) => n.type === 'critical')}
-            isOpen={isNotificationDrawerOpen}
-            onClick={() => setIsNotificationDrawerOpen((prev) => !prev)}
-          />
 
           {/* Date & Time */}
           <HeaderClock />
+
+          {/* User menu: avatar and name coloured by role; shortcuts, help, logout (switching user = log out, then log in) */}
+          <HeaderMenu
+            ariaLabel="قائمة المستخدم"
+            title={`${currentUser.displayName || ''} (${getRoleLabel(currentUser)}) - قائمة المستخدم`}
+            triggerClassName="flex items-center gap-1.5 h-8 ps-1.5 pe-2 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft/70 dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-brand/40 text-ink dark:text-ink-dark text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+            triggerContent={
+              <>
+                <span className={`w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs shrink-0 ${getRoleAvatarClasses(headerAccess.kind)}`}>
+                  {currentUser.displayName ? currentUser.displayName.slice(0, 1) : 'U'}
+                </span>
+                <span className={`font-bold text-sm hidden md:inline truncate max-w-[110px] ${getRoleNameClasses(headerAccess.kind)}`}>{currentUser.displayName}</span>
+                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-ink-muted dark:text-ink-dark-muted" />
+              </>
+            }
+            panelHeader={
+              <>
+                <div className="px-3.5 py-3 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2">
+                  <div className={`text-sm font-extrabold truncate ${getRoleNameClasses(headerAccess.kind)}`}>{currentUser.displayName}</div>
+                  <div className="text-xs font-semibold text-ink-muted dark:text-ink-dark-muted mt-0.5">{getRoleLabel(currentUser)}</div>
+                </div>
+                <TextScaleControl />
+              </>
+            }
+            items={userMenuItems}
+          />
         </div>
       </header>
+
 
       {/* Feature #176: Unified Compact Alert Ticker Bar (Single-line, Height ~34px) */}
       <CompactAlertTickerBar
@@ -1436,7 +1477,7 @@ export default function App() {
             isSidebarCollapsed ? 'justify-center' : 'justify-between px-1'
           }`}>
             {!isSidebarCollapsed && (
-              <span className="text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
+              <span className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
                 القوائم الرئيسية
               </span>
             )}
@@ -1489,7 +1530,7 @@ export default function App() {
                         if (isInsuranceItem) setInsuranceSubTab('members');
                         if (isDashboardItem) setDashboardSubTab('today');
                         if (isProductsItem) setProductsSubView('catalog');
-                        if (isPurchasesItem) setPurchasesSubView('new_invoice');
+                        if (isPurchasesItem) setPurchasesSubView(defaultPurchasesSubView);
                         if (isSettingsItem) setSettingsSubTab('profile');
                       });
                     }}
@@ -1502,14 +1543,6 @@ export default function App() {
                   >
                     <div className="relative inline-flex items-center justify-center">
                       <Icon className={`w-5 h-5 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:text-ink dark:group-hover:text-white'}`} />
-                      {isProductsItem && lowStockCount > 0 && (
-                        <span
-                          className="absolute -top-1.5 -end-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[9px] font-black font-mono leading-none flex items-center justify-center border-2 border-surface dark:border-surface-dark shadow-xs pointer-events-none select-none tracking-tight"
-                          title={`${lowStockCount} أصناف نواقص / قاربت على النفاد`}
-                        >
-                          <span dir="ltr">{lowStockCount > 99 ? '99+' : lowStockCount > 9 ? '9+' : lowStockCount}</span>
-                        </span>
-                      )}
                     </div>
                     <span className="sr-only">{item.label}</span>
                   </button>
@@ -1572,7 +1605,7 @@ export default function App() {
                         handleNavClick(item.id);
                       }
                     }}
-                    className={`w-full relative flex items-center justify-between px-3 h-[41px] rounded-xl text-[13px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                    className={`w-full relative flex items-center justify-between px-3 h-[41px] rounded-xl text-sm transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                       isActive
                         ? 'bg-brand-dark dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-xs'
                         : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1581,15 +1614,6 @@ export default function App() {
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:dark:text-white'}`} />
                       <span className="truncate whitespace-nowrap">{item.label}</span>
-                      {isProductsItem && lowStockCount > 0 && (
-                        <span
-                          dir="ltr"
-                          className="mr-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold font-mono bg-danger text-white shrink-0 leading-none shadow-2xs"
-                          title={`${lowStockCount} أصناف نواقص / قاربت على النفاد`}
-                        >
-                          {lowStockCount > 99 ? '99+' : lowStockCount > 9 ? '9+' : lowStockCount}
-                        </span>
-                      )}
                     </div>
 
                     {(isEpayItem || isWalletsItem || isInsuranceItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
@@ -1613,13 +1637,12 @@ export default function App() {
                           <button
                             key={sub.id}
                             type="button"
-                            title={sub.label}
                             onClick={(e) => {
                               e.currentTarget.blur();
                               setActiveTab('epay');
                               setEpaySubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1645,13 +1668,12 @@ export default function App() {
                           <button
                             key={sub.id}
                             type="button"
-                            title={sub.label}
                             onClick={(e) => {
                               e.currentTarget.blur();
                               setActiveTab('wallets');
                               setWalletsSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1677,13 +1699,12 @@ export default function App() {
                           <button
                             key={sub.id}
                             type="button"
-                            title={sub.label}
                             onClick={(e) => {
                               e.currentTarget.blur();
                               setActiveTab('insurance');
                               setInsuranceSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1709,13 +1730,12 @@ export default function App() {
                           <button
                             key={sub.id}
                             type="button"
-                            title={sub.label}
                             onClick={(e) => {
                               e.currentTarget.blur();
                               setActiveTab('dashboard');
                               setDashboardSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1741,12 +1761,11 @@ export default function App() {
                           setProductsSubView('catalog');
                           setInitialProductFilter('all');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'products' && productsSubView === 'catalog'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                         }`}
-                        title="كتالوج الأصناف والأسعار"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <Tag className="w-3.5 h-3.5 shrink-0" />
@@ -1760,12 +1779,11 @@ export default function App() {
                           setActiveTab('products');
                           setProductsSubView('movements');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'products' && productsSubView === 'movements'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                         }`}
-                        title="حركات وجرد المخزن"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <Boxes className="w-3.5 h-3.5 shrink-0" />
@@ -1780,12 +1798,11 @@ export default function App() {
                             setActiveTab('products');
                             setProductsSubView('batches');
                           }}
-                          className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                          className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                             effectiveActiveTab === 'products' && productsSubView === 'batches'
                               ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                               : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                           }`}
-                          title="تواريخ الصلاحية والدفعات"
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             <Clock className="w-3.5 h-3.5 shrink-0" />
@@ -1799,13 +1816,14 @@ export default function App() {
                   {/* Sub-tree for Purchases & Suppliers */}
                   {isPurchasesItem && isPurchasesMenuExpanded && (
                     <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
-                      <button
+                      {hasPermission('purchases.create') && (
+<button
                         type="button"
                         onClick={() => {
                           setActiveTab('purchases');
                           setPurchasesSubView('new_invoice');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'new_invoice'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1817,14 +1835,16 @@ export default function App() {
                           <span className="truncate whitespace-nowrap">فاتورة شراء واستلام بضاعة</span>
                         </div>
                       </button>
+                      )}
 
-                      <button
+                      {hasPermission('shortage.view') && (
+<button
                         type="button"
                         onClick={() => {
                           setActiveTab('purchases');
                           setPurchasesSubView('shortages');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'shortages'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1836,14 +1856,16 @@ export default function App() {
                           <span className="truncate whitespace-nowrap">دفتر النواقص والطلبيات</span>
                         </div>
                       </button>
+                      )}
 
-                      <button
+                      {hasPermission('purchases.view') && (
+<button
                         type="button"
                         onClick={() => {
                           setActiveTab('purchases');
                           setPurchasesSubView('invoices');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'invoices'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1855,14 +1877,16 @@ export default function App() {
                           <span className="truncate whitespace-nowrap">سجل فواتير الشراء والمردودات</span>
                         </div>
                       </button>
+                      )}
 
-                      <button
+                      {hasPermission('suppliers.manage') && (
+<button
                         type="button"
                         onClick={() => {
                           setActiveTab('purchases');
                           setPurchasesSubView('suppliers');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'suppliers'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                             : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1874,6 +1898,7 @@ export default function App() {
                           <span className="truncate whitespace-nowrap">دليل وحسابات الموردين</span>
                         </div>
                       </button>
+                      )}
                     </div>
                   )}
 
@@ -1887,13 +1912,12 @@ export default function App() {
                           <button
                             key={sub.id}
                             type="button"
-                            title={sub.label}
                             onClick={(e) => {
                               e.currentTarget.blur();
                               setActiveTab('settings');
                               setSettingsSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
                                 ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
                                 : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
@@ -1921,21 +1945,16 @@ export default function App() {
             <button
               type="button"
               onClick={() => openHelpCenterModal(effectiveActiveTab)}
-              title="مركز المساعدة والشروحات والدعم الفني (F1)"
+              title="مركز المساعدة والشروحات والدعم الفني"
               className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 ${
                 isSidebarCollapsed
                   ? 'h-[40px] justify-center text-paid dark:text-brand-bright hover:bg-paid-soft dark:hover:bg-brand-dark-soft border border-transparent hover:border-paid/30'
-                  : 'px-3 h-[39px] text-[12.5px] text-paid dark:text-brand-bright hover:text-brand-dark dark:hover:text-white bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid-border dark:border-paid/30 shadow-2xs'
+                  : 'px-3 h-[39px] text-xs text-paid dark:text-brand-bright hover:text-brand-dark dark:hover:text-white bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid-border dark:border-paid/30 shadow-2xs'
               }`}
             >
               <HelpCircle className="w-4.5 h-4.5 text-paid dark:text-brand-bright shrink-0" />
               {!isSidebarCollapsed && (
-                <div className="flex items-center justify-between flex-1 min-w-0">
-                  <span className="truncate whitespace-nowrap">مركز المساعدة والدعم</span>
-                  <span className="font-mono text-[10.5px] font-medium text-paid dark:text-brand-bright bg-surface dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-paid-border dark:border-paid/30">
-                    F1
-                  </span>
-                </div>
+                <span className="truncate whitespace-nowrap">مركز المساعدة والدعم</span>
               )}
             </button>
 
@@ -1947,15 +1966,12 @@ export default function App() {
               className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 ${
                 isSidebarCollapsed
                   ? 'h-[40px] justify-center text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-transparent hover:border-danger/30 dark:hover:border-danger-bright/30'
-                  : 'px-3 h-[39px] text-[12.5px] text-danger dark:text-danger-bright hover:text-danger-ink dark:hover:text-white bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/80 dark:hover:bg-danger-dark-soft/80 border border-danger/20 dark:border-danger-bright/30 shadow-2xs'
+                  : 'px-3 h-[39px] text-xs text-danger dark:text-danger-bright hover:text-danger-ink dark:hover:text-white bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/80 dark:hover:bg-danger-dark-soft/80 border border-danger/20 dark:border-danger-bright/30 shadow-2xs'
               }`}
             >
               <Power className="w-4.5 h-4.5 text-danger dark:text-danger-bright shrink-0" />
               {!isSidebarCollapsed && (
-                <div className="flex items-center justify-between flex-1 min-w-0">
-                  <span className="truncate whitespace-nowrap">إغلاق البرنامج</span>
-                  <span className="font-mono text-[10.5px] font-medium text-danger dark:text-danger-bright bg-surface dark:bg-surface-dark px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30">خروج</span>
-                </div>
+                <span className="truncate whitespace-nowrap">إغلاق البرنامج</span>
               )}
             </button>
           </div>
@@ -2106,7 +2122,7 @@ export default function App() {
             <div className={`h-full w-full ${effectiveActiveTab === 'purchases' ? '' : 'hidden'}`}>
               <PurchasesView 
                 isActive={effectiveActiveTab === 'purchases'}
-                subView={purchasesSubView} 
+                subView={effectivePurchasesSubView}
                 onSubViewChange={(tab) => setPurchasesSubView(tab)} 
               />
             </div>
@@ -2206,19 +2222,6 @@ export default function App() {
         }}
       />
 
-      {/* Employee Login / Lock Screen Modal (Task 166-3 & Task 166-6) */}
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        canCancel={Boolean(currentUser)}
-        onClose={() => setIsLoginModalOpen(false)}
-        onSuccess={async () => {
-          await refreshUser();
-          setIsLoginModalOpen(false);
-          setActiveTab('pos');
-          emitDataChanged('all');
-        }}
-      />
-
       {/* Employee & Role Management Modal (Task 166-4) */}
       <UserManagerModal
         isOpen={isUserManagerOpen}
@@ -2256,7 +2259,7 @@ export default function App() {
 
       {/* Feature #172: Fullscreen License Expired Lock Screen (Task 172-1, 172-3, 172-5) */}
       <LicenseExpiredLockScreen
-        isOpen={isLockScreenOpen && !isFirstRunWizardOpen}
+        isOpen={isLockScreenOpen}
         expiryInfo={licenseExpiry}
         onUnlocked={handleLicenseUnlocked}
         onEnterReadOnlyMode={() => {

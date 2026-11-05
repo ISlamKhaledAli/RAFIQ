@@ -12,10 +12,13 @@ import {
   FileText,
   AlertTriangle,
   Lock,
+  LogOut,
   X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
+import { RequiredMark } from './RequiredMark';
+import { useAuth } from '../context/useAuth';
 
 export interface LicenseExpiryDetails {
   isActive: boolean;
@@ -44,6 +47,8 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
   onUnlocked,
   onEnterReadOnlyMode,
 }) => {
+  const { hasPermission, logout } = useAuth();
+  const canActivateLicense = hasPermission('settings.license');
   const [newKey, setNewKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedFp, setCopiedFp] = useState(false);
@@ -76,7 +81,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
         if (!isCancelled && isLicenseActive) {
           void rafiqAlert({
             title: 'الترخيص سارٍ!',
-            message: res?.message || 'تم التحقق من تمديد الاشتراك من السيرفر بنجاح!',
+            message: res?.message || 'تم تمديد الاشتراك',
             variant: 'success',
           });
           onUnlocked();
@@ -185,8 +190,8 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
 
       if (res?.success && res.license?.isActive) {
         void rafiqAlert({
-          title: 'تم التجديد بنجاح!',
-          message: res.message || 'تم تجديد وترخيص نظام رفيق بنجاح.',
+          title: 'تم التجديد',
+          message: res.message || 'تم تجديد ترخيص نظام رفيق',
           variant: 'success',
         });
         onUnlocked();
@@ -222,7 +227,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
       if (isLicenseActive) {
         void rafiqAlert({
           title: 'الترخيص سارٍ!',
-          message: res?.message || 'تم التحقق من تمديد الاشتراك من السيرفر بنجاح!',
+          message: res?.message || 'تم تمديد الاشتراك',
           variant: 'success',
         });
         onUnlocked();
@@ -317,7 +322,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
           <div className="bg-slate-50/90 dark:bg-surface-dark-2 border border-slate-200/90 dark:border-line-dark rounded-2xl p-4 text-xs sm:text-sm space-y-2.5">
             <div className="flex justify-between items-center text-slate-600 dark:text-ink-muted-dark">
               <span className="font-semibold text-slate-500 dark:text-ink-muted-dark">المتجر:</span>
-              <span className="font-bold text-slate-900 dark:text-ink-dark">{expiryInfo?.shopName || 'متجر رفيق'}</span>
+              <span className="font-bold text-slate-900 dark:text-ink-dark">{expiryInfo?.shopName || 'نظام رفيق'}</span>
             </div>
 
             <div className="flex justify-between items-center text-slate-600 dark:text-ink-muted-dark">
@@ -341,7 +346,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
               <div className="text-xs text-slate-500 dark:text-ink-muted-dark flex items-center gap-1.5 truncate">
                 <ShieldAlert className="w-3.5 h-3.5 text-slate-400 dark:text-ink-muted-dark shrink-0" />
                 <span className="font-medium shrink-0">بصمة الجهاز:</span>
-                <span className="font-mono text-slate-700 dark:text-ink-dark font-semibold select-all truncate text-[11px] bg-white dark:bg-surface-dark px-2 py-0.5 rounded border border-slate-200 dark:border-line-dark">
+                <span className="font-mono text-slate-700 dark:text-ink-dark font-semibold select-all truncate text-micro bg-white dark:bg-surface-dark px-2 py-0.5 rounded border border-slate-200 dark:border-line-dark">
                   {expiryInfo?.deviceFingerprint || '—'}
                 </span>
               </div>
@@ -358,10 +363,26 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
           </div>
         </div>
 
-        {/* Input New License Key */}
+        {/* Activation needs settings.license (owner/root, or a manager the owner granted it to); other sessions get a notice and a way out */}
+        {!canActivateLicense ? (
+          <div className="px-6 sm:px-8 space-y-3 mb-4">
+            <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-xs p-3 rounded-xl flex items-start gap-2 font-bold">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>يلزم دخول صاحب المحل أو مدير منحه المالك صلاحية الترخيص لتفعيل الترخيص</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="w-full flex items-center justify-center gap-2 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold py-2.5 px-3 rounded-xl text-xs transition active:scale-95 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>تسجيل الخروج</span>
+            </button>
+          </div>
+        ) : (
         <div className="px-6 sm:px-8 space-y-2 mb-4">
           <label className="block text-xs font-bold text-slate-700 dark:text-ink-dark">
-            {isUnlicensed ? 'أدخل رمز الترخيص أو كود التجربة:' : 'أدخل كود التجديد الجديد:'}
+            {isUnlicensed ? 'أدخل رمز الترخيص أو كود التجربة:' : 'أدخل كود التجديد الجديد:'} <RequiredMark />
           </label>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -446,6 +467,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
             </div>
           )}
         </div>
+        )}
 
         {/* Action Buttons */}
         <div className="px-6 sm:px-8 grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4">

@@ -59,6 +59,7 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
   onServiceChargePercentChange,
   cartNotEmpty,
 }) => {
+  const needsTable = orderType === 'dine_in' && showTableManagement && !activeTable;
   return (
     <div className="bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-3 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 select-none">
       {/* 1. Order Mode Switcher */}
@@ -69,7 +70,7 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
             onClick={() => onOrderTypeChange('dine_in')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
               orderType === 'dine_in'
-                ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark shadow-sm'
+                ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright shadow-sm dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                 : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3'
             }`}
           >
@@ -83,7 +84,7 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
           onClick={() => onOrderTypeChange('takeaway')}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
             orderType === 'takeaway'
-              ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark shadow-sm'
+              ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright shadow-sm dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
               : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3'
           }`}
         >
@@ -97,7 +98,7 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
             onClick={() => onOrderTypeChange('delivery')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
               orderType === 'delivery'
-                ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark shadow-sm'
+                ? 'bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright shadow-sm dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
                 : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3'
             }`}
           >
@@ -113,12 +114,16 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
           <button
             type="button"
             onClick={onOpenFloorMap}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand/10 dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 text-ink dark:text-ink-dark text-xs font-black transition-all cursor-pointer"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
+              needsTable
+                ? 'bg-warn/15 dark:bg-warn-dark-soft border-warn/40 dark:border-warn-border/30 text-warn dark:text-warn-bright hover:bg-warn/25'
+                : 'bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand/10 dark:hover:bg-brand-dark-soft border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 text-ink dark:text-ink-dark'
+            }`}
           >
-            <LayoutGrid className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-            <span>خريطة الصالة والطاولات</span>
+            <LayoutGrid className={`w-3.5 h-3.5 ${needsTable ? '' : 'text-brand dark:text-brand-bright'}`} />
+            <span>{needsTable ? 'اختر طاولة للطلب' : 'خريطة الصالة والطاولات'}</span>
             {occupiedTablesCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-warn/20 dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-[10px] font-black">
+              <span className="px-2 py-0.5 rounded-full bg-warn/20 dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-xs font-black tabular-nums">
                 {occupiedTablesCount} مشغولة
               </span>
             )}
@@ -127,7 +132,7 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
 
         {orderType === 'dine_in' && showTableManagement && (
           <>
-            {activeTable ? (
+            {activeTable && (
               <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-brand/10 dark:bg-brand-dark-soft border border-brand/30 dark:border-brand-bright/30 text-xs">
                 <UtensilsCrossed className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                 <span className="font-black text-ink dark:text-ink-dark">{activeTable.name}</span>
@@ -150,15 +155,6 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={onOpenFloorMap}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-warn/15 dark:bg-warn-dark-soft border border-warn/40 dark:border-warn-border/30 text-warn dark:text-warn-bright text-xs font-black hover:bg-warn/25 transition-all cursor-pointer"
-              >
-                <UtensilsCrossed className="w-3.5 h-3.5" />
-                <span>اختر طاولة للطلب</span>
-              </button>
             )}
 
             {activeTable && (
@@ -257,7 +253,7 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
             <Bike className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
             <span>مركز الدليفري والطيارين</span>
             {activeDeliveryOrdersCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-[10px] font-black">
+              <span className="min-w-[20px] text-center px-1.5 py-0.5 rounded-full bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black tabular-nums">
                 {activeDeliveryOrdersCount}
               </span>
             )}

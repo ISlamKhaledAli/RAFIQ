@@ -33,6 +33,10 @@ export interface UserDto {
   createdBy?: string | null;
   canDelegate?: boolean;
   hasPassword?: boolean;
+  /** True when the account has a PIN hash (needed to flag legacy password-only accounts). */
+  hasPin?: boolean;
+  /** True only for the shop owner account (usr_admin_default / 'admin'). */
+  isOwner?: boolean;
   children?: UserDto[];
   createdAt?: string;
   lastLoginAt?: string;
@@ -95,6 +99,7 @@ declare global {
 
 import { emitDataChanged, type RafiqDataTopic } from '../utils/eventBus.ts';
 import { DEFAULT_REGISTRY } from '../context/featureTypes.ts';
+import { DEFAULT_DEVELOPER_SIGNATURE } from '../utils/receiptLayout.ts';
 
 const pendingRequests = new Map<string, {
   action: string;
@@ -200,6 +205,7 @@ export function getAutoTopicsForAction(action: string): RafiqDataTopic[] {
     action.startsWith('wallets:process') ||
     action.startsWith('wallets:fund') ||
     action.startsWith('wallets:save') ||
+    action.startsWith('wallets:setDefault') ||
     action.startsWith('wallets:delete')
   ) {
     return ['wallets', 'dashboard'];
@@ -258,18 +264,7 @@ function ensureListenerAttached() {
           pending.resolve(response.data);
         } else {
           const friendlyMessage = sanitizeBridgeError(response.error?.message);
-          const err = new Error(friendlyMessage);
-          if (response.error?.code) {
-            (err as any).code = response.error.code;
-          }
-          if (response.error?.code === 'LICENSE_EXPIRED') {
-            try {
-              window.dispatchEvent(new CustomEvent('rafiq:open-license'));
-            } catch {
-              // ignore
-            }
-          }
-          pending.reject(err);
+          pending.reject(new Error(friendlyMessage));
         }
       }
     });
@@ -357,6 +352,11 @@ export async function invoke<TResult = any, TPayload = any>(
   return mockRes;
 }
 
+/** Soft-deletes an account (server enforces who may delete whom and blocks accounts with an open shift). */
+export async function deleteUser(id: string): Promise<{ success: boolean }> {
+  return invoke<{ success: boolean }, { id: string }>('users:delete', { id });
+}
+
 /**
  * Mock responses for browser development when not running inside C# WebView2
  */
@@ -375,6 +375,30 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         isWebView2: false,
         dbStatus: 'Connected',
       };
+
+    case 'updates:check': {
+      // Browser-only mock: set localStorage rafiq_mock_update=1 to simulate a newer release, =offline for a network failure
+      let flag = '';
+      try { flag = localStorage.getItem('rafiq_mock_update') || ''; } catch { /* ignore */ }
+      if (flag === 'offline') {
+        return { hasUpdate: false, isEligible: true, currentVersion: '1.0.0', latestVersion: '', errorMessage: 'تعذر الاتصال بخادم التحديثات (تأكد من اتصال الإنترنت).' };
+      }
+      if (flag === '1') {
+        return {
+          hasUpdate: true,
+          isEligible: true,
+          currentVersion: '1.0.0',
+          latestVersion: '1.1.0',
+          releaseDate: '2026-11-01',
+          changelog: 'تحسينات في سرعة البيع\nإصلاح طباعة الإيصالات',
+          downloadUrl: 'https://example.com/RafiqPOS_Setup_v1.1.0.exe',
+          sha256: 'a'.repeat(64),
+          fileSizeBytes: 98765432,
+          isMandatory: false,
+        };
+      }
+      return { hasUpdate: false, isEligible: true, currentVersion: '1.0.0', latestVersion: '1.0.0' };
+    }
 
     case 'db:testTransaction':
       return {
@@ -778,7 +802,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'excel:getTemplate':
       return {
         success: true,
-        fileName: 'قالب_استيراد_المنتجات_نظام_رفيق.xlsx',
+        fileName: 'قالب_استيراد_المنتجات_رفيق_POS.xlsx',
       };
 
     case 'excel:exportProducts':
@@ -944,6 +968,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       mockLockoutUntil = 0;
       const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
       mockRecoveryCode = `RFK-${randomPart}`;
+      const mockOwner = mockUsers.find(x => x.id === 'usr_admin_default');
+      if (mockOwner) mockOwner.mustChangePin = false;
       return {
         success: true,
         message: 'تم حفظ الرقم السري بنجاح.',
@@ -1182,6 +1208,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           throw new Error('غير مصرح: تغيير الرقم السري للكاشير يتطلب صلاحيات مدير النظام.');
         }
       }
+      target.mustChangePin = false;
       return { success: true };
     }
 
@@ -1193,26 +1220,42 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'users:createSubUser': {
-      const { username, displayName, role, canDelegate, maxDepth, parentId } = payload || {};
+      const { username, displayName, role } = payload || {};
       const cleanU = (username || '').trim().toLowerCase();
       if (mockUsers.some(x => x.username.toLowerCase() === cleanU)) {
         throw new Error('اسم المستخدم موجود بالفعل');
       }
+      // Server contract: managers always hang under the owner; cashiers under their creator
       const newUser: UserDto = {
         id: `usr_${Date.now()}`,
         username: cleanU,
         displayName: (displayName || '').trim(),
         role: role || 'cashier',
+        isOwner: false,
         isActive: true,
-        canDelegate: !!canDelegate,
-        maxDepth: maxDepth || 0,
-        parentId: parentId || mockCurrentUserId,
-        hasPassword: !!payload?.password,
+        parentId: role === 'admin' ? 'usr_admin_default' : mockCurrentUserId,
+        hasPassword: false,
+        hasPin: !!payload?.pin,
         permissions: payload?.permissions || getMockPermissionsForRole(role || 'cashier'),
         createdAt: new Date().toISOString(),
       };
       mockUsers.push(newUser);
       return newUser;
+    }
+
+    case 'users:delete': {
+      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
+      const target = mockUsers.find(x => x.id === payload?.id);
+      if (!target) throw new Error('الموظف غير موجود');
+      if (target.id === mockCurrentUserId || target.isOwner || target.role === 'root') {
+        throw new Error('لا يمكن حذف هذا الحساب.');
+      }
+      const callerIsOwner = currentU?.isOwner === true || currentU?.role === 'root';
+      if (!callerIsOwner && target.role !== 'cashier') {
+        throw new Error('ليس لديك صلاحية حذف هذا الحساب.');
+      }
+      mockUsers = mockUsers.filter(x => x.id !== target.id);
+      return { success: true };
     }
 
     case 'users:updatePermissions': {
@@ -2759,7 +2802,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'excel:getCustomerTemplate':
       return {
         success: true,
-        fileName: 'قالب_استيراد_العملاء_نظام_رفيق.xlsx',
+        fileName: 'قالب_استيراد_العملاء_رفيق_POS.xlsx',
         base64: 'UEsDBBQAAAAIA...',
       };
 
@@ -3004,6 +3047,23 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'auditLogs:create':
     case 'audit:create':
       return { success: true };
+
+    // Mirrors the host contract: a list of snake_case field ids (see utils/controlledMandatoryFields.ts)
+    case 'pharma:getControlledMandatoryFields': {
+      try {
+        const stored = JSON.parse(localStorage.getItem('rafiq_mock_controlled_fields') || 'null');
+        if (Array.isArray(stored)) return stored;
+      } catch {}
+      return ['patient_name', 'doctor_name', 'prescription_date'];
+    }
+
+    case 'pharma:saveControlledMandatoryFields': {
+      const ids = Array.isArray(payload) ? payload : [];
+      try {
+        localStorage.setItem('rafiq_mock_controlled_fields', JSON.stringify(ids));
+      } catch {}
+      return ids;
+    }
 
     case 'settings:getAll':
       return getMockAppSettings();
@@ -3764,18 +3824,63 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     // Wallets & InstaPay Mock Handlers
     // ==========================================
     case 'wallets:getAccounts': {
-      return mockDigitalAccounts.filter((a) => a.isActive !== false);
+      // Same order as the host list query: type, main account first, then name
+      return mockDigitalAccounts
+        .filter((a) => a.isActive !== false)
+        .sort(
+          (a, b) =>
+            String(a.accountType).localeCompare(String(b.accountType)) ||
+            Number(b.isDefault === true) - Number(a.isDefault === true) ||
+            String(a.name).localeCompare(String(b.name), 'ar'),
+        );
+    }
+
+    case 'wallets:setDefaultAccount': {
+      const accId = typeof payload === 'object' && payload !== null ? payload.id : String(payload);
+      const target = mockDigitalAccounts.find((a) => a.id === accId);
+      if (!target) throw new Error('حساب المحفظة غير موجود في قاعدة البيانات');
+      if (target.isActive === false) throw new Error('لا يمكن جعل حساب موقوف أو مؤرشف هو الحساب الرئيسي');
+      mockDigitalAccounts.forEach((a) => {
+        if (a.accountType === target.accountType) a.isDefault = a.id === target.id;
+      });
+      target.updatedAt = new Date().toISOString();
+      return target;
     }
 
     case 'wallets:saveAccount': {
       const accData = payload || {};
       const existingIdx = mockDigitalAccounts.findIndex((a) => a.id === accData.id);
       const accType = accData.accountType || accData.type || 'wallet';
+      // Host rules: holder name is cleaned (undefined keeps the stored one); the first active account of a type is its main account; an inactive one never is
+      const holderName =
+        typeof accData.holderName === 'string'
+          ? Array.from(accData.holderName as string, (ch: string) => {
+              const code = ch.charCodeAt(0);
+              return code < 32 || (code >= 127 && code <= 159) || code === 0x200e || code === 0x200f || (code >= 0x202a && code <= 0x202e) ? ' ' : ch;
+            })
+              .join('')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 60)
+              .trim()
+          : undefined;
+      const isActive = accData.isActive !== false;
+      let isDefault = isActive && accData.isDefault === true;
+      if (isActive && !isDefault && !mockDigitalAccounts.some((a) => a.accountType === accType && a.isActive !== false && a.id !== accData.id)) {
+        isDefault = true;
+      }
+      if (isDefault) {
+        mockDigitalAccounts.forEach((a) => {
+          if (a.accountType === accType && a.id !== accData.id) a.isDefault = false;
+        });
+      }
       if (existingIdx >= 0) {
         const bal = accData.balancePiasters !== undefined ? Number(accData.balancePiasters) : mockDigitalAccounts[existingIdx].balancePiasters;
         mockDigitalAccounts[existingIdx] = {
           ...mockDigitalAccounts[existingIdx],
           ...accData,
+          holderName: holderName ?? mockDigitalAccounts[existingIdx].holderName ?? '',
+          isDefault,
           accountType: accType,
           type: accType,
           balancePiasters: bal,
@@ -3790,6 +3895,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           accountType: accType,
           type: accType,
           provider: accData.provider || (accType === 'instapay' ? 'nbe' : 'vodafone_cash'),
+          holderName: holderName ?? '',
+          isDefault,
           phoneNumber: accData.phoneNumber || '',
           identifier: accData.identifier || '',
           balancePiasters: Number(accData.balancePiasters) || 0,
@@ -3960,6 +4067,55 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       };
     }
 
+    case 'shifts:getActive':
+      return mockShift ? { ...mockShift } : null;
+
+    case 'shifts:getSummary':
+      return mockShift ? buildMockShiftSummary(mockShift) : null;
+
+    case 'shifts:getRecent':
+    case 'shifts:getHistory':
+      return mockShiftHistory.slice(0, Math.max(1, Number(payload?.limit) || 30));
+
+    case 'drawer:getMovements':
+      return mockDrawerMovements.filter((m) => m.shiftId === (payload?.shiftId ?? mockShift?.id));
+
+    case 'shifts:open': {
+      if (mockShift) throw new Error('توجد وردية مفتوحة بالفعل على هذه الخزينة');
+      const openingFloat = Math.round(Number(payload?.openingFloatPiasters));
+      if (!Number.isFinite(openingFloat) || openingFloat < 0) throw new Error('العهدة الافتتاحية غير صالحة');
+      mockShiftSeq += 1;
+      mockShift = createMockShift(mockShiftSeq, openingFloat, payload?.notes);
+      return { ...mockShift };
+    }
+
+    case 'shifts:cashIn':
+    case 'drawer:cashIn':
+      return recordMockDrawerMovement('cash_in', payload);
+
+    case 'shifts:cashOut':
+    case 'drawer:cashOut':
+      return recordMockDrawerMovement('cash_out', payload);
+
+    case 'shifts:close': {
+      if (!mockShift) throw new Error('لا توجد وردية مفتوحة لإغلاقها');
+      const actual = Math.round(Number(payload?.actualCashPiasters));
+      if (!Number.isFinite(actual) || actual < 0) throw new Error('النقدية الفعلية غير صالحة');
+      const expected = buildMockShiftSummary(mockShift).expectedCashPiasters;
+      const closed = {
+        ...mockShift,
+        status: 'closed',
+        closedAt: new Date().toISOString(),
+        expectedCashPiasters: expected,
+        actualCashPiasters: actual,
+        differencePiasters: actual - expected,
+        notes: payload?.notes ?? null,
+      };
+      mockShiftHistory.unshift(closed);
+      mockShift = null;
+      return closed;
+    }
+
     default:
       return { success: true, echoed: payload };
   }
@@ -3967,18 +4123,20 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
 const DEFAULT_APP_SETTINGS: Record<string, string> = {
   store_name: 'متجر رفيق',
-  cashier_name: 'كاشير (1)',
   store_phone: '',
   store_address: '',
   tax_number: '',
   receipt_header: '',
   receipt_footer: '',
+  receipt_show_cashier: '1',
+  developer_signature_visible: '1',
+  developer_signature_image: '',
+  developer_signature: DEFAULT_DEVELOPER_SIGNATURE,
   allow_negative_stock: '0',
   default_customer_credit_limit_egp: '1000',
-  instapay_fee_percent: '0',
-  vodafone_cash_fee_percent: '0',
   default_printer_name: '',
   receipt_paper_width: '80mm',
+  report_paper_size: 'a4',
   printer_auto_print: '1',
   printer_open_drawer: '0',
   scanner_speed_ms: '65',
@@ -4084,6 +4242,7 @@ let mockUsers: UserDto[] = [
     username: 'admin',
     displayName: 'صاحب المحل',
     role: 'admin',
+    isOwner: true,
     isActive: true,
     canDelegate: true,
     maxDepth: 10,
@@ -4187,6 +4346,21 @@ function getMockPermissionsForRole(role: string): Record<string, boolean> {
     'epay.fund': isAdmin,
     'epay.terminals_manage': isAdmin,
     'epay.analytics': isAdmin,
+    // Same defaults as SecurityService.GetPermissionsForRole, so the browser mock shows what a real cashier sees
+    'wallets.access': true,
+    'wallets.transact': true,
+    'wallets.fund': isAdmin,
+    'wallets.accounts_manage': isAdmin,
+    'wallets.history': isAdmin,
+    'wallets.analytics': isAdmin,
+    'shifts.view': true,
+    'shifts.open': true,
+    'shifts.close': true,
+    'shifts.cash_in': true,
+    'shifts.cash_out': isAdmin,
+    'pos.change_unit': true,
+    'shortage.view': true,
+    'shortage.manage': true,
     // Legacy aliases
     pos: true,
     epay: true,
@@ -4313,6 +4487,8 @@ let mockDigitalAccounts: any[] = [
     name: 'محفظة كاش فودافون الرئيسية',
     accountType: 'wallet',
     provider: 'vodafone_cash',
+    holderName: 'أحمد محمود السيد',
+    isDefault: true,
     phoneNumber: '01012345678',
     balancePiasters: 500000,
     dailyLimitPiasters: 6000000,
@@ -4328,6 +4504,8 @@ let mockDigitalAccounts: any[] = [
     name: 'حساب إنستاباي التجاري',
     accountType: 'instapay',
     provider: 'instapay',
+    holderName: 'محمد حسن عبد الله',
+    isDefault: true,
     identifier: 'shop@instapay',
     phoneNumber: '01012345678',
     balancePiasters: 1200000,
@@ -4344,4 +4522,106 @@ let mockDigitalAccounts: any[] = [
 let mockDigitalTransactions: any[] = [];
 let mockDigitalFundings: any[] = [];
 
+// Shift & cash drawer mock (same JSON contract as desktop/Models/ShiftModels.cs; money in integer piasters)
+let mockShiftSeq = 3;
+function createMockShift(shiftNumber: number, openingFloatPiasters: number, notes?: string): any {
+  const now = new Date().toISOString();
+  const cashier = mockUsers.find((u) => u.id === mockCurrentUserId);
+  return {
+    id: `shift_mock_${shiftNumber}`,
+    shiftNumber,
+    cashierId: cashier?.id ?? 'usr_admin_default',
+    cashierName: cashier?.displayName ?? 'المالك',
+    posRegisterId: 'default_pos',
+    businessDate: now.slice(0, 10),
+    openedAt: now,
+    closedAt: null,
+    status: 'open',
+    openingFloatPiasters,
+    cashSalesPiasters: 125000,
+    cardSalesPiasters: 48000,
+    instapaySalesPiasters: 15000,
+    vodafoneCashSalesPiasters: 9000,
+    creditSalesPiasters: 22000,
+    returnsCashPiasters: 3500,
+    debtPaymentsCashPiasters: 6000,
+    expensesCashPiasters: 4500,
+    cashInPiasters: 0,
+    cashOutPiasters: 0,
+    epayCashPiasters: 0,
+    walletsCashPiasters: 0,
+    purchasesCashPiasters: 0,
+    supplierPaymentsCashPiasters: 0,
+    expectedCashPiasters: 0,
+    actualCashPiasters: 0,
+    differencePiasters: 0,
+    invoicesCount: 18,
+    notes: notes ?? null,
+    createdAt: now,
+    updatedAt: now,
+    isDanglingFromPreviousDay: false,
+  };
+}
+let mockShift: any | null = createMockShift(3, 50000);
+let mockShiftHistory: any[] = [2, 1].map((n) => ({
+  ...createMockShift(n, 30000),
+  status: 'closed',
+  closedAt: new Date(Date.now() - n * 86400000).toISOString(),
+  expectedCashPiasters: 150000 + n * 1000,
+  actualCashPiasters: 150000 + n * 1000 - (n === 1 ? 500 : 0),
+  differencePiasters: n === 1 ? -500 : 0,
+}));
+let mockDrawerMovements: any[] = [];
 
+function buildMockShiftSummary(shift: any): any {
+  const expected = shift.openingFloatPiasters + shift.cashSalesPiasters + shift.debtPaymentsCashPiasters
+    + shift.cashInPiasters - shift.cashOutPiasters - shift.returnsCashPiasters - shift.expensesCashPiasters;
+  return {
+    shift: { ...shift, expectedCashPiasters: expected },
+    openingFloatPiasters: shift.openingFloatPiasters,
+    cashSalesPiasters: shift.cashSalesPiasters,
+    cardSalesPiasters: shift.cardSalesPiasters,
+    instapaySalesPiasters: shift.instapaySalesPiasters,
+    vodafoneCashSalesPiasters: shift.vodafoneCashSalesPiasters,
+    creditSalesPiasters: shift.creditSalesPiasters,
+    returnsCashPiasters: shift.returnsCashPiasters,
+    debtPaymentsCashPiasters: shift.debtPaymentsCashPiasters,
+    expensesCashPiasters: shift.expensesCashPiasters,
+    cashInPiasters: shift.cashInPiasters,
+    cashOutPiasters: shift.cashOutPiasters,
+    epayCashPiasters: shift.epayCashPiasters,
+    walletsCashPiasters: shift.walletsCashPiasters,
+    purchasesCashPiasters: shift.purchasesCashPiasters,
+    supplierPaymentsCashPiasters: shift.supplierPaymentsCashPiasters,
+    expectedCashPiasters: expected,
+    availableCashInDrawerPiasters: expected,
+    invoicesCount: shift.invoicesCount,
+    recentMovements: mockDrawerMovements.filter((m) => m.shiftId === shift.id),
+  };
+}
+
+function recordMockDrawerMovement(type: 'cash_in' | 'cash_out', payload: any): any {
+  if (!mockShift) throw new Error('لا توجد وردية مفتوحة لتسجيل حركة الدرج');
+  const amount = Math.round(Number(payload?.amountPiasters));
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('المبلغ يجب أن يكون أكبر من الصفر');
+  const reason = typeof payload?.reason === 'string' ? payload.reason.trim() : '';
+  if (!reason) throw new Error('سبب الحركة مطلوب');
+  if (type === 'cash_out' && amount > buildMockShiftSummary(mockShift).expectedCashPiasters) {
+    throw new Error('المبلغ المطلوب سحبه أكبر من النقدية المتوفرة بالدرج');
+  }
+  const cashier = mockUsers.find((u) => u.id === mockCurrentUserId);
+  const tx = {
+    id: `drw_mock_${mockDrawerMovements.length + 1}`,
+    shiftId: mockShift.id,
+    type,
+    amountPiasters: amount,
+    reason,
+    performedById: cashier?.id ?? 'usr_admin_default',
+    performedByName: cashier?.displayName ?? 'المالك',
+    createdAt: new Date().toISOString(),
+  };
+  mockDrawerMovements.unshift(tx);
+  if (type === 'cash_in') mockShift.cashInPiasters += amount;
+  else mockShift.cashOutPiasters += amount;
+  return tx;
+}
