@@ -293,6 +293,9 @@ function getDefaultTimeout(action: string): number {
   if (
     action.startsWith('excel:') ||
     action.startsWith('products:import') ||
+    action.startsWith('products:bulk') ||
+    action.startsWith('products:clearAll') ||
+    action.startsWith('products:getAllIds') ||
     action.startsWith('system:restore') ||
     action.startsWith('system:createBackup') ||
     action.startsWith('system:vacuum') ||
@@ -556,6 +559,19 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       const res: any = await mockHandler('products:search', { query: '' });
       const mockList = Array.isArray(res) ? res : res?.products || [];
       return (mockList || []).find((p: any) => p.id === prodId) || null;
+    }
+
+    case 'products:getAllIds': {
+      const res: any = await mockHandler('products:search', { query: payload?.query || '' });
+      const mockList = Array.isArray(res) ? res : res?.products || [];
+      return (mockList || []).map((p: any) => p.id);
+    }
+
+    case 'products:getByIds': {
+      const ids: string[] = Array.isArray(payload?.ids) ? payload.ids : [];
+      const res: any = await mockHandler('products:search', { query: '' });
+      const mockList = Array.isArray(res) ? res : res?.products || [];
+      return (mockList || []).filter((p: any) => ids.includes(p.id));
     }
 
     case 'products:getLowStock': {

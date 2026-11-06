@@ -18,6 +18,7 @@ import {
   Snowflake,
   X,
   CheckSquare,
+  CheckCircle2,
 } from 'lucide-react';
 import type { Product } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
@@ -186,6 +187,14 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                       filteredProducts.length > 0 &&
                       (isAllCatalogSelected || selectedProductIds.length === filteredProducts.length)
                     }
+                    ref={(el) => {
+                      if (el) {
+                        el.indeterminate =
+                          selectedProductIds.length > 0 &&
+                          !isAllCatalogSelected &&
+                          selectedProductIds.length < filteredProducts.length;
+                      }
+                    }}
                     onChange={() => {
                       if (selectedProductIds.length > 0) {
                         onClearSelection();
@@ -522,59 +531,70 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
       {/* Bulk Action Bar: shown inline above the table while rows are selected */}
       {selectedProductIds.length > 0 && (
-        <div className="order-first shrink-0 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2.5 bg-brand-soft dark:bg-brand-dark-soft border-b border-brand/20 dark:border-brand-bright/30 text-xs font-bold animate-in fade-in select-none">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-mono text-sm font-black tabular-nums">
-                {selectedProductIds.length.toLocaleString('ar-EG')}
-              </span>
-              <span className="text-sm text-brand dark:text-brand-bright whitespace-nowrap">صنف محدد</span>
-            </div>
-
-            {totalCount !== undefined && totalCount > filteredProducts.length && (
-              isAllCatalogSelected ? (
-                <div className="flex items-center gap-2 bg-surface/80 dark:bg-surface-dark/80 px-3 py-1 rounded-xl border border-brand/20">
-                  <span className="text-xs text-brand dark:text-brand-bright font-bold">
-                    تم تحديد كافة الأصناف ({totalCount.toLocaleString('ar-EG')} صنف)
+        <div className="order-first shrink-0 flex items-center justify-between gap-3 px-4 py-2 bg-brand-soft/80 dark:bg-brand-dark-soft/60 border-b border-brand/20 dark:border-brand-bright/20 text-xs font-bold animate-in fade-in select-none overflow-x-auto">
+          {/* Right section: Selection scope & details */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            {isAllCatalogSelected ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 h-8.5 px-3 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-brand-bright/30 text-paid dark:text-brand-bright shadow-2xs">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-paid dark:text-brand-bright" />
+                  <span className="text-xs font-bold whitespace-nowrap">تم تحديد كل أصناف المحل</span>
+                  <span className="font-mono font-black text-xs px-2 py-0.5 rounded-lg bg-paid dark:bg-brand-bright text-white dark:text-surface-dark tabular-nums">
+                    {totalCount?.toLocaleString('ar-EG')} صنف
                   </span>
-                  {onSelectOnlyPage && (
-                    <button
-                      type="button"
-                      onClick={onSelectOnlyPage}
-                      className="text-xs text-ink-muted dark:text-ink-dark-muted underline hover:text-ink dark:hover:text-ink-dark cursor-pointer font-bold"
-                    >
-                      تحديد أصناف هذه الصفحة فقط ({filteredProducts.length})
-                    </button>
-                  )}
                 </div>
-              ) : onSelectAllCatalog && selectedProductIds.length === filteredProducts.length ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
-                    (أصناف هذه الصفحة فقط)
+
+                {onSelectOnlyPage && (
+                  <button
+                    type="button"
+                    onClick={onSelectOnlyPage}
+                    className="h-8.5 px-3 rounded-xl bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs font-bold transition-all border border-line dark:border-line-dark shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+                    title="تحديد أصناف الصفحة المعروضة فقط"
+                  >
+                    تحديد هذه الصفحة فقط ({filteredProducts.length})
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 h-8.5 px-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-2xs text-ink dark:text-ink-dark">
+                  <span className="font-mono font-black text-xs px-2 py-0.5 rounded-lg bg-brand text-white dark:bg-brand-bright dark:text-surface-dark tabular-nums">
+                    {selectedProductIds.length.toLocaleString('ar-EG')}
                   </span>
+                  <span className="text-xs font-bold whitespace-nowrap">صنف محدد</span>
+                  <span className="text-micro font-medium text-ink-muted dark:text-ink-dark-muted px-1.5 py-0.5 rounded-md bg-surface-2 dark:bg-surface-dark-2">
+                    {selectedProductIds.length === filteredProducts.length ? 'هذه الصفحة' : 'محدد جزئياً'}
+                  </span>
+                </div>
+
+                {totalCount !== undefined && totalCount > selectedProductIds.length && onSelectAllCatalog && (
                   <button
                     type="button"
                     onClick={onSelectAllCatalog}
-                    className="px-2.5 py-1 bg-brand hover:bg-brand-dark text-white rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
-                    title="تحديد كافة الأصناف في الكتالوج بالكامل أو نتائج البحث الحالية"
+                    className="h-8.5 px-3 rounded-xl bg-brand/10 dark:bg-brand-bright/15 hover:bg-brand hover:text-white dark:hover:bg-brand-bright dark:hover:text-surface-dark text-brand dark:text-brand-bright font-bold text-xs transition-all border border-brand/25 hover:border-brand shadow-2xs flex items-center gap-2 cursor-pointer active:scale-95 group whitespace-nowrap"
+                    title="تحديد كافة الأصناف في الكتالوج بالكامل"
                   >
-                    <CheckSquare className="w-3.5 h-3.5" />
-                    <span>تحديد كل الأصناف ({totalCount.toLocaleString('ar-EG')} صنف)</span>
+                    <CheckSquare className="w-3.5 h-3.5 shrink-0 group-hover:scale-110 transition-transform" />
+                    <span>تحديد كل أصناف المحل</span>
+                    <span className="font-mono font-black text-micro px-1.5 py-0.5 rounded bg-brand/15 dark:bg-brand-bright/25 group-hover:bg-white/20 tabular-nums">
+                      ({totalCount.toLocaleString('ar-EG')} صنف)
+                    </span>
                   </button>
-                </div>
-              ) : null
+                )}
+              </div>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Left section: Action buttons + Clear selection */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {onBulkPrintLabels && (
               <button
                 type="button"
                 onClick={onBulkPrintLabels}
-                className="px-3 h-9 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 active:scale-95 text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-line dark:border-line-dark whitespace-nowrap"
+                className="h-8.5 px-3 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 active:scale-95 text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-line dark:border-line-dark whitespace-nowrap"
                 title="طباعة استيكرات الباركود للأصناف المحددة"
               >
-                <Tag className="w-4 h-4 text-brand dark:text-brand-bright" />
+                <Tag className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                 <span>طباعة استيكرات</span>
               </button>
             )}
@@ -583,10 +603,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               <button
                 type="button"
                 onClick={onOpenBulkPriceAdjustment}
-                className="px-3 h-9 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 active:scale-95 text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-line dark:border-line-dark whitespace-nowrap"
+                className="h-8.5 px-3 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 active:scale-95 text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-line dark:border-line-dark whitespace-nowrap"
                 title="تعديل الأسعار والتكلفة بالجملة"
               >
-                <TrendingUp className="w-4 h-4 text-brand dark:text-brand-bright" />
+                <TrendingUp className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                 <span>تعديل الأسعار</span>
               </button>
             )}
@@ -594,10 +614,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             <button
               type="button"
               onClick={onOpenBulkMinStockModal}
-              className="px-3 h-9 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 active:scale-95 text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-line dark:border-line-dark whitespace-nowrap"
+              className="h-8.5 px-3 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 active:scale-95 text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-line dark:border-line-dark whitespace-nowrap"
               title="تعديل حد النواقص والطلب"
             >
-              <Boxes className="w-4 h-4 text-brand dark:text-brand-bright" />
+              <Boxes className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
               <span>حد النواقص</span>
             </button>
 
@@ -605,24 +625,26 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               <button
                 type="button"
                 onClick={onBulkDelete}
-                className="px-3 h-9 bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/70 dark:hover:bg-danger-dark-soft/70 active:scale-95 text-danger dark:text-danger-bright rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-danger/30 dark:border-danger-bright/40 whitespace-nowrap"
+                className="h-8.5 px-3 bg-danger-soft hover:bg-danger text-danger hover:text-white dark:bg-danger-dark-soft dark:hover:bg-danger active:scale-95 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-danger/30 hover:border-danger whitespace-nowrap"
                 title="حذف الأصناف المحددة"
               >
-                <Trash2 className="w-4 h-4 text-danger dark:text-danger-bright" />
+                <Trash2 className="w-3.5 h-3.5" />
                 <span>حذف</span>
               </button>
             )}
-          </div>
 
-          <button
-            type="button"
-            onClick={onClearSelection}
-            className="mr-auto h-9 px-3 flex items-center gap-1.5 rounded-xl hover:bg-surface dark:hover:bg-surface-dark active:scale-95 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-all cursor-pointer"
-            title="إلغاء التحديد"
-          >
-            <X className="w-4 h-4" />
-            <span>إلغاء التحديد</span>
-          </button>
+            <div className="h-5 w-px bg-line dark:bg-line-dark mx-1 shrink-0" />
+
+            <button
+              type="button"
+              onClick={onClearSelection}
+              className="h-8.5 px-2.5 flex items-center gap-1.5 rounded-xl hover:bg-surface-2 dark:hover:bg-surface-dark-2 active:scale-95 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright transition-all cursor-pointer text-xs font-bold whitespace-nowrap"
+              title="إلغاء التحديد"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>إلغاء</span>
+            </button>
+          </div>
         </div>
       )}
 

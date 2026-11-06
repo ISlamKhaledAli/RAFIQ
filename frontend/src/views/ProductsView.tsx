@@ -221,7 +221,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [labelModalProduct, setLabelModalProduct] = useState<Product | null>(null);
   const [labelModalQueueItems, setLabelModalQueueItems] = useState<LabelQueueItem[] | null>(null);
 
-  const isAllCatalogSelected = totalCount > 0 && selectedProductIds.length === totalCount;
+  const isAllCatalogSelected = totalCount > 0 && selectedProductIds.length >= totalCount;
 
   const handleSelectAllCatalog = useCallback(async () => {
     try {
@@ -234,8 +234,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       if (Array.isArray(allIds) && allIds.length > 0) {
         setSelectedProductIds(allIds);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to select all catalog products:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      await rafiqAlert({
+        title: 'فشل تحديد الأصناف',
+        message: `تعذر تحديد كافة الأصناف: ${msg}`,
+        variant: 'error',
+      });
     } finally {
       setLoading(false);
     }
