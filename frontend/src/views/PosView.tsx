@@ -432,6 +432,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       if (prod.defaultSaleUnitId) {
         unitToUse = prod.units.find(u => u.id === prod.defaultSaleUnitId);
       }
+      if (!unitToUse && prod.displayUnitId) {
+        unitToUse = prod.units.find(u => u.id === prod.displayUnitId);
+      }
       if (!unitToUse && prod.isLooseSellable === false && prod.units.length > 1) {
         const nonBase = prod.units.filter(u => !u.isBaseUnit);
         unitToUse = nonBase.sort((a, b) => b.conversionFactor - a.conversionFactor)[0];
@@ -539,7 +542,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }
 
       const totalPiasters = calculateLineTotal(unitPrice, qtyMilli, 0);
-      const taxRate = prod.taxRatePercent || 0;
+      const taxRate = showTaxes ? (prod.taxRatePercent || 0) : 0;
       const isControlled = Boolean(prod.isControlled || (prod.controlledSchedule && prod.controlledSchedule !== 'none') || prod.rxStatus === 'controlled');
       const newItem: CartItem = {
         productId: prod.id,
@@ -601,7 +604,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
 
     return true;
-  }, [cart, allowNegativeStock, showStatus, isEnabled, showItemModifiers]);
+  }, [cart, allowNegativeStock, showStatus, isEnabled, showItemModifiers, showTaxes]);
 
   useEffect(() => {
     addProductToCartRef.current = addProductToCart;
@@ -2196,7 +2199,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             };
           } else {
             const unitPrice = product.pricePiasters;
-            const taxRate = product.taxRatePercent || 0;
+            const taxRate = showTaxes ? (product.taxRatePercent || 0) : 0;
             const lineTotal = calculateLineTotal(unitPrice, quantityMilli, 0);
             newCart.push({
               productId: product.id,
@@ -2220,7 +2223,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setIsChronicDispenseOpen(false);
       barcodeInputRef.current?.focus();
     },
-    [showStatus]
+    [showStatus, showTaxes]
   );
 
   // Story 133 / Feature #190: Clinical Allergy Checking

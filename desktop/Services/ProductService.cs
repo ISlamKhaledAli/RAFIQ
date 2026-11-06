@@ -259,12 +259,19 @@ namespace RafiqPOS.Services
                     bool stockUnchangedFromSnapshot = product.OriginalStockQuantityMilli.HasValue
                         && product.StockQuantityMilli == product.OriginalStockQuantityMilli.Value;
                     long requestedStockMilli = product.StockQuantityMilli;
+                    bool isBaseUnitChange = !string.Equals(existing.Unit, product.Unit, StringComparison.OrdinalIgnoreCase);
 
-                    if (!existing.HasVariants && !stockUnchangedFromSnapshot && requestedStockMilli != existing.StockQuantityMilli)
+                    if (!existing.HasVariants && (isBaseUnitChange || (!stockUnchangedFromSnapshot && requestedStockMilli != existing.StockQuantityMilli)))
                     {
                         // A stock edit on the product card is a stock adjustment: same permission, reason and ledger path
                         EnsureCanAdjustStock();
-                        if (string.IsNullOrWhiteSpace(product.StockAdjustReason))
+                        string reason = !string.IsNullOrWhiteSpace(product.StockAdjustReason)
+                            ? product.StockAdjustReason.Trim()
+                            : (isBaseUnitChange
+                                ? ("تعديل الرصيد لتغيير وحدة الأساس المخزنية من «" + existing.Unit + "» إلى «" + product.Unit + "»")
+                                : null);
+
+                        if (string.IsNullOrWhiteSpace(reason))
                         {
                             throw new ArgumentException("سبب تعديل الرصيد إجباري عند تغيير رصيد الصنف من بطاقة الصنف");
                         }
@@ -272,16 +279,19 @@ namespace RafiqPOS.Services
                         {
                             throw new ArgumentException("الرصيد الفعلي بعد التسوية لا يمكن أن يكون سالباً");
                         }
-                        string reason = product.StockAdjustReason.Trim();
                         string productId = product.Id;
                         InventoryService inventory = CreateInventoryService();
+                        string referenceType = isBaseUnitChange ? "UNIT_REBASE" : "PRODUCT_CARD_EDIT";
                         stockLedgerStep = delegate(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans)
                         {
-                            inventory.AdjustStockInTransaction(conn, trans, productId, requestedStockMilli, reason, actorId, null, "PRODUCT_CARD_EDIT");
+                            inventory.AdjustStockInTransaction(conn, trans, productId, requestedStockMilli, reason, actorId, null, referenceType);
                         };
                     }
-                    // The save itself keeps the live stock; only the adjustment step may change it
-                    product.StockQuantityMilli = existing.StockQuantityMilli;
+                    // The save itself keeps the live stock; only the adjustment step may change it (unless base unit changed)
+                    if (!isBaseUnitChange)
+                    {
+                        product.StockQuantityMilli = existing.StockQuantityMilli;
+                    }
                 }
                 else if (product.StockQuantityMilli != 0)
                 {

@@ -1,6 +1,6 @@
-import React from 'react';
-import { Building2, X, Calendar, Percent } from 'lucide-react';
-import { normalizeArabicNumerals } from '../../utils/money';
+import React, { useState } from 'react';
+import { Building2, X, Calendar, Percent, Coins, ArrowUpRight, ArrowDownLeft, Info } from 'lucide-react';
+import { normalizeArabicNumerals, formatArabicCurrency } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { useFeatures } from '../../context/useFeatures';
 import { RequiredMark } from '../../components/RequiredMark';
@@ -33,6 +33,39 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
   onSave,
 }) => {
   const { isEnabled } = useFeatures();
+
+  const [selectedDirection, setSelectedDirection] = useState<'due' | 'advance'>('due');
+  const isNegative = form.balanceEGP.startsWith('-');
+  const balanceDirection = isNegative ? 'advance' : selectedDirection;
+  const displayAmount = form.balanceEGP.replace(/^-/, '');
+  const numericAmount = parseFloat(normalizeArabicNumerals(displayAmount)) || 0;
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const norm = normalizeArabicNumerals(e.target.value).replace(/^-/, '');
+    if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
+      if (!norm || norm === '0') {
+        setForm((prev) => ({ ...prev, balanceEGP: norm }));
+      } else if (balanceDirection === 'advance') {
+        setForm((prev) => ({ ...prev, balanceEGP: `-${norm}` }));
+      } else {
+        setForm((prev) => ({ ...prev, balanceEGP: norm }));
+      }
+    }
+  };
+
+  const handleDirectionChange = (dir: 'due' | 'advance') => {
+    setSelectedDirection(dir);
+    const currentAbs = form.balanceEGP.replace(/^-/, '').trim();
+    const num = parseFloat(currentAbs) || 0;
+    if (num === 0) {
+      setForm((prev) => ({ ...prev, balanceEGP: currentAbs || '0' }));
+    } else if (dir === 'advance') {
+      setForm((prev) => ({ ...prev, balanceEGP: `-${currentAbs}` }));
+    } else {
+      setForm((prev) => ({ ...prev, balanceEGP: currentAbs }));
+    }
+  };
+
   const isDirty = Boolean(
     form.name.trim() ||
     form.companyName.trim() ||
@@ -59,8 +92,8 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-        <div className="h-14 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-5 flex items-center justify-between">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
+        <div className="h-14 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center shadow-2xs">
               <Building2 className="w-4 h-4" />
@@ -79,7 +112,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={onSave} className="p-5 space-y-3.5">
+        <form onSubmit={onSave} className="p-5 space-y-3.5 flex-1 overflow-y-auto">
           <p className="text-micro text-ink-muted dark:text-ink-muted-dark">الحقول المميزة بعلامة * مطلوبة</p>
           <div>
             <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
@@ -95,20 +128,20 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
             />
           </div>
 
-          <div>
-            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">اسم الشركة أو التوكيل</label>
-            <input
-              type="text"
-              placeholder="مثلاً: توكيل شيبسي وأغذية"
-              value={form.companyName}
-              onChange={(e) => setForm({ ...form, companyName: e.target.value })}
-              className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
-            />
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">رقم الموبايل / التليفون</label>
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">اسم الشركة أو التوكيل</label>
+              <input
+                type="text"
+                placeholder="مثلاً: توكيل شيبسي وأغذية"
+                value={form.companyName}
+                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">رقم الموبايل / الهاتف</label>
               <input
                 type="text"
                 placeholder="010XXXXXXXX"
@@ -117,31 +150,6 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
                 className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
               />
             </div>
-
-            {!form.id && (
-              <div>
-                <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-                  <span>حساب أول المدة (ج.م)</span>
-                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal block">
-                    (موجب = فلوس ليه عندنا، سالب (-) = دافعينله مقدم)
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={form.balanceEGP}
-                  onChange={(e) => {
-                    const norm = normalizeArabicNumerals(e.target.value);
-                    if (/^-?[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
-                      setForm({ ...form, balanceEGP: norm });
-                    }
-                  }}
-                  onFocus={(e) => e.target.select()}
-                  placeholder="0.00"
-                  className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors text-right"
-                />
-              </div>
-            )}
           </div>
 
           <div>
@@ -154,6 +162,88 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
               className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
             />
           </div>
+
+          {!form.id && (
+            <div className="p-3.5 bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Coins className="w-4 h-4 text-brand dark:text-brand-bright" />
+                  <span className="text-xs font-bold text-ink dark:text-ink-dark">
+                    حساب أول المدة (إن وجد)
+                  </span>
+                </div>
+                <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
+                  سيبه صفر لو مورد جديد خالص
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDirectionChange('due')}
+                  className={`h-9 px-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    balanceDirection === 'due'
+                      ? 'bg-surface dark:bg-surface-dark border-danger/40 dark:border-danger-bright/40 text-danger dark:text-danger-bright shadow-2xs'
+                      : 'bg-transparent border-line/60 dark:border-line-dark/60 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                  }`}
+                >
+                  <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+                  <span>له فلوس علينا (مستحق له)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDirectionChange('advance')}
+                  className={`h-9 px-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    balanceDirection === 'advance'
+                      ? 'bg-surface dark:bg-surface-dark border-paid/40 dark:border-paid-bright/40 text-paid dark:text-paid-bright shadow-2xs'
+                      : 'bg-transparent border-line/60 dark:border-line-dark/60 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                  }`}
+                >
+                  <ArrowDownLeft className="w-3.5 h-3.5 shrink-0" />
+                  <span>دافعين له مقدم (لنا رصيد)</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={displayAmount === '0' ? '' : displayAmount}
+                  onChange={handleAmountChange}
+                  onFocus={(e) => e.target.select()}
+                  placeholder="0.00"
+                  className="w-full h-10 pr-3 pl-12 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs font-mono font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright transition-colors text-right"
+                />
+                <span className="absolute left-3 top-2.5 text-xs font-bold text-ink-muted dark:text-ink-dark-muted pointer-events-none">
+                  ج.م
+                </span>
+              </div>
+
+              <div className="text-micro flex items-center gap-1.5 text-ink-muted dark:text-ink-dark-muted">
+                <Info className="w-3.5 h-3.5 shrink-0" />
+                {numericAmount === 0 ? (
+                  <span>الحساب سيبدأ من الصفر (خالص تماماً لا له ولا عليه).</span>
+                ) : balanceDirection === 'due' ? (
+                  <span>
+                    المورد هيبدأ دائن بمستحقات له علينا:{' '}
+                    <strong className="font-mono text-danger dark:text-danger-bright font-bold">
+                      {formatArabicCurrency(Math.round(numericAmount * 100), true)}
+                    </strong>{' '}
+                    تُسدد له لاحقاً.
+                  </span>
+                ) : (
+                  <span>
+                    المورد هيبدأ مدين برصيد مقدم لنا عنده:{' '}
+                    <strong className="font-mono text-paid dark:text-paid-bright font-bold">
+                      {formatArabicCurrency(Math.round(numericAmount * 100), true)}
+                    </strong>{' '}
+                    تُخصم من الفواتير القادمة.
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">ملاحظات إضافية</label>

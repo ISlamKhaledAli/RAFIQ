@@ -54,6 +54,7 @@ import { useFeatures } from '../../context/useFeatures';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { RequiredMark } from '../../components/RequiredMark';
 import { getStoreTerminology, getCurrentStoreType } from '../../utils/storeTerminology';
+import { formatCompoundStock } from '../../utils/packaging';
 
 export interface BelowCostWarningData {
   pricePiasters: number;
@@ -126,6 +127,8 @@ export interface ProductFormModalProps {
   setDefaultSaleUnitId?: (v: string | null) => void;
   defaultPurchaseUnitId?: string | null;
   setDefaultPurchaseUnitId?: (v: string | null) => void;
+  displayUnitId?: string | null;
+  setDisplayUnitId?: (v: string | null) => void;
   editingProduct?: Product | null;
   locationId?: string;
   setLocationId?: (v: string) => void;
@@ -160,6 +163,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   setDefaultSaleUnitId,
   defaultPurchaseUnitId: _defaultPurchaseUnitId,
   setDefaultPurchaseUnitId,
+  displayUnitId,
+  setDisplayUnitId,
   editingProduct,
   barcode,
   setBarcode,
@@ -212,6 +217,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   onOpenStorageLocationsModal,
 }) => {
   const { isEnabled } = useFeatures();
+  const isTaxEnabled = isEnabled('feature_taxes');
 
   // Active Store Profile / Template Detection
   const [storeType, setStoreType] = useState<string>(() => {
@@ -397,6 +403,50 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const looseNum = parseInt(normalizeArabicNumerals(looseInput), 10) || 0;
   const totalStockNum = parseFloat(stockInput) || 0;
 
+  const sortedMultiUnits = useMemo(() => {
+    return [...productUnits].sort((a, b) => b.conversionFactor - a.conversionFactor);
+  }, [productUnits]);
+
+  const [multiTierCounts, setMultiTierCounts] = useState<Record<string, string>>({});
+
+  // Synchronize multi-tier counts from current total stock (decomposition)
+  useEffect(() => {
+    if (productUnits.length <= 2) return;
+    const currentTotal = parseFloat(stockInput) || 0;
+    let rem = Math.floor(currentTotal);
+    const newCounts: Record<string, string> = {};
+    for (let i = 0; i < sortedMultiUnits.length; i++) {
+      const u = sortedMultiUnits[i];
+      const key = u.id || String(i);
+      if (i < sortedMultiUnits.length - 1) {
+        const f = u.conversionFactor > 0 ? u.conversionFactor : 1;
+        const count = Math.floor(rem / f);
+        rem = rem % f;
+        newCounts[key] = count > 0 ? String(count) : '0';
+      } else {
+        newCounts[key] = rem > 0 ? String(rem) : '0';
+      }
+    }
+    setMultiTierCounts(newCounts);
+  }, [stockInput, sortedMultiUnits, productUnits.length]);
+
+  const handleMultiTierCountChange = (unitKey: string, val: string) => {
+    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
+    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
+    const updated = { ...multiTierCounts, [unitKey]: clean };
+    setMultiTierCounts(updated);
+
+    let newTotal = 0;
+    for (let i = 0; i < sortedMultiUnits.length; i++) {
+      const u = sortedMultiUnits[i];
+      const key = u.id || String(i);
+      const c = parseInt(updated[key] || '0', 10) || 0;
+      const f = u.conversionFactor > 0 ? u.conversionFactor : 1;
+      newTotal += c * f;
+    }
+    setStockInput(String(newTotal));
+  };
+
   // When user edits cartons/boxes:
   const handleCartonsChange = (val: string) => {
     const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
@@ -418,6 +468,21 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     const factor = !isNaN(size) && size > 0 ? size : 1;
     const newTotal = (cartonsNum * factor) + looseNum;
     setStockInput(String(newTotal));
+
+    if (factor >= 2 && productUnits.length === 2) {
+      const updated = productUnits.map(u => {
+        if (!u.isBaseUnit) {
+          return {
+            ...u,
+            conversionFactor: factor,
+            sellPricePiasters: pricePiasters * factor,
+            costPricePiasters: costPiasters * factor
+          };
+        }
+        return u;
+      });
+      setProductUnits(updated);
+    }
   };
 
   // When user edits loose units:
@@ -1805,6 +1870,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     product={editingProduct}
                     isLooseSellable={isLooseSellable}
                     defaultSaleUnitId={defaultSaleUnitId}
+                    displayUnitId={displayUnitId}
                     onChange={(newUnits) => {
                       setProductUnits(newUnits);
                       if (newUnits.length <= 1) {
@@ -1819,18 +1885,24 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       setIsLooseSellable?.(cfg.isLooseSellable);
                       setDefaultSaleUnitId?.(cfg.defaultSaleUnitId);
                       setDefaultPurchaseUnitId?.(cfg.defaultPurchaseUnitId);
+                      setDisplayUnitId?.(cfg.displayUnitId);
                       if (editingProduct) {
                         editingProduct.isLooseSellable = cfg.isLooseSellable;
                         editingProduct.defaultSaleUnitId = cfg.defaultSaleUnitId;
                         editingProduct.defaultPurchaseUnitId = cfg.defaultPurchaseUnitId;
-                        if (cfg.updatedStockQuantityMilli !== undefined) {
-                          editingProduct.stockQuantityMilli = cfg.updatedStockQuantityMilli;
-                        }
+                        editingProduct.displayUnitId = cfg.displayUnitId;
+                        // Preserve editingProduct.stockQuantityMilli as the original DB snapshot
                       }
-                      const base = cfg.units.find(u => u.isBaseUnit) || cfg.units[cfg.units.length - 1];
-                      if (base) {
-                        if (base.sellPricePiasters > 0) setPricePiasters(base.sellPricePiasters);
-                        if (base.costPricePiasters > 0) setCostPiasters(base.costPricePiasters);
+
+                      // Resolve the chosen display unit to reflect on the main product form:
+                      const displayUnit = (cfg.displayUnitId ? cfg.units.find(u => u.id === cfg.displayUnitId) : null)
+                        || (cfg.defaultSaleUnitId ? cfg.units.find(u => u.id === cfg.defaultSaleUnitId) : null)
+                        || cfg.units.find(u => u.isBaseUnit)
+                        || cfg.units[0];
+
+                      if (displayUnit) {
+                        if (displayUnit.sellPricePiasters > 0) setPricePiasters(displayUnit.sellPricePiasters);
+                        if (displayUnit.costPricePiasters > 0) setCostPiasters(displayUnit.costPricePiasters);
                       }
                       const topUnit = cfg.units.find(u => !u.isBaseUnit && u.conversionFactor > 1);
                       if (topUnit && topUnit.conversionFactor > 1) {
@@ -1860,8 +1932,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         }
                       }
                     }}
-                    basePricePiasters={pricePiasters}
-                    baseCostPiasters={costPiasters}
+                    basePricePiasters={
+                      productUnits.find(u => u && u.isBaseUnit && u.sellPricePiasters > 0)?.sellPricePiasters || pricePiasters
+                    }
+                    baseCostPiasters={
+                      productUnits.find(u => u && u.isBaseUnit && u.costPricePiasters > 0)?.costPricePiasters || costPiasters
+                    }
                     baseUnitName={baseUnitName}
                     isWeightItem={unit === 'kg' || isProduceOrButchery || isSpices}
                     primaryBarcode={barcode}
@@ -1894,93 +1970,146 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               {/* Dynamic Inputs for Pieces or Weight */}
               {unit === 'piece' ? (
                 <>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-center bg-surface-2 dark:bg-surface-dark-2 p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">
-                    {/* 1. Cartons / Boxes */}
-                    <div>
-                      <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1 truncate" title={`عدد الـ (${packName})`}>
-                        عدد الـ ({packName}):
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={cartonsInput}
-                        onChange={(e) => handleCartonsChange(e.target.value)}
-                        onFocus={(e) => e.target.select()}
-                        placeholder="0"
-                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
-                      />
-                    </div>
+                  {productUnits.length > 2 ? (
+                    /* Multi-Tier Packaging Inventory Grid (3 or 4 levels) */
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 items-center bg-surface-2 dark:bg-surface-dark-2 p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">
+                      {sortedMultiUnits.map((u, i) => {
+                        const key = u.id || String(i);
+                        const isBase = i === sortedMultiUnits.length - 1;
+                        const label = isBase ? `${u.unitName} فرط:` : `عدد الـ (${u.unitName}):`;
+                        return (
+                          <div key={key}>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-micro font-bold text-ink dark:text-ink-dark truncate" title={label}>
+                                {label}
+                              </label>
+                              {!isBase && u.conversionFactor > 1 && (
+                                <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold font-mono">
+                                  (×{u.conversionFactor})
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={multiTierCounts[key] || '0'}
+                              onChange={(e) => handleMultiTierCountChange(key, e.target.value)}
+                              onFocus={(e) => e.target.select()}
+                              placeholder="0"
+                              className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
+                            />
+                          </div>
+                        );
+                      })}
 
-                    {/* 2. Pack Capacity (سعة الكرتونة / العلبة بالقطع) */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-micro font-bold text-ink dark:text-ink-dark truncate" title={`سعة الـ (${packName}) بالـ (${baseUnitName})`}>
-                          سعة الـ ({packName}):
-                        </label>
-                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
-                          {baseUnitName}
-                        </span>
+                      {/* Equals sign symbol */}
+                      <div className="hidden sm:flex items-center justify-center font-extrabold text-ink-muted dark:text-ink-dark-muted text-xl pt-4">
+                        =
                       </div>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={packSizeInput}
-                        onChange={(e) => handlePackSizeChange(e.target.value)}
-                        onFocus={(e) => e.target.select()}
-                        placeholder={detectedPackage?.conversionFactor ? String(detectedPackage.conversionFactor) : '1'}
-                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                      />
-                    </div>
 
-                    {/* 3. Loose units */}
-                    <div>
-                      <label 
-                        className="block text-micro font-bold text-ink dark:text-ink-dark mb-1 truncate" 
-                        title={`${baseUnitName === 'قرص' ? 'أقراص' : baseUnitName === 'شريط' ? 'أشرطة' : baseUnitName === 'قطعة' ? 'قطع' : baseUnitName} فرط:`}
-                      >
-                        {baseUnitName === 'قرص' ? 'أقراص فرط:' : baseUnitName === 'شريط' ? 'أشرطة فرط:' : baseUnitName === 'قطعة' ? 'قطع فرط فردانية:' : isProduceOrButchery || isSpices ? 'وحدات فرط صغيرة:' : `${baseUnitName} فرط:`}
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={looseInput}
-                        onChange={(e) => handleLoosePiecesChange(e.target.value)}
-                        onFocus={(e) => e.target.select()}
-                        placeholder="0"
-                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
-                      />
-                    </div>
-
-                    {/* 4. Equals sign symbol */}
-                    <div className="hidden sm:flex items-center justify-center font-extrabold text-ink-muted dark:text-ink-dark-muted text-xl pt-4">
-                      =
-                    </div>
-
-                    {/* 5. Calculated Total Stock Result Field */}
-                    <div className="col-span-2 sm:col-span-1">
-                      <label className="block text-micro font-extrabold text-brand dark:text-brand-bright mb-1 truncate">
-                        {editingId ? `الرصيد الفعلي الحالي (بـ ${baseUnitName}):` : `الرصيد الافتتاحي (بـ ${baseUnitName}):`}
-                      </label>
-                      <div className="relative">
+                      {/* Total Stock Result Field */}
+                      <div className="col-span-2 sm:col-span-1">
+                        <label className="block text-micro font-extrabold text-brand dark:text-brand-bright mb-1 truncate">
+                          {editingId ? `الرصيد الفعلي الحالي (بـ ${baseUnitName}):` : `الرصيد الافتتاحي (بـ ${baseUnitName}):`}
+                        </label>
                         <input
                           type="text"
                           inputMode="numeric"
                           value={stockInput}
                           onChange={(e) => handleDirectStockChange(e.target.value)}
                           onFocus={(e) => e.target.select()}
-                          disabled={false}
-                          readOnly={false}
                           placeholder="0"
                           title={editingId ? "يتم تعديل رصيد المخزون رسمياً عبر شاشة تسوية الجرد أو فواتير الشراء والبيع" : "الرصيد الافتتاحي للصنف الجديد"}
-                          className={`w-full rounded h-[36px] px-2 text-sm font-mono text-center font-extrabold focus:outline-none ${
-                            editingId
-                              ? 'bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright'
-                              : 'bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright'
-                          }`}
+                          className="w-full rounded h-[36px] px-2 text-sm font-mono text-center font-extrabold bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright focus:outline-none"
                         />
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    /* Standard 2-Tier Inventory Grid */
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-center bg-surface-2 dark:bg-surface-dark-2 p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">
+                      {/* 1. Cartons / Boxes */}
+                      <div>
+                        <label className="block text-micro font-bold text-ink dark:text-ink-dark mb-1 truncate" title={`عدد الـ (${packName})`}>
+                          عدد الـ ({packName}):
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={cartonsInput}
+                          onChange={(e) => handleCartonsChange(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          placeholder="0"
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
+                        />
+                      </div>
+
+                      {/* 2. Pack Capacity (سعة الكرتونة / العلبة بالقطع) */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-micro font-bold text-ink dark:text-ink-dark truncate" title={`سعة الـ (${packName}) بالـ (${baseUnitName})`}>
+                            سعة الـ ({packName}):
+                          </label>
+                          <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
+                            {baseUnitName}
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={packSizeInput}
+                          onChange={(e) => handlePackSizeChange(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          placeholder={detectedPackage?.conversionFactor ? String(detectedPackage.conversionFactor) : '1'}
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                        />
+                      </div>
+
+                      {/* 3. Loose units */}
+                      <div>
+                        <label 
+                          className="block text-micro font-bold text-ink dark:text-ink-dark mb-1 truncate" 
+                          title={`${baseUnitName === 'قرص' ? 'أقراص' : baseUnitName === 'شريط' ? 'أشرطة' : baseUnitName === 'قطعة' ? 'قطع' : baseUnitName} فرط:`}
+                        >
+                          {baseUnitName === 'قرص' ? 'أقراص فرط:' : baseUnitName === 'شريط' ? 'أشرطة فرط:' : baseUnitName === 'قطعة' ? 'قطع فرط فردانية:' : isProduceOrButchery || isSpices ? 'وحدات فرط صغيرة:' : `${baseUnitName} فرط:`}
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={looseInput}
+                          onChange={(e) => handleLoosePiecesChange(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          placeholder="0"
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-sm font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand"
+                        />
+                      </div>
+
+                      {/* 4. Equals sign symbol */}
+                      <div className="hidden sm:flex items-center justify-center font-extrabold text-ink-muted dark:text-ink-dark-muted text-xl pt-4">
+                        =
+                      </div>
+
+                      {/* 5. Calculated Total Stock Result Field */}
+                      <div className="col-span-2 sm:col-span-1">
+                        <label className="block text-micro font-extrabold text-brand dark:text-brand-bright mb-1 truncate">
+                          {editingId ? `الرصيد الفعلي الحالي (بـ ${baseUnitName}):` : `الرصيد الافتتاحي (بـ ${baseUnitName}):`}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={stockInput}
+                            onChange={(e) => handleDirectStockChange(e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            disabled={false}
+                            readOnly={false}
+                            placeholder="0"
+                            title={editingId ? "يتم تعديل رصيد المخزون رسمياً عبر شاشة تسوية الجرد أو فواتير الشراء والبيع" : "الرصيد الافتتاحي للصنف الجديد"}
+                            className="w-full rounded h-[36px] px-2 text-sm font-mono text-center font-extrabold bg-brand-soft dark:bg-brand-dark-soft border-2 border-brand dark:border-brand-bright text-brand dark:text-brand-bright focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {editingId && editingProduct && Math.round((parseFloat(normalizeArabicNumerals(stockInput)) || 0) * 1000) !== editingProduct.stockQuantityMilli && (
                     <div className="flex flex-col gap-1 bg-warn-soft dark:bg-warn-dark-soft px-3 py-2 rounded-lg border border-warn-border dark:border-warn-bright/30">
@@ -2026,8 +2155,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         <span>قيمة البضاعة بالتكلفة:</span>
                       </div>
                       <span className="font-mono font-bold text-brand dark:text-brand-bright text-micro">
-                        {parseFloat(stockInput) > 0 && costPiasters > 0
-                          ? formatArabicCurrency(Math.round(parseFloat(stockInput) * costPiasters))
+                        {parseFloat(stockInput) > 0 && (productUnits.find(u => u && u.isBaseUnit)?.costPricePiasters || costPiasters) > 0
+                          ? formatArabicCurrency(Math.round(parseFloat(stockInput) * (productUnits.find(u => u && u.isBaseUnit)?.costPricePiasters || costPiasters)))
                           : '0.00 ج.م'}
                       </span>
                     </div>
@@ -2038,19 +2167,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <div className="flex items-center gap-1.5">
                       <Boxes className="w-3.5 h-3.5 shrink-0" />
                       <span>
-                        {cartonsNum > 0 ? (
-                          <>
-                            الناتج: {cartonsNum} {packName}
-                            {packSizeNum > 1 ? ` × ${packSizeNum} ${baseUnitName}` : ''}
-                            {looseNum > 0 ? ` + ${looseNum} فرط` : ''}
-                            {' = '}
-                            {totalStockNum} {baseUnitName} رصيد فعلي
-                          </>
-                        ) : totalStockNum > 0 ? (
-                          <>الرصيد الفعلي بالمحل: {totalStockNum} {baseUnitName}</>
-                        ) : (
-                          <>الرصيد الحالي: 0 {baseUnitName}</>
-                        )}
+                        الرصيد الفعلي بالمحل: {formatCompoundStock(Math.round(totalStockNum * 1000), productUnits, baseUnitName)}
                       </span>
                     </div>
                     <span className="font-mono text-micro bg-white dark:bg-surface-dark text-brand dark:text-brand-bright px-2 py-0.5 rounded border border-brand/20">
@@ -2163,14 +2280,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <Sliders className="w-3.5 h-3.5" />
                   </div>
                   <span className="font-bold text-ink dark:text-ink-dark text-sm">
-                    خيارات وبيانات متقدمة (ضرائب، فواتير إلكترونية{isPharmacy ? '، رقابة وأدوية جدول' : ''})
+                    {isTaxEnabled ? 'خيارات وبيانات متقدمة (الضرائب و SKU)' : 'بيانات إضافية وكود الصنف (SKU)'}
                   </span>
                   {((pharmaInfo?.controlledSchedule && pharmaInfo.controlledSchedule !== 'none') || pharmaInfo?.rxStatus === 'controlled') && (
                     <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-warn/15 text-warn dark:text-warn-bright border border-warn/30 animate-pulse">
                       دواء جدول
                     </span>
                   )}
-                  {taxRatePercent > 0 && (
+                  {isTaxEnabled && taxRatePercent > 0 && (
                     <span className="text-micro font-bold px-2 py-0.5 rounded bg-brand/10 dark:bg-brand-bright/10 text-brand dark:text-brand-bright">
                       ضريبة {taxRatePercent}%
                     </span>
@@ -2398,24 +2515,52 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </>
                   )}
 
-                  {/* Tax & ETA E-Invoicing Readiness (Feature #6) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-surface-2 dark:bg-surface-dark-2 p-3 rounded-lg border border-line dark:border-line-dark">
-                    <div>
-                      <label className="block text-ink dark:text-ink-dark font-semibold mb-1 text-micro">نسبة الضريبة (%)</label>
-                      <div className="relative flex items-center">
+                  {/* Tax & ETA E-Invoicing Readiness (Feature #6) - Shown when feature_taxes is enabled */}
+                  {isTaxEnabled ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-surface-2 dark:bg-surface-dark-2 p-3 rounded-lg border border-line dark:border-line-dark">
+                      <div>
+                        <label className="block text-ink dark:text-ink-dark font-semibold mb-1 text-micro">نسبة الضريبة (%)</label>
+                        <div className="relative flex items-center">
+                          <input
+                            type="text"
+                            value={taxRatePercent}
+                            onChange={(e) => setTaxRatePercent(parseInt(normalizeArabicNumerals(e.target.value), 10) || 0)}
+                            placeholder="0"
+                            className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono pl-7"
+                          />
+                          <Percent className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute left-2 pointer-events-none" />
+                        </div>
+                        <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">اكتب 0 لو الصنف معفي من الضريبة</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-ink-muted dark:text-ink-dark-muted font-semibold mb-1 text-micro">
+                          كود الصنف الداخلي (SKU)
+                        </label>
                         <input
                           type="text"
-                          value={taxRatePercent}
-                          onChange={(e) => setTaxRatePercent(parseInt(normalizeArabicNumerals(e.target.value), 10) || 0)}
-                          placeholder="0"
-                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono pl-7"
+                          placeholder="مثال: ITM-00124"
+                          value={internalCode}
+                          onChange={(e) => setInternalCode(e.target.value)}
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
                         />
-                        <Percent className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute left-2 pointer-events-none" />
                       </div>
-                      <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">اكتب 0 لو الصنف معفي من الضريبة</p>
-                    </div>
 
-                    <div>
+                      <div>
+                        <label className="block text-ink-muted dark:text-ink-dark-muted font-semibold mb-1 text-micro">
+                          كود الفاتورة الإلكترونية (GS1 / EGS)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="لمنظومة الضرائب"
+                          value={taxCategoryCode}
+                          onChange={(e) => setTaxCategoryCode(e.target.value)}
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-surface-2 dark:bg-surface-dark-2 p-3 rounded-lg border border-line dark:border-line-dark">
                       <label className="block text-ink-muted dark:text-ink-dark-muted font-semibold mb-1 text-micro">
                         كود الصنف الداخلي (SKU)
                       </label>
@@ -2427,20 +2572,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
                       />
                     </div>
-
-                    <div>
-                      <label className="block text-ink-muted dark:text-ink-dark-muted font-semibold mb-1 text-micro">
-                        كود الفاتورة الإلكترونية (GS1 / EGS)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="لمنظومة الضرائب"
-                        value={taxCategoryCode}
-                        onChange={(e) => setTaxCategoryCode(e.target.value)}
-                        className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand font-mono"
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   {/* Variant Size and Color (Shown in advanced if not clothing and has data) */}
                   {!isClothing && !isElectronics && Boolean(variantSize || variantColor) && (

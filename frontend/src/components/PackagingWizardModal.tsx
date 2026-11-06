@@ -32,6 +32,7 @@ export interface PackagingWizardModalProps {
   currentUnits: ProductUnit[];
   initialIsLooseSellable?: boolean;
   initialDefaultSaleUnitId?: string | null;
+  initialDisplayUnitId?: string | null;
   storeType?: string;
   onApply: (config: {
     units: ProductUnit[];
@@ -65,10 +66,25 @@ const applyPriceRounding = (piasters: number, roundTo: number, premiumBps: numbe
 
 const normalizeUnitName = (u?: string | null): string => {
   if (!u) return '';
-  const trimmed = u.trim().toLowerCase();
-  if (trimmed === 'piece' || trimmed === 'pieces' || trimmed === 'قطعة') return 'piece';
+  let trimmed = u.trim().toLowerCase();
+  if (trimmed === 'piece' || trimmed === 'pieces' || trimmed === 'قطعة' || trimmed === 'قطعه') return 'piece';
   if (trimmed === 'kg' || trimmed === 'kilogram' || trimmed === 'كيلو' || trimmed === 'كجم') return 'kg';
+  trimmed = trimmed
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي');
   return trimmed;
+};
+
+const getDistinctTopUnitName = (base: string, defaultTop?: string): string => {
+  const b = (base || '').trim().toLowerCase();
+  if (b === 'علبة' || b === 'علبه') return 'كرتونة';
+  if (b === 'قطعة' || b === 'قطعه' || b === 'piece') return 'كرتونة';
+  if (b === 'قرص') return 'علبة';
+  if (b === 'شريط') return 'علبة';
+  if (b === 'كيلو' || b === 'كجم') return 'صندوق';
+  if (defaultTop && defaultTop.trim().toLowerCase() !== b) return defaultTop;
+  return 'كرتونة';
 };
 
 export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
@@ -80,6 +96,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
   currentUnits,
   initialIsLooseSellable,
   initialDefaultSaleUnitId,
+  initialDisplayUnitId,
   storeType,
   onApply,
 }) => {
@@ -89,7 +106,8 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
   );
   const [levels, setLevels] = useState<WizardLevelRow[]>([]);
   const [selectedRowIndex, setSelectedRowIndex] = useState<number>(0);
-  const [defaultSaleUnitIndex, setDefaultSaleUnitIndex] = useState<number>(0);
+  const [displayUnitId, setDisplayUnitId] = useState<string>('');
+  const [defaultSaleUnitId, setDefaultSaleUnitId] = useState<string>('');
 
   // Default is STRICTLY false (closed) unless explicitly passed as true
   const [isLooseSellable, setIsLooseSellable] = useState<boolean>(initialIsLooseSellable ?? product?.isLooseSellable ?? false);
@@ -106,28 +124,53 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     return 'punit_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
   }, []);
 
-  // Recalculate prices across current levels when rounding rule or margin premium changes
+  // Recalculate prices across higher packaging levels anchored from the Display Unit
   const recalculatePrices = useCallback((newRule: number, newMarginBps: number, targetLevels?: WizardLevelRow[]) => {
     const list = targetLevels || levels;
     if (list.length === 0) return;
-    const topFactor = list[0].conversionFactor;
-    const topSell = list[0].sellPricePiasters > 0 ? list[0].sellPricePiasters : 10000;
-    const topCost = list[0].costPricePiasters > 0 ? list[0].costPricePiasters : 7500;
+    const foundIdx = list.findIndex(r => r.id === displayUnitId);
+    const anchorIdx = foundIdx !== -1 ? foundIdx : Math.max(0, list.length - 1);
+    const anchor = list[anchorIdx];
+    const anchorSell = anchor.sellPricePiasters > 0 ? anchor.sellPricePiasters : (basePricePiasters > 0 ? basePricePiasters : 1000);
+    const anchorCost = anchor.costPricePiasters > 0 ? anchor.costPricePiasters : (baseCostPiasters > 0 ? baseCostPiasters : 750);
 
-    const updated = list.map((lvl, idx) => {
-      if (idx === 0) return lvl;
-      const rawSell = Math.round((topSell * lvl.conversionFactor) / topFactor);
-      const rawCost = Math.round((topCost * lvl.conversionFactor) / topFactor);
-      return {
-        ...lvl,
+    const updated = [...list];
+    updated[anchorIdx] = {
+      ...anchor,
+      sellPricePiasters: anchorSell,
+      costPricePiasters: anchorCost,
+    };
+
+    // Calculate levels below anchor: DIVIDE downwards
+    for (let k = anchorIdx + 1; k < updated.length; k++) {
+      const parent = updated[k - 1];
+      const r = typeof parent.ratioToNext === 'number' && parent.ratioToNext >= 1 ? parent.ratioToNext : 1;
+      const rawSell = r > 0 ? parent.sellPricePiasters / r : parent.sellPricePiasters;
+      const rawCost = r > 0 ? parent.costPricePiasters / r : parent.costPricePiasters;
+      updated[k] = {
+        ...updated[k],
+        sellPricePiasters: Math.max(25, applyPriceRounding(rawSell, newRule, 0)),
+        costPricePiasters: Math.max(20, Math.round(rawCost)),
+      };
+    }
+
+    // Calculate levels above anchor: MULTIPLY upwards
+    for (let k = anchorIdx - 1; k >= 0; k--) {
+      const child = updated[k + 1];
+      const r = typeof updated[k].ratioToNext === 'number' && updated[k].ratioToNext >= 1 ? updated[k].ratioToNext : 1;
+      const rawSell = child.sellPricePiasters * r;
+      const rawCost = child.costPricePiasters * r;
+      updated[k] = {
+        ...updated[k],
         sellPricePiasters: applyPriceRounding(rawSell, newRule, newMarginBps),
         costPricePiasters: rawCost,
       };
-    });
-    setLevels(updated);
-  }, [levels]);
+    }
 
-  // Robust, synchronous row builder from ProductUnit array with auto-healing of inverted/corrupted base prices
+    setLevels(updated);
+  }, [levels, displayUnitId, basePricePiasters, baseCostPiasters]);
+
+  // Robust, synchronous row builder from ProductUnit array with base-unit price anchoring
   const buildRowsFromUnits = useCallback((unitsList: ProductUnit[]): WizardLevelRow[] => {
     if (unitsList && unitsList.length > 1) {
       // Clean out phantom 'piece' or 'pieces' unit if real Arabic packaging units exist
@@ -144,73 +187,54 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
       }
 
       const sorted = [...cleaned].sort((a, b) => b.conversionFactor - a.conversionFactor);
-      let topUnit = sorted[0];
-      let baseUnit = sorted[sorted.length - 1];
-
-      // Self-healing: Detect corrupted multiplier (e.g. factor >= 100 or base price collapsed below 25 piasters)
-      const isExtremeCorrupted = topUnit.conversionFactor >= 100 || (topUnit.conversionFactor > 1 && baseUnit.sellPricePiasters < 25 && topUnit.sellPricePiasters >= 500);
-      const isCorrupted = isExtremeCorrupted || (topUnit.conversionFactor > 1 && baseUnit.sellPricePiasters >= topUnit.sellPricePiasters);
-
-      if (isExtremeCorrupted && topUnit.sellPricePiasters > 0) {
-        const recoveredFactor = topUnit.conversionFactor === 400 ? 20 : (topUnit.conversionFactor >= 100 ? 10 : topUnit.conversionFactor);
-        topUnit.conversionFactor = recoveredFactor;
-        baseUnit.conversionFactor = 1;
-        baseUnit.sellPricePiasters = Math.max(25, Math.round(topUnit.sellPricePiasters / recoveredFactor));
-        baseUnit.costPricePiasters = Math.max(20, Math.round(topUnit.costPricePiasters / recoveredFactor));
-      }
+      const baseCandidate = sorted.find(u => u.isBaseUnit) || sorted[sorted.length - 1];
+      const effectiveBaseSell = baseCandidate.sellPricePiasters > 0 ? baseCandidate.sellPricePiasters : (basePricePiasters > 0 ? basePricePiasters : 1000);
+      const effectiveBaseCost = baseCandidate.costPricePiasters > 0 ? baseCandidate.costPricePiasters : (baseCostPiasters > 0 ? baseCostPiasters : 750);
 
       return sorted.map((u, i) => {
+        const isBase = u.isBaseUnit || u.conversionFactor === 1 || i === sorted.length - 1;
         const nextFactor = i < sorted.length - 1 ? sorted[i + 1].conversionFactor : 1;
         const ratio = nextFactor > 0 ? Math.round(u.conversionFactor / nextFactor) : u.conversionFactor;
         
         let sellPrice = u.sellPricePiasters;
         let costPrice = u.costPricePiasters;
 
-        if (isCorrupted && i > 0 && !isExtremeCorrupted) {
-          sellPrice = Math.max(25, Math.round((topUnit.sellPricePiasters * u.conversionFactor) / topUnit.conversionFactor));
-          costPrice = Math.max(25, Math.round((topUnit.costPricePiasters * u.conversionFactor) / topUnit.conversionFactor));
+        if (!isBase && sellPrice <= 0) {
+          sellPrice = effectiveBaseSell * u.conversionFactor;
+        }
+        if (!isBase && costPrice <= 0) {
+          costPrice = effectiveBaseCost * u.conversionFactor;
+        }
+        if (isBase) {
+          sellPrice = effectiveBaseSell;
+          costPrice = effectiveBaseCost;
         }
 
         return {
           id: (u.id && !u.id.startsWith('lvl_')) ? u.id : generateUniqueUnitId(),
           name: u.unitName,
-          ratioToNext: Math.max(1, ratio),
-          conversionFactor: u.conversionFactor,
+          ratioToNext: isBase ? 1 : Math.max(2, ratio),
+          conversionFactor: isBase ? 1 : Math.max(2, u.conversionFactor),
           sellPricePiasters: sellPrice,
           costPricePiasters: costPrice,
           barcode: u.barcode || '',
-          isBase: u.isBaseUnit || u.conversionFactor === 1 || i === sorted.length - 1,
+          isBase: isBase,
         };
       });
     }
 
-    // Default 2 rows if brand new product or 1 unit only
+    // Exactly 1 row for brand new product or single-unit product!
     const baseSell = basePricePiasters > 0 ? basePricePiasters : 1000;
     const baseCost = baseCostPiasters > 0 ? baseCostPiasters : 750;
     const baseName = (unitsList && unitsList[0]?.unitName && unitsList[0].unitName !== 'piece')
       ? unitsList[0].unitName
-      : (terminology.baseUnitDefaultName || 'قرص');
+      : (terminology.baseUnitDefaultName || 'علبة');
     const baseBarcode = (unitsList && unitsList[0]?.barcode) || '';
-    const topUnitId = generateUniqueUnitId();
     const baseUnitId = (unitsList && unitsList[0]?.id && !unitsList[0].id.startsWith('lvl_')) 
       ? unitsList[0].id 
       : generateUniqueUnitId();
-    let topUnitName = terminology.packagingTopUnitDefault || 'علبة';
-    if (topUnitName.trim() === baseName.trim()) {
-      topUnitName = 'علبة';
-    }
 
     return [
-      {
-        id: topUnitId,
-        name: topUnitName,
-        ratioToNext: 10,
-        conversionFactor: 10,
-        sellPricePiasters: baseSell * 10,
-        costPricePiasters: baseCost * 10,
-        barcode: '',
-        isBase: false,
-      },
       {
         id: baseUnitId,
         name: baseName,
@@ -239,48 +263,36 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
       : (product?.isLooseSellable ?? false);
     setIsLooseSellable(effectiveLoose);
 
-    const resolveDefaultIndex = (rows: WizardLevelRow[]): number => {
-      const targetId = initialDefaultSaleUnitId || product?.defaultSaleUnitId;
-      if (targetId) {
-        const found = rows.findIndex(r => r.id === targetId);
-        if (found !== -1) return found;
-      }
-      return effectiveLoose ? rows.length - 1 : 0;
-    };
+    // Load rows from currentUnits passed from parent draft
+    const rows = buildRowsFromUnits(currentUnits && currentUnits.length > 0 ? currentUnits : []);
+    setLevels(rows);
 
-    // 1. If currentUnits has multi units from parent, load them immediately
-    if (currentUnits && currentUnits.length > 1) {
-      const rows = buildRowsFromUnits(currentUnits);
-      setLevels(rows);
-      setDefaultSaleUnitIndex(resolveDefaultIndex(rows));
-      return;
-    }
+    // Resolve initial displayUnitId (by immutable ID)
+    const targetDisplayId = initialDisplayUnitId || product?.displayUnitId;
+    const matchingDisplay = targetDisplayId ? rows.find(r => r.id === targetDisplayId) : null;
+    
+    // Fallback: if not set by ID, find unit matching product?.unit (e.g. 'علبة')
+    const matchingProdUnit = !matchingDisplay && product?.unit 
+      ? rows.find(r => normalizeUnitName(r.name) === normalizeUnitName(product.unit))
+      : null;
 
-    // 2. If product has an ID, fetch directly from SQLite database to guarantee no units are lost!
-    if (product && product.id) {
-      void invoke<ProductUnit[]>('productUnits:getByProduct', { productId: product.id })
-        .then((dbUnits) => {
-          if (dbUnits && dbUnits.length > 1) {
-            const rows = buildRowsFromUnits(dbUnits);
-            setLevels(rows);
-            setDefaultSaleUnitIndex(resolveDefaultIndex(rows));
-          } else {
-            const rows = buildRowsFromUnits(currentUnits || []);
-            setLevels(rows);
-            setDefaultSaleUnitIndex(0);
-          }
-        })
-        .catch(() => {
-          const rows = buildRowsFromUnits(currentUnits || []);
-          setLevels(rows);
-          setDefaultSaleUnitIndex(0);
-        });
-    } else {
-      const rows = buildRowsFromUnits(currentUnits || []);
-      setLevels(rows);
-      setDefaultSaleUnitIndex(0);
-    }
-  }, [isOpen, currentUnits, product, buildRowsFromUnits, initialIsLooseSellable, initialDefaultSaleUnitId]);
+    const fallbackDisplay = matchingDisplay 
+      ? matchingDisplay.id 
+      : (matchingProdUnit 
+          ? matchingProdUnit.id 
+          : (rows.length > 1 ? rows[rows.length - 2].id : (rows.length > 0 ? rows[0].id : '')));
+    
+    setDisplayUnitId(fallbackDisplay);
+
+    // Resolve initial defaultSaleUnitId (by immutable ID)
+    const targetSaleId = initialDefaultSaleUnitId || product?.defaultSaleUnitId;
+    const matchingSale = targetSaleId ? rows.find(r => r.id === targetSaleId) : null;
+    setDefaultSaleUnitId(
+      matchingSale
+        ? matchingSale.id
+        : (fallbackDisplay || (rows.length > 0 ? rows[0].id : ''))
+    );
+  }, [isOpen, currentUnits, buildRowsFromUnits, initialIsLooseSellable, initialDefaultSaleUnitId, initialDisplayUnitId, product]);
 
   // Separate store category label fetch (never blocks levels rendering)
   useEffect(() => {
@@ -308,33 +320,78 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
       });
   }, [isOpen]);
 
-  // Recalculate factors when ratio changes
+  // Recalculate factors and prices when ratio changes (anchored to the Display Unit chosen by merchant)
   const handleRatioChange = (index: number, newRatioStr: string) => {
-    const rawVal = parseInt(normalizeArabicNumerals(newRatioStr), 10);
-    const newRatio = isNaN(rawVal) || rawVal < 1 ? 1 : rawVal;
-
+    const digits = normalizeArabicNumerals(newRatioStr).replace(/[^\d]/g, '');
     const updated = [...levels];
-    updated[index].ratioToNext = newRatio;
 
-    // Recalculate factors from bottom to top
-    updated[updated.length - 1].conversionFactor = 1;
-    for (let i = updated.length - 2; i >= 0; i--) {
-      updated[i].conversionFactor = updated[i + 1].conversionFactor * updated[i].ratioToNext;
+    if (digits === '' || digits === '0') {
+      updated[index].ratioToNext = '' as any;
+      updated[index].conversionFactor = 0;
+      updated[index].sellPricePiasters = 0;
+      updated[index].costPricePiasters = 0;
+      setLevels(updated);
+      return;
     }
 
-    // Cascade prices
-    const topFactor = updated[0].conversionFactor;
-    const topSell = updated[0].sellPricePiasters > 0 ? updated[0].sellPricePiasters : 10000;
-    const topCost = updated[0].costPricePiasters > 0 ? updated[0].costPricePiasters : 7500;
+    const rawVal = parseInt(digits, 10);
+    const newRatio = isNaN(rawVal) ? 1 : Math.max(1, rawVal);
+    updated[index].ratioToNext = newRatio;
 
-    for (let i = 1; i < updated.length; i++) {
-      const rawSell = Math.round((topSell * updated[i].conversionFactor) / topFactor);
-      const rawCost = Math.round((topCost * updated[i].conversionFactor) / topFactor);
-      updated[i].sellPricePiasters = applyPriceRounding(rawSell, roundingRule, marginPremiumBps);
-      updated[i].costPricePiasters = rawCost;
+    // Recalculate factors from bottom (base = 1) to top
+    updated[updated.length - 1].conversionFactor = 1;
+    for (let i = updated.length - 2; i >= 0; i--) {
+      const rawR = Number(updated[i].ratioToNext);
+      if (!isNaN(rawR) && rawR >= 2 && updated[i + 1].conversionFactor >= 1) {
+        updated[i].conversionFactor = updated[i + 1].conversionFactor * rawR;
+      } else {
+        updated[i].conversionFactor = 0;
+      }
+    }
+
+    // Anchor to Display Unit (الوحدة المعروضة بالخارج):
+    // Units above display unit MULTIPLY UPWARDS (x)
+    // Units below display unit DIVIDE DOWNWARDS (/)
+    const foundIdx = updated.findIndex(r => r.id === displayUnitId);
+    const anchorIdx = foundIdx !== -1 ? foundIdx : Math.max(0, updated.length - 1);
+    const anchor = updated[anchorIdx];
+    const anchorSell = anchor.sellPricePiasters > 0 ? anchor.sellPricePiasters : (basePricePiasters > 0 ? basePricePiasters : 1000);
+    const anchorCost = anchor.costPricePiasters > 0 ? anchor.costPricePiasters : (baseCostPiasters > 0 ? baseCostPiasters : 750);
+    updated[anchorIdx].sellPricePiasters = anchorSell;
+    updated[anchorIdx].costPricePiasters = anchorCost;
+
+    // Levels below anchor: DIVIDE downwards
+    for (let k = anchorIdx + 1; k < updated.length; k++) {
+      const parent = updated[k - 1];
+      const r = typeof parent.ratioToNext === 'number' && parent.ratioToNext >= 1 ? parent.ratioToNext : 1;
+      const rawSell = r > 0 ? parent.sellPricePiasters / r : parent.sellPricePiasters;
+      const rawCost = r > 0 ? parent.costPricePiasters / r : parent.costPricePiasters;
+      updated[k].sellPricePiasters = Math.max(25, applyPriceRounding(rawSell, roundingRule, 0));
+      updated[k].costPricePiasters = Math.max(20, Math.round(rawCost));
+    }
+
+    // Levels above anchor: MULTIPLY upwards
+    for (let k = anchorIdx - 1; k >= 0; k--) {
+      const child = updated[k + 1];
+      const r = typeof updated[k].ratioToNext === 'number' && updated[k].ratioToNext >= 1 ? updated[k].ratioToNext : 1;
+      const rawSell = child.sellPricePiasters * r;
+      const rawCost = child.costPricePiasters * r;
+      updated[k].sellPricePiasters = applyPriceRounding(rawSell, roundingRule, marginPremiumBps);
+      updated[k].costPricePiasters = rawCost;
     }
 
     setLevels(updated);
+  };
+
+  const handleRatioBlur = (index: number) => {
+    const raw = levels[index]?.ratioToNext;
+    if (raw === '' as any || raw === 0) {
+      return; // Keep empty while user is configuring
+    }
+    const val = Number(raw);
+    if (isNaN(val) || val < 1) {
+      handleRatioChange(index, '2');
+    }
   };
 
   const handleNameChange = (index: number, newName: string) => {
@@ -366,103 +423,161 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     handleBarcodeChange(index, randomEan);
   };
 
-  // Re-calculate single row price from base unit
+  // Re-calculate single row price anchored to the Display Unit
   const handleAutoCalculateRow = (index: number) => {
-    if (index === 0 && levels.length > 1) {
-      const base = levels[levels.length - 1];
-      const factor = levels[0].conversionFactor;
-      const calculatedSell = base.sellPricePiasters * factor;
-      const calculatedCost = base.costPricePiasters * factor;
+    if (levels.length <= 1) return;
+    const foundIdx = levels.findIndex(r => r.id === displayUnitId);
+    const anchorIdx = foundIdx !== -1 ? foundIdx : Math.max(0, levels.length - 1);
+    const updated = [...levels];
 
-      const updated = [...levels];
-      updated[0].sellPricePiasters = calculatedSell;
-      updated[0].costPricePiasters = calculatedCost;
-      setLevels(updated);
+    if (index === anchorIdx) {
+      // If clicking auto-calc on the anchor itself, re-anchor to base price from outside
+      if (basePricePiasters > 0) updated[index].sellPricePiasters = basePricePiasters;
+      if (baseCostPiasters > 0) updated[index].costPricePiasters = baseCostPiasters;
+    } else if (index > anchorIdx) {
+      // Below anchor: divide from parent above it
+      const parent = updated[index - 1];
+      const r = typeof parent.ratioToNext === 'number' && parent.ratioToNext >= 1 ? parent.ratioToNext : 1;
+      const rawSell = r > 0 ? parent.sellPricePiasters / r : parent.sellPricePiasters;
+      const rawCost = r > 0 ? parent.costPricePiasters / r : parent.costPricePiasters;
+      updated[index].sellPricePiasters = Math.max(25, applyPriceRounding(rawSell, roundingRule, 0));
+      updated[index].costPricePiasters = Math.max(20, Math.round(rawCost));
     } else {
-      const top = levels[0];
-      const targetFactor = levels[index].conversionFactor;
-      const topFactor = top.conversionFactor;
-
-      const rawSell = Math.round((top.sellPricePiasters * targetFactor) / topFactor);
-      const rawCost = Math.round((top.costPricePiasters * targetFactor) / topFactor);
-
-      const updated = [...levels];
+      // Above anchor: multiply from child below it
+      const child = updated[index + 1];
+      const r = typeof updated[index].ratioToNext === 'number' && updated[index].ratioToNext >= 1 ? updated[index].ratioToNext : 1;
+      const rawSell = child.sellPricePiasters * r;
+      const rawCost = child.costPricePiasters * r;
       updated[index].sellPricePiasters = applyPriceRounding(rawSell, roundingRule, marginPremiumBps);
       updated[index].costPricePiasters = rawCost;
-      setLevels(updated);
     }
+    setLevels(updated);
   };
 
-  const handleAddLevel = () => {
+  // Add larger packaging unit (Carton / Box / Pack) above current top unit
+  const handleAddLargerLevel = () => {
     if (levels.length >= 4) {
       setErrorMsg('الحد الأقصى المسموح به هو 4 مستويات تعبئة لكل صنف.');
       return;
     }
+    setErrorMsg(null);
 
-    if (levels.length === 0) {
-      const baseSell = basePricePiasters > 0 ? basePricePiasters : 1000;
-      const baseCost = baseCostPiasters > 0 ? baseCostPiasters : 750;
-      const rows: WizardLevelRow[] = [
-        {
-          id: 'lvl_0',
-          name: 'كرتونة',
-          ratioToNext: 10,
-          conversionFactor: 10,
-          sellPricePiasters: baseSell * 10,
-          costPricePiasters: baseCost * 10,
-          barcode: '',
-          isBase: false,
-        },
-        {
-          id: 'lvl_1',
-          name: 'قطعة',
-          ratioToNext: 1,
-          conversionFactor: 1,
-          sellPricePiasters: baseSell,
-          costPricePiasters: baseCost,
-          barcode: '',
-          isBase: true,
-        },
-      ];
-      setLevels(rows);
-      return;
-    }
-
-    const insertIdx = levels.length - 1;
-    const newLvl: WizardLevelRow = {
+    const currentTop = levels[0];
+    const topUnitName = getDistinctTopUnitName(currentTop?.name || 'علبة', terminology.packagingTopUnitDefault);
+    const newTopRow: WizardLevelRow = {
       id: generateUniqueUnitId(),
-      name: 'وحدة فرعية',
-      ratioToNext: 2,
-      conversionFactor: 2,
-      sellPricePiasters: Math.round(levels[insertIdx].sellPricePiasters * 2),
-      costPricePiasters: Math.round(levels[insertIdx].costPricePiasters * 2),
+      name: topUnitName,
+      ratioToNext: '' as any,
+      conversionFactor: 0,
+      sellPricePiasters: 0,
+      costPricePiasters: 0,
       barcode: '',
       isBase: false,
     };
 
-    const updated = [...levels];
-    updated.splice(insertIdx, 0, newLvl);
-
-    updated[updated.length - 1].conversionFactor = 1;
-    for (let i = updated.length - 2; i >= 0; i--) {
-      updated[i].conversionFactor = updated[i + 1].conversionFactor * updated[i].ratioToNext;
-    }
-
+    const updated = [newTopRow, ...levels];
     setLevels(updated);
   };
 
-  const handleRemoveLevel = (index: number) => {
-    if (levels.length <= 2) return;
-    if (index === levels.length - 1) return;
+  // Add smaller sub-unit (Cigarette / Tablet / Strip / Piece) below current bottom unit
+  const handleAddSmallerLevel = () => {
+    if (levels.length >= 4) {
+      setErrorMsg('الحد الأقصى المسموح به هو 4 مستويات تعبئة لكل صنف.');
+      return;
+    }
+    setErrorMsg(null);
 
-    const updated = levels.filter((_, idx) => idx !== index);
-    updated[updated.length - 1].conversionFactor = 1;
-    for (let i = updated.length - 2; i >= 0; i--) {
-      updated[i].conversionFactor = updated[i + 1].conversionFactor * updated[i].ratioToNext;
+    const currentBottom = levels[levels.length - 1];
+    const cleanBottomName = (currentBottom?.name || '').toLowerCase().trim();
+    const cleanProdName = (product?.name || '').toLowerCase().trim();
+
+    let subUnitName = 'قطعة فرط';
+    if (cleanBottomName.includes('سجاير') || cleanBottomName.includes('دخان') || cleanBottomName.includes('كليوباترا') || cleanBottomName.includes('بوكس') || cleanProdName.includes('سجاير') || cleanProdName.includes('كليوباترا')) {
+      subUnitName = 'سيجارة';
+    } else if (cleanBottomName.includes('بيض') || cleanProdName.includes('بيض')) {
+      subUnitName = 'بيضة';
+    } else if (cleanBottomName.includes('علب') && (storeType?.includes('pharma') || cleanProdName.includes('دواء') || cleanProdName.includes('علاج'))) {
+      subUnitName = 'شريط';
+    } else if (cleanBottomName.includes('شريط')) {
+      subUnitName = 'قرص';
+    } else if (storeType?.includes('pharma')) {
+      subUnitName = 'قرص';
     }
 
-    if (defaultSaleUnitIndex >= updated.length) {
-      setDefaultSaleUnitIndex(0);
+    const defaultRatio = subUnitName === 'سيجارة' ? 20 : (subUnitName === 'بيضة' ? 30 : 10);
+    const parentSell = currentBottom.sellPricePiasters;
+    const parentCost = currentBottom.costPricePiasters;
+    const initialSubSell = parentSell > 0 ? Math.ceil((parentSell / defaultRatio) / 25) * 25 : 0;
+    const initialSubCost = parentCost > 0 ? Math.round(parentCost / defaultRatio) : 0;
+
+    const updatedBottom: WizardLevelRow = {
+      ...currentBottom,
+      isBase: false,
+      ratioToNext: defaultRatio,
+    };
+
+    const newBaseRow: WizardLevelRow = {
+      id: generateUniqueUnitId(),
+      name: subUnitName,
+      ratioToNext: 1,
+      conversionFactor: 1,
+      sellPricePiasters: initialSubSell,
+      costPricePiasters: initialSubCost,
+      barcode: '',
+      isBase: true,
+    };
+
+    const updated = [...levels.slice(0, levels.length - 1), updatedBottom, newBaseRow];
+    updated[updated.length - 1].conversionFactor = 1;
+    for (let i = updated.length - 2; i >= 0; i--) {
+      const rawR = Number(updated[i].ratioToNext);
+      if (!isNaN(rawR) && rawR >= 2 && updated[i + 1].conversionFactor >= 1) {
+        updated[i].conversionFactor = updated[i + 1].conversionFactor * rawR;
+      } else {
+        updated[i].conversionFactor = 0;
+      }
+    }
+
+    setLevels(updated);
+    setIsLooseSellable(true);
+
+    // Keep display and default sale unit anchored to the parent unit (e.g. علبة)
+    if (!displayUnitId || displayUnitId === currentBottom.id) {
+      setDisplayUnitId(currentBottom.id);
+    }
+    if (!defaultSaleUnitId || defaultSaleUnitId === currentBottom.id) {
+      setDefaultSaleUnitId(currentBottom.id);
+    }
+  };
+
+  const handleRemoveLevel = (index: number) => {
+    if (levels.length <= 1) return;
+    setErrorMsg(null);
+
+    const removedRow = levels[index];
+    const updated = levels.filter((_, idx) => idx !== index);
+    const lastIdx = updated.length - 1;
+    updated[lastIdx].isBase = true;
+    updated[lastIdx].ratioToNext = 1;
+    updated[lastIdx].conversionFactor = 1;
+
+    for (let i = lastIdx - 1; i >= 0; i--) {
+      const rawR = Number(updated[i].ratioToNext);
+      if (!isNaN(rawR) && rawR >= 2 && updated[i + 1].conversionFactor >= 1) {
+        updated[i].conversionFactor = updated[i + 1].conversionFactor * rawR;
+      } else {
+        updated[i].conversionFactor = 0;
+      }
+    }
+
+    // Stable ID preservation: ONLY fallback if the removed row was the chosen one!
+    if (removedRow && removedRow.id === displayUnitId) {
+      const fallback = updated[updated.length - 1];
+      setDisplayUnitId(fallback ? fallback.id : '');
+    }
+    if (removedRow && removedRow.id === defaultSaleUnitId) {
+      const fallback = updated[0];
+      setDefaultSaleUnitId(fallback ? fallback.id : '');
     }
 
     setLevels(updated);
@@ -500,13 +615,36 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
         setErrorMsg(`اسم المستوى رقم ${i + 1} مطلوب.`);
         return;
       }
+      if (!levels[i].isBase) {
+        const r = Number(levels[i].ratioToNext);
+        if (isNaN(r) || r < 2 || levels[i].conversionFactor < 2) {
+          setErrorMsg(`يرجى إدخال سعة '${levels[i].name}' (تحتوي على كم ${levels[i + 1]?.name || 'وحدة'}) بحيث تكون 2 أو أكثر.`);
+          return;
+        }
+      }
       if (levels[i].sellPricePiasters <= 0) {
         setErrorMsg(`سعر بيع '${levels[i].name}' يجب أن يكون أكبر من الصفر.`);
         return;
       }
     }
 
-    const currentBaseUnitNormalized = normalizeUnitName(product?.unit);
+    // Ensure no two packaging levels share the same non-empty barcode
+    const seenCodes = new Set<string>();
+    for (const lvl of levels) {
+      if (lvl.barcode && lvl.barcode.trim()) {
+        const bc = lvl.barcode.trim();
+        if (seenCodes.has(bc)) {
+          setErrorMsg(`الباركود '${bc}' مكرر على أكثر من عبوة لنفس الصنف.`);
+          return;
+        }
+        seenCodes.add(bc);
+      }
+    }
+
+    const existingBaseUnit = currentUnits && currentUnits.length > 0
+      ? currentUnits.find(u => u && u.isBaseUnit)?.unitName
+      : null;
+    const currentBaseUnitNormalized = normalizeUnitName(existingBaseUnit || product?.unit);
     const newBaseUnitRow = levels.length > 0 ? levels[levels.length - 1] : null;
     const newBaseUnitNormalized = normalizeUnitName(newBaseUnitRow?.name);
 
@@ -533,19 +671,33 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
         return;
       }
 
-      const topRow = levels[0];
       const currentStockUnits = Math.round(product.stockQuantityMilli / 1000);
       const oldUnitName = product.unit || 'وحدة';
       const newUnitName = newBaseUnitRow?.name || 'وحدة';
 
-      // 1. Expanding to smaller unit (e.g. from علبة to برشامه):
-      if (levels.length > 1 && topRow && topRow.conversionFactor > 1 && normalizeUnitName(topRow.name) === currentBaseUnitNormalized) {
-        const factor = topRow.conversionFactor;
+      // Find the row in new levels that corresponds to the product's PREVIOUS base unit in the database
+      const prevBaseRow = levels.find(l => normalizeUnitName(l.name) === currentBaseUnitNormalized);
+
+      // If previous product was a single-unit item (!currentUnits || currentUnits.length <= 1)
+      // and the merchant is configuring multi-tier packaging (levels.length > 1),
+      // the merchant's previous stock was counted in their primary retail/display unit (e.g. 'علبة')!
+      const isInitialPackagingSetup = (!currentUnits || currentUnits.length <= 1) && levels.length > 1;
+      const targetDisplayLevel = displayUnitId ? levels.find(l => l.id === displayUnitId) : null;
+      const expansionRow = prevBaseRow || (
+        isInitialPackagingSetup
+          ? (targetDisplayLevel || (levels.length > 2 ? levels[levels.length - 2] : levels[0]))
+          : null
+      );
+
+      // 1. Expanding to smaller unit (e.g. from علبة to سيجارة, supporting multi-tier packaging):
+      if (expansionRow && expansionRow.conversionFactor > 1 && currentStockUnits > 0) {
+        const factor = expansionRow.conversionFactor;
         const convertedStock = currentStockUnits * factor;
+        const fromUnitName = expansionRow.name || oldUnitName;
 
         const confirmRebase = await rafiqConfirm({
-          title: 'تأكيد احتساب رصيد المخزن للعبوة الجديدة',
-          message: `الصنف مسجل حالياً بوحدة «${oldUnitName}» وبرصيد (${currentStockUnits} ${oldUnitName}).\n\nهل تريد تحويل الرصيد تلقائياً ليكون بأصغر وحدة «${newUnitName}» (${convertedStock} ${newUnitName}) لمطابقة منظومة التعبئة وتجزئة البيع؟`,
+          title: 'تأكيد احتساب رصيد المخزن للوحدة الجديدة',
+          message: `الصنف مسجل حالياً بوحدة «${fromUnitName}» ورصيد (${currentStockUnits} ${fromUnitName}).\n\nبناءً على التجزئة الجديدة، كل 1 «${fromUnitName}» يحتوي على (${factor} ${newUnitName}).\n\nهل تريد تحويل الرصيد تلقائياً إلى أصغر وحدة «${newUnitName}» (${convertedStock} ${newUnitName}) لحماية رصيد المخزن الدقيق؟`,
           confirmText: `نعم، تحويل إلى (${convertedStock} ${newUnitName})`,
           cancelText: `لا، الإبقاء على (${currentStockUnits} ${newUnitName})`,
           variant: 'info',
@@ -556,17 +708,27 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
           didRebaseStock = true;
         }
       }
-      // 2. Collapsing back to larger unit (e.g. from برشامه to علبة):
-      else if (levels.length === 1 && currentUnits && currentUnits.length > 1) {
-        const oldTop = currentUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1);
-        const factor = oldTop ? oldTop.conversionFactor : 1;
-        if (factor > 1) {
+      // 2. Collapsing back to larger unit (e.g. from سيجارة to علبة, or from قرص to علبة):
+      else if (currentUnits && currentUnits.length > 1) {
+        // Find which unit in currentUnits corresponds to the new base unit
+        const matchingOldUnit = currentUnits.find(u => normalizeUnitName(u.unitName) === newBaseUnitNormalized);
+        const fallbackOldUnit = (displayUnitId ? currentUnits.find(u => u.id === displayUnitId) : null)
+          || (currentUnits.length > 1 ? currentUnits[currentUnits.length - 2] : null)
+          || currentUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1);
+
+        const collapseTargetUnit = matchingOldUnit || fallbackOldUnit;
+        const factor = collapseTargetUnit && collapseTargetUnit.conversionFactor > 1
+          ? collapseTargetUnit.conversionFactor
+          : 1;
+
+        if (factor > 1 && currentStockUnits > 0) {
           const convertedStock = Math.floor(currentStockUnits / factor);
+          const collapseTargetName = newUnitName || collapseTargetUnit?.unitName || 'عبوة';
           const confirmCollapse = await rafiqConfirm({
             title: 'تأكيد دمج رصيد المخزن للعبوة الأكبر',
-            message: `الصنف مسجل حالياً بوحدة «${oldUnitName}» وبرصيد (${currentStockUnits} ${oldUnitName}).\n\nهل تريد تحويل الرصيد للـ «${newUnitName}» (${convertedStock} ${newUnitName})؟`,
-            confirmText: `نعم، تحويل إلى (${convertedStock} ${newUnitName})`,
-            cancelText: `لا، الإبقاء على (${currentStockUnits})`,
+            message: `الصنف مسجل حالياً بوحدة «${oldUnitName}» وبرصيد (${currentStockUnits} ${oldUnitName}).\n\nبناءً على التراجع للعبوة الأكبر «${collapseTargetName}» (التي تحتوي على ${factor} ${oldUnitName})، هل تريد تحويل الرصيد ليكون (${convertedStock} ${collapseTargetName}) لحماية رصيد المخزن الدقيق؟`,
+            confirmText: `نعم، تحويل إلى (${convertedStock} ${collapseTargetName})`,
+            cancelText: `لا، الإبقاء على (${currentStockUnits} ${collapseTargetName})`,
             variant: 'info',
           });
 
@@ -592,36 +754,15 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
       sortOrder: idx,
     }));
 
-    // Selected Default Sale Unit by the Merchant:
-    const chosenSaleUnit = levels[defaultSaleUnitIndex] || levels[0];
+    // Selected Units for Display and Sale (by immutable ID):
+    const chosenDisplayUnit = levels.find(r => r.id === displayUnitId) || levels[levels.length - 1];
+    const chosenSaleUnit = levels.find(r => r.id === defaultSaleUnitId) || levels[0];
     const defPurchaseUnit = levels[0];
 
     setIsRebasing(true);
-    let updatedStockQuantityMilli = product?.stockQuantityMilli;
+    let updatedStockQuantityMilli: number | undefined = undefined;
 
-    // If product exists in database, immediately persist packaging levels directly to SQLite
-    if (product && product.id) {
-      try {
-        const updatedProd = await invoke<Product>('packaging:saveLevels', {
-          productId: product.id,
-          units: finalUnits,
-          defaultSaleUnitId: chosenSaleUnit ? chosenSaleUnit.id : null,
-          defaultPurchaseUnitId: defPurchaseUnit ? defPurchaseUnit.id : null,
-          displayUnitId: null,
-          isLooseSellable,
-          multiplyStockByFactor,
-        });
-        if (updatedProd && typeof updatedProd.stockQuantityMilli === 'number') {
-          updatedStockQuantityMilli = updatedProd.stockQuantityMilli;
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn('Direct packaging save warning:', msg);
-        setErrorMsg(msg);
-        setIsRebasing(false);
-        return;
-      }
-    } else if (didRebaseStock && multiplyStockByFactor && product) {
+    if (didRebaseStock && multiplyStockByFactor && product) {
       if (multiplyStockByFactor > 1) {
         updatedStockQuantityMilli = product.stockQuantityMilli * multiplyStockByFactor;
       } else if (multiplyStockByFactor < -1) {
@@ -635,7 +776,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
       units: finalUnits,
       defaultSaleUnitId: chosenSaleUnit ? chosenSaleUnit.id : null,
       defaultPurchaseUnitId: defPurchaseUnit ? defPurchaseUnit.id : null,
-      displayUnitId: null,
+      displayUnitId: chosenDisplayUnit ? chosenDisplayUnit.id : null,
       isLooseSellable,
       updatedStockQuantityMilli,
     });
@@ -646,9 +787,17 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
   if (!isOpen) return null;
 
   const currentBaseUnitNormalized = normalizeUnitName(product?.unit);
-  const topUnitRow = levels.length > 0 ? levels[0] : null;
   const baseUnitRow = levels.length > 0 ? levels[levels.length - 1] : null;
   const newBaseUnitNormalized = normalizeUnitName(baseUnitRow?.name);
+
+  const prevBaseRowForNotice = levels.find(l => normalizeUnitName(l.name) === currentBaseUnitNormalized);
+  const isInitialPackagingSetupForNotice = (!currentUnits || currentUnits.length <= 1) && levels.length > 1;
+  const targetDisplayLevelForNotice = displayUnitId ? levels.find(l => l.id === displayUnitId) : null;
+  const expansionNoticeRow = prevBaseRowForNotice || (
+    isInitialPackagingSetupForNotice
+      ? (targetDisplayLevelForNotice || (levels.length > 2 ? levels[levels.length - 2] : levels[0]))
+      : null
+  );
 
   // Show notice ONLY if base unit actually differs between DB and wizard
   const showStockNotice = Boolean(
@@ -659,9 +808,8 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     newBaseUnitNormalized &&
     currentBaseUnitNormalized !== newBaseUnitNormalized &&
     levels.length > 1 &&
-    topUnitRow &&
-    topUnitRow.conversionFactor > 1 &&
-    normalizeUnitName(topUnitRow.name) === currentBaseUnitNormalized
+    expansionNoticeRow &&
+    expansionNoticeRow.conversionFactor > 1
   );
 
   return createPortal(
@@ -713,7 +861,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                 <span>تنبيه ضبط رصيد المخزن تلقائياً:</span>
               </div>
               <p className="text-amber-700 dark:text-amber-300 m-0 leading-relaxed">
-                الصنف مسجل حالياً برصيد ({Math.round(product!.stockQuantityMilli / 1000)}). عند اعتماد التعبئة والتجزئة، سيسألك النظام لتحويل رصيده تلقائياً ليكون بأصغر وحدة «{baseUnitRow?.name || 'قرص'}» ({Math.round(product!.stockQuantityMilli / 1000) * (topUnitRow?.conversionFactor || 1)} {baseUnitRow?.name}) لتطابق الجرد الفعلي.
+                الصنف مسجل حالياً برصيد ({Math.round(product!.stockQuantityMilli / 1000)} {expansionNoticeRow?.name || 'عبوة'}). عند اعتماد التعبئة والتجزئة، سيسألك النظام لتحويل رصيده تلقائياً ليكون بأصغر وحدة «{baseUnitRow?.name || 'قرص'}» ({Math.round(product!.stockQuantityMilli / 1000) * (expansionNoticeRow?.conversionFactor || 1)} {baseUnitRow?.name}) لتطابق الجرد الفعلي.
               </p>
             </div>
           )}
@@ -806,22 +954,38 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
 
           {/* Packaging Units Table Section */}
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
                 <span className="text-xs font-bold text-ink dark:text-ink-dark">
                   مستويات التعبئة والأسعار:
                 </span>
+                <span className="text-micro font-semibold px-2 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
+                  {levels.length} من 4 مستويات
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={handleAddLevel}
-                disabled={levels.length >= 4}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-brand/30 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-2xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{terminology.packagingLevelPlaceholder}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddLargerLevel}
+                  disabled={levels.length >= 4}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand/30 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-2xs active:scale-95"
+                  title="إضافة عبوة أكبر للبيع بالجملة (مثل كرتونة أو باكت أو قاروصة - يتم ضرب السعر)"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ إضافة عبوة أكبر (أعلى)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddSmallerLevel}
+                  disabled={levels.length >= 4}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-paid/30 hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-paid dark:text-paid-bright text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-2xs active:scale-95"
+                  title="تجزئة العبوة لوحدة أصغر للبيع فرط (مثل بيع بالسيجارة، بالقرص، بالبيضة - يتم قسمة السعر)"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ إضافة وحدة تجزئة أصغر (أسفل)</span>
+                </button>
+              </div>
             </div>
 
             {/* Wide, fluid, comfortable table */}
@@ -829,13 +993,14 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
               <table className="w-full text-right text-xs table-fixed">
                 <thead>
                   <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
-                    <th className="py-2.5 px-3 w-[15%] whitespace-nowrap">المستوى والاسم <RequiredMark /></th>
-                    <th className="py-2.5 px-2 text-center w-[18%] whitespace-nowrap">المحتوى والتعبئة</th>
-                    <th className="py-2.5 px-2 text-center w-[7%] whitespace-nowrap">المعامل</th>
-                    <th className="py-2.5 px-2 w-[16%] whitespace-nowrap">سعر البيع <RequiredMark /></th>
-                    <th className="py-2.5 px-2 w-[13%] whitespace-nowrap">سعر التكلفة</th>
-                    <th className="py-2.5 px-2 w-[14%] whitespace-nowrap">الباركود</th>
-                    <th className="py-2.5 px-2 text-center w-[14%] whitespace-nowrap">افتراضية الكاشير</th>
+                    <th className="py-2.5 px-2.5 w-[14%] whitespace-nowrap">المستوى والاسم <RequiredMark /></th>
+                    <th className="py-2.5 px-2 text-center w-[17%] whitespace-nowrap">المحتوى والتعبئة</th>
+                    <th className="py-2.5 px-2 text-center w-[6%] whitespace-nowrap">المعامل</th>
+                    <th className="py-2.5 px-2 w-[14%] whitespace-nowrap">سعر البيع <RequiredMark /></th>
+                    <th className="py-2.5 px-2 w-[12%] whitespace-nowrap">سعر التكلفة</th>
+                    <th className="py-2.5 px-2 w-[12%] whitespace-nowrap">الباركود</th>
+                    <th className="py-2.5 px-2 text-center w-[12%] whitespace-nowrap">المعروضة بالخارج</th>
+                    <th className="py-2.5 px-2 text-center w-[10%] whitespace-nowrap">افتراضية الكاشير</th>
                     <th className="py-2.5 px-1 text-center w-[3%] whitespace-nowrap">حذف</th>
                   </tr>
                 </thead>
@@ -856,7 +1021,8 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                     const isBase = idx === levels.length - 1;
                     const nextUnit = !isBase ? levels[idx + 1] : null;
                     const isRowSelected = selectedRowIndex === idx;
-                    const isDefaultSale = defaultSaleUnitIndex === idx;
+                    const isDefaultSale = lvl.id === defaultSaleUnitId;
+                    const isDisplayUnit = lvl.id === displayUnitId;
 
                     return (
                       <tr
@@ -885,12 +1051,13 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                             <div className="inline-flex items-center justify-center gap-1.5 bg-surface-2 dark:bg-surface-dark-2 px-3 py-1 rounded-lg border border-line dark:border-line-dark whitespace-nowrap">
                               <span className="text-ink-muted dark:text-ink-dark-muted text-xs whitespace-nowrap">تحتوي على</span>
                               <input
-                                type="number"
-                                min="2"
-                                max="1000"
-                                value={lvl.ratioToNext}
+                                type="text"
+                                inputMode="numeric"
+                                value={lvl.ratioToNext === 0 || (lvl.ratioToNext as any) === '' ? '' : lvl.ratioToNext}
                                 onChange={(e) => handleRatioChange(idx, e.target.value)}
-                                className="w-12 h-7 px-1 text-center bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md font-mono font-bold text-xs focus:ring-1 focus:ring-brand focus:border-brand"
+                                onBlur={() => handleRatioBlur(idx)}
+                                placeholder="0"
+                                className="w-14 h-7 px-1 text-center bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md font-mono font-bold text-xs focus:ring-1 focus:ring-brand focus:border-brand"
                               />
                               <span className="text-ink dark:text-ink-dark font-bold text-xs truncate max-w-[100px] whitespace-nowrap">
                                 {nextUnit.name}
@@ -906,7 +1073,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                         {/* Factor */}
                         <td className="py-2.5 px-2 text-center">
                           <span className="inline-block px-2.5 py-0.5 rounded bg-brand-soft/60 dark:bg-brand-dark-soft font-mono font-bold text-brand dark:text-brand-bright text-xs whitespace-nowrap">
-                            {lvl.conversionFactor}×
+                            {lvl.conversionFactor > 0 ? `${lvl.conversionFactor}×` : '—'}
                           </span>
                         </td>
 
@@ -967,31 +1134,53 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                           </div>
                         </td>
 
-                        {/* Default Sale Unit Choice for Cashier */}
+                        {/* Display Unit Choice (الوحدة المعروضة بالخارج) */}
                         <td className="py-2.5 px-2 text-center">
-                          {isDefaultSale ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-paid-soft text-paid dark:bg-paid-dark-soft dark:text-paid-bright font-bold text-xs border border-paid/20 shadow-2xs select-none whitespace-nowrap">
+                          {isDisplayUnit ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-soft text-brand dark:bg-brand-dark-soft dark:text-brand-bright font-bold text-xs border border-brand/30 shadow-2xs select-none whitespace-nowrap">
                               <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                              <span className="whitespace-nowrap">الافتراضية للبيع</span>
+                              <span>المعروضة بالخارج</span>
                             </span>
                           ) : (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setDefaultSaleUnitIndex(idx);
+                                setDisplayUnitId(lvl.id);
                               }}
-                              className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright px-3 py-1 rounded-lg border border-line dark:border-line-dark hover:border-brand/40 bg-surface dark:bg-surface-dark cursor-pointer transition-colors shadow-2xs active:scale-95 whitespace-nowrap"
-                              title="جعل هذه العبوة هي التي تنزل في الفاتورة افتراضياً ويظهر سعرها على كارت الصنف"
+                              className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright px-2.5 py-1 rounded-lg border border-line dark:border-line-dark hover:border-brand/40 bg-surface dark:bg-surface-dark cursor-pointer transition-colors shadow-2xs active:scale-95 whitespace-nowrap"
+                              title="تحديد هذه الوحدة لتظهر في بطاقة الصنف بالخارج وفي الكتالوج"
                             >
-                              <span className="whitespace-nowrap">تعيين كافتراضية</span>
+                              <span>عرض بالخارج</span>
+                            </button>
+                          )}
+                        </td>
+
+                        {/* Default Sale Unit Choice for Cashier */}
+                        <td className="py-2.5 px-2 text-center">
+                          {isDefaultSale ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-paid-soft text-paid dark:bg-paid-dark-soft dark:text-paid-bright font-bold text-xs border border-paid/20 shadow-2xs select-none whitespace-nowrap">
+                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>الافتراضية للبيع</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDefaultSaleUnitId(lvl.id);
+                              }}
+                              className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-paid-bright px-2.5 py-1 rounded-lg border border-line dark:border-line-dark hover:border-paid/40 bg-surface dark:bg-surface-dark cursor-pointer transition-colors shadow-2xs active:scale-95 whitespace-nowrap"
+                              title="تعيين هذه العبوة لتنزل في الفاتورة افتراضياً عند ضرب الباركود"
+                            >
+                              <span>تعيين كافتراضية</span>
                             </button>
                           )}
                         </td>
 
                         {/* Delete Row */}
                         <td className="py-2.5 px-1 text-center">
-                          {!isBase && levels.length > 2 && (
+                          {levels.length > 1 && (
                             <button
                               type="button"
                               onClick={(e) => {

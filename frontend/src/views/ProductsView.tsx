@@ -238,6 +238,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [isLooseSellable, setIsLooseSellable] = useState<boolean>(false);
   const [defaultSaleUnitId, setDefaultSaleUnitId] = useState<string | null>(null);
   const [defaultPurchaseUnitId, setDefaultPurchaseUnitId] = useState<string | null>(null);
+  const [displayUnitId, setDisplayUnitId] = useState<string | null>(null);
 
   // Storage Locations & Cold Chain State (Feature #185 / Story 128)
   const [locationId, setLocationId] = useState<string>('');
@@ -665,6 +666,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setIsLooseSellable(false);
     setDefaultSaleUnitId(null);
     setDefaultPurchaseUnitId(null);
+    setDisplayUnitId(null);
     setLocationId('');
     setIsColdChain(false);
     setPharmaInfo(initialPharmaInfo);
@@ -698,6 +700,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setIsLooseSellable(prod.isLooseSellable ?? false);
     setDefaultSaleUnitId(prod.defaultSaleUnitId ?? null);
     setDefaultPurchaseUnitId(prod.defaultPurchaseUnitId ?? null);
+    setDisplayUnitId(prod.displayUnitId ?? null);
     setLocationId(prod.locationId || '');
     setIsColdChain(Boolean(prod.isColdChain));
     setPharmaInfo(initialPharmaInfo);
@@ -760,7 +763,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setStockAdjustReason('');
     const msKg = ((prod.minStockQuantityMilli ?? 5000) / 1000).toFixed(3).replace(/\.?0+$/, '');
     setMinStockInput(msKg || '5');
-    setTaxRatePercent(prod.taxRatePercent || 0);
+    setTaxRatePercent(isEnabled('feature_taxes') ? (prod.taxRatePercent || 0) : 0);
     setFormError('');
     setSimilarWarning(null);
     setBelowCostWarning(null);
@@ -985,40 +988,61 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       const primaryBarcode = cleanPrimary || (extraBarcodes.length > 0 ? extraBarcodes[0] : null);
       const remainingExtra = primaryBarcode ? extraBarcodes.filter(b => b !== primaryBarcode) : extraBarcodes;
 
+      const targetDisplayId = displayUnitId || defaultSaleUnitId;
+      const hasMultipleUnits = productUnits && productUnits.length > 1;
+      const synchronizedUnits = productUnits.map(u => {
+        const isTarget = hasMultipleUnits
+          ? (targetDisplayId ? u.id === targetDisplayId : u.isBaseUnit)
+          : u.isBaseUnit;
+        if (isTarget) {
+          return {
+            ...u,
+            sellPricePiasters: pricePiasters,
+            costPricePiasters: costPiasters,
+            barcode: primaryBarcode || u.barcode || '',
+            unitName: u.unitName.trim() || (unit === 'kg' ? 'كيلو' : 'قطعة'),
+            isDivisible: unit === 'kg' || u.isDivisible
+          };
+        } else {
+          // If another unit in the product had the same barcode as primaryBarcode, clear it to prevent duplicate error
+          const cleanBarcode = (primaryBarcode && u.barcode && u.barcode.trim() === primaryBarcode.trim())
+            ? ''
+            : (u.barcode || '');
+          return {
+            ...u,
+            barcode: cleanBarcode
+          };
+        }
+      });
+
+      const baseUnit = synchronizedUnits.find(u => u.isBaseUnit) || synchronizedUnits[synchronizedUnits.length - 1];
+      const effectiveBaseUnit = (baseUnit && baseUnit.unitName && baseUnit.unitName.trim())
+        ? baseUnit.unitName.trim()
+        : (unit === 'kg' ? 'kg' : 'piece');
+
       const parsedStock = parseFloat(normalizeArabicNumerals(stockInput)) || 0;
       const stockQuantityMilli = Math.round(parsedStock * 1000);
+      const isBaseUnitChange = Boolean(
+        editingId && editingProduct && editingProduct.unit && effectiveBaseUnit &&
+        editingProduct.unit.trim().toLowerCase() !== effectiveBaseUnit.trim().toLowerCase()
+      );
       // A stock change on an existing product is a stock adjustment: permission + documented reason (enforced by the server too)
-      const isStockAdjustment = Boolean(editingId && editingProduct && stockQuantityMilli !== editingProduct.stockQuantityMilli);
+      const isStockAdjustment = Boolean(
+        editingId && editingProduct && (isBaseUnitChange || stockQuantityMilli !== editingProduct.stockQuantityMilli)
+      );
       if (isStockAdjustment && !hasPermission('stock.adjust')) {
         setFormError('ليس لديك صلاحية تسوية المخزون؛ لا يمكن تغيير الرصيد من بطاقة الصنف. أعد الرصيد كما كان أو اطلب من المدير.');
         return;
       }
-      if (isStockAdjustment && !stockAdjustReason.trim()) {
+      const effectiveStockAdjustReason = stockAdjustReason.trim() || (
+        isBaseUnitChange ? `تعديل الرصيد لتغيير وحدة الأساس إلى ${effectiveBaseUnit}` : ''
+      );
+      if (isStockAdjustment && !effectiveStockAdjustReason) {
         setFormError('اكتب سبب تعديل الرصيد (مثل: جرد فعلي، تالف، فاقد) قبل الحفظ.');
         return;
       }
       const parsedMinStock = parseFloat(normalizeArabicNumerals(minStockInput)) || 0;
       const minStockQuantityMilli = Math.round(parsedMinStock * 1000);
-
-      const synchronizedUnits = productUnits.map(u => {
-        if (u.isBaseUnit) {
-          const keepExistingPrice = productUnits.length > 1 && u.sellPricePiasters > 0;
-          return {
-            ...u,
-            sellPricePiasters: keepExistingPrice ? u.sellPricePiasters : pricePiasters,
-            costPricePiasters: keepExistingPrice ? u.costPricePiasters : costPiasters,
-            barcode: primaryBarcode,
-            unitName: u.unitName.trim() || (unit === 'kg' ? 'كيلو' : 'قطعة'),
-            isDivisible: unit === 'kg' || u.isDivisible
-          };
-        }
-        return u;
-      });
-
-      const baseUnitObj = synchronizedUnits.find(u => u.isBaseUnit);
-      const effectiveProductUnit = (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
-        ? baseUnitObj.unitName.trim()
-        : (unit === 'kg' ? 'kg' : 'piece');
 
       const productPayload: Partial<Product> & { confirmSimilarName?: boolean; confirmBelowCost?: boolean } = {
         name: name.trim(),
@@ -1026,22 +1050,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         barcodes: remainingExtra,
         categoryId: categoryId || 'cat_general',
         internalCode: internalCode.trim(),
-        taxCategoryCode: taxCategoryCode.trim(),
+        taxCategoryCode: isEnabled('feature_taxes') ? taxCategoryCode.trim() : '',
         pricePiasters,
         costPiasters,
         stockQuantityMilli,
         originalStockQuantityMilli: editingId && editingProduct ? editingProduct.stockQuantityMilli : undefined,
-        stockAdjustReason: isStockAdjustment ? stockAdjustReason.trim() : undefined,
+        stockAdjustReason: isStockAdjustment ? effectiveStockAdjustReason : undefined,
         minStockQuantityMilli,
-        unit: effectiveProductUnit as any,
+        unit: effectiveBaseUnit as any,
         units: synchronizedUnits,
-        taxRatePercent,
+        taxRatePercent: isEnabled('feature_taxes') ? taxRatePercent : 0,
         isActive: true,
         variantSize: variantSize.trim() || undefined,
         variantColor: variantColor.trim() || undefined,
         isLooseSellable,
         defaultSaleUnitId: defaultSaleUnitId || null,
         defaultPurchaseUnitId: defaultPurchaseUnitId || null,
+        displayUnitId: displayUnitId || null,
         locationId: locationId || null,
         isColdChain: Boolean(isColdChain),
         confirmSimilarName: forceConfirmSimilar,
@@ -1773,6 +1798,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         setDefaultSaleUnitId={setDefaultSaleUnitId}
         defaultPurchaseUnitId={defaultPurchaseUnitId}
         setDefaultPurchaseUnitId={setDefaultPurchaseUnitId}
+        displayUnitId={displayUnitId}
+        setDisplayUnitId={setDisplayUnitId}
         editingProduct={editingProduct}
         initialExpiryDate={initialExpiryDate}
         setInitialExpiryDate={setInitialExpiryDate}

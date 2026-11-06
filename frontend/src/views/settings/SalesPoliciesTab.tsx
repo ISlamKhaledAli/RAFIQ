@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { Save, Package, Clock, Wallet, ShieldAlert, CheckCircle } from 'lucide-react';
+import { Save, Package, Clock, Wallet, ShieldAlert, CheckCircle, BadgePercent, ReceiptText, ExternalLink } from 'lucide-react';
 import { useFeatures } from '../../context/useFeatures';
 import { invoke } from '../../bridge/ipc';
 import { rafiqAlert } from '../../utils/dialogService';
@@ -23,6 +23,12 @@ interface SalesPoliciesTabProps {
   saveLoading: boolean;
   saved: boolean;
   onSave: (e: FormEvent) => void;
+  vatEnabled?: boolean;
+  onToggleVat?: (val: boolean) => void;
+  taxNumber?: string;
+  onChangeTaxNumber?: (val: string) => void;
+  onBlurTaxNumber?: (val: string) => void;
+  onOpenStoreProfile?: () => void;
 }
 
 const MANDATORY_FIELD_ROWS: { key: keyof ControlledMandatoryFields; title: string; subject: string }[] = [
@@ -46,6 +52,12 @@ export const SalesPoliciesTab = ({
   saveLoading,
   saved,
   onSave,
+  vatEnabled,
+  onToggleVat,
+  taxNumber = '',
+  onChangeTaxNumber,
+  onBlurTaxNumber,
+  onOpenStoreProfile,
 }: SalesPoliciesTabProps) => {
   const { isEnabled } = useFeatures();
   // Only pharmacies that dispense controlled drugs ever use these rules
@@ -112,6 +124,59 @@ export const SalesPoliciesTab = ({
               onChange={onToggleRequireOpenShift}
               warning={requireOpenShiftToSell ? null : 'المبيعات دون وردية يصعب ربطها بعهدة كاشير محدد، ويصعب مراجعة فروق الدرج وقت التقفيل.'}
             />
+            {onToggleVat && (
+              <div className="flex flex-col">
+                <ToggleRow
+                  icon={BadgePercent}
+                  title="تفعيل ضريبة القيمة المضافة (VAT)"
+                  description="مفعّل: استخراج وحساب نسبة الضريبة من مبيعات الأصناف الخاضعة وإظهارها في الفواتير والتقارير المالية. متوقف: للمتاجر غير المسجلة ضريبياً لإخفاء أي بنود أو حسابات للضريبة."
+                  checked={Boolean(vatEnabled)}
+                  onChange={onToggleVat}
+                  warning={
+                    vatEnabled && !taxNumber.trim()
+                      ? 'يرجى إدخال الرقم الضريبي للمحل في الخانة بالأسفل ليتم اعتماده وطباعته على الفواتير والإيصالات.'
+                      : null
+                  }
+                />
+                {vatEnabled && (
+                  <div className="mt-2 mb-3 p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark">
+                        <ReceiptText className="w-4 h-4 text-paid dark:text-paid-bright" />
+                        <span>الرقم الضريبي للمنشأة (المطبوع على الفاتورة)</span>
+                      </div>
+                      {onOpenStoreProfile && (
+                        <button
+                          type="button"
+                          onClick={onOpenStoreProfile}
+                          className="text-xs font-semibold text-paid dark:text-paid-bright hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>فتح بيانات المحل بالكامل</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="w-full sm:w-72">
+                        <input
+                          type="text"
+                          value={taxNumber}
+                          onChange={(e) => onChangeTaxNumber?.(e.target.value)}
+                          onBlur={(e) => onBlurTaxNumber?.(e.target.value)}
+                          placeholder="مثال: 934-210-884"
+                          dir="ltr"
+                          className={`${FIELD_INPUT_CLASS} text-right font-mono tabular-nums`}
+                        />
+                      </div>
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                        يُطبع هذا الرقم أعلى الإيصال مع اسم المحل وفق تعليمات الضرائب.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </SettingsCard>
 

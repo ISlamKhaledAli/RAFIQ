@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useAuth } from '../context/useAuth';
+import { useFeatures } from '../context/useFeatures';
 import { DRAWER_PULSE_DEFAULT_MS, normalizeDrawerPulse } from '../utils/drawerPulse';
 import { getAllowedSettingsSubTabs, resolveSettingsSubTab } from '../utils/settingsAccess';
 import { BackupManager } from '../components/BackupManager';
@@ -52,7 +53,9 @@ export const SettingsView = ({
   const [developerSignatureImage, setDeveloperSignatureImage] = useState('');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [requireOpenShiftToSell, setRequireOpenShiftToSell] = useState(true);
+  const [vatEnabled, setVatEnabled] = useState(false);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
+  const { toggleFlag } = useFeatures();
 
   // Which screen just saved (drives the "saved" confirmation on that screen only)
   const [savedTab, setSavedTab] = useState<SettingsSubTab | null>(null);
@@ -156,6 +159,11 @@ export const SettingsView = ({
           if (settings.require_open_shift_to_sell !== undefined) {
             setRequireOpenShiftToSell(settings.require_open_shift_to_sell === '1' || settings.require_open_shift_to_sell.toLowerCase() === 'true');
           }
+          if (settings.feature_taxes !== undefined) {
+            setVatEnabled(settings.feature_taxes === '1' || settings.feature_taxes.toLowerCase() === 'true');
+          } else if (settings.tax_enabled !== undefined) {
+            setVatEnabled(settings.tax_enabled === '1' || settings.tax_enabled.toLowerCase() === 'true');
+          }
           if (settings.default_customer_credit_limit_egp) {
             const lim = Number(settings.default_customer_credit_limit_egp);
             if (!isNaN(lim) && lim >= 0) {
@@ -236,6 +244,8 @@ export const SettingsView = ({
         allow_negative_stock: allowNegativeStock ? '1' : '0',
         require_open_shift_to_sell: requireOpenShiftToSell ? '1' : '0',
         default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
+        feature_taxes: vatEnabled ? '1' : '0',
+        tax_enabled: vatEnabled ? '1' : '0',
       });
       setSavedCreditLimitEgp(defaultCustomerCreditLimitEgp);
       setSavedTab('policies');
@@ -296,6 +306,26 @@ export const SettingsView = ({
     await autoSaveSetting({ require_open_shift_to_sell: newVal ? '1' : '0' }, () => setRequireOpenShiftToSell(!newVal), 'إلزام فتح وردية قبل البيع');
   };
 
+  const handleToggleVat = async (newVal: boolean) => {
+    setVatEnabled(newVal);
+    await autoSaveSetting(
+      { feature_taxes: newVal ? '1' : '0', tax_enabled: newVal ? '1' : '0' },
+      () => setVatEnabled(!newVal),
+      'تفعيل ضريبة القيمة المضافة'
+    );
+    try {
+      if (toggleFlag) {
+        await toggleFlag('feature_taxes', newVal);
+      }
+    } catch (err: unknown) {
+      console.warn('Could not sync feature flag state directly:', err);
+    }
+  };
+
+  const handleBlurTaxNumber = async (val: string) => {
+    await autoSaveSetting({ tax_number: val.trim() }, () => {}, 'الرقم الضريبي للمحل');
+  };
+
   const handleToggleAutoPrint = async (newVal: boolean) => {
     setAutoPrintOnSale(newVal);
     localStorage.setItem('rafiq_pos_printer_auto_print', newVal ? '1' : '0');
@@ -351,7 +381,7 @@ export const SettingsView = ({
     },
     policies: {
       title: 'سياسات البيع والمخزون',
-      subtitle: 'البيع بالسالب، إلزام الوردية، حد الدين للزبائن الجدد، وبيانات صرف أدوية الجدول للصيدليات',
+      subtitle: 'البيع بالسالب، إلزام الوردية، ضريبة القيمة المضافة (VAT)، وحد الدين للزبائن الجدد',
       icon: ClipboardList,
     },
     backup: {
@@ -469,6 +499,12 @@ export const SettingsView = ({
           defaultCustomerCreditLimitEgp={defaultCustomerCreditLimitEgp}
           setDefaultCustomerCreditLimitEgp={setDefaultCustomerCreditLimitEgp}
           creditLimitDirty={defaultCustomerCreditLimitEgp !== savedCreditLimitEgp}
+          vatEnabled={vatEnabled}
+          onToggleVat={handleToggleVat}
+          taxNumber={taxNumber}
+          onChangeTaxNumber={setTaxNumber}
+          onBlurTaxNumber={handleBlurTaxNumber}
+          onOpenStoreProfile={onSubTabChange && allowedSubTabs.includes('profile') ? () => onSubTabChange('profile') : undefined}
           saveLoading={saveLoading}
           saved={savedTab === 'policies'}
           onSave={(e) => void handleSavePolicies(e)}

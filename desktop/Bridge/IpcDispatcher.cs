@@ -274,7 +274,8 @@ namespace RafiqPOS.Bridge
             { "shifts:getActive", new string[] { "shifts.open" } },
             { "shifts:getSummary", new string[] { "shifts.open" } },
             { "drawer:getMovements", new string[] { "shifts.open" } },
-            { "drawer:getBalance", new string[] { "shifts.open" } }
+            { "drawer:getBalance", new string[] { "shifts.open" } },
+            { "features:set", new string[] { "settings.store", "settings.features" } }
         };
 
         // Sensitive actions -> required permission key (server-side RBAC, Audit F-01).

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Boxes, 
   Sparkles, 
@@ -8,7 +8,6 @@ import {
 import type { Product, ProductUnit } from '../types/models';
 import { PackagingWizardModal } from './PackagingWizardModal';
 import { rafiqConfirm } from '../utils/dialogService';
-import { invoke } from '../bridge/ipc';
 import { getStoreTerminology } from '../utils/storeTerminology';
 import { useFeatures } from '../context/useFeatures';
 
@@ -23,6 +22,7 @@ export interface ProductUnitsEditorProps {
   product?: Product | null;
   isLooseSellable?: boolean;
   defaultSaleUnitId?: string | null;
+  displayUnitId?: string | null;
   storeType?: string;
   onPackagingConfigChange?: (config: {
     units: ProductUnit[];
@@ -45,6 +45,7 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
   product = null,
   isLooseSellable,
   defaultSaleUnitId,
+  displayUnitId,
   storeType,
   onPackagingConfigChange,
 }) => {
@@ -54,20 +55,6 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
   const effectiveStoreType = storeType || (isEnabled('feature_pharmacy') ? 'pharmacy' : isEnabled('feature_matrix_variants') ? 'clothing_apparel' : '');
   const terminology = getStoreTerminology(effectiveStoreType);
-
-  // Auto-fetch packaging levels from SQLite if product has an ID and units not fully loaded
-  useEffect(() => {
-    if (product && product.id && (!units || units.length <= 1)) {
-      void invoke<ProductUnit[]>('productUnits:getByProduct', { productId: product.id })
-        .then((dbUnits) => {
-          if (dbUnits && dbUnits.length > 1) {
-            onChange(dbUnits);
-          }
-        })
-        .catch(() => {});
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product?.id]);
 
   // Safe normalization of incoming units - strictly preserves user's defined unit names
   const rawList = Array.isArray(units) ? units : [];
@@ -79,15 +66,14 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
   const currentUnits: ProductUnit[] = existingBase
     ? rawList.map(u => {
         if (!u || !u.isBaseUnit) return u;
-        // Do NOT overwrite calculated base price if multiple packaging levels already exist
-        const keepCalculatedPrice = rawList.length > 1 && u.sellPricePiasters > 0;
+        const isSingleUnit = rawList.length <= 1;
         return {
           ...u,
           unitName: (u.unitName && u.unitName.trim()) ? u.unitName.trim() : effectiveBaseUnitName,
           conversionFactor: 1,
-          sellPricePiasters: keepCalculatedPrice ? u.sellPricePiasters : (basePricePiasters || 0),
-          costPricePiasters: keepCalculatedPrice ? u.costPricePiasters : (baseCostPiasters || 0),
-          barcode: primaryBarcode || u.barcode || '',
+          sellPricePiasters: (isSingleUnit && basePricePiasters > 0) ? basePricePiasters : (u.sellPricePiasters > 0 ? u.sellPricePiasters : basePricePiasters || 0),
+          costPricePiasters: (isSingleUnit && baseCostPiasters > 0) ? baseCostPiasters : (u.costPricePiasters > 0 ? u.costPricePiasters : baseCostPiasters || 0),
+          barcode: isSingleUnit ? (primaryBarcode || u.barcode || '') : (u.barcode || ''),
           isDivisible: !!isWeightItem
         };
       })
@@ -117,75 +103,64 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
       return;
     }
 
-    const topPackUnit = currentUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1) || currentUnits[0];
+    const displayUnit = displayUnitId ? currentUnits.find(u => u.id === displayUnitId) : null;
+    const retailPackUnit = displayUnit
+      || (currentUnits.length > 1 ? currentUnits[currentUnits.length - 2] : null)
+      || currentUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1)
+      || currentUnits[0];
     const baseUnit = currentUnits.find(u => u.isBaseUnit) || currentUnits[currentUnits.length - 1];
 
     let chosenSingleUnit: ProductUnit;
-    let adjustmentFactor: number | null = null;
     let updatedStockMilli: number | undefined = undefined;
 
-    if (topPackUnit && baseUnit && topPackUnit.conversionFactor > 1 && topPackUnit.unitName !== baseUnit.unitName) {
+    const isRebased = Boolean(retailPackUnit && baseUnit && retailPackUnit.conversionFactor > 1 && retailPackUnit.unitName !== baseUnit.unitName);
+
+    if (isRebased) {
       const currentStockUnits = Math.round((product?.stockQuantityMilli || 0) / 1000);
-      const convertedToBoxes = Math.floor(currentStockUnits / topPackUnit.conversionFactor);
+      const convertedToBoxes = Math.floor(currentStockUnits / retailPackUnit.conversionFactor);
 
       const returnToBox = await rafiqConfirm({
         title: 'إلغاء منظومة التعبئة وتحديد الوحدة الرئيسية',
-        message: `الصنف مسجل حالياً بوحدتي «${topPackUnit.unitName}» و «${baseUnit.unitName}».\n\nهل تريد الرجوع للبيع بالـ «${topPackUnit.unitName}» فقط بسعر (${(topPackUnit.sellPricePiasters / 100).toFixed(2)} ج.م) وتحويل الرصيد ليكون (${convertedToBoxes} ${topPackUnit.unitName})؟`,
-        confirmText: `نعم، الرجوع للـ «${topPackUnit.unitName}» (${convertedToBoxes} ${topPackUnit.unitName})`,
-        cancelText: `لا، الإبقاء على الـ «${baseUnit.unitName}» (${currentStockUnits} ${baseUnit.unitName})`,
+        message: `الصنف مسجل حالياً بوحدات تعبئة وتجزئة.\n\nهل تريد الرجوع للبيع بالـ «${retailPackUnit.unitName}» فقط بسعر (${(retailPackUnit.sellPricePiasters / 100).toFixed(2)} ج.م) وتحويل الرصيد ليكون (${convertedToBoxes} ${retailPackUnit.unitName})؟`,
+        confirmText: `نعم، الرجوع للـ «${retailPackUnit.unitName}» (${convertedToBoxes} ${retailPackUnit.unitName})`,
+        cancelText: `تراجع وإلغاء العملية`,
         variant: 'warning',
       });
 
-      if (returnToBox) {
-        chosenSingleUnit = {
-          ...topPackUnit,
-          conversionFactor: 1,
-          isBaseUnit: true,
-          sortOrder: 0,
-        };
-        adjustmentFactor = -topPackUnit.conversionFactor;
-        if (product && product.stockQuantityMilli > 0) {
-          updatedStockMilli = convertedToBoxes * 1000;
-        }
-      } else {
-        chosenSingleUnit = {
-          ...baseUnit,
-          conversionFactor: 1,
-          isBaseUnit: true,
-          sortOrder: 0,
-        };
+      if (!returnToBox) {
+        return; // User canceled or dismissed; do NOT execute anything!
+      }
+
+      chosenSingleUnit = {
+        ...retailPackUnit,
+        conversionFactor: 1,
+        isBaseUnit: true,
+        sortOrder: 0,
+      };
+      if (product && product.stockQuantityMilli > 0) {
+        updatedStockMilli = convertedToBoxes * 1000;
       }
     } else {
       const confirmed = await rafiqConfirm({
-        title: 'إلغاء منظومة التعبئة',
-        message: `هل تريد حقاً إلغاء جميع العبوات المجمعة والرجوع للبيع بـ (${effectiveBaseUnitName}) فقط؟`,
-        confirmText: 'نعم، إلغاء العبوات',
+        title: 'إلغاء العبوات الإضافية',
+        message: `هل تريد حقاً إلغاء جميع العبوات الإضافية والرجوع للبيع بوحدة (${effectiveBaseUnitName}) فقط بسعر (${((basePricePiasters || baseUnit.sellPricePiasters) / 100).toFixed(2)} ج.م)؟`,
+        confirmText: 'نعم، إلغاء العبوات الإضافية',
         cancelText: 'تراجع',
         variant: 'warning',
       });
       if (!confirmed) return;
-      chosenSingleUnit = baseUnit || currentUnits[0];
+
+      chosenSingleUnit = {
+        ...(baseUnit || currentUnits[0]),
+        conversionFactor: 1,
+        isBaseUnit: true,
+        sortOrder: 0,
+        sellPricePiasters: basePricePiasters > 0 ? basePricePiasters : (baseUnit ? baseUnit.sellPricePiasters : 0),
+        costPricePiasters: baseCostPiasters > 0 ? baseCostPiasters : (baseUnit ? baseUnit.costPricePiasters : 0),
+      };
     }
 
     const finalSingleUnits = [chosenSingleUnit];
-
-    if (product && product.id) {
-      try {
-        await invoke('packaging:saveLevels', {
-          productId: product.id,
-          units: finalSingleUnits,
-          defaultSaleUnitId: chosenSingleUnit.id,
-          defaultPurchaseUnitId: chosenSingleUnit.id,
-          displayUnitId: null,
-          isLooseSellable: false,
-          multiplyStockByFactor: adjustmentFactor,
-        });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setErrorMsg(msg);
-        return;
-      }
-    }
 
     onChange(finalSingleUnits);
     onPackagingConfigChange?.({
@@ -265,6 +240,7 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
           currentUnits={currentUnits}
           initialIsLooseSellable={isLooseSellable}
           initialDefaultSaleUnitId={defaultSaleUnitId}
+          initialDisplayUnitId={displayUnitId || product?.displayUnitId}
           storeType={effectiveStoreType}
           onApply={(config) => {
             onChange(config.units);

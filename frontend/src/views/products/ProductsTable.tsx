@@ -236,6 +236,12 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                 const isSelected = selectedProductIds.includes(prod.id);
 
+                const displayUnit = (prod.displayUnitId ? (prod.units || []).find((u) => u.id === prod.displayUnitId) : null)
+                  || (prod.defaultSaleUnitId ? (prod.units || []).find((u) => u.id === prod.defaultSaleUnitId) : null);
+                const effectivePrice = displayUnit && displayUnit.sellPricePiasters > 0 ? displayUnit.sellPricePiasters : prod.pricePiasters;
+                const effectiveCost = displayUnit && displayUnit.costPricePiasters > 0 ? displayUnit.costPricePiasters : prod.costPiasters;
+                const displayUnitLabel = displayUnit ? displayUnit.unitName : (!isKg ? (prod.unit || 'قطعة') : null);
+
                 const isCompound = (isEnabled('feature_loose_selling') || isEnabled('feature_multi_units')) && ((prod.isLooseSellable && isEnabled('feature_loose_selling')) || (prod.units && prod.units.length > 1 && isEnabled('feature_multi_units'))) && !isKg;
                 const compoundStock = isCompound ? formatCompoundStock(prod.stockQuantityMilli, prod.units, prod.unit || 'قطعة') : null;
                 const openPackage = isCompound && hasOpenPackage(prod.stockQuantityMilli, prod.units);
@@ -379,11 +385,15 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     <td className="w-36 px-3 text-right font-mono tabular-nums whitespace-nowrap">
                       <div className="flex items-center gap-1.5 justify-start">
                         <span className="font-black text-paid dark:text-paid-bright text-xs">
-                          {formatArabicCurrency(prod.pricePiasters)}
+                          {formatArabicCurrency(effectivePrice)}
                         </span>
-                        {isKg && <span className="text-micro text-paid/80 dark:text-paid-bright font-normal">/كجم</span>}
-                        {prod.costPiasters > 0 &&
-                          (prod.pricePiasters < prod.costPiasters ? (
+                        {isKg ? (
+                          <span className="text-micro text-paid/80 dark:text-paid-bright font-normal">/كجم</span>
+                        ) : displayUnitLabel ? (
+                          <span className="text-micro text-paid/70 dark:text-paid-bright/70 font-normal">/{displayUnitLabel}</span>
+                        ) : null}
+                        {effectiveCost > 0 &&
+                          (effectivePrice < effectiveCost ? (
                             <span
                               className="text-micro px-1.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 font-bold shrink-0"
                               title="سعر البيع أقل من التكلفة (خسارة)"
@@ -395,7 +405,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                               className="text-micro px-1.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border font-bold shrink-0"
                               title="نسبة الربح من التكلفة"
                             >
-                              +{(((prod.pricePiasters - prod.costPiasters) / prod.costPiasters) * 100).toFixed(0)}%
+                              +{(((effectivePrice - effectiveCost) / effectiveCost) * 100).toFixed(0)}%
                             </span>
                           ))}
                       </div>
@@ -403,7 +413,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                     {/* 5. Cost */}
                     <td className="w-28 px-3 text-right font-mono text-ink-muted dark:text-ink-dark-muted tabular-nums text-xs whitespace-nowrap">
-                      {formatArabicCurrency(prod.costPiasters)}
+                      {formatArabicCurrency(effectiveCost)}
                     </td>
 
                     {/* 6. Stock / Min Stock */}

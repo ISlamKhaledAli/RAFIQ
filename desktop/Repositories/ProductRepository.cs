@@ -1124,37 +1124,65 @@ namespace RafiqPOS.Repositories
                                     }
                                 }
 
-                                // Units sent without a known id (e.g. the screen's placeholder base unit, or a unit removed and
-                                // re-added) are the existing row with the same name: UNIQUE(product_id, unit_name)
+                                // Ensure every unit has a distinct, valid ID and does not overwrite other units
+                                var assignedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                                // Pass 1: Retain valid existing IDs that already belong to this product
                                 foreach (var u in product.Units)
                                 {
-                                    string unitName = u.UnitName != null ? u.UnitName.Trim() : "قطعة";
-                                    bool knownId = false;
                                     if (!string.IsNullOrWhiteSpace(u.Id))
                                     {
                                         using (var idCmd = new SQLiteCommand("SELECT COUNT(*) FROM product_units WHERE id = @id AND product_id = @pid;", conn, trans))
                                         {
                                             idCmd.Parameters.AddWithValue("@id", u.Id);
                                             idCmd.Parameters.AddWithValue("@pid", product.Id);
-                                            knownId = Convert.ToInt64(idCmd.ExecuteScalar()) > 0;
+                                            long count = Convert.ToInt64(idCmd.ExecuteScalar());
+                                            if (count > 0 && assignedIds.Add(u.Id))
+                                            {
+                                                // ID is valid in DB and unique in this set
+                                                continue;
+                                            }
                                         }
                                     }
-                                    if (!knownId)
+                                    u.Id = null; // Needs lookup or fresh ID
+                                }
+
+                                // Pass 2: Match unassigned units ONLY by exact unit_name against existing rows
+                                foreach (var u in product.Units)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(u.Id)) continue;
+
+                                    string unitName = u.UnitName != null ? u.UnitName.Trim() : "قطعة";
+                                    string matchedId = null;
+
+                                    using (var nameCmd = new SQLiteCommand(@"
+                                        SELECT id FROM product_units
+                                        WHERE product_id = @pid AND unit_name = @name
+                                        LIMIT 1;", conn, trans))
                                     {
-                                        // Same name first; a base unit without a known id is the product's existing base unit
-                                        using (var nameCmd = new SQLiteCommand(@"
-                                            SELECT id FROM product_units
-                                            WHERE product_id = @pid AND (unit_name = @name OR (@isBase = 1 AND is_base_unit = 1))
-                                            ORDER BY CASE WHEN unit_name = @name THEN 0 ELSE 1 END
-                                            LIMIT 1;", conn, trans))
+                                        nameCmd.Parameters.AddWithValue("@pid", product.Id);
+                                        nameCmd.Parameters.AddWithValue("@name", unitName);
+                                        object res = nameCmd.ExecuteScalar();
+                                        if (res != null && res != DBNull.Value)
                                         {
-                                            nameCmd.Parameters.AddWithValue("@pid", product.Id);
-                                            nameCmd.Parameters.AddWithValue("@name", unitName);
-                                            nameCmd.Parameters.AddWithValue("@isBase", u.IsBaseUnit ? 1 : 0);
-                                            object existingId = nameCmd.ExecuteScalar();
-                                            // An unknown id must never upsert over another product's unit row
-                                            u.Id = existingId != null && existingId != DBNull.Value ? existingId.ToString() : Guid.NewGuid().ToString("N");
+                                            string cand = res.ToString();
+                                            if (!assignedIds.Contains(cand))
+                                            {
+                                                matchedId = cand;
+                                            }
                                         }
+                                    }
+
+                                    if (!string.IsNullOrWhiteSpace(matchedId))
+                                    {
+                                        u.Id = matchedId;
+                                        assignedIds.Add(matchedId);
+                                    }
+                                    else
+                                    {
+                                        string freshId = "punit_" + Guid.NewGuid().ToString("N");
+                                        u.Id = freshId;
+                                        assignedIds.Add(freshId);
                                     }
                                 }
 
@@ -1243,7 +1271,7 @@ namespace RafiqPOS.Repositories
                                             if (r.Read())
                                             {
                                                 int existingFactor = Convert.ToInt32(r["conversion_factor"]);
-                                                int targetFactor = u.IsBaseUnit ? 1 : (u.ConversionFactor <= 0 ? 1 : u.ConversionFactor);
+                                                int targetFactor = u.IsBaseUnit ? 1 : (u.ConversionFactor >= 2 ? u.ConversionFactor : 2);
                                                 if (existingFactor != targetFactor)
                                                 {
                                                     using (var salesCheckCmd = new SQLiteCommand("SELECT COUNT(*) FROM sale_items WHERE unit_id = @uid LIMIT 1;", conn, trans))
@@ -1265,7 +1293,7 @@ namespace RafiqPOS.Repositories
                                         uCmd.Parameters.AddWithValue("@id", u.Id);
                                         uCmd.Parameters.AddWithValue("@productId", product.Id);
                                         uCmd.Parameters.AddWithValue("@unitName", u.UnitName != null ? u.UnitName.Trim() : "قطعة");
-                                        uCmd.Parameters.AddWithValue("@conversionFactor", u.ConversionFactor <= 0 ? 1 : u.ConversionFactor);
+                                        uCmd.Parameters.AddWithValue("@conversionFactor", u.IsBaseUnit ? 1 : (u.ConversionFactor >= 2 ? u.ConversionFactor : 2));
                                         uCmd.Parameters.AddWithValue("@isBaseUnit", u.IsBaseUnit ? 1 : 0);
                                         uCmd.Parameters.AddWithValue("@sellPrice", u.SellPricePiasters);
                                         uCmd.Parameters.AddWithValue("@costPrice", u.CostPricePiasters);

@@ -328,21 +328,64 @@ namespace RafiqPOS.Repositories
 
                         string now = DateTime.UtcNow.ToString("o");
 
-                        // Find base unit among units
+                        // 1. Strict validation of incoming units
                         ProductUnit baseUnit = null;
+                        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        var seenFactors = new HashSet<int>();
+
                         for (int i = 0; i < units.Count; i++)
                         {
-                            if (units[i] != null && (units[i].IsBaseUnit || units[i].ConversionFactor == 1))
+                            var u = units[i];
+                            if (u == null) continue;
+                            string uName = (u.UnitName != null ? u.UnitName.Trim() : "");
+                            if (string.IsNullOrWhiteSpace(uName))
                             {
-                                baseUnit = units[i];
-                                break;
+                                throw new ArgumentException(string.Format("اسم المستوى رقم {0} مطلوب.", i + 1));
+                            }
+                            if (!seenNames.Add(uName))
+                            {
+                                throw new ArgumentException(string.Format("اسم الوحدة '{0}' مكرر. يرجى اختيار اسم مختلف لكل وحدة.", uName));
+                            }
+
+                            if (u.IsBaseUnit)
+                            {
+                                if (baseUnit != null)
+                                {
+                                    throw new ArgumentException("لا يمكن تحديد أكثر من وحدة أساسية واحدة للصنف.");
+                                }
+                                u.ConversionFactor = 1;
+                                baseUnit = u;
+                            }
+                            else
+                            {
+                                if (u.ConversionFactor <= 1)
+                                {
+                                    throw new ArgumentException(string.Format("الوحدة الإضافية '{0}' يجب أن يكون معامل تحويلها 2 أو أكثر.", uName));
+                                }
+                                if (!seenFactors.Add(u.ConversionFactor))
+                                {
+                                    throw new ArgumentException(string.Format("معامل التحويل {0}× مكرر على أكثر من وحدة.", u.ConversionFactor));
+                                }
                             }
                         }
+
+                        // If no unit was explicitly marked IsBaseUnit, search for unit with factor 1
                         if (baseUnit == null)
                         {
-                            baseUnit = units[0];
-                            baseUnit.IsBaseUnit = true;
-                            baseUnit.ConversionFactor = 1;
+                            for (int i = 0; i < units.Count; i++)
+                            {
+                                if (units[i] != null && units[i].ConversionFactor == 1)
+                                {
+                                    baseUnit = units[i];
+                                    baseUnit.IsBaseUnit = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (baseUnit == null)
+                        {
+                            throw new ArgumentException("يجب توفير وحدة أساسية واحدة بمعامل تحويل = 1.");
                         }
 
                         // Track existing units to clean up removed ones
@@ -384,8 +427,8 @@ namespace RafiqPOS.Repositories
                             {
                                 upsertCmd.Parameters.AddWithValue("@id", u.Id);
                                 upsertCmd.Parameters.AddWithValue("@pid", productId);
-                                upsertCmd.Parameters.AddWithValue("@name", u.UnitName);
-                                upsertCmd.Parameters.AddWithValue("@factor", u.ConversionFactor > 0 ? u.ConversionFactor : 1);
+                                upsertCmd.Parameters.AddWithValue("@name", u.UnitName.Trim());
+                                upsertCmd.Parameters.AddWithValue("@factor", u.IsBaseUnit ? 1 : (u.ConversionFactor >= 2 ? u.ConversionFactor : 2));
                                 upsertCmd.Parameters.AddWithValue("@isBase", u.IsBaseUnit ? 1 : 0);
                                 upsertCmd.Parameters.AddWithValue("@sellPrice", u.SellPricePiasters);
                                 upsertCmd.Parameters.AddWithValue("@costPrice", u.CostPricePiasters);
@@ -415,7 +458,30 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // Update product table with packaging metadata and base unit sync
+                        // Resolve Display Unit: if specified by merchant, use it for product master price & unit display
+                        ProductUnit chosenDisplay = null;
+                        if (!string.IsNullOrWhiteSpace(displayUnitId))
+                        {
+                            chosenDisplay = units.Find(delegate(ProductUnit u) { return u != null && u.Id == displayUnitId; });
+                        }
+                        if (chosenDisplay == null && !string.IsNullOrWhiteSpace(defaultSaleUnitId))
+                        {
+                            chosenDisplay = units.Find(delegate(ProductUnit u) { return u != null && u.Id == defaultSaleUnitId; });
+                        }
+                        if (chosenDisplay == null)
+                        {
+                            chosenDisplay = baseUnit;
+                        }
+
+                        // Preserve 'kg' enum if product is weighable, otherwise use display unit name
+                        string finalUnitName = (string.Equals(prod.Unit, "kg", StringComparison.OrdinalIgnoreCase) || string.Equals(prod.Unit, "kilogram", StringComparison.OrdinalIgnoreCase))
+                            ? "kg"
+                            : (chosenDisplay != null && !string.IsNullOrWhiteSpace(chosenDisplay.UnitName) ? chosenDisplay.UnitName.Trim() : baseUnit.UnitName.Trim());
+
+                        long masterSellPrice = chosenDisplay != null && chosenDisplay.SellPricePiasters > 0 ? chosenDisplay.SellPricePiasters : baseUnit.SellPricePiasters;
+                        long masterCostPrice = chosenDisplay != null && chosenDisplay.CostPricePiasters > 0 ? chosenDisplay.CostPricePiasters : baseUnit.CostPricePiasters;
+
+                        // Update product table with packaging metadata and display unit sync
                         using (var upProd = new SQLiteCommand(@"
                             UPDATE products SET
                                 unit = @baseUnitName,
@@ -429,9 +495,9 @@ namespace RafiqPOS.Repositories
                             WHERE id = @pid;
                         ", conn, trans))
                         {
-                            upProd.Parameters.AddWithValue("@baseUnitName", baseUnit.UnitName);
-                            upProd.Parameters.AddWithValue("@baseSellPrice", baseUnit.SellPricePiasters);
-                            upProd.Parameters.AddWithValue("@baseCostPrice", baseUnit.CostPricePiasters);
+                            upProd.Parameters.AddWithValue("@baseUnitName", finalUnitName);
+                            upProd.Parameters.AddWithValue("@baseSellPrice", masterSellPrice);
+                            upProd.Parameters.AddWithValue("@baseCostPrice", masterCostPrice);
                             upProd.Parameters.AddWithValue("@defSale", string.IsNullOrWhiteSpace(defaultSaleUnitId) ? (object)DBNull.Value : defaultSaleUnitId);
                             upProd.Parameters.AddWithValue("@defPur", string.IsNullOrWhiteSpace(defaultPurchaseUnitId) ? (object)DBNull.Value : defaultPurchaseUnitId);
                             upProd.Parameters.AddWithValue("@dispUnit", string.IsNullOrWhiteSpace(displayUnitId) ? (object)DBNull.Value : displayUnitId);
@@ -439,6 +505,37 @@ namespace RafiqPOS.Repositories
                             upProd.Parameters.AddWithValue("@now", now);
                             upProd.Parameters.AddWithValue("@pid", productId);
                             upProd.ExecuteNonQuery();
+                        }
+
+                        // Record price history & audit log if base price/cost changed
+                        if (baseUnit.SellPricePiasters != prod.PricePiasters || baseUnit.CostPricePiasters != prod.CostPiasters)
+                        {
+                            try
+                            {
+                                using (var phCmd = new SQLiteCommand(@"
+                                    INSERT INTO product_price_history (
+                                        id, product_id, old_price, new_price, old_cost, new_cost,
+                                        reason, created_at, user_id, user_name, batch_id
+                                    ) VALUES (
+                                        @id, @pid, @oldPrice, @newPrice, @oldCost, @newCost,
+                                        'تحديث السعر والتكلفة عند تعديل منظومة التعبئة', @now, 'usr_admin_default', 'مدير النظام', ''
+                                    );
+                                ", conn, trans))
+                                {
+                                    phCmd.Parameters.AddWithValue("@id", "ph_" + Guid.NewGuid().ToString("N"));
+                                    phCmd.Parameters.AddWithValue("@pid", productId);
+                                    phCmd.Parameters.AddWithValue("@oldPrice", prod.PricePiasters);
+                                    phCmd.Parameters.AddWithValue("@newPrice", baseUnit.SellPricePiasters);
+                                    phCmd.Parameters.AddWithValue("@oldCost", prod.CostPiasters);
+                                    phCmd.Parameters.AddWithValue("@newCost", baseUnit.CostPricePiasters);
+                                    phCmd.Parameters.AddWithValue("@now", now);
+                                    phCmd.ExecuteNonQuery();
+                                }
+                            }
+                            catch
+                            {
+                                // Table may not exist in some legacy schemas
+                            }
                         }
 
                         // If user requested rebasing/multiplying/dividing existing stock to match new pack hierarchy
