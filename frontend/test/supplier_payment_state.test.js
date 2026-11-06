@@ -50,12 +50,10 @@ describe('supplier invoice payment state (integer piasters)', () => {
 });
 
 describe('purchase payment section mirrors the cashier: full / part / on account', () => {
-  it('three pressed-state buttons driven by the real amounts, plus a status card', () => {
-    assert.match(tab, /aria-pressed=\{paymentState === 'full'\}/);
-    assert.match(tab, /aria-pressed=\{paymentState === 'partial'\}/);
-    assert.match(tab, /aria-pressed=\{paymentState === 'credit'\}/);
-    assert.ok(tab.includes('<span>دفع جزء</span>') && tab.includes('<span>دفع كامل</span>') && tab.includes('<span>آجل بالكامل</span>'));
+  it('input driven smart payment calculation with status card and no redundant toggle buttons', () => {
+    assert.ok(!tab.includes("aria-pressed={paymentState === 'full'}"), 'redundant toggle buttons removed');
     assert.match(tab, /<SupplierPaymentStatusCard/);
+    assert.match(tab, /MoneyInput/);
   });
 
   it('the old two-button logic and the relabelled credit button are gone', () => {
@@ -65,7 +63,7 @@ describe('purchase payment section mirrors the cashier: full / part / on account
   });
 
   it('the card explains each state and shows the supplier balance before/after only when a supplier is chosen', () => {
-    for (const title of ['الفاتورة مسددة بالكامل', 'دفع جزء الآن والباقي آجل على المورد', 'الفاتورة كلها آجل على المورد (بدون كاش)', 'سداد بزيادة عن الفاتورة']) {
+    for (const title of ['الفاتورة مسددة بالكامل', 'سداد جزئي والمتبقي على الحساب', 'الفاتورة آجل بالكامل (على الحساب)', 'سداد بزيادة (رصيد للمحل تحت الحساب)']) {
       assert.ok(card.includes(title), title);
     }
     assert.match(card, /const balanceAfter = supplierName \? \(/);

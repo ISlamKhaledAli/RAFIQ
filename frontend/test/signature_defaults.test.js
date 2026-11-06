@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { DEST_DIR, MAX_BYTES, MAX_HEIGHT, MAX_WIDTH, SOURCE_DIR, syncSignatures, validateSignaturePng } from '../scripts/sync-signatures.mjs';
@@ -97,7 +98,7 @@ describe('npm run sync:signatures', () => {
   });
 
   it('copies, mirrors and removes extras; fails loudly on an empty or invalid source', () => {
-    const tmp = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR || '/tmp'), 'sigsync-'));
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sigsync-'));
     try {
       const source = path.join(tmp, 'src');
       const dest = path.join(tmp, 'dst');

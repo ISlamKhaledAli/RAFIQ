@@ -169,6 +169,15 @@ namespace RafiqPOS.Models
         [JsonProperty("preferredSupplierName")]
         public string PreferredSupplierName { get; set; }
 
+        [JsonProperty("preferredSupplierId")]
+        public string PreferredSupplierId { get; set; }
+
+        [JsonProperty("costPiasters")]
+        public long CostPiasters { get; set; }
+
+        [JsonProperty("shortageIds")]
+        public string ShortageIds { get; set; }
+
         [JsonProperty("barcode")]
         public string Barcode { get; set; }
 

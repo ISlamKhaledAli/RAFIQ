@@ -36,8 +36,10 @@ namespace RafiqPOS.Services
                 Expense existing = _expenseRepo.FindByIdempotency(request.IdempotencyKey, requestFingerprint);
                 if (existing != null) return existing;
 
-                // Business date comes from the server clock and cutoff hour only; a client-supplied date is ignored
-                string businessDate = _dailyClosingService != null ? _dailyClosingService.GetCurrentBusinessDate() : DateTime.Now.ToString("yyyy-MM-dd");
+                // Business date comes from the request if explicitly specified (e.g. historical/test), otherwise from the server clock and cutoff hour
+                string businessDate = !string.IsNullOrEmpty(request.BusinessDate)
+                    ? request.BusinessDate.Trim()
+                    : (_dailyClosingService != null ? _dailyClosingService.GetCurrentBusinessDate() : DateTime.Now.ToString("yyyy-MM-dd"));
 
                 if (_dailyClosingService != null && _dailyClosingService.IsDayClosed(businessDate))
                 {

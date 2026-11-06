@@ -93,49 +93,71 @@ export const SupplierPaymentStatusCard = ({
         <Sentence>
           {paymentSourceLabel ? `هيخرج ${formatMoney(paidAmountPiasters)} ${paymentSourceLabel}، ولا يتبقى على الفاتورة شيء.` : 'لا يتبقى على الفاتورة شيء.'}
         </Sentence>
+        {balanceAfter}
       </Shell>
     );
   }
 
   if (state === 'partial') {
     return (
-      <Shell tone="warn" icon={<AlertTriangle className="w-5 h-5" />} title="دفع جزء الآن والباقي آجل على المورد">
+      <Shell tone="warn" icon={<AlertTriangle className="w-5 h-5" />} title="سداد جزئي والمتبقي على الحساب">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Figure label="المدفوع الآن" value={formatMoney(paidAmountPiasters)} tone="paid" />
-          <Figure label="المتبقي آجل على المورد" value={formatMoney(remainingAmountPiasters)} tone="warn" large />
+          <Figure label="المتبقي على الحساب" value={formatMoney(remainingAmountPiasters)} tone="warn" large />
         </div>
         <Sentence>
           {paymentSourceLabel ? `هيخرج ${formatMoney(paidAmountPiasters)} ${paymentSourceLabel}. ` : ''}
           {advanceSentence}
         </Sentence>
-        {balanceAfter}
+        {!supplierName ? (
+          <div className="p-2.5 rounded-lg border border-warn/30 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-xs font-bold flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>تنبيه: يجب اختيار المورد من أعلى الصفحة لتسجيل المبلغ المتبقي ({formatMoney(remainingAmountPiasters)}) على حسابه.</span>
+          </div>
+        ) : balanceAfter}
       </Shell>
     );
   }
 
   if (state === 'credit') {
     return (
-      <Shell tone="warn" icon={<UserCheck className="w-5 h-5" />} title="الفاتورة كلها آجل على المورد (بدون كاش)">
+      <Shell tone="warn" icon={<UserCheck className="w-5 h-5" />} title="الفاتورة آجل بالكامل (على الحساب)">
+        <div className="p-3 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-center justify-between">
+          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي المبلغ الآجل على الحساب:</span>
+          <span className="text-lg font-black font-mono tabular-nums text-warn dark:text-warn-bright">
+            {formatMoney(remainingAmountPiasters)}
+          </span>
+        </div>
         <Sentence>
-          مفيش فلوس هتخرج دلوقتي. {advanceSentence}
+          لم يتم سداد أي مبالغ نقدية الآن. {advanceSentence}
         </Sentence>
-        {balanceAfter}
+        {!supplierName ? (
+          <div className="p-2.5 rounded-lg border border-warn/30 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-xs font-bold flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>تنبيه: يجب اختيار المورد من أعلى الصفحة لتسجيل الفاتورة الآجلة على حسابه.</span>
+          </div>
+        ) : balanceAfter}
       </Shell>
     );
   }
 
   return (
-    <Shell tone="paid" icon={<Sparkles className="w-5 h-5" />} title="سداد بزيادة عن الفاتورة">
-      <div className="flex flex-col gap-1">
-        <span className="t-label text-ink-muted dark:text-ink-dark-muted">الزيادة تُضاف لرصيدنا</span>
-        <span className="t-kpi-lg text-paid dark:text-paid-bright">+{formatMoney(excessPaidPiasters)}</span>
+    <Shell tone="paid" icon={<Sparkles className="w-5 h-5" />} title="سداد بزيادة (رصيد للمحل تحت الحساب)">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Figure label="المدفوع نقداً الآن" value={formatMoney(paidAmountPiasters)} tone="neutral" />
+        <Figure label="الزيادة تحت الحساب (رصيد لنا)" value={`+${formatMoney(excessPaidPiasters)}`} tone="paid" large />
       </div>
       <Sentence>
         {supplierDebtPiasters > 0
           ? 'الزيادة تُخصم من الحساب القديم للمورد والباقي يترحل رصيد لنا.'
-          : `الزيادة تُسجل رصيداً لنا عند ${name} وتُخصم من فواتير البضاعة الجاية.`}
+          : `الزيادة تُسجل رصيداً ودُفعة مقدمة للمحل تحت حساب ${name} وتُخصم من الفواتير القادمة.`}
       </Sentence>
-      {balanceAfter}
+      {!supplierName ? (
+        <div className="p-2.5 rounded-lg border border-warn/30 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-xs font-bold flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>تنبيه: يجب اختيار المورد من أعلى الصفحة لتسجيل الزيادة (+{formatMoney(excessPaidPiasters)}) تحت حسابه.</span>
+        </div>
+      ) : balanceAfter}
     </Shell>
   );
 };

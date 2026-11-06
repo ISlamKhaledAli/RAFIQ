@@ -75,7 +75,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const [costingMethod, setCostingMethod] = useState<'LATEST' | 'WEIGHTED_AVERAGE'>('WEIGHTED_AVERAGE');
   const [purchaseNotes, setPurchaseNotes] = useState<string>('');
   const [discountPiasters, setDiscountPiasters] = useState<number>(0);
-  const [paymentMode, setPaymentMode] = useState<'PAID' | 'CREDIT' | 'PARTIAL'>('PAID');
   const [paymentSource, setPaymentSource] = useState<'cash_drawer' | 'external_cash'>('cash_drawer');
   const [customPaidAmountPiasters, setCustomPaidAmountPiasters] = useState<number | null>(null);
   const [lineItems, setLineItems] = useState<NewPurchaseLineItem[]>([]);
@@ -408,13 +407,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   }, [totalCostPiasters, discountPiasters]);
 
   const paidAmountPiasters = useMemo(() => {
-    if (paymentMode === 'CREDIT') return 0;
-    if (customPaidAmountPiasters !== null) {
-      return Math.max(0, customPaidAmountPiasters);
+    if (customPaidAmountPiasters !== null && customPaidAmountPiasters > 0) {
+      return customPaidAmountPiasters;
     }
-    if (paymentMode === 'PAID') return netCostPiasters;
     return 0;
-  }, [paymentMode, netCostPiasters, customPaidAmountPiasters]);
+  }, [customPaidAmountPiasters]);
 
   const remainingAmountPiasters = useMemo(() => {
     return Math.max(0, netCostPiasters - paidAmountPiasters);
@@ -427,13 +424,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       return;
     }
 
-    if (remainingAmountPiasters > 0 && !selectedSupplierId) {
-      showToast('يجب اختيار المورد أولاً لتسجيل الفاتورة الآجلة أو السداد الجزئي', 'error');
-      return;
-    }
-
-    if (paidAmountPiasters > netCostPiasters && !selectedSupplierId) {
-      showToast('يجب اختيار المورد أولاً لتسجيل المبلغ المسدد بالزيادة تحت حسابه', 'error');
+    if (paidAmountPiasters !== netCostPiasters && !selectedSupplierId) {
+      if (paidAmountPiasters === 0) {
+        showToast('يجب اختيار المورد أولاً لتسجيل الفاتورة الآجلة على الحساب', 'error');
+      } else if (paidAmountPiasters < netCostPiasters) {
+        showToast('يجب اختيار المورد أولاً لتسجيل المبلغ المتبقي على حسابه', 'error');
+      } else {
+        showToast('يجب اختيار المورد أولاً لتسجيل المبلغ المسدد بالزيادة تحت حسابه', 'error');
+      }
       return;
     }
 
@@ -491,7 +489,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           netCostPiasters,
           paidAmountPiasters,
           // Fully paid: the server sets paid = its own computed net, so a rounding difference can never block or create debt
-          payInFull: paymentMode === 'PAID' && customPaidAmountPiasters === null,
+          payInFull: paidAmountPiasters === netCostPiasters && netCostPiasters > 0,
           remainingAmountPiasters,
           paymentStatus:
             paidAmountPiasters > netCostPiasters
@@ -521,7 +519,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         setPurchaseNotes('');
         setDiscountPiasters(0);
         setCustomPaidAmountPiasters(null);
-        setPaymentMode('PAID');
         setPaymentSource('cash_drawer');
         loadPurchases();
         loadSuppliers();
@@ -907,8 +904,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
             setPurchaseNotes={setPurchaseNotes}
             discountPiasters={discountPiasters}
             setDiscountPiasters={setDiscountPiasters}
-            paymentMode={paymentMode}
-            setPaymentMode={setPaymentMode}
             paymentSource={paymentSource}
             setPaymentSource={setPaymentSource}
             customPaidAmountPiasters={customPaidAmountPiasters}
@@ -960,6 +955,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                     } catch {
                       // ignore
                     }
+                  }
+
+                  if (!proposal.supplierId && prod?.preferredSupplierId) {
+                    setSelectedSupplierId(prod.preferredSupplierId);
                   }
 
                   const cost = prod && prod.costPiasters > 0 ? prod.costPiasters : (pi.costPiasters > 0 ? pi.costPiasters : 0);
@@ -1051,7 +1050,35 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                   };
                 })
               );
-              setLineItems(newLines);
+              setLineItems((prev) => {
+                const merged = [...prev];
+                for (const item of newLines) {
+                  const existingIndex = merged.findIndex(
+                    (m) => (item.productId && m.productId === item.productId) || (item.barcode && m.barcode === item.barcode)
+                  );
+                  if (existingIndex !== -1) {
+                    const existing = merged[existingIndex];
+                    const addedQty = item.quantityUnits || 1;
+                    const newTotalQty = existing.quantityUnits + addedQty;
+                    const packFactor = existing.packSize || 1;
+                    const isPkgMode = existing.purchaseUnitMode === 'package' && packFactor > 1;
+                    const cartonsCount = packFactor > 1 ? Math.floor(newTotalQty / packFactor) || 1 : 1;
+
+                    merged[existingIndex] = {
+                      ...existing,
+                      quantityUnits: newTotalQty,
+                      quantityInput: isPkgMode ? String(cartonsCount) : String(newTotalQty),
+                      cartonsInput: isPkgMode ? String(cartonsCount) : '0',
+                      cartonsCount: isPkgMode ? cartonsCount : undefined,
+                      looseInput: isPkgMode ? String(newTotalQty % packFactor) : String(newTotalQty),
+                      looseUnits: isPkgMode ? (newTotalQty % packFactor) : undefined,
+                    };
+                  } else {
+                    merged.push(item);
+                  }
+                }
+                return merged;
+              });
               setActiveTab('new_invoice');
             }}
           />

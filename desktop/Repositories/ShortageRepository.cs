@@ -562,20 +562,24 @@ namespace RafiqPOS.Repositories
                         s.product_id,
                         COALESCE(p.name, s.free_text) AS item_name,
                         COALESCE(p.barcode, '') AS barcode,
-                        COALESCE(p.unit, 'قطعة') AS unit,
+                        COALESCE(base_pu.unit_name, p.unit, 'قطعة') AS unit,
                         s.source,
                         s.status,
                         COUNT(s.id) AS request_count,
                         SUM(s.requested_qty_milli) AS total_requested_qty_milli,
-                        COALESCE(p.price_piasters, 0) AS unit_price_piasters,
+                        COALESCE(base_pu.sell_price_piasters, p.price_piasters, 0) AS unit_price_piasters,
+                        COALESCE(base_pu.cost_price_piasters, p.cost_piasters, 0) AS cost_piasters,
                         COALESCE(p.stock_quantity_milli, 0) AS current_stock_milli,
-                        sup.name AS preferred_supplier_name
+                        p.preferred_supplier_id AS preferred_supplier_id,
+                        sup.name AS preferred_supplier_name,
+                        GROUP_CONCAT(s.id) AS shortage_ids
                     FROM shortage_entries s
                     LEFT JOIN products p ON s.product_id = p.id
                     LEFT JOIN suppliers sup ON p.preferred_supplier_id = sup.id
+                    LEFT JOIN product_units base_pu ON p.id = base_pu.product_id AND base_pu.is_base_unit = 1
                     {0}
                     GROUP BY s.product_id, COALESCE(p.name, s.free_text)
-                    ORDER BY (CAST(SUM(s.requested_qty_milli) AS INTEGER) * COALESCE(p.price_piasters, 0)) DESC, request_count DESC;", filterClause);
+                    ORDER BY (CAST(SUM(s.requested_qty_milli) AS INTEGER) * COALESCE(base_pu.sell_price_piasters, p.price_piasters, 0)) DESC, request_count DESC;", filterClause);
 
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -599,8 +603,11 @@ namespace RafiqPOS.Repositories
                             int count = Convert.ToInt32(reader["request_count"]);
                             int totalQty = Convert.ToInt32(reader["total_requested_qty_milli"]);
                             long price = Convert.ToInt64(reader["unit_price_piasters"]);
+                            long costPrice = Convert.ToInt64(reader["cost_piasters"]);
                             int currentStock = Convert.ToInt32(reader["current_stock_milli"]);
+                            string supId = reader["preferred_supplier_id"] != DBNull.Value ? reader["preferred_supplier_id"].ToString() : null;
                             string supName = reader["preferred_supplier_name"] != DBNull.Value ? reader["preferred_supplier_name"].ToString() : "";
+                            string shortageIds = reader["shortage_ids"] != DBNull.Value ? reader["shortage_ids"].ToString() : null;
 
                             // حساب القيمة بدقة الأعداد الصحيحة الصارمة (Rule 1)
                             long lostRev = ((long)totalQty * price + 500) / 1000;
@@ -616,9 +623,12 @@ namespace RafiqPOS.Repositories
                                 RequestCount = count,
                                 TotalRequestedQtyMilli = totalQty,
                                 UnitPricePiasters = price,
+                                CostPiasters = costPrice,
                                 EstimatedLostRevenuePiasters = lostRev,
                                 CurrentStockMilli = currentStock,
-                                PreferredSupplierName = supName
+                                PreferredSupplierId = supId,
+                                PreferredSupplierName = supName,
+                                ShortageIds = shortageIds
                             });
 
                             totalRequests += count;
@@ -670,6 +680,17 @@ namespace RafiqPOS.Repositories
 
                     DELETE FROM products 
                     WHERE name LIKE '%عدد الأصناف%' OR name LIKE '%إجمالي%' OR name LIKE '%المجموع%';
+
+                    -- مزامنة أسعار المنتجات مع وحدتها الأساسية لتجنب تضارب التجزئة
+                    UPDATE products 
+                    SET price_piasters = (SELECT sell_price_piasters FROM product_units WHERE product_id = products.id AND is_base_unit = 1),
+                        cost_piasters = (SELECT cost_price_piasters FROM product_units WHERE product_id = products.id AND is_base_unit = 1)
+                    WHERE EXISTS (
+                        SELECT 1 FROM product_units 
+                        WHERE product_id = products.id AND is_base_unit = 1 
+                          AND (products.price_piasters != sell_price_piasters OR products.cost_piasters != cost_price_piasters)
+                          AND sell_price_piasters > 0
+                    );
                 ", conn))
                 {
                     cmd.ExecuteNonQuery();

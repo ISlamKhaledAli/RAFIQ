@@ -52,9 +52,12 @@ export interface LostSalesReportItem {
   requestCount: number;
   totalRequestedQuantityMilli: number;
   unitPricePiasters: number;
+  costPiasters?: number;
   estimatedLostRevenuePiasters: number;
   currentStockMilli?: number;
+  preferredSupplierId?: string | null;
   preferredSupplierName?: string | null;
+  shortageIds?: string | null;
 }
 
 export interface LostSalesReportSummary {

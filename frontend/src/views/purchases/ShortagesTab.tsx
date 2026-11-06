@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ClipboardList,
   Search,
@@ -25,6 +26,8 @@ import {
   ArrowDown,
   ShoppingCart,
   Layers,
+  MoreHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
@@ -71,12 +74,87 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
   const [reportSortOrder, setReportSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [isGeneratingAuto, setIsGeneratingAuto] = useState(false);
+  const [orderingReportProductId, setOrderingReportProductId] = useState<string | null>(null);
 
   interface PendingAction {
     type: 'order' | 'cancel' | 'receive' | 'restore' | 'delete';
     item: ShortageEntry;
   }
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+
+  const [activeMenu, setActiveMenu] = useState<{
+    item: ShortageEntry;
+    top: number;
+    left: number;
+    openUpwards: boolean;
+  } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close actions menu on click outside, Escape, or scrolling
+  useEffect(() => {
+    if (!activeMenu) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActiveMenu(null);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveMenu(null);
+      }
+    };
+
+    const handleScroll = (e: Event) => {
+      // Don't close the menu if the user is scrolling inside the actions dropdown itself!
+      if (menuRef.current && (menuRef.current === e.target || menuRef.current.contains(e.target as Node))) {
+        return;
+      }
+      setActiveMenu(null);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', handleScroll, true);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [activeMenu]);
+
+  const handleToggleMenu = (item: ShortageEntry, e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (activeMenu?.item.id === item.id) {
+      setActiveMenu(null);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuEstimatedHeight = 240;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpwards = spaceBelow < menuEstimatedHeight && rect.top > menuEstimatedHeight;
+
+    const menuWidth = 230;
+    let left = rect.left;
+    if (left + menuWidth > window.innerWidth - 12) {
+      left = window.innerWidth - menuWidth - 12;
+    }
+    if (left < 12) {
+      left = 12;
+    }
+
+    const top = openUpwards ? rect.top - 6 : rect.bottom + 6;
+
+    setActiveMenu({
+      item,
+      top,
+      left,
+      openUpwards,
+    });
+  };
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -104,6 +182,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
       }
       setShortages(data || []);
       setSelectedIds([]);
+      setActiveMenu(null);
     } catch {
       showToast('تعذر تحميل بيانات دفتر النواقص', 'error');
     } finally {
@@ -317,9 +396,12 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               requestCount: p.requestCount || 0,
               totalRequestedQuantityMilli: p.totalRequestedQuantityMilli ?? p.totalRequestedQtyMilli ?? 0,
               unitPricePiasters: p.unitPricePiasters || 0,
+              costPiasters: p.costPiasters || 0,
               estimatedLostRevenuePiasters: p.estimatedLostRevenuePiasters || 0,
               currentStockMilli: p.currentStockMilli ?? 0,
+              preferredSupplierId: p.preferredSupplierId || null,
               preferredSupplierName: p.preferredSupplierName || null,
+              shortageIds: p.shortageIds || null,
             })),
           });
         }
@@ -380,31 +462,63 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     }
   };
 
-  const handleOrderFromReport = (p: LostSalesReportItem) => {
+  const handleOrderFromReport = async (p: LostSalesReportItem) => {
     if (!onLoadProposalToNewPurchase) {
       showToast('خاصية التحويل لفاتورة شراء غير متاحة حالياً', 'error');
       return;
     }
-    const proposal: ShortagePurchaseProposal = {
-      supplierId: '',
-      supplierName: p.preferredSupplierName || 'مورد عام',
-      supplierPhone: null,
-      items: [
-        {
-          shortageId: p.productId ? `rep_${p.productId}` : 'rep_item',
-          productId: p.productId || '',
-          productName: p.productName,
-          barcode: p.barcode || null,
-          unit: p.unit || 'قطعة',
-          suggestedQuantityMilli: p.totalRequestedQuantityMilli || 1000,
-          costPiasters: 0,
-          totalEstimatedCostPiasters: 0,
-        },
-      ],
-    };
-    setIsLostSalesReportOpen(false);
-    onLoadProposalToNewPurchase(proposal);
-    showToast(`تم نقل "${p.productName}" لفاتورة الشراء`, 'success');
+    if (orderingReportProductId) return;
+
+    const itemKey = p.productId || p.productName;
+    setOrderingReportProductId(itemKey);
+
+    try {
+      // 1. تحديث قيود النواقص في قاعدة البيانات إلى 'ordered' لتجنب تكرار الطلب
+      if (p.shortageIds) {
+        const ids = p.shortageIds.split(',').map((s) => s.trim()).filter(Boolean);
+        for (const sId of ids) {
+          try {
+            await invoke('shortages:updateStatus', { id: sId, status: 'ordered', increaseStock: false });
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      // 2. تجهيز المقترح الفوري ونقله إلى فاتورة الشراء الجديدة
+      const primaryShortageId = p.shortageIds
+        ? p.shortageIds.split(',')[0].trim()
+        : p.productId
+        ? `rep_${p.productId}`
+        : 'rep_item';
+
+      const proposal: ShortagePurchaseProposal = {
+        supplierId: p.preferredSupplierId || '',
+        supplierName: p.preferredSupplierName || 'مورد عام',
+        supplierPhone: null,
+        items: [
+          {
+            shortageId: primaryShortageId,
+            productId: p.productId || '',
+            productName: p.productName,
+            barcode: p.barcode || null,
+            unit: p.unit || 'قطعة',
+            suggestedQuantityMilli: p.totalRequestedQuantityMilli || 1000,
+            costPiasters: p.costPiasters || 0,
+            totalEstimatedCostPiasters: Math.round(((p.totalRequestedQuantityMilli || 1000) / 1000) * (p.costPiasters || 0)),
+          },
+        ],
+      };
+
+      setIsLostSalesReportOpen(false);
+      onLoadProposalToNewPurchase(proposal);
+      void loadShortages();
+      showToast(`تم إضافة "${p.productName}" لفاتورة الشراء وتحديث حالته لـ (قيد الطلب)`, 'success');
+    } catch {
+      showToast('تعذر نقل الصنف لفاتورة الشراء', 'error');
+    } finally {
+      setOrderingReportProductId(null);
+    }
   };
 
   const reportSourceOptions: SelectOption[] = [
@@ -629,7 +743,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                 <th className="px-3 py-2.5 whitespace-nowrap">المورد المفضل</th>
                 <th className="px-3 py-2.5 text-center whitespace-nowrap">الحالة</th>
                 <th className="px-3 py-2.5 text-center whitespace-nowrap">تاريخ التسجيل</th>
-                <th className="px-3 py-2.5 text-center whitespace-nowrap">إجراءات</th>
+                <th className="w-28 px-3 py-2.5 text-center whitespace-nowrap">خيارات الصنف</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60 dark:divide-line-dark/60">
@@ -788,69 +902,29 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         {item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG') : '-'}
                       </td>
 
-                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          {canConvertShortages && item.status === 'pending' && (
-                            <button
-                              type="button"
-                              onClick={() => void handleConvertToPurchaseSingle(item)}
-                              className="p-1.5 rounded-lg border border-brand/30 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright transition-all cursor-pointer shadow-2xs"
-                              title="تحويل مباشر إلى فاتورة شراء جديدة"
-                            >
-                              <Receipt className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {canManageShortages && item.status === 'pending' && (
-                            <button
-                              type="button"
-                              onClick={() => setPendingAction({ type: 'order', item })}
-                              className="p-1.5 rounded-lg border border-brand/20 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright transition-all cursor-pointer shadow-2xs"
-                              title="طلب من المورد (نقل الصنف إلى قائمة تم الطلب)"
-                            >
-                              <Truck className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {canManageShortages && item.status === 'ordered' && (
-                            <button
-                              type="button"
-                              onClick={() => setPendingAction({ type: 'receive', item })}
-                              className="p-1.5 rounded-lg border border-paid/20 dark:border-paid/30 hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-paid dark:text-paid-bright transition-all cursor-pointer shadow-2xs"
-                              title="استلام بالمخزن (تأكيد استلام الشحنة وتوريدها)"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {canManageShortages && item.status !== 'cancelled' && (
-                            <button
-                              type="button"
-                              onClick={() => setPendingAction({ type: 'cancel', item })}
-                              className="p-1.5 rounded-lg border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-all cursor-pointer shadow-2xs"
-                              title="إلغاء الطلب (نقل الصنف إلى الملغيات)"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {canManageShortages && item.status === 'cancelled' && (
-                            <button
-                              type="button"
-                              onClick={() => setPendingAction({ type: 'restore', item })}
-                              className="p-1.5 rounded-lg border border-brand/20 dark:border-brand-bright/20 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright transition-all cursor-pointer shadow-2xs"
-                              title="إعادة تفعيل القيد (نقل الصنف إلى بانتظار الطلب)"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {canManageShortages && (
-                          <button
-                            type="button"
-                            onClick={() => setPendingAction({ type: 'delete', item })}
-                            className="p-1.5 rounded-lg border border-danger/20 dark:border-danger-bright/20 hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-danger dark:text-danger-bright transition-all cursor-pointer shadow-2xs"
-                            title="حذف نهائي من الدفتر"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                          )}
-                        </div>
+                      <td className="w-28 px-3 py-2.5 text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleMenu(item, e)}
+                          className={`h-7 px-2.5 rounded-lg border text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer select-none ${
+                            activeMenu?.item.id === item.id
+                              ? 'bg-brand dark:bg-brand text-white border-brand ring-2 ring-brand/20 shadow-xs'
+                              : 'bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright hover:border-brand/40'
+                          }`}
+                          title="قائمة إجراءات وخيارات الصنف الناقص"
+                        >
+                          <MoreHorizontal
+                            className={`w-3.5 h-3.5 transition-colors ${
+                              activeMenu?.item.id === item.id ? 'text-white' : 'text-brand dark:text-brand-bright'
+                            }`}
+                          />
+                          <span>خيارات</span>
+                          <ChevronDown
+                            className={`w-3 h-3 transition-transform duration-150 ${
+                              activeMenu?.item.id === item.id ? 'rotate-180 text-white' : 'text-ink-muted dark:text-ink-dark-muted'
+                            }`}
+                          />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -1231,7 +1305,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                               )}
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-center">إجراء سريع</th>
+                          <th className="px-3 py-2 text-center whitespace-nowrap min-w-[110px]">إجراء سريع</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-line/40 dark:divide-line-dark/40">
@@ -1291,16 +1365,19 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                               {formatArabicCurrency(p.estimatedLostRevenuePiasters)}
                             </td>
 
-                            <td className="px-3 py-2 text-center">
+                            <td className="px-3 py-2 text-center whitespace-nowrap">
                               {onLoadProposalToNewPurchase && (
                                 <button
                                   type="button"
-                                  onClick={() => handleOrderFromReport(p)}
-                                  className="h-6 px-2 rounded-md bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand text-brand dark:text-brand-bright hover:text-white dark:hover:text-white transition-colors text-micro font-bold inline-flex items-center gap-1 cursor-pointer"
+                                  onClick={() => void handleOrderFromReport(p)}
+                                  disabled={orderingReportProductId === (p.productId || p.productName)}
+                                  className="h-7 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand text-brand dark:text-brand-bright hover:text-white dark:hover:text-white transition-colors text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
                                   title="إنشاء طلبية شراء فورية لهذا الصنف"
                                 >
-                                  <ShoppingCart className="w-3 h-3" />
-                                  <span>طلب الآن</span>
+                                  <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="whitespace-nowrap">
+                                    {orderingReportProductId === (p.productId || p.productName) ? 'جاري التحويل...' : 'اطلب الآن'}
+                                  </span>
                                 </button>
                               )}
                             </td>
@@ -1538,6 +1615,163 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
           </div>
         </div>
       )}
+
+      {/* Floating Actions Portal Dropdown Menu */}
+      {activeMenu &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: 'fixed',
+              top: activeMenu.top,
+              left: activeMenu.left,
+              transform: activeMenu.openUpwards ? 'translateY(-100%)' : 'none',
+              width: '230px',
+              zIndex: 9999,
+            }}
+            onWheel={(e) => e.stopPropagation()}
+            className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl overflow-hidden animate-fade-in text-right font-sans select-none"
+            dir="rtl"
+          >
+            {/* Header: Shortage Item Info */}
+            <div className="p-2.5 bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark">
+              <div className="font-bold text-xs text-ink dark:text-ink-dark truncate" title={activeMenu.item.productName}>
+                {activeMenu.item.productName}
+              </div>
+              <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-sans flex items-center justify-between mt-0.5">
+                <span>
+                  الكمية: {typeof activeMenu.item.requestedQuantityMilli === 'number' && !isNaN(activeMenu.item.requestedQuantityMilli) ? activeMenu.item.requestedQuantityMilli / 1000 : 1} {formatUnitArabic(activeMenu.item.unit)}
+                </span>
+                <span className="font-bold text-brand dark:text-brand-bright">
+                  {activeMenu.item.status === 'pending'
+                    ? 'بانتظار الطلب'
+                    : activeMenu.item.status === 'ordered'
+                    ? 'تم الطلب'
+                    : activeMenu.item.status === 'received'
+                    ? 'تم الاستلام'
+                    : 'ملغي'}
+                </span>
+              </div>
+            </div>
+
+            {/* Actions List */}
+            <div className="p-1.5 flex flex-col gap-0.5 max-h-[min(480px,calc(100vh-60px))] overflow-y-auto">
+              {/* 1. Convert to Purchase Invoice */}
+              {canConvertShortages && (activeMenu.item.status === 'pending' || activeMenu.item.status === 'ordered') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itm = activeMenu.item;
+                    setActiveMenu(null);
+                    void handleConvertToPurchaseSingle(itm);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <Receipt className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">تحويل لفاتورة شراء جديدة</span>
+                </button>
+              )}
+
+              {/* 2. Order from Supplier */}
+              {canManageShortages && activeMenu.item.status === 'pending' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itm = activeMenu.item;
+                    setActiveMenu(null);
+                    setPendingAction({ type: 'order', item: itm });
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <Truck className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">طلب الصنف من المورد</span>
+                </button>
+              )}
+
+              {/* 3. Receive at Warehouse */}
+              {canManageShortages && activeMenu.item.status === 'ordered' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itm = activeMenu.item;
+                    setActiveMenu(null);
+                    setPendingAction({ type: 'receive', item: itm });
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-ink dark:text-ink-dark hover:text-paid dark:hover:text-paid-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright group-hover:bg-paid group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">استلام بالمخزن وتوريد</span>
+                </button>
+              )}
+
+              {/* 4. Restore cancelled item */}
+              {canManageShortages && activeMenu.item.status === 'cancelled' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itm = activeMenu.item;
+                    setActiveMenu(null);
+                    setPendingAction({ type: 'restore', item: itm });
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">إعادة تفعيل القيد (معلق)</span>
+                </button>
+              )}
+
+              {/* 5. Cancel Shortage Order */}
+              {canManageShortages && activeMenu.item.status !== 'cancelled' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itm = activeMenu.item;
+                    setActiveMenu(null);
+                    setPendingAction({ type: 'cancel', item: itm });
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <XCircle className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">إلغاء طلب الصنف</span>
+                </button>
+              )}
+
+              {/* Divider */}
+              {canManageShortages && (
+                <div className="my-0.5 border-t border-line dark:border-line-dark" />
+              )}
+
+              {/* 6. Delete Shortage Entry */}
+              {canManageShortages && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itm = activeMenu.item;
+                    setActiveMenu(null);
+                    setPendingAction({ type: 'delete', item: itm });
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-danger dark:text-danger-bright text-xs font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright group-hover:bg-danger group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">حذف نهائي من الدفتر</span>
+                </button>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

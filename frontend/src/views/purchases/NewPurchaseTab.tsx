@@ -6,8 +6,6 @@ import {
   Trash2,
   Receipt,
   Banknote,
-  Coins,
-  CreditCard,
   AlertCircle,
   AlertTriangle,
   Info,
@@ -31,7 +29,7 @@ import { useFeatures } from '../../context/useFeatures';
 import type { Supplier, Product, ProductUnit } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
 import { computePurchaseLine, purchaseLinesTotal } from './purchaseLineMath';
-import { getSupplierPaymentState, halfOfInvoicePiasters } from './supplierPaymentState';
+import { getSupplierPaymentState } from './supplierPaymentState';
 import { SupplierPaymentStatusCard } from './SupplierPaymentStatusCard';
 import { normalizeArabicNumerals, formatArabicCurrency } from '../../utils/money';
 import { invoke } from '../../bridge/ipc';
@@ -56,8 +54,6 @@ interface NewPurchaseTabProps {
   setPurchaseNotes: (notes: string) => void;
   discountPiasters: number;
   setDiscountPiasters: (p: number) => void;
-  paymentMode: 'PAID' | 'CREDIT' | 'PARTIAL';
-  setPaymentMode: (mode: 'PAID' | 'CREDIT' | 'PARTIAL') => void;
   paymentSource: 'cash_drawer' | 'external_cash';
   setPaymentSource: (source: 'cash_drawer' | 'external_cash') => void;
   customPaidAmountPiasters: number | null;
@@ -87,8 +83,6 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   setPurchaseNotes,
   discountPiasters,
   setDiscountPiasters,
-  paymentMode,
-  setPaymentMode,
   paymentSource,
   setPaymentSource,
   customPaidAmountPiasters,
@@ -637,13 +631,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   }, [selectedSupplier]);
 
   const paidAmountPiasters = useMemo(() => {
-    if (paymentMode === 'CREDIT') return 0;
-    if (customPaidAmountPiasters !== null) {
-      return Math.max(0, customPaidAmountPiasters);
+    if (customPaidAmountPiasters !== null && customPaidAmountPiasters > 0) {
+      return customPaidAmountPiasters;
     }
-    if (paymentMode === 'PAID') return netCostPiasters;
     return 0;
-  }, [paymentMode, netCostPiasters, customPaidAmountPiasters]);
+  }, [customPaidAmountPiasters]);
 
   const remainingAmountPiasters = useMemo(() => {
     return Math.max(0, netCostPiasters - paidAmountPiasters);
@@ -659,15 +651,6 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
   const handleSupplierChange = (supId: string) => {
     setSelectedSupplierId(supId);
-    const sup = suppliers.find((s) => s.id === supId);
-    if (sup && sup.balancePiasters < 0) {
-      // Supplier has advance credit in our favor: default to deducting from credit (0 cash)
-      setPaymentMode('CREDIT');
-      setCustomPaidAmountPiasters(0);
-    } else {
-      setPaymentMode('PAID');
-      setCustomPaidAmountPiasters(null);
-    }
   };
 
   const [showErrors, setShowErrors] = useState(false);
@@ -720,16 +703,19 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     setShowErrors(true);
     if (lineItems.length === 0) {
       searchInputRef.current?.focus();
-    } else if (supplierMissing) {
+      return;
+    }
+    if (supplierMissing) {
       supplierWrapRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       supplierWrapRef.current?.querySelector('button')?.focus({ preventScroll: true });
-    } else {
-      const badLine = lineItems.find((it) => it.quantityUnits <= 0 || it.unitCostPiasters < 0);
-      if (badLine) {
-        const row = lineRefs.current.get(badLine.productId);
-        row?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        row?.querySelector<HTMLInputElement>('input[data-field="qty"]')?.focus({ preventScroll: true });
-      }
+      return;
+    }
+    const badLine = lineItems.find((it) => it.quantityUnits <= 0 || it.unitCostPiasters < 0);
+    if (badLine) {
+      const row = lineRefs.current.get(badLine.productId);
+      row?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      row?.querySelector<HTMLInputElement>('input[data-field="qty"]')?.focus({ preventScroll: true });
+      return;
     }
     onSavePurchase();
   };
@@ -738,7 +724,6 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   const paidInputRef = useRef<HTMLDivElement>(null);
 
   const cashDrawerBlocked =
-    paymentMode === 'PAID' &&
     paymentSource === 'cash_drawer' &&
     paidAmountPiasters > 0 &&
     liveDrawerCashPiasters !== null &&
@@ -774,12 +759,21 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           )}
           <div className="flex flex-col sm:flex-row sm:items-end gap-3">
             <div ref={supplierWrapRef} className="flex-1 min-w-0">
-              <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1.5">
-                المورد {supplierRequired && <RequiredMark />}
+              <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1.5 flex items-center justify-between">
+                <span>المورد {supplierRequired && <RequiredMark />}</span>
+                {supplierMissing && (
+                  <span className="text-micro font-bold text-warn dark:text-warn-bright">
+                    {paidAmountPiasters === 0
+                      ? 'مطلوب لأن الفاتورة آجلة على الحساب'
+                      : paidAmountPiasters < netCostPiasters
+                      ? 'مطلوب لتسجيل المتبقي على الحساب'
+                      : 'مطلوب لتسجيل الزيادة تحت الحساب'}
+                  </span>
+                )}
               </label>
               <div
-                className={`flex items-center gap-2 rounded-xl ${
-                  showErrors && supplierMissing ? 'ring-2 ring-danger/40 dark:ring-danger-bright/50' : ''
+                className={`flex items-center gap-2 rounded-xl transition-all ${
+                  showErrors && supplierMissing ? 'ring-2 ring-danger dark:ring-danger-bright' : ''
                 }`}
               >
                 <CustomSelect
@@ -1710,60 +1704,40 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             </div>
 
             <div ref={paidInputRef}>
-              <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1.5">المدفوع الآن</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">المدفوع الآن</span>
+                <div className="flex items-center gap-2">
+                  {netCostPiasters > 0 && paidAmountPiasters !== netCostPiasters && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomPaidAmountPiasters(netCostPiasters)}
+                      className="text-micro font-bold text-paid hover:text-paid-hover dark:text-paid-bright cursor-pointer hover:underline flex items-center gap-1"
+                      title="سداد كامل الفاتورة الآن"
+                    >
+                      <Banknote className="w-3 h-3" />
+                      <span>دفع كامل الفاتورة ({formatMoney(netCostPiasters)})</span>
+                    </button>
+                  )}
+                  {paidAmountPiasters > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomPaidAmountPiasters(null)}
+                      className="text-micro font-bold text-ink-muted hover:text-danger dark:text-ink-dark-muted dark:hover:text-danger-bright cursor-pointer hover:underline"
+                      title="تفريغ الخانة لتسجيل الفاتورة آجلة بالكامل"
+                    >
+                      تفريغ (آجل)
+                    </button>
+                  )}
+                </div>
+              </div>
               <MoneyInput
                 valuePiasters={paidAmountPiasters}
                 onChangePiasters={(val) => {
-                  if (paymentMode === 'CREDIT' && val > 0) setPaymentMode('PAID');
-                  setCustomPaidAmountPiasters(val);
+                  setCustomPaidAmountPiasters(val > 0 ? val : null);
                 }}
+                placeholder="0.00 (اتركه فارغاً للآجل)"
                 className="!h-11 !px-2 !py-0 !text-center !text-base font-mono font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark shadow-2xs focus:border-paid"
               />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="group" aria-label="طريقة سداد الفاتورة">
-              <button
-                type="button"
-                onClick={() => {
-                  setPaymentMode('PAID');
-                  setCustomPaidAmountPiasters(null);
-                }}
-                aria-pressed={paymentState === 'full'}
-                title="سداد كامل قيمة الفاتورة الآن"
-                className={`${quickBtnCls(paymentState === 'full')} justify-center`}
-              >
-                <Banknote className="w-3.5 h-3.5 shrink-0" />
-                <span>دفع كامل</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (paymentState !== 'partial') {
-                    setPaymentMode('PAID');
-                    setCustomPaidAmountPiasters(halfOfInvoicePiasters(netCostPiasters));
-                  }
-                  paidInputRef.current?.querySelector('input')?.select();
-                }}
-                aria-pressed={paymentState === 'partial'}
-                title="ادفع جزءاً الآن والباقي يُسجل آجل على المورد. اكتب المبلغ المدفوع في الخانة"
-                className={`${quickBtnCls(paymentState === 'partial')} justify-center`}
-              >
-                <Coins className="w-3.5 h-3.5 shrink-0" />
-                <span>دفع جزء</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPaymentMode('CREDIT');
-                  setCustomPaidAmountPiasters(0);
-                }}
-                aria-pressed={paymentState === 'credit'}
-                title="تسجيل الفاتورة آجل بالكامل على المورد (بدون أي كاش)"
-                className={`${quickBtnCls(paymentState === 'credit')} justify-center`}
-              >
-                <CreditCard className="w-3.5 h-3.5 shrink-0" />
-                <span>آجل بالكامل</span>
-              </button>
             </div>
 
             {(advanceCreditPiasters > 0 && advanceCreditPiasters < netCostPiasters) || supplierDebtPiasters > 0 ? (
@@ -1772,10 +1746,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setPaymentMode('PAID');
                       setCustomPaidAmountPiasters(netCostPiasters - advanceCreditPiasters);
                     }}
-                    className={quickBtnCls(paymentMode === 'PAID' && paidAmountPiasters === netCostPiasters - advanceCreditPiasters)}
+                    className={quickBtnCls(paidAmountPiasters === netCostPiasters - advanceCreditPiasters)}
                   >
                     <Sparkles className="w-3.5 h-3.5 shrink-0" />
                     <span>سداد الفرق بعد رصيدنا ({formatMoney(netCostPiasters - advanceCreditPiasters)})</span>
@@ -1785,10 +1758,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setPaymentMode('PAID');
                       setCustomPaidAmountPiasters(supplierDebtPiasters + netCostPiasters);
                     }}
-                    className={quickBtnCls(paymentMode === 'PAID' && paidAmountPiasters === supplierDebtPiasters + netCostPiasters)}
+                    className={quickBtnCls(paidAmountPiasters === supplierDebtPiasters + netCostPiasters)}
                   >
                     <span>تصفية الدين ({formatMoney(supplierDebtPiasters + netCostPiasters)})</span>
                   </button>
@@ -1807,7 +1779,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               advanceCreditPiasters={advanceCreditPiasters}
               supplierDebtPiasters={supplierDebtPiasters}
               paymentSourceLabel={
-                paymentMode === 'PAID' && paidAmountPiasters > 0
+                paidAmountPiasters > 0
                   ? paymentSource === 'cash_drawer'
                     ? 'من درج الكاشير'
                     : 'كاش خارجي من صاحب المحل'
@@ -1816,14 +1788,20 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               formatMoney={formatMoney}
             />
             {supplierMissing && (
-              <p className="text-xs font-bold text-warn dark:text-warn-bright m-0 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                <span>اختر المورد من أعلى الصفحة عشان نقدر نسجل المتبقي أو الزيادة على حسابه.</span>
-              </p>
+              <div className="p-3 rounded-lg border border-warn/30 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-xs flex items-center gap-2 font-bold">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>
+                  {paidAmountPiasters === 0
+                    ? 'يجب اختيار المورد من أعلى الصفحة لتسجيل الفاتورة الآجلة على حسابه.'
+                    : paidAmountPiasters < netCostPiasters
+                    ? `يجب اختيار المورد لتسجيل المبلغ المتبقي (${formatMoney(remainingAmountPiasters)}) على حسابه.`
+                    : `يجب اختيار المورد لتسجيل الزيادة (+${formatMoney(excessPaidPiasters)}) تحت حسابه.`}
+                </span>
+              </div>
             )}
 
             {/* Cash source: only when cash actually leaves */}
-            {paymentMode === 'PAID' && paidAmountPiasters > 0 && (
+            {paidAmountPiasters > 0 && (
               <div className="space-y-2">
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block">
                   مصدر النقدية المسددة للمورد
@@ -1889,12 +1867,12 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               }`}
             >
               {excessPaidPiasters > 0
-                ? 'سداد بزيادة'
+                ? 'سداد بزيادة (تحت الحساب)'
                 : remainingAmountPiasters === 0
                 ? 'مسددة بالكامل'
                 : paidAmountPiasters === 0
-                ? 'آجل بالكامل'
-                : 'سداد جزئي'}
+                ? 'آجل بالكامل (على الحساب)'
+                : 'سداد جزئي (على الحساب)'}
             </span>
           )}
         </div>

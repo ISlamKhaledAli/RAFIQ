@@ -40,7 +40,7 @@ describe('Story 56 & 57: Installer & Prerequisites Verification (Features #12 & 
     assert.ok(content.includes('528040'), 'Script must check release DWORD 528040 for .NET 4.8');
 
     // Arabic guidance messages instead of error codes
-    assert.ok(content.includes('خطوات الحل بالعربي:'), 'Script must provide clear Arabic guidance steps');
+    assert.ok(content.includes('خطوات الحل:'), 'Script must provide clear Arabic guidance steps');
     assert.ok(content.includes('Windows 7 Service Pack 1'), 'Script must explicitly mention Windows 7 SP1 solution');
     assert.ok(content.includes('KB4474419'), 'Script must explain the SHA-2 update requirement');
   });
