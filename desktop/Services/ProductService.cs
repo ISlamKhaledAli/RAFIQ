@@ -269,7 +269,9 @@ namespace RafiqPOS.Services
                             ? product.StockAdjustReason.Trim()
                             : (isBaseUnitChange
                                 ? ("تعديل الرصيد لتغيير وحدة الأساس المخزنية من «" + existing.Unit + "» إلى «" + product.Unit + "»")
-                                : null);
+                                : (product.Units != null && product.Units.Count > 1
+                                    ? "تعديل الرصيد عند اعتماد وتعديل سعة منظومة التعبئة والعبوات"
+                                    : null));
 
                         if (string.IsNullOrWhiteSpace(reason))
                         {
@@ -283,6 +285,7 @@ namespace RafiqPOS.Services
                         InventoryService inventory = CreateInventoryService();
                         bool isUnitRebase = isBaseUnitChange 
                             || (reason != null && reason.IndexOf("تغيير وحدة الأساس", StringComparison.OrdinalIgnoreCase) >= 0)
+                            || (reason != null && reason.IndexOf("منظومة التعبئة", StringComparison.OrdinalIgnoreCase) >= 0)
                             || (reason != null && reason.IndexOf("UNIT_REBASE", StringComparison.OrdinalIgnoreCase) >= 0);
                         string referenceType = isUnitRebase ? "UNIT_REBASE" : "PRODUCT_CARD_EDIT";
                         stockLedgerStep = delegate(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans)

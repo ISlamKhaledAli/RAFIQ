@@ -294,6 +294,15 @@ namespace RafiqPOS.Models
         [JsonProperty("supplierPaymentsDrawerCashPiasters")]
         public long SupplierPaymentsDrawerCashPiasters { get; set; }
 
+        [JsonProperty("openingFloatPiasters")]
+        public long OpeningFloatPiasters { get; set; }
+
+        [JsonProperty("manualCashInPiasters")]
+        public long ManualCashInPiasters { get; set; }
+
+        [JsonProperty("manualCashOutPiasters")]
+        public long ManualCashOutPiasters { get; set; }
+
         [JsonProperty("isDateSuspicious")]
         public bool IsDateSuspicious { get; set; }
 
@@ -338,6 +347,15 @@ namespace RafiqPOS.Models
 
         [JsonProperty("supplierPaymentsDrawerCashPiasters")]
         public long SupplierPaymentsDrawerCashPiasters { get; set; }
+
+        [JsonProperty("openingFloatPiasters")]
+        public long OpeningFloatPiasters { get; set; }
+
+        [JsonProperty("manualCashInPiasters")]
+        public long ManualCashInPiasters { get; set; }
+
+        [JsonProperty("manualCashOutPiasters")]
+        public long ManualCashOutPiasters { get; set; }
     }
 
     public class DailyClosingSaveRequest

@@ -157,30 +157,142 @@ export function DashboardView({
 
   const todayOutPiasters = summary ? ((summary.todayExpensesPiasters || 0) + (summary.todayReturnsPiasters || 0)) : 0;
   const todayDebtPaymentsPiasters = summary ? (summary.todayDebtPaymentsPiasters || 0) : 0;
+  const openingFloatPiasters = summary?.openingFloatPiasters || 0;
+  const netWalletsPiasters = (summary?.walletsDrawerNetPiasters || 0) - (summary?.walletFundingPiasters || 0);
+  const netEpayPiasters = (summary?.epayDrawerNetPiasters || 0) - (summary?.terminalFundingPiasters || 0);
+  const purchasesSuppliersPiasters = (summary?.purchasesDrawerCashPiasters || 0) + (summary?.supplierPaymentsDrawerCashPiasters || 0);
+  const manualNetPiasters = summary?.manualNetCashInOutPiasters || 0;
 
-  const drawerRows = [
-    {
+  const drawerRows = useMemo(() => {
+    const rows: { key: string; label: string; hint: string; text: string; cls: string }[] = [];
+
+    // 1. عهدة بداية اليوم الافتتاحية
+    if (openingFloatPiasters > 0) {
+      rows.push({
+        key: 'opening-float',
+        label: 'عهدة بداية اليوم',
+        hint: 'رصيد الفكة الافتتاحي المستلم بالدرج',
+        text: `+${(openingFloatPiasters / 100).toLocaleString('en-US', MONEY_2DP)}`,
+        cls: 'text-brand dark:text-brand-bright',
+      });
+    }
+
+    // 2. مبيعات كاش محصلة
+    rows.push({
       key: 'cash-sales',
       label: 'مبيعات كاش',
       hint: 'مبيعات كاش محصلة في الدرج',
       text: todayCashAmount.toLocaleString('en-US', MONEY_2DP),
       cls: 'text-paid dark:text-paid-bright',
-    },
-    {
-      key: 'debt-payments',
-      label: 'سداد شكك',
-      hint: 'تحصيل وسداد فواتير شكك سابقة',
-      text: `${todayDebtPaymentsPiasters > 0 ? '+' : ''}${(todayDebtPaymentsPiasters / 100).toLocaleString('en-US', MONEY_2DP)}`,
-      cls: 'text-paid dark:text-paid-bright',
-    },
-    {
-      key: 'expenses-returns',
-      label: 'مصاريف ومرتجعات',
-      hint: 'مصاريف ونثريات ومرتجعات خرجت من الدرج',
-      text: `${todayOutPiasters > 0 ? '-' : ''}${(todayOutPiasters / 100).toLocaleString('en-US', MONEY_2DP)}`,
-      cls: 'text-danger dark:text-danger-bright',
-    },
-  ];
+    });
+
+    // 3. سداد شكك
+    if (todayDebtPaymentsPiasters > 0 || rows.length <= 2) {
+      rows.push({
+        key: 'debt-payments',
+        label: 'سداد شكك',
+        hint: 'تحصيل وسداد فواتير شكك سابقة',
+        text: `${todayDebtPaymentsPiasters > 0 ? '+' : ''}${(todayDebtPaymentsPiasters / 100).toLocaleString('en-US', MONEY_2DP)}`,
+        cls: 'text-paid dark:text-paid-bright',
+      });
+    }
+
+    // 4. مصاريف ومرتجعات
+    if (todayOutPiasters > 0 || rows.length <= 3) {
+      rows.push({
+        key: 'expenses-returns',
+        label: 'مصاريف ومرتجعات',
+        hint: 'مصاريف ونثريات ومرتجعات خرجت من الدرج',
+        text: `${todayOutPiasters > 0 ? '-' : ''}${(todayOutPiasters / 100).toLocaleString('en-US', MONEY_2DP)}`,
+        cls: 'text-danger dark:text-danger-bright',
+      });
+    }
+
+    // 5. حركات المحافظ وإنستاباي من الدرج
+    if (netWalletsPiasters !== 0) {
+      if (netWalletsPiasters < 0) {
+        rows.push({
+          key: 'wallets-drawer-out',
+          label: 'سحب كاش لمحافظ وإنستاباي',
+          hint: 'نقدية سُلمت لعملاء مقابل تحويل إلكتروني أو تغذية محفظة',
+          text: `-${(Math.abs(netWalletsPiasters) / 100).toLocaleString('en-US', MONEY_2DP)}`,
+          cls: 'text-danger dark:text-danger-bright',
+        });
+      } else {
+        rows.push({
+          key: 'wallets-drawer-in',
+          label: 'إيداع كاش من محافظ وإنستاباي',
+          hint: 'نقدية استلمت بالدرج مقابل سحب إلكتروني',
+          text: `+${(netWalletsPiasters / 100).toLocaleString('en-US', MONEY_2DP)}`,
+          cls: 'text-paid dark:text-paid-bright',
+        });
+      }
+    }
+
+    // 6. ماكينات الدفع والخدمات الإلكترونية بالدرج
+    if (netEpayPiasters !== 0) {
+      if (netEpayPiasters < 0) {
+        rows.push({
+          key: 'epay-drawer-out',
+          label: 'تغذية ماكينة دفع وخدمات',
+          hint: 'نقدية سُحبت من الدرج لتغذية الماكينة أو صرف كاش',
+          text: `-${(Math.abs(netEpayPiasters) / 100).toLocaleString('en-US', MONEY_2DP)}`,
+          cls: 'text-danger dark:text-danger-bright',
+        });
+      } else {
+        rows.push({
+          key: 'epay-drawer-in',
+          label: 'نقدية ماكينة دفع وخدمات بالدرج',
+          hint: 'تحصيلات خدمات وماكينات دخلت درج المحل',
+          text: `+${(netEpayPiasters / 100).toLocaleString('en-US', MONEY_2DP)}`,
+          cls: 'text-paid dark:text-paid-bright',
+        });
+      }
+    }
+
+    // 7. مشتريات وسداد موردين نقداً من الدرج
+    if (purchasesSuppliersPiasters > 0) {
+      rows.push({
+        key: 'purchases-suppliers-out',
+        label: 'مشتريات وموردين من الدرج',
+        hint: 'فواتير شراء ودفعات موردين دُفعت نقداً من الدرج',
+        text: `-${(purchasesSuppliersPiasters / 100).toLocaleString('en-US', MONEY_2DP)}`,
+        cls: 'text-danger dark:text-danger-bright',
+      });
+    }
+
+    // 8. توريد أو سحب يدوي بالدرج
+    if (manualNetPiasters !== 0) {
+      if (manualNetPiasters < 0) {
+        rows.push({
+          key: 'manual-cash-out',
+          label: 'مسحوبات نقدية يدوية',
+          hint: 'سحب نقدي مسجل من الدرج',
+          text: `-${(Math.abs(manualNetPiasters) / 100).toLocaleString('en-US', MONEY_2DP)}`,
+          cls: 'text-danger dark:text-danger-bright',
+        });
+      } else {
+        rows.push({
+          key: 'manual-cash-in',
+          label: 'توريد نقدي إضافي',
+          hint: 'إيداع سيولة يدوية بالدرج',
+          text: `+${(manualNetPiasters / 100).toLocaleString('en-US', MONEY_2DP)}`,
+          cls: 'text-paid dark:text-paid-bright',
+        });
+      }
+    }
+
+    return rows;
+  }, [
+    openingFloatPiasters,
+    todayCashAmount,
+    todayDebtPaymentsPiasters,
+    todayOutPiasters,
+    netWalletsPiasters,
+    netEpayPiasters,
+    purchasesSuppliersPiasters,
+    manualNetPiasters,
+  ]);
   const paymentTiles = useMemo(() => {
     const list: PaymentTile[] = [
       {
@@ -604,6 +716,7 @@ export function DashboardView({
         {/* KPI 5: Drawer Balance (cash breakdown lives in the drawer section below) */}
         {(() => {
           const epayTillPiasters = summary ? (summary.todayEpayTillCashPiasters || 0) : 0;
+          const nonSalesDelta = summary ? (summary.cashDrawerPiasters - (summary.todayCashPiasters || 0)) : 0;
 
           return (
             <div 
@@ -628,7 +741,15 @@ export function DashboardView({
 
               <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted gap-2">
                 <span className="text-ink-muted dark:text-ink-dark-muted font-medium truncate min-w-0">
-                  {epayTillPiasters > 0 ? (
+                  {nonSalesDelta !== 0 ? (
+                    <span className="flex items-center gap-1" title="نقدية الدرج تشمل تسويات المحافظ والماكينات والمصاريف">
+                      <span>شامل</span>
+                      <strong className={`font-mono font-bold ${nonSalesDelta < 0 ? 'text-danger dark:text-danger-bright' : 'text-paid dark:text-paid-bright'}`}>
+                        {nonSalesDelta > 0 ? '+' : ''}{(nonSalesDelta / 100).toFixed(2)}
+                      </strong>
+                      <span>ج.م حركات أخرى</span>
+                    </span>
+                  ) : epayTillPiasters > 0 ? (
                     <span title="نقدية محفظة ماكينات الدفع والخدمات الإلكترونية مستقلة تماماً عن درج المحل">
                       كاش محفظة المكن: <strong className="font-mono font-bold text-ink dark:text-ink-dark">{(epayTillPiasters / 100).toFixed(0)}</strong> ج.م
                     </span>
@@ -714,24 +835,42 @@ export function DashboardView({
           </div>
         </section>
 
-        <section className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xs overflow-hidden">
-          <div className="min-h-[52px] bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 py-3 flex items-center gap-2 text-sm font-bold text-ink dark:text-ink-dark">
-            <Wallet className="w-4 h-4 text-paid dark:text-paid-bright" />
-            <span>حركة درج الكاشير النهاردة</span>
-          </div>
-          <dl className="px-5 divide-y divide-line dark:divide-line-dark">
-            {drawerRows.map((row) => (
-              <div key={row.key} className="py-4 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <dt className="text-sm font-bold text-ink dark:text-ink-dark">{row.label}</dt>
-                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">{row.hint}</p>
-                </div>
-                <dd className={`font-mono text-lg font-black tabular-nums whitespace-nowrap shrink-0 ${row.cls}`}>
-                  {row.text} <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">ج.م</span>
-                </dd>
+        <section className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xs overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="min-h-[52px] bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 py-3 flex items-center justify-between text-sm font-bold text-ink dark:text-ink-dark">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-paid dark:text-paid-bright" />
+                <span>حركة درج الكاشير النهاردة</span>
               </div>
-            ))}
-          </dl>
+              <span className="text-2xs font-normal text-ink-muted dark:text-ink-dark-muted">
+                حسابات السيولة اللحظية
+              </span>
+            </div>
+            <dl className="px-5 divide-y divide-line dark:divide-line-dark">
+              {drawerRows.map((row) => (
+                <div key={row.key} className="py-3.5 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <dt className="text-sm font-bold text-ink dark:text-ink-dark">{row.label}</dt>
+                    <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">{row.hint}</p>
+                  </div>
+                  <dd className={`font-mono text-base sm:text-lg font-black tabular-nums whitespace-nowrap shrink-0 ${row.cls}`}>
+                    {row.text} <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">ج.م</span>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          {/* Footer Total Reconciled Balance */}
+          <div className="bg-surface-2/90 dark:bg-surface-dark-2/90 px-5 py-3.5 border-t border-line dark:border-line-dark flex items-center justify-between">
+            <div>
+              <span className="text-sm font-black text-ink dark:text-ink-dark">صافي نقدية الدرج الآن</span>
+              <p className="text-2xs text-ink-muted dark:text-ink-dark-muted mt-0.5">المفروض يكون في الدرج فعلياً</p>
+            </div>
+            <div className="font-mono text-lg sm:text-xl font-black text-brand dark:text-brand-bright tabular-nums">
+              {summary ? (summary.cashDrawerPiasters / 100).toLocaleString('en-US', MONEY_2DP) : '0.00'} <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">ج.م</span>
+            </div>
+          </div>
         </section>
       </div>
 

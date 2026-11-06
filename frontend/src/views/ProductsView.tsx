@@ -1123,8 +1123,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         setFormError('ليس لديك صلاحية تسوية المخزون؛ لا يمكن تغيير الرصيد من بطاقة الصنف. أعد الرصيد كما كان أو اطلب من المدير.');
         return;
       }
+      const isPackagingStockChange = Boolean(
+        editingId && editingProduct && synchronizedUnits && synchronizedUnits.length > 1 &&
+        stockQuantityMilli !== editingProduct.stockQuantityMilli
+      );
       const effectiveStockAdjustReason = stockAdjustReason.trim() || (
-        isBaseUnitChange ? `تعديل الرصيد لتغيير وحدة الأساس إلى ${effectiveBaseUnit}` : ''
+        isBaseUnitChange
+          ? `تعديل الرصيد لتغيير وحدة الأساس إلى ${effectiveBaseUnit}`
+          : (isPackagingStockChange
+              ? 'تعديل الرصيد عند اعتماد وتعديل سعة منظومة التعبئة والعبوات'
+              : '')
       );
       if (isStockAdjustment && !effectiveStockAdjustReason) {
         setFormError('اكتب سبب تعديل الرصيد (مثل: جرد فعلي، تالف، فاقد) قبل الحفظ.');
@@ -1991,6 +1999,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         productId={selectedProdForMovements?.id || ''}
         productName={selectedProdForMovements?.name || ''}
         unit={selectedProdForMovements?.unit || 'piece'}
+        units={selectedProdForMovements?.units}
         currentStockMilli={selectedProdForMovements?.stockQuantityMilli || 0}
         onOpenAdjustment={() => {
           if (selectedProdForMovements) {

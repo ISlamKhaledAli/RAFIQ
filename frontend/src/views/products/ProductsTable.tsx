@@ -237,9 +237,17 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 const stockQuantityCurrent = (prod.stockQuantityMilli || 0) / 1000;
                 const minStockQuantityItem = (prod.minStockQuantityMilli ?? 5000) / 1000;
 
+                const rawBaseUnit = (prod.units && prod.units.length > 0)
+                  ? (prod.units.find((u) => u.isBaseUnit)?.unitName || prod.unit)
+                  : prod.unit;
+                const baseUnitClean = (!rawBaseUnit || rawBaseUnit === 'piece' || rawBaseUnit === 'pc' || rawBaseUnit === 'unit' || rawBaseUnit === 'item')
+                  ? 'قطعة'
+                  : rawBaseUnit;
+
+                const unitSuffix = isKg ? 'كجم' : (baseUnitClean === 'قطعة' ? 'ق' : ` ${baseUnitClean}`);
                 const stockDisplay = isKg
                   ? `${stockQuantityCurrent.toFixed(3).replace(/\.?0+$/, '')} كجم`
-                  : `${Math.round(stockQuantityCurrent)} ق`;
+                  : `${Math.round(stockQuantityCurrent)}${unitSuffix}`;
 
                 const minStockDisplay = isKg
                   ? `${minStockQuantityItem.toFixed(3).replace(/\.?0+$/, '')}`
@@ -337,9 +345,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         {isEnabled('feature_multi_units') && prod.units && prod.units.length > 1 && (
                           <span
                             className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold rounded-full border border-paid/20 dark:border-paid/30"
-                            title={`وحدات البيع المسجلة:\n${prod.units.map((u) => `${u.unitName} (معامل ${u.conversionFactor})`).join('\n')}`}
+                            title={`وحدات البيع والعبوات المسجلة للصنف:\n${prod.units.map((u) => `• ${u.unitName} (يحتوي على ${u.conversionFactor} ${baseUnitClean})`).join('\n')}`}
                           >
-                            {prod.units.length} وحدات
+                            {prod.units.length === 2 ? 'وحدتان' : `${prod.units.length} وحدات`}
                           </span>
                         )}
                         {isEnabled('feature_taxes') && prod.taxRatePercent > 0 && (

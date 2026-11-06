@@ -424,7 +424,8 @@ namespace RafiqPOS.Repositories
                                             string movementNote = "مبيعات كاشير [دفعة " + bDed.BatchNumber + "] - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
                                             if (!string.IsNullOrWhiteSpace(item.UnitName))
                                             {
-                                                movementNote += string.Format(" ({0})", item.UnitName);
+                                                string cleanUnit = (item.UnitName == "piece" || item.UnitName == "pc" || item.UnitName == "unit" || item.UnitName == "item") ? "قطعة" : item.UnitName;
+                                                movementNote += string.Format(" ({0})", cleanUnit);
                                             }
                                             cmd.Parameters.AddWithValue("@mNote", movementNote);
                                             cmd.Parameters.AddWithValue("@mBatchNum", bDed.BatchNumber);
@@ -489,7 +490,8 @@ namespace RafiqPOS.Repositories
                                             string movementNote = "مبيعات كاشير (فائض عن الدفعات) - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
                                             if (!string.IsNullOrWhiteSpace(item.UnitName))
                                             {
-                                                movementNote += string.Format(" ({0})", item.UnitName);
+                                                string cleanUnit = (item.UnitName == "piece" || item.UnitName == "pc" || item.UnitName == "unit" || item.UnitName == "item") ? "قطعة" : item.UnitName;
+                                                movementNote += string.Format(" ({0})", cleanUnit);
                                             }
                                             cmd.Parameters.AddWithValue("@mNote", movementNote);
                                             cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));
@@ -519,7 +521,8 @@ namespace RafiqPOS.Repositories
                                         string movementNote = "مبيعات كاشير - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
                                         if (!string.IsNullOrWhiteSpace(item.UnitName))
                                         {
-                                            movementNote += string.Format(" ({0})", item.UnitName);
+                                            string cleanUnit = (item.UnitName == "piece" || item.UnitName == "pc" || item.UnitName == "unit" || item.UnitName == "item") ? "قطعة" : item.UnitName;
+                                            movementNote += string.Format(" ({0})", cleanUnit);
                                         }
                                         cmd.Parameters.AddWithValue("@mNote", movementNote);
                                         cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));

@@ -742,6 +742,74 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       </span>
                     </div>
 
+                    {(shiftSummary?.walletsCashPiasters ?? 0) !== 0 && (
+                      <div className={`p-3.5 rounded-xl border ${
+                        (shiftSummary?.walletsCashPiasters ?? 0) > 0
+                          ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid-dark-border'
+                          : 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/20'
+                      }`}>
+                        <span className={`text-xs font-medium block ${
+                          (shiftSummary?.walletsCashPiasters ?? 0) > 0
+                            ? 'text-paid dark:text-paid-bright'
+                            : 'text-danger dark:text-danger-bright'
+                        }`}>
+                          {(shiftSummary?.walletsCashPiasters ?? 0) > 0 ? 'نقدية محافظ بالدرج' : 'صرف نقدية لمحافظ وإنستاباي'}
+                        </span>
+                        <span className={`text-base font-bold mt-1 block ${
+                          (shiftSummary?.walletsCashPiasters ?? 0) > 0
+                            ? 'text-paid dark:text-paid-bright'
+                            : 'text-danger dark:text-danger-bright'
+                        }`}>
+                          {signedAmount((shiftSummary?.walletsCashPiasters ?? 0) > 0 ? '+' : '-', Math.abs(shiftSummary?.walletsCashPiasters ?? 0))}
+                        </span>
+                      </div>
+                    )}
+
+                    {(shiftSummary?.epayCashPiasters ?? 0) !== 0 && (
+                      <div className={`p-3.5 rounded-xl border ${
+                        (shiftSummary?.epayCashPiasters ?? 0) > 0
+                          ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid-dark-border'
+                          : 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/20'
+                      }`}>
+                        <span className={`text-xs font-medium block ${
+                          (shiftSummary?.epayCashPiasters ?? 0) > 0
+                            ? 'text-paid dark:text-paid-bright'
+                            : 'text-danger dark:text-danger-bright'
+                        }`}>
+                          {(shiftSummary?.epayCashPiasters ?? 0) > 0 ? 'نقدية خدمات وماكينات بالدرج' : 'تغذية ماكينة/خدمات من الدرج'}
+                        </span>
+                        <span className={`text-base font-bold mt-1 block ${
+                          (shiftSummary?.epayCashPiasters ?? 0) > 0
+                            ? 'text-paid dark:text-paid-bright'
+                            : 'text-danger dark:text-danger-bright'
+                        }`}>
+                          {signedAmount((shiftSummary?.epayCashPiasters ?? 0) > 0 ? '+' : '-', Math.abs(shiftSummary?.epayCashPiasters ?? 0))}
+                        </span>
+                      </div>
+                    )}
+
+                    {(shiftSummary?.purchasesCashPiasters ?? 0) > 0 && (
+                      <div className="bg-danger-soft dark:bg-danger-dark-soft p-3.5 rounded-xl border border-danger-border dark:border-danger-bright/20">
+                        <span className="text-xs text-danger dark:text-danger-bright font-medium block">
+                          مشتريات مسددة من الدرج
+                        </span>
+                        <span className="text-base font-bold text-danger dark:text-danger-bright mt-1 block">
+                          {signedAmount('-', shiftSummary?.purchasesCashPiasters ?? 0)}
+                        </span>
+                      </div>
+                    )}
+
+                    {(shiftSummary?.supplierPaymentsCashPiasters ?? 0) > 0 && (
+                      <div className="bg-danger-soft dark:bg-danger-dark-soft p-3.5 rounded-xl border border-danger-border dark:border-danger-bright/20">
+                        <span className="text-xs text-danger dark:text-danger-bright font-medium block">
+                          سداد موردين من الدرج
+                        </span>
+                        <span className="text-base font-bold text-danger dark:text-danger-bright mt-1 block">
+                          {signedAmount('-', shiftSummary?.supplierPaymentsCashPiasters ?? 0)}
+                        </span>
+                      </div>
+                    )}
+
                     <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-xl border border-line dark:border-line-dark">
                       <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium block">
                         إجمالي فواتير الوردية
@@ -757,7 +825,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     <Info className="w-5 h-5 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
                     <div>
                       <span className="font-bold text-ink dark:text-ink-dark block mb-1">
-                        قنوات الدفع غير النقدية (لا تؤثر في كاش الدرج):
+                        مبيعات القنوات الإلكترونية والآجلة (تُسجل بحساباتها البنكية والذمم):
                       </span>
                       <div className="flex flex-wrap gap-4 text-ink-muted dark:text-ink-dark-muted">
                         <span>فيزا: {formatArabicCurrency(shiftSummary?.cardSalesPiasters ?? 0)}</span>

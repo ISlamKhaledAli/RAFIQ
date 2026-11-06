@@ -12,8 +12,9 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
-import type { StockMovement } from '../types/models';
+import type { StockMovement, ProductUnit } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
+import { formatCompoundStock } from '../utils/packaging';
 
 interface StockMovementsModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ interface StockMovementsModalProps {
   productId: string;
   productName: string;
   unit: string;
+  units?: ProductUnit[] | null;
   currentStockMilli: number;
   onOpenAdjustment?: () => void;
 }
@@ -31,6 +33,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
   productId,
   productName,
   unit,
+  units,
   currentStockMilli,
   onOpenAdjustment,
 }) => {
@@ -40,9 +43,22 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
   const [movementTypeFilter, setMovementTypeFilter] = useState('ALL');
 
   const isKg = unit === 'kg';
+  const rawBaseUnit = (units && units.length > 0)
+    ? (units.find(u => u.isBaseUnit)?.unitName || unit)
+    : unit;
+  const baseUnitClean = (!rawBaseUnit || rawBaseUnit === 'piece' || rawBaseUnit === 'pc' || rawBaseUnit === 'unit' || rawBaseUnit === 'item')
+    ? 'قطعة'
+    : rawBaseUnit;
+
+  const compoundStock = (units && units.length > 1 && !isKg)
+    ? formatCompoundStock(currentStockMilli, units, baseUnitClean)
+    : null;
+
   const currentStockDisplay = isKg
     ? `${(currentStockMilli / 1000).toFixed(3).replace(/\.?0+$/, '')} كجم`
-    : `${Math.round(currentStockMilli / 1000)} قطعة`;
+    : compoundStock
+      ? `${compoundStock} (${Math.round(currentStockMilli / 1000)} ${baseUnitClean})`
+      : `${Math.round(currentStockMilli / 1000)} ${baseUnitClean}`;
 
   useEffect(() => {
     if (!isOpen || !productId) return;
@@ -119,7 +135,17 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
     const qty = Math.abs(milli / 1000);
     const formatted = isKg ? qty.toFixed(3).replace(/\.?0+$/, '') : Math.round(qty);
     const sign = milli >= 0 ? '+' : '-';
-    return `${sign}${formatted} ${isKg ? 'كجم' : 'ق'}`;
+    const unitSuffix = isKg ? 'كجم' : (baseUnitClean === 'قطعة' ? 'ق' : ` ${baseUnitClean}`);
+    return `${sign}${formatted} ${unitSuffix}`;
+  };
+
+  const cleanNote = (note: string | null | undefined) => {
+    if (!note) return '—';
+    return note
+      .replace(/\[SURPLUS\]/g, '[فائض جردي]')
+      .replace(/\[SHORTAGE\]/g, '[عجز جردي]')
+      .replace(/\(piece\)/gi, '(قطعة)')
+      .replace(/\(pc\)/gi, '(قطعة)');
   };
 
   if (!isOpen) return null;
@@ -271,9 +297,9 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                           {formatArabicCurrency(m.unitCostPiasters)}
                         </td>
 
-                        <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted text-micro max-w-sm truncate" title={m.note || ''}>
+                        <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted text-micro max-w-sm truncate" title={cleanNote(m.note)}>
                           {m.note ? (
-                            <span>{m.note}</span>
+                            <span>{cleanNote(m.note)}</span>
                           ) : (
                             <span className="text-ink-muted/50 dark:text-ink-dark-muted">—</span>
                           )}

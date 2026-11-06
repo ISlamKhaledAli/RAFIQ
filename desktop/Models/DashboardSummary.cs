@@ -126,6 +126,30 @@ namespace RafiqPOS.Models
             get { return Common.Money.FormatPiasters(this.CashDrawerPiasters); }
         }
 
+        [JsonProperty("openingFloatPiasters")]
+        public long OpeningFloatPiasters { get; set; }
+
+        [JsonProperty("walletsDrawerNetPiasters")]
+        public long WalletsDrawerNetPiasters { get; set; }
+
+        [JsonProperty("walletFundingPiasters")]
+        public long WalletFundingPiasters { get; set; }
+
+        [JsonProperty("epayDrawerNetPiasters")]
+        public long EpayDrawerNetPiasters { get; set; }
+
+        [JsonProperty("terminalFundingPiasters")]
+        public long TerminalFundingPiasters { get; set; }
+
+        [JsonProperty("purchasesDrawerCashPiasters")]
+        public long PurchasesDrawerCashPiasters { get; set; }
+
+        [JsonProperty("supplierPaymentsDrawerCashPiasters")]
+        public long SupplierPaymentsDrawerCashPiasters { get; set; }
+
+        [JsonProperty("manualNetCashInOutPiasters")]
+        public long ManualNetCashInOutPiasters { get; set; }
+
         [JsonProperty("topSellingProducts")]
         public List<TopSellingItem> TopSellingProducts { get; set; }
 

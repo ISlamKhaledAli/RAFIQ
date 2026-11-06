@@ -56,12 +56,15 @@ if "%~1"=="" if not defined RAFIQ_NO_PAUSE goto :ask_edition
 goto :edition_chosen
 :ask_edition
 echo ========================================================
-echo         اختر نوع ملف التثبيت / Choose Build Edition
+echo   Choose Build Edition / اختر نوع ملف التثبيت
 echo ========================================================
-echo  [1] النسخة الشاملة الأوفلاين (Full Offline - Win 7 SP1 .. 11) [الافتراضي]
-echo  [2] النسخة الخفيفة الحديثة (Slim Edition - Win 10 & 11) ~13MB
+echo   [1] Full Offline Edition (Win 7 SP1 .. Win 11) [Default]
+echo       النسخة الشاملة الأوفلاين (تعمل بدون إنترنت)
+echo.
+echo   [2] Slim Modern Edition  (Win 10 and Win 11) ~13MB
+echo       النسخة الخفيفة الحديثة (لويندوز 10 و 11 بحجم صغير)
 echo ========================================================
-set /p "USER_EDITION=أدخل رقم الخيار (1 أو 2) [الافتراضي: 1]: "
+set /p "USER_EDITION=Select edition [1 or 2] (Default: 1): "
 if "%USER_EDITION%"=="2" set "BUILD_MODE=SLIM"
 echo.
 :edition_chosen

@@ -24,6 +24,9 @@ export interface NewPurchaseLineItem {
   unit?: string;                       // Base unit name (e.g. 'برشامة', 'قرص', 'قطعة')
   packageUnitName?: string;            // Package unit name (e.g. 'علبة', 'كرتونة', 'دستة')
   purchaseUnitMode?: 'package' | 'base'; // 'package' (بالعلبة / بالكرتونة) vs 'base' (بالبرشامة / فرط)
+  selectedUnitId?: string;             // Active selected unit ID from productUnits
+  selectedUnitName?: string;           // Active selected unit name (e.g. 'كرتونة', 'علبة', 'سيجارة')
+  selectedUnitFactor?: number;         // Conversion factor of active selected unit (e.g. 400, 20, 1)
   packageQuantityInput?: string;       // Quantity typed when in package mode (e.g. '5' علب)
   productUnits?: ProductUnit[];        // Attached product packaging units
   packageCostPiasters?: number;        // Cost per package (e.g. cost per علبة / كرتونة)

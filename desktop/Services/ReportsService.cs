@@ -328,6 +328,8 @@ namespace RafiqPOS.Services
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
                     WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT')
+                      AND (sm.reference_type IS NULL OR sm.reference_type NOT IN ('UNIT_REBASE', 'RESTORE_IMPORT'))
+                      AND (sm.note IS NULL OR (sm.note NOT LIKE '%تعديل الرصيد لتغيير وحدة الأساس%' AND sm.note NOT LIKE '%UNIT_REBASE%' AND sm.note NOT LIKE '%استعادة وتنشيط الصنف من ملف الإكسل%'))
                       AND " + smDateClause + @";
                 ";
                 using (var cmd = new SQLiteCommand(adjSql, conn))
@@ -361,6 +363,8 @@ namespace RafiqPOS.Services
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
                     WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT')
+                      AND (sm.reference_type IS NULL OR sm.reference_type NOT IN ('UNIT_REBASE', 'RESTORE_IMPORT'))
+                      AND (sm.note IS NULL OR (sm.note NOT LIKE '%تعديل الرصيد لتغيير وحدة الأساس%' AND sm.note NOT LIKE '%UNIT_REBASE%' AND sm.note NOT LIKE '%استعادة وتنشيط الصنف من ملف الإكسل%'))
                       AND " + smDateClause + @"
                     ORDER BY sm.created_at DESC
                     LIMIT 10;
@@ -532,7 +536,16 @@ namespace RafiqPOS.Services
                 }
 
                 // Unified Senior Drawer Cash Reconciliation (F-02, F-22, F-24, F-08)
-                summary.CashDrawerPiasters = DrawerCashCalculator.CalculateForBusinessDate(conn, todayBDate).ExpectedCashPiasters;
+                var drawerCalc = DrawerCashCalculator.CalculateForBusinessDate(conn, todayBDate);
+                summary.CashDrawerPiasters = drawerCalc.ExpectedCashPiasters;
+                summary.OpeningFloatPiasters = drawerCalc.OpeningFloatPiasters;
+                summary.WalletsDrawerNetPiasters = drawerCalc.WalletsNetCashPiasters;
+                summary.WalletFundingPiasters = drawerCalc.WalletFundingPiasters;
+                summary.EpayDrawerNetPiasters = drawerCalc.EpayNetCashPiasters;
+                summary.TerminalFundingPiasters = drawerCalc.TerminalFundingPiasters;
+                summary.PurchasesDrawerCashPiasters = drawerCalc.PurchasesCashPiasters;
+                summary.SupplierPaymentsDrawerCashPiasters = drawerCalc.SupplierPaymentsPiasters;
+                summary.ManualNetCashInOutPiasters = drawerCalc.ManualNetCashInOutPiasters;
             }
 
             return summary;
@@ -1943,7 +1956,10 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(CASE WHEN sm.quantity_milli < 0 AND (sm.note LIKE '%هدية%' OR sm.note LIKE '%عينة%' OR sm.note LIKE '%ضيافة%') THEN (ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 ELSE 0 END), 0) AS total_gifts
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
-                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT') AND {0};
+                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT')
+                      AND (sm.reference_type IS NULL OR sm.reference_type NOT IN ('UNIT_REBASE', 'RESTORE_IMPORT'))
+                      AND (sm.note IS NULL OR (sm.note NOT LIKE '%تعديل الرصيد لتغيير وحدة الأساس%' AND sm.note NOT LIKE '%UNIT_REBASE%' AND sm.note NOT LIKE '%استعادة وتنشيط الصنف من ملف الإكسل%'))
+                      AND {0};
                 ", dateClause);
 
                 using (var cmd = new SQLiteCommand(sumSql, conn))
@@ -1973,7 +1989,10 @@ namespace RafiqPOS.Services
                         sm.created_at
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
-                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT') AND sm.quantity_milli < 0 AND {0}
+                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT')
+                      AND (sm.reference_type IS NULL OR sm.reference_type NOT IN ('UNIT_REBASE', 'RESTORE_IMPORT'))
+                      AND (sm.note IS NULL OR (sm.note NOT LIKE '%تعديل الرصيد لتغيير وحدة الأساس%' AND sm.note NOT LIKE '%UNIT_REBASE%' AND sm.note NOT LIKE '%استعادة وتنشيط الصنف من ملف الإكسل%'))
+                      AND sm.quantity_milli < 0 AND {0}
                     ORDER BY fin_impact DESC
                     LIMIT 20;
                 ", dateClause);
@@ -2508,7 +2527,10 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(CASE WHEN sm.quantity_milli < 0 THEN (ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 ELSE 0 END), 0) AS total_shrinkage
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
-                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT') AND {0};
+                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT')
+                      AND (sm.reference_type IS NULL OR sm.reference_type NOT IN ('UNIT_REBASE', 'RESTORE_IMPORT'))
+                      AND (sm.note IS NULL OR (sm.note NOT LIKE '%تعديل الرصيد لتغيير وحدة الأساس%' AND sm.note NOT LIKE '%UNIT_REBASE%' AND sm.note NOT LIKE '%استعادة وتنشيط الصنف من ملف الإكسل%'))
+                      AND {0};
                 ", dateClause);
 
                 using (var cmd = new SQLiteCommand(sumSql, conn))
@@ -2546,7 +2568,10 @@ namespace RafiqPOS.Services
                             COALESCE(SUM((ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000), 0) AS cost
                         FROM stock_movements sm
                         LEFT JOIN products p ON sm.product_id = p.id
-                        WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT') AND sm.quantity_milli < 0 AND sm.note LIKE @like AND {0};
+                        WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT')
+                          AND (sm.reference_type IS NULL OR sm.reference_type NOT IN ('UNIT_REBASE', 'RESTORE_IMPORT'))
+                          AND (sm.note IS NULL OR (sm.note NOT LIKE '%تعديل الرصيد لتغيير وحدة الأساس%' AND sm.note NOT LIKE '%UNIT_REBASE%' AND sm.note NOT LIKE '%استعادة وتنشيط الصنف من ملف الإكسل%'))
+                          AND sm.quantity_milli < 0 AND sm.note LIKE @like AND {0};
                     ", dateClause);
 
                     using (var cmd = new SQLiteCommand(rSql, conn))
@@ -2586,7 +2611,10 @@ namespace RafiqPOS.Services
                         sm.created_at
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
-                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT') AND sm.quantity_milli < 0 AND {0}
+                    WHERE sm.movement_type IN ('ADJUSTMENT', 'INVENTORY_ADJUSTMENT')
+                      AND (sm.reference_type IS NULL OR sm.reference_type NOT IN ('UNIT_REBASE', 'RESTORE_IMPORT'))
+                      AND (sm.note IS NULL OR (sm.note NOT LIKE '%تعديل الرصيد لتغيير وحدة الأساس%' AND sm.note NOT LIKE '%UNIT_REBASE%' AND sm.note NOT LIKE '%استعادة وتنشيط الصنف من ملف الإكسل%'))
+                      AND sm.quantity_milli < 0 AND {0}
                     ORDER BY fin_impact DESC
                     LIMIT 15;
                 ", dateClause);

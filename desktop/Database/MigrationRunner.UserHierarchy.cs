@@ -27,6 +27,43 @@ namespace RafiqPOS.Database
                 BackupDatabaseBeforeMigration(dbPath);
                 ApplyMigration65(conn);
             }
+
+            // 69. Apply Migration 66: Clean erroneous tax fields on sales created while taxes disabled
+            if (currentVersion < 66)
+            {
+                BackupDatabaseBeforeMigration(dbPath);
+                ApplyMigration66(conn);
+            }
+        }
+
+        private static void ApplyMigration66(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    using (var cmd = new SQLiteCommand(@"
+                        UPDATE sales 
+                        SET tax_piasters = 0 
+                        WHERE (SELECT value FROM app_settings WHERE key = 'feature_taxes') = '0' 
+                          AND tax_piasters > 0 
+                          AND id NOT LIKE 'demo_%';
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (66, 'Clean erroneous tax fields on sales created while taxes disabled', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
         }
 
         private static void ApplyMigration65(SQLiteConnection conn)

@@ -245,8 +245,12 @@ namespace RafiqPOS.Services
                 ? (delta > 0 ? "SURPLUS" : "SHORTAGE")
                 : adjustmentType.Trim().ToUpperInvariant();
 
+            string typeLabel = (cleanAdjType == "SURPLUS" || cleanAdjType == "فائض جردي" || cleanAdjType == "زيادة")
+                ? "فائض جردي"
+                : ((cleanAdjType == "SHORTAGE" || cleanAdjType == "عجز جردي" || cleanAdjType == "عجز") ? "عجز جردي" : cleanAdjType);
+
             string fullNote = string.Format("تسوية جردية [{0}]: من {1} إلى {2} (فارق: {3}{4}) - السبب: {5}",
-                cleanAdjType,
+                typeLabel,
                 (currentStock / 1000.0).ToString("0.###"),
                 (newStockQuantityMilli / 1000.0).ToString("0.###"),
                 delta > 0 ? "+" : "",

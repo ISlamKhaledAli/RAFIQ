@@ -660,6 +660,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
 
     let multiplyStockByFactor: number | null = null;
     let didRebaseStock = false;
+    let updatedStockQuantityMilli: number | undefined = undefined;
 
     if (hasBaseUnitChanged && product && product.id) {
       if (product.hasVariants || product.parentId) {
@@ -738,6 +739,53 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
           }
         }
       }
+    } else if (currentUnits && currentUnits.length > 1 && product && product.id) {
+      // Find if an existing packaging unit had its conversion factor modified (e.g. from 10 to 20):
+      const changedLevel = levels.find(lvl => {
+        if (lvl.isBase) return false;
+        const matchOld = currentUnits.find(u => 
+          (u.id && u.id === lvl.id) || normalizeUnitName(u.unitName) === normalizeUnitName(lvl.name)
+        );
+        return matchOld && matchOld.conversionFactor > 0 && matchOld.conversionFactor !== lvl.conversionFactor;
+      });
+
+      if (changedLevel) {
+        const matchOld = currentUnits.find(u => 
+          (u.id && u.id === changedLevel.id) || normalizeUnitName(u.unitName) === normalizeUnitName(changedLevel.name)
+        );
+        const oldFactor = matchOld?.conversionFactor || 1;
+        const newFactor = changedLevel.conversionFactor;
+        const baseName = newBaseUnitRow?.name || product.unit || 'وحدة';
+        const packName = changedLevel.name;
+        const currentStockUnits = Math.round(product.stockQuantityMilli / 1000);
+
+        if (currentStockUnits !== 0 && oldFactor > 0) {
+          const scaledStock = Math.round(currentStockUnits * (newFactor / oldFactor));
+          const confirmAdjust = await rafiqConfirm({
+            title: `تأكيد تعديل سعة عبوة «${packName}»`,
+            message: `لقد قمت بتعديل سعة عبوة «${packName}» من (${oldFactor}) إلى (${newFactor}) ${baseName}.\n\n` +
+              `رصيدك المخزني الحالي هو (${currentStockUnits} ${baseName}).\n\n` +
+              `• إذا كان رصيدك السابق مدخلاً بالعبوات بالخطأ وتريد تعديل رصيد المخزن ليطابق السعة الجديدة (${scaledStock} ${baseName}): اضغط «تعديل رصيد المخزن».\n\n` +
+              `• إذا كان رصيد المخزن الحالي (${currentStockUnits} ${baseName}) صحيحاً بالفعل وتريد فقط تعديل مواصفات وأسعار العبوة: اضغط «الإبقاء على الرصيد الحالي».`,
+            confirmText: `تعديل رصيد المخزن إلى (${scaledStock} ${baseName})`,
+            cancelText: `الإبقاء على الرصيد الحالي (${currentStockUnits} ${baseName})`,
+            variant: 'info',
+          });
+
+          if (confirmAdjust) {
+            if (newFactor % oldFactor === 0) {
+              multiplyStockByFactor = Math.round(newFactor / oldFactor);
+              didRebaseStock = true;
+            } else if (oldFactor % newFactor === 0) {
+              multiplyStockByFactor = -Math.round(oldFactor / newFactor);
+              didRebaseStock = true;
+            } else {
+              updatedStockQuantityMilli = Math.round(product.stockQuantityMilli * (newFactor / oldFactor));
+              didRebaseStock = true;
+            }
+          }
+        }
+      }
     }
 
     // Convert wizard rows to final ProductUnits array
@@ -760,13 +808,14 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     const defPurchaseUnit = levels[0];
 
     setIsRebasing(true);
-    let updatedStockQuantityMilli: number | undefined = undefined;
 
-    if (didRebaseStock && multiplyStockByFactor && product) {
-      if (multiplyStockByFactor > 1) {
-        updatedStockQuantityMilli = product.stockQuantityMilli * multiplyStockByFactor;
-      } else if (multiplyStockByFactor < -1) {
-        updatedStockQuantityMilli = Math.floor(product.stockQuantityMilli / Math.abs(multiplyStockByFactor));
+    if (didRebaseStock && product) {
+      if (updatedStockQuantityMilli === undefined && multiplyStockByFactor) {
+        if (multiplyStockByFactor > 1) {
+          updatedStockQuantityMilli = product.stockQuantityMilli * multiplyStockByFactor;
+        } else if (multiplyStockByFactor < -1) {
+          updatedStockQuantityMilli = Math.floor(product.stockQuantityMilli / Math.abs(multiplyStockByFactor));
+        }
       }
     }
 

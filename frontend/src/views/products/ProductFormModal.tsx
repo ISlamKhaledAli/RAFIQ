@@ -1911,6 +1911,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         if (cfg.updatedStockQuantityMilli !== undefined) {
                           const newStock = Math.round(cfg.updatedStockQuantityMilli / 1000);
                           setStockInput(String(newStock));
+                          if (editingProduct && cfg.updatedStockQuantityMilli !== editingProduct.stockQuantityMilli) {
+                            setStockAdjustReason?.('تعديل الرصيد عند اعتماد وتعديل سعة منظومة التعبئة والعبوات');
+                          }
                           const c = Math.floor(newStock / factor);
                           const rem = newStock % factor;
                           setCartonsInput(String(c));
@@ -1929,6 +1932,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           const newStock = Math.round(cfg.updatedStockQuantityMilli / 1000);
                           setStockInput(String(newStock));
                           setLooseInput(String(newStock));
+                          if (editingProduct && cfg.updatedStockQuantityMilli !== editingProduct.stockQuantityMilli) {
+                            setStockAdjustReason?.('تعديل الرصيد عند اعتماد وتعديل سعة منظومة التعبئة والعبوات');
+                          }
                         }
                       }
                     }}

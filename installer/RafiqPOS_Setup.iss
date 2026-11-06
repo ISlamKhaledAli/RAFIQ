@@ -46,14 +46,17 @@
 #endif
 
 [Setup]
-; الهوية الأساسية للبرنامج
+; الهوية الأساسية للبرنامج (معرّبة ثنائياً حسب اللغة المختارة)
 AppId={{A879E05E-9F93-4B9F-84E3-8E5F92CE3C81}
-AppName={#MyAppName}
+AppName={cm:MyAppName}
+AppVerName={cm:MyAppName} {#MyAppVersion}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppCopyright={#MyAppCopyright}
+VersionInfoDescription=Rafiq POS Setup
+VersionInfoProductName=Rafiq POS
 DefaultDirName={autopf}\RafiqPOS
-DefaultGroupName={#MyAppName}
+DefaultGroupName={cm:MyAppName}
 AllowNoIcons=yes
 OutputDir=Output
 #ifdef Slim
@@ -69,6 +72,10 @@ SetupIconFile=app.ico
 WizardImageFile=wizard_sidebar.bmp,wizard_sidebar_2x.bmp
 WizardSmallImageFile=wizard_small.bmp,wizard_small_2x.bmp
 UninstallDisplayIcon={app}\{#MyAppExeName}
+
+; إظهار نافذة اختيار اللغة دائماً دون تذكر اللغة القديمة عند الترقية لضمان تحكم المستخدم الكامل
+ShowLanguageDialog=yes
+UsePreviousLanguage=no
 
 ; التوافق مع الأنظمة: النسخة الخفيفة مخصصة لويندوز 10/11، والنسخة الشاملة تدعم ويندوز 7 الحزمة 1 حتى ويندوز 11
 #ifdef Slim
@@ -94,7 +101,7 @@ Name: "arabic"; MessagesFile: "compiler:Languages\Arabic.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-arabic.BeveledLabel=نظام رفيق — Rafiq Enterprise POS
+arabic.BeveledLabel=نظام رفيق — النسخة الاحترافية للمتاجر
 english.BeveledLabel=Rafiq POS — Enterprise Edition
 
 ; تخصيص نصوص معالج التثبيت لتعكس الهوية الاحترافية لنظام رفيق
@@ -111,8 +118,84 @@ english.FinishedHeadingLabel=Rafiq POS Setup Complete!
 english.FinishedLabelNoIcons=Rafiq POS has been successfully installed on your computer.%n%nYou may now launch the application to start setting up your store.
 english.FinishedLabel=Rafiq POS has been successfully installed and is ready for use.%n%nClick Finish to launch Rafiq POS and get started.
 
+[CustomMessages]
+; --- هوية واسم البرنامج ---
+arabic.MyAppName=نظام رفيق
+english.MyAppName=Rafiq POS
+
+; --- المهام الإضافية (صفحة Tasks) ---
+arabic.AdditionalIcons=خيارات إضافية:
+english.AdditionalIcons=Additional Options:
+arabic.CreateDesktopIcon=إنشاء اختصار لبرنامج رفيق على سطح المكتب
+english.CreateDesktopIcon=Create a desktop shortcut for Rafiq POS
+
+; --- أسماء الاختصارات وإلغاء التثبيت ---
+arabic.UninstallProgram=إلغاء تثبيت نظام رفيق
+english.UninstallProgram=Uninstall Rafiq POS
+
+; --- نصوص العمليات ومشغل الويب (صفحة Finish والـ Run) ---
+arabic.SecuringPermissions=جاري تأمين صلاحيات مجلدات البيانات...
+english.SecuringPermissions=Securing data folder permissions...
+arabic.InstallWebView2Desc=تثبيت أحدث نسخة من مشغل العرض WebView2 (يتطلب اتصال إنترنت — اختياري)
+english.InstallWebView2Desc=Install latest WebView2 Runtime (requires internet connection — optional)
+arabic.InstallingWebView2Status=جاري تثبيت مشغّل العرض (WebView2 Runtime)...
+english.InstallingWebView2Status=Installing WebView2 Runtime...
+
+; --- رسائل تثبيت المتطلبات (Code) ---
+arabic.PrereqProgressTitle=تثبيت متطلبات التشغيل
+english.PrereqProgressTitle=Installing Prerequisites
+arabic.DotNetInstallingTitle=جاري تثبيت Microsoft .NET Framework 4.8 (بدون إنترنت)...
+english.DotNetInstallingTitle=Installing Microsoft .NET Framework 4.8 (Offline)...
+arabic.DotNetInstallingMsg1=جاري تثبيت .NET Framework 4.8 — قد يستغرق ذلك من 5 إلى 15 دقيقة على الأجهزة القديمة.
+english.DotNetInstallingMsg1=Installing .NET Framework 4.8 — this may take 5 to 15 minutes on older machines.
+arabic.DotNetInstallingMsg2=يرجى عدم إغلاق المعالج أو إطفاء الجهاز حتى اكتمال التثبيت.
+english.DotNetInstallingMsg2=Please do not close this wizard or turn off the computer until setup completes.
+
+arabic.DotNetLaunchFailed=تعذر تشغيل مثبت .NET Framework 4.8 المرفق (%1).%nقد يكون برنامج الحماية (Antivirus) منع تشغيله. أوقف الحماية مؤقتاً ثم أعد تشغيل ملف التثبيت.
+english.DotNetLaunchFailed=Could not start the bundled .NET Framework 4.8 installer (%1).%nYour antivirus may have blocked it. Temporarily disable protection and run Setup again.
+
+arabic.DotNetRestartInfo=تم تثبيت Microsoft .NET Framework 4.8 بنجاح، لكن يلزم إعادة تشغيل الجهاز لإكماله.%n%nسيكمل المعالج تثبيت رفيق الآن، وفي الصفحة الأخيرة اختر «نعم، أعد تشغيل الكمبيوتر الآن».%nلا تشغّل البرنامج قبل إعادة التشغيل.
+english.DotNetRestartInfo=Microsoft .NET Framework 4.8 was successfully installed, but a computer restart is required to complete it.%n%nSetup will finish installing Rafiq POS now. On the final page, choose "Yes, restart the computer now".%nDo not run the application before restarting.
+
+arabic.DotNetCancelled=تم إلغاء تثبيت .NET Framework 4.8، ولا يمكن تشغيل رفيق بدونه (رمز 1602).%nأعد تشغيل ملف التثبيت واتركه يكمل حتى النهاية.
+english.DotNetCancelled=.NET Framework 4.8 installation was cancelled (error 1602). Rafiq POS cannot run without it.%nPlease re-run Setup and let it finish completely.
+
+arabic.DotNetReqNotMet=جهازك لا يستوفي متطلبات .NET Framework 4.8 (رمز 5100).%nعلى ويندوز 7: شغّل أولاً «تحديثات_ويندوز7_الجاهزة\تثبيت_التحديثات_تلقائيا.bat» كمسؤول (KB4490628 ثم KB4474419 ثم KB4019990)، أعد تشغيل الجهاز، ثم شغّل ملف تثبيت رفيق مجدداً.%nملاحظة: .NET 4.8 لا يدعم Windows 8.0 (يلزم 8.1).
+english.DotNetReqNotMet=Your computer does not meet the requirements for .NET Framework 4.8 (error 5100).%nOn Windows 7: Please run the automated Windows 7 updates script as administrator first (KB4490628, KB4474419, then KB4019990), restart the computer, then run Setup again.%nNote: Windows 8.0 is not supported by .NET 4.8 (requires Windows 8.1).
+
+arabic.DotNetFailed=فشل تثبيت .NET Framework 4.8 (رمز الخطأ %1).%nعلى ويندوز 7: تأكد من تثبيت تحديثات ويندوز 7 المرفقة ثم أعد تشغيل الجهاز وحاول مجدداً.%nسجل التثبيت التفصيلي موجود في مجلد %TEMP% باسم يبدأ بـ "Microsoft .NET Framework 4.8 Setup".
+english.DotNetFailed=.NET Framework 4.8 installation failed (exit code %1).%nOn Windows 7: Ensure required Windows 7 updates are installed, restart the computer, and try again.%nA detailed setup log is available in your %TEMP% folder starting with "Microsoft .NET Framework 4.8 Setup".
+
+arabic.LinkAttackFound=تم اكتشاف رابط (Junction/Symlink) غير مسموح به في مجلد بيانات رفيق ولم يمكن إزالته:%n%1%n%nلحماية الجهاز تم إيقاف التثبيت. احذف هذا الرابط يدوياً بحساب المسؤول ثم أعد تشغيل ملف التثبيت.
+english.LinkAttackFound=An unauthorized link (junction/symlink) was detected in the Rafiq POS data directory and could not be removed:%n%1%n%nSetup has been aborted for system security. Delete this link manually as administrator and run Setup again.
+
+arabic.CreateDataDirFailed=تعذر إنشاء مجلد بيانات رفيق: %1
+english.CreateDataDirFailed=Could not create Rafiq POS data directory: %1
+
+arabic.LockDataDirFailed=تعذر تأمين صلاحيات مجلد بيانات رفيق (icacls):%n%1
+english.LockDataDirFailed=Could not lock permissions for Rafiq POS data directory (icacls):%n%1
+
+arabic.DotNet48Required=يتطلب البرنامج وجود .NET Framework 4.8 مثبت مسبقاً في النظام.%nيرجى تحديث الويندوز أو استخدام النسخة الشاملة (Full Offline).
+english.DotNet48Required=.NET Framework 4.8 is required on this system.%nPlease update Windows or use the Full Offline installer.
+
+arabic.SlimNotSupported=نظام التشغيل الحالي غير مدعوم بواسطة هذه النسخة الخفيفة (Slim):%n%nهذا الملف مخصص لأجهزة Windows 10 و Windows 11 التي تحتوي مسبقاً على مشغل العرض والدوت نت.%n%nلتشغيل برنامج رفيق على Windows 7 أو 8 بدون إنترنت، يرجى تشغيل النسخة الشاملة (Full Offline):%nRafiqPOS_Setup_v{#MyAppVersion}.exe
+english.SlimNotSupported=The current operating system is not supported by this Slim edition:%n%nThis file is optimized for Windows 10 and 11 which already contain WebView2 and .NET.%n%nTo install Rafiq POS on Windows 7 or 8 offline, please run the Full Offline installer:%nRafiqPOS_Setup_v{#MyAppVersion}.exe
+
+arabic.Win7MissingSP1=نظام التشغيل غير مدعوم مباشرة:%n%nيتطلب برنامج رفيق لنقاط البيع نظام Windows 7 Service Pack 1 (SP1) على الأقل.%nجهازك يعمل حالياً بنظام Windows 7 بدون الحزمة الأولى (Service Pack 1).%n%nخطوات الحل:%n1. قم بتثبيت حزمة التحديث Windows 7 Service Pack 1 (SP1).%n2. أعد تشغيل جهاز الكمبيوتر ثم شغّل برنامج التثبيت مجدداً.
+english.Win7MissingSP1=Operating system is not directly supported:%n%nRafiq POS requires Windows 7 Service Pack 1 (SP1) at minimum.%nYour system is currently running Windows 7 without Service Pack 1.%n%nSolution steps:%n1. Install Windows 7 Service Pack 1 (SP1).%n2. Restart your computer, then run Setup again.
+
+arabic.Win7MissingUpdatesWarn=تنبيه قبل تثبيت .NET Framework 4.8 على ويندوز 7:%n%nلم يتم العثور على التحديثات التالية (مطلوبة لتثبيت .NET 4.8 بدون أخطاء):%n%1%nالحل الموصى به:%n1. اضغط «لا» لإيقاف التثبيت الآن.%n2. شغّل «تحديثات_ويندوز7_الجاهزة\تثبيت_التحديثات_تلقائيا.bat» كمسؤول ثم أعد تشغيل الجهاز.%n3. شغّل ملف تثبيت رفيق مرة أخرى.%n%nإذا كنت متأكداً أن تحديثات أحدث تشملها مثبتة بالفعل اضغط «نعم» للمتابعة.
+english.Win7MissingUpdatesWarn=Warning before installing .NET Framework 4.8 on Windows 7:%n%nThe following updates were not found (required for .NET 4.8 installation):%n%1%nRecommended solution:%n1. Click "No" to stop setup now.%n2. Run the automated Windows 7 updates script as administrator and restart.%n3. Run Rafiq POS Setup again.%n%nIf you are certain newer rollup updates include them, click "Yes" to proceed.
+
+arabic.Win7UpdateSSU=• KB4490628 (تحديث مكدس الخدمة SSU) — يُثبت أولاً
+english.Win7UpdateSSU=• KB4490628 (Servicing Stack Update SSU) — install first
+arabic.Win7UpdateSHA2=• KB4474419 (دعم التوقيع الرقمي SHA-2) — يُثبت ثانياً
+english.Win7UpdateSHA2=• KB4474419 (SHA-2 Code Signing Support) — install second
+arabic.Win7UpdateD3D=• KB4019990 (مكتبة D3DCompiler_47 المطلوبة لـ .NET 4.8)
+english.Win7UpdateD3D=• KB4019990 (D3DCompiler_47 library for .NET 4.8)
+
 [Tasks]
-Name: "desktopicon"; Description: "إنشاء اختصار لبرنامج رفيق على سطح المكتب"; GroupDescription: "خيارات إضافية:"
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Dirs]
 ; البرنامج نفسه في Program Files للقراءة فقط للمستخدمين العاديين (لا صلاحيات كتابة على {app})
@@ -128,11 +211,19 @@ Name: "{commonappdata}\RafiqPOS\backups"; Permissions: users-modify
 [InstallDelete]
 ; إزالة مجلد التحديثات القديم القابل للكتابة من الإصدارات السابقة (لم يعد مستخدماً)
 Type: filesandordirs; Name: "{commonappdata}\RafiqPOS\updates"
-; ترقية من الاسم القديم "رفيق POS": إزالة اختصاراته فقط (قائمة ابدأ وسطح المكتب) حتى لا تتكرر الاختصارات؛ لا تلمس {app} ولا ProgramData
+; ترقية وتنظيف الاختصارات القديمة لجميع اللغات (عربي وإنجليزي) حتى لا تتكرر الاختصارات عند الترقية أو تغيير اللغة؛ لا تلمس {app} ولا ProgramData
 Type: filesandordirs; Name: "{commonprograms}\{#MyOldAppName}"
 Type: filesandordirs; Name: "{userprograms}\{#MyOldAppName}"
 Type: files; Name: "{commondesktop}\{#MyOldAppName}.lnk"
 Type: files; Name: "{userdesktop}\{#MyOldAppName}.lnk"
+Type: filesandordirs; Name: "{commonprograms}\نظام رفيق"
+Type: filesandordirs; Name: "{userprograms}\نظام رفيق"
+Type: files; Name: "{commondesktop}\نظام رفيق.lnk"
+Type: files; Name: "{userdesktop}\نظام رفيق.lnk"
+Type: filesandordirs; Name: "{commonprograms}\{#MyAppEnglishName}"
+Type: filesandordirs; Name: "{userprograms}\{#MyAppEnglishName}"
+Type: files; Name: "{commondesktop}\{#MyAppEnglishName}.lnk"
+Type: files; Name: "{userdesktop}\{#MyAppEnglishName}.lnk"
 
 [Files]
 ; ملفات البرنامج + الواجهة (dist). مجلد مشغل العرض fixed109 يُنسخ بسطر مستقل بالأسفل بدون استثناءات حتى لا يُحذف منه أي ملف
@@ -154,17 +245,16 @@ Source: "{#PrereqDir}\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Check: 
 ; قاعدة البيانات: تُنشأ تلقائياً عند أول تشغيل عبر DatabaseService و MigrationRunner في {commonappdata}\RafiqPOS\data
 ; حماية البيانات من الحذف أو الاستبدال عند إلغاء التثبيت أو الترقية: Flags: onlyifdoesntexist uninsneveruninstall
 
-
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\إلغاء التثبيت"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{group}\{cm:MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{cm:UninstallProgram}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{cm:MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
 ; 0. صلاحيات مجلدات الكتابة (بعد أن قفل PrepareToInstall جذر {commonappdata}\RafiqPOS وأزال أي روابط Junction/Symlink):
 ;    "تعديل" قابل للوراثة على المجلد العلوي فقط — بدون /T (لا نمر على شجرة يتحكم فيها المستخدم)، و /L حتى لا يُتبع أي رابط
 ;    المجلد {app} أُعيد ضبطه في CurStepChanged(ssInstall) ليرث صلاحيات Program Files (قراءة فقط للمستخدمين)
-Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\RafiqPOS\data"" /grant *S-1-5-32-545:(OI)(CI)M /C /L /Q"; Flags: runhidden waituntilterminated; StatusMsg: "جاري تأمين صلاحيات مجلدات البيانات..."; Check: IsSafeDataDir('data')
+Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\RafiqPOS\data"" /grant *S-1-5-32-545:(OI)(CI)M /C /L /Q"; Flags: runhidden waituntilterminated; StatusMsg: "{cm:SecuringPermissions}"; Check: IsSafeDataDir('data')
 Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\RafiqPOS\logs"" /grant *S-1-5-32-545:(OI)(CI)M /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsSafeDataDir('logs')
 Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\RafiqPOS\backups"" /grant *S-1-5-32-545:(OI)(CI)M /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsSafeDataDir('backups')
 ; 1. صلاحيات القراءة والتشغيل لعمليات WebView2 المعزولة (Sandbox) على مجلد المشغل الثابت (توصية مايكروسوفت للـ Fixed Runtime)
@@ -173,10 +263,10 @@ Filename: "{sys}\icacls.exe"; Parameters: """{app}\runtimes\fixed109"" /grant *S
 Filename: "{sys}\icacls.exe"; Parameters: """{app}\runtimes\fixed109"" /grant *S-1-15-2-2:(OI)(CI)(RX) /T /C /L /Q"; Flags: runhidden waituntilterminated; Check: IsWindows10OrLater and DirExists(ExpandConstant('{app}\runtimes\fixed109'))
 
 ; 2. اختياري (يحتاج إنترنت): تثبيت WebView2 Evergreen الأحدث على ويندوز 10/11 غير المحتوي عليه. غير محدد افتراضياً؛ البرنامج يعمل بدونه عبر fixed109
-Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; Description: "تثبيت أحدث نسخة من مشغل العرض WebView2 (يتطلب اتصال إنترنت — اختياري)"; StatusMsg: "جاري تثبيت مشغّل العرض (WebView2 Runtime)..."; Flags: postinstall unchecked skipifsilent waituntilterminated; Check: IsWindows10OrLater and not IsWebView2Installed and not DotNetRestartPending
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; Description: "{cm:InstallWebView2Desc}"; StatusMsg: "{cm:InstallingWebView2Status}"; Flags: postinstall unchecked skipifsilent waituntilterminated; Check: IsWindows10OrLater and not IsWebView2Installed and not DotNetRestartPending
 
 ; تشغيل البرنامج بعد انتهاء التثبيت (لا يُعرض إذا كانت إعادة تشغيل الجهاز مطلوبة بعد تثبيت .NET 4.8)
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent; Check: IsAppReadyToLaunch
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{cm:MyAppName}}"; Flags: nowait postinstall skipifsilent; Check: IsAppReadyToLaunch
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/f /im RafiqPOS.exe"; Flags: runhidden; RunOnceId: "KillRafiq"
@@ -432,14 +522,14 @@ function Win7MissingUpdatesText(): String;
 begin
   Result := '';
   if not HasWindowsUpdatePackage('KB4490628') then
-    Result := Result + '• KB4490628 (تحديث مكدس الخدمة SSU) — يُثبت أولاً' + #13#10;
+    Result := Result + CustomMessage('Win7UpdateSSU') + #13#10;
   if not HasWindowsUpdatePackage('KB4474419') then
-    Result := Result + '• KB4474419 (دعم التوقيع الرقمي SHA-2) — يُثبت ثانياً' + #13#10;
+    Result := Result + CustomMessage('Win7UpdateSHA2') + #13#10;
   if not FileExists(ExpandConstant('{sys}\D3DCompiler_47.dll')) then
-    Result := Result + '• KB4019990 (مكتبة D3DCompiler_47 المطلوبة لـ .NET 4.8)' + #13#10;
+    Result := Result + CustomMessage('Win7UpdateD3D') + #13#10;
 end;
 
-// تثبيت .NET Framework 4.8 المرفق بدون إنترنت. يُرجع نصاً فارغاً عند النجاح أو رسالة خطأ عربية دقيقة توقف التثبيت.
+// تثبيت .NET Framework 4.8 المرفق بدون إنترنت. يُرجع نصاً فارغاً عند النجاح أو رسالة خطأ دقيقة بلغة المستخدم المختارة توقف التثبيت.
 function InstallDotNet48(): String;
 var
   ResultCode: Integer;
@@ -447,8 +537,8 @@ var
   ProgressPage: TOutputProgressWizardPage;
 begin
   Result := '';
-  ProgressPage := CreateOutputProgressPage('تثبيت متطلبات التشغيل', 'جاري تثبيت Microsoft .NET Framework 4.8 (بدون إنترنت)...');
-  ProgressPage.SetText('جاري تثبيت .NET Framework 4.8 — قد يستغرق ذلك من 5 إلى 15 دقيقة على الأجهزة القديمة.', 'يرجى عدم إغلاق المعالج أو إطفاء الجهاز. Installing .NET Framework 4.8, please wait...');
+  ProgressPage := CreateOutputProgressPage(CustomMessage('PrereqProgressTitle'), CustomMessage('DotNetInstallingTitle'));
+  ProgressPage.SetText(CustomMessage('DotNetInstallingMsg1'), CustomMessage('DotNetInstallingMsg2'));
   ProgressPage.SetProgress(0, 0);
   ProgressPage.Show;
   try
@@ -457,9 +547,7 @@ begin
     Log('Installing .NET Framework 4.8: ' + InstallerPath + ' /q /norestart');
     if not Exec(InstallerPath, '/q /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
     begin
-      Result := 'تعذر تشغيل مثبت .NET Framework 4.8 المرفق (' + SysErrorMessage(ResultCode) + ').' + #13#10 +
-                'قد يكون برنامج الحماية (Antivirus) منع تشغيله. أوقف الحماية مؤقتاً ثم أعد تشغيل ملف التثبيت.' + #13#10 +
-                'Could not start the bundled .NET Framework 4.8 installer.';
+      Result := FmtMessage(CustomMessage('DotNetLaunchFailed'), [SysErrorMessage(ResultCode)]);
       Exit;
     end;
     Log('.NET Framework 4.8 installer exit code: ' + IntToStr(ResultCode));
@@ -480,29 +568,15 @@ begin
     1641, 3010:
       begin
         DotNetRestartRequired := True;
-        SuppressibleMsgBox('تم تثبيت Microsoft .NET Framework 4.8 بنجاح، لكن يلزم إعادة تشغيل الجهاز لإكماله.' + #13#10#13#10 +
-               'سيكمل المعالج تثبيت رفيق الآن، وفي الصفحة الأخيرة اختر «نعم، أعد تشغيل الكمبيوتر الآن».' + #13#10 +
-               'لا تشغّل البرنامج قبل إعادة التشغيل.' + #13#10#13#10 +
-               '.NET Framework 4.8 was installed; a restart is required before running Rafiq POS.',
-               mbInformation, MB_OK, IDOK);
+        SuppressibleMsgBox(CustomMessage('DotNetRestartInfo'), mbInformation, MB_OK, IDOK);
       end;
     1602:
-      Result := 'تم إلغاء تثبيت .NET Framework 4.8، ولا يمكن تشغيل رفيق بدونه (رمز 1602).' + #13#10 +
-                'أعد تشغيل ملف التثبيت واتركه يكمل حتى النهاية.' + #13#10 +
-                '.NET Framework 4.8 installation was cancelled (1602).';
+      Result := CustomMessage('DotNetCancelled');
     5100:
-      Result := 'جهازك لا يستوفي متطلبات .NET Framework 4.8 (رمز 5100).' + #13#10 +
-                'على ويندوز 7: شغّل أولاً «تحديثات_ويندوز7_الجاهزة\تثبيت_التحديثات_تلقائيا.bat» كمسؤول' + #13#10 +
-                '(KB4490628 ثم KB4474419 ثم KB4019990)، أعد تشغيل الجهاز، ثم شغّل ملف تثبيت رفيق مجدداً.' + #13#10 +
-                'ملاحظة: .NET 4.8 لا يدعم Windows 8.0 (يلزم 8.1).' + #13#10 +
-                '.NET Framework 4.8 requirements not met (5100). Install the Windows 7 updates first.';
+      Result := CustomMessage('DotNetReqNotMet');
   else
     begin
-      Result := 'فشل تثبيت .NET Framework 4.8 (رمز الخطأ ' + IntToStr(ResultCode) + ').' + #13#10 +
-                'على ويندوز 7: تأكد من تثبيت تحديثات ويندوز 7 المرفقة ثم أعد تشغيل الجهاز وحاول مجدداً.' + #13#10 +
-                'إذا ظهرت مشكلة شهادة (Certificate/Trust) على جهاز بدون إنترنت راجع installer\prerequisites\README.md.' + #13#10 +
-                'سجل التثبيت التفصيلي موجود في مجلد %TEMP% باسم يبدأ بـ "Microsoft .NET Framework 4.8 Setup".' + #13#10 +
-                '.NET Framework 4.8 setup failed with exit code ' + IntToStr(ResultCode) + '.';
+      Result := FmtMessage(CustomMessage('DotNetFailed'), [IntToStr(ResultCode)]);
     end;
   end;
 end;
@@ -608,10 +682,7 @@ end;
 
 function LinkAttackMessage(const Path: String): String;
 begin
-  Result := 'تم اكتشاف رابط (Junction/Symlink) غير مسموح به في مجلد بيانات رفيق ولم يمكن إزالته:' + #13#10 + Path + #13#10 + #13#10 +
-            'لحماية الجهاز تم إيقاف التثبيت. احذف هذا الرابط يدوياً بحساب المسؤول ثم أعد تشغيل ملف التثبيت.' + #13#10 +
-            'An unexpected link (junction/symlink) was found in the Rafiq data folder and could not be removed: ' + Path + #13#10 +
-            'Setup stopped for security. Remove it as an administrator and run Setup again.';
+  Result := FmtMessage(CustomMessage('LinkAttackFound'), [Path]);
 end;
 
 // يتأكد أن جذر البيانات ومجلداته ليست روابط، ثم يقفل الجذر: النظام والمسؤولون تحكم كامل، المستخدمون قراءة فقط.
@@ -633,7 +704,7 @@ begin
   if not DirExists(Root) then
     if not CreateDir(Root) then
     begin
-      Result := 'تعذر إنشاء مجلد بيانات رفيق: ' + Root + #13#10 + 'Could not create the data folder: ' + Root;
+      Result := FmtMessage(CustomMessage('CreateDataDirFailed'), [Root]);
       Exit;
     end;
 
@@ -641,8 +712,7 @@ begin
   RunIcacls('"' + Root + '" /setowner *S-1-5-32-544 /C /L /Q');
   if RunIcacls('"' + Root + '" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /C /L /Q') <> 0 then
   begin
-    Result := 'تعذر تأمين صلاحيات مجلد بيانات رفيق (icacls):' + #13#10 + Root + #13#10 +
-              'Could not lock the permissions of the Rafiq data folder.';
+    Result := FmtMessage(CustomMessage('LockDataDirFailed'), [Root]);
     Exit;
   end;
 
@@ -730,7 +800,7 @@ begin
   Dest := AddBackslash(PreserveDirPath) + IntToStr(PreservedCount) + '_' + ExtractFileName(Path);
   if not RenameFile(Path, Dest) then
   begin
-    if FileCopy(Path, Dest, True) then
+    if CopyFile(Path, Dest, True) then
       DeleteFile(Path);
   end;
   Log('Preserved legacy data file: ' + Path + ' -> ' + Dest);
@@ -836,9 +906,7 @@ begin
 #else
   if not IsDotNet48Installed() then
   begin
-    Result := 'يتطلب البرنامج وجود .NET Framework 4.8 مثبت مسبقاً في النظام.' + #13#10 +
-              'يرجى تحديث الويندوز أو استخدام النسخة الشاملة (Full Offline).' + #13#10 +
-              '.NET Framework 4.8 is required. Please update Windows or use the Full Offline installer.';
+    Result := CustomMessage('DotNet48Required');
     Exit;
   end;
 #endif
@@ -882,11 +950,7 @@ begin
   // 0. النسخة الخفيفة (Slim) مخصصة فقط لأنظمة Windows 10 و Windows 11
   if IsLegacyWindows() then
   begin
-    Msg := 'نظام التشغيل الحالي غير مدعوم بواسطة هذه النسخة الخفيفة (Slim):' + #13#10 + #13#10 +
-           'هذا الملف مخصص لأجهزة Windows 10 و Windows 11 التي تحتوي مسبقاً على مشغل العرض والدوت نت.' + #13#10 + #13#10 +
-           'لتشغيل برنامج رفيق على Windows 7 أو 8 بدون إنترنت، يرجى تشغيل النسخة الشاملة (Full Offline):' + #13#10 +
-           'RafiqPOS_Setup_v{#MyAppVersion}.exe' + #13#10 + #13#10 +
-           'This Slim installer is optimized for Windows 10 & 11. For Windows 7/8, use the Full Offline installer.';
+    Msg := CustomMessage('SlimNotSupported');
     MsgBox(Msg, mbCriticalError, MB_OK);
     Result := False;
     Exit;
@@ -896,12 +960,7 @@ begin
   // 1. فحص الحزمة الأولى على ويندوز 7 (Windows 7 SP1)
   if IsWin7MissingSP1() then
   begin
-    Msg := 'نظام التشغيل غير مدعوم مباشرة:' + #13#10 + #13#10 +
-           'يتطلب برنامج رفيق لنقاط البيع نظام Windows 7 Service Pack 1 (SP1) على الأقل.' + #13#10 +
-           'جهازك يعمل حالياً بنظام Windows 7 بدون الحزمة الأولى (Service Pack 1).' + #13#10#13#10 +
-           'خطوات الحل بالعربي:' + #13#10 +
-           '1. قم بتثبيت حزمة التحديث Windows 7 Service Pack 1 (SP1).' + #13#10 +
-           '2. أعد تشغيل جهاز الكمبيوتر ثم شغّل برنامج التثبيت مجدداً.';
+    Msg := CustomMessage('Win7MissingSP1');
     MsgBox(Msg, mbCriticalError, MB_OK);
     Result := False;
     Exit;
@@ -913,14 +972,7 @@ begin
     Missing := Win7MissingUpdatesText();
     if Missing <> '' then
     begin
-      Msg := 'تنبيه قبل تثبيت .NET Framework 4.8 على ويندوز 7:' + #13#10 + #13#10 +
-             'لم يتم العثور على التحديثات التالية (مطلوبة لتثبيت .NET 4.8 بدون أخطاء):' + #13#10 + Missing + #13#10 +
-             'الحل الموصى به:' + #13#10 +
-             '1. اضغط «لا» لإيقاف التثبيت الآن.' + #13#10 +
-             '2. شغّل «تحديثات_ويندوز7_الجاهزة\تثبيت_التحديثات_تلقائيا.bat» كمسؤول ثم أعد تشغيل الجهاز.' + #13#10 +
-             '3. شغّل ملف تثبيت رفيق مرة أخرى.' + #13#10 + #13#10 +
-             'إذا كنت متأكداً أن تحديثات أحدث تشملها مثبتة بالفعل اضغط «نعم» للمتابعة.' + #13#10 +
-             'Windows 7 updates required by .NET Framework 4.8 seem missing. Continue anyway?';
+      Msg := FmtMessage(CustomMessage('Win7MissingUpdatesWarn'), [Missing]);
       if SuppressibleMsgBox(Msg, mbConfirmation, MB_YESNO, IDYES) = IDNO then
       begin
         Result := False;

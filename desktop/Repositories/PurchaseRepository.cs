@@ -537,18 +537,35 @@ namespace RafiqPOS.Repositories
                                 cmdNonBase.ExecuteNonQuery();
                             }
 
-                            // The package unit matching the invoice pack size keeps the box public price as its selling price
-                            if (item.PublicPricePiasters.HasValue && item.PublicPricePiasters.Value > 0 && item.ConversionFactor > 1.0)
+                            // The package unit matching the invoice pack size keeps the box public price and box cost
+                            if (item.ConversionFactor > 1.0)
                             {
-                                using (var cmdBox = new SQLiteCommand(@"
-                                    UPDATE product_units SET sell_price_piasters = @boxPrice, updated_at = @now
-                                    WHERE product_id = @pid AND is_base_unit = 0 AND conversion_factor = @factor;", conn, trans))
+                                if (item.PublicPricePiasters.HasValue && item.PublicPricePiasters.Value > 0)
                                 {
-                                    cmdBox.Parameters.AddWithValue("@boxPrice", item.PublicPricePiasters.Value);
-                                    cmdBox.Parameters.AddWithValue("@now", now);
-                                    cmdBox.Parameters.AddWithValue("@pid", item.ProductId);
-                                    cmdBox.Parameters.AddWithValue("@factor", (long)Math.Round(item.ConversionFactor));
-                                    cmdBox.ExecuteNonQuery();
+                                    using (var cmdBox = new SQLiteCommand(@"
+                                        UPDATE product_units SET sell_price_piasters = @boxPrice, updated_at = @now
+                                        WHERE product_id = @pid AND is_base_unit = 0 AND conversion_factor = @factor;", conn, trans))
+                                    {
+                                        cmdBox.Parameters.AddWithValue("@boxPrice", item.PublicPricePiasters.Value);
+                                        cmdBox.Parameters.AddWithValue("@now", now);
+                                        cmdBox.Parameters.AddWithValue("@pid", item.ProductId);
+                                        cmdBox.Parameters.AddWithValue("@factor", (long)Math.Round(item.ConversionFactor));
+                                        cmdBox.ExecuteNonQuery();
+                                    }
+                                }
+
+                                if (item.PackageCostPiasters > 0)
+                                {
+                                    using (var cmdPkgCost = new SQLiteCommand(@"
+                                        UPDATE product_units SET cost_price_piasters = @pkgCost, updated_at = @now
+                                        WHERE product_id = @pid AND is_base_unit = 0 AND conversion_factor = @factor;", conn, trans))
+                                    {
+                                        cmdPkgCost.Parameters.AddWithValue("@pkgCost", item.PackageCostPiasters);
+                                        cmdPkgCost.Parameters.AddWithValue("@now", now);
+                                        cmdPkgCost.Parameters.AddWithValue("@pid", item.ProductId);
+                                        cmdPkgCost.Parameters.AddWithValue("@factor", (long)Math.Round(item.ConversionFactor));
+                                        cmdPkgCost.ExecuteNonQuery();
+                                    }
                                 }
                             }
 

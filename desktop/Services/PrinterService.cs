@@ -2836,6 +2836,18 @@ namespace RafiqPOS.Services
                     var previewData = JsonConvert.DeserializeObject<DailyClosingPreview>(closing.SummaryJson);
                     if (previewData != null)
                     {
+                        if (previewData.OpeningFloatPiasters > 0)
+                        {
+                            drawRow("عهدة افتتاحية بالدرج:", "+" + (previewData.OpeningFloatPiasters / 100.0).ToString("N2") + " ج.م", false);
+                        }
+                        if (previewData.ManualCashInPiasters > 0)
+                        {
+                            drawRow("إيداع نقدي يدوي بالدرج:", "+" + (previewData.ManualCashInPiasters / 100.0).ToString("N2") + " ج.م", false);
+                        }
+                        if (previewData.ManualCashOutPiasters > 0)
+                        {
+                            drawRow("سحب نقدي يدوي من الدرج:", "-" + (previewData.ManualCashOutPiasters / 100.0).ToString("N2") + " ج.م", false);
+                        }
                         if (previewData.PurchasesDrawerCashPiasters > 0)
                         {
                             drawRow("مشتريات مسددة من الدرج:", "-" + (previewData.PurchasesDrawerCashPiasters / 100.0).ToString("N2") + " ج.م", false);
@@ -2848,6 +2860,10 @@ namespace RafiqPOS.Services
                         {
                             drawRow("نقدية خدمات إلكترونية بالدرج:", "+" + (previewData.EpayDrawerCashPiasters / 100.0).ToString("N2") + " ج.م", false);
                         }
+                        else if (previewData.EpayDrawerCashPiasters < 0)
+                        {
+                            drawRow("نقدية خدمات إلكترونية منصرفة:", "-" + (Math.Abs(previewData.EpayDrawerCashPiasters) / 100.0).ToString("N2") + " ج.م", false);
+                        }
                         if (previewData.EpayDrawerFundingPiasters > 0)
                         {
                             drawRow("تغذية ماكينة دفع من الدرج:", "-" + (previewData.EpayDrawerFundingPiasters / 100.0).ToString("N2") + " ج.م", false);
@@ -2855,6 +2871,10 @@ namespace RafiqPOS.Services
                         if (previewData.WalletsDrawerCashPiasters > 0)
                         {
                             drawRow("نقدية محافظ بالدرج:", "+" + (previewData.WalletsDrawerCashPiasters / 100.0).ToString("N2") + " ج.م", false);
+                        }
+                        else if (previewData.WalletsDrawerCashPiasters < 0)
+                        {
+                            drawRow("نقدية منصرفة لمحافظ/إنستاباي:", "-" + (Math.Abs(previewData.WalletsDrawerCashPiasters) / 100.0).ToString("N2") + " ج.م", false);
                         }
                         if (previewData.WalletsDrawerFundingPiasters > 0)
                         {

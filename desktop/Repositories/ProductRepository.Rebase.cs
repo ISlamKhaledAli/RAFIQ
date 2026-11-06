@@ -539,7 +539,7 @@ namespace RafiqPOS.Repositories
                         }
 
                         // If user requested rebasing/multiplying/dividing existing stock to match new pack hierarchy
-                        if (multiplyStockByFactor.HasValue && multiplyStockByFactor.Value != 0 && multiplyStockByFactor.Value != 1 && prod.StockQuantityMilli > 0)
+                        if (multiplyStockByFactor.HasValue && multiplyStockByFactor.Value != 0 && multiplyStockByFactor.Value != 1 && prod.StockQuantityMilli != 0)
                         {
                             long oldStock = prod.StockQuantityMilli;
                             long newStock;

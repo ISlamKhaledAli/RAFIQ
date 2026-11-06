@@ -592,6 +592,15 @@ namespace RafiqPOS.Services
 
                 var calc = DrawerCashCalculator.Calculate(conn, null, wStart, wEnd, null);
                 preview.ExpectedCashPiasters = calc.ExpectedCashPiasters;
+                preview.OpeningFloatPiasters = calc.OpeningFloatPiasters;
+                preview.ManualCashInPiasters = calc.ManualCashInPiasters;
+                preview.ManualCashOutPiasters = calc.ManualCashOutPiasters;
+                preview.WalletsDrawerCashPiasters = calc.WalletsNetCashPiasters;
+                preview.WalletsDrawerFundingPiasters = calc.WalletFundingPiasters;
+                preview.EpayDrawerCashPiasters = calc.EpayNetCashPiasters;
+                preview.EpayDrawerFundingPiasters = calc.TerminalFundingPiasters;
+                preview.PurchasesDrawerCashPiasters = calc.PurchasesCashPiasters;
+                preview.SupplierPaymentsDrawerCashPiasters = calc.SupplierPaymentsPiasters;
             }
 
             return preview;

@@ -247,8 +247,29 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
 
     const isPharma = isEnabled('feature_pharmacy');
     const isMultiUnits = isEnabled('feature_multi_units');
-    const detectedPkg = prod.units?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
-    const baseUnitObj = prod.units?.find((u) => u.isBaseUnit);
+    const baseUnitObj = prod.units?.find((u) => u.isBaseUnit || u.conversionFactor === 1);
+    const sortedUnits = prod.units && prod.units.length > 0
+      ? [...prod.units].sort((a, b) => b.conversionFactor - a.conversionFactor)
+      : [];
+    const pkgUnits = sortedUnits.filter((u) => !u.isBaseUnit && u.conversionFactor > 1);
+
+    // Initial unit selection:
+    // 1. Explicit default purchase unit if configured
+    // 2. Unit whose name matches product name (e.g. "علبة" in "علبة سجائر ...")
+    // 3. Lowest packaging unit > 1 (e.g. "علبة" factor 20 before "كرتونة" factor 400 for retail purchasing)
+    // 4. Any packaging unit > 1
+    // 5. Base unit
+    const explicitDefaultUnit = prod.defaultPurchaseUnitId
+      ? sortedUnits.find((u) => u.id === prod.defaultPurchaseUnitId)
+      : null;
+    const nameMatchedUnit = !explicitDefaultUnit
+      ? pkgUnits.find((u) => prod.name.toLowerCase().includes(u.unitName.toLowerCase()))
+      : null;
+    const lowestPackageUnit = (!explicitDefaultUnit && !nameMatchedUnit && pkgUnits.length > 0)
+      ? pkgUnits[pkgUnits.length - 1]
+      : null;
+    const detectedPkg = explicitDefaultUnit || nameMatchedUnit || lowestPackageUnit || pkgUnits[0];
+
     const effectiveBaseUnitName = (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
       ? baseUnitObj.unitName.trim()
       : (prod.unit || (isPharma ? 'قرص' : 'قطعة'));
@@ -257,6 +278,52 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined);
     const packFactor = detectedPkg ? detectedPkg.conversionFactor : 0;
     const initialMode: 'package' | 'base' = (isPharma || packFactor > 1) ? 'package' : 'base';
+
+    // Senior pricing resolution: distinguish package prices from base unit prices
+    let resolvedPackageCost = 0;
+    let resolvedBaseCost = 0;
+    let resolvedPackagePrice = 0;
+    let resolvedBasePrice = 0;
+
+    if (packFactor > 1) {
+      if (detectedPkg && detectedPkg.costPricePiasters > 0) {
+        resolvedPackageCost = detectedPkg.costPricePiasters;
+      } else if (prod.costPiasters > 0) {
+        resolvedPackageCost = prod.costPiasters;
+      } else if (baseUnitObj && baseUnitObj.costPricePiasters > 0) {
+        resolvedPackageCost = baseUnitObj.costPricePiasters * packFactor;
+      }
+
+      if (baseUnitObj && baseUnitObj.costPricePiasters > 0) {
+        resolvedBaseCost = baseUnitObj.costPricePiasters;
+      } else if (resolvedPackageCost > 0) {
+        resolvedBaseCost = Math.round(resolvedPackageCost / packFactor);
+      }
+
+      if (resolvedPackageCost <= 0 && resolvedBaseCost > 0) {
+        resolvedPackageCost = resolvedBaseCost * packFactor;
+      }
+
+      if (detectedPkg && detectedPkg.sellPricePiasters > 0) {
+        resolvedPackagePrice = detectedPkg.sellPricePiasters;
+      } else if (prod.pricePiasters > 0) {
+        resolvedPackagePrice = prod.pricePiasters;
+      } else if (baseUnitObj && baseUnitObj.sellPricePiasters > 0) {
+        resolvedPackagePrice = baseUnitObj.sellPricePiasters * packFactor;
+      }
+
+      if (resolvedPackagePrice > 0) {
+        resolvedBasePrice = Math.round(resolvedPackagePrice / packFactor);
+      } else if (baseUnitObj && baseUnitObj.sellPricePiasters > 0) {
+        resolvedBasePrice = baseUnitObj.sellPricePiasters;
+        resolvedPackagePrice = resolvedBasePrice * packFactor;
+      }
+    } else {
+      resolvedBaseCost = prod.costPiasters > 0 ? prod.costPiasters : 0;
+      resolvedPackageCost = resolvedBaseCost;
+      resolvedBasePrice = prod.pricePiasters > 0 ? prod.pricePiasters : resolvedBaseCost;
+      resolvedPackagePrice = resolvedBasePrice;
+    }
 
     const existingIdx = lineItems.findIndex((item) => item.productId === prod.id);
     if (existingIdx >= 0) {
@@ -301,12 +368,13 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           productName: prod.name,
           barcode: prod.barcode || '',
           currentStockMilli: prod.stockQuantityMilli,
-          currentCostPiasters: prod.costPiasters,
-          currentPricePiasters: prod.pricePiasters,
+          currentCostPiasters: resolvedBaseCost,
+          currentPricePiasters: resolvedBasePrice,
           quantityUnits: initialUnits,
           quantityInput: initialQtyInput,
-          unitCostPiasters: prod.costPiasters > 0 ? prod.costPiasters : prod.pricePiasters,
-          newSellingPricePiasters: prod.pricePiasters,
+          unitCostPiasters: resolvedBaseCost,
+          packageCostPiasters: resolvedPackageCost,
+          newSellingPricePiasters: resolvedBasePrice,
           batchNumber: '',
           expiryDate: '',
           productionDate: '',
@@ -316,14 +384,15 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           unit: effectiveBaseUnitName,
           packageUnitName: effectivePackageUnitName,
           purchaseUnitMode: initialMode,
+          selectedUnitId: detectedPkg ? detectedPkg.id : baseUnitObj?.id,
+          selectedUnitName: detectedPkg ? detectedPkg.unitName : effectiveBaseUnitName,
+          selectedUnitFactor: packFactor > 1 ? packFactor : 1,
           productUnits: prod.units,
           cartonsInput: initialCartonsInput,
           packSizeInput: packFactor > 1 ? String(packFactor) : '',
           packSize: packFactor > 1 ? packFactor : undefined,
           looseInput: initialLooseInput,
-          publicPricePiasters: (detectedPkg && detectedPkg.sellPricePiasters > 0)
-            ? detectedPkg.sellPricePiasters
-            : (packFactor > 1 ? prod.pricePiasters * packFactor : prod.pricePiasters),
+          publicPricePiasters: resolvedPackagePrice,
         },
       ]);
     }
@@ -405,8 +474,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           batchNumber: item.batchNumber?.trim() || undefined,
           expiryDate: item.expiryDate?.trim() || undefined,
           productionDate: item.productionDate?.trim() || undefined,
-          unitId: item.unit,
-          unitName: item.unit,
+          unitId: item.selectedUnitId || item.unit,
+          unitName: item.selectedUnitName || item.unit,
           conversionFactor: amounts.conversionFactor,
           packageCostPiasters: amounts.packageCostPiasters,
         };
@@ -913,17 +982,63 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                   const baseQty = Math.max(1, Math.round(pi.suggestedQuantityMilli / 1000));
                   const cartonsCount = packFactor > 1 ? Math.floor(baseQty / packFactor) || 1 : 1;
 
+                  let propPackageCost = 0;
+                  let propBaseCost = 0;
+                  let propPackagePrice = 0;
+                  let propBasePrice = 0;
+
+                  if (packFactor > 1) {
+                    if (detectedPkg && detectedPkg.costPricePiasters > 0) {
+                      propPackageCost = detectedPkg.costPricePiasters;
+                    } else if (cost > 0) {
+                      propPackageCost = cost;
+                    } else if (baseUnitObj && baseUnitObj.costPricePiasters > 0) {
+                      propPackageCost = baseUnitObj.costPricePiasters * packFactor;
+                    }
+
+                    if (baseUnitObj && baseUnitObj.costPricePiasters > 0) {
+                      propBaseCost = baseUnitObj.costPricePiasters;
+                    } else if (propPackageCost > 0) {
+                      propBaseCost = Math.round(propPackageCost / packFactor);
+                    }
+
+                    if (propPackageCost <= 0 && propBaseCost > 0) {
+                      propPackageCost = propBaseCost * packFactor;
+                    }
+
+                    if (detectedPkg && detectedPkg.sellPricePiasters > 0) {
+                      propPackagePrice = detectedPkg.sellPricePiasters;
+                    } else if (price > 0) {
+                      propPackagePrice = price;
+                    } else if (baseUnitObj && baseUnitObj.sellPricePiasters > 0) {
+                      propPackagePrice = baseUnitObj.sellPricePiasters * packFactor;
+                    }
+
+                    if (propPackagePrice > 0) {
+                      propBasePrice = Math.round(propPackagePrice / packFactor);
+                    } else if (baseUnitObj && baseUnitObj.sellPricePiasters > 0) {
+                      propBasePrice = baseUnitObj.sellPricePiasters;
+                      propPackagePrice = propBasePrice * packFactor;
+                    }
+                  } else {
+                    propBaseCost = cost;
+                    propPackageCost = cost;
+                    propBasePrice = price;
+                    propPackagePrice = price;
+                  }
+
                   return {
                     productId: pi.productId || prod?.id || '',
                     productName: pi.productName || prod?.name || 'صنف',
                     barcode: rawBarcode,
                     currentStockMilli: stock,
-                    currentCostPiasters: cost,
-                    currentPricePiasters: price,
+                    currentCostPiasters: propBaseCost,
+                    currentPricePiasters: propBasePrice,
                     quantityUnits: baseQty,
                     quantityInput: initialMode === 'package' && packFactor > 1 ? String(cartonsCount) : String(baseQty),
-                    unitCostPiasters: cost,
-                    newSellingPricePiasters: price,
+                    unitCostPiasters: propBaseCost,
+                    packageCostPiasters: propPackageCost,
+                    newSellingPricePiasters: propBasePrice,
                     unit: effectiveBase,
                     packageUnitName: effectivePackage,
                     purchaseUnitMode: initialMode,
@@ -932,9 +1047,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                     packSizeInput: packFactor > 1 ? String(packFactor) : '',
                     packSize: packFactor > 1 ? packFactor : undefined,
                     looseInput: initialMode === 'package' && packFactor > 1 ? String(baseQty % packFactor) : String(baseQty),
-                    publicPricePiasters: (detectedPkg && detectedPkg.sellPricePiasters > 0)
-                      ? detectedPkg.sellPricePiasters
-                      : (packFactor > 1 ? price * packFactor : price),
+                    publicPricePiasters: propPackagePrice,
                   };
                 })
               );

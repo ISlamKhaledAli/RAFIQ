@@ -550,7 +550,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                     <h3 className="t-card-title text-ink dark:text-ink-dark">1. جرد ومطابقة نقدية درج كاشير المحل (كاش البضاعة)</h3>
                   </div>
                   <p className="text-sm text-ink-muted dark:text-ink-dark-muted leading-relaxed">
-                    حسبة الدرج = مبيعات الكاش (الصافي) + سداد الديون − المرتجعات − مصاريف الدرج (انستاباي والمحافظ بتدخل البنك خارج الدرج)
+                    حسبة الدرج = عهدة البداية + مبيعات الكاش + سداد الديون − المرتجعات − مصاريف الدرج ± حركات المحافظ والماكينات النقدية − مشتريات وموردي الدرج
                   </p>
                 </div>
 
@@ -682,8 +682,54 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
                 {(preview.epayDrawerFundingPiasters || 0) > 0 && (
                   <div className="p-3.5 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-sm flex flex-wrap items-center justify-between gap-2">
-                    <span>تم سحب مبلغ من درج المحل لتغذية الماكينة: <strong>{formatArabicCurrency(preview.epayDrawerFundingPiasters || 0)}</strong></span>
+                    <span>تم سحب مبلغ من درج المحل لتغذية ماكينة دفع: <strong>{formatArabicCurrency(preview.epayDrawerFundingPiasters || 0)}</strong></span>
                     <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
+                  </div>
+                )}
+
+                {(preview.walletsDrawerFundingPiasters || 0) > 0 && (
+                  <div className="p-3.5 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>تم سحب مبلغ من درج المحل لتغذية محفظة إلكترونية: <strong>{formatArabicCurrency(preview.walletsDrawerFundingPiasters || 0)}</strong></span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
+                  </div>
+                )}
+
+                {(preview.walletsDrawerCashPiasters || 0) !== 0 && (
+                  <div className={`p-3.5 rounded-xl border text-sm flex flex-wrap items-center justify-between gap-2 ${
+                    (preview.walletsDrawerCashPiasters || 0) < 0
+                      ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
+                      : 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid-dark-border text-paid dark:text-paid-bright'
+                  }`}>
+                    <span>
+                      {(preview.walletsDrawerCashPiasters || 0) < 0
+                        ? `تم تسليم نقدية لعملاء من الدرج لعمليات إنستاباي ومحافظ: `
+                        : `تم تحصيل نقدية بالدرج من عمليات سحب محافظ وإنستاباي: `}
+                      <strong>{formatArabicCurrency(Math.abs(preview.walletsDrawerCashPiasters || 0))}</strong>
+                    </span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">
+                      {(preview.walletsDrawerCashPiasters || 0) < 0 ? 'مخصوم تلقائياً من حسبة كاش الدرج أعلاه' : 'مضاف تلقائياً لحسبة كاش الدرج أعلاه'}
+                    </span>
+                  </div>
+                )}
+
+                {(preview.purchasesDrawerCashPiasters || 0) > 0 && (
+                  <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>مشتريات بضاعة مسددة نقداً من الدرج: <strong>{formatArabicCurrency(preview.purchasesDrawerCashPiasters || 0)}</strong></span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
+                  </div>
+                )}
+
+                {(preview.supplierPaymentsDrawerCashPiasters || 0) > 0 && (
+                  <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>دفعات موردين مسددة نقداً من الدرج: <strong>{formatArabicCurrency(preview.supplierPaymentsDrawerCashPiasters || 0)}</strong></span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
+                  </div>
+                )}
+
+                {(preview.openingFloatPiasters || 0) > 0 && (
+                  <div className="p-3.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>عهدة بداية اليوم الافتتاحية: <strong>{formatArabicCurrency(preview.openingFloatPiasters || 0)}</strong></span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مضافة تلقائياً لحسبة كاش الدرج أعلاه</span>
                   </div>
                 )}
               </div>

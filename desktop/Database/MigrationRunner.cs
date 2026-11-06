@@ -7,7 +7,7 @@ namespace RafiqPOS.Database
 {
     public static partial class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 65;
+        public const int LATEST_SUPPORTED_VERSION = 66;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {

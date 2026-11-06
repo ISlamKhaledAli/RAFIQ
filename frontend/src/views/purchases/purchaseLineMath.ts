@@ -10,14 +10,20 @@ export interface PurchaseLineAmounts {
   lineGrossPiasters: number;
 }
 
-/** Units per package: the product's package unit, else the typed pack size (same rule as the purchase screen). */
+/** Units per package: active selected unit factor, else the product's package unit, else typed pack size. */
 export function resolvePackSize(item: NewPurchaseLineItem): number {
+  if (typeof item.selectedUnitFactor === 'number' && item.selectedUnitFactor > 1) {
+    return Math.round(item.selectedUnitFactor);
+  }
   const pkgUnit = item.productUnits?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
   const size = pkgUnit?.conversionFactor || parseInt(item.packSizeInput || '', 10) || item.packSize || 1;
   return size > 1 ? Math.round(size) : 1;
 }
 
 export function resolvePurchaseUnitMode(item: NewPurchaseLineItem): 'package' | 'base' {
+  if (typeof item.selectedUnitFactor === 'number') {
+    return item.selectedUnitFactor > 1 ? 'package' : 'base';
+  }
   return item.purchaseUnitMode || (resolvePackSize(item) > 1 ? 'package' : 'base');
 }
 

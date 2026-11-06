@@ -186,15 +186,39 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
       // Extract units if configured on product
       const baseUnitObj = item.productUnits?.find((u) => u.isBaseUnit || u.conversionFactor === 1);
-      const pkgUnitObj = item.productUnits?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
+      const pkgUnits = item.productUnits?.filter((u) => !u.isBaseUnit && u.conversionFactor > 1) || [];
 
-      const effectivePackSize = pkgUnitObj?.conversionFactor || packSize;
-      const hasPackaging = effectivePackSize > 1 || Boolean(pkgUnitObj) || isPharma || isMultiUnits;
+      // Sort all units descending by conversion factor: e.g. كرتونة (400), علبة (20), سيجارة (1)
+      const availableUnits: ProductUnit[] = item.productUnits && item.productUnits.length > 0
+        ? [...item.productUnits].sort((a, b) => b.conversionFactor - a.conversionFactor)
+        : [];
 
-      const packageUnitName =
-        item.packageUnitName ||
-        pkgUnitObj?.unitName ||
-        (isPharma ? 'علبة' : terminology.packagingTopUnitDefault || 'كرتونة');
+      // Determine active unit
+      let activeUnit: ProductUnit | undefined;
+      if (item.selectedUnitId) {
+        activeUnit = availableUnits.find((u) => u.id === item.selectedUnitId);
+      }
+      if (!activeUnit && item.selectedUnitName) {
+        activeUnit = availableUnits.find((u) => u.unitName === item.selectedUnitName);
+      }
+      if (!activeUnit && typeof item.selectedUnitFactor === 'number') {
+        activeUnit = availableUnits.find((u) => u.conversionFactor === item.selectedUnitFactor);
+      }
+      if (!activeUnit) {
+        if (item.purchaseUnitMode === 'base') {
+          activeUnit = availableUnits.find((u) => u.isBaseUnit || u.conversionFactor === 1);
+        } else {
+          activeUnit = availableUnits.find((u) => !u.isBaseUnit && u.conversionFactor === packSize)
+            || pkgUnits[0]
+            || availableUnits[0];
+        }
+      }
+
+      const effectivePackSize = activeUnit
+        ? activeUnit.conversionFactor
+        : (pkgUnits[0]?.conversionFactor || packSize);
+
+      const hasPackaging = effectivePackSize > 1 || availableUnits.length > 1 || Boolean(pkgUnits.length > 0) || isPharma || isMultiUnits;
 
       const baseUnitName =
         baseUnitObj?.unitName ||
@@ -204,12 +228,18 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             : 'قرص'
           : item.unit || terminology.baseUnitDefaultName || 'قطعة');
 
+      const packageUnitName =
+        (activeUnit && activeUnit.conversionFactor > 1 ? activeUnit.unitName : null) ||
+        item.packageUnitName ||
+        pkgUnits[0]?.unitName ||
+        (isPharma ? 'علبة' : terminology.packagingTopUnitDefault || 'كرتونة');
+
       const unitMode: 'package' | 'base' =
         item.purchaseUnitMode || (hasPackaging && effectivePackSize > 1 ? 'package' : 'base');
 
       const unitsForDisplay: ProductUnit[] =
-        item.productUnits && item.productUnits.length > 0
-          ? item.productUnits
+        availableUnits.length > 0
+          ? availableUnits
           : effectivePackSize > 1
           ? [
               {
@@ -244,37 +274,126 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
         hasPackaging,
         unitMode,
         unitsForDisplay,
+        availableUnits,
+        activeUnit,
       };
     },
     [isEnabled, terminology]
   );
 
-  const handleTogglePurchaseUnitMode = (idx: number, newMode: 'package' | 'base') => {
+  const handleSelectUnit = (idx: number, targetUnit: ProductUnit) => {
     const updated = [...lineItems];
     const item = { ...updated[idx] };
-    const meta = getItemUnitsMeta(item);
 
-    if (item.purchaseUnitMode === newMode) return;
+    const targetFactor = targetUnit.conversionFactor > 0 ? targetUnit.conversionFactor : 1;
+    const isTargetPackage = targetFactor > 1;
 
-    item.purchaseUnitMode = newMode;
-    const packSize = Math.max(1, meta.packSize);
+    item.selectedUnitId = targetUnit.id;
+    item.selectedUnitName = targetUnit.unitName;
+    item.selectedUnitFactor = targetFactor;
+    item.purchaseUnitMode = isTargetPackage ? 'package' : 'base';
+    item.packageUnitName = targetUnit.unitName;
+    item.packSize = targetFactor;
+    item.packSizeInput = isTargetPackage ? String(targetFactor) : '';
 
-    if (newMode === 'package') {
+    if (isTargetPackage) {
       const currentUnits = item.quantityUnits || 0;
-      const pCount = Math.max(1, Math.round(currentUnits / packSize));
+      const pCount = Math.max(1, Math.round(currentUnits / targetFactor));
       item.cartonsInput = String(pCount);
       item.packageQuantityInput = String(pCount);
       item.looseInput = '0';
-      item.quantityUnits = pCount * packSize;
+      item.quantityUnits = pCount * targetFactor;
       item.quantityInput = String(item.quantityUnits);
-      if (!item.packageCostPiasters || item.packageCostPiasters === 0) {
-        item.packageCostPiasters = Math.round(item.unitCostPiasters * packSize);
-      }
     } else {
-      item.quantityInput = String(item.quantityUnits || 0);
+      const currentUnits = item.quantityUnits > 0 ? item.quantityUnits : 1;
+      item.quantityUnits = currentUnits;
+      item.quantityInput = String(currentUnits);
+      item.cartonsInput = '0';
+      item.packageQuantityInput = '0';
+      item.looseInput = String(currentUnits);
+    }
+
+    // Set cost for target unit
+    let targetCost = targetUnit.costPricePiasters;
+    if (!targetCost || targetCost <= 0) {
+      if (item.unitCostPiasters > 0) {
+        targetCost = isTargetPackage ? Math.round(item.unitCostPiasters * targetFactor) : item.unitCostPiasters;
+      }
+    }
+    if (targetCost > 0) {
+      if (isTargetPackage) {
+        item.packageCostPiasters = targetCost;
+        item.unitCostPiasters = Math.round(targetCost / targetFactor);
+      } else {
+        item.unitCostPiasters = targetCost;
+        item.packageCostPiasters = targetCost;
+      }
+    }
+
+    // Set selling price for target unit
+    let targetSellPrice = targetUnit.sellPricePiasters;
+    if (!targetSellPrice || targetSellPrice <= 0) {
+      if (item.newSellingPricePiasters > 0) {
+        targetSellPrice = isTargetPackage ? Math.round(item.newSellingPricePiasters * targetFactor) : item.newSellingPricePiasters;
+      } else if (item.currentPricePiasters > 0) {
+        targetSellPrice = isTargetPackage ? Math.round(item.currentPricePiasters * targetFactor) : item.currentPricePiasters;
+      }
+    }
+    if (targetSellPrice > 0) {
+      if (isTargetPackage) {
+        item.publicPricePiasters = targetSellPrice;
+        item.newSellingPricePiasters = Math.round(targetSellPrice / targetFactor);
+      } else {
+        item.newSellingPricePiasters = targetSellPrice;
+        item.publicPricePiasters = targetSellPrice;
+      }
     }
 
     updated[idx] = item;
+    setLineItems(updated);
+  };
+
+  const handleTogglePurchaseUnitMode = (idx: number, newMode: 'package' | 'base') => {
+    const item = lineItems[idx];
+    if (!item) return;
+    const meta = getItemUnitsMeta(item);
+    if (newMode === 'base') {
+      const baseUnit = meta.availableUnits.find((u) => u.isBaseUnit || u.conversionFactor === 1);
+      if (baseUnit) {
+        handleSelectUnit(idx, baseUnit);
+        return;
+      }
+    } else {
+      const pkgUnit = meta.availableUnits.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
+      if (pkgUnit) {
+        handleSelectUnit(idx, pkgUnit);
+        return;
+      }
+    }
+
+    const updated = [...lineItems];
+    const it = { ...updated[idx] };
+    it.purchaseUnitMode = newMode;
+    const packSize = Math.max(1, meta.packSize);
+
+    if (newMode === 'package') {
+      const currentUnits = it.quantityUnits || 0;
+      const pCount = Math.max(1, Math.round(currentUnits / packSize));
+      it.cartonsInput = String(pCount);
+      it.packageQuantityInput = String(pCount);
+      it.looseInput = '0';
+      it.quantityUnits = pCount * packSize;
+      it.quantityInput = String(it.quantityUnits);
+      it.selectedUnitFactor = packSize;
+      if (!it.packageCostPiasters || it.packageCostPiasters === 0) {
+        it.packageCostPiasters = Math.round(it.unitCostPiasters * packSize);
+      }
+    } else {
+      it.quantityInput = String(it.quantityUnits || 0);
+      it.selectedUnitFactor = 1;
+    }
+
+    updated[idx] = it;
     setLineItems(updated);
   };
 
@@ -937,6 +1056,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 const weightedSuggestedPricePiasters = getWeightedSuggestedSellingPrice(item);
                 const currentPackageCost = item.packageCostPiasters || (item.unitCostPiasters * meta.packSize);
                 const isPackageMode = meta.unitMode === 'package' && meta.packSize > 1;
+                const displayProfitPiasters = isPackageMode ? Math.round(profitPiasters * meta.packSize) : profitPiasters;
 
                 const hasDistributorTerms =
                   (item.distributorDiscountPercent || 0) > 0 || (item.bonusQuantityUnits || 0) > 0;
@@ -1012,34 +1132,66 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       {/* 2. Quantity */}
                       <div className="flex flex-col items-center justify-start gap-1.5">
                         <span className="lg:hidden self-start text-xs font-bold text-ink-muted dark:text-ink-dark-muted">الكمية</span>
-                        {meta.hasPackaging && meta.packSize > 1 && (
-                          <div className="inline-flex items-center p-0.5 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-micro font-bold">
-                            <button
-                              type="button"
-                              onClick={() => handleTogglePurchaseUnitMode(idx, 'package')}
-                              className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
-                                meta.unitMode === 'package'
-                                  ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
-                                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                              }`}
-                              title={`الشراء بال${meta.packageUnitName}`}
-                            >
-                              <Package className="w-3 h-3 shrink-0" />
-                              <span>بال{meta.packageUnitName}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleTogglePurchaseUnitMode(idx, 'base')}
-                              className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
-                                meta.unitMode === 'base'
-                                  ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
-                                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                              }`}
-                              title={`الشراء بال${meta.baseUnitName}`}
-                            >
-                              {isEnabled('feature_pharmacy') ? <Pill className="w-3 h-3 shrink-0" /> : <Tag className="w-3 h-3 shrink-0" />}
-                              <span>بال{meta.baseUnitName}</span>
-                            </button>
+                        {meta.hasPackaging && (
+                          <div className="inline-flex items-center p-0.5 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-micro font-bold flex-wrap gap-0.5">
+                            {meta.availableUnits.length > 0 ? (
+                              meta.availableUnits.map((u) => {
+                                const isSelected = meta.activeUnit
+                                  ? (meta.activeUnit.id && u.id ? meta.activeUnit.id === u.id : meta.activeUnit.unitName === u.unitName)
+                                  : (u.conversionFactor === meta.packSize);
+                                return (
+                                  <button
+                                    key={u.id || u.unitName || String(u.conversionFactor)}
+                                    type="button"
+                                    onClick={() => handleSelectUnit(idx, u)}
+                                    className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
+                                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                                    }`}
+                                    title={`الشراء بال${u.unitName} (${u.conversionFactor > 1 ? `${u.conversionFactor} ${meta.baseUnitName}` : 'وحدة أساسية'})`}
+                                  >
+                                    {u.conversionFactor > 1 ? (
+                                      <Package className="w-3 h-3 shrink-0" />
+                                    ) : isEnabled('feature_pharmacy') ? (
+                                      <Pill className="w-3 h-3 shrink-0" />
+                                    ) : (
+                                      <Tag className="w-3 h-3 shrink-0" />
+                                    )}
+                                    <span>بال{u.unitName}</span>
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTogglePurchaseUnitMode(idx, 'package')}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                    meta.unitMode === 'package'
+                                      ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
+                                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                                  }`}
+                                  title={`الشراء بال${meta.packageUnitName}`}
+                                >
+                                  <Package className="w-3 h-3 shrink-0" />
+                                  <span>بال{meta.packageUnitName}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTogglePurchaseUnitMode(idx, 'base')}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                    meta.unitMode === 'base'
+                                      ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
+                                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                                  }`}
+                                  title={`الشراء بال${meta.baseUnitName}`}
+                                >
+                                  {isEnabled('feature_pharmacy') ? <Pill className="w-3 h-3 shrink-0" /> : <Tag className="w-3 h-3 shrink-0" />}
+                                  <span>بال{meta.baseUnitName}</span>
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
 
@@ -1217,6 +1369,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 const updated = [...lineItems];
                                 if (isPackageMode) {
                                   updated[idx].newSellingPricePiasters = Math.round(p / meta.packSize);
+                                  updated[idx].publicPricePiasters = p;
                                 } else {
                                   updated[idx].newSellingPricePiasters = p;
                                 }
@@ -1231,12 +1384,12 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   : `(بيع ال${meta.packageUnitName}: ${formatArabicCurrency(effectiveSellingPricePiasters * meta.packSize, true)})`}
                               </span>
                             )}
-                            {hasSellPrice && profitPiasters < 0 ? (
+                            {hasSellPrice && displayProfitPiasters < 0 ? (
                               <div className="flex items-center gap-1 text-micro text-danger dark:text-danger-bright font-extrabold bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30 self-start">
                                 <AlertCircle className="w-3 h-3 shrink-0" />
-                                <span>خسارة: {formatArabicCurrency(profitPiasters, true)}</span>
+                                <span>خسارة: {formatArabicCurrency(displayProfitPiasters, true)}</span>
                               </div>
-                            ) : hasSellPrice && profitPiasters === 0 ? (
+                            ) : hasSellPrice && displayProfitPiasters === 0 ? (
                               <div className="text-micro text-warn dark:text-warn-bright font-extrabold bg-warn-soft dark:bg-warn-dark-soft px-1.5 py-0.5 rounded border border-warn-border dark:border-warn-bright/30 self-start">
                                 بيع = تكلفة
                               </div>
@@ -1245,7 +1398,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 className="flex items-center gap-1 text-micro text-paid dark:text-paid-bright font-extrabold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-paid-dark-border self-start"
                                 title={`هامش مجمل الربح: ${marginPercent}%`}
                               >
-                                <span>الربح: +{formatArabicCurrency(profitPiasters, true)}</span>
+                                <span>الربح: +{formatArabicCurrency(displayProfitPiasters, true)}</span>
                                 <span className="text-micro opacity-80">({marginPercent}%)</span>
                               </div>
                             ) : (
@@ -1485,11 +1638,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         {/* Cost and batch profit */}
                         <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-micro text-ink-muted dark:text-ink-dark-muted border-t border-line/60 dark:border-line-dark/60 pt-2">
                           <span>
-                            آخر تكلفة: <b className="font-mono text-ink dark:text-ink-dark">{formatMoney(item.currentCostPiasters)}</b>
+                            آخر تكلفة: <b className="font-mono text-ink dark:text-ink-dark">{formatMoney(isPackageMode ? currentPackageCost : item.currentCostPiasters)}</b>
                           </span>
                           <span title={costingMethod === 'LATEST' ? 'اعتماد سعر الشراء الأخير كتكلفة للمخزن' : `متوسط مرجح بين ${currentStockUnits.toFixed(0)} سابقة و ${incomingUnits.toFixed(0)} جديدة`}>
                             {costingMethod === 'LATEST' ? 'التكلفة المعتمدة' : 'متوسط التكلفة الجديد'}:{' '}
-                            <b className="font-mono text-brand dark:text-brand-bright">{formatArabicCurrency(projectedCostPiasters, true)}</b>
+                            <b className="font-mono text-brand dark:text-brand-bright">{formatArabicCurrency(isPackageMode ? (costingMethod === 'LATEST' ? currentPackageCost : Math.round(projectedCostPiasters * meta.packSize)) : projectedCostPiasters, true)}</b>
                           </span>
                           {incomingUnits > 0 && (
                             <span>
