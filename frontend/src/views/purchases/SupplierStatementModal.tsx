@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Receipt, X } from 'lucide-react';
 import type { Supplier, SupplierTransaction } from '../../types/models';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatMoney } from './types';
+import { DateFilterControl } from '../../components/DateFilterControl';
+import { useDateFilter } from '../../utils/dateFilter';
 
 interface SupplierStatementModalProps {
   isOpen: boolean;
@@ -22,6 +24,12 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
     onClose,
     isDirty: false,
   });
+
+  const { dateFilter, setDateFilter, filterDate } = useDateFilter();
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((tx) => filterDate(tx.createdAt));
+  }, [transactions, filterDate]);
 
   if (!isOpen || !supplier) return null;
 
@@ -77,13 +85,25 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
           </div>
         </div>
 
+        <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <DateFilterControl
+            value={dateFilter}
+            onChange={setDateFilter}
+            variant="pills"
+            size="sm"
+          />
+          <span className="text-xs font-mono font-bold text-ink-muted dark:text-ink-dark-muted">
+            عدد الحركات: {filteredTransactions.length} من {transactions.length}
+          </span>
+        </div>
+
         <div className="flex-1 overflow-y-auto divide-y divide-line dark:divide-line-dark p-2">
-          {transactions.length === 0 ? (
+          {filteredTransactions.length === 0 ? (
             <div className="h-40 flex items-center justify-center text-xs text-ink-muted dark:text-ink-dark-muted">
-              مفيش حركات مسجلة للمورد ده لحد دلوقتي
+              {transactions.length === 0 ? 'مفيش حركات مسجلة للمورد ده لحد دلوقتي' : 'لا توجد حركات مسجلة خلال الفترة المحددة'}
             </div>
           ) : (
-            transactions.map((tx) => (
+            filteredTransactions.map((tx) => (
               <div key={tx.id} className="p-3 flex items-center justify-between text-xs hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                 <div>
                   <div className="flex items-center gap-2">

@@ -13,9 +13,11 @@ import {
 import type { StockMovement, StockDiscrepancy } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { PaginationBar } from '../../components/PaginationBar';
+import { DateFilterControl } from '../../components/DateFilterControl';
 import { useClientPagination } from '../../utils/usePagination';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
+import { useDateFilter } from '../../utils/dateFilter';
 
 /** Shared column template so the header and every row line up; fixed gaps keep the last columns apart. */
 const MOVEMENTS_GRID =
@@ -62,15 +64,21 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
   onLoadMovements,
 }) => {
   const showLoading = useSmoothLoading(movementsLoading, 300);
+  const { dateFilter, setDateFilter, filterDate } = useDateFilter();
+
   const filteredMovements = useMemo(() => {
-    if (!movementSearchQuery.trim()) return allMovements;
-    const q = movementSearchQuery.toLowerCase();
-    return allMovements.filter((m) =>
-      (m.productName && m.productName.toLowerCase().includes(q)) ||
-      (m.productBarcode && m.productBarcode.toLowerCase().includes(q)) ||
-      (m.note && m.note.toLowerCase().includes(q))
-    );
-  }, [allMovements, movementSearchQuery]);
+    let result = allMovements;
+    result = result.filter((m) => filterDate(m.createdAt));
+    if (movementSearchQuery.trim()) {
+      const q = movementSearchQuery.toLowerCase();
+      result = result.filter((m) =>
+        (m.productName && m.productName.toLowerCase().includes(q)) ||
+        (m.productBarcode && m.productBarcode.toLowerCase().includes(q)) ||
+        (m.note && m.note.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [allMovements, movementSearchQuery, filterDate]);
 
   const {
     currentPage,
@@ -78,7 +86,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
     pageSize,
     setPageSize,
     paginatedItems: pagedMovements,
-  } = useClientPagination(filteredMovements, 25, `${movementSearchQuery}_${movementTypeFilter}`);
+  } = useClientPagination(filteredMovements, 25, `${movementSearchQuery}_${movementTypeFilter}_${dateFilter.preset}_${dateFilter.startDate}_${dateFilter.endDate}`);
 
   return (
     <div className="flex-1 flex flex-col gap-3 overflow-hidden select-none">
@@ -179,26 +187,35 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
           ))}
         </div>
 
-        {/* Search Input for Movements */}
-        <div className="relative w-full sm:w-72 h-10 flex items-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 focus-within:border-brand dark:focus-within:border-brand-bright focus-within:bg-surface dark:focus-within:bg-surface-dark">
-          <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted ml-2 shrink-0 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="دور في حركات البضاعة..."
-            value={movementSearchQuery}
-            onChange={(e) => setMovementSearchQuery(normalizeArabicNumerals(e.target.value))}
-            className="w-full bg-transparent border-none text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
+        <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
+          <DateFilterControl
+            value={dateFilter}
+            onChange={setDateFilter}
+            size="md"
+            selectWidthClass="w-44 sm:w-48"
           />
-          {movementSearchQuery && (
-            <button
-              type="button"
-              onClick={() => setMovementSearchQuery('')}
-              aria-label="مسح نص البحث"
-              className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+
+          {/* Search Input for Movements */}
+          <div className="relative w-full sm:w-72 h-10 flex items-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 focus-within:border-brand dark:focus-within:border-brand-bright focus-within:bg-surface dark:focus-within:bg-surface-dark">
+            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted ml-2 shrink-0 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="دور في حركات البضاعة..."
+              value={movementSearchQuery}
+              onChange={(e) => setMovementSearchQuery(normalizeArabicNumerals(e.target.value))}
+              className="w-full bg-transparent border-none text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
+            />
+            {movementSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setMovementSearchQuery('')}
+                aria-label="مسح نص البحث"
+                className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

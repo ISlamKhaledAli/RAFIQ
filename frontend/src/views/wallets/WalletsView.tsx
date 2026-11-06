@@ -32,11 +32,13 @@ import { useAuth } from '../../context/useAuth';
 import { useFeatures } from '../../context/useFeatures';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
+import { DateFilterControl } from '../../components/DateFilterControl';
 import { PaginationBar } from '../../components/PaginationBar';
 import { RequiredMark } from '../../components/RequiredMark';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useClientPagination } from '../../utils/usePagination';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { useDateFilter, getDatePresetLabel } from '../../utils/dateFilter';
 import type {
   DigitalAccount,
   DigitalTransaction,
@@ -335,6 +337,18 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [filterAccount, setFilterAccount] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [historySearch, setHistorySearch] = useState<string>('');
+  const { 
+    dateFilter: historyDateFilter, 
+    setDateFilter: setHistoryDateFilter, 
+    filterDate: filterHistoryDate 
+  } = useDateFilter();
+
+  // Filter State for Analytics
+  const { 
+    dateFilter: analyticsDateFilter, 
+    setDateFilter: setAnalyticsDateFilter, 
+    filterDate: filterAnalyticsDate 
+  } = useDateFilter('today');
 
   // Modals
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -839,6 +853,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     return transactions.filter((t) => {
       if (filterAccount !== 'all' && t.accountId !== filterAccount) return false;
       if (filterType !== 'all' && t.txType !== filterType) return false;
+      if (!filterHistoryDate(t.createdAt)) return false;
       if (historySearch.trim()) {
         const q = historySearch.toLowerCase();
         const matchesRef = t.transactionNumber?.toLowerCase().includes(q);
@@ -849,7 +864,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       }
       return true;
     });
-  }, [transactions, filterAccount, filterType, historySearch]);
+  }, [transactions, filterAccount, filterType, historySearch, filterHistoryDate]);
 
   const {
     paginatedItems: paginatedHistory,
@@ -859,7 +874,30 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     setPageSize,
     totalCount,
     totalPages,
-  } = useClientPagination(filteredTransactions, 12);
+  } = useClientPagination(
+    filteredTransactions, 
+    12, 
+    `${historySearch}_${filterAccount}_${filterType}_${historyDateFilter.preset}_${historyDateFilter.startDate}_${historyDateFilter.endDate}`
+  );
+
+  // Filtered Analytics Metrics based on analyticsDateFilter
+  const filteredAnalyticsTxs = useMemo(() => {
+    return transactions.filter((t) => t.status === 'completed' && filterAnalyticsDate(t.createdAt));
+  }, [transactions, filterAnalyticsDate]);
+
+  const periodProfitPiasters = useMemo(() => {
+    return filteredAnalyticsTxs.reduce((sum, t) => sum + (t.profitPiasters || 0), 0);
+  }, [filteredAnalyticsTxs]);
+
+  const periodVolumePiasters = useMemo(() => {
+    return filteredAnalyticsTxs.reduce((sum, t) => sum + (t.amountPiasters || 0), 0);
+  }, [filteredAnalyticsTxs]);
+
+  const totalAllTimeProfitPiasters = useMemo(() => {
+    return transactions
+      .filter((t) => t.status === 'completed')
+      .reduce((sum, t) => sum + (t.profitPiasters || 0), 0);
+  }, [transactions]);
 
   // Options for Selects
   const accountSelectOptions = useMemo(() => {
@@ -1581,6 +1619,12 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     size="sm"
                   />
                 </div>
+
+                <DateFilterControl
+                  value={historyDateFilter}
+                  onChange={setHistoryDateFilter}
+                  size="sm"
+                />
               </div>
 
               {totalPages <= 1 && (
@@ -1735,18 +1779,34 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         {/* ================================================================ */}
         {currentTab === 'analytics' && (
           <div className="w-full flex flex-col gap-5">
+            {/* Filter Toolbar for Analytics */}
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">تحديد فترة التقارير والأرباح:</span>
+                <DateFilterControl
+                  value={analyticsDateFilter}
+                  onChange={setAnalyticsDateFilter}
+                  variant="pills"
+                  size="sm"
+                />
+              </div>
+              <span className="text-xs font-mono font-bold text-ink-muted dark:text-ink-dark-muted">
+                إجمالي العمليات المشمولة: {filteredAnalyticsTxs.length} عملية
+              </span>
+            </div>
+
             {/* KPI Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 shadow-2xs flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
-                    أرباح المحل اليوم (الصافية)
+                    أرباح المحل الصافية ({getDatePresetLabel(analyticsDateFilter.preset)})
                   </span>
                   <span className="text-xl font-black font-mono text-paid dark:text-brand-bright">
-                    {analytics?.todayProfitFormatted || (analytics ? formatArabicCurrency(analytics.todayProfitPiasters || 0) : '0.00 ج.م')}
+                    {formatArabicCurrency(periodProfitPiasters)}
                   </span>
                   <span className="text-micro text-paid dark:text-brand-bright mt-1 block font-bold">
-                    من {analytics?.todayTransactionsCount || 0} عملية اليوم
+                    من {filteredAnalyticsTxs.length} عملية مكتملة
                   </span>
                 </div>
                 <div className="w-9 h-9 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shrink-0">
@@ -1757,13 +1817,13 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 shadow-2xs flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
-                    أرباح المحل الإجمالية
+                    أرباح المحل الإجمالية (كافة الأوقات)
                   </span>
-                  <span className="text-xl font-black font-mono text-paid dark:text-paid-bright">
-                    {analytics?.monthProfitFormatted || (analytics ? formatArabicCurrency(analytics.monthProfitPiasters ?? analytics.totalProfitPiasters ?? 0) : '0.00 ج.م')}
+                  <span className="text-xl font-black font-mono text-paid dark:text-brand-bright">
+                    {formatArabicCurrency(totalAllTimeProfitPiasters)}
                   </span>
                   <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 block">
-                    أرباح العمليات المسجلة بالنظام
+                    أرباح كافة العمليات المسجلة بالنظام
                   </span>
                 </div>
                 <div className="w-9 h-9 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shrink-0">
@@ -1774,13 +1834,13 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-4 shadow-2xs flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
-                    حجم التحويلات المنفذة اليوم
+                    حجم التحويلات ({getDatePresetLabel(analyticsDateFilter.preset)})
                   </span>
                   <span className="text-xl font-black font-mono text-brand dark:text-brand-bright">
-                    {analytics?.todayVolumeFormatted || (analytics ? formatArabicCurrency(analytics.todayVolumePiasters || 0) : '0.00 ج.م')}
+                    {formatArabicCurrency(periodVolumePiasters)}
                   </span>
                   <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 block">
-                    إجمالي قيمة المبالغ المحولة
+                    إجمالي قيمة المبالغ المحولة بالفترة
                   </span>
                 </div>
                 <div className="w-9 h-9 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shrink-0">

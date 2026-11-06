@@ -10,7 +10,6 @@ import {
   Search,
   AlertCircle,
   CheckCircle2,
-  Calendar,
   User,
   Ban,
   RotateCcw,
@@ -26,13 +25,14 @@ import { formatArabicCurrency, totalSaleDiscountPiasters } from '../utils/money'
 import { normalizeInvoiceSearchText } from '../utils/receiptLayout';
 import { VoidInvoiceModal } from '../components/VoidInvoiceModal';
 import { ReturnModal } from '../components/ReturnModal';
-import { CustomDatePicker } from '../components/CustomDatePicker';
+import { DateFilterControl } from '../components/DateFilterControl';
 import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { RafiqLoadingState } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
 import { useAuth } from '../context/useAuth';
+import { useDateFilter } from '../utils/dateFilter';
 
 export interface SalesHistoryViewProps {
   isActive?: boolean;
@@ -71,8 +71,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'cancelled' | 'refunded'>('all');
-  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'custom'>('all');
-  const [customDate, setCustomDate] = useState('');
+  const { dateFilter, setDateFilter, filterDate } = useDateFilter();
   const [reprintFeedback, setReprintFeedback] = useState<string | null>(null);
   const [isReprinting, setIsReprinting] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -314,25 +313,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
     }
 
     // 2. Date Filter
-    if (dateFilter !== 'all' && s.createdAt) {
-      const saleDate = new Date(s.createdAt);
-      const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
-      const saleDateStr = saleDate.toISOString().split('T')[0];
-
-      if (dateFilter === 'today' && saleDateStr !== todayStr) return false;
-      if (dateFilter === 'yesterday') {
-        const yest = new Date(now);
-        yest.setDate(yest.getDate() - 1);
-        const yestStr = yest.toISOString().split('T')[0];
-        if (saleDateStr !== yestStr) return false;
-      }
-      if (dateFilter === 'week') {
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        if (saleDate < weekAgo) return false;
-      }
-      if (dateFilter === 'custom' && customDate && saleDateStr !== customDate) return false;
-    }
+    if (!filterDate(s.createdAt)) return false;
 
     // 3. Search Query (Invoice #, customer name/phone, notes, amount)
     if (searchQuery.trim()) {
@@ -366,7 +347,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
     pageSize,
     setPageSize,
     paginatedItems: pagedSales,
-  } = useClientPagination(filteredSales, 25, `${searchQuery}_${statusFilter}_${dateFilter}_${customDate}`);
+  } = useClientPagination(filteredSales, 25, `${searchQuery}_${statusFilter}_${dateFilter.preset}_${dateFilter.startDate}_${dateFilter.endDate}`);
 
   return (
     <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-3 sm:p-3.5 gap-2.5 sm:gap-3 overflow-hidden select-none">
@@ -470,71 +451,13 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
           )}
         </div>
 
-        {/* Date Filter Pills */}
-        <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark text-xs">
-          <button
-            onClick={() => setDateFilter('all')}
-            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              dateFilter === 'all' 
-                ? 'bg-brand-dark dark:bg-brand text-white shadow-xs' 
-                : 'text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
-            }`}
-          >
-            الكل
-          </button>
-          <button
-            onClick={() => setDateFilter('today')}
-            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              dateFilter === 'today' 
-                ? 'bg-brand-dark dark:bg-brand text-white shadow-xs' 
-                : 'text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
-            }`}
-          >
-            النهاردة
-          </button>
-          <button
-            onClick={() => setDateFilter('yesterday')}
-            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              dateFilter === 'yesterday' 
-                ? 'bg-brand-dark dark:bg-brand text-white shadow-xs' 
-                : 'text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
-            }`}
-          >
-            إمبارح
-          </button>
-          <button
-            onClick={() => setDateFilter('week')}
-            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              dateFilter === 'week' 
-                ? 'bg-brand-dark dark:bg-brand text-white shadow-xs' 
-                : 'text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
-            }`}
-          >
-            آخر أسبوع
-          </button>
-          <button
-            onClick={() => setDateFilter('custom')}
-            className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
-              dateFilter === 'custom' 
-                ? 'bg-brand-dark dark:bg-brand text-white shadow-xs' 
-                : 'text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-surface/60 dark:hover:bg-surface-dark/60'
-            }`}
-            title="تحديد تاريخ معين"
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            <span>يوم محدد</span>
-          </button>
-        </div>
-
-        {/* Custom date input if active */}
-        {dateFilter === 'custom' && (
-          <CustomDatePicker
-            value={customDate}
-            onChange={(d) => setCustomDate(d)}
-            placeholder="اختر التاريخ..."
-            className="w-40"
-          />
-        )}
+        {/* Date Filter Control */}
+        <DateFilterControl
+          value={dateFilter}
+          onChange={setDateFilter}
+          variant="pills"
+          size="sm"
+        />
 
         {/* Status Filter Pills */}
         <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark text-xs">
@@ -612,7 +535,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
             <div className="h-full flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2 p-6">
               <Clock className="w-12 h-12 stroke-[1.2] text-ink-muted dark:text-ink-dark-muted opacity-40" />
               <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">
-                {searchQuery || statusFilter !== 'all' || dateFilter !== 'all' 
+                {searchQuery || statusFilter !== 'all' || dateFilter.preset !== 'all' 
                   ? 'مفيش فواتير مطابقة للي بتدور عليه' 
                   : 'لسه مفيش فواتير بيع اتسجلت'}
               </p>

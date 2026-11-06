@@ -31,10 +31,12 @@ import { useAuth } from '../../context/useAuth';
 import { RequiredMark } from '../../components/RequiredMark';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
+import { DateFilterControl } from '../../components/DateFilterControl';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { useDateFilter, getDatePresetLabel } from '../../utils/dateFilter';
 import type { 
   EpayTerminal, 
   EpayTransaction, 
@@ -278,12 +280,24 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [historyTerminalFilter, setHistoryTerminalFilter] = useState<string>('all');
   const [historyServiceFilter, setHistoryServiceFilter] = useState<string>('all');
   const [historyDestinationFilter, setHistoryDestinationFilter] = useState<string>('all');
-  const [historyDateFilter, setHistoryDateFilter] = useState<string>('all');
+  const { 
+    dateFilter: historyDateFilter, 
+    setDateFilter: setHistoryDateFilter, 
+    filterDate: filterHistoryDate, 
+    resetDateFilter: resetHistoryDateFilter 
+  } = useDateFilter();
 
   // Filters for Funding Tab (Terminals Tab)
   const [fundingSearch, setFundingSearch] = useState<string>('');
   const [fundingTerminalFilter, setFundingTerminalFilter] = useState<string>('all');
   const [fundingSourceFilter, setFundingSourceFilter] = useState<string>('all');
+
+  // Filters for Analytics Tab
+  const {
+    dateFilter: analyticsDateFilter,
+    setDateFilter: setAnalyticsDateFilter,
+    filterDate: filterAnalyticsDate,
+  } = useDateFilter('all');
 
   // Load all data
   const loadData = useCallback(async () => {
@@ -611,32 +625,11 @@ export const EpayView: React.FC<EpayViewProps> = ({
       const matchTerminal = historyTerminalFilter === 'all' || t.terminalId === historyTerminalFilter;
       const matchService = historyServiceFilter === 'all' || t.serviceType === historyServiceFilter;
       const matchDestination = historyDestinationFilter === 'all' || t.paymentDestination === historyDestinationFilter;
-
-      let matchDate = true;
-      if (historyDateFilter !== 'all' && t.createdAt) {
-        const txDate = new Date(t.createdAt);
-        const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
-        const txDateStr = txDate.toISOString().split('T')[0];
-
-        if (historyDateFilter === 'today') {
-          matchDate = txDateStr === todayStr;
-        } else if (historyDateFilter === 'yesterday') {
-          const yest = new Date(now);
-          yest.setDate(yest.getDate() - 1);
-          matchDate = txDateStr === yest.toISOString().split('T')[0];
-        } else if (historyDateFilter === 'week') {
-          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          matchDate = txDate >= weekAgo;
-        } else if (historyDateFilter === 'month') {
-          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          matchDate = txDate >= monthAgo;
-        }
-      }
+      const matchDate = filterHistoryDate(t.createdAt);
 
       return matchSearch && matchTerminal && matchService && matchDestination && matchDate;
     });
-  }, [transactions, historySearch, historyTerminalFilter, historyServiceFilter, historyDestinationFilter, historyDateFilter]);
+  }, [transactions, historySearch, historyTerminalFilter, historyServiceFilter, historyDestinationFilter, filterHistoryDate]);
 
   const {
     currentPage: historyCurrentPage,
@@ -647,7 +640,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
   } = useClientPagination(
     filteredTransactions,
     15,
-    `${historySearch}_${historyTerminalFilter}_${historyServiceFilter}_${historyDestinationFilter}_${historyDateFilter}`
+    `${historySearch}_${historyTerminalFilter}_${historyServiceFilter}_${historyDestinationFilter}_${historyDateFilter.preset}_${historyDateFilter.startDate}_${historyDateFilter.endDate}`
   );
 
   // Terminal options for select
@@ -657,6 +650,39 @@ export const EpayView: React.FC<EpayViewProps> = ({
       label: `${t.name} (الرصيد: ${formatArabicCurrency(t.balancePiasters)})`,
     }));
   }, [terminals]);
+
+  // Analytics Filtered Transactions & Metrics
+  const filteredAnalyticsTxs = useMemo(() => {
+    return transactions.filter(
+      (t) => (t.status === 'completed' || t.status === 'COMPLETED') && filterAnalyticsDate(t.createdAt)
+    );
+  }, [transactions, filterAnalyticsDate]);
+
+  const analyticsPeriodProfitPiasters = useMemo(() => {
+    return filteredAnalyticsTxs.reduce((sum, t) => sum + (t.netProfitPiasters || 0), 0);
+  }, [filteredAnalyticsTxs]);
+
+  const analyticsPeriodVolumePiasters = useMemo(() => {
+    return filteredAnalyticsTxs.reduce((sum, t) => sum + (t.billAmountPiasters || 0), 0);
+  }, [filteredAnalyticsTxs]);
+
+  const analyticsPeriodCommissionsPiasters = useMemo(() => {
+    return filteredAnalyticsTxs.reduce((sum, t) => sum + (t.providerCommissionPiasters || 0), 0);
+  }, [filteredAnalyticsTxs]);
+
+  const analyticsCashDrawerPiasters = useMemo(() => {
+    return filteredAnalyticsTxs.reduce((sum, t) => {
+      const isCashDrawer = t.paymentDestination === 'cash_drawer' || t.paymentChannel === 'cash_drawer';
+      return isCashDrawer ? sum + (t.totalReceivedPiasters || 0) : sum;
+    }, 0);
+  }, [filteredAnalyticsTxs]);
+
+  const analyticsTerminalTillPiasters = useMemo(() => {
+    return filteredAnalyticsTxs.reduce((sum, t) => {
+      const isTerminal = t.paymentDestination === 'terminal_till' || t.paymentChannel === 'terminal_till';
+      return isTerminal ? sum + (t.totalReceivedPiasters || 0) : sum;
+    }, 0);
+  }, [filteredAnalyticsTxs]);
 
   return (
     <div className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-y-auto" dir="rtl">
@@ -1434,27 +1460,21 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     className="w-44"
                   />
 
-                  <CustomSelect
+                  <DateFilterControl
                     value={historyDateFilter}
                     onChange={setHistoryDateFilter}
-                    options={[
-                      { value: 'all', label: 'كل التواريخ' },
-                      { value: 'today', label: 'اليوم فقط' },
-                      { value: 'yesterday', label: 'أمس' },
-                      { value: 'week', label: 'آخر 7 أيام' },
-                      { value: 'month', label: 'آخر 30 يوماً' },
-                    ]}
-                    className="w-36"
+                    size="md"
+                    selectWidthClass="w-44 sm:w-48"
                   />
 
-                  {(historySearch || historyTerminalFilter !== 'all' || historyServiceFilter !== 'all' || historyDestinationFilter !== 'all' || historyDateFilter !== 'all') && (
+                  {(historySearch || historyTerminalFilter !== 'all' || historyServiceFilter !== 'all' || historyDestinationFilter !== 'all' || historyDateFilter.preset !== 'all') && (
                     <button
                       onClick={() => {
                         setHistorySearch('');
                         setHistoryTerminalFilter('all');
                         setHistoryServiceFilter('all');
                         setHistoryDestinationFilter('all');
-                        setHistoryDateFilter('all');
+                        resetHistoryDateFilter();
                       }}
                       className="px-3 py-2 rounded-xl text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center gap-1.5 transition-colors cursor-pointer"
                       title="إعادة تعيين الفلاتر"
@@ -1610,35 +1630,57 @@ export const EpayView: React.FC<EpayViewProps> = ({
             </div>
           ) : (
           <div className="w-full flex flex-col gap-5">
+            {/* Filter Toolbar for Analytics */}
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">تحديد فترة التقارير والأرباح:</span>
+                <DateFilterControl
+                  value={analyticsDateFilter}
+                  onChange={setAnalyticsDateFilter}
+                  variant="pills"
+                  size="sm"
+                />
+              </div>
+              <span className="text-xs font-mono font-bold text-ink-muted dark:text-ink-dark-muted">
+                إجمالي العمليات المشمولة: {filteredAnalyticsTxs.length} عملية
+              </span>
+            </div>
+
             {/* KPI Cards Row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-paid/40 dark:hover:border-paid-bright/40 transition-colors">
-                <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">صافي أرباح الخدمات</span>
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
+                  صافي أرباح الخدمات ({getDatePresetLabel(analyticsDateFilter.preset)})
+                </span>
                 <span className="t-kpi-lg font-mono text-paid dark:text-paid-bright block">
-                  {formatArabicCurrency(analytics?.totalNetProfitPiasters || 0)}
+                  {formatArabicCurrency(analyticsPeriodProfitPiasters)}
                 </span>
                 <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                  إجمالي مكسب المحل الصافي من العمليات
+                  إجمالي مكسب المحل الصافي من {filteredAnalyticsTxs.length} عملية
                 </span>
               </div>
 
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
-                <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">حجم النقدية المتداولة</span>
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">
+                  حجم النقدية المتداولة ({getDatePresetLabel(analyticsDateFilter.preset)})
+                </span>
                 <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
-                  {formatArabicCurrency(analytics?.totalVolumePiasters ?? analytics?.totalBillVolumePiasters ?? 0)}
+                  {formatArabicCurrency(analyticsPeriodVolumePiasters)}
                 </span>
                 <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                  إجمالي قيمة الفواتير والشحن المنفذة
+                  إجمالي قيمة الفواتير والشحن المنفذة بالفترة
                 </span>
               </div>
 
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
-                <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">إجمالي عمولات الماكينات</span>
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
+                  إجمالي عمولات الماكينات ({getDatePresetLabel(analyticsDateFilter.preset)})
+                </span>
                 <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
-                  {formatArabicCurrency(analytics?.totalCommissionsPiasters ?? analytics?.totalProviderCommissionsPiasters ?? 0)}
+                  {formatArabicCurrency(analyticsPeriodCommissionsPiasters)}
                 </span>
                 <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                  المخصومة لصالح شركات وماكينات الدفع
+                  المخصومة لصالح شركات وماكينات الدفع بالفترة
                 </span>
               </div>
             </div>
@@ -1656,7 +1698,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     <span className="text-xs px-2 py-0.5 rounded bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/20 font-bold">عهدة الكاشير</span>
                   </div>
                   <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
-                    {formatArabicCurrency(analytics?.totalInCashDrawerPiasters || 0)}
+                    {formatArabicCurrency(analyticsCashDrawerPiasters)}
                   </span>
                   <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-1">
                     هذه المبالغ مسجلة في درج المحل لتغطية التغذية أو التسليم عند الإغلاق اليومي.
@@ -1669,7 +1711,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     <span className="text-xs px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 font-bold">مفصولة تماماً</span>
                   </div>
                   <span className="t-kpi-lg font-mono text-ink dark:text-ink-dark block">
-                    {formatArabicCurrency(analytics?.totalInTerminalTillPiasters || 0)}
+                    {formatArabicCurrency(analyticsTerminalTillPiasters)}
                   </span>
                   <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-1">
                     هذه المبالغ معزولة ولا تؤثر على حساب درج المحل الرئيسي.
@@ -1686,7 +1728,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 {SERVICE_PRESETS.map((preset) => {
-                  const txsForService = transactions.filter((t) => t.serviceType === preset.type && t.status === 'completed');
+                  const txsForService = filteredAnalyticsTxs.filter((t) => t.serviceType === preset.type && t.status === 'completed');
                   const vol = txsForService.reduce((s, t) => s + (t.billAmountPiasters || 0), 0);
                   const prof = txsForService.reduce((s, t) => s + (t.netProfitPiasters || 0), 0);
                   const Icon = preset.icon;

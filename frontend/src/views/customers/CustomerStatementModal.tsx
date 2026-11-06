@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import type { Customer, CustomerLedgerEntry, CustomerBalanceVerification } from '../../types/models';
 import { CustomSelect } from '../../components/CustomSelect';
-import { CustomDateRangePicker } from '../../components/CustomDatePicker';
+import { DateFilterControl } from '../../components/DateFilterControl';
+import { type DateFilterValue, DEFAULT_DATE_FILTER, getDateFilterRange } from '../../utils/dateFilter';
 import { CustomerReceiptVoucherModal } from './CustomerReceiptVoucherModal';
 import { PaginationBar } from '../../components/PaginationBar';
 import { formatArabicCurrency } from '../../utils/money';
@@ -89,6 +90,19 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   const [viewingReceiptEntry, setViewingReceiptEntry] = React.useState<CustomerLedgerEntry | null>(null);
   const [currentPage, setCurrentPage] = React.useState<number>(1);
   const [pageSize, setPageSize] = React.useState<number>(25);
+
+  const [dateFilter, setDateFilter] = React.useState<DateFilterValue>(() => {
+    if (statementStartDate || statementEndDate) {
+      return { preset: 'custom', startDate: statementStartDate, endDate: statementEndDate };
+    }
+    return DEFAULT_DATE_FILTER;
+  });
+
+  React.useEffect(() => {
+    if (!statementStartDate && !statementEndDate) {
+      setDateFilter(DEFAULT_DATE_FILTER);
+    }
+  }, [statementStartDate, statementEndDate]);
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -196,60 +210,17 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           <div className="bg-surface-2 dark:bg-surface-dark-2 hairline-b border-line dark:border-line-dark px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-ink-muted dark:text-ink-dark-muted text-micro font-semibold">الفترة:</span>
-              <CustomDateRangePicker
-                startDate={statementStartDate}
-                endDate={statementEndDate}
-                onChange={(start, end) => {
-                  setStatementStartDate(start);
-                  setStatementEndDate(end);
+              <DateFilterControl
+                value={dateFilter}
+                onChange={(newFilter) => {
+                  setDateFilter(newFilter);
+                  const range = getDateFilterRange(newFilter);
+                  setStatementStartDate(range.startDate);
+                  setStatementEndDate(range.endDate);
                 }}
+                variant="pills"
                 size="sm"
               />
-            </div>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => { setStatementStartDate(''); setStatementEndDate(''); }}
-                className="px-2 py-1 rounded text-micro bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
-              >
-                الكل
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const todayStr = new Date().toISOString().slice(0, 10);
-                  setStatementStartDate(todayStr);
-                  setStatementEndDate(todayStr);
-                }}
-                className="px-2 py-1 rounded text-micro bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
-              >
-                النهاردة
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const d = new Date();
-                  d.setDate(d.getDate() - 7);
-                  setStatementStartDate(d.toISOString().slice(0, 10));
-                  setStatementEndDate(new Date().toISOString().slice(0, 10));
-                }}
-                className="px-2 py-1 rounded text-micro bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
-              >
-                آخر أسبوع
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const d = new Date();
-                  d.setDate(1);
-                  setStatementStartDate(d.toISOString().slice(0, 10));
-                  setStatementEndDate(new Date().toISOString().slice(0, 10));
-                }}
-                className="px-2 py-1 rounded text-micro bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark font-medium cursor-pointer"
-              >
-                الشهر ده
-              </button>
             </div>
           </div>
 

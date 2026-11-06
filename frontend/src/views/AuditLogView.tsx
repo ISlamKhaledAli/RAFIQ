@@ -13,7 +13,6 @@ import {
   Lock,
   CheckCircle2,
   Search,
-  Calendar,
   RotateCcw,
   Percent,
   XCircle,
@@ -29,10 +28,12 @@ import {
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from '../components/CustomSelect';
+import { DateFilterControl } from '../components/DateFilterControl';
 import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
 import { RafiqLoadingState } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
+import { useDateFilter } from '../utils/dateFilter';
 import type { AuditLogEntry, AuditChainVerificationResult } from '../types/models';
 import type { UserDto } from '../bridge/ipc';
 import { piastersToPounds } from '../utils/money';
@@ -62,13 +63,6 @@ const ACTION_FILTERS = [
   { id: 'product_delete', label: 'حذف أصناف' },
 ];
 
-const DATE_FILTERS = [
-  { id: 'all', label: 'كل الفترات' },
-  { id: 'today', label: 'اليوم' },
-  { id: 'week', label: 'آخر 7 أيام' },
-  { id: 'month', label: 'هذا الشهر' },
-];
-
 export interface AuditLogViewProps {
   isActive?: boolean;
 }
@@ -82,7 +76,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
   // Filters state
   const [selectedAction, setSelectedAction] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [selectedDateFilter, setSelectedDateFilter] = useState('all');
+  const { dateFilter, setDateFilter } = useDateFilter();
   const [searchQuery, setSearchQuery] = useState('');
 
   // Tamper Verification state
@@ -92,22 +86,32 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
 
   // Calculate Date bounds for filtering
   const dateBounds = useMemo(() => {
-    if (selectedDateFilter === 'all') return { startDate: undefined, endDate: undefined };
+    if (dateFilter.preset === 'all') return { startDate: undefined, endDate: undefined };
     const now = new Date();
-    if (selectedDateFilter === 'today') {
+    if (dateFilter.preset === 'today') {
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
       return { startDate: todayStart.toISOString(), endDate: undefined };
     }
-    if (selectedDateFilter === 'week') {
+    if (dateFilter.preset === 'yesterday') {
+      const yestStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
+      const yestEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      return { startDate: yestStart.toISOString(), endDate: yestEnd.toISOString() };
+    }
+    if (dateFilter.preset === 'week') {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       return { startDate: weekAgo.toISOString(), endDate: undefined };
     }
-    if (selectedDateFilter === 'month') {
+    if (dateFilter.preset === 'month') {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
       return { startDate: monthStart.toISOString(), endDate: undefined };
     }
+    if (dateFilter.preset === 'custom') {
+      const start = dateFilter.startDate ? new Date(`${dateFilter.startDate}T00:00:00`).toISOString() : undefined;
+      const end = dateFilter.endDate ? new Date(`${dateFilter.endDate}T23:59:59.999`).toISOString() : undefined;
+      return { startDate: start, endDate: end };
+    }
     return { startDate: undefined, endDate: undefined };
-  }, [selectedDateFilter]);
+  }, [dateFilter]);
 
   const {
     currentPage,
@@ -115,7 +119,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
     pageSize,
     setPageSize,
     paginatedItems: pagedLogs,
-  } = useClientPagination(logs, 25, `${selectedAction}_${selectedUserId}_${selectedDateFilter}_${searchQuery}`);
+  } = useClientPagination(logs, 25, `${selectedAction}_${selectedUserId}_${dateFilter.preset}_${dateFilter.startDate}_${dateFilter.endDate}_${searchQuery}`);
 
   const loadAuditLogs = useCallback(async () => {
     setLoading(true);
@@ -590,16 +594,12 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         </div>
 
         {/* Date Filter */}
-        <div className="flex items-center gap-1.5 flex-1 min-w-[120px] sm:max-w-[150px]">
-          <Calendar className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
-          <CustomSelect
-            value={selectedDateFilter}
-            onChange={(val) => setSelectedDateFilter(val)}
-            options={DATE_FILTERS.map((df) => ({ value: df.id, label: df.label }))}
-            className="w-full"
-            size="sm"
-          />
-        </div>
+        <DateFilterControl
+          value={dateFilter}
+          onChange={setDateFilter}
+          size="sm"
+          selectWidthClass="w-44 sm:w-48"
+        />
 
         {/* Search Input */}
         <div className="relative flex-1 min-w-[180px]">

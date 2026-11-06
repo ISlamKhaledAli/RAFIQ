@@ -12,6 +12,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
+import { DateFilterControl } from '../../components/DateFilterControl';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
 import { openHelpCenter } from '../../utils/helpService';
@@ -20,6 +21,7 @@ import { formatMoney } from './types';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { usePermission } from '../../utils/usePermission';
+import { useDateFilter } from '../../utils/dateFilter';
 
 interface PurchasesInvoicesTabProps {
   purchases: Purchase[];
@@ -50,10 +52,15 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
 }) => {
   const showLoading = useSmoothLoading(loading, 300);
   const canCreatePurchase = usePermission('purchases.create');
+  const { dateFilter, setDateFilter, filterDate } = useDateFilter();
+
   const filteredPurchases = useMemo(() => {
     const q = purchaseSearchQuery.trim().toLowerCase();
     return purchases.filter((p) => {
       if (purchasePaymentFilter !== 'all' && p.paymentStatus !== purchasePaymentFilter) {
+        return false;
+      }
+      if (!filterDate(p.invoiceDate || p.createdAt)) {
         return false;
       }
       if (!q) return true;
@@ -62,7 +69,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
       const supInvMatch = p.supplierInvoiceNumber && p.supplierInvoiceNumber.toLowerCase().includes(q);
       return numMatch || supMatch || supInvMatch;
     });
-  }, [purchases, purchaseSearchQuery, purchasePaymentFilter]);
+  }, [purchases, purchaseSearchQuery, purchasePaymentFilter, filterDate]);
 
   const totalPurchasesAmount = useMemo(() => {
     return purchases.reduce((sum, p) => sum + p.netCostPiasters, 0);
@@ -79,7 +86,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
     pageSize,
     setPageSize,
     paginatedItems: pagedPurchases,
-  } = useClientPagination(filteredPurchases, 25, `${purchaseSearchQuery}_${purchasePaymentFilter}`);
+  } = useClientPagination(filteredPurchases, 25, `${purchaseSearchQuery}_${purchasePaymentFilter}_${dateFilter.preset}_${dateFilter.startDate}_${dateFilter.endDate}`);
 
   return (
     <div className="flex-1 flex flex-col gap-2.5 sm:gap-3 overflow-hidden">
@@ -162,6 +169,13 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
               size="md"
             />
           </div>
+
+          <DateFilterControl
+            value={dateFilter}
+            onChange={setDateFilter}
+            size="md"
+            selectWidthClass="w-44 sm:w-48"
+          />
         </div>
 
         <div className="flex items-center gap-2">
