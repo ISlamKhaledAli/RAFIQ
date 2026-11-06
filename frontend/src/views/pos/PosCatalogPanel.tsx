@@ -304,7 +304,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
       <div 
         ref={gridRef}
         onScroll={handleScroll}
-        className="flex-1 grid grid-cols-2 gap-2 overflow-y-auto pr-0.5 pt-2 pb-2 px-1 content-start custom-scrollbar"
+        className="flex-1 grid grid-cols-2 auto-rows-max gap-2 overflow-y-auto pr-0.5 pt-2 pb-2 px-1 content-start custom-scrollbar"
       >
         {itemsToRender.map((item) => {
           const stockMilli = typeof item.stockQuantityMilli === 'number' ? item.stockQuantityMilli : null;
@@ -324,7 +324,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   handleSmartItemClick(item);
                 }
               }}
-              className={`group relative flex flex-col justify-between p-2.5 rounded-xl bg-surface dark:bg-surface-dark border transition-all duration-150 shadow-2xs min-h-[105px] cursor-pointer ${
+              className={`group relative flex flex-col justify-between p-2 sm:p-2.5 rounded-xl bg-surface dark:bg-surface-dark border transition-all duration-150 shadow-2xs min-h-[6.5rem] cursor-pointer ${
                 isOutOfStock
                   ? 'border-line/80 dark:border-line-dark opacity-85 hover:border-danger/50'
                   : 'border-line dark:border-line-dark hover:border-paid dark:hover:border-paid hover:shadow-card hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]'
@@ -338,10 +338,10 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               }`} />
 
               {/* Top section: Name & Badges */}
-              <div className="w-full shrink-0">
+              <div className="w-full min-w-0">
                 <div className="flex items-start justify-between gap-1.5 mb-1">
                   <span
-                    className="text-xs sm:text-sm font-bold text-ink dark:text-ink-dark line-clamp-2 leading-[1.3] group-hover:text-brand dark:group-hover:text-brand-bright transition-colors"
+                    className="text-xs sm:text-sm font-bold text-ink dark:text-ink-dark line-clamp-2 leading-tight group-hover:text-brand dark:group-hover:text-brand-bright transition-colors"
                     title={item.name}
                   >
                     {item.name}
@@ -441,11 +441,11 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                             e.stopPropagation();
                             handleSmartItemClick(item, u);
                           }}
-                          className="px-1.5 py-0.2 text-micro font-bold rounded bg-paid-soft dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-paid dark:text-paid-bright hover:text-white dark:hover:text-white border border-paid-border dark:border-line-dark transition-colors flex items-center gap-0.5 cursor-pointer shadow-2xs active:scale-95"
+                          className="px-1.5 py-0.5 text-micro font-bold rounded bg-paid-soft dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-paid dark:text-paid-bright hover:text-white dark:hover:text-white border border-paid-border dark:border-line-dark transition-colors flex items-center gap-0.5 cursor-pointer shadow-2xs active:scale-95 shrink-0"
                           title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) بسعر ${(u.sellPricePiasters / 100).toFixed(2)} ج.م`}
                         >
-                          <Package className="w-2.5 h-2.5" />
-                          <span>{u.unitName} ({u.conversionFactor})</span>
+                          <Package className="w-2.5 h-2.5 shrink-0" />
+                          <span className="truncate max-w-[5.5rem]">{u.unitName} ({u.conversionFactor})</span>
                         </span>
                       ))}
                     </div>
@@ -454,19 +454,19 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               </div>
 
               {/* Bottom section: Price & Action Hint */}
-              <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-1 w-full mt-auto pt-1.5 border-t border-line/60 dark:border-line-dark/60 shrink-0">
+              <div className="flex items-center justify-between gap-1 w-full mt-auto pt-1.5 border-t border-line/60 dark:border-line-dark/60 min-w-0">
                 {(() => {
                   const defaultUnit = resolveDefaultSaleUnit(item.units, item.defaultSaleUnitId, item.isLooseSellable);
                   const effPrice = (defaultUnit && defaultUnit.sellPricePiasters > 0) ? defaultUnit.sellPricePiasters : item.pricePiasters;
                   const unitSuffix = (defaultUnit && !defaultUnit.isBaseUnit) ? ` / ${defaultUnit.unitName}` : '';
 
                   return (
-                    <div className="shrink-0 whitespace-nowrap flex items-baseline gap-1 px-2 py-0.5 rounded-lg bg-paid-soft dark:bg-surface-dark-3 border border-paid-border dark:border-line-dark group-hover:bg-paid dark:group-hover:bg-brand group-hover:border-paid transition-all duration-150">
-                      <span className="text-lg sm:text-xl font-extrabold font-mono text-paid dark:text-paid-bright group-hover:text-white tabular-nums tracking-tight transition-colors">
+                    <div className="min-w-0 shrink-0 whitespace-nowrap flex items-baseline gap-1 px-1.5 py-0.5 rounded-lg bg-paid-soft dark:bg-surface-dark-3 border border-paid-border dark:border-line-dark group-hover:bg-paid dark:group-hover:bg-brand group-hover:border-paid transition-all duration-150">
+                      <span className="text-base sm:text-lg font-extrabold font-mono text-paid dark:text-paid-bright group-hover:text-white tabular-nums tracking-tight transition-colors">
                         {item.isOpenPrice ? 'سعر حر' : (effPrice / 100).toFixed(2)}
                       </span>
                       {!item.isOpenPrice && (
-                        <span className="text-xs font-bold text-paid/80 dark:text-paid-bright/80 group-hover:text-white/90 transition-colors">
+                        <span className="text-xs font-bold text-paid/80 dark:text-paid-bright/80 group-hover:text-white/90 transition-colors whitespace-nowrap">
                           ج.م{unitSuffix}
                         </span>
                       )}
@@ -475,12 +475,12 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 })()}
 
                 {item.hasVariants ? (
-                  <span className="text-micro font-bold text-purple-700 dark:text-brand-bright bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-2xs group-hover:bg-purple-600 group-hover:text-white transition-all">
-                    <Layers className="w-3 h-3 text-purple-600 dark:text-brand-bright group-hover:text-white transition-colors" />
-                    <span>{terminology.pickVariantPrompt}</span>
+                  <span className="shrink-0 text-micro font-bold text-purple-700 dark:text-brand-bright bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shadow-2xs group-hover:bg-purple-600 group-hover:text-white transition-all">
+                    <Layers className="w-2.5 h-2.5 text-purple-600 dark:text-brand-bright group-hover:text-white transition-colors shrink-0" />
+                    <span className="truncate max-w-[4rem]">{terminology.pickVariantPrompt}</span>
                   </span>
                 ) : (
-                  <span className="min-w-0 truncate text-micro text-ink-muted dark:text-ink-dark-muted opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+                  <span className="min-w-0 truncate text-micro text-ink-muted dark:text-ink-dark-muted opacity-0 group-hover:opacity-100 transition-opacity font-medium hidden sm:inline-block">
                     إضافة للسلة ↵
                   </span>
                 )}

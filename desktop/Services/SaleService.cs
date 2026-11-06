@@ -11,12 +11,14 @@ namespace RafiqPOS.Services
         private readonly SaleRepository _saleRepo;
         private readonly ProductRepository _productRepo;
         private readonly QuickItemRepository _quickRepo;
+        private readonly SettingsRepository _settingsRepo;
 
-        public SaleService(SaleRepository saleRepo, ProductRepository productRepo, QuickItemRepository quickRepo = null)
+        public SaleService(SaleRepository saleRepo, ProductRepository productRepo, QuickItemRepository quickRepo = null, SettingsRepository settingsRepo = null)
         {
             _saleRepo = saleRepo;
             _productRepo = productRepo;
             _quickRepo = quickRepo;
+            _settingsRepo = settingsRepo;
         }
 
         /// <summary>

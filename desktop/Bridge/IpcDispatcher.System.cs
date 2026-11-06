@@ -15,7 +15,9 @@ namespace RafiqPOS.Bridge
         private static readonly HashSet<string> PRINTER_SETTING_KEYS = new HashSet<string>(StringComparer.Ordinal)
         {
             "default_printer_name", "receipt_paper_width", "printer_auto_print", "printer_open_drawer",
-            "default_label_printer_name", "default_label_paper_size", "drawer_pulse_ms", "drawer_pin", "report_paper_size"
+            "default_label_printer_name", "default_label_paper_size", "drawer_pulse_ms", "drawer_pin", "report_paper_size",
+            "label_custom_width_mm", "label_custom_height_mm", "label_show_store_name", "label_show_price",
+            "label_show_barcode_text", "label_show_expiry_date"
         };
 
         private static readonly HashSet<string> BARCODE_SETTING_KEYS = new HashSet<string>(StringComparer.Ordinal)

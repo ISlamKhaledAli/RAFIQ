@@ -27,6 +27,50 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, allProducts);
                     return true;
 
+                case "products:getAllIds":
+                    string allIdsQuery = "";
+                    string allIdsStockStatus = "all";
+                    string allIdsCategoryId = "all";
+                    JObject allIdsObj = request.Payload as JObject;
+                    if (allIdsObj != null)
+                    {
+                        if (allIdsObj["query"] != null) allIdsQuery = allIdsObj["query"].ToString();
+                        if (allIdsObj["stockStatus"] != null) allIdsStockStatus = allIdsObj["stockStatus"].ToString();
+                        if (allIdsObj["categoryId"] != null) allIdsCategoryId = allIdsObj["categoryId"].ToString();
+                    }
+                    var idList = DatabaseService.Products.GetAllSearchIds(allIdsQuery, allIdsStockStatus, allIdsCategoryId);
+                    response = BridgeResponse.Ok(request.Id, idList);
+                    return true;
+
+                case "products:getByIds":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Ok(request.Id, new List<Product>());
+                        return true;
+                    }
+                    var idObj = request.Payload as JObject;
+                    var idsToFetch = new List<string>();
+                    int fetchLimit = 1000;
+                    if (idObj != null && idObj["ids"] != null)
+                    {
+                        var idsArr = idObj["ids"] as JArray;
+                        if (idsArr != null)
+                        {
+                            foreach (var item in idsArr)
+                            {
+                                idsToFetch.Add(item.ToString());
+                            }
+                        }
+                        if (idObj["limit"] != null)
+                        {
+                            fetchLimit = idObj["limit"].Value<int>();
+                        }
+                    }
+                    var fetchedProds = DatabaseService.Products.GetByIds(idsToFetch, fetchLimit);
+                    MarkRecipeConsumption(fetchedProds);
+                    response = BridgeResponse.Ok(request.Id, fetchedProds);
+                    return true;
+
                 case "products:getById":
                     if (request.Payload == null)
                     {

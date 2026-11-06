@@ -1242,8 +1242,11 @@ namespace RafiqPOS.Services
                 Passed = false
             };
 
+            string prevTaxFlag = DatabaseService.SettingsRepo != null ? DatabaseService.SettingsRepo.Get("feature_taxes", "0") : "0";
             try
             {
+                if (DatabaseService.SettingsRepo != null) DatabaseService.SettingsRepo.Set("feature_taxes", "1");
+
                 // Product has 14% tax rate
                 string prodId = "prod_tax_" + Guid.NewGuid().ToString("N");
                 var prod = new Product
@@ -1296,6 +1299,10 @@ namespace RafiqPOS.Services
             {
                 test.Passed = false;
                 test.Observed = "استثناء أثناء التنفيذ: " + ex.Message;
+            }
+            finally
+            {
+                if (DatabaseService.SettingsRepo != null) DatabaseService.SettingsRepo.Set("feature_taxes", prevTaxFlag);
             }
 
             return test;

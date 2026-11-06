@@ -355,6 +355,63 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
 
+                case "epay:printReceipt":
+                case "printer:printEpayReceipt":
+                    {
+                        var repo = GetEpayRepo();
+                        EpayTransaction tx = null;
+                        string printerName = null;
+                        string paperWidth = null;
+
+                        JObject payloadObj = request.Payload as JObject;
+                        if (payloadObj == null && request.Payload != null)
+                        {
+                            try
+                            {
+                                payloadObj = JObject.Parse(request.Payload.ToString());
+                            }
+                            catch { }
+                        }
+
+                        if (payloadObj != null)
+                        {
+                            if (payloadObj["printerName"] != null) printerName = payloadObj["printerName"].ToString();
+                            if (payloadObj["paperWidth"] != null) paperWidth = payloadObj["paperWidth"].ToString();
+
+                            string txId = null;
+                            if (payloadObj["transactionId"] != null) txId = payloadObj["transactionId"].ToString();
+                            else if (payloadObj["id"] != null) txId = payloadObj["id"].ToString();
+
+                            if (!string.IsNullOrWhiteSpace(txId))
+                            {
+                                tx = repo.GetTransactionById(txId);
+                            }
+
+                            if (tx == null)
+                            {
+                                JToken txToken = payloadObj["transaction"] ?? payloadObj["tx"];
+                                if (txToken != null && txToken.Type != JTokenType.Null)
+                                {
+                                    tx = txToken.ToObject<EpayTransaction>();
+                                }
+                                else if (payloadObj["billAmountPiasters"] != null || payloadObj["serviceName"] != null)
+                                {
+                                    tx = payloadObj.ToObject<EpayTransaction>();
+                                }
+                            }
+                        }
+
+                        if (tx == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "NOT_FOUND", "لم يتم العثور على بيانات إيصال العملية المطلوب طباعتها");
+                            return true;
+                        }
+
+                        var printRes = DatabaseService.Printer.PrintEpayReceipt(tx, printerName, paperWidth);
+                        response = ToPrintResponse(request.Id, printRes);
+                        return true;
+                    }
+
                 default:
                     return false;
             }

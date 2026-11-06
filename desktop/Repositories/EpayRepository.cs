@@ -921,6 +921,33 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        public EpayTransaction GetTransactionById(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return null;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT t.*, m.name as terminal_name
+                    FROM epay_transactions t
+                    LEFT JOIN epay_terminals m ON t.terminal_id = m.id
+                    WHERE t.id = @id
+                    LIMIT 1;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", id);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            return MapReaderToTransaction(reader);
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
         public List<EpayTransaction> GetTransactions(string terminalId, string serviceType, string fromDate, string toDate, int limit)
         {
             var list = new List<EpayTransaction>();

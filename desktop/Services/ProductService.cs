@@ -281,7 +281,10 @@ namespace RafiqPOS.Services
                         }
                         string productId = product.Id;
                         InventoryService inventory = CreateInventoryService();
-                        string referenceType = isBaseUnitChange ? "UNIT_REBASE" : "PRODUCT_CARD_EDIT";
+                        bool isUnitRebase = isBaseUnitChange 
+                            || (reason != null && reason.IndexOf("تغيير وحدة الأساس", StringComparison.OrdinalIgnoreCase) >= 0)
+                            || (reason != null && reason.IndexOf("UNIT_REBASE", StringComparison.OrdinalIgnoreCase) >= 0);
+                        string referenceType = isUnitRebase ? "UNIT_REBASE" : "PRODUCT_CARD_EDIT";
                         stockLedgerStep = delegate(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans)
                         {
                             inventory.AdjustStockInTransaction(conn, trans, productId, requestedStockMilli, reason, actorId, null, referenceType);
@@ -565,6 +568,16 @@ namespace RafiqPOS.Services
         public int GetSearchCount(string query, string stockStatus = "all", string categoryId = "all")
         {
             return _repo.GetSearchCount(query, stockStatus, categoryId);
+        }
+
+        public List<string> GetAllSearchIds(string query, string stockStatus = "all", string categoryId = "all")
+        {
+            return _repo.GetAllSearchIds(query, stockStatus, categoryId);
+        }
+
+        public List<Product> GetByIds(List<string> ids, int limit = 1000)
+        {
+            return _repo.GetByIds(ids, limit);
         }
 
         public static long RoundPrice(long piasters, string rule)

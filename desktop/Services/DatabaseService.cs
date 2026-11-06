@@ -220,7 +220,7 @@ namespace RafiqPOS.Services
             ProductUnits = new ProductUnitService(_connectionString);
             ProductBatches = new ProductBatchService(ProductBatchRepo, SettingsRepo);
             ProductVariants = new ProductVariantService(_connectionString);
-            Sales = new SaleService(SaleRepo, ProductRepo, QuickItemRepo);
+            Sales = new SaleService(SaleRepo, ProductRepo, QuickItemRepo, SettingsRepo);
             Inventory = new InventoryService(_connectionString, StockMovementRepo, ProductRepo, AuditRepo);
             Settings = new SettingsService(SettingsRepo, AuditRepo);
             Customers = new CustomerService(CustomerRepo);

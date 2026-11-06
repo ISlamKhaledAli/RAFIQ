@@ -1204,6 +1204,10 @@ export interface ItemProfitabilityItem {
   marginPercent: number;
   isNegativeMargin: boolean;
   isZeroCost: boolean;
+  baseUnit?: string;
+  baseQuantitySoldMilli?: number;
+  packagesSummary?: string;
+  hasMultipleUnits?: boolean;
 }
 
 export interface PeriodMetricComparison {

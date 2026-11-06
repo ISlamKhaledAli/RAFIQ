@@ -23,6 +23,7 @@ import {
   Hash,
   Landmark,
   Star,
+  Printer,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription, emitDataChanged } from '../../utils/eventBus';
@@ -457,6 +458,30 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     const t = setTimeout(() => setFeedbackMsg(null), 5000);
     return () => clearTimeout(t);
   }, [feedbackMsg]);
+
+  // Direct Silent Printing for Wallet Receipts
+  const [isPrintingWalletReceipt, setIsPrintingWalletReceipt] = useState<boolean>(false);
+
+  const handlePrintWalletReceipt = async (tx: DigitalTransaction) => {
+    if (!tx) return;
+    setIsPrintingWalletReceipt(true);
+    try {
+      const res = await invoke<{ success: boolean; message: string }>('wallets:printReceipt', {
+        transactionId: tx.id,
+        transaction: tx,
+      });
+      if (res && res.success) {
+        setFeedbackMsg({ type: 'success', text: 'تم إرسال إيصال المحفظة إلى الطابعة بنجاح' });
+      } else {
+        setFeedbackMsg({ type: 'error', text: res?.message || 'تعذر إرسال أمر الطباعة إلى الطابعة' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر الاتصال بالطابعة أو حدث خطأ أثناء الطباعة';
+      setFeedbackMsg({ type: 'error', text: msg });
+    } finally {
+      setIsPrintingWalletReceipt(false);
+    }
+  };
 
   // Load Data
   const loadData = useCallback(async () => {
@@ -1390,6 +1415,16 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                       <strong className="text-ink dark:text-white">{lastProcessedTx.balanceAfterFormatted}</strong>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => void handlePrintWalletReceipt(lastProcessedTx)}
+                    disabled={isPrintingWalletReceipt}
+                    className="w-full py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>{isPrintingWalletReceipt ? 'جاري إرسال الإيصال للطابعة...' : 'طباعة إيصال المعاملة'}</span>
+                  </button>
                 </div>
               )}
 
@@ -1729,26 +1764,35 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                               {t.createdByName || t.createdBy || 'كاشير'}
                             </td>
                             <td className="px-4 text-center">
-                              {isCancelled ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-micro font-bold bg-danger/10 text-danger dark:bg-danger/20 dark:text-danger-bright">
-                                  ملغاة
-                                </span>
-                              ) : canCancelTx && t.txType !== 'sale_credit' && (t.txType as string) !== 'pos_sale' && (t.txType as string) !== 'pos_return' ? (
+                              <div className="flex items-center justify-center gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setCancellingTx(t);
-                                    setCancelReason('');
-                                  }}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger/10 transition-colors cursor-pointer"
-                                  title="إلغاء المعاملة وتصحيح الرصيد"
+                                  onClick={() => void handlePrintWalletReceipt(t)}
+                                  disabled={isPrintingWalletReceipt}
+                                  className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-bright/15 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center disabled:opacity-50"
+                                  title="طباعة إيصال المعاملة على الطابعة الحرارية"
                                 >
-                                  <RotateCcw className="w-3.5 h-3.5" />
-                                  <span>إلغاء</span>
+                                  <Printer className="w-4 h-4" />
                                 </button>
-                              ) : (
-                                <span className="text-ink-muted/40 dark:text-ink-dark-muted/40">—</span>
-                              )}
+                                {isCancelled ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-micro font-bold bg-danger/10 text-danger dark:bg-danger/20 dark:text-danger-bright">
+                                    ملغاة
+                                  </span>
+                                ) : canCancelTx && t.txType !== 'sale_credit' && (t.txType as string) !== 'pos_sale' && (t.txType as string) !== 'pos_return' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCancellingTx(t);
+                                      setCancelReason('');
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger/10 transition-colors cursor-pointer"
+                                    title="إلغاء المعاملة وتصحيح الرصيد"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    <span>إلغاء</span>
+                                  </button>
+                                ) : null}
+                              </div>
                             </td>
                           </tr>
                         );

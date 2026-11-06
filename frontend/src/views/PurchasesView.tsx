@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ShoppingCart,
-  ArrowRight,
   RotateCcw,
   Printer,
 } from 'lucide-react';
@@ -796,18 +795,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>مرتجعات الصلاحية والإعدام</span>
-            </button>
-          )}
-
-          {activeTab === 'new_invoice' && (
-            <button
-              type="button"
-              onClick={handleRequestCancelNewPurchase}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer shadow-2xs"
-              title="العودة إلى قائمة الفواتير"
-            >
-              <ArrowRight className="w-3.5 h-3.5" />
-              <span>العودة للفواتير</span>
             </button>
           )}
         </div>

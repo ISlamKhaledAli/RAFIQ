@@ -820,25 +820,19 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 اتقفلت اليومية. تحب نطبع وصل التقفيل دلوقتي؟
               </p>
 
-              {printFeedback && (
-                <div className="p-3 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/40 text-xs text-paid dark:text-paid-bright font-medium flex items-center justify-center gap-2">
-                  <Printer className="w-4 h-4 shrink-0" />
-                  <span>{printFeedback}</span>
-                </div>
-              )}
-
               {/* Actions */}
               <div className="flex items-center gap-2.5 pt-2">
                 <button
                   type="button"
-                  onClick={async () => {
-                    await handlePrintReceipt(savedClosing);
+                  onClick={() => {
+                    void handlePrintReceipt(savedClosing);
+                    setShowPrintPrompt(false);
+                    onClose();
                   }}
-                  disabled={isPrinting}
-                  className="flex-1 py-2.5 px-4 bg-paid dark:bg-paid-bright dark:text-surface-dark hover:bg-paid/90 dark:hover:bg-paid-bright-hover text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  className="flex-1 py-2.5 px-4 bg-paid dark:bg-paid-bright dark:text-surface-dark hover:bg-paid/90 dark:hover:bg-paid-bright-hover text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>{isPrinting ? 'بنطبع...' : 'أيوه، اطبع وصل التقفيل دلوقتي'}</span>
+                  <span>أيوه، اطبع وصل التقفيل دلوقتي</span>
                 </button>
                 <button
                   type="button"

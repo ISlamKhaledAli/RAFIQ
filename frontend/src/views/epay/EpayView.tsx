@@ -46,7 +46,6 @@ import type {
   EpayPaymentDestination
 } from '../../types/models';
 import { createAttemptKey } from '../../utils/idempotency';
-import { printReport } from '../../utils/printReport';
 
 export type EpaySubTab = 'pos' | 'terminals' | 'history' | 'analytics';
 
@@ -176,6 +175,30 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
   // Receipt Modal State
   const [receiptTx, setReceiptTx] = useState<EpayTransaction | null>(null);
+  const [isPrintingReceipt, setIsPrintingReceipt] = useState<boolean>(false);
+
+  const handlePrintReceiptDirect = async (targetTx?: EpayTransaction | null) => {
+    const target = targetTx || receiptTx;
+    if (!target) return;
+    setIsPrintingReceipt(true);
+    try {
+      const res = await invoke<{ success: boolean; message: string }>('epay:printReceipt', {
+        transactionId: target.id,
+        transaction: target,
+      });
+      if (res && res.success) {
+        setSuccessMsg('تم إرسال إيصال الدفع الإلكتروني إلى الطابعة بنجاح');
+        void requestCloseReceipt();
+      } else {
+        setErrorMsg(res?.message || 'تعذر إرسال أمر الطباعة إلى الطابعة');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر الاتصال بالطابعة أو حدث خطأ أثناء الطباعة';
+      setErrorMsg(msg);
+    } finally {
+      setIsPrintingReceipt(false);
+    }
+  };
 
   // Cancellation Modal State
   const [cancellingTx, setCancellingTx] = useState<EpayTransaction | null>(null);
@@ -405,6 +428,12 @@ export const EpayView: React.FC<EpayViewProps> = ({
       setSuccessMsg(`تم تنفيذ عملية "${serviceName}". صافي ربح المحل: ${formatArabicCurrency(netProfitPiasters)}`);
 
       if (autoPrintReceipt && result) {
+        void invoke('epay:printReceipt', {
+          transactionId: result.id,
+          transaction: result,
+        }).catch((pErr: unknown) => {
+          console.error('فشل الإرسال التلقائي لإيصال الدفع الإلكتروني للطابعة:', pErr);
+        });
         setReceiptTx(result);
       }
 
@@ -2082,11 +2111,12 @@ export const EpayView: React.FC<EpayViewProps> = ({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => void printReport({ kind: 'compact' })}
-                className="flex-1 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-98"
+                onClick={() => void handlePrintReceiptDirect(receiptTx)}
+                disabled={isPrintingReceipt}
+                className="flex-1 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-98 disabled:opacity-50"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>طباعة الإيصال</span>
+                <span>{isPrintingReceipt ? 'جاري إرسال الإيصال للطابعة...' : 'طباعة الإيصال'}</span>
               </button>
               <button
                 type="button"

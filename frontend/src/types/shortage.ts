@@ -65,3 +65,19 @@ export interface LostSalesReportSummary {
   uniqueProductsCount?: number;
   topRequestedProducts: LostSalesReportItem[];
 }
+
+export function formatUnitArabic(unit?: string | null): string {
+  if (!unit) return 'قطعة';
+  const u = unit.trim().toLowerCase();
+  if (u === 'piece' || u === 'pieces' || u === 'pcs' || u === 'pc') return 'قطعة';
+  if (u === 'box' || u === 'boxes') return 'علبة';
+  if (u === 'kg' || u === 'kilogram') return 'كجم';
+  if (u === 'g' || u === 'gram') return 'جم';
+  if (u === 'carton' || u === 'pack') return 'كرتونة';
+  if (u === 'strip') return 'شريط';
+  if (u === 'tablet') return 'قرص';
+  if (u === 'bottle') return 'زجاجة';
+  if (u === 'liter' || u === 'l') return 'لتر';
+  if (u === 'meter' || u === 'm') return 'متر';
+  return unit;
+}

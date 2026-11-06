@@ -3785,6 +3785,11 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       return tx;
     }
 
+    case 'epay:printReceipt':
+    case 'printer:printEpayReceipt': {
+      return { success: true, message: 'تم إرسال إيصال الدفع الإلكتروني إلى الطابعة بنجاح' };
+    }
+
     case 'epay:getTransactions': {
       let filtered = [...mockEpayTransactions];
       if (payload?.terminalId) {
@@ -4026,6 +4031,11 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
       mockDigitalTransactions.unshift(newTx);
       return newTx;
+    }
+
+    case 'wallets:printReceipt':
+    case 'printer:printWalletReceipt': {
+      return { success: true, message: 'تم إرسال إيصال المحفظة إلى الطابعة بنجاح' };
     }
 
     case 'wallets:getTransactions': {

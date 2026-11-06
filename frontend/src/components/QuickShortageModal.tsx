@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { extractProducts, type Product } from '../types/models';
-import type { ShortageEntry } from '../types/shortage';
+import { formatUnitArabic, type ShortageEntry } from '../types/shortage';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { useAuth } from '../context/useAuth';
 import { RequiredMark } from './RequiredMark';
@@ -138,7 +138,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
         productId: selectedProduct?.id || null,
         productName: cleanName,
         barcode: selectedProduct?.barcode || null,
-        unit: selectedProduct?.unit || 'قطعة',
+        unit: formatUnitArabic(selectedProduct?.unit),
         requestedQuantityMilli: Math.round(qtyNum * 1000),
         currentStockMilli: selectedProduct?.stockQuantityMilli || 0,
         minStockMilli: selectedProduct?.minStockQuantityMilli || 0,
@@ -182,7 +182,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
         {/* Header */}
         <div className="h-14 px-5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 text-warn flex items-center justify-center shadow-2xs">
+            <div className="w-9 h-9 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 dark:border-warn-bright/30 text-warn dark:text-warn-bright flex items-center justify-center shadow-2xs">
               <ClipboardList className="w-5 h-5" />
             </div>
             <div>
@@ -206,7 +206,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSave} className="p-5 flex flex-col gap-4 overflow-y-auto max-h-[75vh]">
           {error && (
-            <div className="p-3 rounded-xl bg-danger-soft border border-danger/20 text-danger text-xs font-bold flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-bold flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -226,7 +226,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                 placeholder="اكتب اسم الصنف أو ابحث في الكتالوج..."
                 className="w-full h-10 px-3 pr-9 pl-24 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-semibold text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
               />
-              <Search className="w-4 h-4 text-ink-muted absolute right-3 top-3 pointer-events-none" />
+              <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-3 pointer-events-none" />
               {isSearching && (
                 <div className="absolute left-3 top-3 text-micro text-brand dark:text-brand-bright font-bold animate-pulse pointer-events-none">
                   جاري البحث...
@@ -237,7 +237,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
             {/* Suggestions list */}
             {searchResults.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
-                <div className="p-1.5 text-micro font-bold text-ink-muted bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark">
+                <div className="p-1.5 text-micro font-bold text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark">
                   أصناف مطابقة من الكتالوج:
                 </div>
                 {searchResults.map((prod) => (
@@ -245,14 +245,14 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                     key={prod.id}
                     type="button"
                     onClick={() => handleSelectProduct(prod)}
-                    className="w-full text-right px-3 py-2 text-xs hover:bg-brand-soft/40 dark:hover:bg-brand-soft/10 border-b border-line/40 dark:border-line-dark/40 last:border-0 flex items-center justify-between"
+                    className="w-full text-right px-3 py-2 text-xs hover:bg-brand-soft/40 dark:hover:bg-brand-dark-soft/40 border-b border-line/40 dark:border-line-dark/40 last:border-0 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-2">
                       <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                       <span className="font-bold text-ink dark:text-ink-dark">{prod.name}</span>
                     </div>
                     <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">
-                      رصيد: {prod.stockQuantityMilli / 1000} {prod.unit}
+                      رصيد: {prod.stockQuantityMilli / 1000} {formatUnitArabic(prod.unit)}
                     </span>
                   </button>
                 ))}
@@ -260,12 +260,12 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
             )}
 
             {selectedProduct && (
-              <div className="mt-1.5 px-3 py-1.5 rounded-lg bg-brand-soft/50 dark:bg-brand-soft/20 border border-brand/20 flex items-center justify-between text-micro">
+              <div className="mt-1.5 px-3 py-1.5 rounded-lg bg-brand-soft/50 dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/20 flex items-center justify-between text-micro">
                 <span className="text-brand dark:text-brand-bright font-bold">
                   مرتبط بالصنف: {selectedProduct.name}
                 </span>
-                <span className="text-ink-muted font-mono">
-                  الرصيد الحالي: {selectedProduct.stockQuantityMilli / 1000} {selectedProduct.unit}
+                <span className="text-ink-muted dark:text-ink-dark-muted font-mono">
+                  الرصيد الحالي: {selectedProduct.stockQuantityMilli / 1000} {formatUnitArabic(selectedProduct.unit)}
                 </span>
               </div>
             )}
@@ -381,7 +381,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                     placeholder="اسم العميل"
                     className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                   />
-                  <User className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-2 pointer-events-none" />
+                  <User className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2 pointer-events-none" />
                 </div>
                 <div className="relative">
                   <input
@@ -391,7 +391,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                     placeholder="رقم الهاتف"
                     className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                   />
-                  <Phone className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-2 pointer-events-none" />
+                  <Phone className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2 pointer-events-none" />
                 </div>
               </div>
             </div>
@@ -422,7 +422,7 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                 placeholder="أي تفاصيل تساعد مسؤول المشتريات أثناء عمل الطلبية..."
                 className="w-full h-9 px-3 pr-8 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
               />
-              <FileText className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-2.5 pointer-events-none" />
+              <FileText className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2.5 pointer-events-none" />
             </div>
           </div>
 

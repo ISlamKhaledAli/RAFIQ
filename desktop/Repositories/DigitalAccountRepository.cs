@@ -993,6 +993,33 @@ namespace RafiqPOS.Repositories
             return list;
         }
 
+        public DigitalTransaction GetTransactionById(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return null;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT t.*, a.name AS account_name, a.type AS account_type
+                    FROM digital_transactions t
+                    LEFT JOIN digital_accounts a ON t.account_id = a.id
+                    WHERE t.id = @id
+                    LIMIT 1;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", id);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            return MapTransaction(reader);
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
         public List<DigitalAccountFunding> GetFundings(int limit = 100, string accountId = null)
         {
             var list = new List<DigitalAccountFunding>();

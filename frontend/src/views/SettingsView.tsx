@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useAuth } from '../context/useAuth';
-import { useFeatures } from '../context/useFeatures';
 import { DRAWER_PULSE_DEFAULT_MS, normalizeDrawerPulse } from '../utils/drawerPulse';
 import { getAllowedSettingsSubTabs, resolveSettingsSubTab } from '../utils/settingsAccess';
 import { BackupManager } from '../components/BackupManager';
@@ -55,7 +54,6 @@ export const SettingsView = ({
   const [requireOpenShiftToSell, setRequireOpenShiftToSell] = useState(true);
   const [vatEnabled, setVatEnabled] = useState(false);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
-  const { toggleFlag } = useFeatures();
 
   // Which screen just saved (drives the "saved" confirmation on that screen only)
   const [savedTab, setSavedTab] = useState<SettingsSubTab | null>(null);
@@ -313,13 +311,6 @@ export const SettingsView = ({
       () => setVatEnabled(!newVal),
       'تفعيل ضريبة القيمة المضافة'
     );
-    try {
-      if (toggleFlag) {
-        await toggleFlag('feature_taxes', newVal);
-      }
-    } catch (err: unknown) {
-      console.warn('Could not sync feature flag state directly:', err);
-    }
   };
 
   const handleBlurTaxNumber = async (val: string) => {

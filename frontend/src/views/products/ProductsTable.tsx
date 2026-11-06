@@ -17,6 +17,7 @@ import {
   Box,
   Snowflake,
   X,
+  CheckSquare,
 } from 'lucide-react';
 import type { Product } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
@@ -30,10 +31,14 @@ export interface ProductsTableProps {
   products: Product[];
   selectedCategoryFilter: string;
   selectedProductIds: string[];
+  totalCount?: number;
   loading?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
   onToggleSelectAll: (filteredProds: Product[]) => void;
+  onSelectAllCatalog?: () => void;
+  onSelectOnlyPage?: () => void;
+  isAllCatalogSelected?: boolean;
   onToggleSelectProduct: (id: string) => void;
   onOpenBulkMinStockModal: () => void;
   onOpenBulkPriceAdjustment?: () => void;
@@ -55,10 +60,14 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   products,
   selectedCategoryFilter,
   selectedProductIds,
+  totalCount,
   loading = false,
   canEdit = true,
   canDelete = true,
   onToggleSelectAll,
+  onSelectAllCatalog,
+  onSelectOnlyPage,
+  isAllCatalogSelected = false,
   onToggleSelectProduct,
   onOpenBulkMinStockModal,
   onOpenBulkPriceAdjustment,
@@ -173,10 +182,19 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 <div className="flex items-center justify-center gap-1.5">
                   <input
                     type="checkbox"
-                    checked={filteredProducts.length > 0 && selectedProductIds.length === filteredProducts.length}
-                    onChange={() => onToggleSelectAll(filteredProducts)}
+                    checked={
+                      filteredProducts.length > 0 &&
+                      (isAllCatalogSelected || selectedProductIds.length === filteredProducts.length)
+                    }
+                    onChange={() => {
+                      if (selectedProductIds.length > 0) {
+                        onClearSelection();
+                      } else {
+                        onToggleSelectAll(filteredProducts);
+                      }
+                    }}
                     className="w-4 h-4 rounded border-line dark:border-line-dark accent-paid focus:ring-0 cursor-pointer"
-                    title="تحديد كل الأصناف المعروضة"
+                    title={selectedProductIds.length > 0 ? 'إلغاء التحديد' : 'تحديد أصناف هذه الصفحة'}
                   />
                   <span>#</span>
                 </div>
@@ -240,7 +258,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   || (prod.defaultSaleUnitId ? (prod.units || []).find((u) => u.id === prod.defaultSaleUnitId) : null);
                 const effectivePrice = displayUnit && displayUnit.sellPricePiasters > 0 ? displayUnit.sellPricePiasters : prod.pricePiasters;
                 const effectiveCost = displayUnit && displayUnit.costPricePiasters > 0 ? displayUnit.costPricePiasters : prod.costPiasters;
-                const displayUnitLabel = displayUnit ? displayUnit.unitName : (!isKg ? (prod.unit || 'قطعة') : null);
+                const rawUnitLabel = displayUnit ? displayUnit.unitName : (!isKg ? (prod.unit || 'قطعة') : null);
+                const displayUnitLabel = (!rawUnitLabel || rawUnitLabel === 'piece' || rawUnitLabel === 'pc' || rawUnitLabel === 'item' || rawUnitLabel === 'unit')
+                  ? 'قطعة'
+                  : rawUnitLabel;
 
                 const isCompound = (isEnabled('feature_loose_selling') || isEnabled('feature_multi_units')) && ((prod.isLooseSellable && isEnabled('feature_loose_selling')) || (prod.units && prod.units.length > 1 && isEnabled('feature_multi_units'))) && !isKg;
                 const compoundStock = isCompound ? formatCompoundStock(prod.stockQuantityMilli, prod.units, prod.unit || 'قطعة') : null;
@@ -493,12 +514,48 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
       {/* Bulk Action Bar: shown inline above the table while rows are selected */}
       {selectedProductIds.length > 0 && (
-        <div className="order-first shrink-0 flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 bg-brand-soft dark:bg-brand-dark-soft border-b border-brand/20 dark:border-brand-bright/30 text-xs font-bold animate-in fade-in select-none">
-          <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-mono text-sm font-black tabular-nums">
-              {selectedProductIds.length}
-            </span>
-            <span className="text-sm text-brand dark:text-brand-bright whitespace-nowrap">صنف محدد</span>
+        <div className="order-first shrink-0 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2.5 bg-brand-soft dark:bg-brand-dark-soft border-b border-brand/20 dark:border-brand-bright/30 text-xs font-bold animate-in fade-in select-none">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-mono text-sm font-black tabular-nums">
+                {selectedProductIds.length.toLocaleString('ar-EG')}
+              </span>
+              <span className="text-sm text-brand dark:text-brand-bright whitespace-nowrap">صنف محدد</span>
+            </div>
+
+            {totalCount !== undefined && totalCount > filteredProducts.length && (
+              isAllCatalogSelected ? (
+                <div className="flex items-center gap-2 bg-surface/80 dark:bg-surface-dark/80 px-3 py-1 rounded-xl border border-brand/20">
+                  <span className="text-xs text-brand dark:text-brand-bright font-bold">
+                    تم تحديد كافة الأصناف ({totalCount.toLocaleString('ar-EG')} صنف)
+                  </span>
+                  {onSelectOnlyPage && (
+                    <button
+                      type="button"
+                      onClick={onSelectOnlyPage}
+                      className="text-xs text-ink-muted dark:text-ink-dark-muted underline hover:text-ink dark:hover:text-ink-dark cursor-pointer font-bold"
+                    >
+                      تحديد أصناف هذه الصفحة فقط ({filteredProducts.length})
+                    </button>
+                  )}
+                </div>
+              ) : onSelectAllCatalog && selectedProductIds.length === filteredProducts.length ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
+                    (أصناف هذه الصفحة فقط)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onSelectAllCatalog}
+                    className="px-2.5 py-1 bg-brand hover:bg-brand-dark text-white rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
+                    title="تحديد كافة الأصناف في الكتالوج بالكامل أو نتائج البحث الحالية"
+                  >
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    <span>تحديد كل الأصناف ({totalCount.toLocaleString('ar-EG')} صنف)</span>
+                  </button>
+                </div>
+              ) : null
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

@@ -53,7 +53,7 @@ import { StockAdjustmentModal } from '../components/StockAdjustmentModal';
 import { PurchaseEntryModal } from '../components/PurchaseEntryModal';
 import { ProductVariantMatrixModal } from '../components/ProductVariantMatrixModal';
 import { ProductVariantsListModal } from '../components/ProductVariantsListModal';
-import { BarcodeLabelModal } from '../components/BarcodeLabelModal';
+import { BarcodeLabelModal, type LabelQueueItem } from '../components/BarcodeLabelModal';
 import { DataQualityAuditModal } from '../components/DataQualityAuditModal';
 import { ControlledDrugsRegisterModal } from '../components/ControlledDrugsRegisterModal';
 import { DrugReferenceImportModal } from '../components/DrugReferenceImportModal';
@@ -219,6 +219,96 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   // Barcode Label Printing Modal State (Feature #57 / Tasks 57-1 to 57-4)
   const [showBarcodeLabelModal, setShowBarcodeLabelModal] = useState(false);
   const [labelModalProduct, setLabelModalProduct] = useState<Product | null>(null);
+  const [labelModalQueueItems, setLabelModalQueueItems] = useState<LabelQueueItem[] | null>(null);
+
+  const isAllCatalogSelected = totalCount > 0 && selectedProductIds.length === totalCount;
+
+  const handleSelectAllCatalog = useCallback(async () => {
+    try {
+      setLoading(true);
+      const allIds = await invoke<string[]>('products:getAllIds', {
+        query: searchQuery,
+        stockStatus: stockStatusFilter,
+        categoryId: selectedCategoryFilter,
+      });
+      if (Array.isArray(allIds) && allIds.length > 0) {
+        setSelectedProductIds(allIds);
+      }
+    } catch (err) {
+      console.error('Failed to select all catalog products:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, stockStatusFilter, selectedCategoryFilter]);
+
+  const handleSelectOnlyPage = useCallback(() => {
+    setSelectedProductIds(products.map((p) => p.id));
+  }, [products]);
+
+  const handleOpenBarcodeModalForSelected = useCallback(async () => {
+    if (selectedProductIds.length === 0) {
+      setLabelModalProduct(null);
+      setLabelModalQueueItems(null);
+      setShowBarcodeLabelModal(true);
+      return;
+    }
+
+    let prodsToQueue: Product[] = [];
+    const pageMatches = products.filter((p) => selectedProductIds.includes(p.id));
+
+    if (selectedProductIds.length <= pageMatches.length) {
+      prodsToQueue = pageMatches;
+    } else {
+      try {
+        setLoading(true);
+        const fetched = await invoke<Product[]>('products:getByIds', {
+          ids: selectedProductIds.slice(0, 500),
+          limit: 500,
+        });
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          prodsToQueue = fetched;
+        } else {
+          prodsToQueue = pageMatches;
+        }
+      } catch (err) {
+        console.error('Failed to fetch selected products for labels:', err);
+        prodsToQueue = pageMatches;
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    const validProds = prodsToQueue.filter((p) => p.barcode && p.barcode.trim().length > 0);
+
+    if (validProds.length === 0) {
+      if (prodsToQueue.length === 1) {
+        setLabelModalProduct(prodsToQueue[0]);
+        setLabelModalQueueItems(null);
+      } else {
+        setLabelModalProduct(null);
+        setLabelModalQueueItems(null);
+      }
+      setShowBarcodeLabelModal(true);
+      return;
+    }
+
+    const queueItems: LabelQueueItem[] = validProds.map((p) => ({
+      productId: p.id,
+      productName: p.name,
+      barcode: p.barcode || '',
+      pricePiasters: p.pricePiasters,
+      variantInfo: p.variantColor && p.variantSize
+        ? `${p.variantColor} / ${p.variantSize}`
+        : (p.variantSize || p.variantColor || ''),
+      copies: Math.max(1, Math.floor((p.stockQuantityMilli || 1000) / 1000)),
+      stockQuantityMilli: p.stockQuantityMilli,
+      categoryName: p.categoryName,
+    }));
+
+    setLabelModalProduct(null);
+    setLabelModalQueueItems(queueItems);
+    setShowBarcodeLabelModal(true);
+  }, [products, selectedProductIds]);
   const [showControlledRegisterModal, setShowControlledRegisterModal] = useState(false);
   const [showDrugReferenceModal, setShowDrugReferenceModal] = useState(false);
   const [showExpiryReturnsModal, setShowExpiryReturnsModal] = useState(false);
@@ -274,13 +364,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F8') {
         e.preventDefault();
-        setLabelModalProduct(null);
-        setShowBarcodeLabelModal(true);
+        handleOpenBarcodeModalForSelected();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive]);
+  }, [isActive, handleOpenBarcodeModalForSelected]);
 
   const handleExportProductsToExcel = async () => {
     setIsExportingExcel(true);
@@ -1294,8 +1383,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           shortcut="F8"
                           onClick={() => {
                             setIsToolsDropdownOpen(false);
-                            setLabelModalProduct(null);
-                            setShowBarcodeLabelModal(true);
+                            handleOpenBarcodeModalForSelected();
                           }}
                         />
                         {canEditProduct && (
@@ -1652,15 +1740,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             canDelete={canDeleteProduct}
             selectedCategoryFilter={selectedCategoryFilter}
             selectedProductIds={selectedProductIds}
+            totalCount={totalCount}
+            isAllCatalogSelected={isAllCatalogSelected}
+            onSelectAllCatalog={handleSelectAllCatalog}
+            onSelectOnlyPage={handleSelectOnlyPage}
             onToggleSelectAll={toggleSelectAll}
             onToggleSelectProduct={toggleSelectProduct}
             onOpenBulkMinStockModal={() => setShowBulkMinStockModal(true)}
             onOpenBulkPriceAdjustment={canEditPrice ? () => setShowBulkPriceModal(true) : undefined}
             onBulkDelete={canDeleteProduct ? () => setShowBulkDeleteConfirm(true) : undefined}
-            onBulkPrintLabels={() => {
-              setLabelModalProduct(null);
-              setShowBarcodeLabelModal(true);
-            }}
+            onBulkPrintLabels={handleOpenBarcodeModalForSelected}
             onClearSelection={() => setSelectedProductIds([])}
             onSelectProdForMovements={(prod) => setSelectedProdForMovements(prod)}
             onSelectProdForAdjustment={(prod) => setSelectedProdForAdjustment(prod)}
@@ -1670,6 +1759,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             onDeleteProduct={(prod) => setProductToDelete(prod)}
             onPrintLabel={(prod) => {
               setLabelModalProduct(prod);
+              setLabelModalQueueItems(null);
               setShowBarcodeLabelModal(true);
             }}
             onViewVariants={(prod) => setSelectedParentForVariants(prod)}
@@ -1978,6 +2068,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               createdAt: v.createdAt,
               updatedAt: v.updatedAt,
             });
+            setLabelModalQueueItems(null);
             setShowBarcodeLabelModal(true);
           }
         }}
@@ -1989,8 +2080,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         onClose={() => {
           setShowBarcodeLabelModal(false);
           setLabelModalProduct(null);
+          setLabelModalQueueItems(null);
         }}
         preselectedProduct={labelModalProduct}
+        initialQueueItems={labelModalQueueItems}
       />
 
       {/* Bulk Price Adjustment Modal (Story 106 - Feature #116) */}

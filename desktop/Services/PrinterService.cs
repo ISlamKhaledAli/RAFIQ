@@ -3257,5 +3257,620 @@ namespace RafiqPOS.Services
 
             return y;
         }
+
+        #region EPay & Digital Wallet Silent Thermal Printing
+
+        /// <summary>
+        /// طباعة إيصال خدمات وماكينات الدفع الإلكتروني (فوري، أمان، محافظ، إنستاباي)
+        /// طباعة حرارية صامتة ومباشرة بدون فتح نافذة طباعة الويندوز (Zero OS Dialogs)
+        /// </summary>
+        public PrintResult PrintEpayReceipt(EpayTransaction tx, string printerName = null, string paperWidth = null)
+        {
+            if (tx == null)
+            {
+                return new PrintResult { Success = false, Message = "بيانات إيصال الدفع الإلكتروني فارغة" };
+            }
+
+            string targetPrinter = ResolvePrinterName(printerName);
+            string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
+            int printWidth = GetContentWidthPoints(targetWidth);
+
+            if (RawPrinterHelper.IsNetworkPrinter(targetPrinter))
+            {
+                return PrintEpayReceiptToNetwork(tx, targetPrinter, targetWidth);
+            }
+
+            if (IsThermalPrinter(targetPrinter, targetWidth))
+            {
+                try
+                {
+                    using (var bmp = RenderEpayReceiptToBitmap(tx, targetWidth))
+                    {
+                        if (bmp != null)
+                        {
+                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, GetConfiguredAutoCut(), GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
+                            string rawErr;
+                            string rawTitle = string.Format("Rafiq EPay #{0}", !string.IsNullOrEmpty(tx.ReferenceNumber) ? tx.ReferenceNumber : (!string.IsNullOrEmpty(tx.Id) && tx.Id.Length >= 8 ? tx.Id.Substring(0, 8) : "Receipt"));
+                            if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, rawTitle, out rawErr))
+                            {
+                                return new PrintResult
+                                {
+                                    Success = true,
+                                    Message = string.Format("تم إرسال إيصال الدفع الإلكتروني إلى الطابعة '{0}' بنجاح.", targetPrinter),
+                                    PrinterUsed = targetPrinter
+                                };
+                            }
+                            Logger.Warn(string.Format("فشل الإرسال المباشر ESC/POS لإيصال الدفع الإلكتروني على الطابعة '{0}': {1}، جاري المحاولة عبر Windows PrintDocument.", targetPrinter, rawErr));
+                        }
+                    }
+                }
+                catch (Exception exRaster)
+                {
+                    Logger.Warn("استثناء أثناء طباعة إيصال الدفع الإلكتروني بـ ESC/POS Raster: " + exRaster.Message);
+                }
+            }
+
+            try
+            {
+                var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
+                string storeName = store.ContainsKey("store_name") ? store["store_name"] : "متجر رفيق";
+
+                using (var doc = new PrintDocument())
+                {
+                    if (!string.IsNullOrWhiteSpace(targetPrinter))
+                    {
+                        doc.PrinterSettings.PrinterName = targetPrinter;
+                    }
+                    doc.DocumentName = string.Format("Rafiq EPay #{0}", !string.IsNullOrEmpty(tx.ReferenceNumber) ? tx.ReferenceNumber : "Receipt");
+                    doc.PrintController = new StandardPrintController();
+
+                    doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
+                    {
+                        RenderEpayReceiptPage(e.Graphics, tx, storeName, printWidth);
+                        e.HasMorePages = false;
+                    };
+
+                    doc.Print();
+                }
+
+                return new PrintResult
+                {
+                    Success = true,
+                    Message = string.Format("تمت طباعة إيصال الدفع الإلكتروني على الطابعة '{0}' بنجاح.", targetPrinter),
+                    PrinterUsed = targetPrinter
+                };
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("فشل طباعة إيصال الدفع الإلكتروني عبر PrintDocument: " + ex.Message, ex);
+                return new PrintResult
+                {
+                    Success = false,
+                    Message = "خطأ أثناء الطباعة: " + ex.Message,
+                    PrinterUsed = targetPrinter
+                };
+            }
+        }
+
+        private PrintResult PrintEpayReceiptToNetwork(EpayTransaction tx, string networkTarget, string paperWidth)
+        {
+            try
+            {
+                using (var bmp = RenderEpayReceiptToBitmap(tx, paperWidth))
+                {
+                    if (bmp == null)
+                    {
+                        return new PrintResult { Success = false, Message = "فشل توليد صورة إيصال الدفع الإلكتروني للطباعة الشبكية.", PrinterUsed = networkTarget };
+                    }
+
+                    bool autoCut = GetConfiguredAutoCut();
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, autoCut);
+
+                    string errMsg;
+                    string docTitle = string.Format("Rafiq Network EPay #{0}", !string.IsNullOrEmpty(tx.ReferenceNumber) ? tx.ReferenceNumber : "Receipt");
+                    bool ok = RawPrinterHelper.SendRawBytes(networkTarget, escposBytes, docTitle, out errMsg);
+
+                    return new PrintResult
+                    {
+                        Success = ok,
+                        Message = ok ? "تم إرسال إيصال الدفع الإلكتروني إلى طابعة الشبكة بنجاح." : ("تعذر الطباعة على طابعة الشبكة: " + errMsg),
+                        PrinterUsed = networkTarget
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("استثناء أثناء طباعة إيصال الدفع الإلكتروني على طابعة الشبكة: " + ex.Message, ex);
+                return new PrintResult { Success = false, Message = "خطأ في الاتصال بطابعة الشبكة: " + ex.Message, PrinterUsed = networkTarget };
+            }
+        }
+
+        public Bitmap RenderEpayReceiptToBitmap(EpayTransaction tx, string paperWidth = null)
+        {
+            if (tx == null) return null;
+            string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
+            bool isCompact = IsCompactPaper(targetWidth);
+            int contentWidth = GetContentWidthPoints(targetWidth);
+
+            int pixelWidth = isCompact ? 384 : 576;
+            float scale = (float)pixelWidth / (float)contentWidth;
+
+            var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
+            string storeName = store.ContainsKey("store_name") ? store["store_name"] : "متجر رفيق";
+
+            float finalY;
+            using (var bmpMeasure = new Bitmap(pixelWidth, 10))
+            using (var gMeasure = Graphics.FromImage(bmpMeasure))
+            {
+                gMeasure.ScaleTransform(scale, scale);
+                gMeasure.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                finalY = RenderEpayReceiptPage(gMeasure, tx, storeName, contentWidth);
+            }
+
+            int finalPixelHeight = Math.Max(50, (int)Math.Ceiling((finalY + 14f) * scale));
+            var bmpFinal = new Bitmap(pixelWidth, finalPixelHeight);
+            using (var g = Graphics.FromImage(bmpFinal))
+            {
+                g.Clear(Color.White);
+                g.ScaleTransform(scale, scale);
+                g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.SmoothingMode = SmoothingMode.None;
+                g.PixelOffsetMode = PixelOffsetMode.Half;
+
+                RenderEpayReceiptPage(g, tx, storeName, contentWidth);
+            }
+
+            return bmpFinal;
+        }
+
+        private float RenderEpayReceiptPage(Graphics g, EpayTransaction tx, string storeName, int printWidth)
+        {
+            bool isCompact = (printWidth <= 210);
+
+            var fontTitle = new Font("Arial", isCompact ? 10f : 11f, FontStyle.Bold);
+            var fontHeader = new Font("Arial", isCompact ? 8.5f : 9.5f, FontStyle.Bold);
+            var fontBody = new Font("Arial", isCompact ? 7.5f : 8.5f, FontStyle.Regular);
+            var fontBold = new Font("Arial", isCompact ? 7.5f : 8.5f, FontStyle.Bold);
+            var fontTotal = new Font("Arial", isCompact ? 10f : 11.5f, FontStyle.Bold);
+            var fontSmall = new Font("Arial", isCompact ? 6.8f : 7.5f, FontStyle.Regular);
+
+            var centerFormat = new StringFormat { Alignment = StringAlignment.Center, FormatFlags = StringFormatFlags.DirectionRightToLeft };
+            var rightFormat = new StringFormat { Alignment = StringAlignment.Near, FormatFlags = StringFormatFlags.DirectionRightToLeft };
+            var valueFormat = new StringFormat
+            {
+                Alignment = StringAlignment.Near,
+                Trimming = StringTrimming.EllipsisCharacter,
+                FormatFlags = StringFormatFlags.NoWrap
+            };
+
+            float y = 10;
+            float contentWidth = printWidth;
+
+            Action<string, Font, StringFormat, float> drawBlock = delegate(string text, Font f, StringFormat fmt, float gap)
+            {
+                SizeF size = g.MeasureString(text, f, (int)contentWidth, fmt);
+                g.DrawString(text, f, Brushes.Black, new RectangleF(0, y, contentWidth, size.Height + 1f), fmt);
+                y += size.Height + gap;
+            };
+
+            Action<string, string, bool> drawRow = delegate(string label, string val, bool isBold)
+            {
+                var f = isBold ? fontBold : fontBody;
+                const float margin = 2f;
+                const float gutter = 6f;
+                SizeF valSize = g.MeasureString(val, f, 10000, valueFormat);
+                float valW = Math.Min(valSize.Width + 2f, contentWidth * 0.6f);
+                float labelW = contentWidth - valW - gutter - (margin * 2f);
+                SizeF labelSize = g.MeasureString(label, f, (int)labelW, rightFormat);
+                float rowH = Math.Max(valSize.Height, labelSize.Height) + 1f;
+
+                g.DrawString(val, f, Brushes.Black, new RectangleF(margin, y, valW, rowH), valueFormat);
+                g.DrawString(label, f, Brushes.Black, new RectangleF(contentWidth - margin - labelW, y, labelW, rowH), rightFormat);
+                y += rowH + 1f;
+            };
+
+            Action<string, string> drawTotalRow = delegate(string label, string val)
+            {
+                const float margin = 2f;
+                const float gutter = 6f;
+                SizeF valSize = g.MeasureString(val, fontTotal, 10000, valueFormat);
+                float valW = Math.Min(valSize.Width + 2f, contentWidth * 0.6f);
+                float labelW = contentWidth - valW - gutter - (margin * 2f);
+                SizeF labelSize = g.MeasureString(label, fontTotal, (int)labelW, rightFormat);
+                float rowH = Math.Max(valSize.Height, labelSize.Height) + 2f;
+
+                g.DrawString(val, fontTotal, Brushes.Black, new RectangleF(margin, y, valW, rowH), valueFormat);
+                g.DrawString(label, fontTotal, Brushes.Black, new RectangleF(contentWidth - margin - labelW, y, labelW, rowH), rightFormat);
+                y += rowH + 2f;
+            };
+
+            // 1. Header
+            drawBlock(storeName, fontTitle, centerFormat, 3f);
+            drawBlock("إيصال خدمة دفع إلكتروني", fontHeader, centerFormat, 4f);
+
+            g.DrawLine(Pens.Black, 0, y, contentWidth, y);
+            y += 6;
+
+            // 2. Info
+            DateTime txDate;
+            if (string.IsNullOrWhiteSpace(tx.CreatedAt) ||
+                !DateTime.TryParse(tx.CreatedAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out txDate))
+            {
+                txDate = DateTime.Now;
+            }
+            else if (txDate.Kind == DateTimeKind.Utc)
+            {
+                txDate = txDate.ToLocalTime();
+            }
+
+            string refNum = !string.IsNullOrWhiteSpace(tx.ReferenceNumber) ? tx.ReferenceNumber : (!string.IsNullOrEmpty(tx.Id) && tx.Id.Length >= 8 ? tx.Id.Substring(0, 8).ToUpper() : "—");
+            drawRow("رقم العملية / المرجع:", refNum, true);
+            drawRow("التاريخ والوقت:", txDate.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture), false);
+
+            if (!string.IsNullOrWhiteSpace(tx.TerminalName))
+            {
+                drawRow("الماكينة / الحساب:", tx.TerminalName, false);
+            }
+            if (!string.IsNullOrWhiteSpace(tx.ServiceName))
+            {
+                drawRow("نوع الخدمة:", tx.ServiceName, true);
+            }
+            if (!string.IsNullOrWhiteSpace(tx.CustomerPhone))
+            {
+                drawRow("رقم الهاتف:", tx.CustomerPhone, false);
+            }
+            if (!string.IsNullOrWhiteSpace(tx.CustomerName))
+            {
+                drawRow("اسم العميل:", tx.CustomerName, false);
+            }
+            if (!string.IsNullOrWhiteSpace(tx.CashierName))
+            {
+                drawRow("الكاشير:", tx.CashierName, false);
+            }
+
+            g.DrawLine(Pens.Black, 0, y, contentWidth, y);
+            y += 6;
+
+            // 3. Financial breakdown
+            drawRow("1. قيمة الفاتورة / الرصيد:", FormatReceiptMoney(tx.BillAmountPiasters) + " ج.م", false);
+            if (tx.ProviderCommissionPiasters > 0)
+            {
+                drawRow("2. عمولة الماكينة:", FormatReceiptMoney(tx.ProviderCommissionPiasters) + " ج.م", false);
+            }
+            if (tx.CustomerFeePiasters > 0)
+            {
+                drawRow("3. رسوم خدمة المحل:", FormatReceiptMoney(tx.CustomerFeePiasters) + " ج.م", false);
+            }
+
+            using (var pDashed = new Pen(Color.Black, 1f))
+            {
+                pDashed.DashStyle = DashStyle.Dash;
+                g.DrawLine(pDashed, 0, y, contentWidth, y);
+            }
+            y += 6;
+
+            drawTotalRow("إجمالي المطلوب من الزبون:", FormatReceiptMoney(tx.TotalReceivedPiasters) + " ج.م");
+
+            g.DrawLine(Pens.Black, 0, y, contentWidth, y);
+            y += 6;
+
+            // 4. Footer
+            drawBlock("شكراً لتعاملكم معنا!", fontBody, centerFormat, 2f);
+            drawBlock("احتفظ بهذا الإيصال للرجوع إليه عند الحاجة", fontSmall, centerFormat, 4f);
+
+            return y;
+        }
+
+        /// <summary>
+        /// طباعة إيصال معاملات المحافظ الإلكترونية وإنستاباي (فودافون كاش، أورنج، اتصالات، وي باي، إنستاباي)
+        /// طباعة حرارية صامتة ومباشرة بدون فتح نافذة طباعة الويندوز (Zero OS Dialogs)
+        /// </summary>
+        public PrintResult PrintDigitalTransactionReceipt(DigitalTransaction tx, string printerName = null, string paperWidth = null)
+        {
+            if (tx == null)
+            {
+                return new PrintResult { Success = false, Message = "بيانات إيصال المحفظة فارغة" };
+            }
+
+            string targetPrinter = ResolvePrinterName(printerName);
+            string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
+            int printWidth = GetContentWidthPoints(targetWidth);
+
+            if (RawPrinterHelper.IsNetworkPrinter(targetPrinter))
+            {
+                return PrintDigitalTransactionReceiptToNetwork(tx, targetPrinter, targetWidth);
+            }
+
+            if (IsThermalPrinter(targetPrinter, targetWidth))
+            {
+                try
+                {
+                    using (var bmp = RenderDigitalTransactionToBitmap(tx, targetWidth))
+                    {
+                        if (bmp != null)
+                        {
+                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, GetConfiguredAutoCut(), GetConfiguredDrawerPulseMs(), GetConfiguredDrawerPin());
+                            string rawErr;
+                            string rawTitle = string.Format("Rafiq Wallet #{0}", !string.IsNullOrEmpty(tx.ReferenceNumber) ? tx.ReferenceNumber : (!string.IsNullOrEmpty(tx.Id) && tx.Id.Length >= 8 ? tx.Id.Substring(0, 8) : "Receipt"));
+                            if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, rawTitle, out rawErr))
+                            {
+                                return new PrintResult
+                                {
+                                    Success = true,
+                                    Message = string.Format("تم إرسال إيصال المحفظة إلى الطابعة '{0}' بنجاح.", targetPrinter),
+                                    PrinterUsed = targetPrinter
+                                };
+                            }
+                            Logger.Warn(string.Format("فشل الإرسال المباشر ESC/POS لإيصال المحفظة على الطابعة '{0}': {1}، جاري المحاولة عبر Windows PrintDocument.", targetPrinter, rawErr));
+                        }
+                    }
+                }
+                catch (Exception exRaster)
+                {
+                    Logger.Warn("استثناء أثناء طباعة إيصال المحفظة بـ ESC/POS Raster: " + exRaster.Message);
+                }
+            }
+
+            try
+            {
+                var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
+                string storeName = store.ContainsKey("store_name") ? store["store_name"] : "متجر رفيق";
+
+                using (var doc = new PrintDocument())
+                {
+                    if (!string.IsNullOrWhiteSpace(targetPrinter))
+                    {
+                        doc.PrinterSettings.PrinterName = targetPrinter;
+                    }
+                    doc.DocumentName = string.Format("Rafiq Wallet #{0}", !string.IsNullOrEmpty(tx.ReferenceNumber) ? tx.ReferenceNumber : "Receipt");
+                    doc.PrintController = new StandardPrintController();
+
+                    doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
+                    {
+                        RenderDigitalTransactionPage(e.Graphics, tx, storeName, printWidth);
+                        e.HasMorePages = false;
+                    };
+
+                    doc.Print();
+                }
+
+                return new PrintResult
+                {
+                    Success = true,
+                    Message = string.Format("تمت طباعة إيصال المحفظة على الطابعة '{0}' بنجاح.", targetPrinter),
+                    PrinterUsed = targetPrinter
+                };
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("فشل طباعة إيصال المحفظة عبر PrintDocument: " + ex.Message, ex);
+                return new PrintResult
+                {
+                    Success = false,
+                    Message = "خطأ أثناء الطباعة: " + ex.Message,
+                    PrinterUsed = targetPrinter
+                };
+            }
+        }
+
+        private PrintResult PrintDigitalTransactionReceiptToNetwork(DigitalTransaction tx, string networkTarget, string paperWidth)
+        {
+            try
+            {
+                using (var bmp = RenderDigitalTransactionToBitmap(tx, paperWidth))
+                {
+                    if (bmp == null)
+                    {
+                        return new PrintResult { Success = false, Message = "فشل توليد صورة إيصال المحفظة للطباعة الشبكية.", PrinterUsed = networkTarget };
+                    }
+
+                    bool autoCut = GetConfiguredAutoCut();
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, autoCut);
+
+                    string errMsg;
+                    string docTitle = string.Format("Rafiq Network Wallet #{0}", !string.IsNullOrEmpty(tx.ReferenceNumber) ? tx.ReferenceNumber : "Receipt");
+                    bool ok = RawPrinterHelper.SendRawBytes(networkTarget, escposBytes, docTitle, out errMsg);
+
+                    return new PrintResult
+                    {
+                        Success = ok,
+                        Message = ok ? "تم إرسال إيصال المحفظة إلى طابعة الشبكة بنجاح." : ("تعذر الطباعة على طابعة الشبكة: " + errMsg),
+                        PrinterUsed = networkTarget
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("استثناء أثناء طباعة إيصال المحفظة على طابعة الشبكة: " + ex.Message, ex);
+                return new PrintResult { Success = false, Message = "خطأ في الاتصال بطابعة الشبكة: " + ex.Message, PrinterUsed = networkTarget };
+            }
+        }
+
+        public Bitmap RenderDigitalTransactionToBitmap(DigitalTransaction tx, string paperWidth = null)
+        {
+            if (tx == null) return null;
+            string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
+            bool isCompact = IsCompactPaper(targetWidth);
+            int contentWidth = GetContentWidthPoints(targetWidth);
+
+            int pixelWidth = isCompact ? 384 : 576;
+            float scale = (float)pixelWidth / (float)contentWidth;
+
+            var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
+            string storeName = store.ContainsKey("store_name") ? store["store_name"] : "متجر رفيق";
+
+            float finalY;
+            using (var bmpMeasure = new Bitmap(pixelWidth, 10))
+            using (var gMeasure = Graphics.FromImage(bmpMeasure))
+            {
+                gMeasure.ScaleTransform(scale, scale);
+                gMeasure.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                finalY = RenderDigitalTransactionPage(gMeasure, tx, storeName, contentWidth);
+            }
+
+            int finalPixelHeight = Math.Max(50, (int)Math.Ceiling((finalY + 14f) * scale));
+            var bmpFinal = new Bitmap(pixelWidth, finalPixelHeight);
+            using (var g = Graphics.FromImage(bmpFinal))
+            {
+                g.Clear(Color.White);
+                g.ScaleTransform(scale, scale);
+                g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.SmoothingMode = SmoothingMode.None;
+                g.PixelOffsetMode = PixelOffsetMode.Half;
+
+                RenderDigitalTransactionPage(g, tx, storeName, contentWidth);
+            }
+
+            return bmpFinal;
+        }
+
+        private float RenderDigitalTransactionPage(Graphics g, DigitalTransaction tx, string storeName, int printWidth)
+        {
+            bool isCompact = (printWidth <= 210);
+
+            var fontTitle = new Font("Arial", isCompact ? 10f : 11f, FontStyle.Bold);
+            var fontHeader = new Font("Arial", isCompact ? 8.5f : 9.5f, FontStyle.Bold);
+            var fontBody = new Font("Arial", isCompact ? 7.5f : 8.5f, FontStyle.Regular);
+            var fontBold = new Font("Arial", isCompact ? 7.5f : 8.5f, FontStyle.Bold);
+            var fontTotal = new Font("Arial", isCompact ? 10f : 11.5f, FontStyle.Bold);
+            var fontSmall = new Font("Arial", isCompact ? 6.8f : 7.5f, FontStyle.Regular);
+
+            var centerFormat = new StringFormat { Alignment = StringAlignment.Center, FormatFlags = StringFormatFlags.DirectionRightToLeft };
+            var rightFormat = new StringFormat { Alignment = StringAlignment.Near, FormatFlags = StringFormatFlags.DirectionRightToLeft };
+            var valueFormat = new StringFormat
+            {
+                Alignment = StringAlignment.Near,
+                Trimming = StringTrimming.EllipsisCharacter,
+                FormatFlags = StringFormatFlags.NoWrap
+            };
+
+            float y = 10;
+            float contentWidth = printWidth;
+
+            Action<string, Font, StringFormat, float> drawBlock = delegate(string text, Font f, StringFormat fmt, float gap)
+            {
+                SizeF size = g.MeasureString(text, f, (int)contentWidth, fmt);
+                g.DrawString(text, f, Brushes.Black, new RectangleF(0, y, contentWidth, size.Height + 1f), fmt);
+                y += size.Height + gap;
+            };
+
+            Action<string, string, bool> drawRow = delegate(string label, string val, bool isBold)
+            {
+                var f = isBold ? fontBold : fontBody;
+                const float margin = 2f;
+                const float gutter = 6f;
+                SizeF valSize = g.MeasureString(val, f, 10000, valueFormat);
+                float valW = Math.Min(valSize.Width + 2f, contentWidth * 0.6f);
+                float labelW = contentWidth - valW - gutter - (margin * 2f);
+                SizeF labelSize = g.MeasureString(label, f, (int)labelW, rightFormat);
+                float rowH = Math.Max(valSize.Height, labelSize.Height) + 1f;
+
+                g.DrawString(val, f, Brushes.Black, new RectangleF(margin, y, valW, rowH), valueFormat);
+                g.DrawString(label, f, Brushes.Black, new RectangleF(contentWidth - margin - labelW, y, labelW, rowH), rightFormat);
+                y += rowH + 1f;
+            };
+
+            Action<string, string> drawTotalRow = delegate(string label, string val)
+            {
+                const float margin = 2f;
+                const float gutter = 6f;
+                SizeF valSize = g.MeasureString(val, fontTotal, 10000, valueFormat);
+                float valW = Math.Min(valSize.Width + 2f, contentWidth * 0.6f);
+                float labelW = contentWidth - valW - gutter - (margin * 2f);
+                SizeF labelSize = g.MeasureString(label, fontTotal, (int)labelW, rightFormat);
+                float rowH = Math.Max(valSize.Height, labelSize.Height) + 2f;
+
+                g.DrawString(val, fontTotal, Brushes.Black, new RectangleF(margin, y, valW, rowH), valueFormat);
+                g.DrawString(label, fontTotal, Brushes.Black, new RectangleF(contentWidth - margin - labelW, y, labelW, rowH), rightFormat);
+                y += rowH + 2f;
+            };
+
+            // 1. Header
+            drawBlock(storeName, fontTitle, centerFormat, 3f);
+            drawBlock("إيصال معاملة محفظة إلكترونية", fontHeader, centerFormat, 4f);
+
+            g.DrawLine(Pens.Black, 0, y, contentWidth, y);
+            y += 6;
+
+            // 2. Info
+            DateTime txDate;
+            if (string.IsNullOrWhiteSpace(tx.CreatedAt) ||
+                !DateTime.TryParse(tx.CreatedAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out txDate))
+            {
+                txDate = DateTime.Now;
+            }
+            else if (txDate.Kind == DateTimeKind.Utc)
+            {
+                txDate = txDate.ToLocalTime();
+            }
+
+            string txNum = !string.IsNullOrWhiteSpace(tx.ReferenceNumber) ? tx.ReferenceNumber : (!string.IsNullOrEmpty(tx.Id) && tx.Id.Length >= 8 ? tx.Id.Substring(0, 8).ToUpper() : "—");
+            drawRow("رقم المعاملة:", txNum, true);
+            drawRow("التاريخ والوقت:", txDate.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture), false);
+
+            if (!string.IsNullOrWhiteSpace(tx.AccountName))
+            {
+                drawRow("المحفظة / الحساب:", tx.AccountName, true);
+            }
+
+            string txTypeStr = tx.TxTypeArabic;
+            if (string.IsNullOrWhiteSpace(txTypeStr))
+            {
+                if (tx.TxType == "cash_out") txTypeStr = "سحب نقدي من محفظة";
+                else if (tx.TxType == "cash_in") txTypeStr = "إيداع نقدي في محفظة";
+                else if (tx.TxType == "funding") txTypeStr = "شحن وتغذية رصيد";
+                else if (tx.TxType == "customer_debt_payment") txTypeStr = "سداد آجل عميل";
+                else if (tx.TxType == "pos_sale") txTypeStr = "مبيعات كاشير";
+                else txTypeStr = tx.TxType ?? "معاملة محفظة";
+            }
+            drawRow("نوع العملية:", txTypeStr, true);
+
+            if (!string.IsNullOrWhiteSpace(tx.CustomerPhone))
+            {
+                drawRow("رقم الهاتف:", tx.CustomerPhone, false);
+            }
+            if (!string.IsNullOrWhiteSpace(tx.CustomerName))
+            {
+                drawRow("اسم العميل:", tx.CustomerName, false);
+            }
+            if (!string.IsNullOrWhiteSpace(tx.CashierName))
+            {
+                drawRow("الكاشير:", tx.CashierName, false);
+            }
+
+            g.DrawLine(Pens.Black, 0, y, contentWidth, y);
+            y += 6;
+
+            // 3. Financial breakdown
+            drawRow("مبلغ العملية:", FormatReceiptMoney(tx.AmountPiasters) + " ج.م", false);
+            if (tx.ProfitPiasters > 0)
+            {
+                drawRow("عمولة / ربح الخدمة:", FormatReceiptMoney(tx.ProfitPiasters) + " ج.م", false);
+            }
+
+            using (var pDashed = new Pen(Color.Black, 1f))
+            {
+                pDashed.DashStyle = DashStyle.Dash;
+                g.DrawLine(pDashed, 0, y, contentWidth, y);
+            }
+            y += 6;
+
+            long totalAmt = tx.TotalCollectedPiasters > 0 ? tx.TotalCollectedPiasters : tx.AmountPiasters;
+            string totalLabel = tx.TxType == "cash_out" ? "المطلوب استلامه من العميل:" : "إجمالي المعاملة:";
+            drawTotalRow(totalLabel, FormatReceiptMoney(totalAmt) + " ج.م");
+
+            g.DrawLine(Pens.Black, 0, y, contentWidth, y);
+            y += 6;
+
+            // 4. Footer
+            drawBlock("شكراً لتعاملكم معنا!", fontBody, centerFormat, 2f);
+            drawBlock("احتفظ بهذا الإيصال للرجوع إليه عند الحاجة", fontSmall, centerFormat, 4f);
+
+            return y;
+        }
+
+        #endregion
     }
 }

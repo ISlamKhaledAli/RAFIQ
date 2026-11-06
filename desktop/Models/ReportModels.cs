@@ -365,6 +365,18 @@ namespace RafiqPOS.Models
 
         [JsonProperty("isZeroCost")]
         public bool IsZeroCost { get; set; }
+
+        [JsonProperty("baseUnit")]
+        public string BaseUnit { get; set; }
+
+        [JsonProperty("baseQuantitySoldMilli")]
+        public long BaseQuantitySoldMilli { get; set; }
+
+        [JsonProperty("packagesSummary")]
+        public string PackagesSummary { get; set; }
+
+        [JsonProperty("hasMultipleUnits")]
+        public bool HasMultipleUnits { get; set; }
     }
 
     public class PeriodMetricComparison

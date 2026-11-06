@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { netSalesSharePercents, sortByProfit } from './profitabilityDisplay';
 import type { FC } from 'react';
+import { useFeatures } from '../../context/useFeatures';
 import {
   DollarSign,
   TrendingUp,
@@ -96,7 +97,21 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   const [comparison, setComparison] = useState<PeriodComparisonReport | null>(null);
   const [hourlyReport, setHourlyReport] = useState<HourlyIntensityReport | null>(null);
 
+  const { isEnabled } = useFeatures();
+  const isTaxesEnabled = isEnabled('feature_taxes');
+
   const [activeSection, setActiveSection] = useState<RevenueSection>('overview');
+  const availableSectionTabs = useMemo(() => {
+    if (isTaxesEnabled) return SECTION_TABS;
+    return SECTION_TABS.filter((tab) => tab.value !== 'vat');
+  }, [isTaxesEnabled]);
+
+  useEffect(() => {
+    if (!isTaxesEnabled && activeSection === 'vat') {
+      setActiveSection('overview');
+    }
+  }, [isTaxesEnabled, activeSection]);
+
   // Profitability figures are net of returns and ex-VAT, so rows can be negative
   const categoryShares = netSalesSharePercents(categories);
   const orderedItems = sortByProfit(profitableItems, itemsDirection);
@@ -278,7 +293,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
           </div>
           <div className="text-xs text-ink-muted dark:text-ink-dark-muted flex items-center justify-between gap-1">
             <span>المرتجع: <strong className="font-mono text-danger dark:text-danger-bright font-normal">{formatArabicCurrency(returnsTotal)}</strong></span>
-            {totalTax > 0 && (
+            {isTaxesEnabled && totalTax > 0 && (
               <span className="text-paid dark:text-paid-bright font-mono" title="ضريبة القيمة المضافة المحصلة في المبيعات">
                 ضريبة: {formatArabicCurrency(totalTax)}
               </span>
@@ -296,7 +311,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
             {formatArabicCurrency(netSalesExcludingTax)}
           </div>
           <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
-            {totalTax > 0 ? 'صافي المبيعات بدون الضريبة' : 'بعد خصم المرتجعات'}
+            {isTaxesEnabled && totalTax > 0 ? 'صافي المبيعات بدون الضريبة' : 'بعد خصم المرتجعات'}
           </div>
         </div>
 
@@ -364,8 +379,8 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         }`}>
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-bold">صافي الربح الفعلي</span>
-            <span className="text-sm px-2.5 py-1 rounded-lg font-mono font-bold bg-white/70 dark:bg-surface-dark/70 text-ink dark:text-ink-dark shadow-2xs">
-              {netMarginPercent.toFixed(1)}%
+            <span className="text-sm px-2.5 py-1 rounded-lg font-mono font-bold bg-white/70 dark:bg-surface-dark/70 text-ink dark:text-ink-dark shadow-2xs" dir="ltr">
+              {netMarginPercent >= 0 ? `+${netMarginPercent.toFixed(1)}%` : `${netMarginPercent.toFixed(1)}%`}
             </span>
           </div>
           <div className="t-kpi-lg">
@@ -376,11 +391,11 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
 
       {/* 3. Section Navigation Tabs */}
       <div className="shrink-0">
-        <SegmentedTabs
+        <SegmentedTabs<RevenueSection>
           ariaLabel="أقسام تحليلات الإيرادات والأرباح"
           value={activeSection}
-          onChange={setActiveSection}
-          options={SECTION_TABS}
+          onChange={(val) => setActiveSection(val)}
+          options={availableSectionTabs}
         />
       </div>
 
@@ -694,9 +709,11 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                 <thead>
                   <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
                     <th className="py-3.5 px-3.5">القسم / التصنيف</th>
-                    <th className="py-3.5 px-3.5" title="بدون ضريبة القيمة المضافة وبعد خصم المرتجعات">
+                    <th className="py-3.5 px-3.5" title={isTaxesEnabled ? 'بدون ضريبة القيمة المضافة وبعد خصم المرتجعات' : 'بعد خصم المرتجعات'}>
                       <span>صافي المبيعات</span>
-                      <span className="block text-xs font-normal">بدون ضريبة، بعد المرتجعات</span>
+                      <span className="block text-xs font-normal">
+                        {isTaxesEnabled ? 'بدون ضريبة، بعد المرتجعات' : 'بعد خصم المرتجعات'}
+                      </span>
                     </th>
                     <th className="py-3.5 px-3.5">حصة المبيعات (%)</th>
                     <th className="py-3.5 px-3.5">تكلفة الشراء</th>
@@ -778,10 +795,10 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                 كشف الأصناف الأعلى مساهمة في الأرباح مقابل الأصناف الخاسرة أو التي تباع بأقل من التكلفة
               </p>
 
-              <SegmentedTabs
+              <SegmentedTabs<'desc' | 'asc'>
                 ariaLabel="اتجاه ترتيب ربحية الأصناف"
                 value={itemsDirection}
-                onChange={setItemsDirection}
+                onChange={(val) => setItemsDirection(val)}
                 options={ITEMS_DIRECTION_TABS}
               />
             </div>
@@ -795,9 +812,11 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                     <th className="py-3.5 px-3.5">سعر البيع</th>
                     <th className="py-3.5 px-3.5">التكلفة</th>
                     <th className="py-3.5 px-3.5">الكمية المباعة</th>
-                    <th className="py-3.5 px-3.5" title="بدون ضريبة القيمة المضافة وبعد خصم المرتجعات">
+                    <th className="py-3.5 px-3.5" title={isTaxesEnabled ? 'بدون ضريبة القيمة المضافة وبعد خصم المرتجعات' : 'بعد خصم المرتجعات'}>
                       <span>صافي المبيعات</span>
-                      <span className="block text-xs font-normal">بدون ضريبة، بعد المرتجعات</span>
+                      <span className="block text-xs font-normal">
+                        {isTaxesEnabled ? 'بدون ضريبة، بعد المرتجعات' : 'بعد المرتجعات'}
+                      </span>
                     </th>
                     <th className="py-3.5 px-3.5">صافي الربح</th>
                     <th className="py-3.5 px-3.5">نسبة الهامش</th>
@@ -829,7 +848,14 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                           )}
                         </td>
                         <td className="py-3.5 px-3.5 font-mono text-ink dark:text-ink-dark">
-                          {(item.quantitySoldMilli / 1000).toLocaleString('en-US')}
+                          <div className="font-bold text-sm">
+                            {item.packagesSummary || `${(item.quantitySoldMilli / 1000).toLocaleString('en-US')} قطعة`}
+                          </div>
+                          {item.hasMultipleUnits && item.baseQuantitySoldMilli != null && item.baseUnit && (
+                            <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal mt-0.5">
+                              (إجمالي: {(item.baseQuantitySoldMilli / 1000).toLocaleString('en-US')} {item.baseUnit === 'piece' ? 'قطعة' : item.baseUnit})
+                            </div>
+                          )}
                         </td>
                         <td className={`py-3.5 px-3.5 font-mono font-bold ${item.totalSalesPiasters < 0 ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'}`}>
                           {formatArabicCurrency(item.totalSalesPiasters)}

@@ -28,11 +28,12 @@ import {
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
-import type {
-  ShortageEntry,
-  ShortagePurchaseProposal,
-  LostSalesReportSummary,
-  LostSalesReportItem,
+import {
+  formatUnitArabic,
+  type ShortageEntry,
+  type ShortagePurchaseProposal,
+  type LostSalesReportSummary,
+  type LostSalesReportItem,
 } from '../../types/shortage';
 import { formatArabicCurrency } from '../../utils/money';
 import { CustomSelect, type SelectOption } from '../../components/CustomSelect';
@@ -442,8 +443,8 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
         <div
           className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-xl border font-bold text-xs shadow-md transition-all ${
             notification.type === 'success'
-              ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/30 text-paid dark:text-paid-bright'
-              : 'bg-danger-soft border-danger/30 text-danger'
+              ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/30 dark:border-emerald-800/40 text-paid dark:text-paid-bright'
+              : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
           }`}
         >
           {notification.message}
@@ -462,7 +463,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               placeholder="بحث باسم الصنف أو العميل..."
               className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
             />
-            <Search className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-2.5 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
 
 
@@ -554,7 +555,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
           onClick={() => setStatusFilter('ordered')}
           className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             statusFilter === 'ordered'
-              ? 'bg-brand text-white shadow-xs'
+              ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
               : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
           }`}
         >
@@ -567,7 +568,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
           onClick={() => setStatusFilter('received')}
           className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             statusFilter === 'received'
-              ? 'bg-paid text-white shadow-xs'
+              ? 'bg-paid text-white dark:bg-paid-dark-soft dark:text-paid-bright dark:ring-1 dark:ring-inset dark:ring-paid-bright/40 shadow-xs'
               : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
           }`}
         >
@@ -580,7 +581,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
           onClick={() => setStatusFilter('cancelled')}
           className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             statusFilter === 'cancelled'
-              ? 'bg-ink-muted text-white shadow-xs'
+              ? 'bg-ink-muted text-white dark:bg-surface-dark-2 dark:text-ink-dark dark:ring-1 dark:ring-inset dark:ring-line-dark shadow-xs'
               : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
           }`}
         >
@@ -593,7 +594,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
           onClick={() => setStatusFilter('all')}
           className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
             statusFilter === 'all'
-              ? 'bg-brand-dark text-white shadow-xs'
+              ? 'bg-brand-dark text-white dark:bg-surface-dark-3 dark:text-ink-dark dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
               : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
           }`}
         >
@@ -605,7 +606,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
       <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden flex flex-col shadow-2xs">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-right text-xs">
-            <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted sticky top-0 z-10 font-bold select-none">
+            <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted sticky top-0 z-10 font-bold select-none">
               <tr>
                 <th className="w-10 px-3 py-2.5 text-center">
                   <button
@@ -621,23 +622,23 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                   </button>
                 </th>
                 <th className="px-3 py-2.5">الصنف الناقص</th>
-                <th className="px-3 py-2.5">الأهمية</th>
-                <th className="px-3 py-2.5 text-center">الكمية المطلوبة</th>
-                <th className="px-3 py-2.5 text-center">الرصيد / حد الطلب</th>
-                <th className="px-3 py-2.5">المصدر / العميل</th>
-                <th className="px-3 py-2.5">المورد المفضل</th>
-                <th className="px-3 py-2.5">الحالة</th>
-                <th className="px-3 py-2.5">تاريخ التسجيل</th>
-                <th className="px-3 py-2.5 text-center">إجراءات</th>
+                <th className="px-3 py-2.5 text-center whitespace-nowrap">الأهمية</th>
+                <th className="px-3 py-2.5 text-center whitespace-nowrap">الكمية المطلوبة</th>
+                <th className="px-3 py-2.5 text-center whitespace-nowrap">الرصيد / حد الطلب</th>
+                <th className="px-3 py-2.5 whitespace-nowrap">المصدر / العميل</th>
+                <th className="px-3 py-2.5 whitespace-nowrap">المورد المفضل</th>
+                <th className="px-3 py-2.5 text-center whitespace-nowrap">الحالة</th>
+                <th className="px-3 py-2.5 text-center whitespace-nowrap">تاريخ التسجيل</th>
+                <th className="px-3 py-2.5 text-center whitespace-nowrap">إجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60 dark:divide-line-dark/60">
               {filteredShortages.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-16 text-center text-ink-muted">
-                    <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-30 text-brand" />
-                    <div className="font-bold">لا توجد نواقص مطابقة للشروط المحددة</div>
-                    <p className="text-micro mt-1">
+                  <td colSpan={10} className="py-16 text-center text-ink-muted dark:text-ink-dark-muted">
+                    <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-30 text-brand dark:text-brand-bright" />
+                    <div className="font-bold text-ink dark:text-ink-dark">لا توجد نواقص مطابقة للشروط المحددة</div>
+                    <p className="text-micro mt-1 text-ink-muted dark:text-ink-dark-muted">
                       يمكنك تسجيل صنف ناقص يدوياً أو الضغط على "فحص النواقص التلقائي"
                     </p>
                   </td>
@@ -679,33 +680,37 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
                         {item.urgency === 'critical' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright text-micro font-bold">
+                          <span className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright text-micro font-bold whitespace-nowrap">
                             <Flame className="w-3 h-3" />
                             حرج
                           </span>
                         ) : item.urgency === 'urgent' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold">
+                          <span className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-micro font-bold whitespace-nowrap">
                             <AlertTriangle className="w-3 h-3" />
                             عاجل
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted text-micro">
+                          <span className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted text-micro whitespace-nowrap">
                             <Clock className="w-3 h-3" />
                             عادي
                           </span>
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5 text-center font-bold font-mono">
-                        {typeof item.requestedQuantityMilli === 'number' && !isNaN(item.requestedQuantityMilli)
-                          ? item.requestedQuantityMilli / 1000
-                          : 1}{' '}
-                        {item.unit || 'قطعة'}
+                      <td className="px-3 py-2.5 text-center font-bold whitespace-nowrap" dir="rtl">
+                        <span className="font-mono text-ink dark:text-ink-dark">
+                          {typeof item.requestedQuantityMilli === 'number' && !isNaN(item.requestedQuantityMilli)
+                            ? item.requestedQuantityMilli / 1000
+                            : 1}
+                        </span>{' '}
+                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal mr-0.5">
+                          {formatUnitArabic(item.unit)}
+                        </span>
                       </td>
 
-                      <td className="px-3 py-2.5 text-center font-mono text-micro">
+                      <td className="px-3 py-2.5 text-center font-mono text-micro whitespace-nowrap" dir="rtl">
                         <span
                           className={
                             typeof item.currentStockMilli === 'number' && item.currentStockMilli > 0
@@ -756,34 +761,34 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
                         {item.status === 'pending' && (
-                          <span className="px-2 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-bold text-micro">
+                          <span className="inline-flex items-center justify-center whitespace-nowrap px-2.5 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright font-bold text-micro">
                             بانتظار الطلب
                           </span>
                         )}
                         {item.status === 'ordered' && (
-                          <span className="px-2 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-bold text-micro">
+                          <span className="inline-flex items-center justify-center whitespace-nowrap px-2.5 py-0.5 rounded-full bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-bold text-micro">
                             تم الطلب
                           </span>
                         )}
                         {item.status === 'received' && (
-                          <span className="px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold text-micro">
+                          <span className="inline-flex items-center justify-center whitespace-nowrap px-2.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold text-micro">
                             تم الاستلام
                           </span>
                         )}
                         {item.status === 'cancelled' && (
-                          <span className="px-2 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted font-bold text-micro">
+                          <span className="inline-flex items-center justify-center whitespace-nowrap px-2.5 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted font-bold text-micro">
                             ملغي
                           </span>
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5 text-micro text-ink-muted dark:text-ink-dark-muted font-mono">
+                      <td className="px-3 py-2.5 text-center text-micro text-ink-muted dark:text-ink-dark-muted font-mono whitespace-nowrap">
                         {item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG') : '-'}
                       </td>
 
-                      <td className="px-3 py-2.5 text-center">
+                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           {canConvertShortages && item.status === 'pending' && (
                             <button
@@ -819,7 +824,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                             <button
                               type="button"
                               onClick={() => setPendingAction({ type: 'cancel', item })}
-                              className="p-1.5 rounded-lg border border-line hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-all cursor-pointer shadow-2xs"
+                              className="p-1.5 rounded-lg border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-all cursor-pointer shadow-2xs"
                               title="إلغاء الطلب (نقل الصنف إلى الملغيات)"
                             >
                               <XCircle className="w-3.5 h-3.5" />
@@ -829,7 +834,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                             <button
                               type="button"
                               onClick={() => setPendingAction({ type: 'restore', item })}
-                              className="p-1.5 rounded-lg border border-brand/20 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright transition-all cursor-pointer shadow-2xs"
+                              className="p-1.5 rounded-lg border border-brand/20 dark:border-brand-bright/20 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright transition-all cursor-pointer shadow-2xs"
                               title="إعادة تفعيل القيد (نقل الصنف إلى بانتظار الطلب)"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
@@ -839,7 +844,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                           <button
                             type="button"
                             onClick={() => setPendingAction({ type: 'delete', item })}
-                            className="p-1.5 rounded-lg border border-danger/20 hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-danger dark:text-danger-bright transition-all cursor-pointer shadow-2xs"
+                            className="p-1.5 rounded-lg border border-danger/20 dark:border-danger-bright/20 hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-danger dark:text-danger-bright transition-all cursor-pointer shadow-2xs"
                             title="حذف نهائي من الدفتر"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -886,7 +891,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
           <div className="w-full max-w-3xl bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div className="h-14 px-5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <Truck className="w-5 h-5 text-brand" />
+                <Truck className="w-5 h-5 text-brand dark:text-brand-bright" />
                 <h3 className="t-card-title text-ink dark:text-ink-dark">
                   مقترحات أوامر الشراء مجمعة حسب الموردين
                 </h3>
@@ -894,7 +899,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               <button
                 type="button"
                 onClick={() => setIsProposalsModalOpen(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -902,7 +907,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
 
             <div className="p-5 flex-1 overflow-y-auto flex flex-col gap-4 text-xs">
               {proposals.length === 0 ? (
-                <div className="py-8 text-center text-ink-muted">
+                <div className="py-8 text-center text-ink-muted dark:text-ink-dark-muted">
                   لا توجد مقترحات شراء مولدة.
                 </div>
               ) : (
@@ -919,7 +924,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                             المورد: {prop.supplierName}
                           </div>
                           {prop.supplierPhone && (
-                            <div className="text-micro text-ink-muted font-mono flex items-center gap-1">
+                            <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono flex items-center gap-1">
                               <Phone className="w-3 h-3" />
                               {prop.supplierPhone}
                             </div>
@@ -928,8 +933,8 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
 
                         <div className="flex items-center gap-3">
                           <div className="text-left font-mono">
-                            <div className="text-micro text-ink-muted">التكلفة التقديرية</div>
-                            <div className="text-xs font-bold text-brand">
+                            <div className="text-micro text-ink-muted dark:text-ink-dark-muted">التكلفة التقديرية</div>
+                            <div className="text-xs font-bold text-brand dark:text-brand-bright">
                               {formatArabicCurrency(totalEst)}
                             </div>
                           </div>
@@ -940,7 +945,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                                 setIsProposalsModalOpen(false);
                                 onLoadProposalToNewPurchase(prop);
                               }}
-                              className="h-8 px-3 rounded-lg bg-brand text-white font-bold flex items-center gap-1 hover:bg-brand-hover shadow-2xs"
+                              className="h-8 px-3 rounded-lg bg-brand hover:bg-brand-hover dark:bg-brand dark:hover:bg-brand-hover text-white font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
                             >
                               <Plus className="w-3.5 h-3.5" />
                               <span>تحميل في فاتورة شراء</span>
@@ -951,7 +956,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
 
                       <div className="overflow-x-auto">
                         <table className="w-full text-right text-micro">
-                          <thead className="text-ink-muted border-b border-line/40 dark:border-line-dark/40 font-bold">
+                          <thead className="text-ink-muted dark:text-ink-dark-muted border-b border-line/40 dark:border-line-dark/40 font-bold">
                             <tr>
                               <th className="py-1">الصنف</th>
                               <th className="py-1 text-center">الكمية المقترحة</th>
@@ -965,10 +970,10 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                                 <td className="py-1.5 font-semibold text-ink dark:text-ink-dark">
                                   {pi.productName}
                                 </td>
-                                <td className="py-1.5 text-center font-mono">
-                                  {pi.suggestedQuantityMilli / 1000} {pi.unit}
+                                <td className="py-1.5 text-center font-mono text-ink dark:text-ink-dark">
+                                  {pi.suggestedQuantityMilli / 1000} {formatUnitArabic(pi.unit)}
                                 </td>
-                                <td className="py-1.5 text-center font-mono">
+                                <td className="py-1.5 text-center font-mono text-ink dark:text-ink-dark">
                                   {formatArabicCurrency(pi.costPiasters)}
                                 </td>
                                 <td className="py-1.5 text-left font-mono font-bold text-ink dark:text-ink-dark">
@@ -989,7 +994,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               <button
                 type="button"
                 onClick={() => setIsProposalsModalOpen(false)}
-                className="h-8 px-4 rounded-lg border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2"
+                className="h-8 px-4 rounded-lg border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 cursor-pointer"
               >
                 إغلاق
               </button>
@@ -1005,15 +1010,15 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
             {/* Modal Header */}
             <div className="h-14 px-5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-danger-soft text-danger flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/20 text-danger dark:text-danger-bright flex items-center justify-center shrink-0">
                   <TrendingDown className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="t-card-title text-ink dark:text-ink-dark flex items-center gap-2">
                     <span>تقرير المبيعات المفقودة والفرص الضائعة</span>
-                    {isReportLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand" />}
+                    {isReportLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand dark:text-brand-bright" />}
                   </h3>
-                  <p className="text-micro text-ink-muted">
+                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted">
                     {reportScope === 'unmet'
                       ? 'تحليل لفرص المبيعات المعطلة بسبب الأصناف غير المتوفرة حالياً بالرصيد'
                       : 'تحليل تراكمي شامل لكافة طلبات ونواقص المبيعات (شاملة الأصناف المستلمة لاحقاً)'}
@@ -1088,22 +1093,22 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               {/* Summary KPIs */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {/* KPI 1: Lost Revenue */}
-                <div className="p-4 rounded-xl bg-danger-soft border border-danger/25 flex flex-col gap-1 shadow-2xs">
-                  <div className="flex items-center justify-between text-danger">
+                <div className="p-4 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/25 dark:border-danger-bright/20 flex flex-col gap-1 shadow-2xs">
+                  <div className="flex items-center justify-between text-danger dark:text-danger-bright">
                     <span className="text-micro font-bold">إجمالي الإيرادات المفقودة المقدرة</span>
                     <TrendingDown className="w-4 h-4" />
                   </div>
-                  <span className="text-2xl font-bold font-mono text-danger tracking-tight">
+                  <span className="text-2xl font-bold font-mono text-danger dark:text-danger-bright tracking-tight">
                     {formatArabicCurrency(lostSalesReport?.totalEstimatedLostRevenuePiasters || 0)}
                   </span>
-                  <span className="text-micro text-danger/80">
+                  <span className="text-micro text-danger/80 dark:text-danger-bright/80">
                     قيمة مبيعات كان يمكن تحقيقها لو توافرت الأصناف على الرف
                   </span>
                 </div>
 
                 {/* KPI 2: Total Requests & Products Breakdown */}
                 <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1 shadow-2xs">
-                  <div className="flex items-center justify-between text-ink-muted">
+                  <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted">
                     <span className="text-micro font-bold">حجم الطلب والأصناف</span>
                     <ClipboardList className="w-4 h-4" />
                   </div>
@@ -1111,11 +1116,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                     <span className="text-2xl font-bold font-mono text-ink dark:text-ink-dark">
                       {lostSalesReport?.totalUnmetRequestsCount || 0}
                     </span>
-                    <span className="text-xs text-ink-muted font-bold">
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
                       طلب ({lostSalesReport?.uniqueProductsCount || 0} صنف)
                     </span>
                   </div>
-                  <span className="text-micro text-ink-muted flex items-center gap-1">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
                     <span className="font-bold text-ink dark:text-ink-dark">
                       {lostSalesReport?.totalCustomerRequestsCount || 0}
                     </span>
@@ -1129,21 +1134,21 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                 </div>
 
                 {/* KPI 3: Top Offender Product */}
-                <div className="p-4 rounded-xl bg-brand-soft/40 dark:bg-brand-soft/10 border border-brand/20 flex flex-col gap-1 shadow-2xs">
-                  <div className="flex items-center justify-between text-brand">
+                <div className="p-4 rounded-xl bg-brand-soft/40 dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/20 flex flex-col gap-1 shadow-2xs">
+                  <div className="flex items-center justify-between text-brand dark:text-brand-bright">
                     <span className="text-micro font-bold">أعلى صنف مسبب للخسارة</span>
                     <Flame className="w-4 h-4" />
                   </div>
                   <div className="truncate font-bold text-ink dark:text-ink-dark text-xs" title={sortedReportItems[0]?.productName || 'لا يوجد'}>
                     {sortedReportItems[0]?.productName || 'لا يوجد'}
                   </div>
-                  <div className="text-micro font-bold font-mono text-brand flex items-center gap-1.5">
+                  <div className="text-micro font-bold font-mono text-brand dark:text-brand-bright flex items-center gap-1.5">
                     <span>
                       {sortedReportItems[0] ? formatArabicCurrency(sortedReportItems[0].estimatedLostRevenuePiasters) : '0.00 ج.م'}
                     </span>
                     {sortedReportItems[0] && (
-                      <span className="text-micro text-ink-muted font-normal">
-                        ({sortedReportItems[0].totalRequestedQuantityMilli / 1000} {sortedReportItems[0].unit})
+                      <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal">
+                        ({sortedReportItems[0].totalRequestedQuantityMilli / 1000} {formatUnitArabic(sortedReportItems[0].unit)})
                       </span>
                     )}
                   </div>
@@ -1156,21 +1161,21 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                   <h4 className="t-label text-ink dark:text-ink-dark flex items-center gap-1.5">
                     <span>أكثر الأصناف المطلوبة غير المتوفرة (Top Missing Opportunities)</span>
                   </h4>
-                  <span className="text-micro text-ink-muted">
+                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                     انقر على رأس أي عمود لتغيير الترتيب
                   </span>
                 </div>
 
                 {sortedReportItems.length === 0 ? (
-                  <div className="py-12 text-center text-ink-muted border border-line dark:border-line-dark rounded-xl bg-surface-2 dark:bg-surface-dark-2">
-                    <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-paid opacity-60" />
-                    <div className="font-bold">لا توجد مبيعات ضائعة مسجلة وفقاً للشروط الحالية</div>
-                    <p className="text-micro mt-1">كافة المنتجات المطلوبة متوفرة بالرصيد الحالي للمخزن</p>
+                  <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark rounded-xl bg-surface-2 dark:bg-surface-dark-2">
+                    <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-paid dark:text-paid-bright opacity-60" />
+                    <div className="font-bold text-ink dark:text-ink-dark">لا توجد مبيعات ضائعة مسجلة وفقاً للشروط الحالية</div>
+                    <p className="text-micro mt-1 text-ink-muted dark:text-ink-dark-muted">كافة المنتجات المطلوبة متوفرة بالرصيد الحالي للمخزن</p>
                   </div>
                 ) : (
                   <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
                     <table className="w-full text-right text-xs">
-                      <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted font-bold select-none">
+                      <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold select-none">
                         <tr>
                           <th
                             className="px-3 py-2 cursor-pointer hover:text-ink dark:hover:text-ink-dark transition-colors"
@@ -1269,9 +1274,9 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                               </span>
                             </td>
 
-                            <td className="px-3 py-2 text-center font-mono font-bold">
+                            <td className="px-3 py-2 text-center font-mono font-bold" dir="rtl">
                               <span>{p.totalRequestedQuantityMilli / 1000}</span>
-                              <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal mr-1">{p.unit || 'قطعة'}</span>
+                              <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal mr-1">{formatUnitArabic(p.unit)}</span>
                             </td>
 
                             <td className="px-3 py-2 text-center font-mono text-ink-muted dark:text-ink-dark-muted">
@@ -1378,13 +1383,13 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                   {pendingAction.item.productName}
                 </div>
                 {pendingAction.item.barcode && (
-                  <div className="text-micro text-ink-muted font-mono mb-1">
+                  <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono mb-1">
                     باركود: {pendingAction.item.barcode}
                   </div>
                 )}
-                <div className="flex items-center gap-2 text-ink-muted">
+                <div className="flex items-center gap-2 text-ink-muted dark:text-ink-dark-muted">
                   <span>
-                    الكمية: {typeof pendingAction.item.requestedQuantityMilli === 'number' && !isNaN(pendingAction.item.requestedQuantityMilli) ? pendingAction.item.requestedQuantityMilli / 1000 : 1} {pendingAction.item.unit || 'قطعة'}
+                    الكمية: {typeof pendingAction.item.requestedQuantityMilli === 'number' && !isNaN(pendingAction.item.requestedQuantityMilli) ? pendingAction.item.requestedQuantityMilli / 1000 : 1} {formatUnitArabic(pendingAction.item.unit)}
                   </span>
                   <span>•</span>
                   <span>
@@ -1403,9 +1408,9 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               <div className="text-ink dark:text-ink-dark leading-relaxed">
                 {pendingAction.type === 'order' && (
                   <div>
-                    هل قمت بالتواصل مع شركة التوريد وطلب هذا الصنف؟
-                    <div className="text-ink-muted text-micro mt-1.5 p-2 bg-brand-soft/40 dark:bg-brand-dark-soft/40 rounded-lg border border-brand/20">
-                      سيتم نقل الصنف تلقائياً إلى قائمة <strong>"تم الطلب من المورد"</strong>. يمكنك متابعته واستلامه من تبويب "تم الطلب" بالأعلى.
+                    <p className="font-semibold text-ink dark:text-ink-dark mb-1">هل قمت بالتواصل مع شركة التوريد وطلب هذا الصنف؟</p>
+                    <div className="text-ink-muted dark:text-ink-dark-muted text-micro mt-1.5 p-2.5 bg-brand-soft/50 dark:bg-brand-dark-soft rounded-lg border border-brand/20 dark:border-brand-bright/20">
+                      سيتم نقل الصنف تلقائياً إلى قائمة <strong className="text-brand-dark dark:text-brand-bright font-bold">"تم الطلب من المورد"</strong>. يمكنك متابعته واستلامه من تبويب "تم الطلب" بالأعلى.
                     </div>
                   </div>
                 )}
@@ -1445,7 +1450,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                       onClick={async () => {
                         const item = pendingAction.item;
                         setPendingAction(null);
-                        await handleStatusChange(item.id, 'received', item.productName, true, item.requestedQuantityMilli, item.unit || 'قطعة');
+                        await handleStatusChange(item.id, 'received', item.productName, true, item.requestedQuantityMilli, formatUnitArabic(item.unit));
                       }}
                       className="w-full text-right p-3 rounded-xl border border-paid/40 bg-paid-soft/40 dark:bg-paid-dark-soft/40 hover:bg-paid-soft dark:hover:bg-paid-dark-soft transition-all flex items-start gap-2.5 cursor-pointer group"
                     >
@@ -1454,7 +1459,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                       </div>
                       <div className="flex-1">
                         <div className="font-bold text-paid-dark dark:text-paid-bright text-xs">
-                          استلام فوري وزيادة رصيد المخزن مباشرة (+{typeof pendingAction.item.requestedQuantityMilli === 'number' && !isNaN(pendingAction.item.requestedQuantityMilli) ? pendingAction.item.requestedQuantityMilli / 1000 : 1} {pendingAction.item.unit || 'قطعة'})
+                          استلام فوري وزيادة رصيد المخزن مباشرة (+{typeof pendingAction.item.requestedQuantityMilli === 'number' && !isNaN(pendingAction.item.requestedQuantityMilli) ? pendingAction.item.requestedQuantityMilli / 1000 : 1} {formatUnitArabic(pendingAction.item.unit)})
                         </div>
                         <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 leading-normal">
                           يزيد رصيد المخزن فوراً ويسجل حركة مخزنية رسمية ويحدث حالة القيد إلى تم الاستلام دون فتح فاتورة شراء.
@@ -1465,22 +1470,22 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                 )}
                 {pendingAction.type === 'cancel' && (
                   <div>
-                    هل تود إلغاء طلب هذا الصنف؟
-                    <div className="text-ink-muted text-micro mt-1.5 p-2 bg-surface-2 rounded-lg border border-line">
-                      سيتم نقله إلى قائمة <strong>"الملغيات"</strong> ولن يظهر في الطلبيات الحالية. يمكنك إعادة تفعيله في أي وقت.
+                    <p className="font-semibold text-ink dark:text-ink-dark mb-1">هل تود إلغاء طلب هذا الصنف؟</p>
+                    <div className="text-ink-muted dark:text-ink-dark-muted text-micro mt-1.5 p-2.5 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark">
+                      سيتم نقله إلى قائمة <strong className="text-ink dark:text-ink-dark font-bold">"الملغيات"</strong> ولن يظهر في الطلبيات الحالية. يمكنك إعادة تفعيله في أي وقت.
                     </div>
                   </div>
                 )}
                 {pendingAction.type === 'restore' && (
                   <div>
-                    هل تود إعادة تفعيل هذا القيد؟
-                    <div className="text-ink-muted text-micro mt-1.5 p-2 bg-brand-soft/40 dark:bg-brand-dark-soft/40 rounded-lg border border-brand/20">
-                      سيتم إرجاع الصنف إلى قائمة <strong>"بانتظار الطلب (معلق)"</strong> لإدراجه في طلبيات التوريد القادمة.
+                    <p className="font-semibold text-ink dark:text-ink-dark mb-1">هل تود إعادة تفعيل هذا القيد؟</p>
+                    <div className="text-ink-muted dark:text-ink-dark-muted text-micro mt-1.5 p-2.5 bg-brand-soft/50 dark:bg-brand-dark-soft rounded-lg border border-brand/20 dark:border-brand-bright/20">
+                      سيتم إرجاع الصنف إلى قائمة <strong className="text-brand-dark dark:text-brand-bright font-bold">"بانتظار الطلب (معلق)"</strong> لإدراجه في طلبيات التوريد القادمة.
                     </div>
                   </div>
                 )}
                 {pendingAction.type === 'delete' && (
-                  <div className="p-2.5 rounded-lg bg-danger-soft/50 border border-danger/30 text-danger font-medium">
+                  <div className="p-2.5 rounded-lg bg-danger-soft/50 dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright font-medium">
                     تحذير: سيتم حذف هذا القيد نهائياً من قاعدة البيانات ولا يمكن استرجاعه.
                   </div>
                 )}
@@ -1492,7 +1497,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               <button
                 type="button"
                 onClick={() => setPendingAction(null)}
-                className="h-8 px-3 rounded-lg border border-line text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 text-xs font-bold cursor-pointer"
+                className="h-8 px-3 rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark text-xs font-bold cursor-pointer"
               >
                 إلغاء
               </button>

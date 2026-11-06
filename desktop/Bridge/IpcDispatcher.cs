@@ -541,6 +541,8 @@ namespace RafiqPOS.Bridge
             { "epay:getTransactions", "epay.history" },
             { "epay:getFundings", "epay.history" },
             { "epay:getAnalytics", "epay.analytics" },
+            { "epay:printReceipt", "epay.access" },
+            { "printer:printEpayReceipt", "epay.access" },
 
             // Wallets & InstaPay
             { "wallets:getAccounts", "wallets.access" },
@@ -556,6 +558,8 @@ namespace RafiqPOS.Bridge
             { "wallets:getTransactions", "wallets.history" },
             { "wallets:getFundings", "wallets.history" },
             { "wallets:getAnalytics", "wallets.analytics" },
+            { "wallets:printReceipt", "wallets.access" },
+            { "printer:printWalletReceipt", "wallets.access" },
 
             // Shifts & Drawer
             { "shifts:getActive", "shifts.view" },

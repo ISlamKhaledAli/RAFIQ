@@ -839,6 +839,155 @@ namespace RafiqPOS.Repositories
             return 0;
         }
 
+        /// <summary>
+        /// Returns all active product IDs matching query / stock status / category filters
+        /// </summary>
+        public List<string> GetAllSearchIds(string query, string stockStatus = "all", string categoryId = "all")
+        {
+            var results = new List<string>();
+            string cleanQuery = (query ?? "").Trim();
+            bool hasQuery = !string.IsNullOrWhiteSpace(cleanQuery);
+            string normalizedQuery = hasQuery ? Common.ArabicTextNormalizer.Normalize(cleanQuery) : "";
+            string altExact = "";
+            long dummyCountLong;
+            if (hasQuery && cleanQuery.Length == 12 && long.TryParse(cleanQuery, out dummyCountLong))
+            {
+                altExact = "0" + cleanQuery;
+            }
+            else if (hasQuery && cleanQuery.Length == 13 && cleanQuery.StartsWith("0") && long.TryParse(cleanQuery, out dummyCountLong))
+            {
+                altExact = cleanQuery.Substring(1);
+            }
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string filterSql = "";
+                if (string.Equals(stockStatus, "lowStock", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql = " AND p.stock_quantity_milli <= p.min_stock_quantity_milli";
+                }
+                else if (string.Equals(stockStatus, "outOfStock", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql = " AND p.stock_quantity_milli <= 0";
+                }
+
+                if (!string.IsNullOrEmpty(categoryId) && !string.Equals(categoryId, "all", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql += " AND (p.category_id = @categoryId OR (p.category_id IS NULL AND @categoryId = 'cat_general'))";
+                }
+
+                string sql;
+                if (!hasQuery)
+                {
+                    sql = "SELECT p.id FROM products p WHERE p.is_active = 1 " + filterSql + " ORDER BY p.created_at DESC;";
+                }
+                else
+                {
+                    sql = @"
+                        SELECT DISTINCT p.id FROM products p
+                        LEFT JOIN product_barcodes pb ON p.id = pb.product_id
+                        LEFT JOIN product_units pu ON p.id = pu.product_id
+                        WHERE p.is_active = 1 " + filterSql + @"
+                          AND (
+                               p.barcode = @exact 
+                            OR pb.barcode = @exact 
+                            OR pu.barcode = @exact
+                            OR (@altExact != '' AND (p.barcode = @altExact OR pb.barcode = @altExact OR pu.barcode = @altExact))
+                            OR p.internal_code = @exact 
+                            OR p.normalized_name = @normExactText
+                            OR p.normalized_name LIKE @normPrefix
+                            OR p.normalized_name LIKE @normLike
+                            OR p.name LIKE @like
+                          )
+                        ORDER BY p.created_at DESC;";
+                }
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    if (hasQuery)
+                    {
+                        cmd.Parameters.AddWithValue("@exact", cleanQuery);
+                        cmd.Parameters.AddWithValue("@altExact", altExact);
+                        cmd.Parameters.AddWithValue("@normExactText", normalizedQuery);
+                        cmd.Parameters.AddWithValue("@normPrefix", normalizedQuery + "%");
+                        cmd.Parameters.AddWithValue("@normLike", "%" + normalizedQuery + "%");
+                        cmd.Parameters.AddWithValue("@like", "%" + cleanQuery + "%");
+                    }
+                    cmd.Parameters.AddWithValue("@categoryId", categoryId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            if (!reader.IsDBNull(0))
+                            {
+                                results.Add(reader.GetString(0));
+                            }
+                        }
+                    }
+                }
+            }
+            return results;
+        }
+
+        /// <summary>
+        /// Gets full product models for a list of product IDs (up to limit)
+        /// </summary>
+        public List<Product> GetByIds(List<string> ids, int limit = 1000)
+        {
+            var results = new List<Product>();
+            if (ids == null || ids.Count == 0) return results;
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                int takeCount = ids.Count > limit ? limit : ids.Count;
+                var paramNames = new List<string>();
+                using (var cmd = new SQLiteCommand(conn))
+                {
+                    for (int i = 0; i < takeCount; i++)
+                    {
+                        string pName = "@id" + i;
+                        paramNames.Add(pName);
+                        cmd.Parameters.AddWithValue(pName, ids[i]);
+                    }
+
+                    string inClause = string.Join(",", paramNames.ToArray());
+                    cmd.CommandText = string.Format(@"
+                        SELECT p.*, COALESCE(c.name, 'عام') AS category_name,
+                               COALESCE(sl.name, '') AS location_name,
+                               COALESCE(sl.code, '') AS location_code,
+                               COALESCE(sl.type, '') AS location_type,
+                               COALESCE(pi.scientific_name, '') AS scientific_name,
+                               COALESCE(df.name_ar, '') AS dosage_form_name,
+                               COALESCE(pi.rx_status, 'otc') AS rx_status,
+                               COALESCE(pi.controlled_schedule, 'none') AS controlled_schedule,
+                               p.has_variants AS has_variants_computed,
+                               NULL AS nearest_expiry_date,
+                               0 AS is_expired,
+                               NULL AS suggested_batch_number,
+                               0 AS has_batches
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        LEFT JOIN storage_locations sl ON p.location_id = sl.id
+                        LEFT JOIN product_pharma_info pi ON p.id = pi.product_id
+                        LEFT JOIN pharma_dosage_forms df ON pi.dosage_form_id = df.id
+                        WHERE p.id IN ({0});", inClause);
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            results.Add(MapReaderToProduct(reader));
+                        }
+                    }
+                }
+
+                PopulateBarcodesAndUnits(conn, results);
+            }
+            return results;
+        }
+
         public List<Product> GetAllForExport(int limit = 100000)
         {
             var results = new List<Product>();
