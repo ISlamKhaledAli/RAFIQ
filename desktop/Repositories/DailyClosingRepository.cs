@@ -58,13 +58,50 @@ namespace RafiqPOS.Repositories
 
         public List<DailyClosing> GetHistory(int limit)
         {
+            return GetHistory(limit, null, null);
+        }
+
+        /// <summary>
+        /// سجل الإغلاقات مع تصفية اختيارية بتاريخ يوم العمل (business_date، شاملة الطرفين؛ تُعاد الترتيب لو انعكست)
+        /// </summary>
+        private static string NormalizeBusinessDay(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            string trimmed = value.Trim();
+            if (trimmed.Length > 10) trimmed = trimmed.Substring(0, 10);
+            DateTime parsed;
+            if (!DateTime.TryParseExact(trimmed, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out parsed))
+            {
+                return null;
+            }
+            return parsed.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        public List<DailyClosing> GetHistory(int limit, string dateFrom, string dateTo)
+        {
             var list = new List<DailyClosing>();
+            string fromDay = NormalizeBusinessDay(dateFrom);
+            string toDay = NormalizeBusinessDay(dateTo);
+            if (fromDay != null && toDay != null && string.CompareOrdinal(fromDay, toDay) > 0)
+            {
+                string swap = fromDay;
+                fromDay = toDay;
+                toDay = swap;
+            }
+
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT * FROM daily_closings ORDER BY business_date DESC LIMIT @limit;";
+                var clauses = new List<string>();
+                if (fromDay != null) clauses.Add("business_date >= @dateFrom");
+                if (toDay != null) clauses.Add("business_date <= @dateTo");
+                string sql = "SELECT * FROM daily_closings "
+                    + (clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses) + " " : "")
+                    + "ORDER BY business_date DESC LIMIT @limit;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
+                    if (fromDay != null) cmd.Parameters.AddWithValue("@dateFrom", fromDay);
+                    if (toDay != null) cmd.Parameters.AddWithValue("@dateTo", toDay);
                     cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 30);
                     using (var reader = cmd.ExecuteReader())
                     {

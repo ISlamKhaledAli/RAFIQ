@@ -139,12 +139,16 @@ namespace RafiqPOS.Bridge
 
                 case "reports:getPeriodComparison":
                     string compPeriod = "week";
+                    string compFrom = null;
+                    string compTo = null;
                     JObject compObj = request.Payload as JObject;
-                    if (compObj != null && compObj["period"] != null)
+                    if (compObj != null)
                     {
-                        compPeriod = compObj["period"].ToString();
+                        if (compObj["period"] != null) compPeriod = compObj["period"].ToString();
+                        if (compObj["fromDate"] != null) compFrom = compObj["fromDate"].ToString();
+                        if (compObj["toDate"] != null) compTo = compObj["toDate"].ToString();
                     }
-                    var compReport = DatabaseService.Reports.GetPeriodComparison(compPeriod);
+                    var compReport = DatabaseService.Reports.GetPeriodComparison(compPeriod, compFrom, compTo);
                     response = BridgeResponse.Ok(request.Id, compReport);
                     return true;
 
@@ -314,12 +318,16 @@ namespace RafiqPOS.Bridge
 
                 case "closing:getHistory":
                     int histLimit = 30;
+                    string histDateFrom = null;
+                    string histDateTo = null;
                     JObject histObj = request.Payload as JObject;
                     if (histObj != null && histObj["limit"] != null)
                     {
                         histLimit = histObj["limit"].Value<int>();
                     }
-                    var closingHistory = DatabaseService.DailyClosing.GetHistory(histLimit);
+                    if (histObj != null && histObj["dateFrom"] != null) histDateFrom = histObj["dateFrom"].ToString();
+                    if (histObj != null && histObj["dateTo"] != null) histDateTo = histObj["dateTo"].ToString();
+                    var closingHistory = DatabaseService.DailyClosing.GetHistory(histLimit, histDateFrom, histDateTo);
                     response = BridgeResponse.Ok(request.Id, closingHistory);
                     return true;
 

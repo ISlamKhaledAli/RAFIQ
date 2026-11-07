@@ -458,9 +458,9 @@ namespace RafiqPOS.Services
             };
         }
 
-        public List<StockMovement> GetMovements(string productId = null, string movementType = null, string fromDate = null, string toDate = null, int limit = 200)
+        public List<StockMovement> GetMovements(string productId = null, string movementType = null, string fromDate = null, string toDate = null, int limit = 200, string dateFrom = null, string dateTo = null)
         {
-            return _movementRepo.GetMovements(productId, movementType, fromDate, toDate, limit);
+            return _movementRepo.GetMovements(productId, movementType, fromDate, toDate, limit, dateFrom, dateTo);
         }
 
         /// <summary>

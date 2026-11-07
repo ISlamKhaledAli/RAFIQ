@@ -21,11 +21,21 @@ import { formatMoney } from './types';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { usePermission } from '../../utils/usePermission';
-import { useDateFilter } from '../../utils/dateFilter';
+import {
+  type DateFilterValue,
+  DEFAULT_DATE_FILTER,
+  describeDateFilter,
+  getDateFilterKey,
+  isDateFilterActive,
+} from '../../utils/dateFilter';
+import { PURCHASES_LOAD_LIMIT } from './purchasesQuery';
 
 interface PurchasesInvoicesTabProps {
   purchases: Purchase[];
   loading?: boolean;
+  /** The period is applied by the backend query, so the parent owns the state and the load. */
+  dateFilter: DateFilterValue;
+  onDateFilterChange: (value: DateFilterValue) => void;
   totalSupplierDebtsAmount: number;
   totalSupplierCreditsAmount: number;
   purchaseSearchQuery: string;
@@ -40,6 +50,8 @@ interface PurchasesInvoicesTabProps {
 export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
   purchases,
   loading = false,
+  dateFilter,
+  onDateFilterChange,
   totalSupplierDebtsAmount,
   totalSupplierCreditsAmount,
   purchaseSearchQuery,
@@ -52,15 +64,21 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
 }) => {
   const showLoading = useSmoothLoading(loading, 300);
   const canCreatePurchase = usePermission('purchases.create');
-  const { dateFilter, setDateFilter, filterDate } = useDateFilter();
+  const isDateActive = isDateFilterActive(dateFilter);
+  const periodLabel = describeDateFilter(dateFilter);
+  const isTruncated = purchases.length >= PURCHASES_LOAD_LIMIT;
+  const hasAnyFilter = isDateActive || purchasePaymentFilter !== 'all' || purchaseSearchQuery.trim() !== '';
+
+  const resetAllFilters = () => {
+    onDateFilterChange({ ...DEFAULT_DATE_FILTER });
+    setPurchasePaymentFilter('all');
+    setPurchaseSearchQuery('');
+  };
 
   const filteredPurchases = useMemo(() => {
     const q = purchaseSearchQuery.trim().toLowerCase();
     return purchases.filter((p) => {
       if (purchasePaymentFilter !== 'all' && p.paymentStatus !== purchasePaymentFilter) {
-        return false;
-      }
-      if (!filterDate(p.invoiceDate || p.createdAt)) {
         return false;
       }
       if (!q) return true;
@@ -69,15 +87,16 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
       const supInvMatch = p.supplierInvoiceNumber && p.supplierInvoiceNumber.toLowerCase().includes(q);
       return numMatch || supMatch || supInvMatch;
     });
-  }, [purchases, purchaseSearchQuery, purchasePaymentFilter, filterDate]);
+  }, [purchases, purchaseSearchQuery, purchasePaymentFilter]);
 
+  // Cards follow the rows on screen (period, payment status and search together)
   const totalPurchasesAmount = useMemo(() => {
-    return purchases.reduce((sum, p) => sum + p.netCostPiasters, 0);
-  }, [purchases]);
+    return filteredPurchases.reduce((sum, p) => sum + p.netCostPiasters, 0);
+  }, [filteredPurchases]);
 
   const totalUnpaidPurchasesCount = useMemo(() => {
-    return purchases.filter((p) => p.paymentStatus === 'CREDIT' || p.paymentStatus === 'PARTIAL').length;
-  }, [purchases]);
+    return filteredPurchases.filter((p) => p.paymentStatus === 'CREDIT' || p.paymentStatus === 'PARTIAL').length;
+  }, [filteredPurchases]);
 
 
   const {
@@ -86,7 +105,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
     pageSize,
     setPageSize,
     paginatedItems: pagedPurchases,
-  } = useClientPagination(filteredPurchases, 25, `${purchaseSearchQuery}_${purchasePaymentFilter}_${dateFilter.preset}_${dateFilter.startDate}_${dateFilter.endDate}`);
+  } = useClientPagination(filteredPurchases, 25, `${purchaseSearchQuery}_${purchasePaymentFilter}_${getDateFilterKey(dateFilter)}`);
 
   return (
     <div className="flex-1 flex flex-col gap-2.5 sm:gap-3 overflow-hidden">
@@ -94,7 +113,9 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
         <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
           <div>
-            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block">إجمالي فواتير شراء البضاعة</span>
+            <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold block">
+              إجمالي فواتير شراء البضاعة{isDateActive ? ` (${periodLabel})` : ''}
+            </span>
             <span className="text-lg sm:text-xl font-bold font-mono text-ink dark:text-ink-dark mt-0.5 block">
               {formatMoney(totalPurchasesAmount)}
             </span>
@@ -139,9 +160,9 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
       </div>
 
       {/* Filter and Actions Bar */}
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-2.5 sm:p-3 flex items-center justify-between gap-3 shrink-0 shadow-2xs">
-        <div className="flex-1 flex items-center gap-3">
-          <div className="relative flex-1 max-w-md">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
+        <div className="flex-1 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[12rem] max-w-md">
             <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -172,7 +193,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
 
           <DateFilterControl
             value={dateFilter}
-            onChange={setDateFilter}
+            onChange={onDateFilterChange}
             size="md"
             selectWidthClass="w-44 sm:w-48"
           />
@@ -223,7 +244,18 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
           ) : filteredPurchases.length === 0 ? (
             <div className="h-48 flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2">
               <ShoppingCart className="w-8 h-8 opacity-30" />
-              <span className="text-sm font-medium">مفيش فواتير شراء مطابقة للي بتدور عليه</span>
+              <span className="text-sm font-medium">
+                {isDateActive ? `مفيش فواتير شراء في الفترة دي (${periodLabel})` : 'مفيش فواتير شراء مطابقة للي بتدور عليه'}
+              </span>
+              {hasAnyFilter && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="h-9 px-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                >
+                  مسح الفلاتر وعرض كل الفواتير
+                </button>
+              )}
             </div>
           ) : (
             pagedPurchases.map((pur) => (
@@ -306,6 +338,12 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
           )}
         </div>
       </div>
+
+      {isTruncated && (
+        <div className="shrink-0 text-micro font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-bright/30 rounded-xl px-3 py-1.5">
+          معروض أحدث {PURCHASES_LOAD_LIMIT} فاتورة فقط، حدّد فترة أضيق لعرض الفواتير الأقدم.
+        </div>
+      )}
 
       {/* Pagination Bar */}
       <PaginationBar

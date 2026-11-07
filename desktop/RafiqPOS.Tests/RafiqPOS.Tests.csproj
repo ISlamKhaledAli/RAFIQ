@@ -116,6 +116,10 @@
     <Compile Include="Scenarios\S53_InvoiceBarcodeReceiptTest.cs" />
     <Compile Include="Scenarios\S54_ReceiptItemNameTest.cs" />
     <Compile Include="Scenarios\S60_PosPopularItemsTest.cs" />
+    <Compile Include="Scenarios\S62_DateRangeFiltersTest.cs" />
+    <Compile Include="Scenarios\S61_DateRangeFiltersTest.cs" />
+    <Compile Include="Scenarios\S63_PharmaRegisterDateRangeTest.cs" />
+    <Compile Include="Scenarios\S63_WalletsEpayReportsDateRangeTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

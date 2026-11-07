@@ -15,6 +15,7 @@ import App from './App.tsx'
 import { ThemeProvider } from './context/ThemeProvider'
 import { FeaturesProvider } from './context/FeaturesProvider'
 import { AuthProvider } from './context/AuthContext'
+import { UnsavedChangesProvider } from './context/UnsavedChangesProvider'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { applyTextScale, loadTextScale } from './utils/textScale'
 
@@ -27,7 +28,9 @@ createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <FeaturesProvider>
           <AuthProvider>
-            <App />
+            <UnsavedChangesProvider>
+              <App />
+            </UnsavedChangesProvider>
           </AuthProvider>
         </FeaturesProvider>
       </ThemeProvider>
