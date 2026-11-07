@@ -294,6 +294,8 @@ namespace RafiqPOS.Bridge
                         int limit = 200;
                         string accountId = null;
                         string txType = null;
+                        string dateFrom = null;
+                        string dateTo = null;
 
                         if (request.Payload != null)
                         {
@@ -303,10 +305,12 @@ namespace RafiqPOS.Bridge
                                 if (pObj["limit"] != null) limit = pObj["limit"].Value<int>();
                                 if (pObj["accountId"] != null) accountId = pObj["accountId"].ToString();
                                 if (pObj["txType"] != null) txType = pObj["txType"].ToString();
+                                if (pObj["dateFrom"] != null) dateFrom = pObj["dateFrom"].ToString();
+                                if (pObj["dateTo"] != null) dateTo = pObj["dateTo"].ToString();
                             }
                         }
 
-                        var list = repo.GetTransactions(limit, accountId, txType);
+                        var list = repo.GetTransactions(limit, accountId, txType, dateFrom, dateTo);
                         response = BridgeResponse.Ok(request.Id, list);
                         return true;
                     }
@@ -316,6 +320,8 @@ namespace RafiqPOS.Bridge
                         var repo = GetWalletsRepo();
                         int limit = 100;
                         string accountId = null;
+                        string dateFrom = null;
+                        string dateTo = null;
 
                         if (request.Payload != null)
                         {
@@ -324,10 +330,12 @@ namespace RafiqPOS.Bridge
                             {
                                 if (pObj["limit"] != null) limit = pObj["limit"].Value<int>();
                                 if (pObj["accountId"] != null) accountId = pObj["accountId"].ToString();
+                                if (pObj["dateFrom"] != null) dateFrom = pObj["dateFrom"].ToString();
+                                if (pObj["dateTo"] != null) dateTo = pObj["dateTo"].ToString();
                             }
                         }
 
-                        var list = repo.GetFundings(limit, accountId);
+                        var list = repo.GetFundings(limit, accountId, dateFrom, dateTo);
                         response = BridgeResponse.Ok(request.Id, list);
                         return true;
                     }
@@ -336,7 +344,26 @@ namespace RafiqPOS.Bridge
                     {
                         var repo = GetWalletsRepo();
                         var analytics = repo.GetAnalytics();
-                        response = BridgeResponse.Ok(request.Id, analytics);
+                        var analyticsObj = JObject.FromObject(analytics);
+
+                        // مجاميع الفترة تُحسب في SQL على كل العمليات المكتملة (وليس على آخر N صف)؛ بدون نطاق = كل الفترات
+                        string aFrom = null;
+                        string aTo = null;
+                        var aPayload = request.Payload as JObject;
+                        if (aPayload != null)
+                        {
+                            if (aPayload["dateFrom"] != null) aFrom = aPayload["dateFrom"].ToString();
+                            if (aPayload["dateTo"] != null) aTo = aPayload["dateTo"].ToString();
+                        }
+                        int periodCount;
+                        long periodProfit;
+                        long periodVolume;
+                        repo.GetPeriodTotals(aFrom, aTo, out periodCount, out periodProfit, out periodVolume);
+                        analyticsObj["periodTransactionsCount"] = periodCount;
+                        analyticsObj["periodProfitPiasters"] = periodProfit;
+                        analyticsObj["periodVolumePiasters"] = periodVolume;
+
+                        response = BridgeResponse.Ok(request.Id, analyticsObj);
                         return true;
                     }
 

@@ -143,6 +143,9 @@ export function ReceiptModal({
     },
     {
       showCashier: liveSettings.receipt_show_cashier !== '0',
+      showInvoiceNumber: liveSettings.receipt_show_invoice_number !== '0',
+      showPaid: liveSettings.receipt_show_paid !== '0',
+      showChange: liveSettings.receipt_show_change !== '0',
       signatureVisible: liveSettings.developer_signature_visible !== '0',
       signatureImage: liveSettings.developer_signature_image ?? '',
       builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES,

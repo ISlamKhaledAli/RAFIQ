@@ -33,12 +33,14 @@ import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
 import { RafiqLoadingState } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
-import { useDateFilter } from '../utils/dateFilter';
+import { useDateFilter, useToday, isDateFilterActive, describeDateFilter, getDateFilterRange, getDateFilterKey } from '../utils/dateFilter';
 import type { AuditLogEntry, AuditChainVerificationResult } from '../types/models';
 import type { UserDto } from '../bridge/ipc';
 import { piastersToPounds } from '../utils/money';
 
 const AUDIT_PAGE_SIZE_OPTIONS = [15, 25, 50, 100];
+// Rows one load returns; the screen warns when a period holds more
+const AUDIT_LOAD_LIMIT = 250;
 
 const ACTION_FILTERS = [
   { id: '', label: 'كل العمليات الحساسة' },
@@ -76,7 +78,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
   // Filters state
   const [selectedAction, setSelectedAction] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
-  const { dateFilter, setDateFilter } = useDateFilter();
+  const { dateFilter, setDateFilter, resetDateFilter } = useDateFilter();
   const [searchQuery, setSearchQuery] = useState('');
 
   // Tamper Verification state
@@ -84,34 +86,25 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
   const [verifying, setVerifying] = useState(false);
   const [resealing, setResealing] = useState(false);
 
-  // Calculate Date bounds for filtering
+  // Local calendar days (both inclusive) sent as UTC instants, since audit_logs.created_at is stored as UTC ISO.
+  // Re-evaluated when the day rolls over so "today" is never frozen at the time the screen was mounted.
+  const today = useToday();
+  const dateActive = isDateFilterActive(dateFilter);
+  const anyFilterActive = dateActive || Boolean(selectedAction) || Boolean(selectedUserId) || Boolean(searchQuery.trim());
+  const resetAllFilters = () => {
+    setSelectedAction('');
+    setSelectedUserId('');
+    resetDateFilter();
+    setSearchQuery('');
+  };
   const dateBounds = useMemo(() => {
-    if (dateFilter.preset === 'all') return { startDate: undefined, endDate: undefined };
-    const now = new Date();
-    if (dateFilter.preset === 'today') {
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      return { startDate: todayStart.toISOString(), endDate: undefined };
-    }
-    if (dateFilter.preset === 'yesterday') {
-      const yestStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
-      const yestEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
-      return { startDate: yestStart.toISOString(), endDate: yestEnd.toISOString() };
-    }
-    if (dateFilter.preset === 'week') {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return { startDate: weekAgo.toISOString(), endDate: undefined };
-    }
-    if (dateFilter.preset === 'month') {
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
-      return { startDate: monthStart.toISOString(), endDate: undefined };
-    }
-    if (dateFilter.preset === 'custom') {
-      const start = dateFilter.startDate ? new Date(`${dateFilter.startDate}T00:00:00`).toISOString() : undefined;
-      const end = dateFilter.endDate ? new Date(`${dateFilter.endDate}T23:59:59.999`).toISOString() : undefined;
-      return { startDate: start, endDate: end };
-    }
-    return { startDate: undefined, endDate: undefined };
-  }, [dateFilter]);
+    const { startDate, endDate } = getDateFilterRange(dateFilter, today);
+    // created_at is compared as text: a prefix-only start and a .9999999 end keep rows at the exact first/last tick of the day
+    return {
+      startDate: startDate ? new Date(`${startDate}T00:00:00`).toISOString().slice(0, 19) : undefined,
+      endDate: endDate ? `${new Date(`${endDate}T23:59:59`).toISOString().slice(0, 19)}.9999999Z` : undefined,
+    };
+  }, [dateFilter, today]);
 
   const {
     currentPage,
@@ -119,13 +112,13 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
     pageSize,
     setPageSize,
     paginatedItems: pagedLogs,
-  } = useClientPagination(logs, 25, `${selectedAction}_${selectedUserId}_${dateFilter.preset}_${dateFilter.startDate}_${dateFilter.endDate}_${searchQuery}`);
+  } = useClientPagination(logs, 25, `${selectedAction}_${selectedUserId}_${getDateFilterKey(dateFilter)}_${searchQuery}`);
 
   const loadAuditLogs = useCallback(async () => {
     setLoading(true);
     try {
       const data = await invoke<AuditLogEntry[]>('audit:getLogs', {
-        limit: 250,
+        limit: AUDIT_LOAD_LIMIT,
         action: selectedAction || undefined,
         userId: selectedUserId || undefined,
         startDate: dateBounds.startDate,
@@ -191,7 +184,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         try {
           const [data, chainRes] = await Promise.all([
             invoke<AuditLogEntry[]>('audit:getLogs', {
-              limit: 250,
+              limit: AUDIT_LOAD_LIMIT,
               action: selectedAction || undefined,
               userId: selectedUserId || undefined,
               startDate: dateBounds.startDate,
@@ -601,6 +594,25 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
           selectWidthClass="w-44 sm:w-48"
         />
 
+        {anyFilterActive && (
+          <button
+            type="button"
+            onClick={resetAllFilters}
+            className="h-8 px-2.5 flex items-center gap-1.5 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer transition-colors"
+            title="إلغاء كل الفلاتر والرجوع لكل العمليات"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>مسح الفلاتر</span>
+          </button>
+        )}
+
+        {logs.length >= AUDIT_LOAD_LIMIT && (
+          <div className="w-full flex items-center gap-1.5 text-xs text-warn dark:text-warn-bright font-semibold bg-warn-soft dark:bg-warn-dark-soft p-2 rounded-lg border border-warn/20 dark:border-warn-bright/30">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{`المعروض أحدث ${AUDIT_LOAD_LIMIT} عملية فقط${dateActive ? '' : '. حدد فترة عشان تشوف الأقدم'}.`}</span>
+          </div>
+        )}
+
         {/* Search Input */}
         <div className="relative flex-1 min-w-[180px]">
           <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -688,10 +700,22 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
           ) : logs.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-ink-muted dark:text-ink-muted-dark gap-2 p-6">
               <ShieldAlert className="w-12 h-12 stroke-[1.2] text-ink-muted dark:text-ink-muted-dark opacity-40" />
-              <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">مفيش أي عمليات مطابقة للفلترة الحالية</p>
+              <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">
+                {dateActive ? `مفيش أي عمليات مسجلة خلال ${describeDateFilter(dateFilter)}` : 'مفيش أي عمليات مطابقة للفلترة الحالية'}
+              </p>
               <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0">
                 كل تعديل في الأسعار أو فتح للدرج أو خصم أو حذف بيتسجل ويتوثق هنا تلقائياً لحماية المحل
               </p>
+              {anyFilterActive && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="mt-1 h-8 px-3 flex items-center gap-1.5 rounded-lg bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>مسح الفلاتر وعرض كل العمليات</span>
+                </button>
+              )}
             </div>
           ) : (
             pagedLogs.map((log, index) => {

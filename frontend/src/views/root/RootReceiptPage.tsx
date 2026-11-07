@@ -3,6 +3,8 @@ import { CheckCircle, Receipt, Save, ShieldCheck } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { ReceiptPaper } from '../../components/ReceiptPaper';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
+import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
+import { useUnsavedChangesGuard } from '../../context/useUnsavedChanges';
 import { rafiqAlert } from '../../utils/dialogService';
 import {
   buildReceiptModel,
@@ -30,6 +32,9 @@ interface StoreReceiptData {
   showLogo: boolean;
   logoUrl: string;
   showCashier: boolean;
+  showInvoiceNumber: boolean;
+  showPaid: boolean;
+  showChange: boolean;
   paper: '80mm' | '57mm';
 }
 
@@ -43,11 +48,21 @@ const EMPTY_STORE: StoreReceiptData = {
   showLogo: true,
   logoUrl: DEFAULT_LOGO_URL,
   showCashier: true,
+  showInvoiceNumber: true,
+  showPaid: true,
+  showChange: true,
   paper: '80mm',
 };
 
+export interface RootReceiptPageProps {
+  /** false while the keep-alive console is hidden: leftover drafts must not block other pages */
+  isActive: boolean;
+  /** Restarts the page from the saved values (called when the user leaves without saving) */
+  onDiscard: () => void;
+}
+
 /** Root page: the developer signature printed under every receipt (text, visibility and image gallery). */
-export const RootReceiptPage = () => {
+export const RootReceiptPage = ({ isActive, onDiscard }: RootReceiptPageProps) => {
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [store, setStore] = useState<StoreReceiptData>(EMPTY_STORE);
@@ -91,6 +106,9 @@ export const RootReceiptPage = () => {
               ? DEFAULT_LOGO_URL
               : s.store_logo_url,
           showCashier: s.receipt_show_cashier !== '0',
+          showInvoiceNumber: s.receipt_show_invoice_number !== '0',
+          showPaid: s.receipt_show_paid !== '0',
+          showChange: s.receipt_show_change !== '0',
           paper: s.receipt_paper_width === '57mm' ? '57mm' : '80mm',
         });
         setLoaded(true);
@@ -103,9 +121,9 @@ export const RootReceiptPage = () => {
     };
   }, []);
 
-  const handleSave = async (e: FormEvent) => {
-    e.preventDefault();
-    if (signatureError) return;
+  const handleSave = async (e?: FormEvent): Promise<boolean> => {
+    e?.preventDefault();
+    if (signatureError) return false;
     setSaving(true);
     try {
       await invoke('settings:save', {
@@ -116,13 +134,24 @@ export const RootReceiptPage = () => {
       setBaseline(snapshot);
       setSaved(true);
       setTimeout(() => setSaved(false), 3500);
+      return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       void rafiqAlert({ title: 'فشل حفظ التوقيع', message: `فشل حفظ توقيع الإيصال: ${msg}`, variant: 'error' });
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  const { saveBarRef } = useUnsavedChangesGuard({
+    id: 'root-receipt-signature',
+    label: 'توقيع الإيصال',
+    isDirty: dirty,
+    isActive,
+    save: () => handleSave(),
+    discard: onDiscard,
+  });
 
   if (loadError) {
     return (
@@ -142,12 +171,7 @@ export const RootReceiptPage = () => {
   } else if (signatureError) {
     statusNode = <span className="text-danger dark:text-danger-bright font-semibold">قصّر نص التوقيع ثم احفظ</span>;
   } else if (dirty) {
-    statusNode = (
-      <span className="flex items-center gap-2 text-warn dark:text-warn-bright font-semibold">
-        <span className="w-2 h-2 rounded-full bg-warn dark:bg-warn-bright" />
-        تغييرات لم تُحفظ بعد
-      </span>
-    );
+    statusNode = <UnsavedChangesChip />;
   } else if (saved) {
     statusNode = (
       <span className="flex items-center gap-2 text-paid dark:text-paid-bright font-bold">
@@ -191,7 +215,7 @@ export const RootReceiptPage = () => {
           />
         </SettingsCard>
 
-        <div className="sticky bottom-0 z-10 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-md rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div ref={saveBarRef} className="sticky bottom-0 z-10 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-md rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm" role="status">
             {statusNode}
           </div>
@@ -223,6 +247,9 @@ export const RootReceiptPage = () => {
                 },
                 {
                   showCashier: store.showCashier,
+                  showInvoiceNumber: store.showInvoiceNumber,
+                  showPaid: store.showPaid,
+                  showChange: store.showChange,
                   signatureVisible: visible,
                   signatureImage: image,
                   builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES,

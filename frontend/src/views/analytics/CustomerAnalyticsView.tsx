@@ -23,6 +23,8 @@ import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
+import { useToday } from '../../utils/dateFilter';
+import { buildReportPeriodPayload, defaultCustomReportRange } from '../../utils/reportPeriod';
 import { formatArabicCurrency } from '../../utils/money';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
@@ -38,9 +40,9 @@ import type {
 const PERIOD_OPTIONS: SelectOption[] = [
   { value: 'today', label: 'اليوم' },
   { value: 'week', label: 'آخر 7 أيام' },
-  { value: 'month', label: 'هذا الشهر (30 يوم)' },
-  { value: '3months', label: 'آخر 3 أشهر' },
-  { value: 'year', label: 'هذا العام' },
+  { value: 'month', label: 'آخر 30 يوماً' },
+  { value: '3months', label: 'آخر 3 أشهر (90 يوماً)' },
+  { value: 'year', label: 'آخر 365 يوماً' },
   { value: 'custom', label: 'فترة مخصصة...' },
 ];
 
@@ -63,12 +65,10 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
   onNavigateToCustomers
 }) => {
   const [period, setPeriod] = useState<string>('month');
-  const [customFrom, setCustomFrom] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
-  });
-  const [customTo, setCustomTo] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [customFrom, setCustomFrom] = useState<string>(() => defaultCustomReportRange().from);
+  const [customTo, setCustomTo] = useState<string>(() => defaultCustomReportRange().to);
+  // يتغير عند منتصف الليل فتُعاد قراءة التقارير النسبية (اليوم/أمس/آخر 7 أيام)
+  const today = useToday();
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const showLoading = useSmoothLoading(isLoading, 300);
@@ -84,11 +84,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const payload = {
-        period,
-        fromDate: period === 'custom' ? customFrom : undefined,
-        toDate: period === 'custom' ? customTo : undefined,
-      };
+      const payload = buildReportPeriodPayload(period, customFrom, customTo);
 
       const [creditRes, agingRes, debtorsRes, behaviorRes, payRes] = await Promise.all([
         invoke<CreditOverviewReport>('reports:getCreditOverview', payload),
@@ -114,7 +110,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
     if (isActive) {
       void loadData();
     }
-  }, [isActive, loadData]);
+  }, [isActive, loadData, today]);
 
   useDataSubscription(['customers', 'sales', 'dashboard', 'all'], () => {
     void loadData();

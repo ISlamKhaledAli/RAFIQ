@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback, type RefObject } from 'react';
 import {
   ShoppingCart,
   Plus,
@@ -25,11 +25,12 @@ import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { MoneyInput } from '../../components/MoneyInput';
 import { RequiredMark } from '../../components/RequiredMark';
+import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
 import { useFeatures } from '../../context/useFeatures';
 import type { Supplier, Product, ProductUnit } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
 import { computePurchaseLine, purchaseLinesTotal } from './purchaseLineMath';
-import { getSupplierPaymentState } from './supplierPaymentState';
+import { getSupplierPaymentState, isCashDrawerBlocked } from './supplierPaymentState';
 import { SupplierPaymentStatusCard } from './SupplierPaymentStatusCard';
 import { normalizeArabicNumerals, formatArabicCurrency } from '../../utils/money';
 import { invoke } from '../../bridge/ipc';
@@ -69,6 +70,10 @@ interface NewPurchaseTabProps {
   onSavePurchase: () => void;
   isSaving: boolean;
   onRequestCancel: () => void;
+  /** true while the draft invoice differs from an empty one */
+  dirty: boolean;
+  /** Goes on the action bar: the page scrolls to it and rings it when the user stays */
+  saveBarRef: RefObject<HTMLDivElement | null>;
 }
 
 export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
@@ -98,6 +103,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   onSavePurchase,
   isSaving,
   onRequestCancel,
+  dirty,
+  saveBarRef,
 }) => {
   const { isEnabled } = useFeatures();
   const terminology = useMemo(() => getStoreTerminology(), []);
@@ -723,11 +730,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   const paymentState = getSupplierPaymentState(netCostPiasters, paidAmountPiasters);
   const paidInputRef = useRef<HTMLDivElement>(null);
 
-  const cashDrawerBlocked =
-    paymentSource === 'cash_drawer' &&
-    paidAmountPiasters > 0 &&
-    liveDrawerCashPiasters !== null &&
-    (liveDrawerCashPiasters <= 0 || paidAmountPiasters > liveDrawerCashPiasters);
+  const cashDrawerBlocked = isCashDrawerBlocked(paymentSource, paidAmountPiasters, liveDrawerCashPiasters);
 
   const SETTLEMENT_TONE_CLS: Record<'paid' | 'warn' | 'danger', string> = {
     paid: 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid-dark-border text-paid-dark dark:text-paid-bright',
@@ -1768,47 +1771,42 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               </div>
             ) : null}
 
-            <SupplierPaymentStatusCard
-              state={paymentState}
-              paidAmountPiasters={paidAmountPiasters}
-              remainingAmountPiasters={remainingAmountPiasters}
-              excessPaidPiasters={excessPaidPiasters}
-              supplierName={selectedSupplier ? selectedSupplier.name : null}
-              currentBalancePiasters={currentSupplierBalance}
-              projectedBalancePiasters={projectedBalance}
-              advanceCreditPiasters={advanceCreditPiasters}
-              supplierDebtPiasters={supplierDebtPiasters}
-              paymentSourceLabel={
-                paidAmountPiasters > 0
-                  ? paymentSource === 'cash_drawer'
-                    ? 'من درج الكاشير'
-                    : 'كاش خارجي من صاحب المحل'
-                  : null
-              }
-              formatMoney={formatMoney}
-            />
-            {supplierMissing && (
-              <div className="p-3 rounded-lg border border-warn/30 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-xs flex items-center gap-2 font-bold">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>
-                  {paidAmountPiasters === 0
-                    ? 'يجب اختيار المورد من أعلى الصفحة لتسجيل الفاتورة الآجلة على حسابه.'
-                    : paidAmountPiasters < netCostPiasters
-                    ? `يجب اختيار المورد لتسجيل المبلغ المتبقي (${formatMoney(remainingAmountPiasters)}) على حسابه.`
-                    : `يجب اختيار المورد لتسجيل الزيادة (+${formatMoney(excessPaidPiasters)}) تحت حسابه.`}
-                </span>
-              </div>
-            )}
+            {/* Fixed-size status area: the layout below must not jump while the amount is typed */}
+            <div className="min-h-[17.5rem] flex flex-col">
+              <SupplierPaymentStatusCard
+                state={paymentState}
+                paidAmountPiasters={paidAmountPiasters}
+                remainingAmountPiasters={remainingAmountPiasters}
+                excessPaidPiasters={excessPaidPiasters}
+                supplierName={selectedSupplier ? selectedSupplier.name : null}
+                currentBalancePiasters={currentSupplierBalance}
+                projectedBalancePiasters={projectedBalance}
+                advanceCreditPiasters={advanceCreditPiasters}
+                supplierDebtPiasters={supplierDebtPiasters}
+                paymentSourceLabel={
+                  paidAmountPiasters > 0
+                    ? paymentSource === 'cash_drawer'
+                      ? 'من درج الكاشير'
+                      : 'كاش خارجي من صاحب المحل'
+                    : null
+                }
+                formatMoney={formatMoney}
+              />
+            </div>
 
-            {/* Cash source: only when cash actually leaves */}
-            {paidAmountPiasters > 0 && (
-              <div className="space-y-2">
+            {/* Cash source: always shown (dimmed while no cash leaves) so typing the first digit does not shift the page */}
+            {(
+              <div className={`space-y-2 transition-opacity ${paidAmountPiasters > 0 ? '' : 'opacity-60'}`} aria-disabled={paidAmountPiasters === 0}>
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block">
                   مصدر النقدية المسددة للمورد
+                  {paidAmountPiasters === 0 && (
+                    <span className="font-normal text-ink-muted dark:text-ink-dark-muted"> (لا يخرج نقد الآن)</span>
+                  )}
                 </label>
                 <CustomSelect
                   value={paymentSource}
                   onChange={(val) => setPaymentSource(val as 'cash_drawer' | 'external_cash')}
+                  disabled={paidAmountPiasters === 0}
                   size="lg"
                   options={[
                     { value: 'cash_drawer', label: 'من درج كاشير المحل (يخصم من نقدية الدرج)' },
@@ -1852,7 +1850,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       </div>
 
       {/* Sticky action bar: net payable + primary actions */}
-      <div className="shrink-0 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl px-4 py-3 shadow-card flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+      <div ref={saveBarRef} className="shrink-0 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl px-4 py-3 shadow-card flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
             <span className="text-xs text-ink-muted dark:text-ink-dark-muted">المطلوب دفعه للشركة</span>
@@ -1877,6 +1875,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           )}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          {dirty && (
+            <div role="status">
+              <UnsavedChangesChip />
+            </div>
+          )}
           <button
             type="button"
             onClick={handleSaveClick}

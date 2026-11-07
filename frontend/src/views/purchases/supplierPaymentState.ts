@@ -8,6 +8,20 @@ export function getSupplierPaymentState(netCostPiasters: number, paidAmountPiast
   return paidAmountPiasters < netCostPiasters ? 'partial' : 'excess';
 }
 
+// Paying from the cash drawer needs enough cash in it; unknown balance (null) never blocks, the server still checks
+export function isCashDrawerBlocked(
+  paymentSource: 'cash_drawer' | 'external_cash',
+  paidAmountPiasters: number,
+  liveDrawerCashPiasters: number | null,
+): boolean {
+  return (
+    paymentSource === 'cash_drawer' &&
+    paidAmountPiasters > 0 &&
+    liveDrawerCashPiasters !== null &&
+    (liveDrawerCashPiasters <= 0 || paidAmountPiasters > liveDrawerCashPiasters)
+  );
+}
+
 // Starting point for "pay part now": half the invoice (rounded down to a whole piaster), never the full amount
 export function halfOfInvoicePiasters(netCostPiasters: number): number {
   return Math.max(0, Math.floor(netCostPiasters / 2));

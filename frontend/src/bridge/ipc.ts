@@ -100,6 +100,7 @@ declare global {
 import { emitDataChanged, type RafiqDataTopic } from '../utils/eventBus.ts';
 import { DEFAULT_REGISTRY } from '../context/featureTypes.ts';
 import { DEFAULT_DEVELOPER_SIGNATURE } from '../utils/receiptLayout.ts';
+import { matchesDateFilter } from '../utils/dateFilter.ts';
 
 const pendingRequests = new Map<string, {
   action: string;
@@ -709,6 +710,53 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       };
     }
 
+    case 'sales:getRecent':
+    case 'sales:search': {
+      // 3 invoices per local day for 60 days (00:00:05, 12:00:00, 23:59:55), newest first; dateFrom/dateTo/status/limit applied like the SQL does
+      const pad2 = (n: number) => String(n).padStart(2, '0');
+      const dayKey = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      const base = new Date();
+      const pool: any[] = [];
+      for (let day = 59; day >= 0; day--) {
+        [[0, 0, 5], [12, 0, 0], [23, 59, 55]].forEach(([h, m, sec], idx) => {
+          const at = new Date(base.getFullYear(), base.getMonth(), base.getDate() - day, h, m, sec);
+          const n = (59 - day) * 3 + idx + 1;
+          pool.push({
+            id: `sale_hist_${n}`,
+            invoiceNumber: 1000 + n,
+            cashierId: 'usr_admin_default',
+            cashierName: 'مدير النظام',
+            customerName: n % 5 === 0 ? 'أحمد محمود إسماعيل' : null,
+            subtotalPiasters: 5000 + n * 10,
+            discountPiasters: 0,
+            taxPiasters: 0,
+            totalPiasters: 5000 + n * 10,
+            paidPiasters: 5000 + n * 10,
+            paymentMethod: 'cash',
+            status: n % 7 === 0 ? 'cancelled' : n % 11 === 0 ? 'partially_refunded' : 'completed',
+            createdAt: at.toISOString(),
+          });
+        });
+      }
+      pool.reverse();
+      const histFrom = typeof payload?.dateFrom === 'string' ? payload.dateFrom : '';
+      const histTo = typeof payload?.dateTo === 'string' ? payload.dateTo : '';
+      const histStatus = payload?.status;
+      const histQuery = typeof payload?.query === 'string' ? payload.query.trim() : '';
+      const histLimit = typeof payload?.limit === 'number' && payload.limit > 0 ? payload.limit : (action === 'sales:search' ? 100 : 20);
+      return pool
+        .filter((s) => {
+          const d = dayKey(new Date(s.createdAt));
+          if (histFrom && d < histFrom) return false;
+          if (histTo && d > histTo) return false;
+          if (histStatus === 'refunded' && s.status !== 'refunded' && s.status !== 'partially_refunded') return false;
+          if (histStatus && histStatus !== 'refunded' && s.status !== histStatus) return false;
+          if (histQuery && !String(s.invoiceNumber).includes(histQuery)) return false;
+          return true;
+        })
+        .slice(0, histLimit);
+    }
+
     case 'sales:getByIdempotencyKey': {
       return null;
     }
@@ -759,7 +807,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           oldPriceFormatted: '0.00 ج.م',
           newPriceFormatted: '40.00 ج.م'
         }
-      ];
+      ].filter((h) => mockInDateRange(h.createdAt, payload));
     }
 
     case 'inventory:getMovements':
@@ -790,7 +838,35 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           note: 'مبيعات كاشير - فاتورة #1001',
           createdAt: new Date(Date.now() - 3600000).toISOString(),
         },
-      ];
+        {
+          id: 'mov_3',
+          productId: payload?.productId || 'p_1',
+          productName: 'لبن جهينة كامل الدسم 1 لتر',
+          productBarcode: '6223001234567',
+          unit: 'piece',
+          movementType: 'PURCHASE',
+          movementTypeArabic: 'مشتريات من الموردين',
+          quantityMilli: 12000,
+          unitCostPiasters: 2700,
+          note: 'استلام فاتورة شراء #1001',
+          createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+        },
+        {
+          id: 'mov_4',
+          productId: payload?.productId || 'p_1',
+          productName: 'لبن جهينة كامل الدسم 1 لتر',
+          productBarcode: '6223001234567',
+          unit: 'piece',
+          movementType: 'SALE',
+          movementTypeArabic: 'مبيعات كاشير',
+          quantityMilli: -3000,
+          unitCostPiasters: 2700,
+          note: 'مبيعات كاشير - فاتورة قديمة',
+          createdAt: new Date(Date.now() - 45 * 86400000).toISOString(),
+        },
+      ]
+        .filter((m) => !payload?.movementType || m.movementType === payload.movementType)
+        .filter((m) => mockInDateRange(m.createdAt, payload));
 
     case 'inventory:adjustStock':
       return {
@@ -2610,7 +2686,32 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'closing:getHistory': {
-      return [];
+      // one closing per local day for the last 60 days (newest first); dateFrom/dateTo/limit applied like the SQL does
+      const pad2 = (n: number) => String(n).padStart(2, '0');
+      const now = new Date();
+      const rows: any[] = [];
+      for (let day = 0; day < 60; day++) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day, 23, 30, 0);
+        rows.push({
+          id: `closing_hist_${day}`,
+          closingNumber: 60 - day,
+          businessDate: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`,
+          closedAt: d.toISOString(),
+          totalSalesPiasters: 100000 + day * 100,
+          instapaySalesPiasters: 0,
+          vodafoneCashSalesPiasters: 0,
+          expensesPiasters: 0,
+          expectedCashPiasters: 100000 + day * 100,
+          actualCashPiasters: 100000 + day * 100,
+          differencePiasters: 0,
+        });
+      }
+      const closeFrom = typeof payload?.dateFrom === 'string' ? payload.dateFrom : '';
+      const closeTo = typeof payload?.dateTo === 'string' ? payload.dateTo : '';
+      const closeLimit = typeof payload?.limit === 'number' && payload.limit > 0 ? payload.limit : 30;
+      return rows
+        .filter((r) => (!closeFrom || r.businessDate >= closeFrom) && (!closeTo || r.businessDate <= closeTo))
+        .slice(0, closeLimit);
     }
 
     case 'closing:print': {
@@ -3134,7 +3235,26 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         const raw = localStorage.getItem('rafiq_backup_config');
         if (raw) cfg = JSON.parse(raw);
       } catch {}
+      // one backup file per local day for the last 40 days; dateFrom/dateTo applied before the list cap (15, or 200 with a period)
+      const bkPad = (n: number) => String(n).padStart(2, '0');
+      const bkNow = new Date();
+      const bkFrom = typeof payload?.dateFrom === 'string' ? payload.dateFrom : '';
+      const bkTo = typeof payload?.dateTo === 'string' ? payload.dateTo : '';
+      const bkFiles: any[] = [];
+      for (let day = 0; day < 40; day++) {
+        const d = new Date(bkNow.getFullYear(), bkNow.getMonth(), bkNow.getDate() - day, 2, 30, 0);
+        const dayKey = `${d.getFullYear()}-${bkPad(d.getMonth() + 1)}-${bkPad(d.getDate())}`;
+        if ((bkFrom && dayKey < bkFrom) || (bkTo && dayKey > bkTo)) continue;
+        bkFiles.push({
+          fileName: `rafiq_backup_${dayKey.replace(/-/g, '')}_0230.db`,
+          fullPath: `C:\\RafiqPOS\\backups\\rafiq_backup_${dayKey.replace(/-/g, '')}_0230.db`,
+          sizeBytes: 1500000 + day * 1000,
+          createdAt: `${dayKey} 02:30`,
+          isVerified: true,
+        });
+      }
       return {
+        recentBackups: bkFiles.slice(0, bkFrom || bkTo ? 200 : 15),
         configuredFolder: cfg.targetFolder || 'C:\\RafiqPOS\\backups',
         autoOnClose: cfg.autoOnClose ?? true,
         autoDaily: cfg.autoDaily ?? true,
@@ -3365,11 +3485,25 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'suppliers:getTransactions': {
       const supplierId = typeof payload === 'string' ? payload : payload?.supplierId;
-      return mockSupplierTransactions.filter((t: any) => t.supplierId === supplierId);
+      return mockSupplierTransactions.filter(
+        (t: any) => t.supplierId === supplierId && mockInDateRange(t.createdAt, payload),
+      );
+    }
+
+    // Same shape and "yyyy-MM-dd HH:mm:ss" UTC timestamps as the real shortage list
+    case 'shortages:list':
+    case 'shortages:getAll': {
+      const sqlUtc = (daysAgo: number) =>
+        new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 19).replace('T', ' ');
+      return [
+        { id: 'sh_1', productId: 'p_1', productName: 'لبن جهينة كامل الدسم 1 لتر', requestedQuantityMilli: 6000, currentStockMilli: 0, minStockMilli: 10000, urgency: 'urgent', source: 'customer_request', status: 'pending', createdAt: sqlUtc(0), updatedAt: sqlUtc(0) },
+        { id: 'sh_2', productId: 'p_4', productName: 'شاي العروسة ناعم 250 جم', requestedQuantityMilli: 12000, currentStockMilli: 2000, minStockMilli: 10000, urgency: 'normal', source: 'auto_reorder', status: 'pending', createdAt: sqlUtc(3), updatedAt: sqlUtc(3) },
+        { id: 'sh_3', productId: 'p_2', productName: 'أرز مصري 1 كجم', requestedQuantityMilli: 20000, currentStockMilli: 0, minStockMilli: 8000, urgency: 'normal', source: 'manual_pos', status: 'pending', createdAt: sqlUtc(40), updatedAt: sqlUtc(40) },
+      ];
     }
 
     case 'purchases:getAll': {
-      let list = [...mockPurchases];
+      let list = mockPurchases.filter((p: any) => mockInDateRange(p.invoiceDate, payload));
       if (payload?.supplierId) {
         list = list.filter((p: any) => p.supplierId === payload.supplierId);
       }
@@ -3811,10 +3945,11 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       if (payload?.terminalId) {
         filtered = filtered.filter((t) => t.terminalId === payload.terminalId);
       }
-      if (payload?.serviceType) {
+      if (payload?.serviceType && payload.serviceType !== 'all') {
         filtered = filtered.filter((t) => t.serviceType === payload.serviceType);
       }
-      return filtered;
+      filtered = filtered.filter((t) => mockInLocalDayRange(t.createdAt, payload?.fromDate, payload?.toDate));
+      return typeof payload?.limit === 'number' && payload.limit > 0 ? filtered.slice(0, payload.limit) : filtered;
     }
 
     case 'epay:getFundings': {
@@ -3822,7 +3957,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       if (payload?.terminalId) {
         filtered = filtered.filter((f) => f.terminalId === payload.terminalId);
       }
-      return filtered;
+      filtered = filtered.filter((f) => mockInLocalDayRange(f.createdAt, payload?.fromDate, payload?.toDate));
+      return typeof payload?.limit === 'number' && payload.limit > 0 ? filtered.slice(0, payload.limit) : filtered;
     }
 
     case 'epay:getAnalytics': {
@@ -3830,6 +3966,11 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       if (payload?.terminalId) {
         filtered = filtered.filter((t) => t.terminalId === payload.terminalId);
       }
+      filtered = filtered.filter((t) => mockInLocalDayRange(t.createdAt, payload?.fromDate, payload?.toDate));
+      const volumeByType: Record<string, number> = {};
+      filtered.forEach((t) => {
+        volumeByType[t.serviceType] = (volumeByType[t.serviceType] || 0) + (t.billAmountPiasters || 0);
+      });
       const totalVolume = filtered.reduce((s, t) => s + (t.billAmountPiasters || 0), 0);
       const totalFees = filtered.reduce((s, t) => s + (t.customerFeePiasters || 0), 0);
       const totalComms = filtered.reduce((s, t) => s + (t.providerCommissionPiasters || 0), 0);
@@ -3851,6 +3992,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         totalInTerminalTillPiasters: totalInTill,
         activeTerminalsCount: activeTerminals.length,
         totalTerminalsBalancePiasters: totalTerminalsBal,
+        transactionsByType: filtered.reduce((m: Record<string, number>, t) => { m[t.serviceType] = (m[t.serviceType] || 0) + 1; return m; }, {}),
+        profitByTypePiasters: filtered.reduce((m: Record<string, number>, t) => { m[t.serviceType] = (m[t.serviceType] || 0) + (t.netProfitPiasters || 0); return m; }, {}),
+        volumeByTypePiasters: volumeByType,
         totalVolumeFormatted: (totalVolume / 100).toFixed(2) + ' ج.م',
         totalNetProfitFormatted: (totalNetProf / 100).toFixed(2) + ' ج.م',
         totalCustomerFeesFormatted: (totalFees / 100).toFixed(2) + ' ج.م',
@@ -4065,7 +4209,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       if (payload?.txType) {
         filtered = filtered.filter((t) => t.txType === payload.txType);
       }
-      return filtered;
+      filtered = filtered.filter((t) => mockInLocalDayRange(t.createdAt, payload?.dateFrom, payload?.dateTo));
+      return typeof payload?.limit === 'number' && payload.limit > 0 ? filtered.slice(0, payload.limit) : filtered;
     }
 
     case 'wallets:getFundings': {
@@ -4073,7 +4218,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       if (payload?.accountId) {
         filtered = filtered.filter((f) => f.accountId === payload.accountId);
       }
-      return filtered;
+      return filtered.filter((f) => mockInLocalDayRange(f.createdAt, payload?.dateFrom, payload?.dateTo));
     }
 
     case 'wallets:getAnalytics': {
@@ -4088,6 +4233,10 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
       const todayStr = new Date().toISOString().slice(0, 10);
       const todayTxs = mockDigitalTransactions.filter((t) => t.createdAt && t.createdAt.slice(0, 10) === todayStr);
+      const periodTxs = mockDigitalTransactions.filter(
+        (t) => (t.status || 'completed') === 'completed' && mockInLocalDayRange(t.createdAt, payload?.dateFrom, payload?.dateTo)
+      );
+      const completedTxs = mockDigitalTransactions.filter((t) => (t.status || 'completed') === 'completed');
 
       const todayProfit = todayTxs.reduce((sum, t) => sum + (t.profitPiasters || 0), 0);
       const monthProfit = mockDigitalTransactions.reduce((sum, t) => sum + (t.profitPiasters || 0), 0);
@@ -4101,6 +4250,10 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         monthProfitPiasters: monthProfit,
         todayTransactionsCount: todayTxs.length,
         todayVolumePiasters: todayVolume,
+        totalProfitPiasters: completedTxs.reduce((sum, t) => sum + (t.profitPiasters || 0), 0),
+        periodTransactionsCount: periodTxs.length,
+        periodProfitPiasters: periodTxs.reduce((sum, t) => sum + (t.profitPiasters || 0), 0),
+        periodVolumePiasters: periodTxs.reduce((sum, t) => sum + (t.amountPiasters || 0), 0),
         activeAccountsCount: activeAccounts.length,
         walletsBalanceFormatted: (walletsBal / 100).toFixed(2) + ' ج.م',
         instapayBalanceFormatted: (instapayBal / 100).toFixed(2) + ' ج.م',
@@ -4173,6 +4326,9 @@ const DEFAULT_APP_SETTINGS: Record<string, string> = {
   receipt_header: '',
   receipt_footer: '',
   receipt_show_cashier: '1',
+  receipt_show_invoice_number: '1',
+  receipt_show_paid: '1',
+  receipt_show_change: '1',
   developer_signature_visible: '1',
   developer_signature_image: '',
   developer_signature: DEFAULT_DEVELOPER_SIGNATURE,
@@ -4458,7 +4614,25 @@ let mockSuppliers: any[] = [
   },
 ];
 
+// Mirrors the backend dateFrom/dateTo payload (local days, both inclusive) for the browser mock
+function mockInDateRange(value: string, payload: any): boolean {
+  return matchesDateFilter(value, {
+    preset: 'custom',
+    startDate: payload?.dateFrom || '',
+    endDate: payload?.dateTo || '',
+  });
+}
+
 let mockSupplierTransactions: any[] = [
+  {
+    id: 'st_0',
+    supplierId: 'sup_1',
+    transactionType: 'OPENING_BALANCE',
+    referenceId: null,
+    amountPiasters: 50000,
+    notes: 'رصيد افتتاحي للمورد',
+    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+  },
   {
     id: 'st_1',
     supplierId: 'sup_1',
@@ -4517,6 +4691,25 @@ let mockPurchases: any[] = [
       },
     ],
   },
+  {
+    id: 'pur_2',
+    invoiceNumber: 1000,
+    supplierId: 'sup_1',
+    supplierName: 'شركة النيل للمواد الغذائية والتوزيع',
+    supplierInvoiceNumber: 'INV-3870',
+    invoiceDate: new Date(Date.now() - 45 * 86400000).toISOString(),
+    totalCostPiasters: 60000,
+    discountPiasters: 0,
+    netCostPiasters: 60000,
+    paidAmountPiasters: 60000,
+    remainingAmountPiasters: 0,
+    paymentStatus: 'PAID',
+    status: 'COMPLETED',
+    notes: 'فاتورة قديمة مسددة',
+    createdAt: new Date(Date.now() - 45 * 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - 45 * 86400000).toISOString(),
+    items: [],
+  },
 ];
 
 let mockEpayTerminals: any[] = [];
@@ -4565,6 +4758,17 @@ let mockDigitalAccounts: any[] = [
 
 let mockDigitalTransactions: any[] = [];
 let mockDigitalFundings: any[] = [];
+
+// local calendar day of a stored timestamp inside an inclusive YYYY-MM-DD range (empty bound = open), like the SQL range filter
+function mockInLocalDayRange(createdAt: unknown, from: unknown, to: unknown): boolean {
+  const d = new Date(String(createdAt));
+  if (isNaN(d.getTime())) return false;
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  let lo = typeof from === 'string' ? from : '';
+  let hi = typeof to === 'string' ? to : '';
+  if (lo && hi && lo > hi) { const t = lo; lo = hi; hi = t; }
+  return (!lo || day >= lo) && (!hi || day <= hi);
+}
 
 // Shift & cash drawer mock (same JSON contract as desktop/Models/ShiftModels.cs; money in integer piasters)
 let mockShiftSeq = 3;

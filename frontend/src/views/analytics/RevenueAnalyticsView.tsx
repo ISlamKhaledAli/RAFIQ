@@ -27,6 +27,8 @@ import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
+import { useToday } from '../../utils/dateFilter';
+import { buildReportPeriodPayload, defaultCustomReportRange } from '../../utils/reportPeriod';
 import { formatArabicCurrency } from '../../utils/money';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
@@ -50,9 +52,9 @@ const PERIOD_OPTIONS: SelectOption[] = [
   { value: 'today', label: 'اليوم' },
   { value: 'yesterday', label: 'أمس' },
   { value: 'week', label: 'آخر 7 أيام' },
-  { value: 'month', label: 'هذا الشهر (30 يوم)' },
-  { value: '3months', label: 'آخر 3 أشهر' },
-  { value: 'year', label: 'هذا العام' },
+  { value: 'month', label: 'آخر 30 يوماً' },
+  { value: '3months', label: 'آخر 3 أشهر (90 يوماً)' },
+  { value: 'year', label: 'آخر 365 يوماً' },
   { value: 'custom', label: 'فترة مخصصة...' },
 ];
 
@@ -78,12 +80,10 @@ export interface RevenueAnalyticsViewProps {
 
 export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive = true }) => {
   const [period, setPeriod] = useState<string>('month');
-  const [customFrom, setCustomFrom] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
-  });
-  const [customTo, setCustomTo] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [customFrom, setCustomFrom] = useState<string>(() => defaultCustomReportRange().from);
+  const [customTo, setCustomTo] = useState<string>(() => defaultCustomReportRange().to);
+  // يتغير عند منتصف الليل فتُعاد قراءة التقارير النسبية (اليوم/أمس/آخر 7 أيام)
+  const today = useToday();
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const showLoading = useSmoothLoading(isLoading, 300);
@@ -119,11 +119,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const payload = {
-        period,
-        fromDate: period === 'custom' ? customFrom : undefined,
-        toDate: period === 'custom' ? customTo : undefined,
-      };
+      const payload = buildReportPeriodPayload(period, customFrom, customTo);
 
       const [salesRes, lossRes, closingsRes, catRes, itemsRes, compRes, hourlyRes, vatRes] = await Promise.all([
         invoke<PeriodSalesReport>('reports:getPeriodSales', payload).catch(() => null),
@@ -131,13 +127,11 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         invoke<ClosingHistoryRecord[]>('reports:getClosingHistory', payload).catch(() => []),
         invoke<CategoryPerformanceItem[]>('reports:getCategoryPerformance', payload).catch(() => []),
         invoke<ItemProfitabilityItem[]>('reports:getItemProfitability', {
-          period,
-          fromDate: period === 'custom' ? customFrom : undefined,
-          toDate: period === 'custom' ? customTo : undefined,
+          ...payload,
           direction: itemsDirection,
           limit: 20
         }).catch(() => []),
-        invoke<PeriodComparisonReport>('reports:getPeriodComparison', { period }).catch(() => null),
+        invoke<PeriodComparisonReport>('reports:getPeriodComparison', payload).catch(() => null),
         invoke<HourlyIntensityReport>('reports:getHourlyIntensity', payload).catch(() => null),
         invoke<VatReport>('reports:getVatReport', payload).catch(() => null),
       ]);
@@ -161,7 +155,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
     if (isActive) {
       void loadData();
     }
-  }, [isActive, loadData]);
+  }, [isActive, loadData, today]);
 
   useDataSubscription(['sales', 'dashboard', 'all'], () => {
     void loadData();

@@ -6,6 +6,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
+import { buildReportPeriodPayload } from '../../utils/reportPeriod';
 import type { CashierPerformanceMetric } from '../../types/models';
 
 export interface CashierPerformanceCardProps {
@@ -25,11 +26,10 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await invoke<CashierPerformanceMetric[]>('reports:getCashierPerformance', {
-        period,
-        fromDate: period === 'custom' ? customFrom : undefined,
-        toDate: period === 'custom' ? customTo : undefined,
-      });
+      const res = await invoke<CashierPerformanceMetric[]>(
+        'reports:getCashierPerformance',
+        buildReportPeriodPayload(period, customFrom || '', customTo || '')
+      );
       if (res) setMetrics(res);
     } catch (err) {
       console.error('Failed to load cashier performance:', err);
