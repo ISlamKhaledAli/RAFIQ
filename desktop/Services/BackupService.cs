@@ -851,6 +851,15 @@ namespace RafiqPOS.Services
 
         public BackupStatusInfo GetStatus()
         {
+            return GetStatus(null, null);
+        }
+
+        /// <summary>
+        /// نفس الحالة مع تصفية قائمة النسخ بتاريخ إنشاء الملف المحلي (من/إلى شاملين، تُعاد الترتيب لو انعكسا)؛
+        /// مع الفترة يرتفع حد القائمة من 15 إلى 200 نسخة والتصفية تسبق الحد.
+        /// </summary>
+        public BackupStatusInfo GetStatus(string dateFrom, string dateTo)
+        {
             var status = new BackupStatusInfo();
 
             string lastSuccess = _settingsRepo.Get("backup_last_success_at", "");
@@ -918,10 +927,22 @@ namespace RafiqPOS.Services
                     Array.Sort(files);
                     Array.Reverse(files);
 
-                    int maxItems = Math.Min(files.Length, 15);
-                    for (int i = 0; i < maxItems; i++)
+                    string fromDay = NormalizeLocalDay(dateFrom);
+                    string toDay = NormalizeLocalDay(dateTo);
+                    if (fromDay != null && toDay != null && string.CompareOrdinal(fromDay, toDay) > 0)
                     {
-                        var fi = new FileInfo(files[i]);
+                        string swapDay = fromDay;
+                        fromDay = toDay;
+                        toDay = swapDay;
+                    }
+                    int maxItems = (fromDay != null || toDay != null) ? 200 : 15;
+                    foreach (string file in files)
+                    {
+                        if (status.RecentBackups.Count >= maxItems) break;
+                        var fi = new FileInfo(file);
+                        string fileDay = fi.CreationTime.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                        if (fromDay != null && string.CompareOrdinal(fileDay, fromDay) < 0) continue;
+                        if (toDay != null && string.CompareOrdinal(fileDay, toDay) > 0) continue;
                         status.RecentBackups.Add(new BackupFileInfo
                         {
                             FileName = fi.Name,
@@ -939,6 +960,19 @@ namespace RafiqPOS.Services
             }
 
             return status;
+        }
+
+        private static string NormalizeLocalDay(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            string trimmed = value.Trim();
+            if (trimmed.Length > 10) trimmed = trimmed.Substring(0, 10);
+            DateTime parsed;
+            if (!DateTime.TryParseExact(trimmed, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out parsed))
+            {
+                return null;
+            }
+            return parsed.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         }
 
         public List<DriveItem> GetAvailableDrives()

@@ -60,9 +60,9 @@ namespace RafiqPOS.Services
             }
         }
 
-        public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50)
+        public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50, string dateFrom = null, string dateTo = null)
         {
-            return _supplierRepo.GetTransactions(supplierId, limit);
+            return _supplierRepo.GetTransactions(supplierId, limit, dateFrom, dateTo);
         }
 
         public SupplierBalanceVerification VerifyBalance(string supplierId)

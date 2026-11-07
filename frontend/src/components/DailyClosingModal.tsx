@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Lock, 
   AlertTriangle, 
@@ -18,6 +18,7 @@ import {
   Banknote,
   Users,
   ChevronDown,
+  RotateCcw,
   type LucideIcon
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
@@ -25,6 +26,12 @@ import type { DailyClosing, DailyClosingPreview } from '../types/models';
 import { formatArabicCurrency, toSafePiasters } from '../utils/money';
 import { MoneyInput } from './MoneyInput';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { DateFilterControl } from './DateFilterControl';
+import { useDateFilter, useToday, isDateFilterActive, describeDateFilter, getDateFilterPayload, formatLocalDateTime } from '../utils/dateFilter';
+
+// Without a period the list shows the latest 30 closings; with a period up to a year of days
+const CLOSING_HISTORY_DEFAULT_LIMIT = 30;
+const CLOSING_HISTORY_PERIOD_LIMIT = 400;
 
 type MetricTone = 'paid' | 'brand' | 'warn' | 'danger';
 
@@ -96,6 +103,17 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [historyList, setHistoryList] = useState<DailyClosing[]>([]);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
+  // The period applies to the business day (يوم العمل) of each closing and is filtered by the backend
+  const { dateFilter: historyFilter, setDateFilter: setHistoryFilter, resetDateFilter: resetHistoryFilter } = useDateFilter();
+  const historyDateActive = isDateFilterActive(historyFilter);
+  const today = useToday();
+  const historyQuery = useMemo(
+    () => ({
+      limit: historyDateActive ? CLOSING_HISTORY_PERIOD_LIMIT : CLOSING_HISTORY_DEFAULT_LIMIT,
+      ...getDateFilterPayload(historyFilter, today),
+    }),
+    [historyFilter, historyDateActive, today]
+  );
 
   // Epay & Wallets details accordion state ("حاجة بتتقفل وتتفتح")
   const [showEpayDetails, setShowEpayDetails] = useState<boolean>(false);
@@ -140,18 +158,24 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
     }
   }, [isOpen, loadPreview]);
 
-  const loadHistory = async () => {
-    setShowHistory(true);
+  useEffect(() => {
+    if (!isOpen || !showHistory) return;
+    let cancelled = false;
     setLoadingHistory(true);
-    try {
-      const res = await invoke<DailyClosing[]>('closing:getHistory', { limit: 30 });
-      setHistoryList(res || []);
-    } catch (err: unknown) {
-      console.error(err);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
+    void (async () => {
+      try {
+        const res = await invoke<DailyClosing[]>('closing:getHistory', historyQuery);
+        if (!cancelled) setHistoryList(res || []);
+      } catch (err: unknown) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setLoadingHistory(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, showHistory, historyQuery]);
 
   const handleSaveClosing = async () => {
     if (!preview) return;
@@ -308,7 +332,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 if (showHistory) {
                   setShowHistory(false);
                 } else {
-                  void loadHistory();
+                  resetHistoryFilter();
+                  setShowHistory(true);
                 }
               }}
               className="px-4 h-10 rounded-lg text-sm font-medium bg-white/15 dark:bg-surface-dark-3 hover:bg-white/25 dark:hover:bg-surface-dark text-white dark:text-ink-dark transition flex items-center gap-2 cursor-pointer"
@@ -336,15 +361,34 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
           ) : showHistory ? (
             /* History Subview */
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="t-card-title text-ink dark:text-ink-dark">سجل الإقفالات اليومية المعتمدة</h3>
-                <span className="text-xs text-ink-muted dark:text-ink-dark-muted">آخر 30 إقفال</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <DateFilterControl value={historyFilter} onChange={setHistoryFilter} size="sm" selectWidthClass="w-44" />
+                  <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
+                    {historyDateActive
+                      ? `${historyList.length} إقفال خلال ${describeDateFilter(historyFilter)}`
+                      : `آخر ${CLOSING_HISTORY_DEFAULT_LIMIT} إقفال`}
+                  </span>
+                </div>
               </div>
               {loadingHistory ? (
                 <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted">جاري تحميل السجل...</div>
               ) : historyList.length === 0 ? (
                 <div className="p-8 text-center text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark">
-                  لم يتم إجراء أي إقفال يومي بعد.
+                  {historyDateActive ? `مفيش إقفالات يومية خلال ${describeDateFilter(historyFilter)}.` : 'لم يتم إجراء أي إقفال يومي بعد.'}
+                  {historyDateActive && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={resetHistoryFilter}
+                        className="h-8 px-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>عرض آخر الإقفالات</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden bg-surface dark:bg-surface-dark shadow-xs">
@@ -371,7 +415,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                           <tr key={h.id} className="hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition">
                             <td className="p-3 font-bold text-ink dark:text-ink-dark">#{h.closingNumber}</td>
                             <td className="p-3 text-ink dark:text-ink-dark">{h.businessDate}</td>
-                            <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted" dir="ltr">{h.closedAt ? h.closedAt.substring(0, 16) : '-'}</td>
+                            <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted" dir="ltr">{formatLocalDateTime(h.closedAt) || '-'}</td>
                             <td className="p-3 font-semibold text-ink dark:text-ink-dark">{formatArabicCurrency(h.totalSalesPiasters)}</td>
                             <td className="p-3 text-brand dark:text-brand-bright font-medium">{formatArabicCurrency(h.instapaySalesPiasters || 0)}</td>
                             <td className="p-3 text-danger dark:text-danger-bright font-medium">{formatArabicCurrency(h.vodafoneCashSalesPiasters || 0)}</td>
@@ -467,7 +511,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                       <div>
                         <h4 className="t-label">اليومية اتقفلت واعتمدت خلاص (تقفيل #{savedClosing.closingNumber})</h4>
                         <p className="text-xs opacity-90">
-                          اتقفلت اليومية في {savedClosing.closedAt ? savedClosing.closedAt.substring(0, 16) : ''} بواسطة {savedClosing.cashierName || 'المشرف'}. السجل ده معتمد ومحمي تماماً.
+                          اتقفلت اليومية في {formatLocalDateTime(savedClosing.closedAt)} بواسطة {savedClosing.cashierName || 'المشرف'}. السجل ده معتمد ومحمي تماماً.
                         </p>
                       </div>
                     </div>

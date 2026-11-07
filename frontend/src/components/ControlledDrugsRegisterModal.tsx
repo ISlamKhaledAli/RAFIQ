@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   ShieldAlert,
   Printer,
-  Calendar,
   X,
   FileSpreadsheet,
   Pill,
@@ -16,6 +15,9 @@ import type { ControlledInspectionReportRow } from '../types/pharma';
 import type { Product } from '../types/models';
 import { CustomSelect, type SelectOption } from './CustomSelect';
 import { useAuth } from '../context/useAuth';
+import { DateFilterControl } from './DateFilterControl';
+import { type DateFilterValue, DEFAULT_DATE_FILTER, isDateFilterActive, describeDateFilter, useToday } from '../utils/dateFilter';
+import { buildInspectionRegisterPayload, lastMonthFilter } from './pharmaDateRange';
 
 interface ControlledDrugsRegisterModalProps {
   isOpen: boolean;
@@ -33,13 +35,11 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
 
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>(initialProductId || '');
-  const [startDate, setStartDate] = useState<string>(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
-    return d.toISOString().slice(0, 10);
-  });
-  const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(() => lastMonthFilter());
+  const today = useToday();
+  const dateActive = isDateFilterActive(dateFilter);
   const [rows, setRows] = useState<ControlledInspectionReportRow[]>([]);
+  const requestSeq = useRef(0);
   const [loading, setLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [showFullNationalIds, setShowFullNationalIds] = useState(false);
@@ -62,25 +62,27 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
   // Fetch register rows from backend
   const loadRegisterData = useCallback(async () => {
     if (!selectedProductId) return;
+    const seq = ++requestSeq.current;
     setLoading(true);
     try {
-      const data = await invoke<ControlledInspectionReportRow[]>('pharma:getControlledInspectionRegister', {
-        productId: selectedProductId,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-      });
-      setRows(data || []);
+      const data = await invoke<ControlledInspectionReportRow[]>(
+        'pharma:getControlledInspectionRegister',
+        buildInspectionRegisterPayload(selectedProductId, dateFilter)
+      );
+      if (seq === requestSeq.current) setRows(data || []);
     } catch (err: unknown) {
       console.error('Failed to load inspection register:', err);
-      setRows([]);
+      if (seq === requestSeq.current) setRows([]);
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
-  }, [selectedProductId, startDate, endDate]);
+  }, [selectedProductId, dateFilter]);
 
   useEffect(() => {
     if (isOpen) {
       void loadControlledProducts();
+      // a reopened register starts from a fresh "last month" range, not the one frozen at first mount
+      setDateFilter(lastMonthFilter());
       if (initialProductId) {
         setSelectedProductId(initialProductId);
       }
@@ -88,10 +90,11 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
   }, [isOpen, initialProductId, loadControlledProducts]);
 
   useEffect(() => {
+    // today in the deps: a relative preset is re-evaluated when the day rolls over
     if (isOpen && selectedProductId) {
       void loadRegisterData();
     }
-  }, [isOpen, selectedProductId, startDate, endDate, loadRegisterData]);
+  }, [isOpen, selectedProductId, loadRegisterData, today]);
 
   // Product Options for CustomSelect
   const productOptions: SelectOption[] = useMemo(() => {
@@ -148,6 +151,16 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
     };
   }, [rows]);
 
+  const movementCount = useMemo(
+    () => rows.filter((r) => r.transactionType !== 'opening_balance').length,
+    [rows]
+  );
+
+  const resetFilters = () => {
+    setDateFilter(DEFAULT_DATE_FILTER);
+    setSearchFilter('');
+  };
+
   const handlePrint = () => {
     void printReport({ kind: 'a4only', orientation: 'landscape' });
   };
@@ -174,6 +187,9 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
               </div>
               <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0 print:text-xs">
                 طبقا للقرار الوزاري وقوانين مزاولة مهنة الصيدلة والتفتيش على أدوية الجدول والرقابة
+              </p>
+              <p className="text-micro font-bold text-ink dark:text-ink-dark m-0 print:text-xs">
+                الفترة: {dateActive ? describeDateFilter(dateFilter) : 'كل الفترات'}
               </p>
             </div>
           </div>
@@ -211,24 +227,8 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
               />
             </div>
 
-            {/* Date Filters */}
-            <div className="flex items-center gap-1.5 bg-surface-2 dark:bg-surface-dark-2 px-2.5 py-1 rounded-lg border border-line dark:border-line-dark">
-              <Calendar className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
-              <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">من:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="bg-transparent text-xs font-mono font-bold text-ink dark:text-ink-dark focus:outline-none"
-              />
-              <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted mr-1">إلى:</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="bg-transparent text-xs font-mono font-bold text-ink dark:text-ink-dark focus:outline-none"
-              />
-            </div>
+            {/* Date Filter */}
+            <DateFilterControl value={dateFilter} onChange={setDateFilter} variant="select" size="sm" />
 
             {/* Quick Search inside register */}
             <div className="relative min-w-[160px]">
@@ -320,7 +320,22 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
           ) : filteredRows.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2">
               <FileSpreadsheet className="w-10 h-10 text-ink-muted/50 dark:text-ink-dark-muted" />
-              <span className="text-xs font-bold">لا توجد حركات مسجلة لهذا الصنف خلال الفترة المحددة</span>
+              <span className="text-xs font-bold">
+                {searchFilter.trim()
+                  ? 'لا توجد حركات مطابقة للبحث'
+                  : dateActive
+                  ? `لا توجد حركات مسجلة لهذا الصنف خلال ${describeDateFilter(dateFilter)}`
+                  : 'لا توجد حركات مسجلة لهذا الصنف'}
+              </span>
+              {(dateActive || searchFilter.trim()) && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="h-8 px-3 rounded-lg bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
+                >
+                  إعادة ضبط البحث والفترة
+                </button>
+              )}
             </div>
           ) : (
             <table className="w-full text-right border-collapse text-micro print:text-[9px]">
@@ -416,6 +431,22 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
                 })}
               </tbody>
             </table>
+          )}
+          {selectedProductId && !loading && movementCount === 0 && !searchFilter.trim() && (
+            <div className="mt-3 flex items-center justify-center gap-3 text-xs font-bold text-ink-muted dark:text-ink-dark-muted print:hidden">
+              <span>
+                {dateActive ? `لا توجد حركات خلال ${describeDateFilter(dateFilter)}` : 'لا توجد حركات مسجلة'}
+              </span>
+              {dateActive && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="h-8 px-3 rounded-lg bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
+                >
+                  إعادة ضبط الفترة
+                </button>
+              )}
+            </div>
           )}
 
           {/* Official Signature Area for Print */}

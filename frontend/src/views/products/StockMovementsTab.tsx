@@ -17,7 +17,14 @@ import { DateFilterControl } from '../../components/DateFilterControl';
 import { useClientPagination } from '../../utils/usePagination';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
-import { useDateFilter } from '../../utils/dateFilter';
+import {
+  type DateFilterValue,
+  DEFAULT_DATE_FILTER,
+  describeDateFilter,
+  getDateFilterKey,
+  isDateFilterActive,
+} from '../../utils/dateFilter';
+import { MOVEMENTS_LOAD_LIMIT } from './stockMovementsQuery';
 
 /** Shared column template so the header and every row line up; fixed gaps keep the last columns apart. */
 const MOVEMENTS_GRID =
@@ -44,9 +51,11 @@ export interface StockMovementsTabProps {
   setMovementTypeFilter: (filter: string) => void;
   movementSearchQuery: string;
   setMovementSearchQuery: (query: string) => void;
+  /** The range is applied by the backend query, so the parent owns the state and the load. */
+  movementDateFilter: DateFilterValue;
+  setMovementDateFilter: (value: DateFilterValue) => void;
   movementsLoading: boolean;
   onRecalculateStock: () => void;
-  onLoadMovements: () => void;
 }
 
 export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
@@ -59,16 +68,25 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
   setMovementTypeFilter,
   movementSearchQuery,
   setMovementSearchQuery,
+  movementDateFilter,
+  setMovementDateFilter,
   movementsLoading,
   onRecalculateStock,
-  onLoadMovements,
 }) => {
   const showLoading = useSmoothLoading(movementsLoading, 300);
-  const { dateFilter, setDateFilter, filterDate } = useDateFilter();
+  const isDateActive = isDateFilterActive(movementDateFilter);
+  const periodLabel = describeDateFilter(movementDateFilter);
+  const isTruncated = allMovements.length >= MOVEMENTS_LOAD_LIMIT;
+  const hasAnyFilter = isDateActive || movementTypeFilter !== 'ALL' || movementSearchQuery.trim() !== '';
+
+  const resetAllFilters = () => {
+    setMovementDateFilter({ ...DEFAULT_DATE_FILTER });
+    setMovementTypeFilter('ALL');
+    setMovementSearchQuery('');
+  };
 
   const filteredMovements = useMemo(() => {
     let result = allMovements;
-    result = result.filter((m) => filterDate(m.createdAt));
     if (movementSearchQuery.trim()) {
       const q = movementSearchQuery.toLowerCase();
       result = result.filter((m) =>
@@ -78,7 +96,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
       );
     }
     return result;
-  }, [allMovements, movementSearchQuery, filterDate]);
+  }, [allMovements, movementSearchQuery]);
 
   const {
     currentPage,
@@ -86,7 +104,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
     pageSize,
     setPageSize,
     paginatedItems: pagedMovements,
-  } = useClientPagination(filteredMovements, 25, `${movementSearchQuery}_${movementTypeFilter}_${dateFilter.preset}_${dateFilter.startDate}_${dateFilter.endDate}`);
+  } = useClientPagination(filteredMovements, 25, `${movementSearchQuery}_${movementTypeFilter}_${getDateFilterKey(movementDateFilter)}`);
 
   return (
     <div className="flex-1 flex flex-col gap-3 overflow-hidden select-none">
@@ -100,7 +118,12 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
             </div>
             <div>
               <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي حركات بضاعة المخزن</div>
-              <div className="text-lg font-mono font-bold text-ink dark:text-ink-dark">{allMovements.length} حركة</div>
+              <div className="text-lg font-mono font-bold text-ink dark:text-ink-dark">
+                {filteredMovements.length}{isTruncated ? '+' : ''} حركة
+              </div>
+              {isDateActive && (
+                <div className="text-micro text-brand dark:text-brand-bright font-bold">في الفترة: {periodLabel}</div>
+              )}
             </div>
           </div>
         </div>
@@ -172,10 +195,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
             <button
               key={tab.id}
               type="button"
-              onClick={() => {
-                setMovementTypeFilter(tab.id);
-                setTimeout(() => void onLoadMovements(), 50);
-              }}
+              onClick={() => setMovementTypeFilter(tab.id)}
               className={`h-9 px-3.5 rounded-full font-semibold transition-colors shrink-0 cursor-pointer ${
                 movementTypeFilter === tab.id
                   ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
@@ -189,8 +209,8 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
 
         <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
           <DateFilterControl
-            value={dateFilter}
-            onChange={setDateFilter}
+            value={movementDateFilter}
+            onChange={setMovementDateFilter}
             size="md"
             selectWidthClass="w-44 sm:w-48"
           />
@@ -241,10 +261,21 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
           ) : filteredMovements.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2 p-6">
               <Boxes className="w-12 h-12 stroke-[1.2] text-ink-muted dark:text-ink-dark-muted opacity-50" />
-              <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">مافيش حركات مسجلة للبضاعة مطابقة للبحث أو للفلتر ده</p>
+              <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">
+                {isDateActive ? `مافيش حركات بضاعة في الفترة دي (${periodLabel})` : 'مافيش حركات مسجلة للبضاعة مطابقة للبحث أو للفلتر ده'}
+              </p>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0">
                 حركات المخزن بتتسجل تلقائياً مع كل فاتورة بيع أو شراء أو تسوية جرد.
               </p>
+              {hasAnyFilter && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="mt-1 h-9 px-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                >
+                  مسح الفلاتر وعرض كل الحركات
+                </button>
+              )}
             </div>
           ) : (
             pagedMovements.map((m) => {
@@ -331,7 +362,11 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
 
         {/* Table Footer */}
         <div className="h-[32px] bg-surface-2 dark:bg-surface-dark-2 hairline-t px-4 flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted shrink-0">
-          <span>كل حركة بضاعة متسجلة تلقائياً بدون إمكانية للحذف لحماية المخزن من أي عجز أو تلاعب.</span>
+          <span>
+            {isTruncated
+              ? `معروض أحدث ${MOVEMENTS_LOAD_LIMIT} حركة فقط، حدّد فترة أضيق لعرض الحركات الأقدم.`
+              : 'كل حركة بضاعة متسجلة تلقائياً بدون إمكانية للحذف لحماية المخزن من أي عجز أو تلاعب.'}
+          </span>
         </div>
       </div>
 

@@ -473,6 +473,47 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   --tw-enter-translate-x: -8px;
 }
 
+/* Ring that draws the eye to a save bar when the user chose to stay on a page with unsaved changes (see context/useUnsavedChanges.ts) */
+@keyframes unsaved-pulse-ring {
+  0%, 100% {
+    box-shadow: 0 0 0 0 theme('colors.warn.DEFAULT / 0');
+  }
+  35% {
+    box-shadow: 0 0 0 6px theme('colors.warn.DEFAULT / 0.45');
+  }
+}
+
+.unsaved-pulse {
+  animation: unsaved-pulse-ring 0.9s ease-out 3;
+}
+
+html.dark .unsaved-pulse {
+  animation-name: unsaved-pulse-ring-dark;
+}
+
+@keyframes unsaved-pulse-ring-dark {
+  0%, 100% {
+    box-shadow: 0 0 0 0 theme('colors.warn-bright / 0');
+  }
+  35% {
+    box-shadow: 0 0 0 6px theme('colors.warn-bright / 0.5');
+  }
+}
+
+/* Reduced motion: a static outline instead of the pulsing ring */
+@media (prefers-reduced-motion: reduce) {
+  .unsaved-pulse,
+  html.dark .unsaved-pulse {
+    animation: none;
+    outline: 2px solid theme('colors.warn.DEFAULT');
+    outline-offset: 2px;
+  }
+
+  html.dark .unsaved-pulse {
+    outline-color: theme('colors.warn-bright');
+  }
+}
+
 /* =========================================================================
    PRINT MEDIA RULES (reports on A4 or 80/58mm rolls)
    Page size comes from <style id="print-page-size"> injected by utils/printReport.ts.

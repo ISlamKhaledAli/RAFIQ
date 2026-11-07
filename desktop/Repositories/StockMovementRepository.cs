@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 
 namespace RafiqPOS.Repositories
@@ -72,9 +73,11 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public List<StockMovement> GetMovements(string productId = null, string movementType = null, string fromDate = null, string toDate = null, int limit = 200)
+        public List<StockMovement> GetMovements(string productId = null, string movementType = null, string fromDate = null, string toDate = null, int limit = 200, string dateFrom = null, string dateTo = null)
         {
             var list = new List<StockMovement>();
+            // dateFrom/dateTo: أيام محلية yyyy-MM-dd، شاملة الطرفين، وتُقارن بقيم created_at المخزنة UTC بصيغة ISO
+            LocalDateRange dayRange = LocalDateRange.Parse(dateFrom, dateTo);
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -105,6 +108,18 @@ namespace RafiqPOS.Repositories
                 {
                     clauses.Add("sm.created_at <= @toDate");
                     parameters.Add(new SQLiteParameter("@toDate", toDate.Trim()));
+                }
+
+                if (dayRange.FromUtc.HasValue)
+                {
+                    clauses.Add("sm.created_at >= @dayFrom");
+                    parameters.Add(new SQLiteParameter("@dayFrom", LocalDateRange.ToIsoPrefix(dayRange.FromUtc.Value)));
+                }
+
+                if (dayRange.ToExclusiveUtc.HasValue)
+                {
+                    clauses.Add("sm.created_at < @dayToExclusive");
+                    parameters.Add(new SQLiteParameter("@dayToExclusive", LocalDateRange.ToIsoPrefix(dayRange.ToExclusiveUtc.Value)));
                 }
 
                 string whereClause = clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses.ToArray()) : "";

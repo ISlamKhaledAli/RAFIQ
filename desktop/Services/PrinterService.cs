@@ -953,6 +953,9 @@ namespace RafiqPOS.Services
             public string Footer = "";
             public string Signature = "";
             public bool ShowCashier = true;
+            public bool ShowInvoiceNumber = true;
+            public bool ShowPaid = true;
+            public bool ShowChange = true;
             public bool SignatureVisible = true;
             public string SignatureImage = "";
         }
@@ -1443,6 +1446,10 @@ namespace RafiqPOS.Services
             }
             // المفتاح الناقص أو أي قيمة غير "0" تعني إظهار اسم الكاشير
             info.ShowCashier = ReadStoreSetting(store, "receipt_show_cashier") != "0";
+            // نفس القاعدة لمفاتيح رقم الفاتورة والمدفوع والباقي: عرض فقط ولا تغيّر أي قيمة مخزنة
+            info.ShowInvoiceNumber = ReadStoreSetting(store, "receipt_show_invoice_number") != "0";
+            info.ShowPaid = ReadStoreSetting(store, "receipt_show_paid") != "0";
+            info.ShowChange = ReadStoreSetting(store, "receipt_show_change") != "0";
             // توقيع الإيصال: المفتاح الناقص يعني ظاهر وبالصورة الافتراضية المضمّنة؛ "none" بدون صورة؛ وغير ذلك صورة مخصصة
             info.SignatureVisible = ReadStoreSetting(store, SettingsService.SignatureVisibleKey) != "0";
             info.SignatureImage = ReadStoreSetting(store, SettingsService.SignatureImageKey);
@@ -2132,9 +2139,12 @@ namespace RafiqPOS.Services
                 p.Separator(p.Dashed, 3f, 4f);
 
                 // 2. رقم الفاتورة + التاريخ والوقت + الكاشير (كتلة مضغوطة)
+                // (إخفاء رقم الفاتورة يحذف نصّه فقط: تبقى التاريخ والوقت، ويبقى الباركود، ويبقى عنوان الحساب المبدئي)
                 string invoiceText = isPreBill
                     ? "حساب مبدئي"
-                    : (sale.InvoiceNumber > 0 ? "فاتورة رقم: " + sale.InvoiceNumber.ToString(CultureInfo.InvariantCulture) : "فاتورة");
+                    : (sale.InvoiceNumber > 0
+                        ? (store.ShowInvoiceNumber ? "فاتورة رقم: " + sale.InvoiceNumber.ToString(CultureInfo.InvariantCulture) : "")
+                        : "فاتورة");
                 p.WrapWithSide(invoiceText, FormatReceiptDateTime(sale.CreatedAt), p.Bold, p.Small);
                 if (store.ShowCashier && !string.IsNullOrWhiteSpace(sale.CashierName))
                 {
@@ -2192,20 +2202,25 @@ namespace RafiqPOS.Services
                 // 6. المدفوعات: طرق الدفع المستخدمة فقط + الباقي + المتبقي الآجل
                 if (!isPreBill && (t.Payments.Count > 0 || t.Remaining > 0))
                 {
-                    p.Separator(p.Dashed, 2f, 3f);
                     var payRows = new List<KeyValuePair<string, string>>();
                     bool single = t.Payments.Count == 1;
-                    for (int i = 0; i < t.Payments.Count; i++)
+                    // إخفاء المدفوع أو الباقي يحذف صفوفه فقط؛ المودع والمتبقي الآجل يُطبعان دائماً
+                    if (store.ShowPaid)
                     {
-                        string label = t.Payments[i].Label;
-                        if (single) label = label == "المدفوع" ? "المدفوع" : "المدفوع (" + label + ")";
-                        payRows.Add(new KeyValuePair<string, string>(label, FormatReceiptMoney(t.Payments[i].Amount)));
+                        for (int i = 0; i < t.Payments.Count; i++)
+                        {
+                            string label = t.Payments[i].Label;
+                            if (single) label = label == "المدفوع" ? "المدفوع" : "المدفوع (" + label + ")";
+                            payRows.Add(new KeyValuePair<string, string>(label, FormatReceiptMoney(t.Payments[i].Amount)));
+                        }
+                        if (t.Payments.Count > 1) payRows.Add(new KeyValuePair<string, string>("إجمالي المدفوع", FormatReceiptMoney(t.Paid)));
                     }
-                    if (t.Payments.Count > 1) payRows.Add(new KeyValuePair<string, string>("إجمالي المدفوع", FormatReceiptMoney(t.Paid)));
-                    if (t.Change > 0) payRows.Add(new KeyValuePair<string, string>("الباقي للعميل", FormatReceiptMoney(t.Change)));
+                    if (store.ShowChange && t.Change > 0) payRows.Add(new KeyValuePair<string, string>("الباقي للعميل", FormatReceiptMoney(t.Change)));
                     if (t.Deposited > 0) payRows.Add(new KeyValuePair<string, string>("مودع في حساب العميل", FormatReceiptMoney(t.Deposited)));
                     if (t.Remaining > 0) payRows.Add(new KeyValuePair<string, string>("المتبقي (آجل على الحساب)", FormatReceiptMoney(t.Remaining)));
 
+                    // لا خط فاصل ولا فراغ إذا لم يبقَ أي صف
+                    if (payRows.Count > 0) p.Separator(p.Dashed, 2f, 3f);
                     float payColW = 0f;
                     for (int i = 0; i < payRows.Count; i++) payColW = Math.Max(payColW, p.TextW(payRows[i].Value, p.Bold));
                     for (int i = 0; i < payRows.Count; i++)

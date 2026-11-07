@@ -947,9 +947,12 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public List<DigitalTransaction> GetTransactions(int limit = 200, string accountId = null, string txType = null)
+        public List<DigitalTransaction> GetTransactions(int limit = 200, string accountId = null, string txType = null, string dateFrom = null, string dateTo = null)
         {
             var list = new List<DigitalTransaction>();
+            string startTs;
+            string endTs;
+            LocalDayRange.Build(dateFrom, dateTo, out startTs, out endTs);
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -967,6 +970,7 @@ namespace RafiqPOS.Repositories
                 {
                     sql += " AND t.tx_type = @txType ";
                 }
+                sql += LocalDayRange.Where("t.created_at", startTs, endTs);
                 sql += " ORDER BY t.created_at DESC LIMIT @limit;";
 
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -980,6 +984,7 @@ namespace RafiqPOS.Repositories
                     {
                         cmd.Parameters.AddWithValue("@txType", txType);
                     }
+                    LocalDayRange.Bind(cmd, startTs, endTs);
 
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -1020,9 +1025,12 @@ namespace RafiqPOS.Repositories
             return null;
         }
 
-        public List<DigitalAccountFunding> GetFundings(int limit = 100, string accountId = null)
+        public List<DigitalAccountFunding> GetFundings(int limit = 100, string accountId = null, string dateFrom = null, string dateTo = null)
         {
             var list = new List<DigitalAccountFunding>();
+            string startTs;
+            string endTs;
+            LocalDayRange.Build(dateFrom, dateTo, out startTs, out endTs);
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -1036,6 +1044,7 @@ namespace RafiqPOS.Repositories
                 {
                     sql += " AND f.account_id = @accId ";
                 }
+                sql += LocalDayRange.Where("f.created_at", startTs, endTs);
                 sql += " ORDER BY f.created_at DESC LIMIT @limit;";
 
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -1045,6 +1054,7 @@ namespace RafiqPOS.Repositories
                     {
                         cmd.Parameters.AddWithValue("@accId", accountId);
                     }
+                    LocalDayRange.Bind(cmd, startTs, endTs);
 
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -1087,14 +1097,14 @@ namespace RafiqPOS.Repositories
                 }
 
                 // 2. Transactions & Profits
-                string todayStart = DateTime.UtcNow.ToString("yyyy-MM-dd") + "T00:00:00";
+                string todayStart = DateTime.Now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) + " 00:00:00";
                 string txSql = @"
                     SELECT 
                         COUNT(*) AS total_count,
                         COALESCE(SUM(profit_piasters), 0) AS total_profit,
-                        COUNT(CASE WHEN created_at >= @today THEN 1 END) AS today_count,
-                        COALESCE(SUM(CASE WHEN created_at >= @today THEN profit_piasters ELSE 0 END), 0) AS today_profit,
-                        COALESCE(SUM(CASE WHEN created_at >= @today THEN amount_piasters ELSE 0 END), 0) AS today_volume
+                        COUNT(CASE WHEN datetime(created_at, 'localtime') >= @today THEN 1 END) AS today_count,
+                        COALESCE(SUM(CASE WHEN datetime(created_at, 'localtime') >= @today THEN profit_piasters ELSE 0 END), 0) AS today_profit,
+                        COALESCE(SUM(CASE WHEN datetime(created_at, 'localtime') >= @today THEN amount_piasters ELSE 0 END), 0) AS today_volume
                     FROM digital_transactions
                     WHERE status = 'completed';
                 ";
@@ -1115,6 +1125,44 @@ namespace RafiqPOS.Repositories
                 }
             }
             return summary;
+        }
+
+        /// <summary>
+        /// مجاميع العمليات المكتملة داخل نطاق أيام محلية (بدون حد أعلى لعدد الصفوف): العدد، الربح، حجم المبالغ.
+        /// </summary>
+        public void GetPeriodTotals(string dateFrom, string dateTo, out int count, out long profitPiasters, out long volumePiasters)
+        {
+            string startTs;
+            string endTs;
+            LocalDayRange.Build(dateFrom, dateTo, out startTs, out endTs);
+
+            count = 0;
+            profitPiasters = 0;
+            volumePiasters = 0;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT
+                        COUNT(*) AS period_count,
+                        COALESCE(SUM(profit_piasters), 0) AS period_profit,
+                        COALESCE(SUM(amount_piasters), 0) AS period_volume
+                    FROM digital_transactions
+                    WHERE status = 'completed' " + LocalDayRange.Where("created_at", startTs, endTs) + ";";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    LocalDayRange.Bind(cmd, startTs, endTs);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            count = Convert.ToInt32(reader["period_count"]);
+                            profitPiasters = Convert.ToInt64(reader["period_profit"]);
+                            volumePiasters = Convert.ToInt64(reader["period_volume"]);
+                        }
+                    }
+                }
+            }
         }
 
         private static DigitalAccount MapAccount(SQLiteDataReader r)
@@ -1460,6 +1508,55 @@ namespace RafiqPOS.Repositories
                     }
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// نطاق أيام محلية (yyyy-MM-dd، شاملة الطرفين) يُقارن بـ datetime(العمود, 'localtime') لأن الطوابع تُخزَّن UTC.
+    /// الفارغ = بلا حد، والنطاق المعكوس يُقلب، والتاريخ غير الصالح يرمي ArgumentException.
+    /// </summary>
+    public static class LocalDayRange
+    {
+        public static void Build(string dateFrom, string dateTo, out string startTs, out string endTs)
+        {
+            DateTime? rangeStart = ParseDay(dateFrom);
+            DateTime? rangeEnd = ParseDay(dateTo);
+            if (rangeStart.HasValue && rangeEnd.HasValue && rangeStart.Value > rangeEnd.Value)
+            {
+                DateTime swap = rangeStart.Value;
+                rangeStart = rangeEnd;
+                rangeEnd = swap;
+            }
+            startTs = rangeStart.HasValue ? rangeStart.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) + " 00:00:00" : null;
+            endTs = rangeEnd.HasValue ? rangeEnd.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) + " 23:59:59" : null;
+        }
+
+        /// <summary>شرط AND جاهز (أو نص فارغ) لعمود طابع زمني UTC؛ اسم العمود ثابت من الكود وليس من المستخدم.</summary>
+        public static string Where(string column, string startTs, string endTs)
+        {
+            string clause = "";
+            if (startTs != null) clause += " AND datetime(" + column + ", 'localtime') >= @rangeStart";
+            if (endTs != null) clause += " AND datetime(" + column + ", 'localtime') <= @rangeEnd";
+            return clause;
+        }
+
+        public static void Bind(SQLiteCommand cmd, string startTs, string endTs)
+        {
+            if (startTs != null) cmd.Parameters.AddWithValue("@rangeStart", startTs);
+            if (endTs != null) cmd.Parameters.AddWithValue("@rangeEnd", endTs);
+        }
+
+        private static DateTime? ParseDay(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            string s = value.Trim();
+            if (s.Length > 10) s = s.Substring(0, 10);
+            DateTime parsed;
+            if (!DateTime.TryParseExact(s, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out parsed))
+            {
+                throw new ArgumentException("صيغة التاريخ غير صالحة، المطلوب yyyy-MM-dd.");
+            }
+            return parsed;
         }
     }
 }

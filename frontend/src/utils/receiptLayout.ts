@@ -467,15 +467,18 @@ export function buildOrderMetaText(sale: ReceiptSaleInput): string {
   return parts.join(' - ');
 }
 
-function buildPaymentRows(t: ReceiptTotals): ReceiptRow[] {
+// showPaid / showChange only hide rows; the deposit and the credit remainder are customer-account facts and always print.
+function buildPaymentRows(t: ReceiptTotals, showPaid: boolean, showChange: boolean): ReceiptRow[] {
   const rows: ReceiptRow[] = [];
   const single = t.payments.length === 1;
-  for (const p of t.payments) {
-    const label = single && p.label !== 'المدفوع' ? `المدفوع (${p.label})` : p.label;
-    rows.push({ label, value: formatReceiptMoney(p.amount), emphasis: false });
+  if (showPaid) {
+    for (const p of t.payments) {
+      const label = single && p.label !== 'المدفوع' ? `المدفوع (${p.label})` : p.label;
+      rows.push({ label, value: formatReceiptMoney(p.amount), emphasis: false });
+    }
+    if (t.payments.length > 1) rows.push({ label: 'إجمالي المدفوع', value: formatReceiptMoney(t.paid), emphasis: true });
   }
-  if (t.payments.length > 1) rows.push({ label: 'إجمالي المدفوع', value: formatReceiptMoney(t.paid), emphasis: true });
-  if (t.change > 0) rows.push({ label: 'الباقي للعميل', value: formatReceiptMoney(t.change), emphasis: true });
+  if (showChange && t.change > 0) rows.push({ label: 'الباقي للعميل', value: formatReceiptMoney(t.change), emphasis: true });
   if (t.deposited > 0) rows.push({ label: 'مودع في حساب العميل', value: formatReceiptMoney(t.deposited), emphasis: false });
   if (t.remaining > 0) rows.push({ label: 'المتبقي (آجل على الحساب)', value: formatReceiptMoney(t.remaining), emphasis: true });
   return rows;
@@ -525,6 +528,12 @@ export interface BuildReceiptOptions {
   now?: Date;
   /** false hides the "الكاشير: name" line (store setting receipt_show_cashier = '0'); default true */
   showCashier?: boolean;
+  /** false hides the "فاتورة رقم: N" text line of a real sale (store setting receipt_show_invoice_number = '0'); the barcode and a pre-bill label stay; default true */
+  showInvoiceNumber?: boolean;
+  /** false hides the payment-method rows and the paid total (store setting receipt_show_paid = '0'); the credit remainder stays; default true */
+  showPaid?: boolean;
+  /** false hides the "الباقي للعميل" row (store setting receipt_show_change = '0'); default true */
+  showChange?: boolean;
   /** store setting developer_signature_image: '' the built-in set, 'none' no image, a PNG data URL, or a JSON array of up to 8 images; one image of the pool is picked per invoice by its id */
   signatureImage?: string;
   /** URLs of the built-in signature images ("default" expands into all of them); the app passes BUILT_IN_SIGNATURE_IMAGES */
@@ -594,7 +603,7 @@ export function buildReceiptModel(
     taxNumber: clean(store.taxNumber),
     headerText: normalizeReceiptText(store.header),
     headerLines: splitReceiptText(store.header),
-    invoiceLabel: isPreBill ? 'حساب مبدئي' : invoiceNumber > 0 ? `فاتورة رقم: ${invoiceNumber}` : 'فاتورة',
+    invoiceLabel: isPreBill ? 'حساب مبدئي' : invoiceNumber > 0 ? (options.showInvoiceNumber !== false ? `فاتورة رقم: ${invoiceNumber}` : '') : 'فاتورة',
     dateTime: formatReceiptDateTime(sale.createdAt, options.now),
     cashier: options.showCashier !== false && clean(sale.cashierName) ? `الكاشير: ${clean(sale.cashierName)}` : '',
     orderMeta: buildOrderMetaText(sale),
@@ -607,7 +616,7 @@ export function buildReceiptModel(
     epayFeeText: t.epayFee > 0 ? formatReceiptMoney(t.epayFee) : '',
     payableText: t.epayFee > 0 ? formatReceiptMoney(t.payable) : '',
     isPreBill,
-    paymentRows: !isPreBill && (t.payments.length > 0 || t.remaining > 0) ? buildPaymentRows(t) : [],
+    paymentRows: !isPreBill && (t.payments.length > 0 || t.remaining > 0) ? buildPaymentRows(t, options.showPaid !== false, options.showChange !== false) : [],
     deliveryTitle,
     deliveryLines,
     coldChainNotice,

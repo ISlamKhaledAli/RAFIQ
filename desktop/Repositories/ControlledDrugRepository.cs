@@ -111,9 +111,43 @@ namespace RafiqPOS.Repositories
             cmd.Parameters.AddWithValue("@createdAt", d.CreatedAt);
         }
 
+        /// <summary>
+        /// يحوّل نطاق أيام محلية (yyyy-MM-dd، شاملة الطرفين) إلى حدود زمنية تُقارن بـ datetime(col,'localtime').
+        /// القيمة الفارغة تعني بدون حد، والنطاق المعكوس يُقلب.
+        /// </summary>
+        private static void BuildLocalRange(string dateFrom, string dateTo, out string startTs, out string endTs)
+        {
+            DateTime? rangeStart = ParseLocalDay(dateFrom);
+            DateTime? rangeEnd = ParseLocalDay(dateTo);
+            if (rangeStart.HasValue && rangeEnd.HasValue && rangeStart.Value > rangeEnd.Value)
+            {
+                DateTime tmp = rangeStart.Value;
+                rangeStart = rangeEnd;
+                rangeEnd = tmp;
+            }
+            startTs = rangeStart.HasValue ? rangeStart.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) + " 00:00:00" : null;
+            endTs = rangeEnd.HasValue ? rangeEnd.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) + " 23:59:59" : null;
+        }
+
+        private static DateTime? ParseLocalDay(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            string s = value.Trim();
+            if (s.Length > 10) s = s.Substring(0, 10);
+            DateTime parsed;
+            if (!DateTime.TryParseExact(s, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out parsed))
+            {
+                throw new ArgumentException("صيغة التاريخ غير صالحة، المطلوب yyyy-MM-dd.");
+            }
+            return parsed;
+        }
+
         public List<ControlledDrugDispense> GetDispenses(string productId = null, string dateFrom = null, string dateTo = null, string entryType = null, int limit = 200)
         {
             var list = new List<ControlledDrugDispense>();
+            string startTs;
+            string endTs;
+            BuildLocalRange(dateFrom, dateTo, out startTs, out endTs);
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -133,8 +167,8 @@ namespace RafiqPOS.Repositories
 
                 if (!string.IsNullOrEmpty(productId)) sql += " AND cd.product_id = @pid";
                 if (!string.IsNullOrEmpty(entryType)) sql += " AND cd.entry_type = @etype";
-                if (!string.IsNullOrEmpty(dateFrom)) sql += " AND date(cd.created_at) >= date(@dateFrom)";
-                if (!string.IsNullOrEmpty(dateTo)) sql += " AND date(cd.created_at) <= date(@dateTo)";
+                if (startTs != null) sql += " AND datetime(cd.created_at, 'localtime') >= @dateFrom";
+                if (endTs != null) sql += " AND datetime(cd.created_at, 'localtime') <= @dateTo";
 
                 sql += " ORDER BY cd.created_at DESC LIMIT @limit;";
 
@@ -142,8 +176,8 @@ namespace RafiqPOS.Repositories
                 {
                     if (!string.IsNullOrEmpty(productId)) cmd.Parameters.AddWithValue("@pid", productId);
                     if (!string.IsNullOrEmpty(entryType)) cmd.Parameters.AddWithValue("@etype", entryType);
-                    if (!string.IsNullOrEmpty(dateFrom)) cmd.Parameters.AddWithValue("@dateFrom", dateFrom);
-                    if (!string.IsNullOrEmpty(dateTo)) cmd.Parameters.AddWithValue("@dateTo", dateTo);
+                    if (startTs != null) cmd.Parameters.AddWithValue("@dateFrom", startTs);
+                    if (endTs != null) cmd.Parameters.AddWithValue("@dateTo", endTs);
                     cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 200);
 
                     using (var reader = cmd.ExecuteReader())
@@ -289,6 +323,11 @@ namespace RafiqPOS.Repositories
             var rows = new List<ControlledInspectionReportRow>();
             if (string.IsNullOrEmpty(productId)) return rows;
 
+            string startTs;
+            string endTs;
+            BuildLocalRange(dateFrom, dateTo, out startTs, out endTs);
+            string openingBoundary = startTs ?? "1970-01-01 00:00:00";
+
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -302,12 +341,12 @@ namespace RafiqPOS.Repositories
                     FROM purchase_items pi
                     JOIN purchases p ON pi.purchase_id = p.id
                     WHERE pi.product_id = @pid AND p.status = 'COMPLETED'
-                      AND date(p.created_at) < date(@dateFrom);";
+                      AND datetime(p.created_at, 'localtime') < @dateFrom;";
 
                 using (var cmd = new SQLiteCommand(sqlPurchasesBefore, conn))
                 {
                     cmd.Parameters.AddWithValue("@pid", productId);
-                    cmd.Parameters.AddWithValue("@dateFrom", !string.IsNullOrEmpty(dateFrom) ? dateFrom : "1970-01-01");
+                    cmd.Parameters.AddWithValue("@dateFrom", openingBoundary);
                     object res = cmd.ExecuteScalar();
                     if (res != null && res != DBNull.Value) openingBalanceMilli += Convert.ToInt64(res);
                 }
@@ -317,12 +356,12 @@ namespace RafiqPOS.Repositories
                     SELECT COALESCE(SUM(pri.quantity_milli), 0)
                     FROM purchase_return_items pri
                     JOIN purchase_returns pr ON pri.return_id = pr.id
-                    WHERE pri.product_id = @pid AND date(pr.created_at) < date(@dateFrom);";
+                    WHERE pri.product_id = @pid AND datetime(pr.created_at, 'localtime') < @dateFrom;";
 
                 using (var cmd = new SQLiteCommand(sqlPurchaseReturnsBefore, conn))
                 {
                     cmd.Parameters.AddWithValue("@pid", productId);
-                    cmd.Parameters.AddWithValue("@dateFrom", !string.IsNullOrEmpty(dateFrom) ? dateFrom : "1970-01-01");
+                    cmd.Parameters.AddWithValue("@dateFrom", openingBoundary);
                     object res = cmd.ExecuteScalar();
                     if (res != null && res != DBNull.Value) openingBalanceMilli -= Convert.ToInt64(res);
                 }
@@ -332,12 +371,12 @@ namespace RafiqPOS.Repositories
                     SELECT COALESCE(SUM(quantity_milli), 0)
                     FROM controlled_dispenses
                     WHERE product_id = @pid AND entry_type = 'dispense'
-                      AND date(created_at) < date(@dateFrom);";
+                      AND datetime(created_at, 'localtime') < @dateFrom;";
 
                 using (var cmd = new SQLiteCommand(sqlDispensedBefore, conn))
                 {
                     cmd.Parameters.AddWithValue("@pid", productId);
-                    cmd.Parameters.AddWithValue("@dateFrom", !string.IsNullOrEmpty(dateFrom) ? dateFrom : "1970-01-01");
+                    cmd.Parameters.AddWithValue("@dateFrom", openingBoundary);
                     object res = cmd.ExecuteScalar();
                     if (res != null && res != DBNull.Value) openingBalanceMilli -= Convert.ToInt64(res);
                 }
@@ -347,12 +386,12 @@ namespace RafiqPOS.Repositories
                     SELECT COALESCE(SUM(quantity_milli), 0)
                     FROM controlled_dispenses
                     WHERE product_id = @pid AND entry_type = 'return'
-                      AND date(created_at) < date(@dateFrom);";
+                      AND datetime(created_at, 'localtime') < @dateFrom;";
 
                 using (var cmd = new SQLiteCommand(sqlReturnsBefore, conn))
                 {
                     cmd.Parameters.AddWithValue("@pid", productId);
-                    cmd.Parameters.AddWithValue("@dateFrom", !string.IsNullOrEmpty(dateFrom) ? dateFrom : "1970-01-01");
+                    cmd.Parameters.AddWithValue("@dateFrom", openingBoundary);
                     object res = cmd.ExecuteScalar();
                     if (res != null && res != DBNull.Value) openingBalanceMilli += Convert.ToInt64(res);
                 }
@@ -360,7 +399,7 @@ namespace RafiqPOS.Repositories
                 // سطر رصيد أول المدة
                 rows.Add(new ControlledInspectionReportRow
                 {
-                    Date = !string.IsNullOrEmpty(dateFrom) ? dateFrom : DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                    Date = startTs != null ? startTs.Substring(0, 10) : DateTime.Now.ToString("yyyy-MM-dd"),
                     TransactionType = "opening_balance",
                     TransactionTypeAr = "رصيد أول المدة",
                     DocumentRefNo = "-",
@@ -394,8 +433,8 @@ namespace RafiqPOS.Repositories
                     LEFT JOIN suppliers s ON p.supplier_id = s.id
                     WHERE pi.product_id = @pid AND p.status = 'COMPLETED'";
 
-                if (!string.IsNullOrEmpty(dateFrom)) sqlPurchases += " AND date(p.created_at) >= date(@dateFrom)";
-                if (!string.IsNullOrEmpty(dateTo)) sqlPurchases += " AND date(p.created_at) <= date(@dateTo)";
+                if (startTs != null) sqlPurchases += " AND datetime(p.created_at, 'localtime') >= @dateFrom";
+                if (endTs != null) sqlPurchases += " AND datetime(p.created_at, 'localtime') <= @dateTo";
 
                 // ب) صرف ومرتجع من controlled_dispenses
                 string sqlDispenses = @"
@@ -428,8 +467,8 @@ namespace RafiqPOS.Repositories
                     LEFT JOIN sales s ON cd.sale_id = s.id
                     WHERE cd.product_id = @pid";
 
-                if (!string.IsNullOrEmpty(dateFrom)) sqlDispenses += " AND date(cd.created_at) >= date(@dateFrom)";
-                if (!string.IsNullOrEmpty(dateTo)) sqlDispenses += " AND date(cd.created_at) <= date(@dateTo)";
+                if (startTs != null) sqlDispenses += " AND datetime(cd.created_at, 'localtime') >= @dateFrom";
+                if (endTs != null) sqlDispenses += " AND datetime(cd.created_at, 'localtime') <= @dateTo";
 
                 // ج) مرتجعات للمورد (منصرف من العهدة)
                 string sqlPurchaseReturns = @"
@@ -455,8 +494,8 @@ namespace RafiqPOS.Repositories
                     LEFT JOIN suppliers s ON pr.supplier_id = s.id
                     WHERE pri.product_id = @pid";
 
-                if (!string.IsNullOrEmpty(dateFrom)) sqlPurchaseReturns += " AND date(pr.created_at) >= date(@dateFrom)";
-                if (!string.IsNullOrEmpty(dateTo)) sqlPurchaseReturns += " AND date(pr.created_at) <= date(@dateTo)";
+                if (startTs != null) sqlPurchaseReturns += " AND datetime(pr.created_at, 'localtime') >= @dateFrom";
+                if (endTs != null) sqlPurchaseReturns += " AND datetime(pr.created_at, 'localtime') <= @dateTo";
 
                 string unionSql = string.Format(@"
                     SELECT * FROM (
@@ -471,8 +510,8 @@ namespace RafiqPOS.Repositories
                 using (var cmd = new SQLiteCommand(unionSql, conn))
                 {
                     cmd.Parameters.AddWithValue("@pid", productId);
-                    if (!string.IsNullOrEmpty(dateFrom)) cmd.Parameters.AddWithValue("@dateFrom", dateFrom);
-                    if (!string.IsNullOrEmpty(dateTo)) cmd.Parameters.AddWithValue("@dateTo", dateTo);
+                    if (startTs != null) cmd.Parameters.AddWithValue("@dateFrom", startTs);
+                    if (endTs != null) cmd.Parameters.AddWithValue("@dateTo", endTs);
 
                     using (var reader = cmd.ExecuteReader())
                     {

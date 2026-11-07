@@ -14,7 +14,15 @@ namespace RafiqPOS.Bridge
             switch (request.Action)
             {
                 case "backup:getStatus":
-                    var backupStatus = DatabaseService.Backup.GetStatus();
+                    string backupListFrom = null;
+                    string backupListTo = null;
+                    JObject backupStatusObj = request.Payload as JObject;
+                    if (backupStatusObj != null)
+                    {
+                        if (backupStatusObj["dateFrom"] != null) backupListFrom = backupStatusObj["dateFrom"].ToString();
+                        if (backupStatusObj["dateTo"] != null) backupListTo = backupStatusObj["dateTo"].ToString();
+                    }
+                    var backupStatus = DatabaseService.Backup.GetStatus(backupListFrom, backupListTo);
                     response = BridgeResponse.Ok(request.Id, backupStatus);
                     return true;
 

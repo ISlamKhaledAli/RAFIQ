@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Services;
 
@@ -663,18 +664,27 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50)
+        public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50, string dateFrom = null, string dateTo = null)
         {
             var list = new List<SupplierTransaction>();
             if (string.IsNullOrWhiteSpace(supplierId)) return list;
 
+            // dateFrom/dateTo: أيام محلية yyyy-MM-dd شاملة الطرفين مقابل created_at المخزن UTC بصيغة ISO
+            LocalDateRange dayRange = LocalDateRange.Parse(dateFrom, dateTo);
+
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT * FROM supplier_transactions WHERE supplier_id = @supplierId ORDER BY created_at DESC LIMIT @limit;";
+                string sql = @"SELECT * FROM supplier_transactions
+                    WHERE supplier_id = @supplierId
+                      AND (@dayFrom IS NULL OR created_at >= @dayFrom)
+                      AND (@dayToExclusive IS NULL OR created_at < @dayToExclusive)
+                    ORDER BY created_at DESC LIMIT @limit;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@supplierId", supplierId);
+                    cmd.Parameters.AddWithValue("@dayFrom", dayRange.FromUtc.HasValue ? (object)LocalDateRange.ToIsoPrefix(dayRange.FromUtc.Value) : DBNull.Value);
+                    cmd.Parameters.AddWithValue("@dayToExclusive", dayRange.ToExclusiveUtc.HasValue ? (object)LocalDateRange.ToIsoPrefix(dayRange.ToExclusiveUtc.Value) : DBNull.Value);
                     cmd.Parameters.AddWithValue("@limit", limit);
                     using (var reader = cmd.ExecuteReader())
                     {

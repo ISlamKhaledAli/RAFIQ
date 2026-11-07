@@ -607,6 +607,85 @@ test('cashier line: shown by default, hidden when the store switch is off', () =
   assert.equal(buildReceiptModel(sample, STORE, { showCashier: false }).cashier, '');
 });
 
+test('hideable receipt rows: invoice number, paid rows and change, over every on/off combination', () => {
+  const base = makeSale([item('خبز', 10000, 1000)], { payments: [{ method: 'cash', amountPiasters: 12000 }, { method: 'card', amountPiasters: 3000 }] });
+  const withChange = { ...base, changePiasters: 5000 };
+  const partlyOnCredit = makeSale([item('خبز', 10000, 1000)], { payments: [{ method: 'cash', amountPiasters: 4000 }] });
+  const singleCash = { ...makeSale([item('خبز', 10000, 1000)], { paidPiasters: 12000 }), changePiasters: 2000 };
+  const registeredOverpay = { ...makeSale([item('خبز', 10000, 1000)], { paidPiasters: 15000, customerId: 'c1', customerName: 'منى' }), changePiasters: 2000 };
+  const cases = [
+    ['paid + change split in two methods', withChange, ['نقدي', 'بطاقة', 'إجمالي المدفوع', 'الباقي للعميل'].sort()],
+    ['single cash with change', singleCash, ['المدفوع (نقدي)', 'الباقي للعميل'].sort()],
+    ['partly on credit', partlyOnCredit, ['المدفوع (نقدي)', 'المتبقي (آجل على الحساب)'].sort()],
+    ['registered customer overpay', registeredOverpay, ['المدفوع (نقدي)', 'الباقي للعميل', 'مودع في حساب العميل'].sort()],
+  ];
+  const ALWAYS = ['المتبقي (آجل على الحساب)', 'مودع في حساب العميل'];
+
+  for (const [name, sale, labelsWhenAllShown] of cases) {
+    const full = buildReceiptModel(sale, STORE);
+    assert.deepEqual(full.paymentRows.map((r) => r.label).sort(), labelsWhenAllShown, `${name}: all shown is the unchanged receipt`);
+    assert.deepEqual(buildReceiptModel(sale, STORE, { showInvoiceNumber: true, showPaid: true, showChange: true }), full, `${name}: explicit true equals the default`);
+
+    for (const showInvoiceNumber of [true, false]) {
+      for (const showPaid of [true, false]) {
+        for (const showChange of [true, false]) {
+          const label = `${name} (invoice ${showInvoiceNumber}, paid ${showPaid}, change ${showChange})`;
+          const model = buildReceiptModel(sale, STORE, { showInvoiceNumber, showPaid, showChange });
+          const expected = full.paymentRows
+            .filter((r) => ALWAYS.includes(r.label) || (r.label === 'الباقي للعميل' ? showChange : showPaid))
+            .map((r) => r.label);
+          assert.deepEqual(model.paymentRows.map((r) => r.label), expected, `${label}: rows`);
+          assert.equal(model.invoiceLabel, showInvoiceNumber ? 'فاتورة رقم: 1042' : '', `${label}: invoice label`);
+          // display only: nothing but the switched rows and the label differ
+          assert.deepEqual({ ...model, paymentRows: null, invoiceLabel: null }, { ...full, paymentRows: null, invoiceLabel: null }, `${label}: everything else is identical`);
+          assert.deepEqual(model.barcode, { value: '00001042' }, `${label}: the barcode always prints`);
+          assert.equal(model.dateTime, full.dateTime, `${label}: the date and time stay`);
+        }
+      }
+    }
+  }
+});
+
+test('hideable receipt rows: totals and credit facts never hide, pre-bill and numberless invoices keep their label', () => {
+  const sale = { ...makeSale([item('خبز', 10000, 1000)], { invoiceDiscount: 500, paidPiasters: 12000 }), changePiasters: 2500 };
+  const hidden = buildReceiptModel(sale, STORE, { showInvoiceNumber: false, showPaid: false, showChange: false });
+  assert.deepEqual(hidden.paymentRows, [], 'nothing left to print for a fully paid cash sale');
+  assert.deepEqual(hidden.adjustmentRows.map((r) => r.label), ['الإجمالي قبل الخصم', 'إجمالي الخصم']);
+  assert.equal(hidden.grandTotal, '95.00');
+  assert.equal(hidden.totals.paid, 12000, 'the stored paid amount is untouched');
+  assert.equal(hidden.totals.change, 2500, 'the stored change is untouched');
+
+  const credit = buildReceiptModel(makeSale([item('خبز', 10000, 1000)], { payments: [{ method: 'credit', amountPiasters: 10000 }] }), STORE, { showPaid: false, showChange: false });
+  assert.deepEqual(credit.paymentRows.map((r) => r.label), ['المتبقي (آجل على الحساب)'], 'a debt on account always prints');
+
+  const preBill = buildReceiptModel({ ...sale, id: 'PRE-BILL', invoiceNumber: 0 }, STORE, { showInvoiceNumber: false, showPaid: false, showChange: false });
+  assert.equal(preBill.invoiceLabel, 'حساب مبدئي', 'the pre-bill label ignores the switch');
+  assert.equal(buildReceiptModel({ ...sale, invoiceNumber: 0 }, STORE, { showInvoiceNumber: false }).invoiceLabel, 'فاتورة', 'no number to hide');
+  assert.equal(buildReceiptModel({ ...sale, status: 'TEST_PILOT' }, STORE, { showInvoiceNumber: false }).barcode, null, 'training receipts still have no barcode');
+});
+
+test('GDI receipt mirrors the hideable rows: missing key shows, only "0" hides, barcode and credit rows are untouched', () => {
+  const cs = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'PrinterService.cs'), 'utf8').replace(/\r\n/g, '\n');
+  for (const [field, key] of [['ShowInvoiceNumber', 'receipt_show_invoice_number'], ['ShowPaid', 'receipt_show_paid'], ['ShowChange', 'receipt_show_change']]) {
+    assert.ok(cs.includes(`info.${field} = ReadStoreSetting(store, "${key}") != "0";`), `${key}: missing key means show`);
+    assert.ok(cs.includes(`public bool ${field} = true;`), `${field} defaults to true`);
+  }
+  assert.ok(cs.includes('(store.ShowInvoiceNumber ? "فاتورة رقم: " + sale.InvoiceNumber.ToString(CultureInfo.InvariantCulture) : "")'));
+  assert.ok(cs.includes('p.WrapWithSide(invoiceText, FormatReceiptDateTime(sale.CreatedAt), p.Bold, p.Small);'), 'the date still prints next to an empty label');
+  assert.ok(cs.includes('if (store.ShowPaid)\n'));
+  assert.ok(cs.includes('if (store.ShowChange && t.Change > 0) payRows.Add('));
+  assert.ok(cs.includes('if (t.Deposited > 0) payRows.Add(') && cs.includes('if (t.Remaining > 0) payRows.Add('), 'deposit and credit rows have no switch');
+  assert.ok(cs.includes('if (payRows.Count > 0) p.Separator(p.Dashed, 2f, 3f);'), 'no empty payments block');
+  assert.ok(cs.includes('if (!IsTransientReceiptSale(sale)) DrawInvoiceBarcode('), 'the barcode does not depend on the switch');
+
+  const settingsService = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'SettingsService.cs'), 'utf8');
+  const dispatcher = fs.readFileSync(path.resolve('..', 'desktop', 'Bridge', 'IpcDispatcher.System.cs'), 'utf8');
+  for (const key of ['receipt_show_invoice_number', 'receipt_show_paid', 'receipt_show_change']) {
+    assert.ok(settingsService.includes(`if (!settings.ContainsKey("${key}")) settings["${key}"] = "1";`), `${key} default`);
+    assert.ok(dispatcher.includes(`"${key}"`), `${key} is whitelisted for the store settings permission`);
+  }
+});
+
 test('GDI footer mirrors the preview: empty footer prints nothing, switch hides the cashier, legacy footers migrate', () => {
   const cs = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'PrinterService.cs'), 'utf8');
   assert.ok(!/store\.Footer\.Length > 0 \? store\.Footer : DefaultReceiptThanks/.test(cs), 'no forced thanks line');

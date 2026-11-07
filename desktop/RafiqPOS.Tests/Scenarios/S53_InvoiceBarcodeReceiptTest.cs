@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Drawing;
 using NUnit.Framework;
 using RafiqPOS.Common;
@@ -131,6 +132,95 @@ namespace RafiqPOS.Tests.Scenarios
             sale.Status = "completed";
             sale.Id = PreBillId;
             Assert.AreEqual(-1, FindBarcodeTop(sale, "80mm", value, 576, 2, 68), "pre-bill");
+        }
+
+        // ---------- hideable receipt lines (receipt_show_invoice_number / receipt_show_paid / receipt_show_change): display only ----------
+
+        private int RenderedHeight(Sale sale)
+        {
+            using (Bitmap bitmap = PrinterSvc.RenderReceiptToBitmap(sale, "80mm", false))
+            {
+                return bitmap.Height;
+            }
+        }
+
+        private int BlackPixels(Sale sale)
+        {
+            int count = 0;
+            using (Bitmap bitmap = PrinterSvc.RenderReceiptToBitmap(sale, "80mm", false))
+            {
+                for (int y = 0; y < bitmap.Height; y++)
+                {
+                    for (int x = 0; x < bitmap.Width; x++)
+                    {
+                        if (IsBlack(bitmap, x, y)) count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        private static void SetPayments(Sale sale, long cashPiasters)
+        {
+            sale.Payments = new List<SalePayment> { new SalePayment { Method = "cash", AmountPiasters = cashPiasters } };
+            sale.PaidPiasters = cashPiasters;
+        }
+
+        [Test]
+        public void HiddenInvoiceNumber_DropsTheTextOnly_TheBarcodeStillPrints()
+        {
+            Sale sale = CreateStoredSale(null, 1000, 5000);
+            string value = PrinterService.FormatInvoiceBarcodeValue(sale.InvoiceNumber);
+            int shown = BlackPixels(sale);
+
+            SettingsRepo.Set("receipt_show_invoice_number", "0");
+            Assert.Less(BlackPixels(sale), shown, "the number line is gone");
+            AssertBarcodeDrawn(sale, "80mm", false, value, 576, 5, 68);
+
+            sale.Id = PreBillId;
+            int preBillHidden = BlackPixels(sale);
+            SettingsRepo.Set("receipt_show_invoice_number", "1");
+            Assert.AreEqual(preBillHidden, BlackPixels(sale), "the pre-bill label ignores the switch");
+        }
+
+        [Test]
+        public void HiddenPaid_RemovesThePaymentRows_ButKeepsTheCreditRemainder()
+        {
+            Sale sale = CreateStoredSale(null, 1000, 5000);
+            long total = sale.TotalPiasters;
+            SetPayments(sale, total);
+            int fullyPaidShown = RenderedHeight(sale);
+
+            SettingsRepo.Set("receipt_show_paid", "0");
+            int fullyPaidHidden = RenderedHeight(sale);
+            Assert.Less(fullyPaidHidden, fullyPaidShown, "the whole payments block is gone");
+            AssertBarcodeDrawn(sale, "80mm", false, PrinterService.FormatInvoiceBarcodeValue(sale.InvoiceNumber), 576, 5, 68);
+
+            SetPayments(sale, total - 2000);
+            int partlyPaidHidden = RenderedHeight(sale);
+            Assert.Greater(partlyPaidHidden, fullyPaidHidden, "the remaining-on-account row still prints");
+
+            SettingsRepo.Set("receipt_show_paid", "1");
+            Assert.Greater(RenderedHeight(sale), partlyPaidHidden, "shown again: the paid row returns");
+        }
+
+        [Test]
+        public void HiddenChange_RemovesOnlyTheChangeRow_TotalsAndPaidStay()
+        {
+            Sale sale = CreateStoredSale(null, 1000, 5000);
+            long total = sale.TotalPiasters;
+            SetPayments(sale, total + 5000);
+            sale.ChangePiasters = 5000;
+            int shown = RenderedHeight(sale);
+
+            SettingsRepo.Set("receipt_show_change", "0");
+            int hidden = RenderedHeight(sale);
+            Assert.Less(hidden, shown, "one row fewer");
+
+            SetPayments(sale, total);
+            sale.ChangePiasters = 0;
+            SettingsRepo.Set("receipt_show_change", "1");
+            Assert.AreEqual(hidden, RenderedHeight(sale), "what is left is exactly the paid row of an exact payment");
         }
 
         private void AssertBarcodeDrawn(Sale sale, string paper, bool isCopy, string value, int paperDots, int moduleDots, int heightDots)

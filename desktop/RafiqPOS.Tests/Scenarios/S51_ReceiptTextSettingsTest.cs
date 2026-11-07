@@ -476,6 +476,53 @@ namespace RafiqPOS.Tests.Scenarios
             }
         }
 
+        [Test]
+        public void ReceiptShowInvoiceNumberPaidChange_DefaultToOn_WhenTheKeyIsMissing()
+        {
+            string[] keys = new string[] { "receipt_show_invoice_number", "receipt_show_paid", "receipt_show_change" };
+            for (int k = 0; k < keys.Length; k++)
+            {
+                Assert.IsNull(Stored(keys[k]), "شرط مسبق: المفتاح غير مخزن " + keys[k]);
+                Assert.AreEqual("1", NewSettingsService().GetAllSettings()[keys[k]], keys[k]);
+
+                StoreRaw(keys[k], "0");
+                Assert.AreEqual("0", NewSettingsService().GetAllSettings()[keys[k]], "القيمة المخزنة لا تُستبدل بالافتراضي " + keys[k]);
+            }
+        }
+
+        [Test]
+        public void Ipc_OwnerAndManager_CanSaveReceiptShowInvoiceNumberPaidChange_OffAndBackOn()
+        {
+            var manager = CreateManager("mgr_receipt_rows", ManagerPin);
+            string[] keys = new string[] { "receipt_show_invoice_number", "receipt_show_paid", "receipt_show_change" };
+            string[] sessions = new string[] { OwnerId, manager.Id };
+            for (int s = 0; s < sessions.Length; s++)
+            {
+                LoginAs(sessions[s]);
+
+                var off = Save(new Dictionary<string, string>
+                {
+                    { "receipt_show_invoice_number", "0" }, { "receipt_show_paid", "0" }, { "receipt_show_change", "0" }
+                });
+                Assert.IsTrue(off.Success, Describe(off));
+                for (int k = 0; k < keys.Length; k++)
+                {
+                    Assert.AreEqual("0", Stored(keys[k]), keys[k] + " الجلسة رقم " + s);
+                    Assert.AreEqual("0", NewSettingsService().GetAllSettings()[keys[k]]);
+                }
+
+                var on = Save(new Dictionary<string, string>
+                {
+                    { "receipt_show_invoice_number", "1" }, { "receipt_show_paid", "1" }, { "receipt_show_change", "1" }
+                });
+                Assert.IsTrue(on.Success, Describe(on));
+                for (int k = 0; k < keys.Length; k++)
+                {
+                    Assert.AreEqual("1", Stored(keys[k]), keys[k] + " الجلسة رقم " + s);
+                }
+            }
+        }
+
         // ---------- developer signature is root-only ----------
 
         [Test]
