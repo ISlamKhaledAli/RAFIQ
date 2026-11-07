@@ -36,7 +36,19 @@ import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
-import { useDateFilter, getDatePresetLabel } from '../../utils/dateFilter';
+import { useUnsavedChangesGuard } from '../../context/useUnsavedChanges';
+import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
+import {
+  type DateFilterValue,
+  useDateFilter,
+  useToday,
+  getDatePresetLabel,
+  getDateFilterPayload,
+  getDateFilterKey,
+  isDateFilterActive,
+  describeDateFilter,
+  formatLocalDateTime,
+} from '../../utils/dateFilter';
 import type { 
   EpayTerminal, 
   EpayTransaction, 
@@ -48,6 +60,22 @@ import type {
 import { createAttemptKey } from '../../utils/idempotency';
 
 export type EpaySubTab = 'pos' | 'terminals' | 'history' | 'analytics';
+
+// أقصى عدد صفوف يُحمَّل بعد تطبيق الفلاتر (الفترة والماكينة والخدمة) في قاعدة البيانات
+const LIST_LOAD_LIMIT = 2000;
+
+// تفصيل الفترة حسب نوع الخدمة يُحسب في SQL على كل العمليات المكتملة (وليس على الصفوف المحمّلة)
+type EpayPeriodAnalytics = EpayAnalyticsSummary & {
+  transactionsByType?: Record<string, number>;
+  profitByTypePiasters?: Record<string, number>;
+  volumeByTypePiasters?: Record<string, number>;
+};
+
+// نطاق الفترة بأسماء حقول إجراءات epay (fromDate/toDate)
+function toEpayRange(filter: DateFilterValue): { fromDate?: string; toDate?: string } {
+  const range = getDateFilterPayload(filter);
+  return { fromDate: range.dateFrom, toDate: range.dateTo };
+}
 
 const PROVIDER_NAMES: Record<string, string> = {
   fawry: 'فوري',
@@ -63,6 +91,8 @@ const PROVIDER_NAMES: Record<string, string> = {
 export interface EpayViewProps {
   activeSubTab?: EpaySubTab;
   onSubTabChange?: (tab: EpaySubTab) => void;
+  /** false while the keep-alive page is hidden: its leftover draft must not block other pages */
+  isActive?: boolean;
 }
 
 interface ServiceQuickOption {
@@ -98,7 +128,8 @@ const StepHeading: React.FC<{ step: number; title: string; hint?: string }> = ({
 
 export const EpayView: React.FC<EpayViewProps> = ({
   activeSubTab = 'pos',
-  onSubTabChange: _onSubTabChange,
+  onSubTabChange,
+  isActive = true,
 }) => {
   const [internalTab, setInternalTab] = useState<EpaySubTab>(activeSubTab);
 
@@ -131,6 +162,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [transactions, setTransactions] = useState<EpayTransaction[]>([]);
   const [fundings, setFundings] = useState<EpayTerminalFunding[]>([]);
   const [analytics, setAnalytics] = useState<EpayAnalyticsSummary | null>(null);
+  const [periodAnalytics, setPeriodAnalytics] = useState<EpayPeriodAnalytics | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -303,41 +335,63 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [historyTerminalFilter, setHistoryTerminalFilter] = useState<string>('all');
   const [historyServiceFilter, setHistoryServiceFilter] = useState<string>('all');
   const [historyDestinationFilter, setHistoryDestinationFilter] = useState<string>('all');
-  const { 
-    dateFilter: historyDateFilter, 
-    setDateFilter: setHistoryDateFilter, 
-    filterDate: filterHistoryDate, 
-    resetDateFilter: resetHistoryDateFilter 
+  const {
+    dateFilter: historyDateFilter,
+    setDateFilter: setHistoryDateFilter,
+    resetDateFilter: resetHistoryDateFilter,
   } = useDateFilter();
 
   // Filters for Funding Tab (Terminals Tab)
   const [fundingSearch, setFundingSearch] = useState<string>('');
   const [fundingTerminalFilter, setFundingTerminalFilter] = useState<string>('all');
   const [fundingSourceFilter, setFundingSourceFilter] = useState<string>('all');
+  const {
+    dateFilter: fundingDateFilter,
+    setDateFilter: setFundingDateFilter,
+    resetDateFilter: resetFundingDateFilter,
+  } = useDateFilter();
 
   // Filters for Analytics Tab
   const {
     dateFilter: analyticsDateFilter,
     setDateFilter: setAnalyticsDateFilter,
-    filterDate: filterAnalyticsDate,
   } = useDateFilter('all');
+
+  // يتغير عند منتصف الليل فتُعاد قراءة الفترات النسبية (اليوم/أمس/آخر 7 أيام) من قاعدة البيانات
+  const today = useToday();
+  const loadSeqRef = useRef(0);
 
   // Load all data
   const loadData = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setErrorMsg(null);
     try {
-      const [termsRes, txsRes, fundRes, anRes] = await Promise.all([
+      const [termsRes, txsRes, fundRes, anRes, periodRes] = await Promise.all([
         invoke<EpayTerminal[]>('epay:getTerminals'),
-        invoke<EpayTransaction[]>('epay:getTransactions', { limit: 500 }),
-        invoke<EpayTerminalFunding[]>('epay:getFundings', { limit: 200 }),
+        invoke<EpayTransaction[]>('epay:getTransactions', {
+          limit: LIST_LOAD_LIMIT,
+          terminalId: historyTerminalFilter !== 'all' ? historyTerminalFilter : undefined,
+          serviceType: historyServiceFilter !== 'all' ? historyServiceFilter : undefined,
+          ...toEpayRange(historyDateFilter),
+        }),
+        invoke<EpayTerminalFunding[]>('epay:getFundings', {
+          limit: LIST_LOAD_LIMIT,
+          terminalId: fundingTerminalFilter !== 'all' ? fundingTerminalFilter : undefined,
+          ...toEpayRange(fundingDateFilter),
+        }),
         invoke<EpayAnalyticsSummary>('epay:getAnalytics', {}),
+        invoke<EpayPeriodAnalytics>('epay:getAnalytics', toEpayRange(analyticsDateFilter)),
       ]);
+
+      // تجاهل ردّ قديم وصل بعد طلب أحدث (تغيير سريع للفلتر)
+      if (seq !== loadSeqRef.current) return;
 
       const termsList = Array.isArray(termsRes) ? termsRes : [];
       setTerminals(termsList);
       setTransactions(Array.isArray(txsRes) ? txsRes : []);
       setFundings(Array.isArray(fundRes) ? fundRes : []);
       setAnalytics(anRes || null);
+      setPeriodAnalytics(periodRes || null);
 
       if (termsList.length > 0 && !selectedTerminalId) {
         setSelectedTerminalId(termsList[0].id);
@@ -345,11 +399,19 @@ export const EpayView: React.FC<EpayViewProps> = ({
     } catch (err: any) {
       setErrorMsg(err?.message || 'تعذر تحميل بيانات ماكينات وخدمات الدفع');
     }
-  }, [selectedTerminalId]);
+  }, [
+    selectedTerminalId,
+    historyTerminalFilter,
+    historyServiceFilter,
+    historyDateFilter,
+    fundingTerminalFilter,
+    fundingDateFilter,
+    analyticsDateFilter,
+  ]);
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, today]);
 
   // Subscribe to epay data changes
   useDataSubscription('epay', loadData);
@@ -387,24 +449,45 @@ export const EpayView: React.FC<EpayViewProps> = ({
     setServiceName(opt.name);
   };
 
-  // Submit Transaction
-  const handleCreateTransaction = async (e?: React.FormEvent) => {
+  const resetTransactionForm = () => {
+    setBillAmountPiasters(0);
+    setMachineCommissionPiasters(0);
+    setShopProfitPiasters(0);
+    setCustomerPhone('');
+    setCustomerName('');
+    setReferenceNumber('');
+    setNotes('');
+  };
+
+  const transactionDraftDirty =
+    billAmountPiasters > 0 ||
+    machineCommissionPiasters > 0 ||
+    shopProfitPiasters > 0 ||
+    customerPhone.trim() !== '' ||
+    customerName.trim() !== '' ||
+    referenceNumber.trim() !== '' ||
+    notes.trim() !== '';
+
+  // Submit Transaction. Resolves true only after the operation was recorded.
+  const handleCreateTransaction = async (e?: React.FormEvent): Promise<boolean> => {
     if (e) e.preventDefault();
+    if (isSubmittingTx) return false;
     if (!currentTerminal) {
       setErrorMsg('يرجى اختيار ماكينة دفع صالحة');
-      return;
+      return false;
     }
     if (billAmountPiasters <= 0) {
       setErrorMsg('يرجى تحديد مبلغ العملية أو الشحن');
-      return;
+      return false;
     }
     if (isBalanceInsufficient) {
       setErrorMsg(`رصيد الماكينة (${formatArabicCurrency(currentTerminal.balancePiasters)}) غير كافٍ لتنفيذ هذه العملية (${formatArabicCurrency(deductedBalancePiasters)}). يرجى تغذية رصيد الماكينة أولاً.`);
-      return;
+      return false;
     }
 
     setIsSubmittingTx(true);
     setErrorMsg(null);
+    let saved = false;
     try {
       const payload = {
         terminalId: currentTerminal.id,
@@ -425,6 +508,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
       const result = await invoke<EpayTransaction>('epay:createTransaction', payload);
       txAttemptRef.current.complete();
+      saved = true;
       setSuccessMsg(`تم تنفيذ عملية "${serviceName}". صافي ربح المحل: ${formatArabicCurrency(netProfitPiasters)}`);
 
       if (autoPrintReceipt && result) {
@@ -438,20 +522,37 @@ export const EpayView: React.FC<EpayViewProps> = ({
       }
 
       // Reset form to empty for next operation
-      setBillAmountPiasters(0);
-      setMachineCommissionPiasters(0);
-      setShopProfitPiasters(0);
-      setCustomerPhone('');
-      setCustomerName('');
-      setReferenceNumber('');
-      setNotes('');
+      resetTransactionForm();
       await loadData();
     } catch (err: any) {
       setErrorMsg(err?.message || 'فشل تنفيذ عملية الدفع الإلكتروني');
     } finally {
       setIsSubmittingTx(false);
     }
+    return saved;
   };
+
+  // "Save then continue" from the unsaved-changes dialog: the same handler; the receipt was already sent to the printer
+  const saveTransactionFromGuard = async (): Promise<boolean> => {
+    const saved = await handleCreateTransaction();
+    // The user is leaving: the receipt preview must not wait for him on this hidden page
+    if (saved) setReceiptTx(null);
+    return saved;
+  };
+
+  const { saveBarRef: transactSaveBarRef } = useUnsavedChangesGuard({
+    id: 'epay-transaction',
+    label: 'عملية الدفع الإلكتروني الجارية',
+    isDirty: transactionDraftDirty,
+    isActive,
+    keepsStateWithinPage: true,
+    // Same handler and validation as the confirm button; without an amount there is nothing to record
+    save: billAmountPiasters > 0 ? saveTransactionFromGuard : undefined,
+    discard: resetTransactionForm,
+    onAttention: () => {
+      if (activeTab !== 'pos') onSubTabChange?.('pos');
+    },
+  });
 
   // Submit Cancellation of Transaction
   const handleCancelTransaction = async (e?: React.FormEvent) => {
@@ -621,12 +722,12 @@ export const EpayView: React.FC<EpayViewProps> = ({
         (f.notes && f.notes.toLowerCase().includes(q)) ||
         String(f.amountPiasters / 100).includes(q);
 
-      const matchTerminal = fundingTerminalFilter === 'all' || f.terminalId === fundingTerminalFilter;
+      // الماكينة والفترة تُطبَّقان في قاعدة البيانات (انظر loadData)
       const matchSource = fundingSourceFilter === 'all' || f.fundingSource === fundingSourceFilter;
 
-      return matchSearch && matchTerminal && matchSource;
+      return matchSearch && matchSource;
     });
-  }, [fundings, fundingSearch, fundingTerminalFilter, fundingSourceFilter]);
+  }, [fundings, fundingSearch, fundingSourceFilter]);
 
   const {
     currentPage: fundingCurrentPage,
@@ -637,8 +738,17 @@ export const EpayView: React.FC<EpayViewProps> = ({
   } = useClientPagination(
     filteredFundings,
     15,
-    `${fundingSearch}_${fundingTerminalFilter}_${fundingSourceFilter}`
+    `${fundingSearch}_${fundingTerminalFilter}_${fundingSourceFilter}_${getDateFilterKey(fundingDateFilter)}`
   );
+
+  const isFundingFiltered =
+    fundingSearch.trim() !== '' || fundingTerminalFilter !== 'all' || fundingSourceFilter !== 'all' || isDateFilterActive(fundingDateFilter);
+  const resetFundingFilters = () => {
+    setFundingSearch('');
+    setFundingTerminalFilter('all');
+    setFundingSourceFilter('all');
+    resetFundingDateFilter();
+  };
 
   // Filtered History
   const filteredTransactions = useMemo(() => {
@@ -651,14 +761,12 @@ export const EpayView: React.FC<EpayViewProps> = ({
         (t.customerName && t.customerName.toLowerCase().includes(q)) ||
         (t.serviceName && t.serviceName.toLowerCase().includes(q));
 
-      const matchTerminal = historyTerminalFilter === 'all' || t.terminalId === historyTerminalFilter;
-      const matchService = historyServiceFilter === 'all' || t.serviceType === historyServiceFilter;
+      // الماكينة والخدمة والفترة تُطبَّق في قاعدة البيانات (انظر loadData)
       const matchDestination = historyDestinationFilter === 'all' || t.paymentDestination === historyDestinationFilter;
-      const matchDate = filterHistoryDate(t.createdAt);
 
-      return matchSearch && matchTerminal && matchService && matchDestination && matchDate;
+      return matchSearch && matchDestination;
     });
-  }, [transactions, historySearch, historyTerminalFilter, historyServiceFilter, historyDestinationFilter, filterHistoryDate]);
+  }, [transactions, historySearch, historyDestinationFilter]);
 
   const {
     currentPage: historyCurrentPage,
@@ -669,8 +777,24 @@ export const EpayView: React.FC<EpayViewProps> = ({
   } = useClientPagination(
     filteredTransactions,
     15,
-    `${historySearch}_${historyTerminalFilter}_${historyServiceFilter}_${historyDestinationFilter}_${historyDateFilter.preset}_${historyDateFilter.startDate}_${historyDateFilter.endDate}`
+    `${historySearch}_${historyTerminalFilter}_${historyServiceFilter}_${historyDestinationFilter}_${getDateFilterKey(historyDateFilter)}`
   );
+
+  const isHistoryFiltered =
+    historySearch.trim() !== '' ||
+    historyTerminalFilter !== 'all' ||
+    historyServiceFilter !== 'all' ||
+    historyDestinationFilter !== 'all' ||
+    isDateFilterActive(historyDateFilter);
+  const isHistoryCapped = transactions.length >= LIST_LOAD_LIMIT;
+  const isFundingsCapped = fundings.length >= LIST_LOAD_LIMIT;
+  const resetHistoryFilters = () => {
+    setHistorySearch('');
+    setHistoryTerminalFilter('all');
+    setHistoryServiceFilter('all');
+    setHistoryDestinationFilter('all');
+    resetHistoryDateFilter();
+  };
 
   // Terminal options for select
   const terminalOptions = useMemo(() => {
@@ -680,38 +804,13 @@ export const EpayView: React.FC<EpayViewProps> = ({
     }));
   }, [terminals]);
 
-  // Analytics Filtered Transactions & Metrics
-  const filteredAnalyticsTxs = useMemo(() => {
-    return transactions.filter(
-      (t) => (t.status === 'completed' || t.status === 'COMPLETED') && filterAnalyticsDate(t.createdAt)
-    );
-  }, [transactions, filterAnalyticsDate]);
-
-  const analyticsPeriodProfitPiasters = useMemo(() => {
-    return filteredAnalyticsTxs.reduce((sum, t) => sum + (t.netProfitPiasters || 0), 0);
-  }, [filteredAnalyticsTxs]);
-
-  const analyticsPeriodVolumePiasters = useMemo(() => {
-    return filteredAnalyticsTxs.reduce((sum, t) => sum + (t.billAmountPiasters || 0), 0);
-  }, [filteredAnalyticsTxs]);
-
-  const analyticsPeriodCommissionsPiasters = useMemo(() => {
-    return filteredAnalyticsTxs.reduce((sum, t) => sum + (t.providerCommissionPiasters || 0), 0);
-  }, [filteredAnalyticsTxs]);
-
-  const analyticsCashDrawerPiasters = useMemo(() => {
-    return filteredAnalyticsTxs.reduce((sum, t) => {
-      const isCashDrawer = t.paymentDestination === 'cash_drawer' || t.paymentChannel === 'cash_drawer';
-      return isCashDrawer ? sum + (t.totalReceivedPiasters || 0) : sum;
-    }, 0);
-  }, [filteredAnalyticsTxs]);
-
-  const analyticsTerminalTillPiasters = useMemo(() => {
-    return filteredAnalyticsTxs.reduce((sum, t) => {
-      const isTerminal = t.paymentDestination === 'terminal_till' || t.paymentChannel === 'terminal_till';
-      return isTerminal ? sum + (t.totalReceivedPiasters || 0) : sum;
-    }, 0);
-  }, [filteredAnalyticsTxs]);
+  // مجاميع الفترة من قاعدة البيانات (كل العمليات المكتملة في الفترة، لا آخر N صف فقط)
+  const analyticsPeriodCount = periodAnalytics?.totalTransactionsCount || 0;
+  const analyticsPeriodProfitPiasters = periodAnalytics?.totalNetProfitPiasters || 0;
+  const analyticsPeriodVolumePiasters = periodAnalytics?.totalBillVolumePiasters || 0;
+  const analyticsPeriodCommissionsPiasters = periodAnalytics?.totalProviderCommissionsPiasters || 0;
+  const analyticsCashDrawerPiasters = periodAnalytics?.totalInCashDrawerPiasters || 0;
+  const analyticsTerminalTillPiasters = periodAnalytics?.totalInTerminalTillPiasters || 0;
 
   return (
     <div className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-y-auto" dir="rtl">
@@ -1193,6 +1292,12 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 </div>
 
                 {/* Confirm Action Button */}
+                <div ref={transactSaveBarRef} className="flex flex-col gap-2 rounded-xl">
+                {transactionDraftDirty && (
+                  <div role="status">
+                    <UnsavedChangesChip />
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => handleCreateTransaction()}
@@ -1206,6 +1311,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   <CheckCircle2 className="w-4.5 h-4.5" />
                   <span>{isSubmittingTx ? 'جاري تنفيذ العملية...' : 'تأكيد العملية وتسجيل الحساب'}</span>
                 </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1352,13 +1458,16 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   className="w-44"
                 />
 
-                {(fundingSearch || fundingTerminalFilter !== 'all' || fundingSourceFilter !== 'all') && (
+                <DateFilterControl
+                  value={fundingDateFilter}
+                  onChange={setFundingDateFilter}
+                  size="sm"
+                  selectWidthClass="w-40 sm:w-44"
+                />
+
+                {isFundingFiltered && (
                   <button
-                    onClick={() => {
-                      setFundingSearch('');
-                      setFundingTerminalFilter('all');
-                      setFundingSourceFilter('all');
-                    }}
+                    onClick={resetFundingFilters}
                     className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center gap-1 transition-colors cursor-pointer"
                     title="إعادة تعيين الفلاتر"
                   >
@@ -1368,11 +1477,32 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 )}
               </div>
 
+              {isFundingsCapped && (
+                <div className="text-xs font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 rounded-xl px-3 py-2">
+                  تم عرض أحدث {LIST_LOAD_LIMIT} حركة تغذية فقط. ضيّق الفترة أو الفلاتر لعرض الباقي.
+                </div>
+              )}
+
               {filteredFundings.length === 0 ? (
                 <div className="text-center py-10 text-ink-muted dark:text-ink-muted-dark text-xs bg-surface-2/30 dark:bg-surface-dark-2/30 rounded-xl border border-dashed border-line dark:border-line-dark">
-                  {fundings.length === 0
-                    ? 'لا توجد حركات تغذية رصيد مسجلة حتى الآن.'
-                    : 'لا توجد حركات شحن مطابقة لخيارات الفلترة المحددة.'}
+                  {!isFundingFiltered ? (
+                    'لا توجد حركات تغذية رصيد مسجلة حتى الآن.'
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <span>
+                        {isDateFilterActive(fundingDateFilter)
+                          ? `لا توجد حركات شحن في الفترة (${describeDateFilter(fundingDateFilter)}) تطابق الفلاتر.`
+                          : 'لا توجد حركات شحن مطابقة لخيارات الفلترة المحددة.'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={resetFundingFilters}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-brand dark:text-brand-bright border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
+                      >
+                        عرض كل الحركات
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-line/70 dark:border-line-dark/70">
@@ -1392,7 +1522,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       {pagedFundings.map((fnd) => (
                         <tr key={fnd.id} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-xs text-ink-muted dark:text-ink-muted-dark font-mono align-middle">
-                            {new Date(fnd.createdAt).toLocaleString('ar-EG')}
+                            {formatLocalDateTime(fnd.createdAt)}
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap font-bold text-ink dark:text-ink-dark text-xs align-middle">
                             {fnd.terminalName || fnd.terminalId}
@@ -1484,7 +1614,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     options={[
                       { value: 'all', label: 'كل وجهات النقدية' },
                       { value: 'cash_drawer', label: 'درج كاشير المحل' },
-                      { value: 'terminal_drawer', label: 'درج المحفظة/الماكينة' },
+                      { value: 'terminal_till', label: 'درج المحفظة/الماكينة' },
                     ]}
                     className="w-44"
                   />
@@ -1496,15 +1626,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     selectWidthClass="w-44 sm:w-48"
                   />
 
-                  {(historySearch || historyTerminalFilter !== 'all' || historyServiceFilter !== 'all' || historyDestinationFilter !== 'all' || historyDateFilter.preset !== 'all') && (
+                  {isHistoryFiltered && (
                     <button
-                      onClick={() => {
-                        setHistorySearch('');
-                        setHistoryTerminalFilter('all');
-                        setHistoryServiceFilter('all');
-                        setHistoryDestinationFilter('all');
-                        resetHistoryDateFilter();
-                      }}
+                      onClick={resetHistoryFilters}
                       className="px-3 py-2 rounded-xl text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center gap-1.5 transition-colors cursor-pointer"
                       title="إعادة تعيين الفلاتر"
                     >
@@ -1518,18 +1642,39 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
             {/* Transactions Table */}
             <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 flex flex-col gap-4">
+              {isHistoryCapped && (
+                <div className="text-xs font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 rounded-xl px-3 py-2">
+                  تم عرض أحدث {LIST_LOAD_LIMIT} عملية فقط. ضيّق الفترة أو الفلاتر لعرض باقي العمليات.
+                </div>
+              )}
+
               {filteredTransactions.length === 0 ? (
                 <div className="text-center py-12 text-ink-muted dark:text-ink-muted-dark text-xs bg-surface-2/30 dark:bg-surface-dark-2/30 rounded-xl border border-dashed border-line dark:border-line-dark">
-                  {transactions.length === 0
-                    ? 'لا توجد عمليات دفع إلكتروني مسجلة حتى الآن.'
-                    : 'لا توجد عمليات دفع إلكتروني مطابقة لخيارات الفلترة والبحث.'}
+                  {!isHistoryFiltered ? (
+                    'لا توجد عمليات دفع إلكتروني مسجلة حتى الآن.'
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <span>
+                        {isDateFilterActive(historyDateFilter)
+                          ? `لا توجد عمليات دفع في الفترة (${describeDateFilter(historyDateFilter)}) تطابق الفلاتر والبحث.`
+                          : 'لا توجد عمليات دفع إلكتروني مطابقة لخيارات الفلترة والبحث.'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={resetHistoryFilters}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-brand dark:text-brand-bright border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
+                      >
+                        عرض كل العمليات
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-line/70 dark:border-line-dark/70">
                   <table className="w-full text-xs text-right min-w-[860px] border-collapse [&_th]:px-2 [&_td]:px-2">
                     <thead className="bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-muted-dark text-micro font-bold select-none">
                       <tr>
-                        <th className="py-3 px-3.5 whitespace-nowrap">الوقت</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">التاريخ والوقت</th>
                         <th className="py-3 px-3.5 whitespace-nowrap">الماكينة</th>
                         <th className="py-3 px-3.5 whitespace-nowrap">الخدمة</th>
                         <th className="py-3 px-3.5 whitespace-nowrap">رقم الهاتف / المرجع</th>
@@ -1546,7 +1691,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       {pagedTransactions.map((tx) => (
                         <tr key={tx.id} className={`hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors ${tx.status === 'cancelled' ? 'opacity-65 bg-danger-soft/40 dark:bg-danger-dark-soft/40' : ''}`}>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-xs text-ink-muted dark:text-ink-muted-dark font-mono align-middle">
-                            {new Date(tx.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                            {formatLocalDateTime(tx.createdAt)}
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap font-bold text-ink dark:text-ink-dark text-xs align-middle">
                             {tx.terminalName}
@@ -1671,7 +1816,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 />
               </div>
               <span className="text-xs font-mono font-bold text-ink-muted dark:text-ink-dark-muted">
-                إجمالي العمليات المشمولة: {filteredAnalyticsTxs.length} عملية
+                إجمالي العمليات المشمولة: {analyticsPeriodCount} عملية
               </span>
             </div>
 
@@ -1685,7 +1830,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   {formatArabicCurrency(analyticsPeriodProfitPiasters)}
                 </span>
                 <span className="text-micro text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                  إجمالي مكسب المحل الصافي من {filteredAnalyticsTxs.length} عملية
+                  إجمالي مكسب المحل الصافي من {analyticsPeriodCount} عملية
                 </span>
               </div>
 
@@ -1757,9 +1902,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 {SERVICE_PRESETS.map((preset) => {
-                  const txsForService = filteredAnalyticsTxs.filter((t) => t.serviceType === preset.type && t.status === 'completed');
-                  const vol = txsForService.reduce((s, t) => s + (t.billAmountPiasters || 0), 0);
-                  const prof = txsForService.reduce((s, t) => s + (t.netProfitPiasters || 0), 0);
+                  const serviceCount = periodAnalytics?.transactionsByType?.[preset.type] || 0;
+                  const vol = periodAnalytics?.volumeByTypePiasters?.[preset.type] || 0;
+                  const prof = periodAnalytics?.profitByTypePiasters?.[preset.type] || 0;
                   const Icon = preset.icon;
 
                   return (
@@ -1770,7 +1915,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       </div>
                       <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-1">
                         <span>عدد العمليات:</span>
-                        <span className="font-bold text-ink dark:text-ink-dark">{txsForService.length}</span>
+                        <span className="font-bold text-ink dark:text-ink-dark">{serviceCount}</span>
                       </div>
                       <div className="flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark mb-1">
                         <span>إجمالي المعاملات:</span>

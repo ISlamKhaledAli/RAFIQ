@@ -171,11 +171,15 @@ namespace RafiqPOS.Bridge
                     JObject txObj = request.Payload as JObject;
                     string txSupId = txObj != null && txObj["supplierId"] != null ? txObj["supplierId"].ToString() : request.Payload.ToString();
                     int txLimit = 50;
+                    string txDateFrom = null;
+                    string txDateTo = null;
                     if (txObj != null && txObj["limit"] != null)
                     {
                         txLimit = txObj["limit"].Value<int>();
                     }
-                    var transactions = DatabaseService.Suppliers.GetTransactions(txSupId, txLimit);
+                    if (txObj != null && txObj["dateFrom"] != null) txDateFrom = txObj["dateFrom"].ToString();
+                    if (txObj != null && txObj["dateTo"] != null) txDateTo = txObj["dateTo"].ToString();
+                    var transactions = DatabaseService.Suppliers.GetTransactions(txSupId, txLimit, txDateFrom, txDateTo);
                     response = BridgeResponse.Ok(request.Id, transactions);
                     return true;
 

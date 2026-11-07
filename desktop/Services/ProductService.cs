@@ -434,13 +434,13 @@ namespace RafiqPOS.Services
             return product;
         }
 
-        public List<ProductPriceHistory> GetPriceHistory(string productId, int limit = 50)
+        public List<ProductPriceHistory> GetPriceHistory(string productId, int limit = 50, string dateFrom = null, string dateTo = null)
         {
             if (_priceHistoryRepo == null || string.IsNullOrWhiteSpace(productId))
             {
                 return new List<ProductPriceHistory>();
             }
-            return _priceHistoryRepo.GetByProductId(productId, limit);
+            return _priceHistoryRepo.GetByProductId(productId, limit, dateFrom, dateTo);
         }
 
         public void DeleteProduct(string id)

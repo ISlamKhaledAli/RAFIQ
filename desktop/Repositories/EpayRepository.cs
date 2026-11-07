@@ -951,6 +951,9 @@ namespace RafiqPOS.Repositories
         public List<EpayTransaction> GetTransactions(string terminalId, string serviceType, string fromDate, string toDate, int limit)
         {
             var list = new List<EpayTransaction>();
+            string startTs;
+            string endTs;
+            LocalDayRange.Build(fromDate, toDate, out startTs, out endTs);
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -965,13 +968,13 @@ namespace RafiqPOS.Repositories
                 {
                     whereClauses.Add("t.service_type = @srvType");
                 }
-                if (!string.IsNullOrWhiteSpace(fromDate))
+                if (startTs != null)
                 {
-                    whereClauses.Add("t.created_at >= @fromDate");
+                    whereClauses.Add("datetime(t.created_at, 'localtime') >= @rangeStart");
                 }
-                if (!string.IsNullOrWhiteSpace(toDate))
+                if (endTs != null)
                 {
-                    whereClauses.Add("t.created_at <= @toDate");
+                    whereClauses.Add("datetime(t.created_at, 'localtime') <= @rangeEnd");
                 }
 
                 int effectiveLimit = limit > 0 ? limit : 100;
@@ -989,8 +992,7 @@ namespace RafiqPOS.Repositories
                 {
                     if (!string.IsNullOrWhiteSpace(terminalId)) cmd.Parameters.AddWithValue("@termId", terminalId);
                     if (!string.IsNullOrWhiteSpace(serviceType) && serviceType != "all") cmd.Parameters.AddWithValue("@srvType", serviceType);
-                    if (!string.IsNullOrWhiteSpace(fromDate)) cmd.Parameters.AddWithValue("@fromDate", fromDate);
-                    if (!string.IsNullOrWhiteSpace(toDate)) cmd.Parameters.AddWithValue("@toDate", toDate + "T23:59:59");
+                    LocalDayRange.Bind(cmd, startTs, endTs);
 
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -1004,13 +1006,17 @@ namespace RafiqPOS.Repositories
             return list;
         }
 
-        public List<EpayTerminalFunding> GetFundings(string terminalId, int limit)
+        public List<EpayTerminalFunding> GetFundings(string terminalId, int limit, string fromDate = null, string toDate = null)
         {
             var list = new List<EpayTerminalFunding>();
+            string startTs;
+            string endTs;
+            LocalDayRange.Build(fromDate, toDate, out startTs, out endTs);
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string whereClause = !string.IsNullOrWhiteSpace(terminalId) ? "WHERE f.terminal_id = @termId" : "";
+                string whereClause = "WHERE 1=1" + (!string.IsNullOrWhiteSpace(terminalId) ? " AND f.terminal_id = @termId" : "")
+                    + LocalDayRange.Where("f.created_at", startTs, endTs);
                 int effectiveLimit = limit > 0 ? limit : 50;
 
                 string sql = string.Format(@"
@@ -1025,6 +1031,7 @@ namespace RafiqPOS.Repositories
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     if (!string.IsNullOrWhiteSpace(terminalId)) cmd.Parameters.AddWithValue("@termId", terminalId);
+                    LocalDayRange.Bind(cmd, startTs, endTs);
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -1083,6 +1090,9 @@ namespace RafiqPOS.Repositories
         public EpayAnalyticsSummary GetAnalytics(string fromDate, string toDate)
         {
             var summary = new EpayAnalyticsSummary();
+            string startTs;
+            string endTs;
+            LocalDayRange.Build(fromDate, toDate, out startTs, out endTs);
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -1103,8 +1113,8 @@ namespace RafiqPOS.Repositories
                 // 2. Aggregate transactions metrics
                 var whereClauses = new List<string>();
                 whereClauses.Add("status = 'completed'");
-                if (!string.IsNullOrWhiteSpace(fromDate)) whereClauses.Add("created_at >= @fromDate");
-                if (!string.IsNullOrWhiteSpace(toDate)) whereClauses.Add("created_at <= @toDate");
+                if (startTs != null) whereClauses.Add("datetime(created_at, 'localtime') >= @rangeStart");
+                if (endTs != null) whereClauses.Add("datetime(created_at, 'localtime') <= @rangeEnd");
 
                 string aggSql = string.Format(@"
                     SELECT 
@@ -1121,8 +1131,7 @@ namespace RafiqPOS.Repositories
 
                 using (var cmd = new SQLiteCommand(aggSql, conn))
                 {
-                    if (!string.IsNullOrWhiteSpace(fromDate)) cmd.Parameters.AddWithValue("@fromDate", fromDate);
-                    if (!string.IsNullOrWhiteSpace(toDate)) cmd.Parameters.AddWithValue("@toDate", toDate + "T23:59:59");
+                    LocalDayRange.Bind(cmd, startTs, endTs);
 
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -1140,13 +1149,13 @@ namespace RafiqPOS.Repositories
                 }
 
                 // 3. Today's metrics specifically
-                string todayStart = DateTime.UtcNow.ToString("yyyy-MM-dd") + "T00:00:00";
+                string todayStart = DateTime.Now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) + " 00:00:00";
                 string todaySql = @"
                     SELECT 
                         COUNT(*) as today_count,
                         COALESCE(SUM(net_profit_piasters), 0) as today_profit
                     FROM epay_transactions
-                    WHERE status = 'completed' AND created_at >= @todayStart;
+                    WHERE status = 'completed' AND datetime(created_at, 'localtime') >= @todayStart;
                 ";
                 using (var cmd = new SQLiteCommand(todaySql, conn))
                 {
@@ -1174,8 +1183,7 @@ namespace RafiqPOS.Repositories
 
                 using (var cmd = new SQLiteCommand(typeSql, conn))
                 {
-                    if (!string.IsNullOrWhiteSpace(fromDate)) cmd.Parameters.AddWithValue("@fromDate", fromDate);
-                    if (!string.IsNullOrWhiteSpace(toDate)) cmd.Parameters.AddWithValue("@toDate", toDate + "T23:59:59");
+                    LocalDayRange.Bind(cmd, startTs, endTs);
 
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -1191,6 +1199,38 @@ namespace RafiqPOS.Repositories
                 }
             }
             return summary;
+        }
+
+        /// <summary>
+        /// حجم الفواتير المكتملة لكل نوع خدمة داخل نطاق أيام محلية (بدون حد لعدد الصفوف) لتكميل ملخص التحليلات.
+        /// </summary>
+        public Dictionary<string, long> GetBillVolumeByServiceType(string fromDate, string toDate)
+        {
+            var result = new Dictionary<string, long>();
+            string startTs;
+            string endTs;
+            LocalDayRange.Build(fromDate, toDate, out startTs, out endTs);
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT service_type, COALESCE(SUM(bill_amount_piasters), 0) AS volume_by_type
+                    FROM epay_transactions
+                    WHERE status = 'completed' " + LocalDayRange.Where("created_at", startTs, endTs) + @"
+                    GROUP BY service_type;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    LocalDayRange.Bind(cmd, startTs, endTs);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            result[reader["service_type"].ToString()] = Convert.ToInt64(reader["volume_by_type"]);
+                        }
+                    }
+                }
+            }
+            return result;
         }
 
         private static bool HasColumn(SQLiteDataReader reader, string columnName)

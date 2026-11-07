@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Wallet,
   Smartphone,
@@ -39,16 +39,36 @@ import { RequiredMark } from '../../components/RequiredMark';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useClientPagination } from '../../utils/usePagination';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
-import { useDateFilter, getDatePresetLabel } from '../../utils/dateFilter';
+import { useUnsavedChangesGuard } from '../../context/useUnsavedChanges';
+import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
+import {
+  useDateFilter,
+  useToday,
+  getDatePresetLabel,
+  getDateFilterPayload,
+  getDateFilterKey,
+  isDateFilterActive,
+  describeDateFilter,
+  formatLocalDateTime,
+} from '../../utils/dateFilter';
 import type {
   DigitalAccount,
   DigitalTransaction,
-  DigitalAccountFunding,
   DigitalAnalyticsSummary,
   DigitalAccountType,
 } from '../../types/models';
 
 export type WalletsSubTab = 'transact' | 'accounts' | 'history' | 'analytics';
+
+// أقصى عدد صفوف يُحمَّل لسجل العمليات بعد تطبيق الفلاتر في قاعدة البيانات
+const HISTORY_LOAD_LIMIT = 2000;
+
+// مجاميع الفترة تُحسب في SQL على كل العمليات المكتملة (وليس على الصفوف المحمّلة فقط)
+type WalletsAnalytics = DigitalAnalyticsSummary & {
+  periodTransactionsCount?: number;
+  periodProfitPiasters?: number;
+  periodVolumePiasters?: number;
+};
 
 export interface WalletsViewProps {
   isActive?: boolean;
@@ -272,7 +292,7 @@ const getAccountDisplayInfo = (acc?: DigitalAccount | null) => {
 export const WalletsView: React.FC<WalletsViewProps> = ({
   isActive = true,
   activeSubTab = 'transact',
-  onSubTabChange: _onSubTabChange,
+  onSubTabChange,
 }) => {
   const { currentUser, isRoot, isAdmin, hasPermission } = useAuth();
   const currentUserName = currentUser?.displayName || currentUser?.username || 'كاشير المحل';
@@ -318,8 +338,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   // Data State
   const [accounts, setAccounts] = useState<DigitalAccount[]>([]);
   const [transactions, setTransactions] = useState<DigitalTransaction[]>([]);
-  const [_fundings, setFundings] = useState<DigitalAccountFunding[]>([]);
-  const [analytics, setAnalytics] = useState<DigitalAnalyticsSummary | null>(null);
+  const [analytics, setAnalytics] = useState<WalletsAnalytics | null>(null);
   const [_loading, setLoading] = useState<boolean>(false);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
@@ -338,18 +357,21 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [filterAccount, setFilterAccount] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [historySearch, setHistorySearch] = useState<string>('');
-  const { 
-    dateFilter: historyDateFilter, 
-    setDateFilter: setHistoryDateFilter, 
-    filterDate: filterHistoryDate 
+  const {
+    dateFilter: historyDateFilter,
+    setDateFilter: setHistoryDateFilter,
+    resetDateFilter: resetHistoryDateFilter,
   } = useDateFilter();
 
   // Filter State for Analytics
-  const { 
-    dateFilter: analyticsDateFilter, 
-    setDateFilter: setAnalyticsDateFilter, 
-    filterDate: filterAnalyticsDate 
+  const {
+    dateFilter: analyticsDateFilter,
+    setDateFilter: setAnalyticsDateFilter,
   } = useDateFilter('today');
+
+  // يتغير عند منتصف الليل فتُعاد قراءة الفترات النسبية (اليوم/أمس/آخر 7 أيام) من قاعدة البيانات
+  const today = useToday();
+  const loadSeqRef = useRef(0);
 
   // Modals
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -485,18 +507,25 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
   // Load Data
   const loadData = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     try {
       setLoading(true);
-      const [accsRes, txsRes, fundRes, anRes] = await Promise.all([
+      const [accsRes, txsRes, anRes] = await Promise.all([
         invoke<DigitalAccount[]>('wallets:getAccounts'),
-        invoke<DigitalTransaction[]>('wallets:getTransactions'),
-        invoke<DigitalAccountFunding[]>('wallets:getFundings'),
-        invoke<DigitalAnalyticsSummary>('wallets:getAnalytics'),
+        invoke<DigitalTransaction[]>('wallets:getTransactions', {
+          limit: HISTORY_LOAD_LIMIT,
+          accountId: filterAccount !== 'all' ? filterAccount : undefined,
+          txType: filterType !== 'all' ? filterType : undefined,
+          ...getDateFilterPayload(historyDateFilter),
+        }),
+        invoke<WalletsAnalytics>('wallets:getAnalytics', getDateFilterPayload(analyticsDateFilter)),
       ]);
+
+      // تجاهل ردّ قديم وصل بعد طلب أحدث (تغيير سريع للفلتر)
+      if (seq !== loadSeqRef.current) return;
 
       setAccounts(accsRes || []);
       setTransactions(txsRes || []);
-      setFundings(fundRes || []);
       setAnalytics(anRes || null);
 
       if ((!selectedAccountId || !accsRes?.some((a) => a.id === selectedAccountId)) && accsRes && accsRes.length > 0) {
@@ -508,13 +537,13 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [selectedAccountId]);
+  }, [selectedAccountId, filterAccount, filterType, historyDateFilter, analyticsDateFilter]);
 
   useEffect(() => {
     if (isActive) {
       void loadData();
     }
-  }, [isActive, loadData]);
+  }, [isActive, loadData, today]);
 
   useDataSubscription(['wallets', 'all'], () => {
     void loadData();
@@ -565,16 +594,34 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const cashTakenFromCustomer = amountPiasters + profitPiasters;
   const cashGivenToCustomer = Math.max(0, amountPiasters - profitPiasters);
 
-  // Submit Transaction
-  const handleProcessTransaction = async () => {
+  // Submit Transaction. Resolves true only after the transaction was recorded.
+  const resetTransactionForm = () => {
+    setAmountPiasters(0);
+    setProfitPiasters(0);
+    setCustomerPhone('');
+    setCustomerName('');
+    setReferenceNumber('');
+    setNotes('');
+  };
+
+  const transactionDraftDirty =
+    amountPiasters > 0 ||
+    profitPiasters > 0 ||
+    customerPhone.trim() !== '' ||
+    customerName.trim() !== '' ||
+    referenceNumber.trim() !== '' ||
+    notes.trim() !== '';
+
+  const handleProcessTransaction = async (): Promise<boolean> => {
+    if (actionLoading) return false;
     if (!selectedAccount) {
       setFeedbackMsg({ type: 'error', text: 'يرجى اختيار المحفظة أو الحساب المطلوب أولاً.' });
-      return;
+      return false;
     }
 
     if (amountPiasters <= 0) {
       setFeedbackMsg({ type: 'error', text: 'يرجى إدخال مبلغ صحيح للعملية أكبر من صفر.' });
-      return;
+      return false;
     }
 
     if (hasInsufficientBalance) {
@@ -582,9 +629,10 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         type: 'error',
         text: `رصيد المحفظة الحالي (${formatArabicCurrency(selectedAccount.balancePiasters)}) غير كافٍ لتنفيذ عملية تحويل بمبلغ (${formatArabicCurrency(amountPiasters)}).`,
       });
-      return;
+      return false;
     }
 
+    let saved = false;
     try {
       setActionLoading(true);
       const res = await invoke<DigitalTransaction>('wallets:processTransaction', {
@@ -598,6 +646,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         notes: notes.trim() || undefined,
         performedBy: currentUserName,
       });
+      saved = true;
 
       setLastProcessedTx(res);
       setFeedbackMsg({
@@ -605,13 +654,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         text: `تم حفظ المعاملة رقم ${res.transactionNumber}`,
       });
 
-      // Reset form
-      setAmountPiasters(0);
-      setProfitPiasters(0);
-      setCustomerPhone('');
-      setCustomerName('');
-      setReferenceNumber('');
-      setNotes('');
+      resetTransactionForm();
 
       await loadData();
     } catch (err: any) {
@@ -620,7 +663,22 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     } finally {
       setActionLoading(false);
     }
+    return saved;
   };
+
+  const { saveBarRef: transactSaveBarRef } = useUnsavedChangesGuard({
+    id: 'wallets-transact',
+    label: 'عملية المحفظة الجارية',
+    isDirty: transactionDraftDirty,
+    isActive,
+    keepsStateWithinPage: true,
+    // Same handler and validation as the confirm button; without an amount there is nothing to record
+    save: amountPiasters > 0 ? handleProcessTransaction : undefined,
+    discard: resetTransactionForm,
+    onAttention: () => {
+      if (currentTab !== 'transact') onSubTabChange?.('transact');
+    },
+  });
 
   // Open Funding Modal
   const handleOpenFundingModal = (accId?: string) => {
@@ -874,11 +932,9 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   };
 
   // Filtered History
+  // الحساب والنوع والفترة تُطبَّق في قاعدة البيانات (انظر loadData)، والبحث النصي فوق النتيجة المحمّلة
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
-      if (filterAccount !== 'all' && t.accountId !== filterAccount) return false;
-      if (filterType !== 'all' && t.txType !== filterType) return false;
-      if (!filterHistoryDate(t.createdAt)) return false;
       if (historySearch.trim()) {
         const q = historySearch.toLowerCase();
         const matchesRef = t.transactionNumber?.toLowerCase().includes(q);
@@ -889,7 +945,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       }
       return true;
     });
-  }, [transactions, filterAccount, filterType, historySearch, filterHistoryDate]);
+  }, [transactions, historySearch]);
 
   const {
     paginatedItems: paginatedHistory,
@@ -902,27 +958,26 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   } = useClientPagination(
     filteredTransactions, 
     12, 
-    `${historySearch}_${filterAccount}_${filterType}_${historyDateFilter.preset}_${historyDateFilter.startDate}_${historyDateFilter.endDate}`
+    `${historySearch}_${filterAccount}_${filterType}_${getDateFilterKey(historyDateFilter)}`
   );
 
+  const isHistoryFiltered =
+    historySearch.trim() !== '' || filterAccount !== 'all' || filterType !== 'all' || isDateFilterActive(historyDateFilter);
+  const isHistoryCapped = transactions.length >= HISTORY_LOAD_LIMIT;
+
+  const resetHistoryFilters = () => {
+    setHistorySearch('');
+    setFilterAccount('all');
+    setFilterType('all');
+    resetHistoryDateFilter();
+  };
+
   // Filtered Analytics Metrics based on analyticsDateFilter
-  const filteredAnalyticsTxs = useMemo(() => {
-    return transactions.filter((t) => t.status === 'completed' && filterAnalyticsDate(t.createdAt));
-  }, [transactions, filterAnalyticsDate]);
+  const periodTransactionsCount = analytics?.periodTransactionsCount || 0;
+  const periodProfitPiasters = analytics?.periodProfitPiasters || 0;
+  const periodVolumePiasters = analytics?.periodVolumePiasters || 0;
 
-  const periodProfitPiasters = useMemo(() => {
-    return filteredAnalyticsTxs.reduce((sum, t) => sum + (t.profitPiasters || 0), 0);
-  }, [filteredAnalyticsTxs]);
-
-  const periodVolumePiasters = useMemo(() => {
-    return filteredAnalyticsTxs.reduce((sum, t) => sum + (t.amountPiasters || 0), 0);
-  }, [filteredAnalyticsTxs]);
-
-  const totalAllTimeProfitPiasters = useMemo(() => {
-    return transactions
-      .filter((t) => t.status === 'completed')
-      .reduce((sum, t) => sum + (t.profitPiasters || 0), 0);
-  }, [transactions]);
+  const totalAllTimeProfitPiasters = analytics?.totalProfitPiasters || 0;
 
   // Options for Selects
   const accountSelectOptions = useMemo(() => {
@@ -1353,6 +1408,12 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 )}
 
                 {/* Primary Submit Button */}
+                <div ref={transactSaveBarRef} className="flex flex-col gap-2 rounded-xl">
+                {transactionDraftDirty && (
+                  <div role="status">
+                    <UnsavedChangesChip />
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={handleProcessTransaction}
@@ -1372,7 +1433,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                         : 'تأكيد إضافة المبلغ للمحفظة وحفظ الربح'}
                   </span>
                 </button>
-
+                </div>
               </div>
 
               {/* Card 2: Last Processed Transaction Mini-Receipt */}
@@ -1660,6 +1721,18 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   onChange={setHistoryDateFilter}
                   size="sm"
                 />
+
+                {isHistoryFiltered && (
+                  <button
+                    type="button"
+                    onClick={resetHistoryFilters}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="إعادة تعيين الفلاتر"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>إلغاء الفلترة</span>
+                  </button>
+                )}
               </div>
 
               {totalPages <= 1 && (
@@ -1668,6 +1741,18 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 </span>
               )}
             </div>
+
+            {isDateFilterActive(historyDateFilter) && (
+              <div className="text-xs font-bold text-brand-dark dark:text-brand-bright px-1">
+                الفترة المعروضة: {describeDateFilter(historyDateFilter)}
+              </div>
+            )}
+
+            {isHistoryCapped && (
+              <div className="text-xs font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 rounded-xl px-3 py-2">
+                تم عرض أحدث {HISTORY_LOAD_LIMIT} عملية فقط. ضيّق الفترة أو الفلاتر لعرض باقي العمليات.
+              </div>
+            )}
 
             {/* Table */}
             <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xs overflow-hidden">
@@ -1691,7 +1776,24 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     {paginatedHistory.length === 0 ? (
                       <tr>
                         <td colSpan={10} className="py-12 text-center text-ink-muted dark:text-ink-dark-muted font-medium">
-                          لا توجد عمليات مسجلة مطابقة للبحث
+                          {isHistoryFiltered ? (
+                            <div className="flex flex-col items-center gap-3">
+                              <span>
+                                {isDateFilterActive(historyDateFilter)
+                                  ? `لا توجد عمليات مطابقة في الفترة (${describeDateFilter(historyDateFilter)})`
+                                  : 'لا توجد عمليات مسجلة مطابقة للبحث'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={resetHistoryFilters}
+                                className="px-3 py-1.5 rounded-xl text-xs font-bold text-brand dark:text-brand-bright border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
+                              >
+                                عرض كل العمليات
+                              </button>
+                            </div>
+                          ) : (
+                            'لا توجد عمليات مسجلة'
+                          )}
                         </td>
                       </tr>
                     ) : (
@@ -1758,7 +1860,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                               {t.customerPhone ? `${t.customerPhone} ${t.customerName ? `(${t.customerName})` : ''}` : '—'}
                             </td>
                             <td className="px-4 font-mono text-ink-muted dark:text-ink-dark-muted">
-                              {t.createdAt?.slice(0, 16).replace('T', ' ')}
+                              {formatLocalDateTime(t.createdAt)}
                             </td>
                             <td className="px-4 text-ink-muted dark:text-ink-dark-muted">
                               {t.createdByName || t.createdBy || 'كاشير'}
@@ -1835,7 +1937,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 />
               </div>
               <span className="text-xs font-mono font-bold text-ink-muted dark:text-ink-dark-muted">
-                إجمالي العمليات المشمولة: {filteredAnalyticsTxs.length} عملية
+                إجمالي العمليات المشمولة: {periodTransactionsCount} عملية
               </span>
             </div>
 
@@ -1850,7 +1952,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     {formatArabicCurrency(periodProfitPiasters)}
                   </span>
                   <span className="text-micro text-paid dark:text-brand-bright mt-1 block font-bold">
-                    من {filteredAnalyticsTxs.length} عملية مكتملة
+                    من {periodTransactionsCount} عملية مكتملة
                   </span>
                 </div>
                 <div className="w-9 h-9 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shrink-0">

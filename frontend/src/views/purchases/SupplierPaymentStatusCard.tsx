@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, CheckCircle, Sparkles, UserCheck } from 'lucide-react';
+import { AlertTriangle, Calculator, CheckCircle, Sparkles, UserCheck } from 'lucide-react';
 import { describeSupplierBalance, type SupplierPaymentState } from './supplierPaymentState';
 
 type Tone = 'paid' | 'warn' | 'danger';
@@ -18,7 +18,7 @@ const ACCENT_TONE: Record<Tone | 'neutral', string> = {
 };
 
 const Shell = ({ tone, icon, title, children }: { tone: Tone; icon: ReactNode; title: string; children: ReactNode }) => (
-  <div role="status" className={`p-4 rounded-xl border flex flex-col gap-3 ${CARD_TONE[tone]}`}>
+  <div role="status" className={`flex-1 p-4 rounded-xl border flex flex-col gap-3 ${CARD_TONE[tone]}`}>
     <div className="flex items-center gap-2">
       <span className={`shrink-0 ${ACCENT_TONE[tone]}`}>{icon}</span>
       <h4 className="t-card-title text-ink dark:text-ink-dark m-0">{title}</h4>
@@ -65,7 +65,18 @@ export const SupplierPaymentStatusCard = ({
   paymentSourceLabel,
   formatMoney,
 }: SupplierPaymentStatusCardProps) => {
-  if (state === 'none') return null;
+  if (state === 'none') {
+    return (
+      <div
+        role="status"
+        className="flex-1 p-4 rounded-xl border border-dashed border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col items-center justify-center gap-2 text-center"
+      >
+        <Calculator className="w-6 h-6 text-ink-muted dark:text-ink-dark-muted" />
+        <p className="m-0 text-sm font-bold text-ink dark:text-ink-dark">المدفوع والمتبقي هيظهر هنا</p>
+        <p className="m-0 text-xs text-ink-muted dark:text-ink-dark-muted">أضف أصناف للفاتورة ثم اكتب المبلغ المدفوع الآن.</p>
+      </div>
+    );
+  }
 
   const name = supplierName ? `«${supplierName}»` : 'المورد';
   const balanceAfter = supplierName ? (
@@ -90,6 +101,10 @@ export const SupplierPaymentStatusCard = ({
   if (state === 'full') {
     return (
       <Shell tone="paid" icon={<CheckCircle className="w-5 h-5" />} title="الفاتورة مسددة بالكامل">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Figure label="المدفوع الآن" value={formatMoney(paidAmountPiasters)} tone="paid" />
+          <Figure label="المتبقي على الحساب" value={formatMoney(0)} tone="paid" large />
+        </div>
         <Sentence>
           {paymentSourceLabel ? `هيخرج ${formatMoney(paidAmountPiasters)} ${paymentSourceLabel}، ولا يتبقى على الفاتورة شيء.` : 'لا يتبقى على الفاتورة شيء.'}
         </Sentence>
@@ -122,11 +137,9 @@ export const SupplierPaymentStatusCard = ({
   if (state === 'credit') {
     return (
       <Shell tone="warn" icon={<UserCheck className="w-5 h-5" />} title="الفاتورة آجل بالكامل (على الحساب)">
-        <div className="p-3 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex items-center justify-between">
-          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي المبلغ الآجل على الحساب:</span>
-          <span className="text-lg font-black font-mono tabular-nums text-warn dark:text-warn-bright">
-            {formatMoney(remainingAmountPiasters)}
-          </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Figure label="المدفوع الآن" value={formatMoney(0)} tone="neutral" />
+          <Figure label="إجمالي المبلغ الآجل على الحساب" value={formatMoney(remainingAmountPiasters)} tone="warn" large />
         </div>
         <Sentence>
           لم يتم سداد أي مبالغ نقدية الآن. {advanceSentence}

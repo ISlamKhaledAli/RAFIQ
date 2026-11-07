@@ -17,6 +17,8 @@ namespace RafiqPOS.Bridge
                     string supplierId = null;
                     string startDate = null;
                     string endDate = null;
+                    string purDateFrom = null;
+                    string purDateTo = null;
                     int limit = 100;
 
                     JObject getObj = request.Payload as JObject;
@@ -25,10 +27,12 @@ namespace RafiqPOS.Bridge
                         if (getObj["supplierId"] != null) supplierId = getObj["supplierId"].ToString();
                         if (getObj["startDate"] != null) startDate = getObj["startDate"].ToString();
                         if (getObj["endDate"] != null) endDate = getObj["endDate"].ToString();
+                        if (getObj["dateFrom"] != null) purDateFrom = getObj["dateFrom"].ToString();
+                        if (getObj["dateTo"] != null) purDateTo = getObj["dateTo"].ToString();
                         if (getObj["limit"] != null) limit = getObj["limit"].Value<int>();
                     }
 
-                    var purchases = DatabaseService.Purchases.GetAll(supplierId, startDate, endDate, limit);
+                    var purchases = DatabaseService.Purchases.GetAll(supplierId, startDate, endDate, limit, purDateFrom, purDateTo);
                     response = BridgeResponse.Ok(request.Id, purchases);
                     return true;
 
