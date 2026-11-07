@@ -78,3 +78,33 @@ describe('purchase payment section mirrors the cashier: full / part / on account
     }
   });
 });
+
+describe('typing the paid amount does not move the page (same footprint in every state)', () => {
+  it('the status card sits in a reserved-height area and fills it', () => {
+    assert.match(tab, /<div className="min-h-\[17\.5rem\] flex flex-col">\s*<SupplierPaymentStatusCard/);
+    assert.match(card, /role="status" className=\{`flex-1 p-4 rounded-xl border/);
+  });
+
+  it('an empty invoice shows a placeholder like the cashier does, not nothing', () => {
+    assert.ok(card.includes('المدفوع والمتبقي هيظهر هنا'));
+    assert.ok(!/if \(state === 'none'\) return null;/.test(card));
+  });
+
+  it('every state starts with the same two figures (paid now / remaining)', () => {
+    for (const label of ['المدفوع الآن', 'المتبقي على الحساب', 'إجمالي المبلغ الآجل على الحساب']) {
+      assert.ok(card.includes(`label="${label}"`), label);
+    }
+  });
+
+  it('the cash source block is always mounted (dimmed while no cash leaves) so the first digit adds nothing', () => {
+    assert.ok(!/\{paidAmountPiasters > 0 && \(\s*<div className="space-y-2">/.test(tab));
+    assert.match(tab, /disabled=\{paidAmountPiasters === 0\}/);
+    assert.ok(tab.includes('(لا يخرج نقد الآن)'));
+  });
+
+  it('the duplicate stand-alone supplier warning is gone (the card already carries it)', () => {
+    assert.ok(!tab.includes('يجب اختيار المورد من أعلى الصفحة لتسجيل الفاتورة الآجلة على حسابه.'));
+    assert.ok(card.includes('يجب اختيار المورد من أعلى الصفحة لتسجيل الفاتورة الآجلة على حسابه.'));
+  });
+});
+

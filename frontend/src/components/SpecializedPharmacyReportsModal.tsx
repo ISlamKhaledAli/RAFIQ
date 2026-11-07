@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   X, 
   Calendar, 
@@ -20,6 +20,9 @@ import { printReport } from '../utils/printReport';
 import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from './CustomSelect';
 import { formatArabicCurrency } from '../utils/money';
+import { DateFilterControl } from './DateFilterControl';
+import { type DateFilterValue, DEFAULT_DATE_FILTER, isDateFilterActive, describeDateFilter, useToday } from '../utils/dateFilter';
+import { buildProfitabilityPayload, lastDaysFilter } from './pharmaDateRange';
 
 interface SpecializedPharmacyReportsModalProps {
   isOpen: boolean;
@@ -149,7 +152,9 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
 
   // Profitability state
   const [profReport, setProfReport] = useState<ProfitabilityReport | null>(null);
-  const [profPeriod, setProfPeriod] = useState<string>('month');
+  const [profFilter, setProfFilter] = useState<DateFilterValue>(() => lastDaysFilter(30));
+  const today = useToday();
+  const profSeq = useRef(0);
   const [profSubView, setProfSubView] = useState<'manufacturers' | 'ingredients'>('manufacturers');
 
   const [loading, setLoading] = useState(false);
@@ -198,27 +203,32 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
 
   // 3. Fetch Profitability
   const fetchProfitability = useCallback(async () => {
+    const seq = ++profSeq.current;
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await invoke<ProfitabilityReport>('reports:getPharmaProfitability', {
-        period: profPeriod,
-      });
-      setProfReport(res || null);
+      const res = await invoke<ProfitabilityReport>('reports:getPharmaProfitability', buildProfitabilityPayload(profFilter));
+      if (seq === profSeq.current) setProfReport(res || null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setErrorMsg(`فشل جلب تقرير الأرباح: ${msg}`);
+      if (seq === profSeq.current) setErrorMsg(`فشل جلب تقرير الأرباح: ${msg}`);
     } finally {
-      setLoading(false);
+      if (seq === profSeq.current) setLoading(false);
     }
-  }, [profPeriod]);
+  }, [profFilter]);
+
+  useEffect(() => {
+    // a reopened report starts from a fresh "last 30 days" range, not the one frozen at first mount
+    if (isOpen) setProfFilter(lastDaysFilter(30));
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
     if (activeTab === 'expiry') fetchHeatmap();
     else if (activeTab === 'stagnant') fetchStagnant();
     else if (activeTab === 'profitability') fetchProfitability();
-  }, [isOpen, activeTab, fetchHeatmap, fetchStagnant, fetchProfitability]);
+    // today in the deps: a relative preset is re-evaluated when the day rolls over
+  }, [isOpen, activeTab, fetchHeatmap, fetchStagnant, fetchProfitability, today]);
 
   useDataSubscription(['products', 'sales', 'all'], () => {
     if (!isOpen) return;
@@ -593,19 +603,8 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
             <div className="space-y-6">
               {/* Filter Bar & Summary Ribbon */}
               <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                <div className="flex items-center gap-3">
-                  <div className="w-40">
-                    <CustomSelect
-                      value={profPeriod}
-                      onChange={(val) => setProfPeriod(val)}
-                      options={[
-                        { value: 'today', label: 'اليوم' },
-                        { value: 'yesterday', label: 'أمس' },
-                        { value: 'week', label: 'آخر 7 أيام' },
-                        { value: 'month', label: 'آخر 30 يوماً' },
-                      ]}
-                    />
-                  </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <DateFilterControl value={profFilter} onChange={setProfFilter} variant="select" size="sm" />
 
                   <div className="flex rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-0.5">
                     <button
@@ -747,6 +746,24 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                       ))}
                     </tbody>
                   </table>
+                )}
+                {profReport && !loading && (profSubView === 'manufacturers' ? profReport.manufacturers : profReport.activeIngredients).length === 0 && (
+                  <div className="p-8 flex flex-col items-center justify-center gap-2 text-ink-muted dark:text-ink-dark-muted">
+                    <span className="text-xs font-bold">
+                      {isDateFilterActive(profFilter)
+                        ? `لا توجد مبيعات خلال ${describeDateFilter(profFilter)}`
+                        : 'لا توجد مبيعات مسجلة'}
+                    </span>
+                    {isDateFilterActive(profFilter) && (
+                      <button
+                        type="button"
+                        onClick={() => setProfFilter(DEFAULT_DATE_FILTER)}
+                        className="h-8 px-3 rounded-lg bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
+                      >
+                        عرض كل الفترات
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ChangeEvent } from 'react';
+import { useState, type FormEvent, type ChangeEvent, type RefObject } from 'react';
 import {
   Save,
   Image as ImageIcon,
@@ -12,6 +12,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
+import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
 import { optimizeImageForThermal } from '../../utils/thermalImageOptimizer';
 import { ReceiptPaper } from '../../components/ReceiptPaper';
 import {
@@ -40,6 +41,12 @@ interface StoreProfileTabProps {
   setShowReceiptLogo?: (val: boolean) => void;
   showReceiptCashier?: boolean;
   setShowReceiptCashier?: (val: boolean) => void;
+  showReceiptInvoiceNumber?: boolean;
+  setShowReceiptInvoiceNumber?: (val: boolean) => void;
+  showReceiptPaid?: boolean;
+  setShowReceiptPaid?: (val: boolean) => void;
+  showReceiptChange?: boolean;
+  setShowReceiptChange?: (val: boolean) => void;
   storeLogoUrl?: string;
   setStoreLogoUrl?: (val: string) => void;
   /** Developer signature settings, read only here (edited on the root console): they only feed the live preview */
@@ -55,6 +62,8 @@ interface StoreProfileTabProps {
   handleSave: (e: FormEvent) => void;
   /** Shortcut to the printer settings (paper width and test print); omitted when the user cannot open them */
   onOpenPrinterSettings?: () => void;
+  /** Goes on the save bar: the settings page scrolls to it and rings it when the user stays */
+  saveBarRef: RefObject<HTMLDivElement | null>;
 }
 
 const DEFAULT_LOGOS = ['/receipt_logo.png', '/receipt_logo_square.png', '/logo.png'];
@@ -77,6 +86,12 @@ export const StoreProfileTab = ({
   setShowReceiptLogo,
   showReceiptCashier = true,
   setShowReceiptCashier,
+  showReceiptInvoiceNumber = true,
+  setShowReceiptInvoiceNumber,
+  showReceiptPaid = true,
+  setShowReceiptPaid,
+  showReceiptChange = true,
+  setShowReceiptChange,
   storeLogoUrl = DEFAULT_LOGO_URL,
   setStoreLogoUrl,
   developerSignature = DEFAULT_DEVELOPER_SIGNATURE,
@@ -88,6 +103,7 @@ export const StoreProfileTab = ({
   saveLoading,
   handleSave,
   onOpenPrinterSettings,
+  saveBarRef,
 }: StoreProfileTabProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
@@ -134,12 +150,7 @@ export const StoreProfileTab = ({
   } else if (hasTextError) {
     statusNode = <span className="text-danger dark:text-danger-bright font-semibold">قصّر نصوص الوصل ثم احفظ</span>;
   } else if (dirty) {
-    statusNode = (
-      <span className="flex items-center gap-2 text-warn dark:text-warn-bright font-semibold">
-        <span className="w-2 h-2 rounded-full bg-warn dark:bg-warn-bright" />
-        تغييرات لم تُحفظ بعد
-      </span>
-    );
+    statusNode = <UnsavedChangesChip />;
   } else if (saved) {
     statusNode = (
       <span className="flex items-center gap-2 text-paid dark:text-paid-bright font-bold">
@@ -301,16 +312,34 @@ export const StoreProfileTab = ({
           />
         </SettingsCard>
 
-        <SettingsCard icon={UserRound} title="بيانات الفاتورة" description="ما يظهر في رأس الوصل.">
+        <SettingsCard icon={UserRound} title="بيانات الفاتورة" description="ما يظهر في الوصل المطبوع.">
           <ToggleRow
             title="إظهار اسم الكاشير في الوصل"
             description="يُطبع اسم الكاشير الذي أتمّ البيع تلقائياً."
             checked={showReceiptCashier}
             onChange={(next) => setShowReceiptCashier?.(next)}
           />
+          <ToggleRow
+            title="إظهار رقم الفاتورة في الوصل"
+            description="يُطبع سطر فاتورة رقم، ويبقى باركود الفاتورة لأنه يُستخدم للبحث عنها عند المرتجع."
+            checked={showReceiptInvoiceNumber}
+            onChange={(next) => setShowReceiptInvoiceNumber?.(next)}
+          />
+          <ToggleRow
+            title="إظهار المدفوع في الوصل"
+            description="تُطبع صفوف المبلغ المدفوع وطرق الدفع، ويبقى المتبقي آجل على الحساب ظاهراً دائماً."
+            checked={showReceiptPaid}
+            onChange={(next) => setShowReceiptPaid?.(next)}
+          />
+          <ToggleRow
+            title="إظهار الباقي للعميل في الوصل"
+            description="يُطبع المبلغ الذي رُدّ للعميل عند دفعه أكثر من المطلوب."
+            checked={showReceiptChange}
+            onChange={(next) => setShowReceiptChange?.(next)}
+          />
         </SettingsCard>
 
-        <div className="sticky bottom-0 z-10 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-md rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div ref={saveBarRef} className="sticky bottom-0 z-10 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-md rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs" role="status">
             {statusNode}
           </div>
@@ -350,7 +379,15 @@ export const StoreProfileTab = ({
                   footer: receiptFooter,
                   signature: developerSignature,
                 },
-                { showCashier: showReceiptCashier, signatureVisible: developerSignatureVisible, signatureImage: developerSignatureImage, builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES },
+                {
+                  showCashier: showReceiptCashier,
+                  showInvoiceNumber: showReceiptInvoiceNumber,
+                  showPaid: showReceiptPaid,
+                  showChange: showReceiptChange,
+                  signatureVisible: developerSignatureVisible,
+                  signatureImage: developerSignatureImage,
+                  builtInSignatureImages: BUILT_IN_SIGNATURE_IMAGES,
+                },
               )}
               paper={previewPaper}
               logoUrl={showReceiptLogo ? storeLogoUrl : null}

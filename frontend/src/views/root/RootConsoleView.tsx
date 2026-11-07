@@ -25,6 +25,8 @@ export const RootConsoleView = ({ activeSubTab, isActive, sysInfo, onNavigateToT
   const { isRoot, hasPermission } = useAuth();
   const { flags, toggleFlag } = useFeatures();
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  // Bumped to restart the receipt page from the saved values when its unsaved draft is discarded
+  const [receiptGeneration, setReceiptGeneration] = useState(0);
 
   const allowed = getAllowedRootSubTabs({ isRoot, canViewAudit: hasPermission('audit_log.view') });
   const subTab = resolveRootSubTab(activeSubTab, allowed);
@@ -55,7 +57,9 @@ export const RootConsoleView = ({ activeSubTab, isActive, sysInfo, onNavigateToT
       </header>
 
       {subTab === 'status' && <RootStatusPage sysInfo={sysInfo} onNavigateToTab={onNavigateToTab} />}
-      {subTab === 'receipt' && <RootReceiptPage />}
+      {subTab === 'receipt' && (
+        <RootReceiptPage key={receiptGeneration} isActive={isActive} onDiscard={() => setReceiptGeneration((n) => n + 1)} />
+      )}
       {subTab === 'features' && <RootFeaturesPage flags={flags} toggleFlag={toggleFlag} onOpenWizard={() => setIsWizardOpen(true)} />}
       {subTab === 'devices' && <RootDevicesPage />}
       {subTab === 'data' && <RootDataPage />}

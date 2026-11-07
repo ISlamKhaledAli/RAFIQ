@@ -17,6 +17,8 @@ namespace RafiqPOS.Bridge
                     string invType = null;
                     string invFrom = null;
                     string invTo = null;
+                    string invDateFrom = null;
+                    string invDateTo = null;
                     int invLimit = 200;
                     if (request.Payload != null)
                     {
@@ -27,10 +29,12 @@ namespace RafiqPOS.Bridge
                             if (pObj["movementType"] != null) invType = pObj["movementType"].ToString();
                             if (pObj["fromDate"] != null) invFrom = pObj["fromDate"].ToString();
                             if (pObj["toDate"] != null) invTo = pObj["toDate"].ToString();
+                            if (pObj["dateFrom"] != null) invDateFrom = pObj["dateFrom"].ToString();
+                            if (pObj["dateTo"] != null) invDateTo = pObj["dateTo"].ToString();
                             if (pObj["limit"] != null) invLimit = pObj["limit"].Value<int>();
                         }
                     }
-                    var movements = DatabaseService.Inventory.GetMovements(invPid, invType, invFrom, invTo, invLimit);
+                    var movements = DatabaseService.Inventory.GetMovements(invPid, invType, invFrom, invTo, invLimit, invDateFrom, invDateTo);
                     response = BridgeResponse.Ok(request.Id, movements);
                     return true;
 

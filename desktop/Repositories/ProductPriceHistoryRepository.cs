@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 
 namespace RafiqPOS.Repositories
@@ -80,10 +81,13 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public List<ProductPriceHistory> GetByProductId(string productId, int limit = 50)
+        public List<ProductPriceHistory> GetByProductId(string productId, int limit = 50, string dateFrom = null, string dateTo = null)
         {
             var results = new List<ProductPriceHistory>();
             if (string.IsNullOrWhiteSpace(productId)) return results;
+
+            // dateFrom/dateTo: أيام محلية yyyy-MM-dd شاملة الطرفين مقابل created_at المخزن UTC بصيغة ISO
+            LocalDateRange dayRange = LocalDateRange.Parse(dateFrom, dateTo);
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -91,12 +95,16 @@ namespace RafiqPOS.Repositories
                 string sql = @"
                     SELECT * FROM product_price_history 
                     WHERE product_id = @productId 
+                      AND (@dayFrom IS NULL OR created_at >= @dayFrom)
+                      AND (@dayToExclusive IS NULL OR created_at < @dayToExclusive)
                     ORDER BY created_at DESC 
                     LIMIT @limit;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@productId", productId);
+                    cmd.Parameters.AddWithValue("@dayFrom", dayRange.FromUtc.HasValue ? (object)LocalDateRange.ToIsoPrefix(dayRange.FromUtc.Value) : DBNull.Value);
+                    cmd.Parameters.AddWithValue("@dayToExclusive", dayRange.ToExclusiveUtc.HasValue ? (object)LocalDateRange.ToIsoPrefix(dayRange.ToExclusiveUtc.Value) : DBNull.Value);
                     cmd.Parameters.AddWithValue("@limit", limit);
                     using (var reader = cmd.ExecuteReader())
                     {

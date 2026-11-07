@@ -1360,9 +1360,9 @@ namespace RafiqPOS.Services
             return sale;
         }
 
-        public List<Sale> GetRecentSales(int limit = 20)
+        public List<Sale> GetRecentSales(int limit = 20, string dateFrom = null, string dateTo = null, string status = null)
         {
-            return _saleRepo.GetRecentSales(limit);
+            return _saleRepo.GetRecentSales(limit, dateFrom, dateTo, status);
         }
 
         public Sale GetSaleById(string id)
