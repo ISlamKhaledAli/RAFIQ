@@ -202,6 +202,31 @@ namespace RafiqPOS.Bridge
             response = null;
             switch (request.Action)
             {
+                case "system:showPrintDialog":
+                    string dialogKind = "browser";
+                    if (request.Payload != null)
+                    {
+                        try
+                        {
+                            Newtonsoft.Json.Linq.JObject dObj = request.Payload as Newtonsoft.Json.Linq.JObject;
+                            if (dObj != null && dObj["kind"] != null)
+                            {
+                                dialogKind = dObj["kind"].ToString();
+                            }
+                        }
+                        catch { }
+                    }
+                    if (RafiqPOS.MainForm.Instance != null)
+                    {
+                        RafiqPOS.MainForm.Instance.ShowPrintDialog(dialogKind);
+                        response = BridgeResponse.Ok(request.Id, new { triggered = true });
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Fail(request.Id, "MAIN_FORM_NOT_READY", "النافذة الرئيسية غير جاهزة لعرض الطباعة");
+                    }
+                    return true;
+
                 case "system:appReady":
                     if (RafiqPOS.MainForm.Instance != null)
                     {

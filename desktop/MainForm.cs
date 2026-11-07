@@ -954,8 +954,39 @@ namespace RafiqPOS
             {
                 _isDemoError = false;
                 _errorPanel.Visible = false;
-                UpdateSplashStatus("جاري إعادة فحص قاعدة البيانات وتصحيح الجداول...");
+                UpdateSplashStatus("جاري تحرير مشغل العرض وإغلاق العمليات المعلقة...");
                 if (_splashPanel != null) _splashPanel.Visible = true;
+
+                // 1. Terminate any orphaned WebView2 processes
+                WebViewProcessGuard.TerminateOrphanedProcesses();
+
+                // 2. Clean stale lock files
+                try
+                {
+                    string baseDataDir;
+#if DEBUG
+                    baseDataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data");
+#else
+                    baseDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RafiqPOS", "data");
+#endif
+                    WebViewProcessGuard.CleanStaleLockFiles(Path.Combine(baseDataDir, "webview_profile"));
+                }
+                catch { }
+
+                // 3. Dispose existing webview if half-initialized
+                if (_webView != null)
+                {
+                    try
+                    {
+                        this.Controls.Remove(_webView);
+                        _webView.Dispose();
+                    }
+                    catch { }
+                    _webView = null;
+                }
+
+                _isNavigationCompleted = false;
+                System.Threading.Thread.Sleep(400);
                 InitializeApplication();
             };
             btnPanel.Controls.Add(_btnRetry);
@@ -1261,12 +1292,52 @@ namespace RafiqPOS
                                      "--autoplay-policy=no-user-gesture-required";
 
                 CoreWebView2EnvironmentOptions envOptions = new CoreWebView2EnvironmentOptions(browserArgs, null, null, false);
-                Logger.Info(string.Format("استدعاء CreateAsync(browserExecutable={0}, userDataFolder={1})", browserExecutableFolder ?? "null", userDataFolder));
-                var env = await CoreWebView2Environment.CreateAsync(browserExecutableFolder, userDataFolder, envOptions);
-                Logger.Info("تم إنشاء CoreWebView2Environment بنجاح. جاري استدعاء EnsureCoreWebView2Async...");
 
-                await _webView.EnsureCoreWebView2Async(env);
-                Logger.Info("اكتمل EnsureCoreWebView2Async بنجاح.");
+                if (_webView == null)
+                {
+                    _webView = new WebView2
+                    {
+                        Dock = DockStyle.Fill,
+                        Visible = true,
+                        DefaultBackgroundColor = Color.FromArgb(248, 250, 252)
+                    };
+                    this.Controls.Add(_webView);
+                    if (_splashPanel != null) _splashPanel.BringToFront();
+                }
+
+                int wvAttempts = 0;
+                while (wvAttempts < 2)
+                {
+                    wvAttempts++;
+                    try
+                    {
+                        Logger.Info(string.Format("استدعاء CreateAsync(browserExecutable={0}, userDataFolder={1}) - محاولة {2}", browserExecutableFolder ?? "null", userDataFolder, wvAttempts));
+                        var env = await CoreWebView2Environment.CreateAsync(browserExecutableFolder, userDataFolder, envOptions);
+                        Logger.Info("تم إنشاء CoreWebView2Environment بنجاح. جاري استدعاء EnsureCoreWebView2Async...");
+
+                        await _webView.EnsureCoreWebView2Async(env);
+                        Logger.Info("اكتمل EnsureCoreWebView2Async بنجاح.");
+                        break;
+                    }
+                    catch (Exception initEx)
+                    {
+                        uint hresult = (uint)initEx.HResult;
+                        bool isBusy = (hresult == 0x800700AA) ||
+                                      (initEx.Message != null && initEx.Message.IndexOf("0x800700AA", StringComparison.OrdinalIgnoreCase) >= 0) ||
+                                      (initEx.Message != null && initEx.Message.IndexOf("resource is in use", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                        if (isBusy && wvAttempts == 1)
+                        {
+                            Logger.Warn("تم رصد تعليق في مشغل العرض السابق (0x800700AA: The requested resource is in use)، جاري التطهير التلقائي للعمليات المعلقة وإعادة المحاولة...");
+                            WebViewProcessGuard.TerminateOrphanedProcesses();
+                            WebViewProcessGuard.CleanStaleLockFiles(userDataFolder);
+                            System.Threading.Thread.Sleep(600);
+                            continue;
+                        }
+
+                        throw;
+                    }
+                }
 
                 // Configure WebView settings for retail POS
                 _webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
@@ -1510,6 +1581,56 @@ namespace RafiqPOS
             return _isKioskFullscreen;
         }
 
+        public void ShowPrintDialog(string dialogKind)
+        {
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke(new Action<string>(ShowPrintDialog), dialogKind);
+                return;
+            }
+
+            try
+            {
+                if (_webView != null && _webView.CoreWebView2 != null)
+                {
+                    CoreWebView2PrintDialogKind kind = string.Equals(dialogKind, "system", StringComparison.OrdinalIgnoreCase)
+                        ? CoreWebView2PrintDialogKind.System
+                        : CoreWebView2PrintDialogKind.Browser;
+
+                    _webView.CoreWebView2.ShowPrintUI(kind);
+                    Logger.Info("تم إظهار نافذة طباعة التقرير بنجاح عبر ShowPrintUI: " + kind);
+                }
+                else
+                {
+                    Logger.Warn("تعذر إظهار نافذة الطباعة لأن مشغل العرض غير جاهز بعد.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("خطأ أثناء استدعاء ShowPrintUI: ", ex);
+            }
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Alt | Keys.F4))
+            {
+                this.Close();
+                return true;
+            }
+            if (keyData == Keys.Escape && _isKioskFullscreen)
+            {
+                ToggleFullscreen();
+                return true;
+            }
+            if (keyData == Keys.F11)
+            {
+                ToggleFullscreen();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             try
@@ -1548,6 +1669,17 @@ namespace RafiqPOS
             {
                 // Marks a clean shutdown so the next startup can skip the slow full integrity check
                 DatabaseService.MarkCleanShutdown();
+
+                // Explicitly dispose WebView2 so user profile lock is released cleanly
+                if (_webView != null)
+                {
+                    try
+                    {
+                        _webView.Dispose();
+                        _webView = null;
+                    }
+                    catch { }
+                }
             }
         }
 

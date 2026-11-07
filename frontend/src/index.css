@@ -559,20 +559,15 @@ html.dark .unsaved-pulse {
     margin: 0 auto !important;
   }
 
-  /* No marked root: still release the h-screen / overflow-hidden app shell so content is not clipped to one page */
-  body:not(:has([data-print-target])) :is(.h-screen, .w-screen, .overflow-hidden, .overflow-y-auto, .overflow-auto, main) {
+  /* Release overflow constraints when printing */
+  :is(.h-screen, .w-screen, .overflow-hidden, .overflow-y-auto, .overflow-auto, main) {
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
   }
 
-  /* Marked root: drop every element that is neither the root, inside it, nor one of its ancestors */
-  body:has([data-print-target]) *:not([data-print-target]):not([data-print-target] *):not(:has([data-print-target])) {
-    display: none !important;
-  }
-
-  /* Ancestors of the root (app shell, modal overlay, canvas) become plain flow blocks */
-  body:has([data-print-target]) :has([data-print-target]) {
+  /* Ancestors of the root become plain flow blocks without layout traps or clipping */
+  [data-print-ancestor] {
     display: block !important;
     position: static !important;
     inset: auto !important;
@@ -592,6 +587,12 @@ html.dark .unsaved-pulse {
     transform: none !important;
     opacity: 1 !important;
     animation: none !important;
+  }
+
+  /* Fast direct-child sibling hiding: O(1) matching without catastrophic :has() recursion in Chromium 109 */
+  body[data-printing] > *:not([data-print-ancestor]):not([data-print-target]),
+  [data-print-ancestor] > *:not([data-print-ancestor]):not([data-print-target]) {
+    display: none !important;
   }
 
   [data-print-target] {

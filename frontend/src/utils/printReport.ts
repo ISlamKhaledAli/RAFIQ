@@ -21,6 +21,8 @@ export interface ResolvedPrintMode {
 export const REPORT_PAPER_SETTING_KEY = 'report_paper_size';
 export const PRINT_STYLE_ID = 'print-page-size';
 export const PRINT_TARGET_ATTR = 'data-print-target';
+export const PRINT_ANCESTOR_ATTR = 'data-print-ancestor';
+export const PRINTING_BODY_ATTR = 'data-printing';
 export const A4_ONLY_HINT = 'هذا التقرير يُطبع على ورق A4 فقط - اختر طابعة A4 من نافذة الطباعة';
 
 // Chromium 109 only accepts `auto` as the sole value of `size`, so rolls get a fixed page height
@@ -143,13 +145,33 @@ function markPrintTarget(): void {
   clearPrintTarget();
   // Modals and portals render after the page content, so the last marked root is the one on top
   const roots = document.querySelectorAll('[data-print-root]');
-  const target = roots.item(roots.length - 1);
-  if (target) target.setAttribute(PRINT_TARGET_ATTR, '');
+  const target = roots.item(roots.length - 1) as HTMLElement | null;
+  if (!target) return;
+
+  target.setAttribute(PRINT_TARGET_ATTR, '');
+  if (document.body && typeof document.body.setAttribute === 'function') {
+    document.body.setAttribute(PRINTING_BODY_ATTR, '');
+  }
+
+  // Walk up ancestors and mark them so CSS does not need expensive :has() queries in Chromium 109
+  let current: HTMLElement | null = target.parentElement || null;
+  while (current && current !== document.body) {
+    if (typeof current.setAttribute === 'function') {
+      current.setAttribute(PRINT_ANCESTOR_ATTR, '');
+    }
+    current = current.parentElement || null;
+  }
 }
 
 function clearPrintTarget(): void {
-  const marked = document.querySelectorAll('[' + PRINT_TARGET_ATTR + ']');
-  for (let i = 0; i < marked.length; i++) marked[i].removeAttribute(PRINT_TARGET_ATTR);
+  if (document.body && typeof document.body.removeAttribute === 'function') {
+    document.body.removeAttribute(PRINTING_BODY_ATTR);
+  }
+  const markedTargets = document.querySelectorAll('[' + PRINT_TARGET_ATTR + ']');
+  for (let i = 0; i < markedTargets.length; i++) markedTargets[i].removeAttribute(PRINT_TARGET_ATTR);
+
+  const markedAncestors = document.querySelectorAll('[' + PRINT_ANCESTOR_ATTR + ']');
+  for (let i = 0; i < markedAncestors.length; i++) markedAncestors[i].removeAttribute(PRINT_ANCESTOR_ATTR);
 }
 
 function applyPageStyle(paper: ReportPaper, orientation: PrintOrientation): void {
@@ -182,7 +204,7 @@ export async function printReport(options: PrintReportOptions): Promise<void> {
 
   if (mode.downgraded) {
     const hint = showA4OnlyHint();
-    // Let the browser paint the hint before the (blocking) print dialog opens
+    // Let the browser paint the hint before the print dialog opens
     await new Promise<void>((resolve) => window.setTimeout(resolve, HINT_PAINT_DELAY_MS));
     window.addEventListener('beforeprint', () => hint.remove(), { once: true });
   }
@@ -202,7 +224,22 @@ export async function printReport(options: PrintReportOptions): Promise<void> {
   timer = window.setTimeout(cleanup, CLEANUP_TIMEOUT_MS);
 
   applyPageStyle(mode.paper, orientation);
+
   try {
+    // In desktop WebView2 host: trigger safe non-blocking native print UI to prevent UI thread lockup
+    const isWebView = typeof window !== 'undefined' && Boolean((window as unknown as { chrome?: { webview?: unknown } }).chrome?.webview);
+    if (isWebView) {
+      try {
+        const { invoke } = await import('../bridge/ipc');
+        const res = await invoke<{ triggered?: boolean }>('system:showPrintDialog', { kind: 'browser' });
+        if (res && res.triggered) {
+          return;
+        }
+      } catch (ipcErr) {
+        console.warn('تعذر استدعاء طباعة النظام عبر IPC، سيتم استخدام window.print() كبديل', ipcErr);
+      }
+    }
+
     window.print();
   } catch (err) {
     cleanup();
