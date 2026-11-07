@@ -16,6 +16,17 @@ import { useAuth } from '../../context/useAuth';
 import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import { PaginationBar } from '../../components/PaginationBar';
+import { DateFilterControl } from '../../components/DateFilterControl';
+import {
+  useDateFilter,
+  useToday,
+  matchesDateFilter,
+  isDateFilterActive,
+  describeDateFilter,
+  getDateFilterKey,
+  parseDateToLocalDateStr,
+  toLocalDateString,
+} from '../../utils/dateFilter';
 import { RequiredMark } from '../../components/RequiredMark';
 import type {
   InsuranceCompany,
@@ -69,6 +80,12 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   const [batchesPage, setBatchesPage] = useState<number>(1);
   const [batchesPageSize, setBatchesPageSize] = useState<number>(25);
 
+  // Date filters: issued batches list and the pending-claims picker of the new-batch modal
+  const { dateFilter: batchesDateFilter, setDateFilter: setBatchesDateFilter, resetDateFilter: resetBatchesDateFilter } = useDateFilter();
+  const { dateFilter: claimsDateFilter, setDateFilter: setClaimsDateFilter, resetDateFilter: resetClaimsDateFilter } = useDateFilter();
+  // يعيد الرسم عند منتصف الليل فتُعاد قراءة الفترات النسبية (اليوم/أمس/آخر 7 أيام)
+  useToday();
+
   // Modals
   const [showCompanyModal, setShowCompanyModal] = useState<boolean>(false);
   const [editingCompany, setEditingCompany] = useState<Partial<InsuranceCompany> | null>(null);
@@ -82,7 +99,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   const [showBatchModal, setShowBatchModal] = useState<boolean>(false);
   const [newBatchCompanyId, setNewBatchCompanyId] = useState<string>('');
   const [newBatchNumber, setNewBatchNumber] = useState<string>('');
-  const [newBatchPeriod, setNewBatchPeriod] = useState<string>(new Date().toISOString().substring(0, 7));
+  const [newBatchPeriod, setNewBatchPeriod] = useState<string>(toLocalDateString(new Date()).substring(0, 7));
   const [newBatchNotes, setNewBatchNotes] = useState<string>('');
   const [selectedPendingClaimIds, setSelectedPendingClaimIds] = useState<string[]>([]);
 
@@ -170,10 +187,22 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
     return members.slice(start, start + membersPageSize);
   }, [members, membersPage, membersPageSize]);
 
-  const paginatedBatches = useMemo(() => {
-    const start = (batchesPage - 1) * batchesPageSize;
-    return batches.slice(start, start + batchesPageSize);
-  }, [batches, batchesPage, batchesPageSize]);
+  // الدفعات والفواتير المعلقة تُحمَّل كاملة (بلا حد)، لذا الفلترة بالتاريخ هنا آمنة
+  // تُحسب عند كل رسم (قوائم صغيرة) كي تُعاد قراءة تاريخ اليوم بعد منتصف الليل (useToday)
+  const filteredBatches = batches.filter((b) => matchesDateFilter(b.createdAt, batchesDateFilter));
+  const filteredPendingClaims = pendingClaims.filter((c) => matchesDateFilter(c.createdAt, claimsDateFilter));
+
+  const batchesFilterKey = getDateFilterKey(batchesDateFilter);
+  useEffect(() => {
+    setBatchesPage(1);
+  }, [batchesFilterKey]);
+
+  const claimsFilterKey = getDateFilterKey(claimsDateFilter);
+  useEffect(() => {
+    setSelectedPendingClaimIds([]);
+  }, [claimsFilterKey]);
+
+  const paginatedBatches = filteredBatches.slice((batchesPage - 1) * batchesPageSize, batchesPage * batchesPageSize);
 
   // Company save
   const handleSaveCompany = async () => {
@@ -625,13 +654,29 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               <button
                 onClick={() => {
                   setNewBatchCompanyId(companies[0]?.id || '');
-                  setNewBatchNumber(`CLM-${new Date().toISOString().substring(0, 7)}-${Math.floor(Math.random() * 900 + 100)}`);
+                  setNewBatchNumber(`CLM-${toLocalDateString(new Date()).substring(0, 7)}-${Math.floor(Math.random() * 900 + 100)}`);
+                  resetClaimsDateFilter();
+                  setSelectedPendingClaimIds([]);
                   setShowBatchModal(true);
                 }}
                 className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg flex items-center gap-1.5 shadow-sm transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 إصدار دفعة مطالبة مجمعة
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">تاريخ إصدار الدفعة:</span>
+            <DateFilterControl value={batchesDateFilter} onChange={setBatchesDateFilter} size="sm" />
+            {isDateFilterActive(batchesDateFilter) && (
+              <button
+                type="button"
+                onClick={resetBatchesDateFilter}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
+              >
+                إلغاء الفلترة
               </button>
             )}
           </div>
@@ -652,16 +697,32 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/60 dark:divide-line-dark">
-                {batches.length === 0 ? (
+                {filteredBatches.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="py-8 text-center text-ink-muted dark:text-ink-dark-muted">
-                      لم يتم إنشاء أي مطالبات مجمعة حتى الآن
+                      {batches.length === 0 ? (
+                        'لم يتم إنشاء أي مطالبات مجمعة حتى الآن'
+                      ) : (
+                        <div className="flex flex-col items-center gap-3">
+                          <span>لا توجد مطالبات مجمعة صادرة في الفترة ({describeDateFilter(batchesDateFilter)})</span>
+                          <button
+                            type="button"
+                            onClick={resetBatchesDateFilter}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-brand dark:text-brand-bright border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
+                          >
+                            عرض كل المطالبات
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ) : (
                   paginatedBatches.map((batch) => (
                     <tr key={batch.id} className="hover:bg-canvas/50 dark:hover:bg-surface-dark-2/50">
-                      <td className="py-3 px-4 font-mono font-bold text-ink dark:text-ink-dark">{batch.batchNumber}</td>
+                      <td className="py-3 px-4 font-mono font-bold text-ink dark:text-ink-dark">
+                        <div>{batch.batchNumber}</div>
+                        <div className="text-micro font-normal text-ink-muted dark:text-ink-dark-muted">{parseDateToLocalDateStr(batch.createdAt) || ''}</div>
+                      </td>
                       <td className="py-3 px-4 font-medium text-ink dark:text-ink-dark">{batch.companyName}</td>
                       <td className="py-3 px-4 text-xs font-mono text-ink-muted dark:text-ink-dark-muted">{batch.period}</td>
                       <td className="py-3 px-4 text-center font-bold">{batch.totalClaimsCount}</td>
@@ -729,7 +790,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
             <PaginationBar
               currentPage={batchesPage}
               pageSize={batchesPageSize}
-              totalCount={batches.length}
+              totalCount={filteredBatches.length}
               onPageChange={setBatchesPage}
               onPageSizeChange={(newSize) => {
                 setBatchesPageSize(newSize);
@@ -1116,16 +1177,31 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      if (selectedPendingClaimIds.length === pendingClaims.length) {
+                      if (filteredPendingClaims.length > 0 && selectedPendingClaimIds.length === filteredPendingClaims.length) {
                         setSelectedPendingClaimIds([]);
                       } else {
-                        setSelectedPendingClaimIds(pendingClaims.map((p) => p.id));
+                        setSelectedPendingClaimIds(filteredPendingClaims.map((p) => p.id));
                       }
                     }}
-                    className="text-xs text-brand dark:text-brand-bright font-bold hover:underline"
+                    disabled={filteredPendingClaims.length === 0}
+                    className="text-xs text-brand dark:text-brand-bright font-bold hover:underline disabled:opacity-40 disabled:no-underline"
                   >
-                    {selectedPendingClaimIds.length === pendingClaims.length ? 'إلغاء تحديد الكل' : 'تحديد جميع الفواتير'}
+                    {filteredPendingClaims.length > 0 && selectedPendingClaimIds.length === filteredPendingClaims.length ? 'إلغاء تحديد الكل' : 'تحديد جميع الفواتير'}
                   </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 mb-2">
+                  <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">تاريخ الفاتورة:</span>
+                  <DateFilterControl value={claimsDateFilter} onChange={setClaimsDateFilter} size="sm" />
+                  {isDateFilterActive(claimsDateFilter) && (
+                    <button
+                      type="button"
+                      onClick={resetClaimsDateFilter}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
+                    >
+                      إلغاء الفلترة
+                    </button>
+                  )}
                 </div>
 
                 <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden max-h-60 overflow-y-auto">
@@ -1134,20 +1210,23 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                       <tr>
                         <th className="p-2 text-center w-10">#</th>
                         <th className="p-2">رقم الفاتورة</th>
+                        <th className="p-2">التاريخ</th>
                         <th className="p-2">المريض</th>
                         <th className="p-2">رقم الكارنيه</th>
                         <th className="p-2 text-left">مبلغ المطالبة (ج.م)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line/60 dark:divide-line-dark">
-                      {pendingClaims.length === 0 ? (
+                      {filteredPendingClaims.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-6 text-center text-ink-muted dark:text-ink-dark-muted">
-                            لا توجد أي فواتير معلقة لهذه الشركة
+                          <td colSpan={6} className="py-6 text-center text-ink-muted dark:text-ink-dark-muted">
+                            {pendingClaims.length === 0
+                              ? 'لا توجد أي فواتير معلقة لهذه الشركة'
+                              : `لا توجد فواتير معلقة في الفترة (${describeDateFilter(claimsDateFilter)})`}
                           </td>
                         </tr>
                       ) : (
-                        pendingClaims.map((clm) => {
+                        filteredPendingClaims.map((clm) => {
                           const isChecked = selectedPendingClaimIds.includes(clm.id);
                           return (
                             <tr
@@ -1170,6 +1249,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                                 />
                               </td>
                               <td className="p-2 font-mono font-bold">#{clm.invoiceNumber}</td>
+                              <td className="p-2 font-mono text-ink-muted dark:text-ink-dark-muted">{parseDateToLocalDateStr(clm.createdAt) || '-'}</td>
                               <td className="p-2 font-medium">{clm.patientName}</td>
                               <td className="p-2 font-mono">{clm.memberNo}</td>
                               <td className="p-2 text-left font-mono font-bold text-brand dark:text-brand-bright">

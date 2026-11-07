@@ -36,7 +36,7 @@ describe('store settings screens: dead settings are gone, live ones still saved'
     const body = settingsView.slice(start, end);
     for (const key of [
       'store_name', 'store_phone', 'store_address', 'tax_number', 'receipt_header', 'receipt_footer',
-      'show_receipt_logo', 'receipt_show_cashier', 'store_logo_url',
+      'show_receipt_logo', 'receipt_show_cashier', 'receipt_show_invoice_number', 'receipt_show_paid', 'receipt_show_change', 'store_logo_url',
     ]) {
       assert.ok(body.includes(`${key}:`), `${key} is saved by the profile save`);
     }
@@ -67,6 +67,29 @@ describe('store settings screens: dead settings are gone, live ones still saved'
     const snapshot = settingsView.slice(settingsView.indexOf('const profileSnapshot'), settingsView.indexOf('const profileDirty'));
     assert.ok(snapshot.includes('showReceiptCashier'), 'toggling it makes the save bar dirty');
     assert.ok(ipc.includes("receipt_show_cashier: '1'"), 'mock defaults');
+  });
+
+  it('the invoice-number, paid and change switches follow the cashier-name precedent end to end', () => {
+    const switches = [
+      ['receipt_show_invoice_number', 'showReceiptInvoiceNumber', 'setShowReceiptInvoiceNumber', 'showInvoiceNumber', 'إظهار رقم الفاتورة في الوصل'],
+      ['receipt_show_paid', 'showReceiptPaid', 'setShowReceiptPaid', 'showPaid', 'إظهار المدفوع في الوصل'],
+      ['receipt_show_change', 'showReceiptChange', 'setShowReceiptChange', 'showChange', 'إظهار الباقي للعميل في الوصل'],
+    ];
+    const snapshot = settingsView.slice(settingsView.indexOf('const profileSnapshot'), settingsView.indexOf('const profileDirty'));
+    const receiptModal = read('components/ReceiptModal.tsx');
+    const rootPage = rootReceipt;
+    for (const [key, state, setter, option, title] of switches) {
+      assert.ok(profileTab.includes(title), `${key}: switch title`);
+      assert.ok(profileTab.includes(`${option}: ${state}`), `${key}: the preview follows the switch immediately`);
+      assert.ok(profileTab.includes(`onChange={(next) => ${setter}?.(next)}`), `${key}: switch wiring`);
+      assert.ok(settingsView.includes(`${setter}(settings.${key} !== '0')`), `${key}: a missing key means ON`);
+      assert.ok(settingsView.includes(`${key}: ${state} ? '1' : '0'`), `${key}: saved as 1/0`);
+      assert.ok(snapshot.includes(state), `${key}: toggling it makes the save bar dirty`);
+      assert.ok(settingsView.includes(`${setter}={${setter}}`), `${key}: passed to the tab`);
+      assert.ok(ipc.includes(`${key}: '1'`), `${key}: mock default`);
+      assert.ok(receiptModal.includes(`${option}: liveSettings.${key} !== '0'`), `${key}: the POS receipt reads it`);
+      assert.ok(rootPage.includes(`${option}: s.${key} !== '0'`) && rootPage.includes(`${option}: store.${option}`), `${key}: the root preview reads it`);
+    }
   });
 
   it('an empty footer prints nothing and the hint says so', () => {

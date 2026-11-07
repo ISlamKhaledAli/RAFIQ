@@ -53,6 +53,8 @@ interface PosCatalogPanelProps {
   onAfterToggle?: () => void;
   // Changes whenever the sections rail is expanded; the catalog opens with it
   expandSignal?: number;
+  // Called when the catalog is collapsed, so the sections rail can close with it
+  onCollapse?: () => void;
 }
 
 export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
@@ -78,6 +80,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   categories: _categories = [],
   onAfterToggle,
   expandSignal = 0,
+  onCollapse,
 }) => {
   const { isEnabled } = useFeatures();
   // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
@@ -117,6 +120,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
     } catch {
       // ignore
     }
+    if (next) onCollapse?.();
     onAfterToggle?.();
   };
 

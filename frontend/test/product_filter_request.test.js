@@ -36,6 +36,7 @@ describe('product filter request rules', () => {
       selectedProductIds: [],
       movementType: 'ALL',
       movementSearchQuery: '',
+      movementDateFilter: { preset: 'all', startDate: '', endDate: '' },
       batchesSearchQuery: '',
     });
     assert.equal(buildProductFilterState('all').stockStatus, 'all');
@@ -77,6 +78,7 @@ describe('products page wiring (source)', () => {
       'setSelectedProductIds(reset.selectedProductIds)',
       'setMovementTypeFilter(reset.movementType)',
       'setMovementSearchQuery(reset.movementSearchQuery)',
+      'setMovementDateFilter(reset.movementDateFilter)',
       'setBatchesInitialSearch(reset.batchesSearchQuery)',
     ]) {
       assert.ok(productsView.includes(setter), `missing reset: ${setter}`);

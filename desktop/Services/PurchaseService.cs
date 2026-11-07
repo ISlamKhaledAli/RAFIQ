@@ -22,9 +22,9 @@ namespace RafiqPOS.Services
             }
         }
 
-        public List<Purchase> GetAll(string supplierId = null, string startDate = null, string endDate = null, int limit = 100)
+        public List<Purchase> GetAll(string supplierId = null, string startDate = null, string endDate = null, int limit = 100, string dateFrom = null, string dateTo = null)
         {
-            return _purchaseRepo.GetAll(supplierId, startDate, endDate, limit);
+            return _purchaseRepo.GetAll(supplierId, startDate, endDate, limit, dateFrom, dateTo);
         }
 
         public Purchase GetById(string id)

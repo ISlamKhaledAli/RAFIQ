@@ -95,6 +95,7 @@ import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { RecoveryCodeModal } from './components/RecoveryCodeModal';
 import { useFeatures } from './context/useFeatures';
 import { useAuth } from './context/useAuth';
+import { useLeaveGuard } from './context/useUnsavedChanges';
 import { LoginScreen } from './views/LoginScreen';
 import { ForcedPinChangeForm } from './components/ForcedPinChangeForm';
 import { ExitAppButton } from './components/ExitAppButton';
@@ -234,6 +235,20 @@ export default function App() {
   }, [canAccessPos, canAccessEpay, canAccessWallets, canAccessInsurance, canAccessDashboard, canAccessCustomers, canAccessProducts, canAccessPurchases, canAccessSales, canAccessRoot, canAccessSettings]);
 
   const effectiveActiveTab: TabType = canAccessTab(activeTab) ? activeTab : 'pos';
+
+  // Every user-initiated move away from the open page goes through requestLeave (unsaved-changes guard).
+  // Programmatic moves (idle/forced logout, licence lock, lost access, a page's own successful save) call the plain setters and are never blocked.
+  const { requestLeave } = useLeaveGuard();
+  const navigateTo = useCallback((tab: TabType, afterSwitch?: () => void) => {
+    requestLeave(() => {
+      setActiveTab(tab);
+      afterSwitch?.();
+    }, { withinPage: tab === effectiveActiveTab });
+  }, [requestLeave, effectiveActiveTab]);
+  // Sub-tab changes inside the open page: drafts that survive such a switch do not ask
+  const switchWithinPage = useCallback((apply: () => void) => {
+    requestLeave(apply, { withinPage: true });
+  }, [requestLeave]);
 
   const [isUniversalRefreshing, setIsUniversalRefreshing] = useState(false);
   const [refreshToastMsg, setRefreshToastMsg] = useState<string | null>(null);
@@ -395,20 +410,11 @@ export default function App() {
 
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
 
+  // F1 is not handled here: on the cashier screen usePosShortcuts opens the guide, everywhere else F1 returns to the cashier (see the global key handler)
   useEffect(() => {
-    const handleGlobalF1 = (e: KeyboardEvent) => {
-      if (e.key === 'F1') {
-        e.preventDefault();
-        setIsShortcutsModalOpen((prev) => !prev);
-      }
-    };
     const handleOpenShortcutsEvent = () => setIsShortcutsModalOpen(true);
-
-    window.addEventListener('keydown', handleGlobalF1);
     window.addEventListener('rafiq:open-shortcuts', handleOpenShortcutsEvent);
-
     return () => {
-      window.removeEventListener('keydown', handleGlobalF1);
       window.removeEventListener('rafiq:open-shortcuts', handleOpenShortcutsEvent);
     };
   }, []);
@@ -436,10 +442,11 @@ export default function App() {
     subView: 'catalog' | 'movements' | 'batches' = 'catalog',
     filter: ProductStockFilter = 'all',
   ) => {
-    setActiveTab('products');
-    setProductsSubView(subView);
-    setProductFilterRequest((prev) => nextProductFilterRequest(prev, filter));
-    setIsProductsMenuExpanded(true);
+    navigateTo('products', () => {
+      setProductsSubView(subView);
+      setProductFilterRequest((prev) => nextProductFilterRequest(prev, filter));
+      setIsProductsMenuExpanded(true);
+    });
   };
 
   const allSystemNotifications = useSystemNotifications({
@@ -461,15 +468,17 @@ export default function App() {
     },
     onOpenLockScreen: () => setIsLockScreenOpen(true),
     onOpenBackupSettings: () => {
-      setActiveTab('settings');
-      setSettingsSubTab('backup');
-      setIsSettingsMenuExpanded(true);
+      navigateTo('settings', () => {
+        setSettingsSubTab('backup');
+        setIsSettingsMenuExpanded(true);
+      });
     },
     onOpenLowStockCatalog: () => openProductsWithFilter('catalog', 'lowStock'),
     onOpenDemoManagement: () => {
-      setActiveTab('root');
-      setRootSubTab('data');
-      setIsRootMenuExpanded(true);
+      navigateTo('root', () => {
+        setRootSubTab('data');
+        setIsRootMenuExpanded(true);
+      });
     },
   });
 
@@ -921,51 +930,47 @@ export default function App() {
       if (e.altKey && !e.ctrlKey && !e.shiftKey) {
         if (e.key === '1') {
           e.preventDefault();
-          if (canAccessPos) setActiveTab('pos');
+          if (canAccessPos) navigateTo('pos');
         } else if (e.key === '2') {
           e.preventDefault();
-          if (canAccessSales) setActiveTab('sales');
+          if (canAccessSales) navigateTo('sales');
         } else if (e.key === '3') {
           e.preventDefault();
-          if (canAccessCustomers) setActiveTab('customers');
+          if (canAccessCustomers) navigateTo('customers');
         } else if (e.key === '4') {
           e.preventDefault();
           if (canAccessProducts) {
-            setActiveTab('products');
-            setIsProductsMenuExpanded(true);
+            navigateTo('products', () => setIsProductsMenuExpanded(true));
           }
         } else if (e.key === '5') {
           e.preventDefault();
           if (canAccessPurchases) {
-            setActiveTab('purchases');
-            setIsPurchasesMenuExpanded(true);
+            navigateTo('purchases', () => setIsPurchasesMenuExpanded(true));
           }
         } else if (e.key === '6') {
           e.preventDefault();
           if (canAccessWallets) {
-            setActiveTab('wallets');
-            if (!isEnabled('feature_digital_wallets') && walletsSubTab === 'transact') {
-              setWalletsSubTab('accounts');
-            }
-            setIsWalletsMenuExpanded(true);
+            navigateTo('wallets', () => {
+              if (!isEnabled('feature_digital_wallets') && walletsSubTab === 'transact') {
+                setWalletsSubTab('accounts');
+              }
+              setIsWalletsMenuExpanded(true);
+            });
           }
         } else if (e.key === '7') {
           e.preventDefault();
           if (canAccessEpay) {
-            setActiveTab('epay');
-            setIsEpayMenuExpanded(true);
+            navigateTo('epay', () => setIsEpayMenuExpanded(true));
           }
         } else if (e.key === '8') {
           e.preventDefault();
           if (canAccessInsurance) {
-            setActiveTab('insurance');
-            setIsInsuranceMenuExpanded(true);
+            navigateTo('insurance', () => setIsInsuranceMenuExpanded(true));
           }
         } else if (e.key === '9') {
           e.preventDefault();
           if (canAccessDashboard) {
-            setActiveTab('dashboard');
-            setIsDashboardMenuExpanded(true);
+            navigateTo('dashboard', () => setIsDashboardMenuExpanded(true));
           }
         }
         return;
@@ -982,7 +987,7 @@ export default function App() {
       // 3. If NOT on POS view, pressing F1 returns to POS view
       if (e.key === 'F1' && activeTab !== 'pos') {
         e.preventDefault();
-        setActiveTab('pos');
+        navigateTo('pos');
         return;
       }
 
@@ -996,9 +1001,9 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeTab, canAccessCustomers, canAccessDashboard, canAccessEpay, canAccessInsurance, canAccessPos, canAccessProducts, canAccessPurchases, canAccessSales, canAccessSettings, canAccessWallets, handleUniversalRefresh, isEnabled, walletsSubTab]);
+  }, [activeTab, canAccessCustomers, canAccessDashboard, canAccessEpay, canAccessInsurance, canAccessPos, canAccessProducts, canAccessPurchases, canAccessSales, canAccessSettings, canAccessWallets, handleUniversalRefresh, isEnabled, navigateTo, walletsSubTab]);
 
-  const handleExitApp = async () => {
+  const confirmAndExitApp = async () => {
     const confirmed = await rafiqConfirm({
       title: 'إغلاق البرنامج والخروج',
       message: 'هل تريد حقاً إغلاق نظام رفيق والخروج؟\nسيتم حفظ وتأمين كافة بيانات العمليات والنسخ الاحتياطي تلقائياً.',
@@ -1013,6 +1018,11 @@ export default function App() {
         window.close();
       }
     }
+  };
+
+  // Closing the program also loses unsaved changes, so the guard asks first, then the usual confirmation follows
+  const handleExitApp = () => {
+    requestLeave(() => void confirmAndExitApp());
   };
 
   const handleNavClick = (tabId: TabType, subAction?: () => void) => {
@@ -1033,8 +1043,7 @@ export default function App() {
       });
       return;
     }
-    setActiveTab(tabId);
-    if (subAction) subAction();
+    navigateTo(tabId, subAction);
   };
 
   const dashboardTreeItems = [
@@ -1209,7 +1218,7 @@ export default function App() {
             setActiveTab('pos');
             window.location.reload();
           }}
-          onNavigateToSettings={(subTab) => {
+          onNavigateToSettings={(subTab) => requestLeave(() => {
             // The template's features only show after a reload, so the settings sub-tab is handed over through sessionStorage
             try {
               sessionStorage.setItem('rafiq_post_setup_settings_tab', subTab);
@@ -1220,7 +1229,7 @@ export default function App() {
               // ignore
             }
             window.location.reload();
-          }}
+          })}
         />
 
       <RafiqDialogContainer />
@@ -1285,7 +1294,7 @@ export default function App() {
 
   const shopSubtitle = getShopSubtitle(storeName);
 
-  const handleLogoutClick = async () => {
+  const confirmAndLogout = async () => {
     const confirmed = await rafiqConfirm({
       title: 'تسجيل الخروج',
       message: 'هل تريد تسجيل الخروج الآن؟ ستحتاج لإدخال الرقم السري للدخول مرة أخرى.',
@@ -1298,11 +1307,16 @@ export default function App() {
     }
   };
 
+  // Logging out (also how the user is switched) drops every unsaved change, so the guard asks first
+  const handleLogoutClick = () => {
+    requestLeave(() => void confirmAndLogout());
+  };
+
   // Top bar menus. Every capability removed from the bar has a home here (the F1/F5/F11 shortcuts are unchanged).
   const userMenuItems: HeaderMenuItem[] = [
-    { id: 'shortcuts', label: 'اختصارات الكيبورد', icon: Keyboard, hint: 'F1', onSelect: () => setIsShortcutsModalOpen(true) },
+    { id: 'shortcuts', label: 'اختصارات الكيبورد', icon: Keyboard, hint: 'F1 في الكاشير', onSelect: () => setIsShortcutsModalOpen(true) },
     { id: 'help', label: 'مركز المساعدة والدعم', icon: HelpCircle, onSelect: () => openHelpCenterModal() },
-    { id: 'logout', label: 'تسجيل الخروج', icon: LogOut, tone: 'danger', separatorBefore: true, onSelect: () => void handleLogoutClick() },
+    { id: 'logout', label: 'تسجيل الخروج', icon: LogOut, tone: 'danger', separatorBefore: true, onSelect: handleLogoutClick },
   ];
   const moreMenuItems: HeaderMenuItem[] = [
     { id: 'minimize', label: 'تصغير إلى شريط المهام', icon: Minus, onSelect: () => void handleMinimizeWindow() },
@@ -1696,8 +1710,7 @@ export default function App() {
                             type="button"
                             onClick={(e) => {
                               e.currentTarget.blur();
-                              setActiveTab('epay');
-                              setEpaySubTab(sub.id);
+                              navigateTo('epay', () => setEpaySubTab(sub.id));
                             }}
                             className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
@@ -1727,8 +1740,7 @@ export default function App() {
                             type="button"
                             onClick={(e) => {
                               e.currentTarget.blur();
-                              setActiveTab('wallets');
-                              setWalletsSubTab(sub.id);
+                              navigateTo('wallets', () => setWalletsSubTab(sub.id));
                             }}
                             className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
@@ -1758,8 +1770,7 @@ export default function App() {
                             type="button"
                             onClick={(e) => {
                               e.currentTarget.blur();
-                              setActiveTab('insurance');
-                              setInsuranceSubTab(sub.id);
+                              navigateTo('insurance', () => setInsuranceSubTab(sub.id));
                             }}
                             className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
@@ -1789,8 +1800,7 @@ export default function App() {
                             type="button"
                             onClick={(e) => {
                               e.currentTarget.blur();
-                              setActiveTab('dashboard');
-                              setDashboardSubTab(sub.id);
+                              navigateTo('dashboard', () => setDashboardSubTab(sub.id));
                             }}
                             className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
@@ -1813,10 +1823,7 @@ export default function App() {
                     <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       <button
                         type="button"
-                        onClick={() => {
-                          setActiveTab('products');
-                          setProductsSubView('catalog');
-                        }}
+                        onClick={() => navigateTo('products', () => setProductsSubView('catalog'))}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'products' && productsSubView === 'catalog'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
@@ -1831,10 +1838,7 @@ export default function App() {
 
                       <button
                         type="button"
-                        onClick={() => {
-                          setActiveTab('products');
-                          setProductsSubView('movements');
-                        }}
+                        onClick={() => navigateTo('products', () => setProductsSubView('movements'))}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'products' && productsSubView === 'movements'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
@@ -1850,10 +1854,7 @@ export default function App() {
                       {isEnabled('feature_expiry_dates') && (
                         <button
                           type="button"
-                          onClick={() => {
-                            setActiveTab('products');
-                            setProductsSubView('batches');
-                          }}
+                          onClick={() => navigateTo('products', () => setProductsSubView('batches'))}
                           className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                             effectiveActiveTab === 'products' && productsSubView === 'batches'
                               ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
@@ -1875,10 +1876,7 @@ export default function App() {
                       {hasPermission('purchases.create') && (
 <button
                         type="button"
-                        onClick={() => {
-                          setActiveTab('purchases');
-                          setPurchasesSubView('new_invoice');
-                        }}
+                        onClick={() => navigateTo('purchases', () => setPurchasesSubView('new_invoice'))}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'new_invoice'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
@@ -1896,10 +1894,7 @@ export default function App() {
                       {hasPermission('shortage.view') && (
 <button
                         type="button"
-                        onClick={() => {
-                          setActiveTab('purchases');
-                          setPurchasesSubView('shortages');
-                        }}
+                        onClick={() => navigateTo('purchases', () => setPurchasesSubView('shortages'))}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'shortages'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
@@ -1917,10 +1912,7 @@ export default function App() {
                       {hasPermission('purchases.view') && (
 <button
                         type="button"
-                        onClick={() => {
-                          setActiveTab('purchases');
-                          setPurchasesSubView('invoices');
-                        }}
+                        onClick={() => navigateTo('purchases', () => setPurchasesSubView('invoices'))}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'invoices'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
@@ -1938,10 +1930,7 @@ export default function App() {
                       {hasPermission('suppliers.manage') && (
 <button
                         type="button"
-                        onClick={() => {
-                          setActiveTab('purchases');
-                          setPurchasesSubView('suppliers');
-                        }}
+                        onClick={() => navigateTo('purchases', () => setPurchasesSubView('suppliers'))}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'suppliers'
                             ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
@@ -1971,8 +1960,7 @@ export default function App() {
                             data-root-nav-active={isSubActive ? 'true' : undefined}
                             onClick={(e) => {
                               e.currentTarget.blur();
-                              setActiveTab('root');
-                              setRootSubTab(sub.id);
+                              navigateTo('root', () => setRootSubTab(sub.id));
                             }}
                             className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
@@ -2005,8 +1993,7 @@ export default function App() {
                             type="button"
                             onClick={(e) => {
                               e.currentTarget.blur();
-                              setActiveTab('settings');
-                              setSettingsSubTab(sub.id);
+                              navigateTo('settings', () => setSettingsSubTab(sub.id));
                             }}
                             className={`w-full flex items-center justify-between px-2.5 py-1.5 min-h-[34px] rounded-lg text-xs transition-all duration-150 cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0 select-none ${
                               isSubActive
@@ -2085,8 +2072,8 @@ export default function App() {
           <div className={`h-full w-full ${effectiveActiveTab === 'pos' ? '' : 'hidden'}`}>
             <PosView 
               isActive={effectiveActiveTab === 'pos'} 
-              onNavigateToEpay={() => { setActiveTab('epay'); setEpaySubTab('pos'); setIsEpayMenuExpanded(true); }} 
-              onNavigateToWallets={(subTab = 'accounts') => { setActiveTab('wallets'); setWalletsSubTab(subTab); setIsWalletsMenuExpanded(true); }}
+              onNavigateToEpay={() => navigateTo('epay', () => { setEpaySubTab('pos'); setIsEpayMenuExpanded(true); })} 
+              onNavigateToWallets={(subTab = 'accounts') => navigateTo('wallets', () => { setWalletsSubTab(subTab); setIsWalletsMenuExpanded(true); })}
             />
           </div>
 
@@ -2095,7 +2082,8 @@ export default function App() {
             <div className={`h-full w-full ${effectiveActiveTab === 'epay' ? '' : 'hidden'}`}>
               <EpayView 
                 activeSubTab={epaySubTab}
-                onSubTabChange={(tab) => setEpaySubTab(tab)}
+                isActive={effectiveActiveTab === 'epay'}
+                onSubTabChange={(tab) => switchWithinPage(() => setEpaySubTab(tab))}
               />
             </div>
           )}
@@ -2106,7 +2094,7 @@ export default function App() {
               <WalletsView 
                 isActive={effectiveActiveTab === 'wallets'}
                 activeSubTab={walletsSubTab}
-                onSubTabChange={(tab) => setWalletsSubTab(tab)}
+                onSubTabChange={(tab) => switchWithinPage(() => setWalletsSubTab(tab))}
               />
             </div>
           )}
@@ -2117,7 +2105,7 @@ export default function App() {
               <InsuranceContractsView 
                 isActive={effectiveActiveTab === 'insurance'} 
                 activeSubTab={insuranceSubTab}
-                onSubTabChange={(tab) => setInsuranceSubTab(tab)}
+                onSubTabChange={(tab) => switchWithinPage(() => setInsuranceSubTab(tab))}
               />
             </div>
           )}
@@ -2128,16 +2116,15 @@ export default function App() {
                 <div className={`h-full w-full ${dashboardSubTab === 'today' ? '' : 'hidden'}`}>
                   <DashboardView 
                     isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'today'}
-                    onNavigateToPos={() => setActiveTab('pos')} 
+                    onNavigateToPos={() => navigateTo('pos')} 
                     onNavigateToProducts={openProductsWithFilter} 
-                    onNavigateToCustomers={() => setActiveTab('customers')}
-                    onNavigateToSales={() => setActiveTab('sales')}
-                    onNavigateToAudit={canAccessRoot ? () => { setActiveTab('root'); setRootSubTab('audit'); setIsRootMenuExpanded(true); } : undefined}
-                    onNavigateToSettings={(target) => {
-                      setActiveTab('settings');
+                    onNavigateToCustomers={() => navigateTo('customers')}
+                    onNavigateToSales={() => navigateTo('sales')}
+                    onNavigateToAudit={canAccessRoot ? () => navigateTo('root', () => { setRootSubTab('audit'); setIsRootMenuExpanded(true); }) : undefined}
+                    onNavigateToSettings={(target) => navigateTo('settings', () => {
                       if (target?.includes('backup')) setSettingsSubTab('backup');
-                    }}
-                    onNavigateSubTab={(sub) => setDashboardSubTab(sub)}
+                    })}
+                    onNavigateSubTab={(sub) => switchWithinPage(() => setDashboardSubTab(sub))}
                   />
                 </div>
               )}
@@ -2151,17 +2138,15 @@ export default function App() {
                   <InventoryAnalyticsView 
                     isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'inventory'}
                     onNavigateToProducts={openProductsWithFilter}
-                    onNavigateToProductEdit={(productId) => {
-                      setActiveTab('products');
+                    onNavigateToProductEdit={(productId) => navigateTo('products', () => {
                       setProductsSubView('catalog');
                       setProductToEditId(productId);
                       setIsProductsMenuExpanded(true);
-                    }}
-                    onNavigateToPurchases={() => {
-                      setActiveTab('purchases');
+                    })}
+                    onNavigateToPurchases={() => navigateTo('purchases', () => {
                       setPurchasesSubView('new_invoice');
                       setIsPurchasesMenuExpanded(true);
-                    }}
+                    })}
                   />
                 </div>
               )}
@@ -2169,7 +2154,7 @@ export default function App() {
                 <div className={`h-full w-full ${dashboardSubTab === 'customers' ? '' : 'hidden'}`}>
                   <CustomerAnalyticsView 
                     isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'customers'}
-                    onNavigateToCustomers={() => setActiveTab('customers')} 
+                    onNavigateToCustomers={() => navigateTo('customers')} 
                   />
                 </div>
               )}
@@ -2187,7 +2172,7 @@ export default function App() {
               <ProductsView 
                 isActive={effectiveActiveTab === 'products'}
                 subView={productsSubView} 
-                onSubViewChange={(tab) => setProductsSubView(tab)} 
+                onSubViewChange={(tab) => switchWithinPage(() => setProductsSubView(tab))} 
                 filterRequest={productFilterRequest}
                 onResetFilter={() => setProductFilterRequest(withClearedStockFilter)}
                 initialProductIdToEdit={productToEditId}
@@ -2201,7 +2186,7 @@ export default function App() {
               <PurchasesView 
                 isActive={effectiveActiveTab === 'purchases'}
                 subView={effectivePurchasesSubView}
-                onSubViewChange={(tab) => setPurchasesSubView(tab)} 
+                onSubViewChange={(tab) => switchWithinPage(() => setPurchasesSubView(tab))} 
               />
             </div>
           )}
@@ -2218,7 +2203,7 @@ export default function App() {
                 activeSubTab={rootSubTab}
                 isActive={effectiveActiveTab === 'root'}
                 sysInfo={sysInfo}
-                onNavigateToTab={(tab) => setActiveTab(tab as TabType)}
+                onNavigateToTab={(tab) => navigateTo(tab as TabType)}
               />
             </div>
           )}
@@ -2226,8 +2211,9 @@ export default function App() {
           {canAccessSettings && visitedTabs.has('settings') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'settings' ? '' : 'hidden'}`}>
               <SettingsView 
+                isActive={effectiveActiveTab === 'settings'}
                 activeSubTab={settingsSubTab} 
-                onSubTabChange={(tab) => setSettingsSubTab(tab)} 
+                onSubTabChange={(tab) => switchWithinPage(() => setSettingsSubTab(tab))} 
                 onOpenLicenseModal={() => setIsLicenseModalOpen(true)} 
               />
             </div>

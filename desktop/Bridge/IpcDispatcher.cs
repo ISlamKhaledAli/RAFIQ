@@ -312,6 +312,8 @@ namespace RafiqPOS.Bridge
             // Products & Catalog
             { "products:getAll", "products.view" },
             { "products:list", "products.view" },
+            { "products:getAllIds", "products.view" },
+            { "products:getByIds", "products.view" },
             { "products:getById", "products.view" },
             { "products:getLowStock", "products.view" },
             { "products:getLowStockCount", "products.view" },

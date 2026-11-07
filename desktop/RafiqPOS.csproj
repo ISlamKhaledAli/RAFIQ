@@ -96,6 +96,7 @@
     <Compile Include="Common\OsDetector.cs" />
     <Compile Include="Common\Logger.cs" />
     <Compile Include="Common\TimeGuard.cs" />
+    <Compile Include="Common\LocalDateRange.cs" />
     <Compile Include="Common\WindowHelper.cs" />
     <Compile Include="Common\ArabicTextNormalizer.cs" />
     <Compile Include="Common\FeatureRegistry.cs" />

@@ -744,9 +744,11 @@ namespace RafiqPOS.Repositories
             return GetById(purchase.Id);
         }
 
-        public List<Purchase> GetAll(string supplierId = null, string startDate = null, string endDate = null, int limit = 100)
+        public List<Purchase> GetAll(string supplierId = null, string startDate = null, string endDate = null, int limit = 100, string dateFrom = null, string dateTo = null)
         {
             var list = new List<Purchase>();
+            // dateFrom/dateTo: أيام محلية yyyy-MM-dd شاملة الطرفين مقابل invoice_date المخزن UTC بصيغة ISO
+            LocalDateRange dayRange = LocalDateRange.Parse(dateFrom, dateTo);
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -757,6 +759,8 @@ namespace RafiqPOS.Repositories
                     WHERE (@supId IS NULL OR p.supplier_id = @supId)
                       AND (@startDate IS NULL OR p.invoice_date >= @startDate)
                       AND (@endDate IS NULL OR p.invoice_date <= @endDate)
+                      AND (@dayFrom IS NULL OR p.invoice_date >= @dayFrom)
+                      AND (@dayToExclusive IS NULL OR p.invoice_date < @dayToExclusive)
                     ORDER BY p.invoice_number DESC
                     LIMIT @limit;
                 ";
@@ -766,6 +770,8 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@supId", string.IsNullOrWhiteSpace(supplierId) ? (object)DBNull.Value : supplierId);
                     cmd.Parameters.AddWithValue("@startDate", string.IsNullOrWhiteSpace(startDate) ? (object)DBNull.Value : startDate);
                     cmd.Parameters.AddWithValue("@endDate", string.IsNullOrWhiteSpace(endDate) ? (object)DBNull.Value : endDate);
+                    cmd.Parameters.AddWithValue("@dayFrom", dayRange.FromUtc.HasValue ? (object)LocalDateRange.ToIsoPrefix(dayRange.FromUtc.Value) : DBNull.Value);
+                    cmd.Parameters.AddWithValue("@dayToExclusive", dayRange.ToExclusiveUtc.HasValue ? (object)LocalDateRange.ToIsoPrefix(dayRange.ToExclusiveUtc.Value) : DBNull.Value);
                     cmd.Parameters.AddWithValue("@limit", limit);
 
                     using (var reader = cmd.ExecuteReader())

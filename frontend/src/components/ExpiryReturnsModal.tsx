@@ -26,6 +26,24 @@ import type {
   ExpiredWriteOffCertificate 
 } from '../types/pharma';
 import type { Supplier } from '../types/models';
+import { DateFilterControl } from './DateFilterControl';
+import { ExpiryRangeFilter } from './ExpiryRangeFilter';
+import {
+  type DateFilterValue,
+  DEFAULT_DATE_FILTER,
+  describeDateFilter,
+  isDateFilterActive,
+  matchesDateFilter,
+  parseDateToLocalDateStr,
+} from '../utils/dateFilter';
+import { EMPTY_EXPIRY_RANGE, matchesExpiryRange, type ExpiryRange } from '../utils/expiryRange';
+
+/** Same map with every row unselected (used when a filter changes so hidden rows never stay selected). */
+function clearSelectedFlags<T extends { selected: boolean }>(map: Record<string, T>): Record<string, T> {
+  const next: Record<string, T> = {};
+  for (const id of Object.keys(map)) next[id] = { ...map[id], selected: false };
+  return next;
+}
 
 interface ExpiryReturnsModalProps {
   isOpen: boolean;
@@ -66,6 +84,22 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
   const [writeOffHistory, setWriteOffHistory] = useState<ExpiredWriteOff[]>([]);
   const [historySearch, setHistorySearch] = useState('');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Period filters: expiry range for the two work lists, request date for the history log
+  const [returnsExpiryRange, setReturnsExpiryRange] = useState<ExpiryRange>({ ...EMPTY_EXPIRY_RANGE });
+  const [writeOffExpiryRange, setWriteOffExpiryRange] = useState<ExpiryRange>({ ...EMPTY_EXPIRY_RANGE });
+  const [historyDateFilter, setHistoryDateFilter] = useState<DateFilterValue>({ ...DEFAULT_DATE_FILTER });
+
+  // Every opening starts from unfiltered periods
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setReturnsExpiryRange({ ...EMPTY_EXPIRY_RANGE });
+      setWriteOffExpiryRange({ ...EMPTY_EXPIRY_RANGE });
+      setHistoryDateFilter({ ...DEFAULT_DATE_FILTER });
+    }
+  }
 
   // Notifications
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'warning' } | null>(null);
@@ -161,10 +195,15 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
     else if (activeTab === 'history') void loadWriteOffHistory();
   });
 
-  // Tab 1 Calculations
+  // Tab 1 Calculations (only rows inside the expiry range can be selected or submitted)
+  const visibleReturnableBatches = useMemo(
+    () => returnableBatches.filter((b) => matchesExpiryRange(b.expiryDate, returnsExpiryRange)),
+    [returnableBatches, returnsExpiryRange],
+  );
+
   const selectedReturnItems = useMemo(() => {
-    return returnableBatches.filter(b => selectedBatchesMap[b.batchId]?.selected);
-  }, [returnableBatches, selectedBatchesMap]);
+    return visibleReturnableBatches.filter(b => selectedBatchesMap[b.batchId]?.selected);
+  }, [visibleReturnableBatches, selectedBatchesMap]);
 
   const returnSummary = useMemo(() => {
     let totalEstimatedRefund = 0;
@@ -232,10 +271,15 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
     }
   };
 
-  // Tab 2 Calculations
+  // Tab 2 Calculations (only rows inside the expiry range can be selected or submitted)
+  const visibleExpiredBatches = useMemo(
+    () => expiredBatches.filter((b) => matchesExpiryRange(b.expiryDate, writeOffExpiryRange)),
+    [expiredBatches, writeOffExpiryRange],
+  );
+
   const selectedWriteOffItems = useMemo(() => {
-    return expiredBatches.filter(b => selectedWriteOffMap[b.batchId]?.selected);
-  }, [expiredBatches, selectedWriteOffMap]);
+    return visibleExpiredBatches.filter(b => selectedWriteOffMap[b.batchId]?.selected);
+  }, [visibleExpiredBatches, selectedWriteOffMap]);
 
   const writeOffSummary = useMemo(() => {
     let totalCost = 0;
@@ -319,6 +363,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
   ];
 
   const filteredHistory = writeOffHistory.filter(h => {
+    if (!matchesDateFilter(h.createdAt, historyDateFilter)) return false;
     if (!historySearch.trim()) return true;
     const q = historySearch.trim().toLowerCase();
     return (
@@ -433,8 +478,8 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
           {activeTab === 'returns' && (
             <div className="space-y-4 print:hidden">
               {/* Supplier Filter & Summary bar */}
-              <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl flex flex-col sm:flex-row sm:flex-wrap items-center justify-between gap-3">
+                <div className="flex items-end gap-3 w-full sm:w-auto flex-wrap">
                   <div className="w-56">
                     <label className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">تصفية حسب المورد:</label>
                     <CustomSelect
@@ -443,6 +488,14 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                       options={supplierOptions}
                     />
                   </div>
+                  <ExpiryRangeFilter
+                    value={returnsExpiryRange}
+                    onChange={(range) => {
+                      setReturnsExpiryRange(range);
+                      setSelectedBatchesMap((prev) => clearSelectedFlags(prev));
+                    }}
+                    size="md"
+                  />
                 </div>
 
                 {/* Return Summary Badges */}
@@ -470,11 +523,11 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                       <th className="p-3 w-10 text-center">
                         <input
                           type="checkbox"
-                          checked={returnableBatches.length > 0 && selectedReturnItems.length === returnableBatches.length}
+                          checked={visibleReturnableBatches.length > 0 && selectedReturnItems.length === visibleReturnableBatches.length}
                           onChange={(e) => {
                             const checked = e.target.checked;
                             const newMap = { ...selectedBatchesMap };
-                            returnableBatches.forEach(b => {
+                            visibleReturnableBatches.forEach(b => {
                               if (newMap[b.batchId]) newMap[b.batchId].selected = checked;
                             });
                             setSelectedBatchesMap(newMap);
@@ -493,7 +546,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line dark:divide-line-dark">
-                    {returnableBatches.map((b) => {
+                    {visibleReturnableBatches.map((b) => {
                       const isSelected = selectedBatchesMap[b.batchId]?.selected ?? false;
                       const returnQty = selectedBatchesMap[b.batchId]?.returnQty ?? (b.quantityMilli / 1000);
                       const maxQty = b.quantityMilli / 1000;
@@ -583,6 +636,22 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                         </tr>
                       );
                     })}
+                    {returnableBatches.length > 0 && visibleReturnableBatches.length === 0 && !isLoadingReturns && (
+                      <tr>
+                        <td colSpan={9} className="p-8 text-center text-ink-muted dark:text-ink-dark-muted">
+                          <p className="text-xs font-bold">
+                            لا توجد تشغيلات تنتهي صلاحيتها في الفترة دي ({describeDateFilter({ preset: 'custom', ...returnsExpiryRange })}).
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setReturnsExpiryRange({ ...EMPTY_EXPIRY_RANGE })}
+                            className="mt-2 h-8 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                          >
+                            عرض كل التشغيلات
+                          </button>
+                        </td>
+                      </tr>
+                    )}
                     {returnableBatches.length === 0 && !isLoadingReturns && (
                       <tr>
                         <td colSpan={9} className="p-8 text-center text-ink-muted dark:text-ink-dark-muted">
@@ -732,7 +801,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
               ) : (
                 /* Write-off Form & Selection */
                 <div className="space-y-4 print:hidden">
-                  <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl flex items-center justify-between">
+                  <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h4 className="font-bold text-xs text-ink dark:text-ink-dark">
                         تشغيلات الأدوية المنتهية الصلاحية تماماً بالمخزن
@@ -741,6 +810,14 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                         حدد الأدوية المراد إعدامها وتوثيق محضرها لإسقاطها نهائياً من المخزون بقيد معاكس
                       </p>
                     </div>
+                    <ExpiryRangeFilter
+                      value={writeOffExpiryRange}
+                      onChange={(range) => {
+                        setWriteOffExpiryRange(range);
+                        setSelectedWriteOffMap((prev) => clearSelectedFlags(prev));
+                      }}
+                      size="md"
+                    />
                     <div className="px-3.5 py-2 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-danger-bright/30 text-left">
                       <span className="text-micro text-danger dark:text-danger-bright block font-bold">خسارة الإعدام المقدرة</span>
                       <span className="text-sm font-bold font-mono text-danger dark:text-danger-bright">
@@ -757,11 +834,11 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                           <th className="p-3 w-10 text-center">
                             <input
                               type="checkbox"
-                              checked={expiredBatches.length > 0 && selectedWriteOffItems.length === expiredBatches.length}
+                              checked={visibleExpiredBatches.length > 0 && selectedWriteOffItems.length === visibleExpiredBatches.length}
                               onChange={(e) => {
                                 const checked = e.target.checked;
                                 const newMap = { ...selectedWriteOffMap };
-                                expiredBatches.forEach(b => {
+                                visibleExpiredBatches.forEach(b => {
                                   if (newMap[b.batchId]) newMap[b.batchId].selected = checked;
                                 });
                                 setSelectedWriteOffMap(newMap);
@@ -778,7 +855,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-line dark:divide-line-dark">
-                        {expiredBatches.map((b) => {
+                        {visibleExpiredBatches.map((b) => {
                           const isSelected = selectedWriteOffMap[b.batchId]?.selected ?? false;
                           const writeOffQty = selectedWriteOffMap[b.batchId]?.writeOffQty ?? (b.quantityMilli / 1000);
                           const maxQty = b.quantityMilli / 1000;
@@ -830,6 +907,22 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                             </tr>
                           );
                         })}
+                        {expiredBatches.length > 0 && visibleExpiredBatches.length === 0 && !isLoadingExpired && (
+                          <tr>
+                            <td colSpan={7} className="p-8 text-center text-ink-muted dark:text-ink-dark-muted">
+                              <p className="text-xs font-bold">
+                                لا توجد تشغيلات منتهية في الفترة دي ({describeDateFilter({ preset: 'custom', ...writeOffExpiryRange })}).
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setWriteOffExpiryRange({ ...EMPTY_EXPIRY_RANGE })}
+                                className="mt-2 h-8 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                              >
+                                عرض كل التشغيلات
+                              </button>
+                            </td>
+                          </tr>
+                        )}
                         {expiredBatches.length === 0 && !isLoadingExpired && (
                           <tr>
                             <td colSpan={7} className="p-8 text-center text-ink-muted dark:text-ink-dark-muted">
@@ -900,8 +993,8 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
           {/* TAB 3: WRITE-OFF HISTORY */}
           {activeTab === 'history' && (
             <div className="space-y-4 print:hidden">
-              <div className="flex items-center justify-between gap-3">
-                <div className="relative flex-1">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[14rem]">
                   <input
                     type="text"
                     placeholder="ابحث في سجل المحاضر برقم المحضر، اسم الدواء، أو التشغيلة..."
@@ -911,6 +1004,12 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                   />
                   <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute left-3 top-3" />
                 </div>
+                <DateFilterControl
+                  value={historyDateFilter}
+                  onChange={setHistoryDateFilter}
+                  size="md"
+                  selectWidthClass="w-44 sm:w-48"
+                />
               </div>
 
               {/* Table of History */}
@@ -931,7 +1030,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                     {filteredHistory.map((item) => (
                       <tr key={item.id} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40">
                         <td className="p-3 font-mono font-bold text-brand dark:text-brand-bright">{item.writeOffNumber}</td>
-                        <td className="p-3 font-mono text-ink-muted dark:text-ink-dark-muted text-micro">{item.createdAt.slice(0, 10)}</td>
+                        <td className="p-3 font-mono text-ink-muted dark:text-ink-dark-muted text-micro">{parseDateToLocalDateStr(item.createdAt) ?? '-'}</td>
                         <td className="p-3 font-bold text-ink dark:text-ink-dark">{item.productName}</td>
                         <td className="p-3 font-mono">{item.batchNumber || '-'}</td>
                         <td className="p-3 text-center font-mono font-bold">{(item.quantityMilli / 1000).toFixed(0)}</td>
@@ -945,7 +1044,20 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                       <tr>
                         <td colSpan={7} className="p-8 text-center text-ink-muted dark:text-ink-dark-muted">
                           <FileText className="w-8 h-8 mx-auto mb-2 opacity-40 dark:opacity-100" />
-                          <p className="text-xs">لا توجد محاضر إعدام سابقة مسجلة.</p>
+                          <p className="text-xs">
+                            {writeOffHistory.length > 0 && isDateFilterActive(historyDateFilter)
+                              ? `لا توجد محاضر إعدام في الفترة دي (${describeDateFilter(historyDateFilter)}).`
+                              : 'لا توجد محاضر إعدام سابقة مسجلة.'}
+                          </p>
+                          {writeOffHistory.length > 0 && isDateFilterActive(historyDateFilter) && (
+                            <button
+                              type="button"
+                              onClick={() => setHistoryDateFilter({ ...DEFAULT_DATE_FILTER })}
+                              className="mt-2 h-8 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                            >
+                              عرض كل الفترات
+                            </button>
+                          )}
                         </td>
                       </tr>
                     )}

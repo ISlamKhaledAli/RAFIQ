@@ -35,6 +35,9 @@ namespace RafiqPOS.Services
             if (!settings.ContainsKey("receipt_footer")) settings["receipt_footer"] = "";
             if (!settings.ContainsKey("show_receipt_logo")) settings["show_receipt_logo"] = "1";
             if (!settings.ContainsKey("receipt_show_cashier")) settings["receipt_show_cashier"] = "1";
+            if (!settings.ContainsKey("receipt_show_invoice_number")) settings["receipt_show_invoice_number"] = "1";
+            if (!settings.ContainsKey("receipt_show_paid")) settings["receipt_show_paid"] = "1";
+            if (!settings.ContainsKey("receipt_show_change")) settings["receipt_show_change"] = "1";
             if (!settings.ContainsKey(SignatureVisibleKey)) settings[SignatureVisibleKey] = "1";
             if (!settings.ContainsKey(SignatureImageKey)) settings[SignatureImageKey] = "";
             if (!settings.ContainsKey("store_logo_url") || settings["store_logo_url"] == "/logo.png" || settings["store_logo_url"] == "/receipt_logo.png")

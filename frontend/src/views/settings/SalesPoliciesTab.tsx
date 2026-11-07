@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent, type RefObject } from 'react';
 import { Save, Package, Clock, Wallet, ShieldAlert, CheckCircle, BadgePercent, ReceiptText, ExternalLink } from 'lucide-react';
 import { useFeatures } from '../../context/useFeatures';
 import { invoke } from '../../bridge/ipc';
@@ -10,6 +10,7 @@ import {
   toHostMandatoryFields,
 } from '../../utils/controlledMandatoryFields';
 import { FIELD_INPUT_CLASS, Field, SettingsCard, ToggleRow } from './settingsParts';
+import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
 
 interface SalesPoliciesTabProps {
   allowNegativeStock: boolean;
@@ -23,6 +24,8 @@ interface SalesPoliciesTabProps {
   saveLoading: boolean;
   saved: boolean;
   onSave: (e: FormEvent) => void;
+  /** Goes on the row that holds the save button: the settings page scrolls to it and rings it when the user stays */
+  saveBarRef: RefObject<HTMLDivElement | null>;
   vatEnabled?: boolean;
   onToggleVat?: (val: boolean) => void;
   taxNumber?: string;
@@ -52,6 +55,7 @@ export const SalesPoliciesTab = ({
   saveLoading,
   saved,
   onSave,
+  saveBarRef,
   vatEnabled,
   onToggleVat,
   taxNumber = '',
@@ -186,7 +190,7 @@ export const SalesPoliciesTab = ({
             title="حد الدين للزبائن الجدد"
             description="أقصى مبلغ دين يُعطى لكل زبون جديد عند تسجيله. عند تجاوزه يطلب النظام تأكيد الكاشير قبل البيع الآجل. الزبائن الحاليون يحتفظون بحدودهم."
           >
-            <div className="flex flex-wrap items-end gap-3">
+            <div ref={saveBarRef} className="flex flex-wrap items-end gap-3 rounded-xl">
               <Field label="الحد الافتراضي بالجنيه" className="w-full sm:w-56">
                 <div className="relative">
                   <input
@@ -211,6 +215,11 @@ export const SalesPoliciesTab = ({
                 <Save className="w-4 h-4" />
                 <span>{saveLoading ? 'جاري الحفظ...' : 'حفظ الحد'}</span>
               </button>
+              {creditLimitDirty && (
+                <div className="h-11 flex items-center" role="status">
+                  <UnsavedChangesChip />
+                </div>
+              )}
               {saved && !creditLimitDirty && (
                 <span className="h-11 flex items-center gap-1.5 text-xs font-bold text-paid dark:text-paid-bright">
                   <CheckCircle className="w-4 h-4" />

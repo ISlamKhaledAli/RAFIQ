@@ -1186,23 +1186,36 @@ namespace RafiqPOS.Repositories
             return sale;
         }
 
-        public List<Sale> GetRecentSales(int limit = 20)
+        /// <summary>
+        /// آخر الفواتير مع تصفية اختيارية بالتاريخ المحلي (شامل طرفي الفترة) وبالحالة؛ بدون تصفية يرجع آخر limit فاتورة كما كان.
+        /// created_at مخزن بتوقيت UTC (ISO) لذلك يُحوَّل لليوم المحلي بـ 'localtime'.
+        /// </summary>
+        public List<Sale> GetRecentSales(int limit = 20, string dateFrom = null, string dateTo = null, string status = null)
         {
             var sales = new List<Sale>();
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = @"
+                var whereClauses = new List<string>();
+                var parameters = new List<SQLiteParameter>();
+                AppendDateAndStatusFilters(whereClauses, parameters, dateFrom, dateTo, status);
+                string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
+                string sql = string.Format(@"
                     SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
                            COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
                     LEFT JOIN users u ON s.cashier_id = u.id
+                    {0}
                     ORDER BY s.created_at DESC LIMIT @limit;
-                ";
+                ", whereSql);
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@limit", limit);
+                    foreach (var p in parameters)
+                    {
+                        cmd.Parameters.Add(p);
+                    }
+                    cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 20);
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -1213,6 +1226,59 @@ namespace RafiqPOS.Repositories
                 }
             }
             return sales;
+        }
+
+        /// <summary>
+        /// شروط التاريخ (يوم محلي من/إلى شاملين، يُعاد ترتيبهما لو انعكسا، والقيمة غير الصالحة تُهمل) والحالة
+        /// </summary>
+        private static void AppendDateAndStatusFilters(List<string> whereClauses, List<SQLiteParameter> parameters, string dateFrom, string dateTo, string status)
+        {
+            string fromDay = NormalizeLocalDay(dateFrom);
+            string toDay = NormalizeLocalDay(dateTo);
+            if (fromDay != null && toDay != null && string.CompareOrdinal(fromDay, toDay) > 0)
+            {
+                string swap = fromDay;
+                fromDay = toDay;
+                toDay = swap;
+            }
+
+            if (fromDay != null)
+            {
+                whereClauses.Add("date(s.created_at, 'localtime') >= @dateFrom");
+                parameters.Add(new SQLiteParameter("@dateFrom", fromDay));
+            }
+
+            if (toDay != null)
+            {
+                whereClauses.Add("date(s.created_at, 'localtime') <= @dateTo");
+                parameters.Add(new SQLiteParameter("@dateTo", toDay));
+            }
+
+            if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "all", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.Equals(status.Trim(), "refunded", StringComparison.OrdinalIgnoreCase))
+                {
+                    whereClauses.Add("s.status IN ('refunded', 'partially_refunded')");
+                }
+                else
+                {
+                    whereClauses.Add("s.status = @status");
+                    parameters.Add(new SQLiteParameter("@status", status.Trim()));
+                }
+            }
+        }
+
+        private static string NormalizeLocalDay(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            string trimmed = value.Trim();
+            if (trimmed.Length > 10) trimmed = trimmed.Substring(0, 10);
+            DateTime parsed;
+            if (!DateTime.TryParseExact(trimmed, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out parsed))
+            {
+                return null;
+            }
+            return parsed.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         }
 
         public List<Sale> GetAllForExport()
@@ -1278,29 +1344,13 @@ namespace RafiqPOS.Repositories
                     }
                 }
 
-                if (!string.IsNullOrWhiteSpace(dateFrom))
-                {
-                    whereClauses.Add("date(s.created_at) >= date(@dateFrom)");
-                    parameters.Add(new SQLiteParameter("@dateFrom", dateFrom.Trim()));
-                }
-
-                if (!string.IsNullOrWhiteSpace(dateTo))
-                {
-                    whereClauses.Add("date(s.created_at) <= date(@dateTo)");
-                    parameters.Add(new SQLiteParameter("@dateTo", dateTo.Trim()));
-                }
-
                 if (!string.IsNullOrWhiteSpace(customerId))
                 {
                     whereClauses.Add("s.customer_id = @customerId");
                     parameters.Add(new SQLiteParameter("@customerId", customerId.Trim()));
                 }
 
-                if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "all", StringComparison.OrdinalIgnoreCase))
-                {
-                    whereClauses.Add("s.status = @status");
-                    parameters.Add(new SQLiteParameter("@status", status.Trim()));
-                }
+                AppendDateAndStatusFilters(whereClauses, parameters, dateFrom, dateTo, status);
 
                 if (minTotal.HasValue && minTotal.Value > 0)
                 {
