@@ -638,7 +638,7 @@ test('hideable receipt rows: invoice number, paid rows and change, over every on
           assert.equal(model.invoiceLabel, showInvoiceNumber ? 'فاتورة رقم: 1042' : '', `${label}: invoice label`);
           // display only: nothing but the switched rows and the label differ
           assert.deepEqual({ ...model, paymentRows: null, invoiceLabel: null }, { ...full, paymentRows: null, invoiceLabel: null }, `${label}: everything else is identical`);
-          assert.deepEqual(model.barcode, { value: '00001042' }, `${label}: the barcode always prints`);
+          assert.deepEqual(model.barcode, { value: 'RFQ-INV-00001042' }, `${label}: the barcode always prints`);
           assert.equal(model.dateTime, full.dateTime, `${label}: the date and time stay`);
         }
       }

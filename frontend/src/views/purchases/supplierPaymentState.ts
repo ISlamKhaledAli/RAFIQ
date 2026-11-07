@@ -10,7 +10,7 @@ export function getSupplierPaymentState(netCostPiasters: number, paidAmountPiast
 
 // Paying from the cash drawer needs enough cash in it; unknown balance (null) never blocks, the server still checks
 export function isCashDrawerBlocked(
-  paymentSource: 'cash_drawer' | 'external_cash',
+  paymentSource: string,
   paidAmountPiasters: number,
   liveDrawerCashPiasters: number | null,
 ): boolean {

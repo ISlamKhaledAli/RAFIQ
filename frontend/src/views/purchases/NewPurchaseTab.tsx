@@ -1780,7 +1780,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             ) : null}
 
             {/* Fixed-size status area: the layout below must not jump while the amount is typed */}
-            <div className="min-h-[17.5rem] flex flex-col gap-2">
+            <div className="min-h-[17.5rem] flex flex-col">
               <SupplierPaymentStatusCard
                 state={paymentState}
                 paidAmountPiasters={paidAmountPiasters}
@@ -1804,18 +1804,6 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 }
                 formatMoney={formatMoney}
               />
-              {supplierMissing && (
-                <div className="p-3 rounded-lg border border-warn/30 bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-xs flex items-center gap-2 font-bold">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>
-                    {paidAmountPiasters === 0
-                      ? 'يجب اختيار المورد من أعلى الصفحة لتسجيل الفاتورة الآجلة على حسابه.'
-                      : paidAmountPiasters < netCostPiasters
-                      ? `يجب اختيار المورد لتسجيل المبلغ المتبقي (${formatMoney(remainingAmountPiasters)}) على حسابه.`
-                      : `يجب اختيار المورد لتسجيل الزيادة (+${formatMoney(excessPaidPiasters)}) تحت حسابه.`}
-                  </span>
-                </div>
-              )}
             </div>
 
             {/* Cash source: always shown (dimmed while no cash leaves) so typing the first digit does not shift the page */}
