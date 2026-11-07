@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Database, 
   HardDrive, 
@@ -22,6 +22,10 @@ import { DatabaseRecoveryModal } from './DatabaseRecoveryModal';
 import { MigrationWizardModal } from './MigrationWizardModal';
 import { rafiqAlert } from '../utils/dialogService';
 import { useAuth } from '../context/useAuth';
+import { useUnsavedChangesGuard } from '../context/useUnsavedChanges';
+import { UnsavedChangesChip } from './UnsavedChangesChip';
+import { DateFilterControl } from './DateFilterControl';
+import { useDateFilter, useToday, isDateFilterActive, describeDateFilter, getDateFilterPayload } from '../utils/dateFilter';
 
 interface BackupFileInfo {
   fileName: string;
@@ -70,9 +74,16 @@ interface BackupResult {
 
 interface BackupManagerProps {
   onOpenLicenseModal?: () => void;
+  /** false while the keep-alive settings page is hidden: a leftover draft must not block other pages */
+  isActive?: boolean;
 }
 
-export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) => {
+/** Same normalisation the save applies, so typing a value and reverting it is clean. */
+function policySnapshotOf(folder: string, days: number, weeks: number, warn: number, copies: number): string {
+  return JSON.stringify([folder.trim(), Number(days) || 7, Number(weeks) || 4, Number(warn) || 2, Number(copies) || 20]);
+}
+
+export const BackupManager = ({ onOpenLicenseModal, isActive = true }: BackupManagerProps = {}) => {
   // Restore / migration and license activation are owner-grade privileges (owner/root always, a manager only when granted; the server enforces the same keys)
   const { hasPermission } = useAuth();
   const canRestore = hasPermission('settings.restore');
@@ -87,10 +98,23 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
   const [retentionWeeks, setRetentionWeeks] = useState(4);
   const [warnAfterDays, setWarnAfterDays] = useState(2);
   const [maxCopies, setMaxCopies] = useState(20);
+  // Retention policy form: compared with the values last loaded or saved (the two switches above it save themselves)
+  const [policyBaseline, setPolicyBaseline] = useState<string | null>(null);
+  const policySnapshot = policySnapshotOf(targetFolder, retentionDays, retentionWeeks, warnAfterDays, maxCopies);
+  const policyDirty = policyBaseline !== null && policySnapshot !== policyBaseline;
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'warning' | 'error' } | null>(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<BackupFileInfo | null>(null);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  // The period is applied by the backend to the file creation day, before the list cap
+  const { dateFilter, setDateFilter, resetDateFilter } = useDateFilter();
+  const today = useToday();
+  const listDateActive = isDateFilterActive(dateFilter);
+  const listQuery = useMemo(
+    () => getDateFilterPayload(dateFilter, today),
+    [dateFilter, today]
+  );
+  const firstListRunRef = useRef(true);
 
   const handleOpenLicense = () => {
     if (onOpenLicenseModal) {
@@ -102,7 +126,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
 
   const fetchBackupStatus = async () => {
     try {
-      const res = await invoke<BackupStatusInfo>('backup:getStatus');
+      const res = await invoke<BackupStatusInfo>('backup:getStatus', listQuery);
       if (res) {
         setStatus(res);
         setTargetFolder(res.configuredFolder || '');
@@ -112,6 +136,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
         setRetentionWeeks(res.retentionWeeks || 4);
         setWarnAfterDays(res.warnAfterDays || 2);
         setMaxCopies(res.maxCopies || 20);
+        setPolicyBaseline(policySnapshotOf(res.configuredFolder || '', res.retentionDays || 7, res.retentionWeeks || 4, res.warnAfterDays || 2, res.maxCopies || 20));
       }
     } catch (err: unknown) {
       console.error('Failed to get backup status:', err);
@@ -147,6 +172,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
           setRetentionWeeks(statusRes.retentionWeeks || 4);
           setWarnAfterDays(statusRes.warnAfterDays || 2);
           setMaxCopies(statusRes.maxCopies || 20);
+          setPolicyBaseline(policySnapshotOf(statusRes.configuredFolder || '', statusRes.retentionDays || 7, statusRes.retentionWeeks || 4, statusRes.warnAfterDays || 2, statusRes.maxCopies || 20));
         }
         if (Array.isArray(drivesRes)) {
           setDrives(drivesRes);
@@ -160,6 +186,28 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
       active = false;
     };
   }, []);
+
+  // Changing the period refreshes only the backup list (never the unsaved policy form)
+  useEffect(() => {
+    if (firstListRunRef.current) {
+      firstListRunRef.current = false;
+      return;
+    }
+    let active = true;
+    void (async () => {
+      try {
+        const res = await invoke<BackupStatusInfo>('backup:getStatus', listQuery);
+        if (active && res) {
+          setStatus((prev) => (prev ? { ...prev, recentBackups: res.recentBackups || [] } : res));
+        }
+      } catch (err: unknown) {
+        console.error('Failed to filter backups list:', err);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [listQuery]);
 
   useDataSubscription(['settings', 'all'], () => {
     void fetchBackupStatus();
@@ -232,7 +280,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
     }
   };
 
-  const handleSavePolicy = async () => {
+  const handleSavePolicy = async (): Promise<boolean> => {
     try {
       await invoke('backup:configure', {
         targetFolder: targetFolder.trim(),
@@ -243,9 +291,11 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
         warnAfterDays: Number(warnAfterDays) || 2,
         maxCopies: Number(maxCopies) || 20
       });
+      setPolicyBaseline(policySnapshot);
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 3000);
       await fetchBackupStatus();
+      return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       void rafiqAlert({
@@ -253,8 +303,19 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
         message: `فشل حفظ إعدادات النسخ: ${msg}`,
         variant: 'error',
       });
+      return false;
     }
   };
+
+  const { saveBarRef: policySaveBarRef } = useUnsavedChangesGuard({
+    id: 'backup-policy',
+    label: 'سياسة النسخ الاحتياطي',
+    isDirty: policyDirty,
+    isActive,
+    save: handleSavePolicy,
+    // Reading the saved values again drops the draft; the form unmounts with its sub-tab anyway
+    discard: () => void fetchBackupStatus(),
+  });
 
   const formatBytes = (bytes: number) => {
     if (!bytes || bytes <= 0) return '0 بايت';
@@ -584,7 +645,13 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
           </div>
         </div>
 
-        <button
+        <div ref={policySaveBarRef} className="self-end flex flex-wrap items-center justify-end gap-3 rounded-xl">
+          {policyDirty && (
+            <div role="status">
+              <UnsavedChangesChip />
+            </div>
+          )}
+          <button
           type="button"
           onClick={() => void handleSavePolicy()}
           className="self-end h-10 px-5 bg-brand dark:bg-paid-bright hover:bg-brand-hover dark:hover:bg-paid-bright-hover text-white dark:text-surface-dark rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
@@ -592,6 +659,7 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
           <Save className="w-3.5 h-3.5" />
           <span>حفظ وتطبيق سياسة النسخ</span>
         </button>
+        </div>
       </div>
 
       {/* 4. List of Existing Backups (Tasks 9-1 & 125-2) */}
@@ -601,9 +669,15 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
             <Database className="w-4 h-4 text-brand dark:text-brand-bright" />
             <h3 className="t-card-title text-ink dark:text-ink-dark m-0">سجل النسخ الاحتياطية المتوفرة في المجلد</h3>
           </div>
-          <span className="text-xs text-ink-muted dark:text-ink-muted-dark">
-            إجمالي النسخ: {status?.recentBackups?.length ?? 0}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">تاريخ النسخة:</span>
+            <DateFilterControl value={dateFilter} onChange={setDateFilter} size="sm" selectWidthClass="w-44" />
+            <span className="text-xs text-ink-muted dark:text-ink-muted-dark">
+              {listDateActive
+                ? `${status?.recentBackups?.length ?? 0} نسخة خلال ${describeDateFilter(dateFilter)}`
+                : `إجمالي النسخ: ${status?.recentBackups?.length ?? 0}`}
+            </span>
+          </div>
         </div>
 
         {status?.recentBackups && status.recentBackups.length > 0 ? (
@@ -666,7 +740,21 @@ export const BackupManager = ({ onOpenLicenseModal }: BackupManagerProps = {}) =
           </div>
         ) : (
           <div className="p-6 text-center text-ink-muted dark:text-ink-muted-dark bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark">
-            لم يتم العثور على أي نسخ احتياطية في المجلد المحدد حتى الآن. انقر على «خذ نسخة احتياطية الآن» أعلاه لإنشاء أول نسخة.
+            {listDateActive ? (
+              <div className="flex flex-col items-center gap-2">
+                <span>{`مفيش نسخ احتياطية خلال ${describeDateFilter(dateFilter)}.`}</span>
+                <button
+                  type="button"
+                  onClick={resetDateFilter}
+                  className="h-8 px-3 inline-flex items-center gap-1.5 rounded-lg bg-brand dark:bg-paid-bright text-white dark:text-surface-dark text-xs font-bold cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>عرض كل النسخ</span>
+                </button>
+              </div>
+            ) : (
+              'لم يتم العثور على أي نسخ احتياطية في المجلد المحدد حتى الآن. انقر على «خذ نسخة احتياطية الآن» أعلاه لإنشاء أول نسخة.'
+            )}
           </div>
         )}
       </div>

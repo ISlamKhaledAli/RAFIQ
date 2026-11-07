@@ -569,20 +569,15 @@ namespace RafiqPOS.Services
                 report.StartDate = DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd");
                 report.EndDate = report.StartDate;
             }
-            else if (period == "week")
+            else if (RollingWindowDays(period) > 0)
             {
-                dateFilterClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-7 days')";
-                report.StartDate = DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd");
-                report.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
-            }
-            else if (period == "month")
-            {
-                dateFilterClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
-                report.StartDate = DateTime.Now.AddDays(-30).ToString("yyyy-MM-dd");
+                dateFilterClause = "date(created_at, 'localtime') >= date('now', 'localtime', '" + RollingStartOffset(period) + "')";
+                report.StartDate = DateTime.Now.AddDays(-(RollingWindowDays(period) - 1)).ToString("yyyy-MM-dd");
                 report.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
             }
             else if (period == "custom" && !string.IsNullOrEmpty(customFromDate) && !string.IsNullOrEmpty(customToDate))
             {
+                NormalizeCustomRange(ref customFromDate, ref customToDate);
                 dateFilterClause = "date(created_at, 'localtime') >= date(@from) AND date(created_at, 'localtime') <= date(@to)";
                 report.StartDate = customFromDate;
                 report.EndDate = customToDate;
@@ -901,28 +896,14 @@ namespace RafiqPOS.Services
                 report.StartDate = DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd");
                 report.EndDate = report.StartDate;
             }
-            else if (period == "week")
+            else if (RollingWindowDays(period) > 0)
             {
-                report.StartDate = DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd");
-                report.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
-            }
-            else if (period == "month")
-            {
-                report.StartDate = DateTime.Now.AddDays(-30).ToString("yyyy-MM-dd");
-                report.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
-            }
-            else if (period == "3months")
-            {
-                report.StartDate = DateTime.Now.AddDays(-90).ToString("yyyy-MM-dd");
-                report.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
-            }
-            else if (period == "year")
-            {
-                report.StartDate = DateTime.Now.AddDays(-365).ToString("yyyy-MM-dd");
+                report.StartDate = DateTime.Now.AddDays(-(RollingWindowDays(period) - 1)).ToString("yyyy-MM-dd");
                 report.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
             }
             else if (period == "custom" && !string.IsNullOrEmpty(customFromDate) && !string.IsNullOrEmpty(customToDate))
             {
+                NormalizeCustomRange(ref customFromDate, ref customToDate);
                 report.StartDate = customFromDate;
                 report.EndDate = customToDate;
             }
@@ -1899,6 +1880,58 @@ namespace RafiqPOS.Services
         // ADVANCED ANALYTICS & REPORTING METHODS
         // ==========================================
 
+        // نافذة الفترة المتحركة شاملة اليوم: أسبوع 7 أيام، شهر 30، 3 أشهر 90، سنة 365 (التسمية في الواجهة "آخر N يوم")
+        private static int RollingWindowDays(string period)
+        {
+            switch (period)
+            {
+                case "week": return 7;
+                case "month": return 30;
+                case "3months": return 90;
+                case "year": return 365;
+                default: return 0;
+            }
+        }
+
+        // إزاحة SQL لبداية النافذة المتحركة (اليوم محسوب ضمن النافذة)
+        private static string RollingStartOffset(string period)
+        {
+            return "-" + (RollingWindowDays(period) - 1).ToString() + " days";
+        }
+
+        // الفترة السابقة المماثلة لنطاق مخصص: نفس عدد الأيام وتنتهي قبل بداية النطاق مباشرة (التواريخ من DateTime وليست نصاً من المستخدم)
+        private static bool TryBuildCustomComparisonClauses(string customFrom, string customTo, out string curClause, out string prevClause)
+        {
+            curClause = null;
+            prevClause = null;
+            NormalizeCustomRange(ref customFrom, ref customTo);
+            DateTime fromDay;
+            DateTime toDay;
+            if (!DateTime.TryParseExact(customFrom, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out fromDay)) return false;
+            if (!DateTime.TryParseExact(customTo, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out toDay)) return false;
+
+            int days = (int)(toDay.Date - fromDay.Date).TotalDays + 1;
+            DateTime prevTo = fromDay.Date.AddDays(-1);
+            DateTime prevFrom = prevTo.AddDays(-(days - 1));
+            curClause = string.Format("date(created_at, 'localtime') >= '{0}' AND date(created_at, 'localtime') <= '{1}'",
+                fromDay.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), toDay.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+            prevClause = string.Format("date(created_at, 'localtime') >= '{0}' AND date(created_at, 'localtime') <= '{1}'",
+                prevFrom.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), prevTo.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+            return true;
+        }
+
+        // نطاق مخصص معكوس (من بعد إلى) يُقلب بدل أن يُرجع تقريراً فارغاً بصمت
+        private static void NormalizeCustomRange(ref string customFrom, ref string customTo)
+        {
+            if (string.IsNullOrEmpty(customFrom) || string.IsNullOrEmpty(customTo)) return;
+            if (string.CompareOrdinal(customFrom, customTo) > 0)
+            {
+                string swap = customFrom;
+                customFrom = customTo;
+                customTo = swap;
+            }
+        }
+
         private string GetDateClause(string period, string customFrom, string customTo, string column)
         {
             string bDate = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).ToString("yyyy-MM-dd");
@@ -1907,21 +1940,9 @@ namespace RafiqPOS.Services
                 string yDate = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).AddDays(-1).ToString("yyyy-MM-dd");
                 return string.Format("(date({0}, 'localtime') = '{1}' OR date({0}) = '{1}')", column, yDate);
             }
-            if (period == "week")
+            if (RollingWindowDays(period) > 0)
             {
-                return string.Format("date({0}, 'localtime') >= date('{1}', '-7 days')", column, bDate);
-            }
-            if (period == "month")
-            {
-                return string.Format("date({0}, 'localtime') >= date('{1}', '-30 days')", column, bDate);
-            }
-            if (period == "3months")
-            {
-                return string.Format("date({0}, 'localtime') >= date('{1}', '-90 days')", column, bDate);
-            }
-            if (period == "year")
-            {
-                return string.Format("date({0}, 'localtime') >= date('{1}', '-365 days')", column, bDate);
+                return string.Format("date({0}, 'localtime') >= date('{1}', '{2}')", column, bDate, RollingStartOffset(period));
             }
             if (period == "custom" && !string.IsNullOrEmpty(customFrom) && !string.IsNullOrEmpty(customTo))
             {
@@ -1934,6 +1955,7 @@ namespace RafiqPOS.Services
         {
             if (period == "custom" && !string.IsNullOrEmpty(customFrom) && !string.IsNullOrEmpty(customTo))
             {
+                NormalizeCustomRange(ref customFrom, ref customTo);
                 cmd.Parameters.AddWithValue("@from", customFrom);
                 cmd.Parameters.AddWithValue("@to", customTo);
             }
@@ -2052,7 +2074,7 @@ namespace RafiqPOS.Services
                     FROM daily_closings
                     WHERE {0}
                     ORDER BY closed_at DESC
-                    LIMIT 50;
+                    LIMIT 400;
                 ", dateClause);
 
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -2265,7 +2287,7 @@ namespace RafiqPOS.Services
             return list;
         }
 
-        public PeriodComparisonReport GetPeriodComparison(string period)
+        public PeriodComparisonReport GetPeriodComparison(string period, string customFrom = null, string customTo = null)
         {
             var report = new PeriodComparisonReport();
             string curClause, prevClause;
@@ -2275,8 +2297,8 @@ namespace RafiqPOS.Services
             {
                 curName = "هذا الشهر";
                 prevName = "الشهر السابق";
-                curClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
-                prevClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-60 days') AND date(created_at, 'localtime') < date('now', 'localtime', '-30 days')";
+                curClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-29 days')";
+                prevClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-59 days') AND date(created_at, 'localtime') < date('now', 'localtime', '-29 days')";
             }
             else if (period == "today")
             {
@@ -2296,13 +2318,26 @@ namespace RafiqPOS.Services
                 curClause = string.Format("date(created_at, 'localtime') = '{0}'", yDate);
                 prevClause = string.Format("date(created_at, 'localtime') = '{0}'", prevYDate);
             }
+            else if (period == "3months" || period == "year")
+            {
+                int windowDays = RollingWindowDays(period);
+                curName = period == "year" ? "آخر 365 يوماً" : "آخر 90 يوماً";
+                prevName = period == "year" ? "الـ 365 يوماً السابقة" : "الـ 90 يوماً السابقة";
+                curClause = string.Format("date(created_at, 'localtime') >= date('now', 'localtime', '-{0} days')", windowDays - 1);
+                prevClause = string.Format("date(created_at, 'localtime') >= date('now', 'localtime', '-{0} days') AND date(created_at, 'localtime') < date('now', 'localtime', '-{1} days')", (windowDays * 2) - 1, windowDays - 1);
+            }
+            else if (period == "custom" && TryBuildCustomComparisonClauses(customFrom, customTo, out curClause, out prevClause))
+            {
+                curName = "الفترة المحددة";
+                prevName = "الفترة السابقة المماثلة";
+            }
             else
             {
                 // default week
                 curName = "هذا الأسبوع";
                 prevName = "الأسبوع السابق";
-                curClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-7 days')";
-                prevClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-14 days') AND date(created_at, 'localtime') < date('now', 'localtime', '-7 days')";
+                curClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-6 days')";
+                prevClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-13 days') AND date(created_at, 'localtime') < date('now', 'localtime', '-6 days')";
             }
 
             report.CurrentPeriodName = curName;
@@ -3112,7 +3147,7 @@ namespace RafiqPOS.Services
                     LEFT JOIN customers c ON cl.customer_id = c.id
                     WHERE cl.type IN ('payment', 'payment_cancel', 'deposit') AND {0}
                     ORDER BY cl.created_at DESC
-                    LIMIT 100;
+                    LIMIT 1000;
                 ", filterClause);
 
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -3189,16 +3224,13 @@ namespace RafiqPOS.Services
             {
                 dateFilterClause = "date(created_at, 'localtime') = date('now', 'localtime', '-1 day')";
             }
-            else if (period == "week")
+            else if (RollingWindowDays(period) > 0)
             {
-                dateFilterClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-7 days')";
-            }
-            else if (period == "month")
-            {
-                dateFilterClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
+                dateFilterClause = "date(created_at, 'localtime') >= date('now', 'localtime', '" + RollingStartOffset(period) + "')";
             }
             else if (period == "custom" && !string.IsNullOrEmpty(customFromDate) && !string.IsNullOrEmpty(customToDate))
             {
+                NormalizeCustomRange(ref customFromDate, ref customToDate);
                 dateFilterClause = "date(created_at, 'localtime') >= date(@from) AND date(created_at, 'localtime') <= date(@to)";
             }
             else
@@ -3405,16 +3437,13 @@ namespace RafiqPOS.Services
             {
                 dateFilterClause = "date(s.created_at, 'localtime') = date('now', 'localtime', '-1 day')";
             }
-            else if (period == "week")
+            else if (RollingWindowDays(period) > 0)
             {
-                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-7 days')";
-            }
-            else if (period == "month")
-            {
-                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
+                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '" + RollingStartOffset(period) + "')";
             }
             else if (period == "custom" && !string.IsNullOrEmpty(customFromDate) && !string.IsNullOrEmpty(customToDate))
             {
+                NormalizeCustomRange(ref customFromDate, ref customToDate);
                 dateFilterClause = "date(s.created_at, 'localtime') >= date(@from) AND date(s.created_at, 'localtime') <= date(@to)";
             }
             else
@@ -3841,21 +3870,18 @@ namespace RafiqPOS.Services
             {
                 dateFilterClause = "date(s.created_at, 'localtime') = date('now', 'localtime', '-1 day')";
             }
-            else if (period == "week")
+            else if (RollingWindowDays(period) > 0)
             {
-                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-7 days')";
-            }
-            else if (period == "month")
-            {
-                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
+                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '" + RollingStartOffset(period) + "')";
             }
             else if (period == "custom" && !string.IsNullOrEmpty(customFromDate) && !string.IsNullOrEmpty(customToDate))
             {
+                NormalizeCustomRange(ref customFromDate, ref customToDate);
                 dateFilterClause = "date(s.created_at, 'localtime') >= date(@from) AND date(s.created_at, 'localtime') <= date(@to)";
             }
             else
             {
-                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
+                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-29 days')";
             }
 
             using (var conn = new SQLiteConnection(_connectionString))

@@ -104,3 +104,15 @@ describe('the three panel toggles share one size', () => {
   });
 });
 
+describe('collapsing the catalog closes the sections rail too (the reverse of expanding)', () => {
+  it('the catalog calls onCollapse only when collapsing; PosView bumps a signal the rail reacts to', () => {
+    assert.match(panel, /if \(next\) onCollapse\?\.\(\);/);
+    assert.match(posView, /onCollapse=\{\(\) => setCategoriesCollapseSignal\(\(n\) => n \+ 1\)\}/);
+    assert.match(posView, /collapseSignal=\{categoriesCollapseSignal\}/);
+    assert.match(categories, /collapseSignal = 0,/);
+    const effect = categories.slice(categories.indexOf('if (collapseSignal === 0) return;'), categories.indexOf('const toggleCollapsed'));
+    assert.match(effect, /setIsCollapsed\(true\)/);
+    assert.match(effect, /'rafiq_pos_categories_collapsed', 'true'/);
+  });
+});
+

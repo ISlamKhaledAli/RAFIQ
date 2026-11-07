@@ -39,6 +39,8 @@ import {
   isNewProductFilterRequest,
   type ProductFilterRequest,
 } from '../utils/productFilterRequest';
+import { DEFAULT_DATE_FILTER, useToday, type DateFilterValue } from '../utils/dateFilter';
+import { MOVEMENTS_LOAD_LIMIT, buildMovementsRequest } from './products/stockMovementsQuery';
 import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult, BulkPriceRevertResult, StorageLocation, ProductBatch } from '../types/models';
 import type { ProductPharmaInfo } from '../types/pharma';
 import { normalizeArabicNumerals } from '../utils/money';
@@ -412,6 +414,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [movementsLoading, setMovementsLoading] = useState(false);
   const [movementTypeFilter, setMovementTypeFilter] = useState('ALL');
   const [movementSearchQuery, setMovementSearchQuery] = useState('');
+  const [movementDateFilter, setMovementDateFilter] = useState<DateFilterValue>({ ...DEFAULT_DATE_FILTER });
+  // Re-evaluates relative presets (today, this week) when the day rolls over while the page stays mounted
+  const today = useToday();
 
   // A new request (even for the same filter) clears every filter first, then applies its own
   if (isNewProductFilterRequest(handledFilterNonce, filterRequest)) {
@@ -424,6 +429,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setSelectedProductIds(reset.selectedProductIds);
     setMovementTypeFilter(reset.movementType);
     setMovementSearchQuery(reset.movementSearchQuery);
+    setMovementDateFilter(reset.movementDateFilter);
     setBatchesInitialSearch(reset.batchesSearchQuery);
   }
 
@@ -475,10 +481,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const loadMovements = async () => {
     setMovementsLoading(true);
     try {
-      const res = await invoke<StockMovement[]>('inventory:getMovements', {
-        movementType: movementTypeFilter === 'ALL' ? undefined : movementTypeFilter,
-        limit: 250,
-      });
+      const res = await invoke<StockMovement[]>(
+        'inventory:getMovements',
+        buildMovementsRequest(movementTypeFilter, movementDateFilter, MOVEMENTS_LOAD_LIMIT),
+      );
       setAllMovements(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error('Failed to load stock movements', err);
@@ -498,13 +504,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
   useEffect(() => {
     let active = true;
-    if (activeSubView === 'movements') {
+    if (activeSubView === 'movements' && isActive) {
       void (async () => {
         try {
-          const res = await invoke<StockMovement[]>('inventory:getMovements', {
-            movementType: movementTypeFilter === 'ALL' ? undefined : movementTypeFilter,
-            limit: 250,
-          });
+          const res = await invoke<StockMovement[]>(
+            'inventory:getMovements',
+            buildMovementsRequest(movementTypeFilter, movementDateFilter, MOVEMENTS_LOAD_LIMIT),
+          );
           if (active) {
             setAllMovements(Array.isArray(res) ? res : []);
           }
@@ -518,7 +524,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       })();
     }
     return () => { active = false; };
-  }, [activeSubView, movementTypeFilter]);
+    // today: a relative preset (today, this week) reloads once the day rolls over
+  }, [activeSubView, isActive, movementTypeFilter, movementDateFilter, today]);
 
   const handleRecalculateStock = async () => {
     setRecalculating(true);
@@ -1817,9 +1824,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           setMovementTypeFilter={setMovementTypeFilter}
           movementSearchQuery={movementSearchQuery}
           setMovementSearchQuery={setMovementSearchQuery}
+          movementDateFilter={movementDateFilter}
+          setMovementDateFilter={setMovementDateFilter}
           movementsLoading={movementsLoading}
           onRecalculateStock={() => void handleRecalculateStock()}
-          onLoadMovements={() => void loadMovements()}
         />
       ) : (
         /* Batches & Expiry Dates Tab (Story 93 / Feature #60) */

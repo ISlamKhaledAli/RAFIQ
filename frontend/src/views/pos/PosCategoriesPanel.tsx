@@ -25,6 +25,8 @@ interface PosCategoriesPanelProps {
   categoryProductCounts: Record<string, number>;
   // Called when the rail is expanded, so the catalog panel can open with it
   onExpand?: () => void;
+  // Changes whenever the catalog panel is collapsed; the rail closes with it
+  collapseSignal?: number;
 }
 
 export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
@@ -37,6 +39,7 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
   customItemsCount,
   categoryProductCounts,
   onExpand,
+  collapseSignal = 0,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
@@ -60,6 +63,16 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
     window.addEventListener(CATEGORY_ICONS_CHANGED_EVENT, handleIconsChanged);
     return () => window.removeEventListener(CATEGORY_ICONS_CHANGED_EVENT, handleIconsChanged);
   }, []);
+
+  useEffect(() => {
+    if (collapseSignal === 0) return;
+    setIsCollapsed(true);
+    try {
+      localStorage.setItem('rafiq_pos_categories_collapsed', 'true');
+    } catch {
+      // ignore
+    }
+  }, [collapseSignal]);
 
   const toggleCollapsed = () => {
     const next = !isCollapsed;

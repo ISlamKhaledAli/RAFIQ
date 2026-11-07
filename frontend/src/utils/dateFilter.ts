@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export type DatePresetKey = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
@@ -71,6 +71,30 @@ export function parseDateToLocalDateStr(val: string | Date | null | undefined): 
   return isNaN(d.getTime()) ? null : toLocalDateString(d);
 }
 
+function referenceDate(today?: string): Date {
+  if (today && /^\d{4}-\d{2}-\d{2}$/.test(today)) {
+    const [y, m, d] = today.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  return new Date();
+}
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Cleans a custom range: invalid values become '' and a swapped range (start after end) is reordered
+ */
+export function normalizeDateRange(startDate: string, endDate: string): { startDate: string; endDate: string } {
+  let start = DATE_ONLY_RE.test(startDate || '') ? startDate : '';
+  let end = DATE_ONLY_RE.test(endDate || '') ? endDate : '';
+  if (start && end && start > end) {
+    const tmp = start;
+    start = end;
+    end = tmp;
+  }
+  return { startDate: start, endDate: end };
+}
+
 /**
  * Check if a record's date falls within the filter range
  */
@@ -96,8 +120,9 @@ export function matchesDateFilter(
   }
 
   if (filter.preset === 'week') {
+    // last 7 days including today
     const weekAgo = new Date(now);
-    weekAgo.setDate(weekAgo.getDate() - 7);
+    weekAgo.setDate(weekAgo.getDate() - 6);
     const weekAgoStr = toLocalDateString(weekAgo);
     return itemDateStr >= weekAgoStr && itemDateStr <= todayStr;
   }
@@ -108,14 +133,15 @@ export function matchesDateFilter(
   }
 
   if (filter.preset === 'custom') {
-    if (filter.startDate && filter.endDate) {
-      return itemDateStr >= filter.startDate && itemDateStr <= filter.endDate;
+    const { startDate, endDate } = normalizeDateRange(filter.startDate, filter.endDate);
+    if (startDate && endDate) {
+      return itemDateStr >= startDate && itemDateStr <= endDate;
     }
-    if (filter.startDate) {
-      return itemDateStr >= filter.startDate;
+    if (startDate) {
+      return itemDateStr >= startDate;
     }
-    if (filter.endDate) {
-      return itemDateStr <= filter.endDate;
+    if (endDate) {
+      return itemDateStr <= endDate;
     }
     return true;
   }
@@ -124,10 +150,11 @@ export function matchesDateFilter(
 }
 
 /**
- * Calculates concrete YYYY-MM-DD bounds for a DateFilterValue
+ * Calculates concrete YYYY-MM-DD bounds for a DateFilterValue.
+ * `today` (YYYY-MM-DD, e.g. from useToday) pins the reference day so memoised callers recompute after midnight.
  */
-export function getDateFilterRange(filter: DateFilterValue): { startDate: string; endDate: string } {
-  const now = new Date();
+export function getDateFilterRange(filter: DateFilterValue, today?: string): { startDate: string; endDate: string } {
+  const now = referenceDate(today);
   const todayStr = toLocalDateString(now);
 
   switch (filter.preset) {
@@ -141,7 +168,7 @@ export function getDateFilterRange(filter: DateFilterValue): { startDate: string
     }
     case 'week': {
       const weekAgo = new Date(now);
-      weekAgo.setDate(weekAgo.getDate() - 7);
+      weekAgo.setDate(weekAgo.getDate() - 6);
       return { startDate: toLocalDateString(weekAgo), endDate: todayStr };
     }
     case 'month': {
@@ -149,11 +176,86 @@ export function getDateFilterRange(filter: DateFilterValue): { startDate: string
       return { startDate: monthStartStr, endDate: todayStr };
     }
     case 'custom':
-      return { startDate: filter.startDate, endDate: filter.endDate };
+      return normalizeDateRange(filter.startDate, filter.endDate);
     case 'all':
     default:
       return { startDate: '', endDate: '' };
   }
+}
+
+/**
+ * True when the filter actually restricts records (a custom preset with no dates restricts nothing)
+ */
+export function isDateFilterActive(filter: DateFilterValue): boolean {
+  if (filter.preset === 'all') return false;
+  if (filter.preset === 'custom') {
+    const { startDate, endDate } = normalizeDateRange(filter.startDate, filter.endDate);
+    return Boolean(startDate || endDate);
+  }
+  return true;
+}
+
+/**
+ * Optional dateFrom/dateTo (YYYY-MM-DD, local days, both inclusive) for backend payloads; empty object when unfiltered
+ */
+export function getDateFilterPayload(filter: DateFilterValue, today?: string): { dateFrom?: string; dateTo?: string } {
+  if (!isDateFilterActive(filter)) return {};
+  const { startDate, endDate } = getDateFilterRange(filter, today);
+  const payload: { dateFrom?: string; dateTo?: string } = {};
+  if (startDate) payload.dateFrom = startDate;
+  if (endDate) payload.dateTo = endDate;
+  return payload;
+}
+
+/**
+ * Stable key of the concrete range (changes when a relative preset rolls over to a new day); use it for pagination resets
+ */
+export function getDateFilterKey(filter: DateFilterValue): string {
+  const { startDate, endDate } = getDateFilterRange(filter);
+  return `${filter.preset}_${startDate}_${endDate}`;
+}
+
+/**
+ * Human readable Arabic description of the active period, '' when the filter is not active
+ */
+export function describeDateFilter(filter: DateFilterValue): string {
+  if (!isDateFilterActive(filter)) return '';
+  if (filter.preset !== 'custom') return getDatePresetLabel(filter.preset);
+  const { startDate, endDate } = normalizeDateRange(filter.startDate, filter.endDate);
+  if (startDate && endDate) return startDate === endDate ? startDate : `من ${startDate} إلى ${endDate}`;
+  if (startDate) return `من ${startDate}`;
+  return `حتى ${endDate}`;
+}
+
+/**
+ * Today's local date (YYYY-MM-DD); re-renders the caller when the day rolls over (midnight) or the window regains focus
+ */
+export function useToday(): string {
+  const [today, setToday] = useState(() => toLocalDateString(new Date()));
+  useEffect(() => {
+    const refresh = () => setToday(toLocalDateString(new Date()));
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+    const timer = setTimeout(refresh, nextMidnight.getTime() - now.getTime());
+    window.addEventListener('focus', refresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [today]);
+  return today;
+}
+
+/**
+ * Local "YYYY-MM-DD HH:MM" for a stored timestamp (UTC ISO, SQLite or Date); '' when missing or invalid
+ */
+export function formatLocalDateTime(val: string | Date | null | undefined): string {
+  if (!val) return '';
+  const d = val instanceof Date ? val : new Date(String(val));
+  if (isNaN(d.getTime())) return '';
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${toLocalDateString(d)} ${hh}:${mm}`;
 }
 
 /**

@@ -15,6 +15,15 @@ import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { StockMovement, ProductUnit } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { formatCompoundStock } from '../utils/packaging';
+import { DateFilterControl } from './DateFilterControl';
+import {
+  type DateFilterValue,
+  DEFAULT_DATE_FILTER,
+  describeDateFilter,
+  isDateFilterActive,
+  useToday,
+} from '../utils/dateFilter';
+import { PRODUCT_MOVEMENTS_LOAD_LIMIT, buildMovementsRequest } from '../views/products/stockMovementsQuery';
 
 interface StockMovementsModalProps {
   isOpen: boolean;
@@ -41,7 +50,22 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [movementTypeFilter, setMovementTypeFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ ...DEFAULT_DATE_FILTER });
+  // Re-evaluates relative presets when the day rolls over while the modal stays open
+  const today = useToday();
 
+  // Every opening (or another product) starts from unfiltered type and period
+  const resetKey = isOpen ? productId : '';
+  const [handledResetKey, setHandledResetKey] = useState(resetKey);
+  if (handledResetKey !== resetKey) {
+    setHandledResetKey(resetKey);
+    setMovementTypeFilter('ALL');
+    setDateFilter({ ...DEFAULT_DATE_FILTER });
+  }
+
+  const isDateActive = isDateFilterActive(dateFilter);
+  const periodLabel = describeDateFilter(dateFilter);
+  const isTruncated = movements.length >= PRODUCT_MOVEMENTS_LOAD_LIMIT;
   const isKg = unit === 'kg';
   const rawBaseUnit = (units && units.length > 0)
     ? (units.find(u => u.isBaseUnit)?.unitName || unit)
@@ -68,11 +92,10 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
       setLoading(true);
       setError('');
       try {
-        const res = await invoke<StockMovement[]>('inventory:getMovements', {
-          productId,
-          movementType: movementTypeFilter === 'ALL' ? undefined : movementTypeFilter,
-          limit: 100,
-        });
+        const res = await invoke<StockMovement[]>(
+          'inventory:getMovements',
+          buildMovementsRequest(movementTypeFilter, dateFilter, PRODUCT_MOVEMENTS_LOAD_LIMIT, productId),
+        );
         if (active) {
           setMovements(Array.isArray(res) ? res : []);
         }
@@ -91,7 +114,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
     return () => {
       active = false;
     };
-  }, [isOpen, productId, movementTypeFilter]);
+  }, [isOpen, productId, movementTypeFilter, dateFilter, today]);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -200,8 +223,8 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
         </div>
 
         {/* Filter Toolbar */}
-        <div className="px-5 py-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 overflow-x-auto text-micro">
+        <div className="px-5 py-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex items-center justify-between gap-x-3 gap-y-2 flex-wrap shrink-0">
+          <div className="flex items-center gap-1.5 flex-wrap text-micro">
             {[
               { id: 'ALL', label: 'كل الحركات' },
               { id: 'INITIAL', label: 'رصيد افتتاحي' },
@@ -225,8 +248,16 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
             ))}
           </div>
 
-          <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">
-            {movements.length} حركة مسجلة
+          <div className="flex items-center gap-3 flex-wrap">
+            <DateFilterControl
+              value={dateFilter}
+              onChange={setDateFilter}
+              size="md"
+              selectWidthClass="w-44 sm:w-48"
+            />
+            <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">
+              {movements.length}{isTruncated ? '+' : ''} حركة{isDateActive ? ` في الفترة: ${periodLabel}` : ' مسجلة'}
+            </div>
           </div>
         </div>
 
@@ -247,10 +278,24 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
           ) : movements.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted dark:text-ink-dark-muted">
               <Boxes className="w-8 h-8 opacity-40 text-brand dark:text-brand-bright" />
-              <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">لا توجد حركات مخزون مسجلة لهذا الصنف</p>
+              <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">
+                {isDateActive ? `لا توجد حركات مخزون في الفترة دي (${periodLabel})` : 'لا توجد حركات مخزون مسجلة لهذا الصنف'}
+              </p>
               <p className="text-micro text-ink-muted dark:text-ink-dark-muted m-0">
                 تسجل الحركات تلقائياً عند عمليات البيع، الشراء، أو التسويات الجردية.
               </p>
+              {(isDateActive || movementTypeFilter !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateFilter({ ...DEFAULT_DATE_FILTER });
+                    setMovementTypeFilter('ALL');
+                  }}
+                  className="mt-1 h-9 px-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                >
+                  مسح الفلاتر وعرض كل الحركات
+                </button>
+              )}
             </div>
           ) : (
             <div className="border border-line dark:border-line-dark rounded overflow-hidden">
@@ -317,7 +362,11 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
         <div className="px-5 py-3 border-t border-line dark:border-line-dark bg-surface-2/40 dark:bg-surface-dark-2/40 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-1.5 text-micro text-ink-muted dark:text-ink-dark-muted">
             <FileText className="w-3.5 h-3.5" />
-            <span>جميع الحركات مسجلة بقيود ذرية غير قابلة للحذف المادي (قاعدة أمان البيانات #2)</span>
+            <span>
+              {isTruncated
+                ? `معروض أحدث ${PRODUCT_MOVEMENTS_LOAD_LIMIT} حركة فقط، حدّد فترة أضيق لعرض الحركات الأقدم`
+                : 'جميع الحركات مسجلة بقيود ذرية غير قابلة للحذف المادي (قاعدة أمان البيانات #2)'}
+            </span>
           </div>
         </div>
       </div>

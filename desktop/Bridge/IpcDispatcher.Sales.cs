@@ -83,7 +83,21 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "sales:getRecent":
-                    var recentSales = DatabaseService.Sales.GetRecentSales(20);
+                    int recentLimit = 20;
+                    string recentDateFrom = null;
+                    string recentDateTo = null;
+                    string recentStatus = null;
+                    JObject recentObj = request.Payload as JObject;
+                    if (recentObj != null)
+                    {
+                        if (recentObj["limit"] != null && recentObj["limit"].Type == JTokenType.Integer) recentLimit = recentObj["limit"].Value<int>();
+                        if (recentObj["dateFrom"] != null) recentDateFrom = recentObj["dateFrom"].ToString();
+                        if (recentObj["dateTo"] != null) recentDateTo = recentObj["dateTo"].ToString();
+                        if (recentObj["status"] != null) recentStatus = recentObj["status"].ToString();
+                    }
+                    if (recentLimit < 1) recentLimit = 20;
+                    if (recentLimit > 5000) recentLimit = 5000;
+                    var recentSales = DatabaseService.Sales.GetRecentSales(recentLimit, recentDateFrom, recentDateTo, recentStatus);
                     response = BridgeResponse.Ok(request.Id, recentSales);
                     return true;
 

@@ -230,11 +230,15 @@ namespace RafiqPOS.Bridge
                         pHistId = request.Payload.ToString().Trim('"', ' ');
                     }
                     int histLimit = 50;
+                    string pHistDateFrom = null;
+                    string pHistDateTo = null;
                     if (pHistObj != null && pHistObj["limit"] != null)
                     {
                         histLimit = pHistObj["limit"].Value<int>();
                     }
-                    var pHistory = DatabaseService.Products.GetPriceHistory(pHistId, histLimit);
+                    if (pHistObj != null && pHistObj["dateFrom"] != null) pHistDateFrom = pHistObj["dateFrom"].ToString();
+                    if (pHistObj != null && pHistObj["dateTo"] != null) pHistDateTo = pHistObj["dateTo"].ToString();
+                    var pHistory = DatabaseService.Products.GetPriceHistory(pHistId, histLimit, pHistDateFrom, pHistDateTo);
                     response = BridgeResponse.Ok(request.Id, pHistory);
                     return true;
 

@@ -4,12 +4,15 @@ import {
   Printer, 
   Search, 
   X, 
-  AlertTriangle 
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { DebtorReportItem } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { printReport } from '../utils/printReport';
+import { DateFilterControl } from './DateFilterControl';
+import { useDateFilter, isDateFilterActive, describeDateFilter, parseDateToLocalDateStr } from '../utils/dateFilter';
 
 interface DebtorsReportModalProps {
   isOpen: boolean;
@@ -24,6 +27,9 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterMode, setFilterMode] = useState<'all' | 'overlimit'>('all');
+  // Period of the customer's last ledger movement (the report is not capped, so it is filtered here)
+  const { dateFilter, setDateFilter, filterDate, resetDateFilter } = useDateFilter();
+  const dateActive = isDateFilterActive(dateFilter);
 
   const loadData = async () => {
     setLoading(true);
@@ -39,12 +45,18 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      resetDateFilter();
       void loadData();
     }
-  }, [isOpen]);
+  }, [isOpen, resetDateFilter]);
+
+  const periodDebtors = useMemo(
+    () => (dateActive ? debtors.filter(d => filterDate(d.lastTransactionDate)) : debtors),
+    [debtors, dateActive, filterDate]
+  );
 
   const filteredDebtors = useMemo(() => {
-    let list = debtors;
+    let list = periodDebtors;
     if (filterMode === 'overlimit') {
       list = list.filter(d => d.creditLimitPiasters > 0 && d.balancePiasters > d.creditLimitPiasters);
     }
@@ -56,16 +68,16 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
       );
     }
     return list;
-  }, [debtors, filterMode, searchQuery]);
+  }, [periodDebtors, filterMode, searchQuery]);
 
   // KPIs
   const totalDebtsPiasters = useMemo(() => {
-    return debtors.reduce((acc, curr) => acc + curr.balancePiasters, 0);
-  }, [debtors]);
+    return periodDebtors.reduce((acc, curr) => acc + curr.balancePiasters, 0);
+  }, [periodDebtors]);
 
   const overLimitCount = useMemo(() => {
-    return debtors.filter(d => d.creditLimitPiasters > 0 && d.balancePiasters > d.creditLimitPiasters).length;
-  }, [debtors]);
+    return periodDebtors.filter(d => d.creditLimitPiasters > 0 && d.balancePiasters > d.creditLimitPiasters).length;
+  }, [periodDebtors]);
 
   const handlePrint = () => {
     void printReport({ kind: 'a4only' });
@@ -132,6 +144,11 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
           <p className="text-sm text-ink-muted">
             تاريخ التقرير: {new Date().toLocaleDateString('ar-EG-u-nu-latn')} - إجمالي الديون المستحقة: {formatArabicCurrency(totalDebtsPiasters)}
           </p>
+          {dateActive && (
+            <p className="text-sm text-ink-muted">
+              آخر حركة خلال: {describeDateFilter(dateFilter)}
+            </p>
+          )}
         </div>
 
         {/* Summary Metric Cards */}
@@ -146,7 +163,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
 
           <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark shadow-xs">
             <span className="text-xs text-ink-muted dark:text-ink-dark-muted block mb-1">عدد العملاء المدينين</span>
-            <span className="text-xl font-black text-ink dark:text-ink-dark">{debtors.length} عميل</span>
+            <span className="text-xl font-black text-ink dark:text-ink-dark">{periodDebtors.length} عميل</span>
             <span className="text-micro text-ink-muted dark:text-ink-dark-muted mt-1 block">عليهم مبالغ غير مسددة</span>
           </div>
 
@@ -168,6 +185,11 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
               placeholder="بحث بالاسم أو رقم الهاتف..."
               className="w-full text-xs pr-9 pl-3 py-2 rounded-xl border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
             />
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">آخر حركة:</span>
+            <DateFilterControl value={dateFilter} onChange={setDateFilter} size="sm" selectWidthClass="w-44" />
           </div>
 
           <div className="flex items-center gap-1.5 bg-canvas dark:bg-canvas-dark p-1 rounded-xl border border-line dark:border-line-dark text-xs">
@@ -197,7 +219,19 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
           ) : filteredDebtors.length === 0 ? (
             <div className="py-16 text-center text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark">
               <Users className="w-12 h-12 text-ink-muted/40 dark:text-ink-dark-muted/40 mx-auto mb-2" />
-              <p className="font-semibold text-sm">لا يوجد أي عملاء مدينين مطابقين للبحث حالياً.</p>
+              <p className="font-semibold text-sm">
+                {dateActive ? `لا يوجد مدينين آخر حركة لهم خلال ${describeDateFilter(dateFilter)}.` : 'لا يوجد أي عملاء مدينين مطابقين للبحث حالياً.'}
+              </p>
+              {dateActive && (
+                <button
+                  type="button"
+                  onClick={resetDateFilter}
+                  className="mt-3 h-8 px-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>عرض كل الفترات</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark overflow-hidden shadow-xs print:border-none print:shadow-none">
@@ -217,9 +251,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
                 <tbody className="divide-y divide-line dark:divide-line-dark">
                   {filteredDebtors.map((d, idx) => {
                     const isOverLimit = d.creditLimitPiasters > 0 && d.balancePiasters > d.creditLimitPiasters;
-                    const lastDateFormatted = d.lastTransactionDate 
-                       ? d.lastTransactionDate.substring(0, 10) 
-                      : '-';
+                    const lastDateFormatted = parseDateToLocalDateStr(d.lastTransactionDate) || '-';
 
                     return (
                       <tr key={d.customerId} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40 transition">

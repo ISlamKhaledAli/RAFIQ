@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PauseCircle, X, RotateCcw, Trash2, Clock, ShoppingBag, AlertCircle, Info, Loader2 } from 'lucide-react';
 import type { HeldSale } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { invoke } from '../bridge/ipc';
+import { DateFilterControl } from './DateFilterControl';
+import { useDateFilter, isDateFilterActive, describeDateFilter, toLocalDateString, parseDateToLocalDateStr } from '../utils/dateFilter';
 
 interface HeldSalesModalProps {
   isOpen: boolean;
@@ -21,6 +23,13 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // The held list is not capped by the backend, so the day it was parked on is filtered here
+  const { dateFilter, setDateFilter, filterDate, resetDateFilter } = useDateFilter();
+  const dateActive = isDateFilterActive(dateFilter);
+  const visibleSales = useMemo(
+    () => (dateActive ? heldSales.filter((s) => filterDate(s.createdAt)) : heldSales),
+    [heldSales, dateActive, filterDate]
+  );
 
   const loadHeldSales = useCallback(async () => {
     try {
@@ -39,9 +48,10 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
   // Guarantee: always fetch fresh data dynamically whenever the modal opens
   useEffect(() => {
     if (isOpen) {
+      resetDateFilter();
       void loadHeldSales();
     }
-  }, [isOpen, loadHeldSales]);
+  }, [isOpen, loadHeldSales, resetDateFilter]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -95,7 +105,10 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
     if (!isoString) return '--:--';
     try {
       const d = new Date(isoString);
-      return d.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
+      const time = d.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
+      // a cart parked on an earlier day must not look like it was parked today
+      const day = parseDateToLocalDateStr(d);
+      return day && day !== toLocalDateString(new Date()) ? `${day} ${time}` : time;
     } catch {
       return isoString;
     }
@@ -117,7 +130,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
             <PauseCircle className="w-5 h-5 text-brand dark:text-brand-bright" />
             <h2 className="t-modal-title text-ink dark:text-ink-dark m-0">الفواتير المعلقة (المحجوزة مؤقتاً)</h2>
             <span className="text-xs font-mono font-bold bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright px-2.5 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/20">
-              {heldSales.length} معلقة
+              {visibleSales.length} معلقة
             </span>
           </div>
           <button 
@@ -145,26 +158,33 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
             </div>
           )}
 
+          {heldSales.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">يوم التعليق:</span>
+              <DateFilterControl value={dateFilter} onChange={setDateFilter} size="sm" selectWidthClass="w-44" />
+            </div>
+          )}
+
           {/* Held Invoices Table or States */}
           {loading && heldSales.length === 0 ? (
             <div className="py-14 text-center text-ink-muted dark:text-ink-dark-muted flex flex-col items-center justify-center gap-2">
               <Loader2 className="w-8 h-8 text-brand dark:text-brand-bright animate-spin" />
               <p className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted m-0">ثواني، بنجيب الفواتير المعلقة...</p>
             </div>
-          ) : heldSales.length > 0 ? (
+          ) : visibleSales.length > 0 ? (
             <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
               <table className="w-full text-right border-collapse text-xs">
                 <thead>
                   <tr className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-micro font-bold text-ink-muted dark:text-ink-dark-muted">
                     <th className="px-3">اسم الزبون / الملاحظة</th>
-                    <th className="px-3">الساعة</th>
+                    <th className="px-3">الوقت</th>
                     <th className="px-3">الأصناف</th>
                     <th className="px-3">المبلغ</th>
                     <th className="px-3 text-center w-[165px]">التحكم</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line dark:divide-line-dark bg-surface dark:bg-surface-dark">
-                  {heldSales.map((sale, idx) => (
+                  {visibleSales.map((sale, idx) => (
                     <tr key={sale.id} className="h-12 hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                       <td className="px-3 font-bold text-ink dark:text-ink-dark text-xs">
                         <div className="flex items-center gap-2">
@@ -227,10 +247,26 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
           ) : (
             <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted flex flex-col items-center justify-center">
               <PauseCircle className="w-12 h-12 mb-2 stroke-[1.2] text-line-hover dark:text-line-dark-strong" />
-              <p className="text-sm font-bold text-ink dark:text-ink-dark">مفيش أي فواتير معلقة دلوقتي</p>
-              <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">
-                تقدر تعلق أي فاتورة في السلة وانت شغال بالضغط على زرار تعليق الفاتورة
-              </p>
+              {dateActive && heldSales.length > 0 ? (
+                <>
+                  <p className="text-sm font-bold text-ink dark:text-ink-dark">{`مفيش فواتير معلقة خلال ${describeDateFilter(dateFilter)}`}</p>
+                  <button
+                    type="button"
+                    onClick={resetDateFilter}
+                    className="mt-2 h-8 px-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>عرض كل المعلقة</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-ink dark:text-ink-dark">مفيش أي فواتير معلقة دلوقتي</p>
+                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">
+                    تقدر تعلق أي فاتورة في السلة وانت شغال بالضغط على زرار تعليق الفاتورة
+                  </p>
+                </>
+              )}
             </div>
           )}
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type RefObject } from 'react';
 import { 
   Cpu, 
   Zap, 
@@ -17,8 +17,9 @@ import { DRAWER_PULSE_MAX_MS, DRAWER_PULSE_MIN_MS, DRAWER_PULSE_PRESETS, formatD
 import { invoke } from '../../bridge/ipc';
 import { rafiqAlert } from '../../utils/dialogService';
 import { useFeatures } from '../../context/useFeatures';
-import type { KotRoutingConfig, CategoryKotRoute } from '../../types/cafe';
 import { normalizeReportPaper, type ReportPaper } from '../../utils/printReport';
+import { UnsavedChangesChip } from '../../components/UnsavedChangesChip';
+import type { PrinterExtras } from './usePrinterExtras';
 
 interface PrinterSettingsTabProps {
   printersList: { name: string; isDefault: boolean; isOnline: boolean }[];
@@ -46,8 +47,14 @@ interface PrinterSettingsTabProps {
   testPrintMessage: { text: string; isError: boolean } | null;
   fetchPrinters: () => Promise<void>;
   onTestPrint: () => Promise<void>;
-  onSavePrinterSettings: () => Promise<void>;
+  onSavePrinterSettings: () => Promise<boolean>;
   saveLoading: boolean;
+  /** Barcode-label printer and kitchen routing choices, kept by the settings page */
+  extras: PrinterExtras;
+  /** true when anything on this screen differs from what is saved */
+  dirty: boolean;
+  /** Goes on the save button's wrapper: the settings page scrolls to it and rings it when the user stays */
+  saveBarRef: RefObject<HTMLDivElement | null>;
 }
 
 export const PrinterSettingsTab = ({
@@ -78,13 +85,28 @@ export const PrinterSettingsTab = ({
   onTestPrint,
   onSavePrinterSettings,
   saveLoading,
+  extras,
+  dirty,
+  saveBarRef,
 }: PrinterSettingsTabProps) => {
   const { isEnabled } = useFeatures();
   const showKotPrinter = isEnabled('feature_kitchen_printer');
+  const {
+    labelPrinter,
+    setLabelPrinter,
+    labelPaperSize,
+    setLabelPaperSize,
+    kotKitchenPrinter,
+    setKotKitchenPrinter,
+    kotBarPrinter,
+    setKotBarPrinter,
+    kotAutoPrintOnSale,
+    setKotAutoPrintOnSale,
+    kotCategoryRoutes,
+    setKotCategoryRoutes,
+  } = extras;
 
   const [isHardwareModalOpen, setIsHardwareModalOpen] = useState(false);
-  const [labelPrinter, setLabelPrinter] = useState('');
-  const [labelPaperSize, setLabelPaperSize] = useState('38x25');
   const [labelTestPrinting, setLabelTestPrinting] = useState(false);
   const [labelTestMessage, setLabelTestMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [drawerTesting, setDrawerTesting] = useState(false);
@@ -96,75 +118,6 @@ export const PrinterSettingsTab = ({
       setCustomPulse(String(normalizeDrawerPulse(drawerPulseMs)));
     }
   }, [drawerPulseMs]);
-
-  // KOT Routing State
-  const [kotKitchenPrinter, setKotKitchenPrinter] = useState('');
-  const [kotBarPrinter, setKotBarPrinter] = useState('');
-  const [kotAutoPrintOnSale, setKotAutoPrintOnSale] = useState(true);
-  const [kotCategoryRoutes, setKotCategoryRoutes] = useState<CategoryKotRoute[]>([]);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const s = await invoke<Record<string, string>>('settings:getAll');
-        if (s) {
-          if (s.default_label_printer_name) setLabelPrinter(s.default_label_printer_name);
-          if (s.default_label_paper_size) setLabelPaperSize(s.default_label_paper_size);
-        }
-      } catch {
-        // ignore
-      }
-      if (showKotPrinter) {
-        try {
-          const kotCfg = await invoke<KotRoutingConfig>('printer:getKOTRouting', {});
-          if (kotCfg) {
-            setKotKitchenPrinter(kotCfg.kitchenPrinterName || '');
-            setKotBarPrinter(kotCfg.barPrinterName || '');
-            setKotAutoPrintOnSale(kotCfg.autoPrintOnSale !== false);
-            setKotCategoryRoutes(kotCfg.categoryRoutes || []);
-          }
-        } catch {
-          // ignore
-        }
-      }
-    })();
-  }, [showKotPrinter]);
-
-  const handleSaveAll = async () => {
-    try {
-      await invoke('settings:updateBatch', {
-        settings: {
-          default_label_printer_name: labelPrinter,
-          default_label_paper_size: labelPaperSize,
-        },
-      });
-    } catch (err: unknown) {
-      void rafiqAlert({
-        title: 'فشل حفظ طابعة الملصقات',
-        message: err instanceof Error ? err.message : String(err),
-        variant: 'error',
-      });
-    }
-    if (showKotPrinter) {
-      try {
-        await invoke('printer:saveKOTRouting', {
-          kitchenPrinterName: kotKitchenPrinter,
-          barPrinterName: kotBarPrinter,
-          paperWidth: paperWidth === '57mm' ? '57mm' : '80mm',
-          autoPrintOnSale: kotAutoPrintOnSale,
-          singlePrinterCutBetweenStations: true,
-          categoryRoutes: kotCategoryRoutes,
-        });
-      } catch (err: unknown) {
-        void rafiqAlert({
-          title: 'فشل حفظ توجيه طابعات المطبخ',
-          message: err instanceof Error ? err.message : String(err),
-          variant: 'error',
-        });
-      }
-    }
-    await onSavePrinterSettings();
-  };
 
   const handleTestLabel = async () => {
     setLabelTestPrinting(true);
@@ -651,15 +604,22 @@ export const PrinterSettingsTab = ({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSaveAll}
-          disabled={saveLoading}
-          className="mt-2 h-11 bg-brand dark:bg-brand-dark hover:bg-brand-dark dark:hover:bg-brand text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
-        >
-          <Save className="w-4 h-4" />
-          <span>{saveLoading ? 'جاري الحفظ...' : 'حفظ وتفعيل كافة إعدادات الطابعات والاستيكرات'}</span>
-        </button>
+        <div ref={saveBarRef} className="mt-2 flex flex-col gap-2 rounded-xl">
+          {dirty && (
+            <div role="status">
+              <UnsavedChangesChip />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => void onSavePrinterSettings()}
+            disabled={saveLoading}
+            className="h-11 bg-brand dark:bg-brand-dark hover:bg-brand-dark dark:hover:bg-brand text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>{saveLoading ? 'جاري الحفظ...' : 'حفظ وتفعيل كافة إعدادات الطابعات والاستيكرات'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Feature #198: Kitchen & Bar KOT Printer Routing */}

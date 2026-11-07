@@ -1,6 +1,8 @@
 // Pure rules for "open the products page with a preset filter" so they run under node strip-types.
 // Every request carries a fresh nonce: the same filter clicked twice is still a new request.
 
+import { DEFAULT_DATE_FILTER, type DateFilterValue } from './dateFilter.ts';
+
 export type ProductStockFilter = 'all' | 'lowStock' | 'outOfStock';
 
 export interface ProductFilterRequest {
@@ -17,6 +19,7 @@ export interface ProductFilterState {
   selectedProductIds: string[];
   movementType: string;
   movementSearchQuery: string;
+  movementDateFilter: DateFilterValue;
   batchesSearchQuery: string;
 }
 
@@ -44,6 +47,7 @@ export function buildProductFilterState(filter: ProductStockFilter): ProductFilt
     selectedProductIds: [],
     movementType: 'ALL',
     movementSearchQuery: '',
+    movementDateFilter: { ...DEFAULT_DATE_FILTER },
     batchesSearchQuery: '',
   };
 }

@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useAuth } from '../context/useAuth';
+import { useFeatures } from '../context/useFeatures';
+import { useUnsavedChangesGuard } from '../context/useUnsavedChanges';
 import { DRAWER_PULSE_DEFAULT_MS, normalizeDrawerPulse } from '../utils/drawerPulse';
 import { getAllowedSettingsSubTabs, resolveSettingsSubTab } from '../utils/settingsAccess';
 import { BackupManager } from '../components/BackupManager';
@@ -16,6 +18,7 @@ import { rafiqAlert } from '../utils/dialogService';
 import { StoreProfileTab } from './settings/StoreProfileTab';
 import { SalesPoliciesTab } from './settings/SalesPoliciesTab';
 import { PrinterSettingsTab } from './settings/PrinterSettingsTab';
+import { usePrinterExtras } from './settings/usePrinterExtras';
 import { DEFAULT_DEVELOPER_SIGNATURE, normalizeReceiptText, receiptTextLimitError, resolveReceiptFooter, resolveReceiptSignature } from '../utils/receiptLayout';
 import { invalidateReportPaperCache, normalizeReportPaper, type ReportPaper } from '../utils/printReport';
 
@@ -27,14 +30,25 @@ export interface SettingsViewProps {
   onSubTabChange?: (tab: SettingsSubTab) => void;
   initialSubTab?: SettingsSubTab;
   onOpenLicenseModal?: () => void;
+  /** false while the keep-alive page is hidden: its leftover drafts must not block other pages */
+  isActive?: boolean;
 }
 
-export const SettingsView = ({ 
+interface SettingsViewContentProps extends SettingsViewProps {
+  /** Throws the unsaved drafts away by starting the screen again from the saved values */
+  onDiscardDrafts: () => void;
+}
+
+const SettingsViewContent = ({ 
   activeSubTab = 'profile', 
   onSubTabChange,
   onOpenLicenseModal, 
-}: SettingsViewProps) => {
+  isActive = true,
+  onDiscardDrafts,
+}: SettingsViewContentProps) => {
   const { isRoot, isAdmin, hasPermission } = useAuth();
+  const { isEnabled } = useFeatures();
+  const printerExtras = usePrinterExtras(isEnabled('feature_kitchen_printer'));
   const allowedSubTabs = getAllowedSettingsSubTabs({ isRoot, isAdmin, hasPermission });
   const subTab: SettingsSubTab = resolveSettingsSubTab(activeSubTab, allowedSubTabs);
   const [storeName, setStoreName] = useState('متجر رفيق');
@@ -45,6 +59,9 @@ export const SettingsView = ({
   const [receiptFooter, setReceiptFooter] = useState('');
   const [showReceiptLogo, setShowReceiptLogo] = useState(true);
   const [showReceiptCashier, setShowReceiptCashier] = useState(true);
+  const [showReceiptInvoiceNumber, setShowReceiptInvoiceNumber] = useState(true);
+  const [showReceiptPaid, setShowReceiptPaid] = useState(true);
+  const [showReceiptChange, setShowReceiptChange] = useState(true);
   const [storeLogoUrl, setStoreLogoUrl] = useState('/receipt_logo_square.png');
   // Developer signature: edited on the root console, only read here to draw the receipt preview
   const [developerSignature, setDeveloperSignature] = useState(DEFAULT_DEVELOPER_SIGNATURE);
@@ -62,19 +79,25 @@ export const SettingsView = ({
   const [savedCreditLimitEgp, setSavedCreditLimitEgp] = useState(1000);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [profileBaseline, setProfileBaseline] = useState<string | null>(null);
+  // The tax number also auto-saves from the policies screen, so it is compared to its own saved value
+  const [savedTaxNumber, setSavedTaxNumber] = useState('');
   const profileSnapshot = JSON.stringify([
     storeName.trim(),
     phone.trim(),
     address.trim(),
-    taxNumber.trim(),
     normalizeReceiptText(receiptHeader),
     normalizeReceiptText(receiptFooter),
     showReceiptLogo,
     showReceiptCashier,
+    showReceiptInvoiceNumber,
+    showReceiptPaid,
+    showReceiptChange,
     storeLogoUrl,
   ]);
   // Until the stored values are known the screen stays saveable (never blocks a save by mistake)
-  const profileDirty = profileBaseline === null || profileSnapshot !== profileBaseline;
+  const profileDirty = profileBaseline === null || profileSnapshot !== profileBaseline || taxNumber.trim() !== savedTaxNumber;
+  // The guard only speaks up about differences from values that were really loaded
+  const profileUnsaved = profileBaseline !== null && profileDirty;
 
   useEffect(() => {
     if (settingsLoaded && profileBaseline === null) setProfileBaseline(profileSnapshot);
@@ -93,6 +116,15 @@ export const SettingsView = ({
   const [testPrinting, setTestPrinting] = useState<boolean>(false);
   const [printerSaveSuccess, setPrinterSaveSuccess] = useState<boolean>(false);
   const [testPrintMessage, setTestPrintMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  // Printer name and paper sizes save with the printer button; the switches and drawer choices save themselves
+  const [printerBaseline, setPrinterBaseline] = useState<string | null>(null);
+  const printerSnapshot = JSON.stringify([selectedPrinter, paperWidth, reportPaperSize]);
+  const printerUnsaved = printerBaseline !== null && printerSnapshot !== printerBaseline;
+  const printerDirty = printerUnsaved || printerExtras.dirty;
+
+  useEffect(() => {
+    if (settingsLoaded && printerBaseline === null) setPrinterBaseline(printerSnapshot);
+  }, [settingsLoaded, printerBaseline, printerSnapshot]);
 
   const fetchPrinters = useCallback(async () => {
     setPrintersLoading(true);
@@ -134,13 +166,19 @@ export const SettingsView = ({
           }
           if (settings.store_phone !== undefined) setPhone(settings.store_phone);
           if (settings.store_address !== undefined) setAddress(settings.store_address);
-          if (settings.tax_number !== undefined) setTaxNumber(settings.tax_number);
+          if (settings.tax_number !== undefined) {
+            setTaxNumber(settings.tax_number);
+            setSavedTaxNumber(settings.tax_number.trim());
+          }
           if (settings.receipt_header !== undefined) setReceiptHeader(settings.receipt_header);
           if (settings.receipt_footer !== undefined) setReceiptFooter(resolveReceiptFooter(settings.receipt_footer));
           if (settings.show_receipt_logo !== undefined) {
             setShowReceiptLogo(settings.show_receipt_logo === '1' || settings.show_receipt_logo === 'true');
           }
           setShowReceiptCashier(settings.receipt_show_cashier !== '0');
+          setShowReceiptInvoiceNumber(settings.receipt_show_invoice_number !== '0');
+          setShowReceiptPaid(settings.receipt_show_paid !== '0');
+          setShowReceiptChange(settings.receipt_show_change !== '0');
           if (settings.store_logo_url) {
             setStoreLogoUrl(
               settings.store_logo_url === '/logo.png' || settings.store_logo_url === '/receipt_logo.png'
@@ -198,11 +236,11 @@ export const SettingsView = ({
     };
   }, []);
 
-  const handleSave = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (e?: FormEvent): Promise<boolean> => {
+    e?.preventDefault();
     if (receiptTextLimitError(receiptHeader) || receiptTextLimitError(receiptFooter)) {
       void rafiqAlert({ title: 'نص الوصل طويل', message: 'قصّر نصوص الترحيب أو التذييل (الحد الأقصى 300 حرف و4 أسطر) ثم احفظ مرة أخرى.', variant: 'error' });
-      return;
+      return false;
     }
     setSaveLoading(true);
     try {
@@ -215,12 +253,17 @@ export const SettingsView = ({
         receipt_footer: normalizeReceiptText(receiptFooter),
         show_receipt_logo: showReceiptLogo ? '1' : '0',
         receipt_show_cashier: showReceiptCashier ? '1' : '0',
+        receipt_show_invoice_number: showReceiptInvoiceNumber ? '1' : '0',
+        receipt_show_paid: showReceiptPaid ? '1' : '0',
+        receipt_show_change: showReceiptChange ? '1' : '0',
         store_logo_url: storeLogoUrl,
       };
       await invoke('settings:save', payload);
       setProfileBaseline(profileSnapshot);
+      setSavedTaxNumber(taxNumber.trim());
       setSavedTab('profile');
       setTimeout(() => setSavedTab(null), 3500);
+      return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       void rafiqAlert({
@@ -228,14 +271,15 @@ export const SettingsView = ({
         message: `فشل حفظ الإعدادات: ${msg}`,
         variant: 'error',
       });
+      return false;
     } finally {
       setSaveLoading(false);
     }
   };
 
   // Sale/stock policies are admin-only on the server (IpcDispatcher settings allow-lists); toggles auto-save, the limit saves here
-  const handleSavePolicies = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSavePolicies = async (e?: FormEvent): Promise<boolean> => {
+    e?.preventDefault();
     setSaveLoading(true);
     try {
       await invoke('settings:save', {
@@ -248,17 +292,20 @@ export const SettingsView = ({
       setSavedCreditLimitEgp(defaultCustomerCreditLimitEgp);
       setSavedTab('policies');
       setTimeout(() => setSavedTab(null), 3500);
+      return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       void rafiqAlert({ title: 'فشل حفظ السياسات', message: `فشل حفظ سياسات البيع والمخزون: ${msg}`, variant: 'error' });
+      return false;
     } finally {
       setSaveLoading(false);
     }
   };
 
-  const handleSavePrinterSettings = async () => {
+  const handleSavePrinterSettings = async (): Promise<boolean> => {
     setSaveLoading(true);
     try {
+      const extrasSaved = await printerExtras.save(paperWidth);
       await invoke('settings:save', {
         default_printer_name: selectedPrinter,
         receipt_paper_width: paperWidth,
@@ -269,8 +316,12 @@ export const SettingsView = ({
         drawer_pin: drawerPin,
       });
       invalidateReportPaperCache();
-      setPrinterSaveSuccess(true);
-      setTimeout(() => setPrinterSaveSuccess(false), 3500);
+      setPrinterBaseline(printerSnapshot);
+      if (extrasSaved) {
+        setPrinterSaveSuccess(true);
+        setTimeout(() => setPrinterSaveSuccess(false), 3500);
+      }
+      return extrasSaved;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       void rafiqAlert({
@@ -278,19 +329,22 @@ export const SettingsView = ({
         message: `فشل حفظ إعدادات الطابعة: ${msg}`,
         variant: 'error',
       });
+      return false;
     } finally {
       setSaveLoading(false);
     }
   };
 
   // Toggle auto-saves: on rejection (e.g. no permission) revert the switch and tell the user why
-  const autoSaveSetting = async (payload: Record<string, string>, revert: () => void, label: string) => {
+  const autoSaveSetting = async (payload: Record<string, string>, revert: () => void, label: string): Promise<boolean> => {
     try {
       await invoke('settings:save', payload);
+      return true;
     } catch (err: unknown) {
       revert();
       const msg = err instanceof Error ? err.message : String(err);
       void rafiqAlert({ title: 'تعذر حفظ الإعداد', message: `${label}: ${msg}`, variant: 'error' });
+      return false;
     }
   };
 
@@ -314,7 +368,7 @@ export const SettingsView = ({
   };
 
   const handleBlurTaxNumber = async (val: string) => {
-    await autoSaveSetting({ tax_number: val.trim() }, () => {}, 'الرقم الضريبي للمحل');
+    if (await autoSaveSetting({ tax_number: val.trim() }, () => {}, 'الرقم الضريبي للمحل')) setSavedTaxNumber(val.trim());
   };
 
   const handleToggleAutoPrint = async (newVal: boolean) => {
@@ -390,6 +444,44 @@ export const SettingsView = ({
   const currentTabConfig = SUB_TAB_CONFIG[subTab] || SUB_TAB_CONFIG.profile;
   const TabIcon = currentTabConfig.icon;
 
+  // Unsaved-changes guard: the drafts live here, so they survive moving between the sub-tabs of this page
+  const policiesUnsaved = defaultCustomerCreditLimitEgp !== savedCreditLimitEgp;
+  const saveBarShown = (subTab === 'profile' && profileUnsaved) || (subTab === 'policies' && policiesUnsaved) || (subTab === 'printer' && printerDirty);
+  // When the user stays, bring him to the screen that holds the unsaved form (unless he is already looking at one)
+  const showSubTab = (tab: SettingsSubTab) => {
+    if (!saveBarShown && allowedSubTabs.includes(tab)) onSubTabChange?.(tab);
+  };
+  const profileGuard = useUnsavedChangesGuard({
+    id: 'settings-profile',
+    label: 'بيانات المحل والفاتورة',
+    isDirty: profileUnsaved,
+    isActive,
+    keepsStateWithinPage: true,
+    save: () => handleSave(),
+    discard: onDiscardDrafts,
+    onAttention: () => showSubTab('profile'),
+  });
+  const policiesGuard = useUnsavedChangesGuard({
+    id: 'settings-policies',
+    label: 'سياسات البيع والمخزون',
+    isDirty: policiesUnsaved,
+    isActive,
+    keepsStateWithinPage: true,
+    save: () => handleSavePolicies(),
+    discard: onDiscardDrafts,
+    onAttention: () => showSubTab('policies'),
+  });
+  const printerGuard = useUnsavedChangesGuard({
+    id: 'settings-printer',
+    label: 'إعدادات الطابعة والورق',
+    isDirty: printerDirty,
+    isActive,
+    keepsStateWithinPage: true,
+    save: () => handleSavePrinterSettings(),
+    discard: onDiscardDrafts,
+    onAttention: () => showSubTab('printer'),
+  });
+
   return (
     <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-4 sm:p-5 gap-5 overflow-y-auto select-none">
       {/* 1. Top Header */}
@@ -415,7 +507,7 @@ export const SettingsView = ({
       </div>
 
       {/* 2. Sub-Tab Views */}
-      {subTab === 'backup' && <BackupManager onOpenLicenseModal={onOpenLicenseModal} />}
+      {subTab === 'backup' && <BackupManager onOpenLicenseModal={onOpenLicenseModal} isActive={isActive} />}
 
       {subTab === 'printer' && (
         <PrinterSettingsTab
@@ -446,6 +538,9 @@ export const SettingsView = ({
           onTestPrint={handleTestPrint}
           onSavePrinterSettings={handleSavePrinterSettings}
           saveLoading={saveLoading}
+          extras={printerExtras}
+          dirty={printerDirty}
+          saveBarRef={printerGuard.saveBarRef}
         />
       )}
 
@@ -467,6 +562,12 @@ export const SettingsView = ({
           setShowReceiptLogo={setShowReceiptLogo}
           showReceiptCashier={showReceiptCashier}
           setShowReceiptCashier={setShowReceiptCashier}
+          showReceiptInvoiceNumber={showReceiptInvoiceNumber}
+          setShowReceiptInvoiceNumber={setShowReceiptInvoiceNumber}
+          showReceiptPaid={showReceiptPaid}
+          setShowReceiptPaid={setShowReceiptPaid}
+          showReceiptChange={showReceiptChange}
+          setShowReceiptChange={setShowReceiptChange}
           storeLogoUrl={storeLogoUrl}
           setStoreLogoUrl={setStoreLogoUrl}
           developerSignature={developerSignature}
@@ -477,6 +578,7 @@ export const SettingsView = ({
           saved={savedTab === 'profile'}
           saveLoading={saveLoading}
           handleSave={handleSave}
+          saveBarRef={profileGuard.saveBarRef}
           onOpenPrinterSettings={onSubTabChange && allowedSubTabs.includes('printer') ? () => onSubTabChange('printer') : undefined}
         />
       )}
@@ -489,7 +591,7 @@ export const SettingsView = ({
           onToggleRequireOpenShift={handleToggleRequireShift}
           defaultCustomerCreditLimitEgp={defaultCustomerCreditLimitEgp}
           setDefaultCustomerCreditLimitEgp={setDefaultCustomerCreditLimitEgp}
-          creditLimitDirty={defaultCustomerCreditLimitEgp !== savedCreditLimitEgp}
+          creditLimitDirty={policiesUnsaved}
           vatEnabled={vatEnabled}
           onToggleVat={handleToggleVat}
           taxNumber={taxNumber}
@@ -499,8 +601,15 @@ export const SettingsView = ({
           saveLoading={saveLoading}
           saved={savedTab === 'policies'}
           onSave={(e) => void handleSavePolicies(e)}
+          saveBarRef={policiesGuard.saveBarRef}
         />
       )}
     </div>
   );
+};
+
+/** Keyed so discarding the drafts restarts the screen from the saved values (the page stays mounted while hidden). */
+export const SettingsView = (props: SettingsViewProps) => {
+  const [draftGeneration, setDraftGeneration] = useState(0);
+  return <SettingsViewContent key={draftGeneration} {...props} onDiscardDrafts={() => setDraftGeneration((n) => n + 1)} />;
 };

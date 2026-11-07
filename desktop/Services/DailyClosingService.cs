@@ -827,6 +827,11 @@ namespace RafiqPOS.Services
             return _closingRepo.GetHistory(limit);
         }
 
+        public List<DailyClosing> GetHistory(int limit, string dateFrom, string dateTo)
+        {
+            return _closingRepo.GetHistory(limit, dateFrom, dateTo);
+        }
+
         public DailyClosing GetById(string id)
         {
             return _closingRepo.GetById(id);
