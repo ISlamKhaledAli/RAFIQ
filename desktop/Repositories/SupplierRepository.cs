@@ -550,7 +550,7 @@ namespace RafiqPOS.Repositories
                                 var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
                                 if (liveBal != null && liveBal.AvailableCashPiasters < amountPiasters)
                                 {
-                                    throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد دفعة المورد ({1:N2} ج.م). يرجى السداد بنقدية خارجية أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
+                                    throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد دفعة المورد ({1:N2} ج.م). يرجى السداد عبر «إنستاباي» أو «فودافون كاش» أو «كاش خارجي من صاحب المحل» أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
                                 }
                             }
                         }
@@ -565,7 +565,7 @@ namespace RafiqPOS.Repositories
                             Action = "supplier_payment",
                             EntityType = "suppliers",
                             EntityId = supplierId,
-                            DetailsJson = string.Format("{{\"amountPiasters\":{0},\"notes\":\"{1}\"}}", amountPiasters, (notes ?? "").Replace("\"", "\\\"")),
+                            DetailsJson = string.Format("{{\"amountPiasters\":{0},\"paymentSource\":\"{1}\",\"notes\":\"{2}\"}}", amountPiasters, (paymentSource ?? "cash_drawer").Replace("\"", "\\\""), (notes ?? "").Replace("\"", "\\\"")),
                             CreatedAt = DateTime.UtcNow.ToString("o")
                         });
 

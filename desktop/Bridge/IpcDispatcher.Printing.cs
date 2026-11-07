@@ -82,6 +82,10 @@ namespace RafiqPOS.Bridge
                     response = HandlePrintReceipt(request);
                     return true;
 
+                case "printer:printRecoveryVoucher":
+                    response = HandlePrintRecoveryVoucher(request);
+                    return true;
+
                 case "printer:kickDrawer":
                     string kickPrinter = null;
                     int? kickPulse = null;
@@ -277,6 +281,38 @@ namespace RafiqPOS.Bridge
 
             PrintResult printResult = DatabaseService.Printer.PrintSaleReceipt(sale, printerName, paperWidth, openDrawer, isCopy);
             return ToPrintResponse(request.Id, printResult);
+        }
+
+        private static BridgeResponse HandlePrintRecoveryVoucher(BridgeRequest request)
+        {
+            JObject payload = request.Payload as JObject;
+            if (payload == null)
+            {
+                return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات كارت الأمان فارغة أو غير صالحة.");
+            }
+            if (DatabaseService.Printer == null)
+            {
+                return BridgeResponse.Fail(request.Id, "PRINTER_ERROR", "خدمة الطباعة غير مهيأة.");
+            }
+
+            var voucherReq = new RecoveryVoucherRequest
+            {
+                RecoveryCode = ReadPayloadString(payload, "recoveryCode"),
+                StoreName = ReadPayloadString(payload, "storeName"),
+                Phone = ReadPayloadString(payload, "phone"),
+                StationName = ReadPayloadString(payload, "stationName"),
+                IssueDate = ReadPayloadString(payload, "issueDate"),
+                PaperWidth = ReadPayloadString(payload, "paperWidth"),
+                PrinterName = ReadPayloadString(payload, "printerName")
+            };
+
+            if (string.IsNullOrWhiteSpace(voucherReq.RecoveryCode))
+            {
+                return BridgeResponse.Fail(request.Id, "INVALID_CODE", "كود الاسترجاع مطلوب لطباعة كارت الأمان.");
+            }
+
+            var printRes = DatabaseService.Printer.PrintRecoveryVoucher(voucherReq);
+            return ToPrintResponse(request.Id, printRes);
         }
     }
 }

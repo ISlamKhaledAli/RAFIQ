@@ -7,7 +7,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription, emitDataChanged } from '../utils/eventBus';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { extractProducts, type Supplier, type Purchase, type PurchaseItem, type Product, type SupplierTransaction } from '../types/models';
+import { extractProducts, type Supplier, type Purchase, type PurchaseItem, type Product, type SupplierTransaction, type SupplierPaymentSource } from '../types/models';
 import { PurchasesInvoicesTab } from './purchases/PurchasesInvoicesTab';
 import { NewPurchaseTab } from './purchases/NewPurchaseTab';
 import { SuppliersTab } from './purchases/SuppliersTab';
@@ -25,6 +25,7 @@ import { type PurchasesSubView, type NewPurchaseLineItem } from './purchases/typ
 import { normalizeArabicNumerals } from '../utils/money';
 import { createAttemptKey, isIdempotencyMismatchError } from '../utils/idempotency';
 import { computePurchaseLine, purchaseLinesTotal } from './purchases/purchaseLineMath';
+import { formatUnitArabic } from '../utils/units';
 
 export { type PurchasesSubView } from './purchases/types';
 
@@ -75,7 +76,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const [costingMethod, setCostingMethod] = useState<'LATEST' | 'WEIGHTED_AVERAGE'>('WEIGHTED_AVERAGE');
   const [purchaseNotes, setPurchaseNotes] = useState<string>('');
   const [discountPiasters, setDiscountPiasters] = useState<number>(0);
-  const [paymentSource, setPaymentSource] = useState<'cash_drawer' | 'external_cash'>('cash_drawer');
+  const [paymentSource, setPaymentSource] = useState<SupplierPaymentSource>('cash_drawer');
   const [customPaidAmountPiasters, setCustomPaidAmountPiasters] = useState<number | null>(null);
   const [lineItems, setLineItems] = useState<NewPurchaseLineItem[]>([]);
   // One key per invoice attempt; a retry reuses it so the server never posts the invoice twice
@@ -269,12 +270,16 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       : null;
     const detectedPkg = explicitDefaultUnit || nameMatchedUnit || lowestPackageUnit || pkgUnits[0];
 
-    const effectiveBaseUnitName = (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
-      ? baseUnitObj.unitName.trim()
-      : (prod.unit || (isPharma ? 'قرص' : 'قطعة'));
-    const effectivePackageUnitName = (detectedPkg && detectedPkg.unitName && detectedPkg.unitName.trim())
-      ? detectedPkg.unitName.trim()
-      : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined);
+    const effectiveBaseUnitName = formatUnitArabic(
+      (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
+        ? baseUnitObj.unitName.trim()
+        : (prod.unit || (isPharma ? 'قرص' : 'قطعة'))
+    );
+    const effectivePackageUnitName = formatUnitArabic(
+      (detectedPkg && detectedPkg.unitName && detectedPkg.unitName.trim())
+        ? detectedPkg.unitName.trim()
+        : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined)
+    );
     const packFactor = detectedPkg ? detectedPkg.conversionFactor : 0;
     const initialMode: 'package' | 'base' = (isPharma || packFactor > 1) ? 'package' : 'base';
 
@@ -384,9 +389,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           packageUnitName: effectivePackageUnitName,
           purchaseUnitMode: initialMode,
           selectedUnitId: detectedPkg ? detectedPkg.id : baseUnitObj?.id,
-          selectedUnitName: detectedPkg ? detectedPkg.unitName : effectiveBaseUnitName,
+          selectedUnitName: detectedPkg ? formatUnitArabic(detectedPkg.unitName) : effectiveBaseUnitName,
           selectedUnitFactor: packFactor > 1 ? packFactor : 1,
-          productUnits: prod.units,
+          productUnits: prod.units ? prod.units.map(u => ({ ...u, unitName: formatUnitArabic(u.unitName) })) : undefined,
           cartonsInput: initialCartonsInput,
           packSizeInput: packFactor > 1 ? String(packFactor) : '',
           packSize: packFactor > 1 ? packFactor : undefined,
@@ -660,7 +665,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     e: React.FormEvent,
     effectiveAmount?: number,
     customNotes?: string,
-    paymentSource: 'cash_drawer' | 'external_cash' = 'cash_drawer'
+    paymentSource: SupplierPaymentSource = 'cash_drawer'
   ) => {
     e.preventDefault();
     if (!selectedSupplierForModal) return;
@@ -970,12 +975,16 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                   const isMultiUnits = isEnabled('feature_multi_units');
                   const detectedPkg = prod?.units?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
                   const baseUnitObj = prod?.units?.find((u) => u.isBaseUnit);
-                  const effectiveBase = (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
-                    ? baseUnitObj.unitName.trim()
-                    : (rawUnit || (isPharma ? 'قرص' : 'قطعة'));
-                  const effectivePackage = (detectedPkg && detectedPkg.unitName && detectedPkg.unitName.trim())
-                    ? detectedPkg.unitName.trim()
-                    : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined);
+                  const effectiveBase = formatUnitArabic(
+                    (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
+                      ? baseUnitObj.unitName.trim()
+                      : (rawUnit || (isPharma ? 'قرص' : 'قطعة'))
+                  );
+                  const effectivePackage = formatUnitArabic(
+                    (detectedPkg && detectedPkg.unitName && detectedPkg.unitName.trim())
+                      ? detectedPkg.unitName.trim()
+                      : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined)
+                  );
                   const packFactor = detectedPkg ? detectedPkg.conversionFactor : 0;
                   const initialMode: 'package' | 'base' = (isPharma || packFactor > 1) ? 'package' : 'base';
                   const baseQty = Math.max(1, Math.round(pi.suggestedQuantityMilli / 1000));
@@ -1041,7 +1050,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                     unit: effectiveBase,
                     packageUnitName: effectivePackage,
                     purchaseUnitMode: initialMode,
-                    productUnits: prod?.units,
+                    productUnits: prod?.units ? prod.units.map((u) => ({ ...u, unitName: formatUnitArabic(u.unitName) })) : undefined,
                     cartonsInput: initialMode === 'package' && packFactor > 1 ? String(cartonsCount) : '0',
                     packSizeInput: packFactor > 1 ? String(packFactor) : '',
                     packSize: packFactor > 1 ? packFactor : undefined,

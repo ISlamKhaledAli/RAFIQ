@@ -13,6 +13,7 @@ import { CustomSelect } from './CustomSelect';
 import { RequiredMark } from './RequiredMark';
 import type { Product } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
+import { formatUnitArabic } from '../utils/units';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface StockAdjustmentModalProps {
@@ -73,7 +74,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     unitsList.find(u => u.isBaseUnit) || 
     (unitsList.length > 0 ? unitsList[0] : null);
   const factor = activeUnit && activeUnit.conversionFactor > 0 ? activeUnit.conversionFactor : 1;
-  const unitLabel = activeUnit ? activeUnit.unitName : (isKg ? 'كجم' : 'قطعة');
+  const unitLabel = activeUnit ? formatUnitArabic(activeUnit.unitName) : (isKg ? 'كجم' : 'قطعة');
 
   const currentStockUnits = (product.stockQuantityMilli || 0) / 1000;
   const currentStockDisplay = isKg
@@ -251,7 +252,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                     onChange={(val) => setSelectedUnitId(val)}
                     options={unitsList.map((u) => ({
                       value: u.id || '',
-                      label: `${u.unitName} (×${u.conversionFactor})`
+                      label: `${formatUnitArabic(u.unitName)} (×${u.conversionFactor})`
                     }))}
                     className="w-36"
                     size="sm"

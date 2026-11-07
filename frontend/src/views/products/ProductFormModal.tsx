@@ -55,6 +55,7 @@ import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { RequiredMark } from '../../components/RequiredMark';
 import { getStoreTerminology, getCurrentStoreType } from '../../utils/storeTerminology';
 import { formatCompoundStock } from '../../utils/packaging';
+import { formatUnitArabic } from '../../utils/units';
 
 export interface BelowCostWarningData {
   pricePiasters: number;
@@ -300,8 +301,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   // Base unit name (e.g. قرص in pharmacy, قطعة in grocery, كيلو in butchery/produce)
   const baseUnitName = useMemo(() => {
     const base = productUnits.find(u => u && u.isBaseUnit);
-    if (base && base.unitName && base.unitName.trim()) return base.unitName.trim();
-    if (editingProduct?.unit && editingProduct.unit !== 'piece') return editingProduct.unit;
+    if (base && base.unitName && base.unitName.trim()) return formatUnitArabic(base.unitName.trim());
+    if (editingProduct?.unit && editingProduct.unit !== 'piece') return formatUnitArabic(editingProduct.unit);
     if (unit === 'kg') return 'كيلو';
     return terminology.baseUnitDefaultName || (isPharmacy ? 'قرص' : 'قطعة');
   }, [productUnits, editingProduct, unit, terminology, isPharmacy]);
@@ -1982,7 +1983,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       {sortedMultiUnits.map((u, i) => {
                         const key = u.id || String(i);
                         const isBase = i === sortedMultiUnits.length - 1;
-                        const label = isBase ? `${u.unitName} فرط:` : `عدد الـ (${u.unitName}):`;
+                        const label = isBase ? `${formatUnitArabic(u.unitName)} فرط:` : `عدد الـ (${formatUnitArabic(u.unitName)}):`;
                         return (
                           <div key={key}>
                             <div className="flex items-center justify-between mb-1">

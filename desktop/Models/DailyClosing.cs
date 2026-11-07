@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 
 namespace RafiqPOS.Models
@@ -308,6 +309,165 @@ namespace RafiqPOS.Models
 
         [JsonProperty("dateSuspiciousReason")]
         public string DateSuspiciousReason { get; set; }
+
+        [JsonProperty("epayTerminalsSummary")]
+        public List<DailyClosingEpayTerminalSummary> EpayTerminalsSummary { get; set; }
+
+        [JsonProperty("epayTransactions")]
+        public List<DailyClosingEpayTransactionItem> EpayTransactions { get; set; }
+
+        [JsonProperty("walletsSummary")]
+        public List<DailyClosingWalletSummary> WalletsSummary { get; set; }
+
+        [JsonProperty("walletTransactions")]
+        public List<DailyClosingWalletTransactionItem> WalletTransactions { get; set; }
+    }
+
+    public class DailyClosingEpayTerminalSummary
+    {
+        [JsonProperty("terminalId")]
+        public string TerminalId { get; set; }
+
+        [JsonProperty("terminalName")]
+        public string TerminalName { get; set; }
+
+        [JsonProperty("provider")]
+        public string Provider { get; set; }
+
+        [JsonProperty("currentBalancePiasters")]
+        public long CurrentBalancePiasters { get; set; }
+
+        [JsonProperty("transactionsCount")]
+        public int TransactionsCount { get; set; }
+
+        [JsonProperty("tillCashPiasters")]
+        public long TillCashPiasters { get; set; }
+
+        [JsonProperty("drawerCashPiasters")]
+        public long DrawerCashPiasters { get; set; }
+
+        [JsonProperty("netProfitPiasters")]
+        public long NetProfitPiasters { get; set; }
+    }
+
+    public class DailyClosingEpayTransactionItem
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+
+        [JsonProperty("terminalId")]
+        public string TerminalId { get; set; }
+
+        [JsonProperty("terminalName")]
+        public string TerminalName { get; set; }
+
+        [JsonProperty("serviceType")]
+        public string ServiceType { get; set; }
+
+        [JsonProperty("serviceName")]
+        public string ServiceName { get; set; }
+
+        [JsonProperty("billAmountPiasters")]
+        public long BillAmountPiasters { get; set; }
+
+        [JsonProperty("customerFeePiasters")]
+        public long CustomerFeePiasters { get; set; }
+
+        [JsonProperty("totalReceivedPiasters")]
+        public long TotalReceivedPiasters { get; set; }
+
+        [JsonProperty("netProfitPiasters")]
+        public long NetProfitPiasters { get; set; }
+
+        [JsonProperty("paymentChannel")]
+        public string PaymentChannel { get; set; }
+
+        [JsonProperty("cashierName")]
+        public string CashierName { get; set; }
+
+        [JsonProperty("referenceNumber")]
+        public string ReferenceNumber { get; set; }
+
+        [JsonProperty("createdAt")]
+        public string CreatedAt { get; set; }
+    }
+
+    public class DailyClosingWalletSummary
+    {
+        [JsonProperty("accountId")]
+        public string AccountId { get; set; }
+
+        [JsonProperty("accountName")]
+        public string AccountName { get; set; }
+
+        [JsonProperty("accountType")]
+        public string AccountType { get; set; }
+
+        [JsonProperty("provider")]
+        public string Provider { get; set; }
+
+        [JsonProperty("currentBalancePiasters")]
+        public long CurrentBalancePiasters { get; set; }
+
+        [JsonProperty("transactionsCount")]
+        public int TransactionsCount { get; set; }
+
+        [JsonProperty("totalInPiasters")]
+        public long TotalInPiasters { get; set; }
+
+        [JsonProperty("totalOutPiasters")]
+        public long TotalOutPiasters { get; set; }
+
+        [JsonProperty("drawerCashImpactPiasters")]
+        public long DrawerCashImpactPiasters { get; set; }
+
+        [JsonProperty("netProfitPiasters")]
+        public long NetProfitPiasters { get; set; }
+    }
+
+    public class DailyClosingWalletTransactionItem
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+
+        [JsonProperty("accountId")]
+        public string AccountId { get; set; }
+
+        [JsonProperty("accountName")]
+        public string AccountName { get; set; }
+
+        [JsonProperty("accountType")]
+        public string AccountType { get; set; }
+
+        [JsonProperty("txType")]
+        public string TxType { get; set; }
+
+        [JsonProperty("amountPiasters")]
+        public long AmountPiasters { get; set; }
+
+        [JsonProperty("profitPiasters")]
+        public long ProfitPiasters { get; set; }
+
+        [JsonProperty("totalCollectedPiasters")]
+        public long TotalCollectedPiasters { get; set; }
+
+        [JsonProperty("customerPhone")]
+        public string CustomerPhone { get; set; }
+
+        [JsonProperty("customerName")]
+        public string CustomerName { get; set; }
+
+        [JsonProperty("paymentDestination")]
+        public string PaymentDestination { get; set; }
+
+        [JsonProperty("cashierName")]
+        public string CashierName { get; set; }
+
+        [JsonProperty("notes")]
+        public string Notes { get; set; }
+
+        [JsonProperty("createdAt")]
+        public string CreatedAt { get; set; }
     }
 
     public class LiveDrawerBalanceResult

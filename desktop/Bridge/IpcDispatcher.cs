@@ -592,6 +592,7 @@ namespace RafiqPOS.Bridge
             { "barcode:printLabels", "settings.printer" },
             { "printer:testLabel", "settings.printer" },
             { "printer:printReceipt", "pos.reprint" },
+            { "printer:printRecoveryVoucher", REQUIRE_OWNER },
             { "printer:kickDrawer", "shifts.cash_in" },
             { "printer:cutPaper", "settings.printer" },
 

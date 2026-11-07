@@ -33,6 +33,7 @@ import { RafiqLoadingState } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
 import { useAuth } from '../context/useAuth';
 import { useDateFilter } from '../utils/dateFilter';
+import { formatUnitArabic } from '../utils/units';
 
 export interface SalesHistoryViewProps {
   isActive?: boolean;
@@ -762,7 +763,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                     selectedSale.items.map((item, idx) => {
                       const retInfo = returnedInfoByProduct[item.productId];
                       const origQty = item.unit === 'kg' ? item.quantityMilli / 1000 : Math.round(item.quantityMilli / 1000);
-                      const unitStr = item.unit === 'kg' ? 'كجم' : 'قطعة';
+                      const unitStr = formatUnitArabic(item.unit);
                       const remainingQty = retInfo ? Math.max(0, origQty - retInfo.returnedPieces) : origQty;
                       const netLineTotal = Math.round(remainingQty * item.unitPricePiasters);
 
@@ -873,7 +874,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                                   <span className="w-1.5 h-1.5 rounded-full bg-warn dark:bg-warn-bright shrink-0" />
                                   <span className="font-bold">{ritem.productName}</span>
                                   <span className="text-ink-muted dark:text-ink-dark-muted font-mono font-bold text-micro">
-                                    × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {ritem.unit === 'kg' ? 'كجم' : 'قطعة'}
+                                    × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {formatUnitArabic(ritem.unit)}
                                   </span>
                                   {ritem.isDamaged && (
                                     <span className="text-danger font-bold text-micro bg-danger/10 px-1.5 py-0.2 rounded border border-danger/20">

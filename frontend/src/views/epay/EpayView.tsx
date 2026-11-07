@@ -172,6 +172,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [isSubmittingTx, setIsSubmittingTx] = useState<boolean>(false);
   const [autoPrintReceipt, setAutoPrintReceipt] = useState<boolean>(true);
+  const [lastProcessedTx, setLastProcessedTx] = useState<EpayTransaction | null>(null);
 
   // Receipt Modal State
   const [receiptTx, setReceiptTx] = useState<EpayTransaction | null>(null);
@@ -425,16 +426,25 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
       const result = await invoke<EpayTransaction>('epay:createTransaction', payload);
       txAttemptRef.current.complete();
-      setSuccessMsg(`تم تنفيذ عملية "${serviceName}". صافي ربح المحل: ${formatArabicCurrency(netProfitPiasters)}`);
+      setLastProcessedTx(result);
 
       if (autoPrintReceipt && result) {
-        void invoke('epay:printReceipt', {
+        setSuccessMsg(`تم تنفيذ عملية "${serviceName}" بنجاح. جاري إرسال الإيصال للطابعة.`);
+        void invoke<{ success: boolean; message: string }>('epay:printReceipt', {
           transactionId: result.id,
           transaction: result,
+        }).then((pRes) => {
+          if (pRes && pRes.success) {
+            setSuccessMsg(`تم تنفيذ عملية "${serviceName}" بنجاح وتمت طباعة الإيصال.`);
+          } else if (pRes && !pRes.success) {
+            setErrorMsg(pRes.message || 'تم حفظ العملية بنجاح ولكن تعذر إرسال الإيصال للطابعة');
+          }
         }).catch((pErr: unknown) => {
           console.error('فشل الإرسال التلقائي لإيصال الدفع الإلكتروني للطابعة:', pErr);
+          setErrorMsg('تم حفظ العملية ولكن تعذر إرسال أمر الطباعة إلى الطابعة');
         });
-        setReceiptTx(result);
+      } else {
+        setSuccessMsg(`تم تنفيذ عملية "${serviceName}" بنجاح. صافي ربح المحل: ${formatArabicCurrency(netProfitPiasters)}`);
       }
 
       // Reset form to empty for next operation
@@ -957,12 +967,16 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
               {/* Step 3: Amounts (Bill Amount, Machine Commission, Shop Profit) */}
               <div className="border-t border-line dark:border-line-dark pt-5 flex flex-col gap-3.5">
-                <StepHeading step={3} title="المبلغ والعمولة والربح" hint="المبلغ والعمولة يخصمان من رصيد الماكينة، وربح المحل لا يُخصم" />
+                <StepHeading 
+                  step={3} 
+                  title={serviceType === 'cash_out' ? 'مبلغ السحب والعمولة والربح' : 'المبلغ والعمولة والربح'} 
+                  hint={serviceType === 'cash_out' ? 'مبلغ السحب يُضاف لرصيد الماكينة ويُصرف نقداً للعميل' : 'المبلغ والعمولة يخصمان من رصيد الماكينة، وربح المحل لا يُخصم'} 
+                />
 
                 <div className="p-4 sm:p-5 rounded-2xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark transition-all focus-within:border-brand/50 dark:focus-within:border-brand-bright/50 focus-within:bg-surface dark:focus-within:bg-surface-dark">
                   <label className="text-sm font-black text-ink dark:text-ink-dark flex items-center gap-2 mb-2.5">
                     <Receipt className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
-                    <span>مبلغ الفاتورة / الرصيد <RequiredMark /></span>
+                    <span>{serviceType === 'cash_out' ? 'مبلغ السحب النقدي المطلوب' : 'مبلغ الفاتورة / الرصيد'} <RequiredMark /></span>
                   </label>
                   <MoneyInput
                     valuePiasters={billAmountPiasters}
@@ -1105,17 +1119,24 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 {/* Total To Receive From Customer */}
                 <div className="p-5 rounded-2xl bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-bright/30">
                   <span className="text-xs text-paid dark:text-paid-bright font-black block mb-1.5">
-                    المطلوب تحصيله من الزبون
+                    {serviceType === 'cash_out' ? 'إجمالي العملية / المطلوب تحصيله' : 'المطلوب تحصيله من الزبون'}
                   </span>
                   <div className="text-4xl font-black font-mono text-paid dark:text-paid-bright tracking-tight tabular-nums">
                     {formatArabicCurrency(totalReceivedPiasters)}
                   </div>
+                  {serviceType === 'cash_out' && (
+                    <span className="text-micro font-medium text-paid dark:text-paid-bright block mt-1">
+                      (شامل مبلغ السحب + عمولة الماكينة + ربح المحل)
+                    </span>
+                  )}
                 </div>
 
                 {/* Breakdown of the total */}
                 <div className="flex flex-col gap-2.5">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-ink-muted dark:text-ink-muted-dark">مبلغ الفاتورة / الرصيد</span>
+                    <span className="text-ink-muted dark:text-ink-muted-dark">
+                      {serviceType === 'cash_out' ? 'مبلغ السحب الأساسي' : 'مبلغ الفاتورة / الرصيد'}
+                    </span>
                     <span className="font-bold font-mono text-ink dark:text-ink-dark tabular-nums">{formatArabicCurrency(billAmountPiasters)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
@@ -1125,7 +1146,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   <div className="flex items-center justify-between text-sm">
                     <div>
                       <span className="text-ink-muted dark:text-ink-muted-dark block">ربح المحل (صافي)</span>
-                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark">لا يُخصم من رصيد الماكينة</span>
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark">
+                        {serviceType === 'cash_out' ? 'إيراد صافٍ من السحب' : 'لا يُخصم من رصيد الماكينة'}
+                      </span>
                     </div>
                     <span className="font-black font-mono text-paid dark:text-paid-bright tabular-nums">{formatArabicCurrency(shopProfitPiasters)}</span>
                   </div>
@@ -1135,8 +1158,14 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     isBalanceInsufficient ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/30 dark:border-danger-bright/30' : 'bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark'
                   }`}>
                     <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="text-ink-muted dark:text-ink-muted-dark font-medium">المخصوم من رصيد الماكينة (المبلغ + العمولة)</span>
-                      <span className="font-bold font-mono text-danger dark:text-danger-bright tabular-nums">{formatArabicCurrency(deductedBalancePiasters)}</span>
+                      <span className="text-ink-muted dark:text-ink-muted-dark font-medium">
+                        {serviceType === 'cash_out' 
+                          ? 'المضاف لرصيد الماكينة (مبلغ السحب)' 
+                          : 'المخصوم من رصيد الماكينة (المبلغ + العمولة)'}
+                      </span>
+                      <span className={`font-bold font-mono tabular-nums ${serviceType === 'cash_out' ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
+                        {serviceType === 'cash_out' ? `+${formatArabicCurrency(billAmountPiasters)}` : formatArabicCurrency(deductedBalancePiasters)}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-ink-muted dark:text-ink-muted-dark font-medium">الرصيد المتبقي بعد العملية</span>
@@ -1144,7 +1173,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         isBalanceInsufficient ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'
                       }`}>
                         {currentTerminal 
-                          ? formatArabicCurrency(currentTerminal.balancePiasters - deductedBalancePiasters)
+                          ? formatArabicCurrency(serviceType === 'cash_out'
+                              ? currentTerminal.balancePiasters + billAmountPiasters
+                              : currentTerminal.balancePiasters - deductedBalancePiasters)
                           : '0.00 ج.م'}
                       </span>
                     </div>
@@ -1178,10 +1209,12 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     </div>
                     <div>
                       <span className="text-xs font-bold text-ink dark:text-ink-dark block">
-                        عرض إيصال العملية للطباعة فور التأكيد
+                        طباعة إيصال للعميل فور إتمام العملية
                       </span>
                       <span className="text-micro text-ink-muted dark:text-ink-muted-dark">
-                        معاينة وطباعة بون حراري للعميل فور نجاح المعاملة
+                        {autoPrintReceipt
+                          ? 'سيتم إرسال الإيصال للطابعة مباشرة دون نوافذ منبثقة'
+                          : 'حفظ وتسجيل المعاملة بدون طباعة إيصال ورقي'}
                       </span>
                     </div>
                   </div>
@@ -1195,7 +1228,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 {/* Confirm Action Button */}
                 <button
                   type="button"
-                  onClick={() => handleCreateTransaction()}
+                  onClick={() => void handleCreateTransaction()}
                   disabled={isSubmittingTx || isBalanceInsufficient || billAmountPiasters <= 0}
                   className={`w-full h-12 px-4 rounded-xl font-black text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     isSubmittingTx || isBalanceInsufficient || billAmountPiasters <= 0
@@ -1204,8 +1237,81 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   }`}
                 >
                   <CheckCircle2 className="w-4.5 h-4.5" />
-                  <span>{isSubmittingTx ? 'جاري تنفيذ العملية...' : 'تأكيد العملية وتسجيل الحساب'}</span>
+                  <span>
+                    {isSubmittingTx
+                      ? 'جاري تنفيذ العملية...'
+                      : autoPrintReceipt
+                        ? 'تأكيد العملية وتسجيل الحساب (مع طباعة الإيصال)'
+                        : 'تأكيد العملية وتسجيل الحساب (بدون طباعة)'}
+                  </span>
                 </button>
+
+                {/* Last Processed Transaction Card (Like Wallets & InstaPay) */}
+                {lastProcessedTx && (
+                  <div className="bg-surface dark:bg-surface-dark border border-paid/30 rounded-2xl p-4 shadow-2xs flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid flex items-center justify-center">
+                          <CheckCircle2 className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-black text-paid dark:text-paid-bright">
+                          تم تنفيذ المعاملة بنجاح
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setLastProcessedTx(null)}
+                        className="p-1 text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark rounded-lg cursor-pointer"
+                        title="إخفاء"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-surface-2 dark:bg-surface-dark-2 p-2.5 rounded-xl font-mono">
+                      <div>
+                        <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-sans block">رقم الإيصال</span>
+                        <strong className="text-ink dark:text-ink-dark">{lastProcessedTx.referenceNumber || lastProcessedTx.id.slice(0, 8)}</strong>
+                      </div>
+                      <div>
+                        <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-sans block">نوع الخدمة</span>
+                        <strong className="text-ink dark:text-ink-dark truncate block">{lastProcessedTx.serviceName}</strong>
+                      </div>
+                      <div>
+                        <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-sans block">المبلغ الأساسي</span>
+                        <strong className="text-ink dark:text-ink-dark">{formatArabicCurrency(lastProcessedTx.billAmountPiasters)}</strong>
+                      </div>
+                      <div>
+                        <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-sans block">ربح المحل</span>
+                        <strong className="text-paid dark:text-paid-bright">{formatArabicCurrency(lastProcessedTx.customerFeePiasters)}</strong>
+                      </div>
+                      <div className="col-span-2 pt-1.5 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between">
+                        <span className="text-micro text-ink-muted dark:text-ink-muted-dark font-sans font-bold">المطلوب من الزبون:</span>
+                        <strong className="text-sm font-black text-paid dark:text-paid-bright">{formatArabicCurrency(lastProcessedTx.totalReceivedPiasters)}</strong>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handlePrintReceiptDirect(lastProcessedTx)}
+                        disabled={isPrintingReceipt}
+                        className="flex-1 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>{isPrintingReceipt ? 'جاري إرسال الإيصال للطابعة...' : 'طباعة إيصال إضافي'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReceiptTx(lastProcessedTx)}
+                        className="px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold font-sans transition-colors cursor-pointer"
+                        title="معاينة الإيصال"
+                      >
+                        معاينة
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2087,7 +2193,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
             <div className="flex flex-col gap-1.5 text-xs border-b border-dashed border-line dark:border-line-dark pb-3 mb-3">
               <div className="flex justify-between">
-                <span className="text-ink-muted dark:text-ink-muted-dark font-sans">1. قيمة الفاتورة / الرصيد:</span>
+                <span className="text-ink-muted dark:text-ink-muted-dark font-sans">
+                  {receiptTx.serviceType === 'cash_out' ? '1. مبلغ السحب النقدي:' : '1. قيمة الفاتورة / الرصيد:'}
+                </span>
                 <span className="font-mono tabular-nums">{formatArabicCurrency(receiptTx.billAmountPiasters)}</span>
               </div>
               <div className="flex justify-between">
@@ -2099,7 +2207,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 <span className="font-mono text-paid dark:text-paid-bright font-bold tabular-nums">{formatArabicCurrency(receiptTx.customerFeePiasters)}</span>
               </div>
               <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-line dark:border-line-dark">
-                <span className="font-sans">إجمالي المطلوب من الزبون:</span>
+                <span className="font-sans">
+                  {receiptTx.serviceType === 'cash_out' ? 'إجمالي العملية / المطلوب:' : 'إجمالي المطلوب من الزبون:'}
+                </span>
                 <span className="text-paid dark:text-paid-bright font-black font-mono tabular-nums">{formatArabicCurrency(receiptTx.totalReceivedPiasters)}</span>
               </div>
             </div>

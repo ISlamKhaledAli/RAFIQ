@@ -1,4 +1,4 @@
-import { convertArabicLayoutToBarcode } from './barcodeReader';
+import { convertArabicLayoutToBarcode } from './barcodeReader.ts';
 
 export interface InvoiceBarcodeMatch {
   type: 'sale' | 'return';
@@ -26,9 +26,9 @@ export function parseInvoiceBarcode(rawInput: string): InvoiceBarcodeMatch | nul
   // تحويل لوحة المفاتيح العربية في حال كان الكاشير يعمل باللغة العربية
   const normalized = convertArabicLayoutToBarcode(trimmed).toUpperCase();
 
-  // 1. فحص باركود فواتير البيع (RFQ-INV- / RFQ- / INV-)
-  // الصيغة الرسمية لمشروع رفيق: RFQ-INV-00001234 أو RFQ-00001234 أو INV-00001234
-  const invPrefixMatch = normalized.match(/^(?:(?:RFQ-INV|RFQ|INV)-?)([0-9]+)$/i);
+  // 1. فحص باركود فواتير البيع (RFQ-INV- / RFQ- / INV- / #)
+  // الصيغة الرسمية لمشروع رفيق: RFQ-INV-00001234 أو RFQ-00001234 أو INV-00001234 أو #1234
+  const invPrefixMatch = normalized.match(/^(?:(?:RFQ-INV|RFQ|INV)-?|#)([0-9]+)$/i);
   if (invPrefixMatch && invPrefixMatch[1]) {
     const num = parseInt(invPrefixMatch[1], 10);
     if (!isNaN(num) && num > 0) {
@@ -99,3 +99,18 @@ export function formatReturnBarcode(returnNumber: number | string | null | undef
   if (str.startsWith('RET-')) return `RFQ-${str}`;
   return `RFQ-RET-${str}`;
 }
+
+/**
+ * فحص الأرقام المتطابقة مع فواتير قديمة طُبعت بأصفار بادئة (مثل 00001042)
+ * تُستخدم حصراً كخيار تراجع ذكي في شاشة البيع عند فشل العثور على صنف بهذا الباركود.
+ */
+export function extractLegacyPaddedInvoiceNumber(rawInput: string): number | null {
+  if (!rawInput) return null;
+  const trimmed = convertArabicLayoutToBarcode(rawInput.trim());
+  if (/^0{2,}[1-9][0-9]*$/.test(trimmed) && trimmed.length <= 10) {
+    const num = parseInt(trimmed, 10);
+    return !isNaN(num) && num > 0 ? num : null;
+  }
+  return null;
+}
+

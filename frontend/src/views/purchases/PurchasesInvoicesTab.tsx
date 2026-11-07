@@ -262,7 +262,13 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
                 <div className="col-span-1 text-center">
                   {pur.paymentStatus === 'PAID' && (
                     <span className="inline-block px-2.5 py-0.5 rounded-full text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-emerald-800/40">
-                      خالصة
+                      {pur.paymentSource === 'instapay'
+                        ? 'إنستاباي'
+                        : pur.paymentSource === 'vodafone_cash'
+                        ? 'فودافون كاش'
+                        : pur.paymentSource === 'external_cash'
+                        ? 'كاش خارجي'
+                        : 'خالصة'}
                     </span>
                   )}
                   {pur.paymentStatus === 'OVERPAID' && (

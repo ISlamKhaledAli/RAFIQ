@@ -135,14 +135,16 @@ namespace RafiqPOS.Services
                         suggestedQtyMilli = c.MinStockQuantityMilli > 0 ? c.MinStockQuantityMilli : 1000;
                     }
 
-                    // التحقق مما إذا كان هناك قيد نواقص مفتوح مسبقاً لهذا الصنف
+                    // التحقق مما إذا كان هناك قيد نواقص نشط مسبقاً لهذا الصنف (بما فيها الأصناف التي تم طلبها بالفعل من المورد)
                     string existingId = null;
+                    string existingStatus = null;
                     int existingQtyMilli = 0;
                     using (var checkCmd = new SQLiteCommand(@"
-                        SELECT id, requested_qty_milli 
+                        SELECT id, status, requested_qty_milli 
                         FROM shortage_entries 
                         WHERE product_id = @pid 
-                          AND status IN ('open', 'pending') 
+                          AND status IN ('open', 'pending', 'ordered') 
+                        ORDER BY CASE status WHEN 'ordered' THEN 1 ELSE 2 END 
                         LIMIT 1;", conn))
                     {
                         checkCmd.Parameters.AddWithValue("@pid", c.Id);
@@ -151,6 +153,7 @@ namespace RafiqPOS.Services
                             if (checkReader.Read())
                             {
                                 existingId = checkReader["id"].ToString();
+                                existingStatus = checkReader["status"] != DBNull.Value ? checkReader["status"].ToString() : "pending";
                                 existingQtyMilli = Convert.ToInt32(checkReader["requested_qty_milli"]);
                             }
                         }
@@ -162,7 +165,28 @@ namespace RafiqPOS.Services
 
                     if (!string.IsNullOrEmpty(existingId))
                     {
-                        // الصنف مسجل بالفعل، نقوم بتحديث الكمية فقط إذا كانت الكمية المحسوبة حالياً أكبر
+                        if (string.Equals(existingStatus, "ordered", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // الصنف تم طلبه بالفعل من المورد!
+                            // نقوم بحذف أي قيود مكررة بالخطأ بحالة pending أو open لنفس الصنف
+                            using (var cleanCmd = new SQLiteCommand(@"
+                                DELETE FROM shortage_entries 
+                                WHERE product_id = @pid 
+                                  AND id != @existingId 
+                                  AND status IN ('open', 'pending');", conn))
+                            {
+                                cleanCmd.Parameters.AddWithValue("@pid", c.Id);
+                                cleanCmd.Parameters.AddWithValue("@existingId", existingId);
+                                cleanCmd.ExecuteNonQuery();
+                            }
+
+                            // الصنف يظل في حالة 'ordered' ولا يُعاد إدراجه في 'pending' أبداً
+                            var orderedEntry = _shortageRepo.GetById(existingId);
+                            if (orderedEntry != null) list.Add(orderedEntry);
+                            continue;
+                        }
+
+                        // الصنف مسجل بالفعل بحالة pending/open، نقوم بتحديث الكمية فقط إذا كانت الكمية المحسوبة حالياً أكبر
                         if (suggestedQtyMilli > existingQtyMilli)
                         {
                             using (var updateCmd = new SQLiteCommand(@"

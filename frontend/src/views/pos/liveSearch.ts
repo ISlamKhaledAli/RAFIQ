@@ -1,6 +1,7 @@
 import type { Product, ProductUnit } from '../../types/models';
 import { isBarcodeMatch } from '../../utils/barcodeReader.ts';
 import { resolveDefaultSaleUnit } from './saleUnit.ts';
+import { formatUnitArabic } from '../../utils/units.ts';
 
 export const LIVE_SEARCH_MIN_CHARS = 2;
 export const LIVE_SEARCH_LIMIT = 8;
@@ -93,11 +94,11 @@ const DEFAULT_MIN_STOCK_MILLI = 5000;
 export function describeSearchRow(prod: Product): SearchRowInfo {
   const saleUnit = resolveDefaultSaleUnit(prod.units, prod.defaultSaleUnitId, prod.isLooseSellable);
   const pricePiasters = saleUnit && saleUnit.sellPricePiasters > 0 ? saleUnit.sellPricePiasters : prod.pricePiasters;
-  const priceUnitName = saleUnit && !saleUnit.isBaseUnit ? saleUnit.unitName : null;
+  const priceUnitName = saleUnit && !saleUnit.isBaseUnit ? formatUnitArabic(saleUnit.unitName) : null;
 
   const stockMilli = prod.stockQuantityMilli;
   const baseUnit = prod.units?.find((u) => u.isBaseUnit);
-  const unitLabel = prod.unit === 'kg' ? 'كجم' : (baseUnit?.unitName || 'قطعة');
+  const unitLabel = prod.unit === 'kg' ? 'كجم' : formatUnitArabic(baseUnit?.unitName || prod.unit || 'قطعة');
   const stock = Number((stockMilli / 1000).toFixed(3));
 
   let stockState: StockState = 'ok';

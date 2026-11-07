@@ -36,7 +36,7 @@ import {
   isBarcodeMatch
 } from '../utils/barcodeReader';
 import { parseScaleBarcode } from '../utils/scaleBarcode';
-import { parseInvoiceBarcode } from '../utils/invoiceBarcode';
+import { parseInvoiceBarcode, extractLegacyPaddedInvoiceNumber } from '../utils/invoiceBarcode';
 import { shouldPrintReceipt } from '../utils/receiptPrintPreference';
 import { useFeatures } from '../context/useFeatures';
 import { useAuth } from '../context/useAuth';
@@ -97,6 +97,7 @@ import {
   pickDropdownProduct,
   shouldRunLiveSearch,
 } from './pos/liveSearch';
+import { formatUnitArabic } from '../utils/units';
 
 const CATALOG_REFRESH_DEBOUNCE_MS = 400;
 const SHIFT_REQUIRED_MESSAGE = 'لازم تفتح وردية قبل البيع';
@@ -510,7 +511,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         const maxRemainingBaseMilli = Math.max(0, availableStockMilli - (existingBaseMilli - currentItemBaseMilli));
         const maxPossibleUnits = Math.floor(maxRemainingBaseMilli / (factor * 1000));
         showStatus(
-          `رصيد الصنف "${prod.name}" غير كافٍ في المخزن! المتاح حالياً: ${Math.floor(availableStockMilli / 1000)} قطعة (يمكنك إضافة ${maxPossibleUnits} ${unitName || 'قطعة'} كحد أقصى).`,
+          `رصيد الصنف "${prod.name}" غير كافٍ في المخزن! المتاح حالياً: ${Math.floor(availableStockMilli / 1000)} قطعة (يمكنك إضافة ${maxPossibleUnits} ${formatUnitArabic(unitName)} كحد أقصى).`,
           'error'
         );
         return false;
@@ -633,7 +634,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         const availableStockMilli = item.stockQuantityMilli ?? 0;
         if (otherCartBaseMilli + neededBaseMilli > availableStockMilli) {
           showStatus(
-            `لا يمكن التحويل إلى "${targetUnit.unitName}": الكمية المطلوبة تتجاوز رصيد المخزن المتاح (${Math.floor(availableStockMilli / 1000)} قطعة)!`,
+            `لا يمكن التحويل إلى "${formatUnitArabic(targetUnit.unitName)}": الكمية المطلوبة تتجاوز رصيد المخزن المتاح (${Math.floor(availableStockMilli / 1000)} قطعة)!`,
             'error'
           );
           return prev;
@@ -1551,7 +1552,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           const maxRemainingBaseMilli = Math.max(0, availableStockMilli - otherCartBaseMilli);
           const maxPossibleUnits = Math.floor(maxRemainingBaseMilli / (factor * 1000));
           showStatus(
-            `الكمية المطلوبة (${newQtyPieces}) تتجاوز رصيد المخزن المتاح (${maxPossibleUnits} ${item.unitName || 'قطعة'})!`,
+            `الكمية المطلوبة (${newQtyPieces}) تتجاوز رصيد المخزن المتاح (${maxPossibleUnits} ${formatUnitArabic(item.unitName)})!`,
             'error'
           );
           return prev;
@@ -1654,9 +1655,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         setLoading(true);
         let sale: Sale | null = null;
         if (invMatch.invoiceNumber) {
-          sale = await invoke<Sale>('sales:getByInvoiceNumber', { invoiceNumber: invMatch.invoiceNumber });
+          sale = await invoke<Sale>('sales:getByInvoiceNumber', { invoiceNumber: invMatch.invoiceNumber }).catch(() => null);
         } else if (invMatch.rawId) {
-          sale = await invoke<Sale>('sales:getById', { id: invMatch.rawId });
+          sale = await invoke<Sale>('sales:getById', { id: invMatch.rawId }).catch(() => null);
         }
 
         if (sale && sale.id) {
@@ -1681,6 +1682,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         setLoading(false);
         barcodeInputRef.current?.focus();
       }
+    } else if (invMatch.type === 'return') {
+      showStatus(`تم مسح إيصال المرتجع رقم #${invMatch.invoiceNumber}`, 'success');
+      setBarcodeQuery('');
+      dismissLiveSearch();
+      return true;
     }
     return false;
   }, [showStatus, dismissLiveSearch]);
@@ -1761,12 +1767,22 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         addProductToCart(exactMatch, scaleWeightMilli, matchedUnit);
         setBarcodeQuery('');
         setIsSearchDropdownOpen(false);
-        const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
+        const unitSuffix = matchedUnit ? ` [${formatUnitArabic(matchedUnit.unitName)}]` : '';
         const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000.0).toFixed(3)} كجم - ميزان)` : '';
         showStatus(`تمت إضافة: ${exactMatch.name}${unitSuffix}${weightDesc}`, 'success');
       } else {
         setBarcodeQuery('');
         dismissLiveSearch();
+        const legacyInvNum = extractLegacyPaddedInvoiceNumber(scannedBarcode);
+        if (legacyInvNum) {
+          const legacySale = await invoke<Sale>('sales:getByInvoiceNumber', { invoiceNumber: legacyInvNum }).catch(() => null);
+          if (legacySale && legacySale.id) {
+            setLastCompletedSale(legacySale);
+            setIsReceiptOpen(true);
+            showStatus(`تم العثور على الفاتورة رقم #${legacySale.invoiceNumber} وعرض تفاصيلها بنجاح`, 'success');
+            return;
+          }
+        }
         setUnregisteredBarcode(scannedBarcode);
         setIsQuickAddModalOpen(true);
         showStatus(`الباركود الممسوح غير مسجل: "${scannedBarcode}" - يمكنك إضافته سريعاً الآن`, 'warning');
@@ -1846,6 +1862,21 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         results = extractProducts(res);
       }
 
+      if (results.length === 0) {
+        const legacyNum = extractLegacyPaddedInvoiceNumber(query) || extractLegacyPaddedInvoiceNumber(typed);
+        if (legacyNum) {
+          const legacySale = await invoke<Sale>('sales:getByInvoiceNumber', { invoiceNumber: legacyNum }).catch(() => null);
+          if (legacySale && legacySale.id) {
+            setLastCompletedSale(legacySale);
+            setIsReceiptOpen(true);
+            setBarcodeQuery('');
+            dismissLiveSearch();
+            showStatus(`تم العثور على الفاتورة رقم #${legacySale.invoiceNumber} وعرض تفاصيلها بنجاح`, 'success');
+            return;
+          }
+        }
+      }
+
       if ((!results || results.length === 0) && scaleInfo) {
         // Try matching: 1) Prefix+PLU (e.g. 2100045, 9900045, 2000045), 2) Trimmed PLU (e.g. 45), 3) 5-digit PLU (e.g. 00045)
         const prefixPlu = `${scaleInfo.prefix}${scaleInfo.itemPlu}`;
@@ -1907,7 +1938,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         setBarcodeQuery('');
         dismissLiveSearch();
         if (added) {
-          const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
+          const unitSuffix = matchedUnit ? ` [${formatUnitArabic(matchedUnit.unitName)}]` : '';
           const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000.0).toFixed(3)} كجم - ميزان)` : '';
           showStatus(`تمت إضافة: ${targetProd.name}${unitSuffix}${weightDesc}`, 'success');
         }
@@ -2097,7 +2128,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           const maxRemainingBaseMilli = Math.max(0, availableStockMilli - otherCartBaseMilli);
           const maxPossibleUnits = Math.floor(maxRemainingBaseMilli / (factor * 1000));
           showStatus(
-            `لا يمكن زيادة الكمية: رصيد المخزن المتاح للصنف "${item.productName}" هو ${maxPossibleUnits} ${item.unitName || 'قطعة'} فقط!`,
+            `لا يمكن زيادة الكمية: رصيد المخزن المتاح للصنف "${item.productName}" هو ${maxPossibleUnits} ${formatUnitArabic(item.unitName)} فقط!`,
             'error'
           );
           return prev;
@@ -3193,7 +3224,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           if (unitPickerProduct) {
             const added = addProductToCart(unitPickerProduct, undefined, selectedUnit);
             if (added) {
-              showStatus(`تمت إضافة: ${unitPickerProduct.name} (${selectedUnit.unitName})`, 'success');
+              showStatus(`تمت إضافة: ${unitPickerProduct.name} (${formatUnitArabic(selectedUnit.unitName)})`, 'success');
             }
           }
           setUnitPickerProduct(null);

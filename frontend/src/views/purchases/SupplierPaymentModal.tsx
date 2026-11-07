@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Banknote, X, CheckCheck, Sparkles, Coins, ArrowLeftRight, Check, AlertCircle, AlertTriangle } from 'lucide-react';
-import type { Supplier } from '../../types/models';
+import { Banknote, X, CheckCheck, Sparkles, Coins, ArrowLeftRight, Check, AlertCircle, AlertTriangle, Smartphone, Wallet } from 'lucide-react';
+import type { Supplier, SupplierPaymentSource } from '../../types/models';
 import { formatMoney } from './types';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
@@ -17,7 +17,7 @@ interface SupplierPaymentModalProps {
   setPaymentAmountPiasters: (amount: number) => void;
   paymentNotes: string;
   setPaymentNotes: (notes: string) => void;
-  onConfirmPayment: (e: React.FormEvent, effectiveAmountPiasters?: number, notes?: string, paymentSource?: 'cash_drawer' | 'external_cash') => void;
+  onConfirmPayment: (e: React.FormEvent, effectiveAmountPiasters?: number, notes?: string, paymentSource?: SupplierPaymentSource) => void;
   isSubmitting: boolean;
 }
 
@@ -35,7 +35,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
   // 'pay_exact' = سداد المديونية المستحقة فقط وإبقاء الفائض في الخزينة
   // 'advance_credit' = صرف المبلغ كاملاً وترحيل الزيادة دفعة مقدمة تحت الحساب
   const [excessAction, setExcessAction] = useState<'pay_exact' | 'advance_credit'>('pay_exact');
-  const [paymentSource, setPaymentSource] = useState<'cash_drawer' | 'external_cash'>('cash_drawer');
+  const [paymentSource, setPaymentSource] = useState<SupplierPaymentSource>('cash_drawer');
   const [liveDrawerCashPiasters, setLiveDrawerCashPiasters] = useState<number | null>(null);
 
   const fetchLiveDrawerCash = useCallback(async () => {
@@ -85,20 +85,29 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
     e.preventDefault();
     if (effectiveAmountPiasters <= 0) return;
 
+    const sourceLabel =
+      paymentSource === 'instapay'
+        ? 'عبر إنستاباي'
+        : paymentSource === 'vodafone_cash'
+        ? 'عبر فودافون كاش'
+        : paymentSource === 'external_cash'
+        ? 'كاش خارجي من صاحب المحل'
+        : 'نقداً من الدرج';
+
     let autoNotes = paymentNotes.trim();
     if (!autoNotes) {
       if (hasExcess) {
         if (excessAction === 'pay_exact') {
-          autoNotes = `سداد كامل حساب المورد (${formatMoney(currentBal)})`;
+          autoNotes = `سداد كامل حساب المورد (${formatMoney(currentBal)}) [${sourceLabel}]`;
         } else {
-          autoNotes = `سداد حساب (${formatMoney(currentBal)}) + دفعة مقدمة تحت الحساب (${formatMoney(excessPiasters)})`;
+          autoNotes = `سداد حساب (${formatMoney(currentBal)}) + دفعة مقدمة تحت الحساب (${formatMoney(excessPiasters)}) [${sourceLabel}]`;
         }
       } else if (currentBal <= 0) {
-        autoNotes = `دفعة مقدمة تحت الحساب للمورد (${formatMoney(paymentAmountPiasters)})`;
+        autoNotes = `دفعة مقدمة تحت الحساب للمورد (${formatMoney(paymentAmountPiasters)}) [${sourceLabel}]`;
       } else if (effectiveAmountPiasters === currentBal) {
-        autoNotes = `سداد كامل حساب المورد (${formatMoney(currentBal)})`;
+        autoNotes = `سداد كامل حساب المورد (${formatMoney(currentBal)}) [${sourceLabel}]`;
       } else {
-        autoNotes = `سداد جزء من حساب المورد (${formatMoney(effectiveAmountPiasters)})`;
+        autoNotes = `سداد جزء من حساب المورد (${formatMoney(effectiveAmountPiasters)}) [${sourceLabel}]`;
       }
     }
 
@@ -115,7 +124,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               <Banknote className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="t-modal-title text-ink dark:text-ink-dark">سداد دفعة نقدية للمورد</h3>
+              <h3 className="t-modal-title text-ink dark:text-ink-dark">سداد دفعة للمورد</h3>
               <span className="text-micro text-ink-muted dark:text-ink-dark-muted block -mt-0.5">{supplier.name}</span>
             </div>
           </div>
@@ -276,14 +285,32 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           {/* Payment Source Selection */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-ink dark:text-ink-dark block">
-              مصدر النقدية المصروفة للسداد
+              طريقة ومصدر السداد المصروف
             </label>
             <CustomSelect
               value={paymentSource}
-              onChange={(val) => setPaymentSource(val as any)}
+              onChange={(val) => setPaymentSource(val as SupplierPaymentSource)}
               options={[
-                { value: 'cash_drawer', label: 'من درج كاشير المحل (يخصم من نقدية الدرج والوردية)' },
-                { value: 'external_cash', label: 'كاش خارجي من صاحب المحل (لا يخصم من الدرج)' },
+                {
+                  value: 'cash_drawer',
+                  label: 'من درج كاشير المحل (يخصم من نقدية الدرج والوردية)',
+                  icon: <Coins className="w-4 h-4 text-paid dark:text-paid-bright" />,
+                },
+                {
+                  value: 'instapay',
+                  label: 'تحويل إنستاباي - InstaPay (لا يخصم من الدرج)',
+                  icon: <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" />,
+                },
+                {
+                  value: 'vodafone_cash',
+                  label: 'محفظة فودافون كاش / إلكترونية (لا يخصم من الدرج)',
+                  icon: <Smartphone className="w-4 h-4 text-paid dark:text-paid-bright" />,
+                },
+                {
+                  value: 'external_cash',
+                  label: 'كاش خارجي من صاحب المحل (لا يخصم من الدرج)',
+                  icon: <Wallet className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />,
+                },
               ]}
             />
 
@@ -297,7 +324,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                 </div>
 
                 {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (effectiveAmountPiasters > 0 && effectiveAmountPiasters > liveDrawerCashPiasters)) && (
-                  <div className="p-2 rounded-xl border text-micro bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-0.5">
+                  <div className="p-2.5 rounded-xl border text-micro bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-1 animate-in fade-in duration-150">
                     <div className="flex items-center gap-1.5 font-bold">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                       <span>
@@ -308,11 +335,41 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                     </div>
                     <p className="text-micro leading-relaxed">
                       {liveDrawerCashPiasters <= 0
-                        ? 'لا يمكن صرف نقدية من درج فارغ. إذا كان السداد من مالك المحل، يرجى تغيير مصدر النقدية إلى: «كاش خارجي من صاحب المحل».'
-                        : `المبلغ المراد صرفه (${formatArabicCurrency(effectiveAmountPiasters)}) أكبر من نقدية الدرج (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي من صاحب المحل».`}
+                        ? 'لا يمكن صرف نقدية من درج فارغ. إذا تم السداد إلكترونياً أو من مالك المحل، يرجى تغيير مصدر النقدية إلى: «إنستاباي» أو «فودافون كاش» أو «كاش خارجي من صاحب المحل».'
+                        : `المبلغ المراد صرفه (${formatArabicCurrency(effectiveAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «إنستاباي» أو «فودافون كاش» أو «كاش خارجي من صاحب المحل».`}
                     </p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {paymentSource === 'instapay' && (
+              <div className="p-2.5 bg-brand-soft/60 dark:bg-brand-dark-soft/60 border border-brand/20 dark:border-brand-bright/30 rounded-xl text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in duration-150">
+                <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
+                <div className="space-y-0.5 leading-relaxed">
+                  <span className="font-bold text-brand dark:text-brand-bright block">سداد عبر تحويل إنستاباي (InstaPay):</span>
+                  <span>سيتم تسجيل السداد في كشف حساب المورد مباشرة دون خصم أي مبالغ من درج الكاشير أو التأثير على جرد نقدية الوردية.</span>
+                </div>
+              </div>
+            )}
+
+            {paymentSource === 'vodafone_cash' && (
+              <div className="p-2.5 bg-paid-soft/60 dark:bg-paid-dark-soft/60 border border-paid/20 dark:border-emerald-800/40 rounded-xl text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in duration-150">
+                <Smartphone className="w-4 h-4 text-paid dark:text-paid-bright shrink-0 mt-0.5" />
+                <div className="space-y-0.5 leading-relaxed">
+                  <span className="font-bold text-paid dark:text-paid-bright block">سداد عبر محفظة فودافون كاش:</span>
+                  <span>سيتم تسجيل السداد في كشف حساب المورد مباشرة دون خصم أي مبالغ من درج الكاشير أو التأثير على جرد نقدية الوردية.</span>
+                </div>
+              </div>
+            )}
+
+            {paymentSource === 'external_cash' && (
+              <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in duration-150">
+                <Wallet className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted shrink-0 mt-0.5" />
+                <div className="space-y-0.5 leading-relaxed">
+                  <span className="font-bold text-ink dark:text-ink-dark block">سداد كاش خارجي من صاحب المحل:</span>
+                  <span>تم دفع المبلغ نقداً من المال الخاص بصاحب المحل، ولا يخصم من عهدة الكاشير أو نقدية الدرج.</span>
+                </div>
               </div>
             )}
           </div>
@@ -348,7 +405,13 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                 hasExcess
                   ? (excessAction === 'pay_exact' ? 'سداد حساب خالص' : 'سداد حساب + دفعة مقدمة')
                   : isDebt
-                  ? 'سداد دفعة نقدية للمورد'
+                  ? (paymentSource === 'instapay'
+                      ? 'سداد دفعة للمورد (تحويل إنستاباي)'
+                      : paymentSource === 'vodafone_cash'
+                      ? 'سداد دفعة للمورد (فودافون كاش)'
+                      : paymentSource === 'external_cash'
+                      ? 'سداد دفعة كاش خارجي'
+                      : 'سداد دفعة نقدية للمورد')
                   : 'دفعة مقدمة تحت الحساب'
               }
               value={paymentNotes}

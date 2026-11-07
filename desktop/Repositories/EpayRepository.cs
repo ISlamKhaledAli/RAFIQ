@@ -610,7 +610,7 @@ namespace RafiqPOS.Repositories
                 if (tx.ServiceType == "cash_out")
                 {
                     tx.MachineDeductedPiasters = 0;
-                    tx.TotalReceivedPiasters = tx.CustomerFeePiasters;
+                    tx.TotalReceivedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters + tx.CustomerFeePiasters;
                     tx.NetProfitPiasters = tx.CustomerFeePiasters;
                 }
                 else

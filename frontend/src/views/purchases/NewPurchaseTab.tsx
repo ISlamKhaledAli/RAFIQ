@@ -20,13 +20,16 @@ import {
   Tag,
   ScanBarcode,
   SlidersHorizontal,
+  Coins,
+  Smartphone,
+  Wallet,
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { MoneyInput } from '../../components/MoneyInput';
 import { RequiredMark } from '../../components/RequiredMark';
 import { useFeatures } from '../../context/useFeatures';
-import type { Supplier, Product, ProductUnit } from '../../types/models';
+import type { Supplier, Product, ProductUnit, SupplierPaymentSource } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
 import { computePurchaseLine, purchaseLinesTotal } from './purchaseLineMath';
 import { getSupplierPaymentState } from './supplierPaymentState';
@@ -35,6 +38,7 @@ import { normalizeArabicNumerals, formatArabicCurrency } from '../../utils/money
 import { invoke } from '../../bridge/ipc';
 import { getStoreTerminology } from '../../utils/storeTerminology';
 import { formatCompoundStock } from '../../utils/packaging';
+import { formatUnitArabic, formatUnitWithBi } from '../../utils/units';
 
 const DETAIL_LABEL_CLS = 'text-micro font-bold text-ink-muted dark:text-ink-dark-muted';
 const DETAIL_INPUT_CLS =
@@ -54,8 +58,8 @@ interface NewPurchaseTabProps {
   setPurchaseNotes: (notes: string) => void;
   discountPiasters: number;
   setDiscountPiasters: (p: number) => void;
-  paymentSource: 'cash_drawer' | 'external_cash';
-  setPaymentSource: (source: 'cash_drawer' | 'external_cash') => void;
+  paymentSource: SupplierPaymentSource;
+  setPaymentSource: (source: SupplierPaymentSource) => void;
   customPaidAmountPiasters: number | null;
   setCustomPaidAmountPiasters: (p: number | null) => void;
   lineItems: NewPurchaseLineItem[];
@@ -184,7 +188,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
       // Sort all units descending by conversion factor: e.g. كرتونة (400), علبة (20), سيجارة (1)
       const availableUnits: ProductUnit[] = item.productUnits && item.productUnits.length > 0
-        ? [...item.productUnits].sort((a, b) => b.conversionFactor - a.conversionFactor)
+        ? [...item.productUnits]
+            .map((u) => ({ ...u, unitName: formatUnitArabic(u.unitName) }))
+            .sort((a, b) => b.conversionFactor - a.conversionFactor)
         : [];
 
       // Determine active unit
@@ -214,19 +220,21 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
       const hasPackaging = effectivePackSize > 1 || availableUnits.length > 1 || Boolean(pkgUnits.length > 0) || isPharma || isMultiUnits;
 
-      const baseUnitName =
+      const rawBaseUnit =
         baseUnitObj?.unitName ||
         (isPharma
           ? item.unit && item.unit !== 'piece'
             ? item.unit
             : 'قرص'
           : item.unit || terminology.baseUnitDefaultName || 'قطعة');
+      const baseUnitName = formatUnitArabic(rawBaseUnit);
 
-      const packageUnitName =
+      const rawPackageUnit =
         (activeUnit && activeUnit.conversionFactor > 1 ? activeUnit.unitName : null) ||
         item.packageUnitName ||
         pkgUnits[0]?.unitName ||
         (isPharma ? 'علبة' : terminology.packagingTopUnitDefault || 'كرتونة');
+      const packageUnitName = formatUnitArabic(rawPackageUnit);
 
       const unitMode: 'package' | 'base' =
         item.purchaseUnitMode || (hasPackaging && effectivePackSize > 1 ? 'package' : 'base');
@@ -1143,7 +1151,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                         ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
                                         : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                                     }`}
-                                    title={`الشراء بال${u.unitName} (${u.conversionFactor > 1 ? `${u.conversionFactor} ${meta.baseUnitName}` : 'وحدة أساسية'})`}
+                                    title={`الشراء ${formatUnitWithBi(u.unitName)} (${u.conversionFactor > 1 ? `${u.conversionFactor} ${meta.baseUnitName}` : 'وحدة أساسية'})`}
                                   >
                                     {u.conversionFactor > 1 ? (
                                       <Package className="w-3 h-3 shrink-0" />
@@ -1152,7 +1160,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                     ) : (
                                       <Tag className="w-3 h-3 shrink-0" />
                                     )}
-                                    <span>بال{u.unitName}</span>
+                                    <span>{formatUnitWithBi(u.unitName)}</span>
                                   </button>
                                 );
                               })
@@ -1166,10 +1174,10 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                       ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
                                       : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                                   }`}
-                                  title={`الشراء بال${meta.packageUnitName}`}
+                                  title={`الشراء ${formatUnitWithBi(meta.packageUnitName)}`}
                                 >
                                   <Package className="w-3 h-3 shrink-0" />
-                                  <span>بال{meta.packageUnitName}</span>
+                                  <span>{formatUnitWithBi(meta.packageUnitName)}</span>
                                 </button>
                                 <button
                                   type="button"
@@ -1179,10 +1187,10 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                       ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
                                       : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                                   }`}
-                                  title={`الشراء بال${meta.baseUnitName}`}
+                                  title={`الشراء ${formatUnitWithBi(meta.baseUnitName)}`}
                                 >
                                   {isEnabled('feature_pharmacy') ? <Pill className="w-3 h-3 shrink-0" /> : <Tag className="w-3 h-3 shrink-0" />}
-                                  <span>بال{meta.baseUnitName}</span>
+                                  <span>{formatUnitWithBi(meta.baseUnitName)}</span>
                                 </button>
                               </>
                             )}
@@ -1782,6 +1790,10 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 paidAmountPiasters > 0
                   ? paymentSource === 'cash_drawer'
                     ? 'من درج الكاشير'
+                    : paymentSource === 'instapay'
+                    ? 'عبر تحويل إنستاباي'
+                    : paymentSource === 'vodafone_cash'
+                    ? 'عبر محفظة فودافون كاش'
                     : 'كاش خارجي من صاحب المحل'
                   : null
               }
@@ -1804,15 +1816,33 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             {paidAmountPiasters > 0 && (
               <div className="space-y-2">
                 <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted block">
-                  مصدر النقدية المسددة للمورد
+                  طريقة ومصدر السداد المسدد للمورد
                 </label>
                 <CustomSelect
                   value={paymentSource}
-                  onChange={(val) => setPaymentSource(val as 'cash_drawer' | 'external_cash')}
+                  onChange={(val) => setPaymentSource(val as SupplierPaymentSource)}
                   size="lg"
                   options={[
-                    { value: 'cash_drawer', label: 'من درج كاشير المحل (يخصم من نقدية الدرج)' },
-                    { value: 'external_cash', label: 'كاش خارجي من صاحب المحل (لا يخصم من الدرج)' },
+                    {
+                      value: 'cash_drawer',
+                      label: 'من درج كاشير المحل (يخصم من نقدية الدرج)',
+                      icon: <Coins className="w-4 h-4 text-paid dark:text-paid-bright" />,
+                    },
+                    {
+                      value: 'instapay',
+                      label: 'تحويل إنستاباي - InstaPay (لا يخصم من الدرج)',
+                      icon: <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" />,
+                    },
+                    {
+                      value: 'vodafone_cash',
+                      label: 'محفظة فودافون كاش / إلكترونية (لا يخصم من الدرج)',
+                      icon: <Smartphone className="w-4 h-4 text-paid dark:text-paid-bright" />,
+                    },
+                    {
+                      value: 'external_cash',
+                      label: 'كاش خارجي من صاحب المحل (لا يخصم من الدرج)',
+                      icon: <Wallet className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />,
+                    },
                   ]}
                 />
 
@@ -1837,12 +1867,42 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         </div>
                         <p className="leading-relaxed m-0">
                           {(liveDrawerCashPiasters ?? 0) <= 0
-                            ? 'لا يمكن سحب نقدية من درج فارغ لسداد الفاتورة. إذا كان السداد من مالك المحل، يرجى اختيار «كاش خارجي من صاحب المحل» أو تسجيل الفاتورة آجلة.'
-                            : `المبلغ المطلوب (${formatArabicCurrency(paidAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters ?? 0)}). يرجى اختيار «كاش خارجي من صاحب المحل» أو خفض المبلغ المسدد.`}
+                            ? 'لا يمكن سحب نقدية من درج فارغ لسداد الفاتورة. إذا كان السداد إلكترونياً أو من مالك المحل، يرجى اختيار «إنستاباي» أو «فودافون كاش» أو «كاش خارجي من صاحب المحل» أو تسجيل الفاتورة آجلة.'
+                            : `المبلغ المطلوب (${formatArabicCurrency(paidAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters ?? 0)}). يرجى اختيار «إنستاباي» أو «فودافون كاش» أو «كاش خارجي من صاحب المحل» أو خفض المبلغ المسدد.`}
                         </p>
                       </div>
                     )}
                   </>
+                )}
+
+                {paymentSource === 'instapay' && (
+                  <div className="p-2.5 bg-brand-soft/60 dark:bg-brand-dark-soft/60 border border-brand/20 dark:border-brand-bright/30 rounded-lg text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in duration-150">
+                    <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
+                    <div className="space-y-0.5 leading-relaxed">
+                      <span className="font-bold text-brand dark:text-brand-bright block">سداد عبر تحويل إنستاباي (InstaPay):</span>
+                      <span>يتم تسجيل الفاتورة كمسددة إلكترونياً دون خصم أي مبالغ من درج الكاشير أو التأثير على جرد الوردية.</span>
+                    </div>
+                  </div>
+                )}
+
+                {paymentSource === 'vodafone_cash' && (
+                  <div className="p-2.5 bg-paid-soft/60 dark:bg-paid-dark-soft/60 border border-paid/20 dark:border-emerald-800/40 rounded-lg text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in duration-150">
+                    <Smartphone className="w-4 h-4 text-paid dark:text-paid-bright shrink-0 mt-0.5" />
+                    <div className="space-y-0.5 leading-relaxed">
+                      <span className="font-bold text-paid dark:text-paid-bright block">سداد عبر محفظة فودافون كاش:</span>
+                      <span>يتم تسجيل الفاتورة كمسددة إلكترونياً دون خصم أي مبالغ من درج الكاشير أو التأثير على جرد الوردية.</span>
+                    </div>
+                  </div>
+                )}
+
+                {paymentSource === 'external_cash' && (
+                  <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-micro text-ink dark:text-ink-dark flex items-start gap-2 animate-in fade-in duration-150">
+                    <Wallet className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted shrink-0 mt-0.5" />
+                    <div className="space-y-0.5 leading-relaxed">
+                      <span className="font-bold text-ink dark:text-ink-dark block">سداد كاش خارجي من صاحب المحل:</span>
+                      <span>تم دفع المبلغ نقداً من المال الخاص بصاحب المحل ولا يخصم من عهدة الكاشير أو نقدية الدرج.</span>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

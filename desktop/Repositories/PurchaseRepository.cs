@@ -233,7 +233,7 @@ namespace RafiqPOS.Repositories
                                 var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
                                 if (liveBal != null && liveBal.AvailableCashPiasters < purchase.PaidAmountPiasters)
                                 {
-                                    throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد فاتورة الشراء نقداً ({1:N2} ج.م). يرجى اختيار السداد من «كاش خارجي من صاحب المحل» أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, purchase.PaidAmountPiasters / 100.0));
+                                    throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد فاتورة الشراء نقداً ({1:N2} ج.م). يرجى اختيار السداد عبر «إنستاباي» أو «فودافون كاش» أو «كاش خارجي من صاحب المحل» أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, purchase.PaidAmountPiasters / 100.0));
                                 }
                             }
                         }
@@ -651,7 +651,7 @@ namespace RafiqPOS.Repositories
                                     purchase.InvoiceNumber,
                                     purchase.NetCostPiasters / 100.0,
                                     purchase.PaidAmountPiasters / 100.0);
-                                _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_INVOICE", purchase.Id, debtNote, conn, trans);
+                                _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_INVOICE", purchase.Id, debtNote, conn, trans, purchase.PaymentSource);
                             }
                             else if (balanceDelta < 0)
                             {
@@ -660,15 +660,15 @@ namespace RafiqPOS.Repositories
                                 string excessNote = string.Format("سداد بالزيادة (تحت الحساب) من فاتورة شراء #{0} (الزيادة: {1:N2} ج.م)",
                                     purchase.InvoiceNumber,
                                     excessPiasters / 100.0);
-                                _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_OVERPAYMENT", purchase.Id, excessNote, conn, trans);
+                                _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_OVERPAYMENT", purchase.Id, excessNote, conn, trans, purchase.PaymentSource);
                             }
                             else
                             {
                                 // Fully paid on spot (cash): recorded in supplier ledger so it appears in account statement
-                                string cashNote = string.Format("فاتورة شراء #{0} (مسددة نقداً بالكامل: {1:N2} ج.م)",
+                                string cashNote = string.Format("فاتورة شراء #{0} (مسددة بالكامل: {1:N2} ج.م)",
                                     purchase.InvoiceNumber,
                                     purchase.NetCostPiasters / 100.0);
-                                _supplierRepo.AdjustBalance(purchase.SupplierId, 0, "PURCHASE_PAID_CASH", purchase.Id, cashNote, conn, trans);
+                                _supplierRepo.AdjustBalance(purchase.SupplierId, 0, "PURCHASE_PAID_CASH", purchase.Id, cashNote, conn, trans, purchase.PaymentSource);
                             }
                         }
 

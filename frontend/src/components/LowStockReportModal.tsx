@@ -9,6 +9,7 @@ import { invoke } from '../bridge/ipc';
 import type { LowStockReportItem } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { printReport } from '../utils/printReport';
+import { formatUnitArabic } from '../utils/units';
 
 interface LowStockReportModalProps {
   isOpen: boolean;
@@ -231,7 +232,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
                         <td className="p-3 font-mono text-xs text-ink-muted dark:text-ink-dark-muted">{item.barcode || '-'}</td>
                         <td className="p-3 font-bold text-ink dark:text-ink-dark">
                           <div>{item.name}</div>
-                          <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal">{item.unit || 'قطعة'}</span>
+                          <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal">{formatUnitArabic(item.unit)}</span>
                         </td>
                         <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted">{item.categoryName || '-'}</td>
                         <td className="p-3 text-center">

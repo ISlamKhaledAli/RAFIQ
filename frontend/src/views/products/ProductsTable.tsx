@@ -23,6 +23,7 @@ import {
 import type { Product } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
 import { formatCompoundStock, hasOpenPackage } from '../../utils/packaging';
+import { formatUnitArabic } from '../../utils/units';
 import { RafiqTableLoading } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { getStoreTerminology } from '../../utils/storeTerminology';
@@ -281,7 +282,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   : rawUnitLabel;
 
                 const isCompound = (isEnabled('feature_loose_selling') || isEnabled('feature_multi_units')) && ((prod.isLooseSellable && isEnabled('feature_loose_selling')) || (prod.units && prod.units.length > 1 && isEnabled('feature_multi_units'))) && !isKg;
-                const compoundStock = isCompound ? formatCompoundStock(prod.stockQuantityMilli, prod.units, prod.unit || 'قطعة') : null;
+                const compoundStock = isCompound ? formatCompoundStock(prod.stockQuantityMilli, prod.units, baseUnitClean) : null;
                 const openPackage = isCompound && hasOpenPackage(prod.stockQuantityMilli, prod.units);
 
                 const stockPcs = Math.floor(stockQuantityCurrent);
@@ -354,7 +355,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         {isEnabled('feature_multi_units') && prod.units && prod.units.length > 1 && (
                           <span
                             className="shrink-0 px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-micro font-bold rounded-full border border-paid/20 dark:border-paid/30"
-                            title={`وحدات البيع والعبوات المسجلة للصنف:\n${prod.units.map((u) => `• ${u.unitName} (يحتوي على ${u.conversionFactor} ${baseUnitClean})`).join('\n')}`}
+                            title={`وحدات البيع والعبوات المسجلة للصنف:\n${prod.units.map((u) => `• ${formatUnitArabic(u.unitName)} (يحتوي على ${u.conversionFactor} ${baseUnitClean})`).join('\n')}`}
                           >
                             {prod.units.length === 2 ? 'وحدتان' : `${prod.units.length} وحدات`}
                           </span>

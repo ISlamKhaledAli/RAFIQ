@@ -17,6 +17,7 @@ import {
   Zap,
   Banknote,
   Users,
+  ChevronDown,
   type LucideIcon
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
@@ -96,6 +97,10 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   const [historyList, setHistoryList] = useState<DailyClosing[]>([]);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
 
+  // Epay & Wallets details accordion state ("حاجة بتتقفل وتتفتح")
+  const [showEpayDetails, setShowEpayDetails] = useState<boolean>(false);
+  const [activeEpaySubTab, setActiveEpaySubTab] = useState<'terminals' | 'wallets'>('terminals');
+
   const loadPreview = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -129,6 +134,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
       setSavedClosing(null);
       setShowPrintPrompt(false);
       setConfirmSuspiciousDate(false);
+      setShowEpayDetails(false);
+      setActiveEpaySubTab('terminals');
       void loadPreview();
     }
   }, [isOpen, loadPreview]);
@@ -222,6 +229,41 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
   const isMatch = differencePiasters === 0;
   const isShortage = differencePiasters < 0;
+
+  const epayTxList = preview?.epayTransactions || [];
+  const walletTxList = preview?.walletTransactions || [];
+  const epayTerminalsList = preview?.epayTerminalsSummary || [];
+  const walletsSummaryList = preview?.walletsSummary || [];
+  const totalEpayAndWalletTxCount = epayTxList.length + walletTxList.length;
+
+  const formatEpayServiceType = (type: string) => {
+    switch (type) {
+      case 'recharge': return 'شحن رصيد وكروت';
+      case 'bill_payment': return 'دفع فاتورة';
+      case 'cash_out': return 'سحب نقدي (كاش آوت)';
+      default: return type || 'خدمة إلكترونية';
+    }
+  };
+
+  const formatWalletTxType = (type: string) => {
+    switch (type) {
+      case 'cash_in': return 'إيداع للعميل';
+      case 'cash_out': return 'سحب كاش من العميل';
+      case 'pos_sale': return 'سداد فاتورة كاشير';
+      case 'funding': return 'تغذية رصيد الحساب';
+      default: return type || 'معاملة محفظة';
+    }
+  };
+
+  const formatTimeOnly = (isoString?: string) => {
+    if (!isoString) return '—';
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return isoString;
+    }
+  };
 
   const isDirty = !savedClosing && !isAlreadyClosed && (actualCashPiasters > 0 || Boolean(notes.trim()));
 
@@ -702,9 +744,12 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   }`}>
                     <span>
                       {(preview.walletsDrawerCashPiasters || 0) < 0
-                        ? `تم تسليم نقدية لعملاء من الدرج لعمليات إنستاباي ومحافظ: `
-                        : `تم تحصيل نقدية بالدرج من عمليات سحب محافظ وإنستاباي: `}
+                        ? `تم تسليم نقدية لعملاء من الدرج لمعاملات المحافظ وإنستاباي: `
+                        : `صافي نقدية محصلة بالدرج من معاملات المحافظ وإنستاباي: `}
                       <strong>{formatArabicCurrency(Math.abs(preview.walletsDrawerCashPiasters || 0))}</strong>
+                      {walletTxList.length > 0 && (
+                        <span className="text-xs opacity-85 mr-1 font-semibold">({walletTxList.length} معاملة مسجلة)</span>
+                      )}
                     </span>
                     <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">
                       {(preview.walletsDrawerCashPiasters || 0) < 0 ? 'مخصوم تلقائياً من حسبة كاش الدرج أعلاه' : 'مضاف تلقائياً لحسبة كاش الدرج أعلاه'}
@@ -732,6 +777,283 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                     <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">مضافة تلقائياً لحسبة كاش الدرج أعلاه</span>
                   </div>
                 )}
+
+                {/* 2.B Detailed Accordion for All POS Terminals and Wallets Transactions ("حاجة بتتقفل وتتفتح") */}
+                <div className="rounded-2xl border-2 border-line dark:border-line-dark overflow-hidden transition-all bg-surface-2 dark:bg-surface-dark-2 shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setShowEpayDetails((prev) => !prev)}
+                    className="w-full p-4 flex flex-wrap items-center justify-between gap-3 text-right hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shrink-0 border border-paid/20 dark:border-paid/40">
+                        <History className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-ink dark:text-ink-dark text-base">
+                            سجل وتفاصيل كافة حركات الماكينات والمحافظ لليوم
+                          </span>
+                          <span className="text-xs bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright font-bold px-2.5 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/30">
+                            {totalEpayAndWalletTxCount} معاملة مسجلة
+                          </span>
+                        </div>
+                        <span className="text-xs text-ink-muted dark:text-ink-dark-muted block mt-1">
+                          اضغط هنا لفتح أو طي تفاصيل كل ماكينة دفع ومحفظة وحساب إنستاباي بدقة
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark px-3 py-1.5 rounded-lg border border-line dark:border-line-dark">
+                        {showEpayDetails ? 'طي التفاصيل' : 'عرض كافة الحركات'}
+                      </span>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark transition-transform duration-200 ${showEpayDetails ? 'rotate-180 text-brand dark:text-brand-bright' : ''}`}>
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </button>
+
+                  {showEpayDetails && (
+                    <div className="p-5 border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark space-y-5 animate-in fade-in duration-200">
+                      {/* Sub-tabs switcher */}
+                      <div className="flex flex-wrap items-center gap-2 border-b border-line dark:border-line-dark pb-3">
+                        <button
+                          type="button"
+                          onClick={() => setActiveEpaySubTab('terminals')}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                            activeEpaySubTab === 'terminals'
+                              ? 'bg-paid text-white shadow-xs'
+                              : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                          }`}
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          <span>ماكينات الدفع الإلكتروني (فوري / أمان / سوبر باي)</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                            activeEpaySubTab === 'terminals' ? 'bg-white/20 text-white' : 'bg-surface dark:bg-surface-dark text-ink-muted'
+                          }`}>
+                            {epayTxList.length}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setActiveEpaySubTab('wallets')}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                            activeEpaySubTab === 'wallets'
+                              ? 'bg-brand text-white shadow-xs'
+                              : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                          }`}
+                        >
+                          <Smartphone className="w-4 h-4" />
+                          <span>المحافظ الإلكترونية وإنستاباي (فودافون كاش / إنستاباي)</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                            activeEpaySubTab === 'wallets' ? 'bg-white/20 text-white' : 'bg-surface dark:bg-surface-dark text-ink-muted'
+                          }`}>
+                            {walletTxList.length}
+                          </span>
+                        </button>
+                      </div>
+
+                      {/* Content of SubTab 1: Terminals */}
+                      {activeEpaySubTab === 'terminals' && (
+                        <div className="space-y-4">
+                          {/* Terminals summary cards */}
+                          {epayTerminalsList.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {epayTerminalsList.map((term) => (
+                                <div key={term.terminalId} className="p-3.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-sm text-ink dark:text-ink-dark">{term.terminalName}</span>
+                                    <span className="text-xs bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-semibold px-2 py-0.5 rounded-md">
+                                      {term.transactionsCount} عمليات اليوم
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-line/60 dark:border-line-dark/60">
+                                    <div>
+                                      <span className="text-ink-muted dark:text-ink-dark-muted block">الرصيد المتوفر:</span>
+                                      <span className="font-bold text-paid dark:text-paid-bright">{formatArabicCurrency(term.currentBalancePiasters)}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-ink-muted dark:text-ink-dark-muted block">نقدية المحفظة (الشنطة):</span>
+                                      <span className="font-bold text-brand dark:text-brand-bright">{formatArabicCurrency(term.tillCashPiasters)}</span>
+                                    </div>
+                                    <div className="col-span-2 flex items-center justify-between pt-1">
+                                      <span className="text-ink-muted dark:text-ink-dark-muted">صافي الربح والعمولات:</span>
+                                      <span className="font-bold text-paid dark:text-paid-bright">{formatArabicCurrency(term.netProfitPiasters)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Terminals transactions log */}
+                          {epayTxList.length === 0 ? (
+                            <div className="py-8 text-center bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-sm">
+                              لا توجد عمليات منفذة على ماكينات الدفع الإلكتروني لهذا اليوم.
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto rounded-xl border border-line dark:border-line-dark">
+                              <table className="w-full text-right text-xs">
+                                <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
+                                  <tr>
+                                    <th className="py-2.5 px-3">الوقت</th>
+                                    <th className="py-2.5 px-3">الماكينة</th>
+                                    <th className="py-2.5 px-3">الخدمة</th>
+                                    <th className="py-2.5 px-3">المبلغ</th>
+                                    <th className="py-2.5 px-3">العمولة/الربح</th>
+                                    <th className="py-2.5 px-3">الإجمالي المحصل</th>
+                                    <th className="py-2.5 px-3">جهة النقدية</th>
+                                    <th className="py-2.5 px-3">الكاشير / المرجع</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-line/60 dark:divide-line-dark/60 text-ink dark:text-ink-dark">
+                                  {epayTxList.map((tx) => (
+                                    <tr key={tx.id} className="hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors">
+                                      <td className="py-2 px-3 font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">{formatTimeOnly(tx.createdAt)}</td>
+                                      <td className="py-2 px-3 font-semibold whitespace-nowrap">{tx.terminalName}</td>
+                                      <td className="py-2 px-3">
+                                        <div className="flex flex-col">
+                                          <span className="font-bold">{tx.serviceName || formatEpayServiceType(tx.serviceType)}</span>
+                                          <span className="text-xs opacity-75 text-ink-muted dark:text-ink-dark-muted">{formatEpayServiceType(tx.serviceType)}</span>
+                                        </div>
+                                      </td>
+                                      <td className="py-2 px-3 font-bold tabular-nums whitespace-nowrap">{formatArabicCurrency(tx.billAmountPiasters)}</td>
+                                      <td className="py-2 px-3 font-semibold text-paid dark:text-paid-bright tabular-nums whitespace-nowrap">{formatArabicCurrency(tx.netProfitPiasters)}</td>
+                                      <td className="py-2 px-3 font-bold tabular-nums whitespace-nowrap">{formatArabicCurrency(tx.totalReceivedPiasters)}</td>
+                                      <td className="py-2 px-3 whitespace-nowrap">
+                                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                          tx.paymentChannel === 'terminal_till'
+                                            ? 'bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright'
+                                            : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
+                                        }`}>
+                                          {tx.paymentChannel === 'terminal_till' ? 'شنطة الماكينة' : 'درج المحل'}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 px-3 text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
+                                        {tx.cashierName || tx.referenceNumber || '—'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Content of SubTab 2: Wallets */}
+                      {activeEpaySubTab === 'wallets' && (
+                        <div className="space-y-4">
+                          {/* Wallets summary cards */}
+                          {walletsSummaryList.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {walletsSummaryList.map((acc) => (
+                                <div key={acc.accountId} className="p-3.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-bold text-sm text-ink dark:text-ink-dark">{acc.accountName}</span>
+                                    <span className="text-xs bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright font-semibold px-2 py-0.5 rounded-md">
+                                      {acc.transactionsCount} عمليات اليوم
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-line/60 dark:border-line-dark/60">
+                                    <div>
+                                      <span className="text-ink-muted dark:text-ink-dark-muted block">الرصيد المتاح:</span>
+                                      <span className="font-bold text-paid dark:text-paid-bright">{formatArabicCurrency(acc.currentBalancePiasters)}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-ink-muted dark:text-ink-dark-muted block">أثر الدرج:</span>
+                                      <span className={`font-bold ${acc.drawerCashImpactPiasters >= 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
+                                        {formatArabicCurrency(acc.drawerCashImpactPiasters)}
+                                      </span>
+                                    </div>
+                                    <div className="col-span-2 flex items-center justify-between pt-1">
+                                      <span className="text-ink-muted dark:text-ink-dark-muted">أرباح الحساب:</span>
+                                      <span className="font-bold text-paid dark:text-paid-bright">{formatArabicCurrency(acc.netProfitPiasters)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Wallets transactions log */}
+                          {walletTxList.length === 0 ? (
+                            <div className="py-8 text-center bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-sm">
+                              لا توجد عمليات منفذة على المحافظ الإلكترونية أو إنستاباي لهذا اليوم.
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto rounded-xl border border-line dark:border-line-dark">
+                              <table className="w-full text-right text-xs">
+                                <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
+                                  <tr>
+                                    <th className="py-2.5 px-3">الوقت</th>
+                                    <th className="py-2.5 px-3">الحساب / المحفظة</th>
+                                    <th className="py-2.5 px-3">نوع المعاملة</th>
+                                    <th className="py-2.5 px-3">المبلغ</th>
+                                    <th className="py-2.5 px-3">العمولة / الربح</th>
+                                    <th className="py-2.5 px-3">الإجمالي</th>
+                                    <th className="py-2.5 px-3">حركة نقدية الدرج</th>
+                                    <th className="py-2.5 px-3">بيانات العميل / ملاحظات</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-line/60 dark:divide-line-dark/60 text-ink dark:text-ink-dark">
+                                  {walletTxList.map((wtx) => {
+                                    const isDrawerIn = wtx.paymentDestination === 'cash_drawer' && wtx.txType === 'cash_out';
+                                    const isDrawerOut = wtx.paymentDestination === 'cash_drawer' && wtx.txType === 'cash_in';
+                                    return (
+                                      <tr key={wtx.id} className="hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors">
+                                        <td className="py-2 px-3 font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">{formatTimeOnly(wtx.createdAt)}</td>
+                                        <td className="py-2 px-3 font-semibold whitespace-nowrap">{wtx.accountName}</td>
+                                        <td className="py-2 px-3 whitespace-nowrap">
+                                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                            wtx.txType === 'cash_in'
+                                              ? 'bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright'
+                                              : wtx.txType === 'cash_out'
+                                                ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
+                                                : 'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark'
+                                          }`}>
+                                            {formatWalletTxType(wtx.txType)}
+                                          </span>
+                                        </td>
+                                        <td className="py-2 px-3 font-bold tabular-nums whitespace-nowrap">{formatArabicCurrency(wtx.amountPiasters)}</td>
+                                        <td className="py-2 px-3 font-semibold text-paid dark:text-paid-bright tabular-nums whitespace-nowrap">{formatArabicCurrency(wtx.profitPiasters)}</td>
+                                        <td className="py-2 px-3 font-bold tabular-nums whitespace-nowrap">{formatArabicCurrency(wtx.totalCollectedPiasters)}</td>
+                                        <td className="py-2 px-3 whitespace-nowrap">
+                                          {isDrawerIn && (
+                                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright">
+                                              + محصل في الدرج ({formatArabicCurrency(wtx.totalCollectedPiasters)})
+                                            </span>
+                                          )}
+                                          {isDrawerOut && (
+                                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright">
+                                              - مسلّم للعميل ({formatArabicCurrency(wtx.amountPiasters - wtx.profitPiasters)})
+                                            </span>
+                                          )}
+                                          {!isDrawerIn && !isDrawerOut && (
+                                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted">
+                                              {wtx.paymentDestination === 'wallet' ? 'إلكتروني فقط (خارج الدرج)' : wtx.paymentDestination}
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3 text-ink-muted dark:text-ink-dark-muted">
+                                          {wtx.customerPhone ? `${wtx.customerPhone} ` : ''}
+                                          {wtx.customerName ? `(${wtx.customerName}) ` : ''}
+                                          {wtx.notes ? wtx.notes : (!wtx.customerPhone && !wtx.customerName ? '—' : '')}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Profit & Zero-cost alert (Story 84 / Feature #46) */}

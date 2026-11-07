@@ -163,19 +163,20 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     setTimeout(() => setNotification(null), 3500);
   }, []);
 
-  const loadShortages = useCallback(async () => {
+  const loadShortages = useCallback(async (targetStatus?: string) => {
     setLoading(true);
     try {
+      const activeStatus = targetStatus !== undefined ? targetStatus : statusFilter;
       let data: ShortageEntry[] = [];
       try {
         data = await invoke<ShortageEntry[]>('shortages:list', {
-          status: statusFilter === 'all' ? undefined : statusFilter,
+          status: activeStatus === 'all' ? undefined : activeStatus,
           search: searchQuery.trim() || undefined,
           limit: 200,
         });
       } catch {
         data = await invoke<ShortageEntry[]>('shortages:getAll', {
-          status: statusFilter === 'all' ? undefined : statusFilter,
+          status: activeStatus === 'all' ? undefined : activeStatus,
           search: searchQuery.trim() || undefined,
           limit: 200,
         });
@@ -321,13 +322,25 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
         autoList = await invoke<ShortageEntry[]>('shortages:getAuto', { targetCoverDays: 15 });
       }
 
-      if (autoList && autoList.length > 0) {
-        showToast(`تم فحص المخزون وإدراج ${autoList.length} صنف في النواقص`, 'success');
+      const list = autoList || [];
+      const pendingCount = list.filter((item) => item.status === 'pending').length;
+      const orderedCount = list.filter((item) => item.status === 'ordered').length;
+
+      if (pendingCount > 0) {
+        if (orderedCount > 0) {
+          showToast(`تم فحص المخزون: إدراج ${pendingCount} صنف بانتظار الطلب (وتم الحفاظ على ${orderedCount} صنف مطلوب مسبقاً من المورد)`, 'success');
+        } else {
+          showToast(`تم فحص المخزون وإدراج ${pendingCount} صنف في النواقص`, 'success');
+        }
+        setStatusFilter('pending');
+        void loadShortages('pending');
+      } else if (orderedCount > 0) {
+        showToast(`كافة النواقص مكتشفة ومطلوبة بالفعل من الموردين (${orderedCount} صنف في تبويب "تم الطلب")`, 'success');
+        void loadShortages();
       } else {
         showToast('كافة الأصناف متوفرة وأعلى من حدود الأمان ومعدلات الاستهلاك', 'success');
+        void loadShortages();
       }
-      setStatusFilter('pending');
-      void loadShortages();
     } catch {
       showToast('تعذر فحص النواقص التلقائية', 'error');
     } finally {
@@ -782,9 +795,15 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                       </td>
 
                       <td className="px-3 py-2.5">
-                        <div className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                        <div className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 flex-wrap">
                           <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                           <span>{item.productName}</span>
+                          {item.status === 'ordered' && statusFilter === 'all' && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-micro font-bold bg-brand-soft text-brand dark:bg-brand-dark-soft dark:text-brand-bright">
+                              <Truck className="w-2.5 h-2.5" />
+                              تم الطلب
+                            </span>
+                          )}
                         </div>
                         {item.barcode && (
                           <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">{item.barcode}</div>

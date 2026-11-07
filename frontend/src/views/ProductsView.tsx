@@ -73,6 +73,7 @@ import { BulkMinStockModal } from './products/BulkMinStockModal';
 import { StockMovementsTab } from './products/StockMovementsTab';
 import { BatchesTab } from './products/BatchesTab';
 import { ProductsTable } from './products/ProductsTable';
+import { formatUnitArabic } from '../utils/units';
 import { BulkPriceAdjustmentModal } from './products/BulkPriceAdjustmentModal';
 import { StorageLocationsModal } from './products/StorageLocationsModal';
 import { SegmentedTabs, type SegmentedTabOption } from '../components/SegmentedTabs';
@@ -778,8 +779,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       if (requestId !== unitsRequestRef.current) return;
       // An empty list means the product has no unit rows yet, so the base placeholder deletes nothing
       if (Array.isArray(units) && units.length > 0) {
-        setProductUnits(units);
-        setEditingProduct(prev => (prev && prev.id === productId ? { ...prev, units } : prev));
+        const normalizedUnits = units.map(u => ({ ...u, unitName: formatUnitArabic(u.unitName) }));
+        setProductUnits(normalizedUnits);
+        setEditingProduct(prev => (prev && prev.id === productId ? { ...prev, units: normalizedUnits } : prev));
       }
       setUnitsLoadState('ready');
     }).catch(() => {
@@ -841,7 +843,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setUnit(u);
 
     // Show what the list has, but Save stays blocked until the authoritative units are loaded
-    setProductUnits(prod.units && prod.units.length > 0 ? prod.units : [{
+    setProductUnits(prod.units && prod.units.length > 0 ? prod.units.map(u => ({ ...u, unitName: formatUnitArabic(u.unitName) })) : [{
       unitName: u === 'kg' ? 'كيلو' : 'قطعة',
       conversionFactor: 1,
       isBaseUnit: true,
@@ -1095,7 +1097,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             sellPricePiasters: pricePiasters,
             costPricePiasters: costPiasters,
             barcode: primaryBarcode || u.barcode || '',
-            unitName: u.unitName.trim() || (unit === 'kg' ? 'كيلو' : 'قطعة'),
+            unitName: formatUnitArabic(u.unitName.trim()) || (unit === 'kg' ? 'كيلو' : 'قطعة'),
             isDivisible: unit === 'kg' || u.isDivisible
           };
         } else {

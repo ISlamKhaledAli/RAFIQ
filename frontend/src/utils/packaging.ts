@@ -1,4 +1,5 @@
 import type { ProductUnit } from '../types/models';
+import { formatUnitArabic } from './units';
 
 /**
  * دالة تنسيق المخزون المركب (Compound Stock Display)
@@ -9,8 +10,10 @@ export function formatCompoundStock(
   units?: ProductUnit[] | null,
   baseUnitName: string = 'قطعة'
 ): string {
+  const localizedBase = formatUnitArabic(baseUnitName);
+
   if (stockMilli === 0) {
-    return `0 ${baseUnitName}`;
+    return `0 ${localizedBase}`;
   }
 
   const isNegative = stockMilli < 0;
@@ -19,18 +22,19 @@ export function formatCompoundStock(
   if (!units || units.length <= 1) {
     const qty = absStockMilli / 1000;
     const formatted = qty % 1 === 0 ? qty.toString() : qty.toFixed(2);
-    return `${isNegative ? '-' : ''}${formatted} ${baseUnitName}`;
+    return `${isNegative ? '-' : ''}${formatted} ${localizedBase}`;
   }
 
   // Filter and sort units descending by conversion factor
   const validUnits = units
-    .filter(u => u.conversionFactor > 0)
+    .filter(u => u && u.conversionFactor > 0)
+    .map(u => ({ ...u, unitName: formatUnitArabic(u.unitName) }))
     .sort((a, b) => b.conversionFactor - a.conversionFactor);
 
   if (validUnits.length === 0) {
     const qty = absStockMilli / 1000;
     const formatted = qty % 1 === 0 ? qty.toString() : qty.toFixed(2);
-    return `${isNegative ? '-' : ''}${formatted} ${baseUnitName}`;
+    return `${isNegative ? '-' : ''}${formatted} ${localizedBase}`;
   }
 
   let remainingBaseUnits = Math.floor(absStockMilli / 1000);
@@ -51,7 +55,7 @@ export function formatCompoundStock(
 
   // Find base unit name
   const baseUnit = validUnits.find(u => u.isBaseUnit || u.conversionFactor === 1);
-  const actualBaseName = baseUnit?.unitName || baseUnitName;
+  const actualBaseName = baseUnit?.unitName || localizedBase;
 
   if (remainingBaseUnits > 0 || tailMilli > 0 || parts.length === 0) {
     if (tailMilli > 0) {

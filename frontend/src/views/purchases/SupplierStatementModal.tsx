@@ -111,14 +111,49 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                       {tx.transactionType === 'OPENING_BALANCE' && 'حسابه القديم (أول المدة)'}
                       {tx.transactionType === 'PURCHASE_INVOICE' && 'فاتورة بضاعة جديدة (على الحساب)'}
                       {tx.transactionType === 'PURCHASE_OVERPAYMENT' && 'دفعنا بالزيادة ونزل في حسابنا'}
-                      {tx.transactionType === 'PAYMENT' && 'دفعنا له كاش (سداد)'}
+                      {tx.transactionType === 'PAYMENT' && (
+                        tx.paymentSource === 'instapay'
+                          ? 'سداد دفعة (تحويل إنستاباي)'
+                          : tx.paymentSource === 'vodafone_cash'
+                          ? 'سداد دفعة (فودافون كاش)'
+                          : tx.paymentSource === 'external_cash'
+                          ? 'سداد دفعة كاش خارجي (صاحب المحل)'
+                          : 'سداد دفعة كاش (من الدرج)'
+                      )}
                       {tx.transactionType === 'PAYMENT_CANCEL' && 'قيد عكسي (إلغاء سند صرف)'}
                       {tx.transactionType === 'PURCHASE_RETURN' && 'مرتجع مشتريات (تخفيض دين)'}
-                      {tx.transactionType === 'PURCHASE_PAID_CASH' && 'فاتورة بضاعة مسددة نقداً بالكامل'}
+                      {tx.transactionType === 'PURCHASE_PAID_CASH' && (
+                        tx.paymentSource === 'instapay'
+                          ? 'فاتورة بضاعة مسددة بالكامل (إنستاباي)'
+                          : tx.paymentSource === 'vodafone_cash'
+                          ? 'فاتورة بضاعة مسددة بالكامل (فودافون كاش)'
+                          : tx.paymentSource === 'external_cash'
+                          ? 'فاتورة بضاعة مسددة كاش خارجي (صاحب المحل)'
+                          : 'فاتورة بضاعة مسددة نقداً بالكامل'
+                      )}
                       {tx.transactionType === 'PURCHASE_RETURN_CASH' && 'مرتجع مشتريات مسترد نقداً'}
                       {tx.transactionType === 'MANUAL_ADJUSTMENT' && 'تسوية رصيد يدوية'}
                       {!['OPENING_BALANCE', 'PURCHASE_INVOICE', 'PURCHASE_OVERPAYMENT', 'PAYMENT', 'PAYMENT_CANCEL', 'PURCHASE_RETURN', 'PURCHASE_PAID_CASH', 'PURCHASE_RETURN_CASH', 'MANUAL_ADJUSTMENT'].includes(tx.transactionType) && (tx.transactionType || 'حركة حسابية')}
                     </span>
+                    {tx.paymentSource && (tx.transactionType === 'PAYMENT' || tx.transactionType === 'PURCHASE_PAID_CASH') && (
+                      <span className={`px-2 py-0.5 rounded text-micro font-bold ${
+                        tx.paymentSource === 'instapay'
+                          ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
+                          : tx.paymentSource === 'vodafone_cash'
+                          ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
+                          : tx.paymentSource === 'external_cash'
+                          ? 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted'
+                          : 'bg-paid-soft/50 dark:bg-paid-dark-soft/50 text-paid dark:text-paid-bright'
+                      }`}>
+                        {tx.paymentSource === 'instapay'
+                          ? 'إنستاباي'
+                          : tx.paymentSource === 'vodafone_cash'
+                          ? 'فودافون كاش'
+                          : tx.paymentSource === 'external_cash'
+                          ? 'كاش خارجي'
+                          : 'درج الكاشير'}
+                      </span>
+                    )}
                     <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                       {new Date(tx.createdAt).toLocaleDateString('ar-EG-u-nu-latn', {
                         year: 'numeric',

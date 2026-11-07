@@ -671,6 +671,13 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         message: 'تم إرسال إيصال الفاتورة للطابعة بنجاح (Mock)',
       };
 
+    case 'printer:printRecoveryVoucher':
+      return {
+        success: true,
+        printerUsed: payload?.printerName || 'POS-80 Thermal Printer',
+        message: 'تم إرسال كارت أمان استرجاع البيانات إلى الطابعة بنجاح (Mock)',
+      };
+
     case 'counters:getNextExpectedInvoiceNumber':
       return { nextInvoiceNumber: 1043 };
 
@@ -2584,6 +2591,67 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         cancelledCount: 0,
         isAlreadyClosed: false,
         isDateSuspicious: false,
+        epayTerminalsSummary: [
+          {
+            terminalId: 'term_mock_1',
+            terminalName: 'سوبر باي',
+            provider: 'super_pay',
+            currentBalancePiasters: 116000,
+            transactionsCount: 3,
+            tillCashPiasters: 186500,
+            drawerCashPiasters: 0,
+            netProfitPiasters: 2500,
+          }
+        ],
+        epayTransactions: [
+          {
+            id: 'epay_tx_mock_1',
+            terminalId: 'term_mock_1',
+            terminalName: 'سوبر باي',
+            serviceType: 'cash_out',
+            serviceName: 'سحب نقدي من محفظة أو كارت',
+            billAmountPiasters: 10000,
+            customerFeePiasters: 500,
+            totalReceivedPiasters: 500,
+            netProfitPiasters: 500,
+            paymentChannel: 'terminal_till',
+            cashierName: 'صاحب المحل',
+            referenceNumber: 'REF-1092',
+            createdAt: new Date().toISOString(),
+          }
+        ],
+        walletsSummary: [
+          {
+            accountId: 'acc_mock_instapay',
+            accountName: 'حساب إنستاباي الأساسي',
+            accountType: 'instapay',
+            provider: 'instapay',
+            currentBalancePiasters: 20500,
+            transactionsCount: 2,
+            totalInPiasters: 20500,
+            totalOutPiasters: 0,
+            drawerCashImpactPiasters: 11500,
+            netProfitPiasters: 1500,
+          }
+        ],
+        walletTransactions: [
+          {
+            id: 'wtx_mock_1',
+            accountId: 'acc_mock_instapay',
+            accountName: 'حساب إنستاباي الأساسي',
+            accountType: 'instapay',
+            txType: 'cash_in',
+            amountPiasters: 10000,
+            profitPiasters: 1000,
+            totalCollectedPiasters: 1000,
+            customerPhone: '01012345678',
+            customerName: 'عميل نقدي',
+            paymentDestination: 'cash_drawer',
+            cashierName: 'صاحب المحل',
+            notes: 'إيداع نقدي بالدرج عبر إنستاباي',
+            createdAt: new Date().toISOString(),
+          }
+        ],
       };
     }
 

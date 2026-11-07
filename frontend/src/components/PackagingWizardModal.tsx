@@ -22,6 +22,7 @@ import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert, rafiqConfirm } from '../utils/dialogService';
 import { getStoreTerminology } from '../utils/storeTerminology';
+import { formatUnitArabic } from '../utils/units';
 
 export interface PackagingWizardModalProps {
   isOpen: boolean;
@@ -212,7 +213,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
 
         return {
           id: (u.id && !u.id.startsWith('lvl_')) ? u.id : generateUniqueUnitId(),
-          name: u.unitName,
+          name: formatUnitArabic(u.unitName),
           ratioToNext: isBase ? 1 : Math.max(2, ratio),
           conversionFactor: isBase ? 1 : Math.max(2, u.conversionFactor),
           sellPricePiasters: sellPrice,
@@ -227,7 +228,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     const baseSell = basePricePiasters > 0 ? basePricePiasters : 1000;
     const baseCost = baseCostPiasters > 0 ? baseCostPiasters : 750;
     const baseName = (unitsList && unitsList[0]?.unitName && unitsList[0].unitName !== 'piece')
-      ? unitsList[0].unitName
+      ? formatUnitArabic(unitsList[0].unitName)
       : (terminology.baseUnitDefaultName || 'علبة');
     const baseBarcode = (unitsList && unitsList[0]?.barcode) || '';
     const baseUnitId = (unitsList && unitsList[0]?.id && !unitsList[0].id.startsWith('lvl_')) 

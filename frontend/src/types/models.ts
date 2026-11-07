@@ -684,6 +684,8 @@ export interface BatchSummary {
   totalBatchStockValuePiasters: number;
 }
 
+export type SupplierPaymentSource = 'cash_drawer' | 'external_cash' | 'instapay' | 'vodafone_cash' | 'owner_pocket' | string;
+
 export interface Purchase {
   id: string;
   invoiceNumber: number;
@@ -700,7 +702,7 @@ export interface Purchase {
   status: 'COMPLETED' | 'CANCELLED' | string;
   notes?: string | null;
   createdByUserId?: string | null;
-  paymentSource?: 'cash_drawer' | 'owner_pocket' | 'external_cash' | string;
+  paymentSource?: SupplierPaymentSource;
   createdAt: string;
   updatedAt: string;
   items?: PurchaseItem[];
@@ -741,7 +743,7 @@ export interface SupplierTransaction {
   transactionType: 'OPENING_BALANCE' | 'PURCHASE_INVOICE' | 'PAYMENT' | 'PAYMENT_CANCEL' | 'PURCHASE_RETURN' | 'RETURN' | string;
   referenceId?: string | null;
   amountPiasters: number;
-  paymentSource?: 'cash_drawer' | 'owner_pocket' | 'external_cash' | string;
+  paymentSource?: SupplierPaymentSource;
   balanceAfterPiasters?: number;
   notes?: string | null;
   createdAt: string;
@@ -852,6 +854,67 @@ export interface DailyClosingPreview {
   openShiftsCount?: number;
   isDateSuspicious: boolean;
   dateSuspiciousReason?: string | null;
+  epayTerminalsSummary?: DailyClosingEpayTerminalSummary[];
+  epayTransactions?: DailyClosingEpayTransactionItem[];
+  walletsSummary?: DailyClosingWalletSummary[];
+  walletTransactions?: DailyClosingWalletTransactionItem[];
+}
+
+export interface DailyClosingEpayTerminalSummary {
+  terminalId: string;
+  terminalName: string;
+  provider: string;
+  currentBalancePiasters: number;
+  transactionsCount: number;
+  tillCashPiasters: number;
+  drawerCashPiasters: number;
+  netProfitPiasters: number;
+}
+
+export interface DailyClosingEpayTransactionItem {
+  id: string;
+  terminalId: string;
+  terminalName: string;
+  serviceType: string;
+  serviceName: string;
+  billAmountPiasters: number;
+  customerFeePiasters: number;
+  totalReceivedPiasters: number;
+  netProfitPiasters: number;
+  paymentChannel: string;
+  cashierName?: string;
+  referenceNumber?: string;
+  createdAt: string;
+}
+
+export interface DailyClosingWalletSummary {
+  accountId: string;
+  accountName: string;
+  accountType: string;
+  provider: string;
+  currentBalancePiasters: number;
+  transactionsCount: number;
+  totalInPiasters: number;
+  totalOutPiasters: number;
+  drawerCashImpactPiasters: number;
+  netProfitPiasters: number;
+}
+
+export interface DailyClosingWalletTransactionItem {
+  id: string;
+  accountId: string;
+  accountName: string;
+  accountType: string;
+  txType: string;
+  amountPiasters: number;
+  profitPiasters: number;
+  totalCollectedPiasters: number;
+  customerPhone?: string;
+  customerName?: string;
+  paymentDestination: string;
+  cashierName?: string;
+  notes?: string;
+  createdAt: string;
 }
 
 export interface Expense {

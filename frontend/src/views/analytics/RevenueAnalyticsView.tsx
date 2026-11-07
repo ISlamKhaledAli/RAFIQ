@@ -28,6 +28,7 @@ import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { formatArabicCurrency } from '../../utils/money';
+import { formatUnitArabic } from '../../utils/units';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { SegmentedTabs, type SegmentedTabOption } from '../../components/SegmentedTabs';
@@ -853,7 +854,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                           </div>
                           {item.hasMultipleUnits && item.baseQuantitySoldMilli != null && item.baseUnit && (
                             <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-normal mt-0.5">
-                              (إجمالي: {(item.baseQuantitySoldMilli / 1000).toLocaleString('en-US')} {item.baseUnit === 'piece' ? 'قطعة' : item.baseUnit})
+                              (إجمالي: {(item.baseQuantitySoldMilli / 1000).toLocaleString('en-US')} {formatUnitArabic(item.baseUnit)})
                             </div>
                           )}
                         </td>

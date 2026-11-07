@@ -213,7 +213,7 @@ test('model sections: only what is needed, no zero lines, no internal ids, a rea
 
   const serialized = JSON.stringify(plain);
   assert.ok(!serialized.includes('sale_internal_guid_123'), 'internal sale id must never reach the paper');
-  assert.deepEqual(plain.barcode, { value: '00001042' }, 'the invoice number as 8 digits is the barcode');
+  assert.deepEqual(plain.barcode, { value: 'RFQ-INV-00001042' }, 'distinctive RFQ-INV- barcode is rendered');
   assert.ok(!/\p{Extended_Pictographic}/u.test(serialized), 'no emoji / symbol glyphs on thermal paper');
 });
 
@@ -335,18 +335,30 @@ test('ReceiptModal prints the stored sale by id and no longer truncates names or
   assert.ok(paper.indexOf('model.barcode &&') > paper.indexOf('model.paymentRows.length') && paper.indexOf('model.barcode &&') < paper.indexOf('model.coldChainNotice &&'), 'barcode sits after the payments and before the footer');
 });
 
-test('invoice barcode value: 8 digits, digits only, one formatter (C# twin asserted in S53)', () => {
-  const table = [[1, '00000001'], [42, '00000042'], [1042, '00001042'], [99999999, '99999999'], [100000000, '100000000'], [2147483647, '2147483647'], [0, ''], [-5, ''], [null, ''], [undefined, ''], [Number.NaN, '']];
+test('invoice barcode value: distinctive RFQ-INV- with 8 zero-padded digits (C# twin asserted in S53)', () => {
+  const table = [
+    [1, 'RFQ-INV-00000001'],
+    [42, 'RFQ-INV-00000042'],
+    [1042, 'RFQ-INV-00001042'],
+    [99999999, 'RFQ-INV-99999999'],
+    [100000000, 'RFQ-INV-100000000'],
+    [2147483647, 'RFQ-INV-2147483647'],
+    [0, ''],
+    [-5, ''],
+    [null, ''],
+    [undefined, ''],
+    [Number.NaN, '']
+  ];
   for (const [input, expected] of table) assert.equal(formatInvoiceBarcodeValue(input), expected, String(input));
-  assert.equal(formatInvoiceBarcodeValue(1042.9), '00001042', 'fractions are cut, never rounded up to another invoice');
-  assert.ok(/^\d+$/.test(formatInvoiceBarcodeValue(1042)), 'digits only: Arabic keyboard layouts garble letters');
+  assert.equal(formatInvoiceBarcodeValue(1042.9), 'RFQ-INV-00001042', 'fractions are cut, never rounded up to another invoice');
+  assert.ok(formatInvoiceBarcodeValue(1042).startsWith('RFQ-INV-'), 'distinctive signature prefix');
 });
 
 test('model barcode: only a valid invoice number on a real sale (original or reprint)', () => {
   const sale = makeSale([item('خبز', 1000, 100)]);
-  assert.deepEqual(buildReceiptModel(sale, STORE).barcode, { value: '00001042' });
-  assert.deepEqual(buildReceiptModel(sale, STORE, { isCopy: true }).barcode, { value: '00001042' }, 'a reprint carries the same barcode');
-  assert.deepEqual(buildReceiptModel({ ...sale, invoiceNumber: 123456789 }, STORE).barcode, { value: '123456789' }, 'longer numbers use the full number');
+  assert.deepEqual(buildReceiptModel(sale, STORE).barcode, { value: 'RFQ-INV-00001042' });
+  assert.deepEqual(buildReceiptModel(sale, STORE, { isCopy: true }).barcode, { value: 'RFQ-INV-00001042' }, 'a reprint carries the same barcode');
+  assert.deepEqual(buildReceiptModel({ ...sale, invoiceNumber: 123456789 }, STORE).barcode, { value: 'RFQ-INV-123456789' }, 'longer numbers use the full number');
   for (const invoiceNumber of [0, -1, null, undefined]) {
     assert.equal(buildReceiptModel({ ...sale, invoiceNumber }, STORE).barcode, null, `invoiceNumber ${invoiceNumber}`);
   }
@@ -357,14 +369,25 @@ test('model barcode: only a valid invoice number on a real sale (original or rep
 test('invoice barcode bits: Code 128 subset C, golden strings shared with the C# encoder (S53)', () => {
   assert.equal(encodeInvoiceBarcode('00001042'), '1101001110011011001100110110011001100100010010110111000111101010001100011101011');
   assert.equal(encodeInvoiceBarcode('12345678'), '1101001110010110011100100010110001110001011011000010100100011101101100011101011');
+  assert.equal(encodeInvoiceBarcode('RFQ-INV-00001042'), '1101001000011000101110100011000101101000111010011011100110001000101011100011011101011000100110111001011101111011011001100110110011001100100010010110111000100101100001100011101011');
   assert.equal(encodeInvoiceBarcode('00001042').length, 79);
   assert.equal(encodeInvoiceBarcode('1234567890').length, 90);
   assert.equal(encodeInvoiceBarcode('123456789').length, 101);
+  assert.equal(encodeInvoiceBarcode('RFQ-INV-00001042').length, 178);
   assert.equal(encodeInvoiceBarcode(''), '');
 });
 
 test('invoice barcode layout: whole-dot modules, quiet zones, inside the printable width (C# twin asserted in S53)', () => {
-  const table = [[79, '80mm', 5], [79, '57mm', 3], [90, '80mm', 5], [90, '57mm', 3], [101, '80mm', 4], [101, '57mm', 3]];
+  const table = [
+    [79, '80mm', 5],
+    [79, '57mm', 3],
+    [90, '80mm', 5],
+    [90, '57mm', 3],
+    [101, '80mm', 4],
+    [101, '57mm', 3],
+    [178, '80mm', 2],
+    [178, '57mm', 1],
+  ];
   for (const [modules, paper, moduleDots] of table) {
     const layout = layoutReceiptBarcode(modules, paper);
     assert.equal(layout.moduleDots, moduleDots, `${modules} / ${paper}`);
@@ -681,13 +704,13 @@ test('receipt margins: one top constant, one bottom constant, trimmed page slack
   assert.ok(!/\bp-4\b|\bp-2\.5\b/.test(paper), 'no full-size padding on the paper');
 });
 
-test('the barcode preview has no digits under the bars (the invoice number is already in the header)', () => {
+test('the barcode preview renders the distinctive RFQ-INV- signature underneath the bars', () => {
   const paper = fs.readFileSync(path.resolve('src', 'components', 'ReceiptPaper.tsx'), 'utf8');
   const fn = paper.slice(paper.indexOf('function InvoiceBarcode'), paper.indexOf('export function ReceiptPaper'));
-  assert.ok(fn.includes('<svg') && !/tabular-nums|\{value\}</.test(fn), 'only the bars are rendered');
+  assert.ok(fn.includes('<svg') && fn.includes('{value}'), 'both the bars and distinctive value are rendered');
   const cs = fs.readFileSync(path.resolve('..', 'desktop', 'Services', 'PrinterService.cs'), 'utf8');
   const draw = cs.slice(cs.indexOf('private static void DrawInvoiceBarcode'), cs.indexOf('private static void DrawReceiptLines'));
-  assert.ok(!draw.includes('DrawString'), 'the printed receipt draws no text under the bars');
+  assert.ok(draw.includes('WrapText'), 'the printed receipt draws the distinctive text under the bars');
 });
 
 // Shared with S54_ReceiptItemNameTest.cs (same rows): the printed product name is one clean line.

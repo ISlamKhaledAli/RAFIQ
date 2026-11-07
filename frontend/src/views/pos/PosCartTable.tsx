@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { CartItem } from './types';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
+import { formatUnitArabic } from '../../utils/units';
 
 interface PosCartTableProps {
   cart: CartItem[];
@@ -45,10 +46,8 @@ interface PosCartTableProps {
   onOpenItemModifiers?: (index: number) => void;
 }
 
-const UNIT_LABELS: Record<string, string> = { piece: 'قطعة', pcs: 'قطعة', box: 'علبة', strip: 'شريط' };
-
 const unitLabel = (item: CartItem & { unitName: string }): string =>
-  `${UNIT_LABELS[item.unitName.toLowerCase()] ?? item.unitName}${item.conversionFactor && item.conversionFactor > 1 ? ` = ${item.conversionFactor}` : ''}`;
+  `${formatUnitArabic(item.unitName)}${item.conversionFactor && item.conversionFactor > 1 ? ` = ${item.conversionFactor}` : ''}`;
 
 // Per-line fingerprint used to spot which single line was just added or changed.
 const lineSignature = (item: CartItem): string =>
