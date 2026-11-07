@@ -323,16 +323,20 @@ namespace RafiqPOS.Bridge
                     {
                         var repo = GetEpayRepo();
                         string terminalId = null;
+                        string fundFrom = null;
+                        string fundTo = null;
                         int limit = 50;
 
                         if (request.Payload != null)
                         {
                             JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
                             terminalId = payloadObj["terminalId"] != null ? (string)payloadObj["terminalId"] : null;
+                            fundFrom = payloadObj["fromDate"] != null ? (string)payloadObj["fromDate"] : null;
+                            fundTo = payloadObj["toDate"] != null ? (string)payloadObj["toDate"] : null;
                             limit = payloadObj["limit"] != null ? (int)payloadObj["limit"] : 50;
                         }
 
-                        var fundings = repo.GetFundings(terminalId, limit);
+                        var fundings = repo.GetFundings(terminalId, limit, fundFrom, fundTo);
                         response = BridgeResponse.Ok(request.Id, fundings);
                         return true;
                     }
@@ -351,7 +355,9 @@ namespace RafiqPOS.Bridge
                         }
 
                         var analytics = repo.GetAnalytics(fromDate, toDate);
-                        response = BridgeResponse.Ok(request.Id, analytics);
+                        var analyticsObj = JObject.FromObject(analytics);
+                        analyticsObj["volumeByTypePiasters"] = JObject.FromObject(repo.GetBillVolumeByServiceType(fromDate, toDate));
+                        response = BridgeResponse.Ok(request.Id, analyticsObj);
                         return true;
                     }
 

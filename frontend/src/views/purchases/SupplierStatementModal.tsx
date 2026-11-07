@@ -1,16 +1,26 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Receipt, X } from 'lucide-react';
 import type { Supplier, SupplierTransaction } from '../../types/models';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatMoney } from './types';
 import { DateFilterControl } from '../../components/DateFilterControl';
-import { useDateFilter } from '../../utils/dateFilter';
+import {
+  type DateFilterValue,
+  DEFAULT_DATE_FILTER,
+  describeDateFilter,
+  isDateFilterActive,
+} from '../../utils/dateFilter';
+import { SUPPLIER_STATEMENT_LOAD_LIMIT } from './purchasesQuery';
 
 interface SupplierStatementModalProps {
   isOpen: boolean;
   onClose: () => void;
   supplier: Supplier | null;
   transactions: SupplierTransaction[];
+  /** The period is applied by the backend query, so the parent owns the state and the load. */
+  dateFilter: DateFilterValue;
+  onDateFilterChange: (value: DateFilterValue) => void;
+  loading: boolean;
 }
 
 export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
@@ -18,6 +28,9 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
   onClose,
   supplier,
   transactions,
+  dateFilter,
+  onDateFilterChange,
+  loading,
 }) => {
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen: Boolean(isOpen && supplier),
@@ -25,13 +38,11 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
     isDirty: false,
   });
 
-  const { dateFilter, setDateFilter, filterDate } = useDateFilter();
-
-  const filteredTransactions = useMemo(() => {
-    return transactions.filter((tx) => filterDate(tx.createdAt));
-  }, [transactions, filterDate]);
-
   if (!isOpen || !supplier) return null;
+
+  const isDateActive = isDateFilterActive(dateFilter);
+  const periodLabel = describeDateFilter(dateFilter);
+  const isTruncated = transactions.length >= SUPPLIER_STATEMENT_LOAD_LIMIT;
 
   return (
     <div
@@ -81,29 +92,47 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
             </span>
           </div>
           <div className="text-left text-xs text-ink-muted dark:text-ink-dark-muted">
-            <span>عدد الحركات المسجلة: {transactions.length} حركة</span>
+            <span>
+              {isDateActive ? `الحركات في الفترة (${periodLabel}): ` : 'عدد الحركات المسجلة: '}
+              {transactions.length}{isTruncated ? '+' : ''} حركة
+            </span>
           </div>
         </div>
 
         <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-2 shrink-0">
           <DateFilterControl
             value={dateFilter}
-            onChange={setDateFilter}
+            onChange={onDateFilterChange}
             variant="pills"
             size="sm"
           />
-          <span className="text-xs font-mono font-bold text-ink-muted dark:text-ink-dark-muted">
-            عدد الحركات: {filteredTransactions.length} من {transactions.length}
-          </span>
+          {isTruncated && (
+            <span className="text-xs font-mono font-bold text-warn dark:text-warn-bright">
+              معروض أحدث {SUPPLIER_STATEMENT_LOAD_LIMIT} حركة فقط، حدّد فترة أضيق
+            </span>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto divide-y divide-line dark:divide-line-dark p-2">
-          {filteredTransactions.length === 0 ? (
+          {loading ? (
             <div className="h-40 flex items-center justify-center text-xs text-ink-muted dark:text-ink-dark-muted">
-              {transactions.length === 0 ? 'مفيش حركات مسجلة للمورد ده لحد دلوقتي' : 'لا توجد حركات مسجلة خلال الفترة المحددة'}
+              جاري تحميل كشف حساب المورد...
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="h-40 flex flex-col items-center justify-center gap-2 text-xs text-ink-muted dark:text-ink-dark-muted">
+              <span>{isDateActive ? `لا توجد حركات مسجلة خلال الفترة المحددة (${periodLabel})` : 'مفيش حركات مسجلة للمورد ده لحد دلوقتي'}</span>
+              {isDateActive && (
+                <button
+                  type="button"
+                  onClick={() => onDateFilterChange({ ...DEFAULT_DATE_FILTER })}
+                  className="h-8 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                >
+                  عرض كل الفترات
+                </button>
+              )}
             </div>
           ) : (
-            filteredTransactions.map((tx) => (
+            transactions.map((tx) => (
               <div key={tx.id} className="p-3 flex items-center justify-between text-xs hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                 <div>
                   <div className="flex items-center gap-2">
@@ -111,14 +140,49 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                       {tx.transactionType === 'OPENING_BALANCE' && 'حسابه القديم (أول المدة)'}
                       {tx.transactionType === 'PURCHASE_INVOICE' && 'فاتورة بضاعة جديدة (على الحساب)'}
                       {tx.transactionType === 'PURCHASE_OVERPAYMENT' && 'دفعنا بالزيادة ونزل في حسابنا'}
-                      {tx.transactionType === 'PAYMENT' && 'دفعنا له كاش (سداد)'}
+                      {tx.transactionType === 'PAYMENT' && (
+                        tx.paymentSource === 'instapay'
+                          ? 'سداد دفعة (تحويل إنستاباي)'
+                          : tx.paymentSource === 'vodafone_cash'
+                          ? 'سداد دفعة (فودافون كاش)'
+                          : tx.paymentSource === 'external_cash'
+                          ? 'سداد دفعة كاش خارجي (صاحب المحل)'
+                          : 'سداد دفعة كاش (من الدرج)'
+                      )}
                       {tx.transactionType === 'PAYMENT_CANCEL' && 'قيد عكسي (إلغاء سند صرف)'}
                       {tx.transactionType === 'PURCHASE_RETURN' && 'مرتجع مشتريات (تخفيض دين)'}
-                      {tx.transactionType === 'PURCHASE_PAID_CASH' && 'فاتورة بضاعة مسددة نقداً بالكامل'}
+                      {tx.transactionType === 'PURCHASE_PAID_CASH' && (
+                        tx.paymentSource === 'instapay'
+                          ? 'فاتورة بضاعة مسددة بالكامل (إنستاباي)'
+                          : tx.paymentSource === 'vodafone_cash'
+                          ? 'فاتورة بضاعة مسددة بالكامل (فودافون كاش)'
+                          : tx.paymentSource === 'external_cash'
+                          ? 'فاتورة بضاعة مسددة كاش خارجي (صاحب المحل)'
+                          : 'فاتورة بضاعة مسددة نقداً بالكامل'
+                      )}
                       {tx.transactionType === 'PURCHASE_RETURN_CASH' && 'مرتجع مشتريات مسترد نقداً'}
                       {tx.transactionType === 'MANUAL_ADJUSTMENT' && 'تسوية رصيد يدوية'}
                       {!['OPENING_BALANCE', 'PURCHASE_INVOICE', 'PURCHASE_OVERPAYMENT', 'PAYMENT', 'PAYMENT_CANCEL', 'PURCHASE_RETURN', 'PURCHASE_PAID_CASH', 'PURCHASE_RETURN_CASH', 'MANUAL_ADJUSTMENT'].includes(tx.transactionType) && (tx.transactionType || 'حركة حسابية')}
                     </span>
+                    {tx.paymentSource && (tx.transactionType === 'PAYMENT' || tx.transactionType === 'PURCHASE_PAID_CASH') && (
+                      <span className={`px-2 py-0.5 rounded text-micro font-bold ${
+                        tx.paymentSource === 'instapay'
+                          ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
+                          : tx.paymentSource === 'vodafone_cash'
+                          ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
+                          : tx.paymentSource === 'external_cash'
+                          ? 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted'
+                          : 'bg-paid-soft/50 dark:bg-paid-dark-soft/50 text-paid dark:text-paid-bright'
+                      }`}>
+                        {tx.paymentSource === 'instapay'
+                          ? 'إنستاباي'
+                          : tx.paymentSource === 'vodafone_cash'
+                          ? 'فودافون كاش'
+                          : tx.paymentSource === 'external_cash'
+                          ? 'كاش خارجي'
+                          : 'درج الكاشير'}
+                      </span>
+                    )}
                     <span className="text-micro text-ink-muted dark:text-ink-dark-muted">
                       {new Date(tx.createdAt).toLocaleDateString('ar-EG-u-nu-latn', {
                         year: 'numeric',

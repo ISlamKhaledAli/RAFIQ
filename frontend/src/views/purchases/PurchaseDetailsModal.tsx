@@ -143,12 +143,28 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
 
           <div className="text-left space-y-1">
             <div>
-              <span className="text-ink-muted dark:text-ink-dark-muted">حالة السداد: </span>
+              <span className="text-ink-muted dark:text-ink-dark-muted">حالة ومصدر السداد: </span>
               <span className="font-bold text-ink dark:text-ink-dark">
-                {purchase.paymentStatus === 'PAID' && 'مسددة بالكامل (نقدي)'}
+                {purchase.paymentStatus === 'PAID' && (
+                  purchase.paymentSource === 'instapay'
+                    ? 'مسددة بالكامل (إنستاباي)'
+                    : purchase.paymentSource === 'vodafone_cash'
+                    ? 'مسددة بالكامل (فودافون كاش)'
+                    : purchase.paymentSource === 'external_cash'
+                    ? 'مسددة بالكامل (كاش خارجي)'
+                    : 'مسددة بالكامل (درج الكاشير)'
+                )}
                 {purchase.paymentStatus === 'OVERPAID' && 'سداد بزيادة (تحت الحساب)'}
                 {purchase.paymentStatus === 'CREDIT' && 'آجلة على المورد'}
-                {purchase.paymentStatus === 'PARTIAL' && 'سداد جزئي'}
+                {purchase.paymentStatus === 'PARTIAL' && (
+                  purchase.paymentSource === 'instapay'
+                    ? 'سداد جزئي (إنستاباي)'
+                    : purchase.paymentSource === 'vodafone_cash'
+                    ? 'سداد جزئي (فودافون كاش)'
+                    : purchase.paymentSource === 'external_cash'
+                    ? 'سداد جزئي (كاش خارجي)'
+                    : 'سداد جزئي (درج الكاشير)'
+                )}
               </span>
             </div>
             {purchase.paidAmountPiasters > purchase.netCostPiasters ? (

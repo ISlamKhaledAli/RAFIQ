@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Services;
 
@@ -550,7 +551,7 @@ namespace RafiqPOS.Repositories
                                 var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
                                 if (liveBal != null && liveBal.AvailableCashPiasters < amountPiasters)
                                 {
-                                    throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد دفعة المورد ({1:N2} ج.م). يرجى السداد بنقدية خارجية أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
+                                    throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد دفعة المورد ({1:N2} ج.م). يرجى السداد عبر «إنستاباي» أو «فودافون كاش» أو «كاش خارجي من صاحب المحل» أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
                                 }
                             }
                         }
@@ -565,7 +566,7 @@ namespace RafiqPOS.Repositories
                             Action = "supplier_payment",
                             EntityType = "suppliers",
                             EntityId = supplierId,
-                            DetailsJson = string.Format("{{\"amountPiasters\":{0},\"notes\":\"{1}\"}}", amountPiasters, (notes ?? "").Replace("\"", "\\\"")),
+                            DetailsJson = string.Format("{{\"amountPiasters\":{0},\"paymentSource\":\"{1}\",\"notes\":\"{2}\"}}", amountPiasters, (paymentSource ?? "cash_drawer").Replace("\"", "\\\""), (notes ?? "").Replace("\"", "\\\"")),
                             CreatedAt = DateTime.UtcNow.ToString("o")
                         });
 
@@ -663,18 +664,27 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50)
+        public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50, string dateFrom = null, string dateTo = null)
         {
             var list = new List<SupplierTransaction>();
             if (string.IsNullOrWhiteSpace(supplierId)) return list;
 
+            // dateFrom/dateTo: أيام محلية yyyy-MM-dd شاملة الطرفين مقابل created_at المخزن UTC بصيغة ISO
+            LocalDateRange dayRange = LocalDateRange.Parse(dateFrom, dateTo);
+
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT * FROM supplier_transactions WHERE supplier_id = @supplierId ORDER BY created_at DESC LIMIT @limit;";
+                string sql = @"SELECT * FROM supplier_transactions
+                    WHERE supplier_id = @supplierId
+                      AND (@dayFrom IS NULL OR created_at >= @dayFrom)
+                      AND (@dayToExclusive IS NULL OR created_at < @dayToExclusive)
+                    ORDER BY created_at DESC LIMIT @limit;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@supplierId", supplierId);
+                    cmd.Parameters.AddWithValue("@dayFrom", dayRange.FromUtc.HasValue ? (object)LocalDateRange.ToIsoPrefix(dayRange.FromUtc.Value) : DBNull.Value);
+                    cmd.Parameters.AddWithValue("@dayToExclusive", dayRange.ToExclusiveUtc.HasValue ? (object)LocalDateRange.ToIsoPrefix(dayRange.ToExclusiveUtc.Value) : DBNull.Value);
                     cmd.Parameters.AddWithValue("@limit", limit);
                     using (var reader = cmd.ExecuteReader())
                     {

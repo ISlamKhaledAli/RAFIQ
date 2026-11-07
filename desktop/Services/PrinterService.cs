@@ -28,6 +28,17 @@ namespace RafiqPOS.Services
         public string PrinterUsed { get; set; }
     }
 
+    public class RecoveryVoucherRequest
+    {
+        public string RecoveryCode { get; set; }
+        public string StoreName { get; set; }
+        public string Phone { get; set; }
+        public string StationName { get; set; }
+        public string IssueDate { get; set; }
+        public string PaperWidth { get; set; }
+        public string PrinterName { get; set; }
+    }
+
     /// <summary>
     /// محرك الطباعة الحرارية وأوامر ESC/POS لنظام رفيق POS
     /// يدعم طابعات الإيصالات USB والشبكية (80mm و 57mm) مع طباعة الحروف العربية والشعار
@@ -942,6 +953,9 @@ namespace RafiqPOS.Services
             public string Footer = "";
             public string Signature = "";
             public bool ShowCashier = true;
+            public bool ShowInvoiceNumber = true;
+            public bool ShowPaid = true;
+            public bool ShowChange = true;
             public bool SignatureVisible = true;
             public string SignatureImage = "";
         }
@@ -1432,6 +1446,10 @@ namespace RafiqPOS.Services
             }
             // المفتاح الناقص أو أي قيمة غير "0" تعني إظهار اسم الكاشير
             info.ShowCashier = ReadStoreSetting(store, "receipt_show_cashier") != "0";
+            // نفس القاعدة لمفاتيح رقم الفاتورة والمدفوع والباقي: عرض فقط ولا تغيّر أي قيمة مخزنة
+            info.ShowInvoiceNumber = ReadStoreSetting(store, "receipt_show_invoice_number") != "0";
+            info.ShowPaid = ReadStoreSetting(store, "receipt_show_paid") != "0";
+            info.ShowChange = ReadStoreSetting(store, "receipt_show_change") != "0";
             // توقيع الإيصال: المفتاح الناقص يعني ظاهر وبالصورة الافتراضية المضمّنة؛ "none" بدون صورة؛ وغير ذلك صورة مخصصة
             info.SignatureVisible = ReadStoreSetting(store, SettingsService.SignatureVisibleKey) != "0";
             info.SignatureImage = ReadStoreSetting(store, SettingsService.SignatureImageKey);
@@ -1886,11 +1904,11 @@ namespace RafiqPOS.Services
         private const int InvoiceBarcodeSideMarginDots = 10;
         private const int InvoiceBarcodeQuietModules = 10;
 
-        /// <summary>قيمة باركود الفاتورة: رقم الفاتورة بثمانية أرقام (أصفار بادئة)، أرقام فقط حتى لا تشوّهها لوحة المفاتيح العربية. فارغة إن لم يكن الرقم صالحاً. توأم formatInvoiceBarcodeValue في receiptLayout.ts</summary>
+        /// <summary>قيمة باركود الفاتورة: البصمة الرسمية المميزة لنظام رفيق RFQ-INV- متبوعة بثمانية أرقام (أصفار بادئة). توأم formatInvoiceBarcodeValue في receiptLayout.ts</summary>
         public static string FormatInvoiceBarcodeValue(int invoiceNumber)
         {
             if (invoiceNumber <= 0) return "";
-            return invoiceNumber.ToString("D8", CultureInfo.InvariantCulture);
+            return "RFQ-INV-" + invoiceNumber.ToString("D8", CultureInfo.InvariantCulture);
         }
 
         /// <summary>عرض الموديول بعدد صحيح من النقاط: أكبر قيمة يتسع معها الباركود مع منطقتيه الهادئتين داخل عرض الورق (لا تكبير كسري يطمس الخطوط). توأم layoutReceiptBarcode في receiptLayout.ts</summary>
@@ -1961,6 +1979,9 @@ namespace RafiqPOS.Services
             }
 
             p.Y += heightDots / scale + 1f;
+            // طباعة النص المميز للباركود بخط واضح أسفل الخطوط (RFQ-INV-00001042)
+            p.WrapText(value, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+            p.Y += 2f;
         }
 
         /// <summary>جدول الأصناف: الاسم بعرض كامل ملتفاً، وتحته الكمية | السعر | الإجمالي بأعمدة مقاسة (أو سطرين إذا لم تتسع)</summary>
@@ -2118,9 +2139,12 @@ namespace RafiqPOS.Services
                 p.Separator(p.Dashed, 3f, 4f);
 
                 // 2. رقم الفاتورة + التاريخ والوقت + الكاشير (كتلة مضغوطة)
+                // (إخفاء رقم الفاتورة يحذف نصّه فقط: تبقى التاريخ والوقت، ويبقى الباركود، ويبقى عنوان الحساب المبدئي)
                 string invoiceText = isPreBill
                     ? "حساب مبدئي"
-                    : (sale.InvoiceNumber > 0 ? "فاتورة رقم: " + sale.InvoiceNumber.ToString(CultureInfo.InvariantCulture) : "فاتورة");
+                    : (sale.InvoiceNumber > 0
+                        ? (store.ShowInvoiceNumber ? "فاتورة رقم: " + sale.InvoiceNumber.ToString(CultureInfo.InvariantCulture) : "")
+                        : "فاتورة");
                 p.WrapWithSide(invoiceText, FormatReceiptDateTime(sale.CreatedAt), p.Bold, p.Small);
                 if (store.ShowCashier && !string.IsNullOrWhiteSpace(sale.CashierName))
                 {
@@ -2178,20 +2202,25 @@ namespace RafiqPOS.Services
                 // 6. المدفوعات: طرق الدفع المستخدمة فقط + الباقي + المتبقي الآجل
                 if (!isPreBill && (t.Payments.Count > 0 || t.Remaining > 0))
                 {
-                    p.Separator(p.Dashed, 2f, 3f);
                     var payRows = new List<KeyValuePair<string, string>>();
                     bool single = t.Payments.Count == 1;
-                    for (int i = 0; i < t.Payments.Count; i++)
+                    // إخفاء المدفوع أو الباقي يحذف صفوفه فقط؛ المودع والمتبقي الآجل يُطبعان دائماً
+                    if (store.ShowPaid)
                     {
-                        string label = t.Payments[i].Label;
-                        if (single) label = label == "المدفوع" ? "المدفوع" : "المدفوع (" + label + ")";
-                        payRows.Add(new KeyValuePair<string, string>(label, FormatReceiptMoney(t.Payments[i].Amount)));
+                        for (int i = 0; i < t.Payments.Count; i++)
+                        {
+                            string label = t.Payments[i].Label;
+                            if (single) label = label == "المدفوع" ? "المدفوع" : "المدفوع (" + label + ")";
+                            payRows.Add(new KeyValuePair<string, string>(label, FormatReceiptMoney(t.Payments[i].Amount)));
+                        }
+                        if (t.Payments.Count > 1) payRows.Add(new KeyValuePair<string, string>("إجمالي المدفوع", FormatReceiptMoney(t.Paid)));
                     }
-                    if (t.Payments.Count > 1) payRows.Add(new KeyValuePair<string, string>("إجمالي المدفوع", FormatReceiptMoney(t.Paid)));
-                    if (t.Change > 0) payRows.Add(new KeyValuePair<string, string>("الباقي للعميل", FormatReceiptMoney(t.Change)));
+                    if (store.ShowChange && t.Change > 0) payRows.Add(new KeyValuePair<string, string>("الباقي للعميل", FormatReceiptMoney(t.Change)));
                     if (t.Deposited > 0) payRows.Add(new KeyValuePair<string, string>("مودع في حساب العميل", FormatReceiptMoney(t.Deposited)));
                     if (t.Remaining > 0) payRows.Add(new KeyValuePair<string, string>("المتبقي (آجل على الحساب)", FormatReceiptMoney(t.Remaining)));
 
+                    // لا خط فاصل ولا فراغ إذا لم يبقَ أي صف
+                    if (payRows.Count > 0) p.Separator(p.Dashed, 2f, 3f);
                     float payColW = 0f;
                     for (int i = 0; i < payRows.Count; i++) payColW = Math.Max(payColW, p.TextW(payRows[i].Value, p.Bold));
                     for (int i = 0; i < payRows.Count; i++)
@@ -3553,7 +3582,9 @@ namespace RafiqPOS.Services
             y += 6;
 
             // 3. Financial breakdown
-            drawRow("1. قيمة الفاتورة / الرصيد:", FormatReceiptMoney(tx.BillAmountPiasters) + " ج.م", false);
+            bool isCashOut = string.Equals(tx.ServiceType, "cash_out", StringComparison.OrdinalIgnoreCase);
+            string billLabel = isCashOut ? "1. مبلغ السحب النقدي:" : "1. قيمة الفاتورة / الرصيد:";
+            drawRow(billLabel, FormatReceiptMoney(tx.BillAmountPiasters) + " ج.م", false);
             if (tx.ProviderCommissionPiasters > 0)
             {
                 drawRow("2. عمولة الماكينة:", FormatReceiptMoney(tx.ProviderCommissionPiasters) + " ج.م", false);
@@ -3570,7 +3601,8 @@ namespace RafiqPOS.Services
             }
             y += 6;
 
-            drawTotalRow("إجمالي المطلوب من الزبون:", FormatReceiptMoney(tx.TotalReceivedPiasters) + " ج.م");
+            string totalLabel = isCashOut ? "إجمالي العملية / المطلوب:" : "إجمالي المطلوب من الزبون:";
+            drawTotalRow(totalLabel, FormatReceiptMoney(tx.TotalReceivedPiasters) + " ج.م");
 
             g.DrawLine(Pens.Black, 0, y, contentWidth, y);
             y += 6;
@@ -3887,6 +3919,464 @@ namespace RafiqPOS.Services
             // 4. Footer
             drawBlock("شكراً لتعاملكم معنا!", fontBody, centerFormat, 2f);
             drawBlock("احتفظ بهذا الإيصال للرجوع إليه عند الحاجة", fontSmall, centerFormat, 4f);
+
+            return y;
+        }
+
+        #endregion
+
+        #region Emergency Master Recovery Key Voucher Printing
+
+        /// <summary>
+        /// تحميل صورة ختم الأمان المشفر المعتمد (الدرع وشعار الأمان) من الملفات المتاحة
+        /// </summary>
+        private Image TryLoadSecuritySealImage()
+        {
+            try
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string[] candidates = new string[]
+                {
+                    Path.Combine(baseDir, "security_seal.png"),
+                    Path.Combine(baseDir, "Resources", "security_seal.png"),
+                    Path.Combine(baseDir, "dist", "security_seal.png"),
+                    Path.Combine(baseDir, "wwwroot", "security_seal.png"),
+                    Path.Combine(baseDir, "branding", "security_seal.png")
+                };
+
+                for (int i = 0; i < candidates.Length; i++)
+                {
+                    if (File.Exists(candidates[i]))
+                    {
+                        using (var tempImg = Image.FromFile(candidates[i]))
+                        {
+                            return new Bitmap(tempImg);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر تحميل صورة ختم الأمان للطباعة: " + ex.Message);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// طباعة وثيقة أمان استرجاع البيانات المعتمدة مباشرة على الطابعة الحرارية (بدون فتح نوافذ المتصفح)
+        /// </summary>
+        public PrintResult PrintRecoveryVoucher(RecoveryVoucherRequest request, string printerName = null, string paperWidth = null)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.RecoveryCode))
+            {
+                return new PrintResult { Success = false, Message = "بيانات كود الاسترجاع فارغة." };
+            }
+
+            string targetPrinter = ResolvePrinterName(printerName ?? request.PrinterName);
+            string targetWidth = paperWidth ?? request.PaperWidth ?? GetConfiguredPaperWidth();
+            int printWidth = GetContentWidthPoints(targetWidth);
+
+            if (RawPrinterHelper.IsNetworkPrinter(targetPrinter))
+            {
+                return PrintRecoveryVoucherToNetwork(request, targetPrinter, targetWidth);
+            }
+
+            bool isThermal = IsThermalPrinter(targetPrinter, targetWidth);
+            bool autoCut = GetConfiguredAutoCut();
+
+            if (isThermal)
+            {
+                try
+                {
+                    using (var bmp = RenderRecoveryVoucherToBitmap(request, targetWidth))
+                    {
+                        if (bmp != null)
+                        {
+                            byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, autoCut);
+                            string rawErr;
+                            string rawTitle = "Rafiq Emergency Recovery Key";
+                            if (RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, rawTitle, out rawErr))
+                            {
+                                return new PrintResult
+                                {
+                                    Success = true,
+                                    Message = string.Format("تم إرسال كارت أمان استرجاع البيانات إلى الطابعة '{0}' بنجاح.", targetPrinter),
+                                    PrinterUsed = targetPrinter
+                                };
+                            }
+                            Logger.Warn(string.Format("فشل الإرسال المباشر ESC/POS لكارت الأمان على الطابعة '{0}': {1}، جاري المحاولة عبر Windows PrintDocument.", targetPrinter, rawErr));
+                        }
+                    }
+                }
+                catch (Exception exRaster)
+                {
+                    Logger.Warn("استثناء أثناء طباعة كارت الأمان بـ ESC/POS Raster: " + exRaster.Message);
+                }
+            }
+
+            try
+            {
+                using (var doc = new PrintDocument())
+                {
+                    if (!string.IsNullOrWhiteSpace(targetPrinter))
+                    {
+                        doc.PrinterSettings.PrinterName = targetPrinter;
+                    }
+                    doc.DocumentName = "Rafiq Emergency Recovery Key";
+                    doc.PrintController = new StandardPrintController();
+
+                    doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
+                    {
+                        e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                        e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                        e.Graphics.SmoothingMode = SmoothingMode.None;
+                        e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+
+                        RenderRecoveryVoucherPage(e.Graphics, request, printWidth);
+                        e.HasMorePages = false;
+                    };
+
+                    doc.Print();
+                }
+
+                if (autoCut)
+                {
+                    try
+                    {
+                        string cutErr;
+                        RawPrinterHelper.SendPaperCut(targetPrinter, out cutErr);
+                    }
+                    catch { }
+                }
+
+                return new PrintResult
+                {
+                    Success = true,
+                    Message = string.Format("تم إرسال كارت أمان استرجاع البيانات إلى الطابعة '{0}' بنجاح.", targetPrinter),
+                    PrinterUsed = targetPrinter
+                };
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(string.Format("فشل طباعة كارت الأمان: {0}", ex.Message), ex);
+                return new PrintResult
+                {
+                    Success = false,
+                    Message = "خطأ أثناء الطباعة: " + ex.Message,
+                    PrinterUsed = targetPrinter
+                };
+            }
+        }
+
+        private PrintResult PrintRecoveryVoucherToNetwork(RecoveryVoucherRequest request, string networkTarget, string paperWidth)
+        {
+            try
+            {
+                using (var bmp = RenderRecoveryVoucherToBitmap(request, paperWidth))
+                {
+                    if (bmp == null)
+                    {
+                        return new PrintResult { Success = false, Message = "فشل توليد صورة كارت الأمان للطباعة الشبكية.", PrinterUsed = networkTarget };
+                    }
+
+                    bool autoCut = GetConfiguredAutoCut();
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, autoCut);
+
+                    string errMsg;
+                    string docTitle = "Rafiq Network Recovery Key";
+                    bool ok = RawPrinterHelper.SendRawBytes(networkTarget, escposBytes, docTitle, out errMsg);
+
+                    return new PrintResult
+                    {
+                        Success = ok,
+                        Message = ok ? "تم إرسال كارت الأمان إلى طابعة الشبكة بنجاح." : ("تعذر الطباعة على طابعة الشبكة: " + errMsg),
+                        PrinterUsed = networkTarget
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("استثناء أثناء طباعة كارت الأمان على طابعة الشبكة: " + ex.Message, ex);
+                return new PrintResult { Success = false, Message = "خطأ في الاتصال بطابعة الشبكة: " + ex.Message, PrinterUsed = networkTarget };
+            }
+        }
+
+        public Bitmap RenderRecoveryVoucherToBitmap(RecoveryVoucherRequest request, string paperWidth = null)
+        {
+            if (request == null) return null;
+            string targetWidth = paperWidth ?? request.PaperWidth ?? GetConfiguredPaperWidth();
+            bool isCompact = IsCompactPaper(targetWidth);
+            int contentWidth = GetContentWidthPoints(targetWidth);
+
+            int pixelWidth = isCompact ? 384 : 576;
+            float scale = (float)pixelWidth / (float)contentWidth;
+
+            // تمريرة قياس أولاً لتحديد الارتفاع المطلوب بدقة متناهية
+            float finalY;
+            using (var bmpMeasure = new Bitmap(pixelWidth, 10))
+            using (var gMeasure = Graphics.FromImage(bmpMeasure))
+            {
+                gMeasure.ScaleTransform(scale, scale);
+                gMeasure.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                finalY = RenderRecoveryVoucherPage(gMeasure, request, contentWidth);
+            }
+
+            int finalPixelHeight = Math.Max(50, (int)Math.Ceiling((finalY + 14f) * scale));
+            var bmpFinal = new Bitmap(pixelWidth, finalPixelHeight);
+            using (var g = Graphics.FromImage(bmpFinal))
+            {
+                g.Clear(Color.White);
+                g.ScaleTransform(scale, scale);
+                g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.SmoothingMode = SmoothingMode.None;
+                g.PixelOffsetMode = PixelOffsetMode.Half;
+
+                RenderRecoveryVoucherPage(g, request, contentWidth);
+            }
+
+            return bmpFinal;
+        }
+
+        private float RenderRecoveryVoucherPage(Graphics g, RecoveryVoucherRequest request, int contentWidth)
+        {
+            bool isCompact = (contentWidth <= 210);
+
+            Font fontStore = new Font("Arial", isCompact ? 10f : 12f, FontStyle.Bold);
+            Font fontSub = new Font("Arial", isCompact ? 7.5f : 8.5f, FontStyle.Regular);
+            Font fontDocTitle = new Font("Arial", isCompact ? 9f : 10.5f, FontStyle.Bold);
+            Font fontBanner = new Font("Arial", isCompact ? 7.5f : 8.5f, FontStyle.Bold);
+            Font fontMetaLabel = new Font("Arial", isCompact ? 7f : 8f, FontStyle.Regular);
+            Font fontMetaVal = new Font("Arial", isCompact ? 7f : 8f, FontStyle.Bold);
+            Font fontKeyTitle = new Font("Arial", isCompact ? 8.5f : 9.5f, FontStyle.Bold);
+            Font fontKeyCode = new Font("Courier New", isCompact ? 11f : 13f, FontStyle.Bold);
+            Font fontBarcodeText = new Font("Courier New", isCompact ? 7f : 8f, FontStyle.Regular);
+            Font fontNoticeTitle = new Font("Arial", isCompact ? 8f : 9f, FontStyle.Bold);
+            Font fontNoticeBody = new Font("Arial", isCompact ? 6.8f : 7.5f, FontStyle.Regular);
+            Font fontSig = new Font("Arial", isCompact ? 7.5f : 8.5f, FontStyle.Bold);
+            Font fontFooter = new Font("Arial", isCompact ? 7f : 8f, FontStyle.Regular);
+            Font fontFooterBold = new Font("Arial", isCompact ? 7.5f : 8.5f, FontStyle.Bold);
+
+            StringFormat centerFormat = new StringFormat();
+            centerFormat.Alignment = StringAlignment.Center;
+            centerFormat.LineAlignment = StringAlignment.Center;
+
+            StringFormat rightFormat = new StringFormat();
+            rightFormat.Alignment = StringAlignment.Near;
+            rightFormat.LineAlignment = StringAlignment.Center;
+            rightFormat.FormatFlags = StringFormatFlags.DirectionRightToLeft;
+
+            StringFormat leftFormat = new StringFormat();
+            leftFormat.Alignment = StringAlignment.Far;
+            leftFormat.LineAlignment = StringAlignment.Center;
+
+            Pen penSolid = new Pen(Color.Black, 1.5f);
+            Pen penThin = new Pen(Color.Black, 1f);
+            Pen penDashed = new Pen(Color.Black, 1f);
+            penDashed.DashStyle = DashStyle.Dash;
+
+            float y = 4f;
+            float margin = 4f;
+            float usableWidth = contentWidth - margin * 2;
+
+            // 1. Logo (if available)
+            using (Image logo = TryLoadStoreLogo())
+            {
+                if (logo != null && logo.Width > 0 && logo.Height > 0)
+                {
+                    float maxW = isCompact ? 90f : 130f;
+                    float maxH = isCompact ? 36f : 48f;
+                    float scale = Math.Min(maxW / logo.Width, maxH / logo.Height);
+                    float drawW = logo.Width * scale;
+                    float drawH = logo.Height * scale;
+                    g.DrawImage(logo, (contentWidth - drawW) / 2f, y, drawW, drawH);
+                    y += drawH + 3f;
+                }
+            }
+
+            // 2. Store Name
+            string sName = !string.IsNullOrWhiteSpace(request.StoreName) ? request.StoreName : (_settings != null ? _settings.Get("store_name", "رفيق لإدارة المتاجر ونقاط البيع") : "رفيق لإدارة المتاجر ونقاط البيع");
+            g.DrawString(sName, fontStore, Brushes.Black, new RectangleF(margin, y, usableWidth, isCompact ? 16f : 20f), centerFormat);
+            y += isCompact ? 16f : 20f;
+
+            g.DrawString("نظام رفيق لإدارة المتاجر ونقاط البيع (Rafiq POS)", fontSub, Brushes.Black, new RectangleF(margin, y, usableWidth, 14f), centerFormat);
+            y += 14f;
+
+            if (!string.IsNullOrWhiteSpace(request.Phone))
+            {
+                g.DrawString("هاتف: " + request.Phone.Trim(), fontSub, Brushes.Black, new RectangleF(margin, y, usableWidth, 13f), centerFormat);
+                y += 14f;
+            }
+
+            // Solid Divider
+            g.DrawLine(penSolid, margin, y, margin + usableWidth, y);
+            y += 4f;
+
+            // 3. Document Title
+            g.DrawString("وثيقة أمان استرجاع البيانات المعتمدة", fontDocTitle, Brushes.Black, new RectangleF(margin, y, usableWidth, isCompact ? 16f : 18f), centerFormat);
+            y += isCompact ? 18f : 20f;
+
+            // Inverted banner
+            float bannerH = isCompact ? 16f : 18f;
+            g.FillRectangle(Brushes.Black, margin, y, usableWidth, bannerH);
+            g.DrawString("★ سري للغاية — يُحفظ في مكان آمن ومحمي ★", fontBanner, Brushes.White, new RectangleF(margin, y, usableWidth, bannerH), centerFormat);
+            y += bannerH + 5f;
+
+            // Dashed Divider
+            g.DrawLine(penDashed, margin, y, margin + usableWidth, y);
+            y += 4f;
+
+            // 4. Metadata rows
+            string issueDt = !string.IsNullOrWhiteSpace(request.IssueDate) ? request.IssueDate : DateTime.Now.ToString("yyyy/MM/dd hh:mm:ss tt");
+            string stName = !string.IsNullOrWhiteSpace(request.StationName) ? request.StationName : (_settings != null ? _settings.Get("station_name", "محطة الكاشير الرئيسية (POS-01)") : "محطة الكاشير الرئيسية (POS-01)");
+
+            Action<string, string> drawMetaRow = delegate(string label, string val)
+            {
+                float rowH = 14f;
+                g.DrawString(label, fontMetaLabel, Brushes.Black, new RectangleF(margin, y, usableWidth / 2f, rowH), rightFormat);
+                g.DrawString(val, fontMetaVal, Brushes.Black, new RectangleF(margin + usableWidth / 2f, y, usableWidth / 2f, rowH), leftFormat);
+                y += rowH;
+            };
+
+            drawMetaRow("تاريخ الإصدار:", issueDt);
+            drawMetaRow("المحطة / الجهاز:", stName);
+            drawMetaRow("مستوى الأمان:", "تشفير آمن فائق الحماية");
+            drawMetaRow("جهة الاعتماد:", "المالك الرئيسي للنظام");
+
+            y += 2f;
+            g.DrawLine(penDashed, margin, y, margin + usableWidth, y);
+            y += 5f;
+
+            // 5. Recovery Code Box
+            g.DrawString("كود الاسترجاع المعتمد لمنشأتك:", fontKeyTitle, Brushes.Black, new RectangleF(margin, y, usableWidth, 16f), centerFormat);
+            y += 17f;
+
+            float keyBoxH = isCompact ? 28f : 32f;
+            RectangleF keyBoxRect = new RectangleF(margin + 4f, y, usableWidth - 8f, keyBoxH);
+            g.FillRectangle(Brushes.WhiteSmoke, keyBoxRect);
+            g.DrawRectangle(penSolid, keyBoxRect.X, keyBoxRect.Y, keyBoxRect.Width, keyBoxRect.Height);
+            g.DrawString(request.RecoveryCode, fontKeyCode, Brushes.Black, keyBoxRect, centerFormat);
+            y += keyBoxH + 5f;
+
+            // 6. Barcode
+            string cleanCode = request.RecoveryCode.Trim();
+            string barcodeBits = BarcodeGenerator.EncodeCode128(cleanCode);
+            if (!string.IsNullOrEmpty(barcodeBits))
+            {
+                int quietModules = 10;
+                int totalModules = barcodeBits.Length + 2 * quietModules;
+                int moduleDots = Math.Max(1, (int)(usableWidth / totalModules));
+                float barcodeTotalW = barcodeBits.Length * moduleDots;
+                float barcodeLeft = (contentWidth - barcodeTotalW) / 2f;
+                float barcodeH = isCompact ? 22f : 28f;
+
+                for (int b = 0; b < barcodeBits.Length; b++)
+                {
+                    if (barcodeBits[b] == '1')
+                    {
+                        g.FillRectangle(Brushes.Black, barcodeLeft + b * moduleDots, y, moduleDots, barcodeH);
+                    }
+                }
+                y += barcodeH + 2f;
+
+                g.DrawString("* " + cleanCode + " *", fontBarcodeText, Brushes.Black, new RectangleF(margin, y, usableWidth, 12f), centerFormat);
+                y += 14f;
+            }
+
+            // Dashed Divider
+            g.DrawLine(penDashed, margin, y, margin + usableWidth, y);
+            y += 5f;
+
+            // 7. Security Notice Box
+            float noticeBoxPad = 4f;
+            float noticeInnerW = usableWidth - noticeBoxPad * 2;
+            string noticeText = "• هذا الكود هو المفتاح الرئيسي الوحيد لفك تشفير واسترجاع قاعدة بيانات المحل عند تلف القرص الصلب أو تعطل الكمبيوتر.\n• احتفظ بهذه الورقة في خزانة حديدية أو مكان آمن تماماً خارج هذا الجهاز.\n• يُحظر مشاركة هذا الرمز مع الكاشيرات أو أي طرف غير مخول؛ ولا يُطلب إلا بمعرفة المالك شخصياً والدعم الفني المعتمد لرفيق.";
+            SizeF noticeSize = g.MeasureString(noticeText, fontNoticeBody, (int)noticeInnerW, rightFormat);
+            float noticeBoxH = noticeSize.Height + 22f;
+
+            RectangleF noticeRect = new RectangleF(margin, y, usableWidth, noticeBoxH);
+            g.FillRectangle(Brushes.WhiteSmoke, noticeRect);
+            g.DrawRectangle(penThin, noticeRect.X, noticeRect.Y, noticeRect.Width, noticeRect.Height);
+
+            g.DrawString("تنبيه أمان بالغ الأهمية:", fontNoticeTitle, Brushes.Black, new RectangleF(margin + noticeBoxPad, y + 3f, noticeInnerW, 16f), rightFormat);
+            g.DrawString(noticeText, fontNoticeBody, Brushes.Black, new RectangleF(margin + noticeBoxPad, y + 19f, noticeInnerW, noticeSize.Height + 2f), rightFormat);
+            y += noticeBoxH + 5f;
+
+            // Dashed Divider
+            g.DrawLine(penDashed, margin, y, margin + usableWidth, y);
+            y += 5f;
+
+            // 8. Signatures
+            float colW = usableWidth / 2f;
+            g.DrawString("توقيع المالك / المسؤول", fontSig, Brushes.Black, new RectangleF(margin + colW, y, colW, 14f), centerFormat);
+            g.DrawString("الختم المعتمد", fontSig, Brushes.Black, new RectangleF(margin, y, colW, 14f), centerFormat);
+            y += 28f;
+            g.DrawLine(penThin, margin + colW + 15f, y, margin + usableWidth - 15f, y);
+            g.DrawLine(penThin, margin + 15f, y, margin + colW - 15f, y);
+            y += 6f;
+
+            // 9. Security Seal / Security Emblem Image (صورة تعبر عن الأمان زي اللي في الفاتورة)
+            g.DrawLine(penDashed, margin, y, margin + usableWidth, y);
+            y += 5f;
+
+            using (Image sealImg = TryLoadSecuritySealImage())
+            {
+                if (sealImg != null && sealImg.Width > 0 && sealImg.Height > 0)
+                {
+                    float sealMaxW = usableWidth * 0.90f;
+                    float sealMaxH = isCompact ? 42f : 54f;
+                    float sealScale = Math.Min(sealMaxW / sealImg.Width, sealMaxH / sealImg.Height);
+                    float drawSealW = sealImg.Width * sealScale;
+                    float drawSealH = sealImg.Height * sealScale;
+                    g.DrawImage(sealImg, (contentWidth - drawSealW) / 2f, y, drawSealW, drawSealH);
+                    y += drawSealH + 5f;
+                }
+                else
+                {
+                    float fallbackH = 32f;
+                    RectangleF fbRect = new RectangleF(margin + 6f, y, usableWidth - 12f, fallbackH);
+                    g.DrawRectangle(penThin, fbRect.X, fbRect.Y, fbRect.Width, fbRect.Height);
+                    g.DrawString("بياناتك في أمان.. ورفيق هو الضمان !", fontDocTitle, Brushes.Black, fbRect, centerFormat);
+                    y += fallbackH + 5f;
+                }
+            }
+
+            // 10. Footer
+            g.DrawLine(penSolid, margin, y, margin + usableWidth, y);
+            y += 4f;
+
+            g.DrawString("رفيق للأنظمة والحلول البرمجية", fontFooterBold, Brushes.Black, new RectangleF(margin, y, usableWidth, 14f), centerFormat);
+            y += 14f;
+
+            g.DrawString("للدعم الفني والاستفسار: 01097782965", fontFooter, Brushes.Black, new RectangleF(margin, y, usableWidth, 13f), centerFormat);
+            y += 13f;
+
+            g.DrawString("بياناتك في أمان تام • نظام رفيق", fontFooter, Brushes.Black, new RectangleF(margin, y, usableWidth, 13f), centerFormat);
+            y += 15f;
+
+            // Clean up created pens & fonts
+            fontStore.Dispose();
+            fontSub.Dispose();
+            fontDocTitle.Dispose();
+            fontBanner.Dispose();
+            fontMetaLabel.Dispose();
+            fontMetaVal.Dispose();
+            fontKeyTitle.Dispose();
+            fontKeyCode.Dispose();
+            fontBarcodeText.Dispose();
+            fontNoticeTitle.Dispose();
+            fontNoticeBody.Dispose();
+            fontSig.Dispose();
+            fontFooter.Dispose();
+            fontFooterBold.Dispose();
+
+            centerFormat.Dispose();
+            rightFormat.Dispose();
+            leftFormat.Dispose();
+
+            penSolid.Dispose();
+            penThin.Dispose();
+            penDashed.Dispose();
 
             return y;
         }

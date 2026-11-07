@@ -43,6 +43,16 @@ import { CustomSelect, type SelectOption } from '../../components/CustomSelect';
 import { QuickShortageModal } from '../../components/QuickShortageModal';
 import { PaginationBar } from '../../components/PaginationBar';
 import { usePermission } from '../../utils/usePermission';
+import { DateFilterControl } from '../../components/DateFilterControl';
+import {
+  type DateFilterValue,
+  DEFAULT_DATE_FILTER,
+  describeDateFilter,
+  getDateFilterRange,
+  isDateFilterActive,
+  useToday,
+} from '../../utils/dateFilter';
+import { formatShortageDate, matchesShortageDay } from './shortageDates';
 
 interface ShortagesTabProps {
   onLoadProposalToNewPurchase?: (proposal: ShortagePurchaseProposal) => void;
@@ -57,6 +67,11 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
   const [statusFilter, setStatusFilter] = useState('pending');
   const [urgencyFilter, setUrgencyFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ ...DEFAULT_DATE_FILTER });
+  // Re-renders when the day rolls over so relative presets (today, this week) are re-evaluated
+  useToday();
+  // Concrete local-day bounds, recomputed every render so a rolled-over preset follows the clock
+  const { startDate: rangeStart, endDate: rangeEnd } = getDateFilterRange(dateFilter);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -163,24 +178,25 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     setTimeout(() => setNotification(null), 3500);
   }, []);
 
-  const loadShortages = useCallback(async () => {
+  const loadShortages = useCallback(async (targetStatus?: string) => {
     setLoading(true);
     try {
+      const activeStatus = targetStatus !== undefined ? targetStatus : statusFilter;
       let data: ShortageEntry[] = [];
       try {
         data = await invoke<ShortageEntry[]>('shortages:list', {
-          status: statusFilter === 'all' ? undefined : statusFilter,
+          status: activeStatus === 'all' ? undefined : activeStatus,
           search: searchQuery.trim() || undefined,
           limit: 200,
         });
       } catch {
         data = await invoke<ShortageEntry[]>('shortages:getAll', {
-          status: statusFilter === 'all' ? undefined : statusFilter,
+          status: activeStatus === 'all' ? undefined : activeStatus,
           search: searchQuery.trim() || undefined,
           limit: 200,
         });
       }
-      setShortages(data || []);
+      setShortages(Array.isArray(data) ? data : []);
       setSelectedIds([]);
       setActiveMenu(null);
     } catch {
@@ -207,13 +223,15 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
         if (sourceFilter === 'manual_pos' && itemSrc !== 'manual_pos' && itemSrc !== 'pos') return false;
         if (sourceFilter !== 'manual_pos' && itemSrc !== sourceFilter) return false;
       }
-      return true;
+      return matchesShortageDay(item.createdAt, rangeStart, rangeEnd);
     });
-  }, [shortages, urgencyFilter, sourceFilter]);
+  }, [shortages, urgencyFilter, sourceFilter, rangeStart, rangeEnd]);
 
+  // Any filter change returns to page 1 and drops the row selection, so hidden rows can never be converted
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, urgencyFilter, sourceFilter]);
+    setSelectedIds([]);
+  }, [searchQuery, statusFilter, urgencyFilter, sourceFilter, rangeStart, rangeEnd]);
 
   const paginatedShortages = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
@@ -321,13 +339,25 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
         autoList = await invoke<ShortageEntry[]>('shortages:getAuto', { targetCoverDays: 15 });
       }
 
-      if (autoList && autoList.length > 0) {
-        showToast(`تم فحص المخزون وإدراج ${autoList.length} صنف في النواقص`, 'success');
+      const list = autoList || [];
+      const pendingCount = list.filter((item) => item.status === 'pending').length;
+      const orderedCount = list.filter((item) => item.status === 'ordered').length;
+
+      if (pendingCount > 0) {
+        if (orderedCount > 0) {
+          showToast(`تم فحص المخزون: إدراج ${pendingCount} صنف بانتظار الطلب (وتم الحفاظ على ${orderedCount} صنف مطلوب مسبقاً من المورد)`, 'success');
+        } else {
+          showToast(`تم فحص المخزون وإدراج ${pendingCount} صنف في النواقص`, 'success');
+        }
+        setStatusFilter('pending');
+        void loadShortages('pending');
+      } else if (orderedCount > 0) {
+        showToast(`كافة النواقص مكتشفة ومطلوبة بالفعل من الموردين (${orderedCount} صنف في تبويب "تم الطلب")`, 'success');
+        void loadShortages();
       } else {
         showToast('كافة الأصناف متوفرة وأعلى من حدود الأمان ومعدلات الاستهلاك', 'success');
+        void loadShortages();
       }
-      setStatusFilter('pending');
-      void loadShortages();
     } catch {
       showToast('تعذر فحص النواقص التلقائية', 'error');
     } finally {
@@ -599,6 +629,13 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
               size="sm"
             />
           </div>
+
+          <DateFilterControl
+            value={dateFilter}
+            onChange={setDateFilter}
+            size="sm"
+            selectWidthClass="w-44"
+          />
         </div>
 
         {/* Action Buttons */}
@@ -751,10 +788,23 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                 <tr>
                   <td colSpan={10} className="py-16 text-center text-ink-muted dark:text-ink-dark-muted">
                     <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-30 text-brand dark:text-brand-bright" />
-                    <div className="font-bold text-ink dark:text-ink-dark">لا توجد نواقص مطابقة للشروط المحددة</div>
+                    <div className="font-bold text-ink dark:text-ink-dark">
+                      {isDateFilterActive(dateFilter)
+                        ? `لا توجد نواقص مسجلة في الفترة دي (${describeDateFilter(dateFilter)})`
+                        : 'لا توجد نواقص مطابقة للشروط المحددة'}
+                    </div>
                     <p className="text-micro mt-1 text-ink-muted dark:text-ink-dark-muted">
                       يمكنك تسجيل صنف ناقص يدوياً أو الضغط على "فحص النواقص التلقائي"
                     </p>
+                    {isDateFilterActive(dateFilter) && (
+                      <button
+                        type="button"
+                        onClick={() => setDateFilter({ ...DEFAULT_DATE_FILTER })}
+                        className="mt-2 h-8 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                      >
+                        عرض كل الفترات
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -782,9 +832,15 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                       </td>
 
                       <td className="px-3 py-2.5">
-                        <div className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                        <div className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 flex-wrap">
                           <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                           <span>{item.productName}</span>
+                          {item.status === 'ordered' && statusFilter === 'all' && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-micro font-bold bg-brand-soft text-brand dark:bg-brand-dark-soft dark:text-brand-bright">
+                              <Truck className="w-2.5 h-2.5" />
+                              تم الطلب
+                            </span>
+                          )}
                         </div>
                         {item.barcode && (
                           <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono">{item.barcode}</div>
@@ -899,7 +955,7 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                       </td>
 
                       <td className="px-3 py-2.5 text-center text-micro text-ink-muted dark:text-ink-dark-muted font-mono whitespace-nowrap">
-                        {item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG') : '-'}
+                        {formatShortageDate(item.createdAt)}
                       </td>
 
                       <td className="w-28 px-3 py-2.5 text-center whitespace-nowrap">

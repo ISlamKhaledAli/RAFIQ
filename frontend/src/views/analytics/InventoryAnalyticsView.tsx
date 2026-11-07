@@ -23,6 +23,8 @@ import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
+import { useToday, formatLocalDateTime } from '../../utils/dateFilter';
+import { buildReportPeriodPayload, defaultCustomReportRange } from '../../utils/reportPeriod';
 import { formatArabicCurrency } from '../../utils/money';
 import { DeadStockRadar } from '../../components/analytics/DeadStockRadar';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
@@ -39,9 +41,9 @@ import type {
 const PERIOD_OPTIONS: SelectOption[] = [
   { value: 'today', label: 'اليوم' },
   { value: 'week', label: 'آخر 7 أيام' },
-  { value: 'month', label: 'هذا الشهر (30 يوم)' },
-  { value: '3months', label: 'آخر 3 أشهر' },
-  { value: 'year', label: 'هذا العام' },
+  { value: 'month', label: 'آخر 30 يوماً' },
+  { value: '3months', label: 'آخر 3 أشهر (90 يوماً)' },
+  { value: 'year', label: 'آخر 365 يوماً' },
   { value: 'custom', label: 'فترة مخصصة...' },
 ];
 
@@ -61,12 +63,10 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   onNavigateToPurchases
 }) => {
   const [period, setPeriod] = useState<string>('month');
-  const [customFrom, setCustomFrom] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
-  });
-  const [customTo, setCustomTo] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [customFrom, setCustomFrom] = useState<string>(() => defaultCustomReportRange().from);
+  const [customTo, setCustomTo] = useState<string>(() => defaultCustomReportRange().to);
+  // يتغير عند منتصف الليل فتُعاد قراءة التقارير النسبية (اليوم/أمس/آخر 7 أيام)
+  const today = useToday();
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const showLoading = useSmoothLoading(isLoading, 300);
@@ -81,11 +81,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const payload = {
-        period,
-        fromDate: period === 'custom' ? customFrom : undefined,
-        toDate: period === 'custom' ? customTo : undefined,
-      };
+      const payload = buildReportPeriodPayload(period, customFrom, customTo);
 
       const [invRes, shrinkRes, purRes, lowRes, batchRes] = await Promise.all([
         invoke<InventoryOverviewReport>('reports:getInventoryOverview'),
@@ -111,7 +107,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
     if (isActive) {
       void loadData();
     }
-  }, [isActive, loadData]);
+  }, [isActive, loadData, today]);
 
   useDataSubscription(['products', 'purchases', 'sales', 'dashboard', 'all'], () => {
     void loadData();
@@ -415,7 +411,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                             {formatArabicCurrency(it.financialImpactPiasters)}
                           </td>
                           <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-dark-muted">{it.reason}</td>
-                          <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">{it.createdAt}</td>
+                          <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">{formatLocalDateTime(it.createdAt)}</td>
                         </tr>
                       ))
                     )}

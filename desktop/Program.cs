@@ -20,6 +20,9 @@ namespace RafiqPOS
             Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
             Thread.CurrentThread.CurrentUICulture = System.Globalization.CultureInfo.InvariantCulture;
 
+            // Guarantee child processes (msedgewebview2.exe) are killed automatically if this process exits or is killed
+            ChildProcessTracker.Initialize();
+
 #if !DEBUG
             // WebView2 environment variables override the runtime folder, profile and browser flags passed by MainForm
             // (e.g. remote debugging); clear them for this process only. MainForm still passes the Win7 fixed runtime explicitly.
@@ -750,6 +753,9 @@ namespace RafiqPOS
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
             Logger.Info("تم بدء تشغيل نظام رفيق بنجاح.");
+
+            // Clean up any lingering or orphaned WebView2 processes from previous ungraceful exits
+            WebViewProcessGuard.TerminateOrphanedProcesses();
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

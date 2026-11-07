@@ -10,12 +10,32 @@ namespace RafiqPOS.Common
     /// </summary>
     public static class CompoundStockHelper
     {
+        public static string LocalizeUnit(string unit)
+        {
+            if (string.IsNullOrWhiteSpace(unit)) return "قطعة";
+            string lower = unit.Trim().ToLowerInvariant();
+            if (lower == "piece" || lower == "pieces" || lower == "pcs" || lower == "pc" || lower == "item" || lower == "unit") return "قطعة";
+            if (lower == "box" || lower == "boxes") return "علبة";
+            if (lower == "carton" || lower == "cartons" || lower == "ctn") return "كرتونة";
+            if (lower == "pack" || lower == "packs" || lower == "packet") return "باكت";
+            if (lower == "strip" || lower == "strips") return "شريط";
+            if (lower == "tablet" || lower == "tablets" || lower == "pill" || lower == "pills" || lower == "tab") return "قرص";
+            if (lower == "capsule" || lower == "capsules" || lower == "cap") return "كبسولة";
+            if (lower == "kg" || lower == "kilo" || lower == "kilogram") return "كجم";
+            if (lower == "g" || lower == "gram" || lower == "gm") return "جم";
+            if (lower == "bottle" || lower == "bottles") return "زجاجة";
+            if (lower == "can" || lower == "cans") return "كانز";
+            if (lower == "liter" || lower == "l" || lower == "liters") return "لتر";
+            if (lower == "meter" || lower == "m" || lower == "meters") return "متر";
+            if (lower == "roll" || lower == "rolls") return "بكرة";
+            if (lower == "bag" || lower == "bags") return "كيس";
+            if (lower == "dozen" || lower == "dozens") return "دستة";
+            return unit.Trim();
+        }
+
         public static string FormatCompoundStock(long stockQuantityMilli, List<ProductUnit> units, string baseUnitName)
         {
-            if (string.IsNullOrWhiteSpace(baseUnitName))
-            {
-                baseUnitName = "قطعة";
-            }
+            baseUnitName = LocalizeUnit(baseUnitName);
 
             long totalBasePieces = stockQuantityMilli / 1000;
             if (stockQuantityMilli < 0)
@@ -59,7 +79,7 @@ namespace RafiqPOS.Common
                 long count = remaining / u.ConversionFactor;
                 if (count > 0)
                 {
-                    parts.Add(string.Format("{0} {1}", count, u.UnitName));
+                    parts.Add(string.Format("{0} {1}", count, LocalizeUnit(u.UnitName)));
                     remaining = remaining % u.ConversionFactor;
                 }
             }

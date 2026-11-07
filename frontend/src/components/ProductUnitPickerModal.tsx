@@ -2,6 +2,7 @@ import React, { useEffect, useCallback, useMemo } from 'react';
 import { Package, X, Check } from 'lucide-react';
 import type { Product, ProductUnit } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
+import { formatUnitArabic } from '../utils/units';
 
 interface ProductUnitPickerModalProps {
   isOpen: boolean;
@@ -137,7 +138,7 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-ink dark:text-ink-dark group-hover:text-paid dark:group-hover:text-paid-bright transition-colors">
-                        {u.unitName}
+                        {formatUnitArabic(u.unitName)}
                       </span>
                       {u.isBaseUnit ? (
                         <span className="text-micro font-bold bg-paid text-white px-2 py-0.5 rounded-md flex items-center gap-0.5">
@@ -157,7 +158,7 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
                         <span className="text-danger dark:text-danger-bright font-bold">غير متوفر في المخزن</span>
                       ) : (
                         <span className="text-ink-muted dark:text-ink-dark-muted font-mono">
-                          المتاح: <b className="text-ink dark:text-ink-dark">{availableUnits}</b> {u.unitName}
+                          المتاح: <b className="text-ink dark:text-ink-dark">{availableUnits}</b> {formatUnitArabic(u.unitName)}
                         </span>
                       )}
                     </div>

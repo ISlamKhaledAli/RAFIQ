@@ -7,7 +7,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription, emitDataChanged } from '../utils/eventBus';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { extractProducts, type Supplier, type Purchase, type PurchaseItem, type Product, type SupplierTransaction } from '../types/models';
+import { extractProducts, type Supplier, type Purchase, type PurchaseItem, type Product, type SupplierTransaction, type SupplierPaymentSource } from '../types/models';
 import { PurchasesInvoicesTab } from './purchases/PurchasesInvoicesTab';
 import { NewPurchaseTab } from './purchases/NewPurchaseTab';
 import { SuppliersTab } from './purchases/SuppliersTab';
@@ -25,6 +25,11 @@ import { type PurchasesSubView, type NewPurchaseLineItem } from './purchases/typ
 import { normalizeArabicNumerals } from '../utils/money';
 import { createAttemptKey, isIdempotencyMismatchError } from '../utils/idempotency';
 import { computePurchaseLine, purchaseLinesTotal } from './purchases/purchaseLineMath';
+import { formatUnitArabic } from '../utils/units';
+import { isCashDrawerBlocked } from './purchases/supplierPaymentState';
+import { useUnsavedChangesGuard } from '../context/useUnsavedChanges';
+import { buildPurchasesRequest, buildSupplierTransactionsRequest } from './purchases/purchasesQuery';
+import { DEFAULT_DATE_FILTER, useToday, type DateFilterValue } from '../utils/dateFilter';
 
 export { type PurchasesSubView } from './purchases/types';
 
@@ -59,6 +64,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const [isStatementModalOpen, setIsStatementModalOpen] = useState<boolean>(false);
   const [isExpiryReturnsModalOpen, setIsExpiryReturnsModalOpen] = useState<boolean>(false);
   const [supplierTransactions, setSupplierTransactions] = useState<SupplierTransaction[]>([]);
+  const [statementDateFilter, setStatementDateFilter] = useState<DateFilterValue>({ ...DEFAULT_DATE_FILTER });
+  const [isStatementLoading, setIsStatementLoading] = useState<boolean>(false);
   const [paymentAmountPiasters, setPaymentAmountPiasters] = useState<number>(0);
   const [paymentNotes, setPaymentNotes] = useState<string>('');
 
@@ -67,6 +74,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const [loading, setLoading] = useState<boolean>(false);
   const [purchaseSearchQuery, setPurchaseSearchQuery] = useState<string>('');
   const [purchasePaymentFilter, setPurchasePaymentFilter] = useState<string>('all');
+  const [purchaseDateFilter, setPurchaseDateFilter] = useState<DateFilterValue>({ ...DEFAULT_DATE_FILTER });
+  // Re-evaluates relative presets (today, this week) when the day rolls over while the page stays mounted
+  const today = useToday();
   const [selectedPurchaseDetails, setSelectedPurchaseDetails] = useState<Purchase | null>(null);
 
   // New Purchase Form State
@@ -75,7 +85,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const [costingMethod, setCostingMethod] = useState<'LATEST' | 'WEIGHTED_AVERAGE'>('WEIGHTED_AVERAGE');
   const [purchaseNotes, setPurchaseNotes] = useState<string>('');
   const [discountPiasters, setDiscountPiasters] = useState<number>(0);
-  const [paymentSource, setPaymentSource] = useState<'cash_drawer' | 'external_cash'>('cash_drawer');
+  const [paymentSource, setPaymentSource] = useState<SupplierPaymentSource>('cash_drawer');
   const [customPaidAmountPiasters, setCustomPaidAmountPiasters] = useState<number | null>(null);
   const [lineItems, setLineItems] = useState<NewPurchaseLineItem[]>([]);
   // One key per invoice attempt; a retry reuses it so the server never posts the invoice twice
@@ -152,13 +162,15 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     }
   }, [showArchivedSuppliers, showToast, canManageSuppliers]);
 
-  // Fetch Purchases
+  // Fetch Purchases (the latest response wins when the period changes quickly)
+  const purchasesLoadSeqRef = useRef(0);
   const loadPurchases = useCallback(async () => {
     if (!canViewPurchases) return;
+    const seq = ++purchasesLoadSeqRef.current;
     setLoading(true);
     try {
-      const res = await invoke<Purchase[]>('purchases:getAll', { limit: 150 });
-      if (res) {
+      const res = await invoke<Purchase[]>('purchases:getAll', buildPurchasesRequest(purchaseDateFilter));
+      if (res && seq === purchasesLoadSeqRef.current) {
         setPurchases(res);
       }
     } catch {
@@ -166,21 +178,17 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     } finally {
       setLoading(false);
     }
-  }, [showToast, canViewPurchases]);
+  }, [showToast, canViewPurchases, purchaseDateFilter]);
 
   useEffect(() => {
     let isMounted = true;
     const fetchInitialData = async () => {
       setLoading(true);
       try {
-        const [sups, purs] = await Promise.all([
-          canManageSuppliers ? invoke<Supplier[]>('suppliers:getAll', { includeInactive: showArchivedSuppliers }) : Promise.resolve(null),
-          canViewPurchases ? invoke<Purchase[]>('purchases:getAll', { limit: 150 }) : Promise.resolve(null),
-        ]);
-        if (isMounted) {
-          if (sups) setSuppliers(sups);
-          if (purs) setPurchases(purs);
-        }
+        const sups = canManageSuppliers
+          ? await invoke<Supplier[]>('suppliers:getAll', { includeInactive: showArchivedSuppliers })
+          : null;
+        if (isMounted && sups) setSuppliers(sups);
       } catch {
         if (isMounted) showToast('تعذر تحميل بيانات المشتريات والموردين', 'error');
       } finally {
@@ -191,14 +199,39 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     return () => {
       isMounted = false;
     };
-  }, [showArchivedSuppliers, showToast, canManageSuppliers, canViewPurchases]);
+  }, [showArchivedSuppliers, showToast, canManageSuppliers]);
 
+  // Reloads on activation, on a new period, and when a relative preset rolls over to the next day
   useEffect(() => {
     if (isActive) {
       void loadPurchases();
       void loadSuppliers();
     }
-  }, [isActive, loadPurchases, loadSuppliers]);
+  }, [isActive, loadPurchases, loadSuppliers, today]);
+
+  // Supplier statement: the backend applies the chosen period, the latest response wins
+  const statementSupplierId = isStatementModalOpen && selectedSupplierForModal ? selectedSupplierForModal.id : null;
+  useEffect(() => {
+    if (!statementSupplierId) return;
+    let active = true;
+    setIsStatementLoading(true);
+    invoke<SupplierTransaction[]>(
+      'suppliers:getTransactions',
+      buildSupplierTransactionsRequest(statementSupplierId, statementDateFilter),
+    )
+      .then((txs) => {
+        if (active) setSupplierTransactions(txs || []);
+      })
+      .catch(() => {
+        if (active) showToast('تعذر جلب كشف حساب المورد', 'error');
+      })
+      .finally(() => {
+        if (active) setIsStatementLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [statementSupplierId, statementDateFilter, today, showToast]);
 
   useDataSubscription(['purchases', 'all'], () => {
     void loadPurchases();
@@ -269,12 +302,16 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       : null;
     const detectedPkg = explicitDefaultUnit || nameMatchedUnit || lowestPackageUnit || pkgUnits[0];
 
-    const effectiveBaseUnitName = (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
-      ? baseUnitObj.unitName.trim()
-      : (prod.unit || (isPharma ? 'قرص' : 'قطعة'));
-    const effectivePackageUnitName = (detectedPkg && detectedPkg.unitName && detectedPkg.unitName.trim())
-      ? detectedPkg.unitName.trim()
-      : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined);
+    const effectiveBaseUnitName = formatUnitArabic(
+      (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
+        ? baseUnitObj.unitName.trim()
+        : (prod.unit || (isPharma ? 'قرص' : 'قطعة'))
+    );
+    const effectivePackageUnitName = formatUnitArabic(
+      (detectedPkg && detectedPkg.unitName && detectedPkg.unitName.trim())
+        ? detectedPkg.unitName.trim()
+        : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined)
+    );
     const packFactor = detectedPkg ? detectedPkg.conversionFactor : 0;
     const initialMode: 'package' | 'base' = (isPharma || packFactor > 1) ? 'package' : 'base';
 
@@ -384,9 +421,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           packageUnitName: effectivePackageUnitName,
           purchaseUnitMode: initialMode,
           selectedUnitId: detectedPkg ? detectedPkg.id : baseUnitObj?.id,
-          selectedUnitName: detectedPkg ? detectedPkg.unitName : effectiveBaseUnitName,
+          selectedUnitName: detectedPkg ? formatUnitArabic(detectedPkg.unitName) : effectiveBaseUnitName,
           selectedUnitFactor: packFactor > 1 ? packFactor : 1,
-          productUnits: prod.units,
+          productUnits: prod.units ? prod.units.map(u => ({ ...u, unitName: formatUnitArabic(u.unitName) })) : undefined,
           cartonsInput: initialCartonsInput,
           packSizeInput: packFactor > 1 ? String(packFactor) : '',
           packSize: packFactor > 1 ? packFactor : undefined,
@@ -417,11 +454,33 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     return Math.max(0, netCostPiasters - paidAmountPiasters);
   }, [netCostPiasters, paidAmountPiasters]);
 
-  // Save New Purchase Invoice
-  const handleSavePurchase = async () => {
+  // Empty invoice: also the state after a save, a cancel or a discard (the attempt key is kept so a retry never posts twice)
+  const resetPurchaseDraft = () => {
+    setLineItems([]);
+    setSelectedSupplierId('');
+    setSupplierInvoiceNumber('');
+    setPurchaseNotes('');
+    setDiscountPiasters(0);
+    setCustomPaidAmountPiasters(null);
+    setPaymentSource('cash_drawer');
+    setCostingMethod('WEIGHTED_AVERAGE');
+  };
+
+  const purchaseDraftDirty =
+    lineItems.length > 0 ||
+    selectedSupplierId !== '' ||
+    supplierInvoiceNumber.trim() !== '' ||
+    purchaseNotes.trim() !== '' ||
+    discountPiasters !== 0 ||
+    customPaidAmountPiasters !== null ||
+    paymentSource !== 'cash_drawer' ||
+    costingMethod !== 'WEIGHTED_AVERAGE';
+
+  // Save New Purchase Invoice. Resolves true only after the server accepted the invoice.
+  const handleSavePurchase = async (): Promise<boolean> => {
     if (lineItems.length === 0) {
       showToast('يرجى إضافة صنف واحد على الأقل لفاتورة الشراء', 'error');
-      return;
+      return false;
     }
 
     if (paidAmountPiasters !== netCostPiasters && !selectedSupplierId) {
@@ -432,23 +491,24 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       } else {
         showToast('يجب اختيار المورد أولاً لتسجيل المبلغ المسدد بالزيادة تحت حسابه', 'error');
       }
-      return;
+      return false;
     }
 
     for (const item of lineItems) {
       if (item.quantityUnits <= 0) {
         showToast(`الكمية للصنف ${item.productName} غير صالحة`, 'error');
-        return;
+        return false;
       }
       if (item.unitCostPiasters < 0) {
         showToast(`تكلفة الصنف ${item.productName} لا يمكن أن تكون سالبة`, 'error');
-        return;
+        return false;
       }
     }
 
-    if (purchaseInFlightRef.current) return;
+    if (purchaseInFlightRef.current) return false;
     purchaseInFlightRef.current = true;
     setIsSavingPurchase(true);
+    let saved = false;
 
     try {
       const itemsPayload: Partial<PurchaseItem>[] = lineItems.map((item) => {
@@ -511,15 +571,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       const result = await invoke<Purchase>('purchases:create', payload);
       if (result) {
         purchaseAttemptRef.current.complete();
+        saved = true;
         showToast(`تم تسجيل فاتورة الشراء #${result.invoiceNumber} وزيادة المخزون`, 'success');
-        // Reset form
-        setLineItems([]);
-        setSelectedSupplierId('');
-        setSupplierInvoiceNumber('');
-        setPurchaseNotes('');
-        setDiscountPiasters(0);
-        setCustomPaidAmountPiasters(null);
-        setPaymentSource('cash_drawer');
+        resetPurchaseDraft();
         loadPurchases();
         loadSuppliers();
         emitDataChanged(['purchases', 'products', 'shortages']);
@@ -551,7 +605,43 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       purchaseInFlightRef.current = false;
       setIsSavingPurchase(false);
     }
+    return saved;
   };
+
+  // "Save then continue" from the unsaved-changes dialog: the same drawer-cash rule as the save button, then the same handler
+  const savePurchaseFromGuard = async (): Promise<boolean> => {
+    if (paymentSource === 'cash_drawer' && paidAmountPiasters > 0) {
+      let liveDrawerCashPiasters: number | null = null;
+      try {
+        const res = await invoke<{ availableCashPiasters: number }>('drawer:getBalance');
+        if (res && typeof res.availableCashPiasters === 'number') liveDrawerCashPiasters = res.availableCashPiasters;
+      } catch (err: unknown) {
+        console.error('Failed to read the drawer balance before saving the purchase:', err);
+      }
+      if (isCashDrawerBlocked(paymentSource, paidAmountPiasters, liveDrawerCashPiasters)) {
+        showToast('المبلغ المسدد أكبر من نقدية الدرج المتاحة. اختر «كاش خارجي من صاحب المحل» أو خفض المبلغ المسدد.', 'error');
+        return false;
+      }
+    }
+    const saved = await handleSavePurchase();
+    // The user is leaving: the "print barcode labels" offer must not wait for him on this hidden page
+    if (saved) setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+    return saved;
+  };
+
+  const { saveBarRef: purchaseSaveBarRef } = useUnsavedChangesGuard({
+    id: 'purchases-new-invoice',
+    label: 'فاتورة الشراء الجديدة',
+    isDirty: purchaseDraftDirty,
+    isActive,
+    keepsStateWithinPage: true,
+    // Without lines there is nothing the server could accept, so only discard or stay are offered
+    save: lineItems.length > 0 ? savePurchaseFromGuard : undefined,
+    discard: resetPurchaseDraft,
+    onAttention: () => {
+      if (activeTab !== 'new_invoice') setActiveTab('new_invoice');
+    },
+  });
 
   const handleOpenAddSupplier = () => {
     setSupplierForm({
@@ -660,7 +750,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     e: React.FormEvent,
     effectiveAmount?: number,
     customNotes?: string,
-    paymentSource: 'cash_drawer' | 'external_cash' = 'cash_drawer'
+    paymentSource: SupplierPaymentSource = 'cash_drawer'
   ) => {
     e.preventDefault();
     if (!selectedSupplierForModal) return;
@@ -780,19 +870,17 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     setIsBarcodeModalOpen(true);
   }, [showToast]);
 
-  const handleOpenStatement = async (sup: Supplier) => {
+  const handleOpenStatement = (sup: Supplier) => {
+    // Opens unfiltered; the effect above loads the ledger for the selected period
+    setSupplierTransactions([]);
+    setStatementDateFilter({ ...DEFAULT_DATE_FILTER });
     setSelectedSupplierForModal(sup);
-    try {
-      const txs = await invoke<SupplierTransaction[]>('suppliers:getTransactions', { supplierId: sup.id, limit: 50 });
-      setSupplierTransactions(txs || []);
-      setIsStatementModalOpen(true);
-    } catch {
-      showToast('تعذر جلب كشف حساب المورد', 'error');
-    }
+    setIsStatementModalOpen(true);
   };
 
   const handleRequestCancelNewPurchase = () => {
     if (lineItems.length === 0) {
+      resetPurchaseDraft();
       setActiveTab('invoices');
       return;
     }
@@ -804,7 +892,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       isDanger: true,
       onConfirm: () => {
         setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
-        setLineItems([]);
+        resetPurchaseDraft();
         setActiveTab('invoices');
       },
     });
@@ -872,6 +960,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           <PurchasesInvoicesTab
             purchases={purchases}
             loading={loading}
+            dateFilter={purchaseDateFilter}
+            onDateFilterChange={setPurchaseDateFilter}
             totalSupplierDebtsAmount={totalSupplierDebtsAmount}
             totalSupplierCreditsAmount={totalSupplierCreditsAmount}
             purchaseSearchQuery={purchaseSearchQuery}
@@ -919,6 +1009,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
             onSavePurchase={handleSavePurchase}
             isSaving={isSavingPurchase}
             onRequestCancel={handleRequestCancelNewPurchase}
+            dirty={purchaseDraftDirty}
+            saveBarRef={purchaseSaveBarRef}
           />
         )}
 
@@ -970,12 +1062,16 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                   const isMultiUnits = isEnabled('feature_multi_units');
                   const detectedPkg = prod?.units?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
                   const baseUnitObj = prod?.units?.find((u) => u.isBaseUnit);
-                  const effectiveBase = (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
-                    ? baseUnitObj.unitName.trim()
-                    : (rawUnit || (isPharma ? 'قرص' : 'قطعة'));
-                  const effectivePackage = (detectedPkg && detectedPkg.unitName && detectedPkg.unitName.trim())
-                    ? detectedPkg.unitName.trim()
-                    : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined);
+                  const effectiveBase = formatUnitArabic(
+                    (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
+                      ? baseUnitObj.unitName.trim()
+                      : (rawUnit || (isPharma ? 'قرص' : 'قطعة'))
+                  );
+                  const effectivePackage = formatUnitArabic(
+                    (detectedPkg && detectedPkg.unitName && detectedPkg.unitName.trim())
+                      ? detectedPkg.unitName.trim()
+                      : (isPharma ? 'علبة' : isMultiUnits ? 'كرتونة' : undefined)
+                  );
                   const packFactor = detectedPkg ? detectedPkg.conversionFactor : 0;
                   const initialMode: 'package' | 'base' = (isPharma || packFactor > 1) ? 'package' : 'base';
                   const baseQty = Math.max(1, Math.round(pi.suggestedQuantityMilli / 1000));
@@ -1041,7 +1137,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                     unit: effectiveBase,
                     packageUnitName: effectivePackage,
                     purchaseUnitMode: initialMode,
-                    productUnits: prod?.units,
+                    productUnits: prod?.units ? prod.units.map((u) => ({ ...u, unitName: formatUnitArabic(u.unitName) })) : undefined,
                     cartonsInput: initialMode === 'package' && packFactor > 1 ? String(cartonsCount) : '0',
                     packSizeInput: packFactor > 1 ? String(packFactor) : '',
                     packSize: packFactor > 1 ? packFactor : undefined,
@@ -1111,6 +1207,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         onClose={() => setIsStatementModalOpen(false)}
         supplier={selectedSupplierForModal}
         transactions={supplierTransactions}
+        dateFilter={statementDateFilter}
+        onDateFilterChange={setStatementDateFilter}
+        loading={isStatementLoading}
       />
 
       <PurchaseDetailsModal

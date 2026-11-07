@@ -233,7 +233,7 @@ namespace RafiqPOS.Repositories
                                 var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
                                 if (liveBal != null && liveBal.AvailableCashPiasters < purchase.PaidAmountPiasters)
                                 {
-                                    throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد فاتورة الشراء نقداً ({1:N2} ج.م). يرجى اختيار السداد من «كاش خارجي من صاحب المحل» أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, purchase.PaidAmountPiasters / 100.0));
+                                    throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد فاتورة الشراء نقداً ({1:N2} ج.م). يرجى اختيار السداد عبر «إنستاباي» أو «فودافون كاش» أو «كاش خارجي من صاحب المحل» أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, purchase.PaidAmountPiasters / 100.0));
                                 }
                             }
                         }
@@ -651,7 +651,7 @@ namespace RafiqPOS.Repositories
                                     purchase.InvoiceNumber,
                                     purchase.NetCostPiasters / 100.0,
                                     purchase.PaidAmountPiasters / 100.0);
-                                _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_INVOICE", purchase.Id, debtNote, conn, trans);
+                                _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_INVOICE", purchase.Id, debtNote, conn, trans, purchase.PaymentSource);
                             }
                             else if (balanceDelta < 0)
                             {
@@ -660,15 +660,15 @@ namespace RafiqPOS.Repositories
                                 string excessNote = string.Format("سداد بالزيادة (تحت الحساب) من فاتورة شراء #{0} (الزيادة: {1:N2} ج.م)",
                                     purchase.InvoiceNumber,
                                     excessPiasters / 100.0);
-                                _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_OVERPAYMENT", purchase.Id, excessNote, conn, trans);
+                                _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_OVERPAYMENT", purchase.Id, excessNote, conn, trans, purchase.PaymentSource);
                             }
                             else
                             {
                                 // Fully paid on spot (cash): recorded in supplier ledger so it appears in account statement
-                                string cashNote = string.Format("فاتورة شراء #{0} (مسددة نقداً بالكامل: {1:N2} ج.م)",
+                                string cashNote = string.Format("فاتورة شراء #{0} (مسددة بالكامل: {1:N2} ج.م)",
                                     purchase.InvoiceNumber,
                                     purchase.NetCostPiasters / 100.0);
-                                _supplierRepo.AdjustBalance(purchase.SupplierId, 0, "PURCHASE_PAID_CASH", purchase.Id, cashNote, conn, trans);
+                                _supplierRepo.AdjustBalance(purchase.SupplierId, 0, "PURCHASE_PAID_CASH", purchase.Id, cashNote, conn, trans, purchase.PaymentSource);
                             }
                         }
 
@@ -744,9 +744,11 @@ namespace RafiqPOS.Repositories
             return GetById(purchase.Id);
         }
 
-        public List<Purchase> GetAll(string supplierId = null, string startDate = null, string endDate = null, int limit = 100)
+        public List<Purchase> GetAll(string supplierId = null, string startDate = null, string endDate = null, int limit = 100, string dateFrom = null, string dateTo = null)
         {
             var list = new List<Purchase>();
+            // dateFrom/dateTo: أيام محلية yyyy-MM-dd شاملة الطرفين مقابل invoice_date المخزن UTC بصيغة ISO
+            LocalDateRange dayRange = LocalDateRange.Parse(dateFrom, dateTo);
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -757,6 +759,8 @@ namespace RafiqPOS.Repositories
                     WHERE (@supId IS NULL OR p.supplier_id = @supId)
                       AND (@startDate IS NULL OR p.invoice_date >= @startDate)
                       AND (@endDate IS NULL OR p.invoice_date <= @endDate)
+                      AND (@dayFrom IS NULL OR p.invoice_date >= @dayFrom)
+                      AND (@dayToExclusive IS NULL OR p.invoice_date < @dayToExclusive)
                     ORDER BY p.invoice_number DESC
                     LIMIT @limit;
                 ";
@@ -766,6 +770,8 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@supId", string.IsNullOrWhiteSpace(supplierId) ? (object)DBNull.Value : supplierId);
                     cmd.Parameters.AddWithValue("@startDate", string.IsNullOrWhiteSpace(startDate) ? (object)DBNull.Value : startDate);
                     cmd.Parameters.AddWithValue("@endDate", string.IsNullOrWhiteSpace(endDate) ? (object)DBNull.Value : endDate);
+                    cmd.Parameters.AddWithValue("@dayFrom", dayRange.FromUtc.HasValue ? (object)LocalDateRange.ToIsoPrefix(dayRange.FromUtc.Value) : DBNull.Value);
+                    cmd.Parameters.AddWithValue("@dayToExclusive", dayRange.ToExclusiveUtc.HasValue ? (object)LocalDateRange.ToIsoPrefix(dayRange.ToExclusiveUtc.Value) : DBNull.Value);
                     cmd.Parameters.AddWithValue("@limit", limit);
 
                     using (var reader = cmd.ExecuteReader())

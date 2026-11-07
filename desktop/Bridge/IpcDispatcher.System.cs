@@ -28,7 +28,7 @@ namespace RafiqPOS.Bridge
         private static readonly HashSet<string> STORE_SETTING_KEYS = new HashSet<string>(StringComparer.Ordinal)
         {
             "store_name", "cashier_name", "store_phone", "store_address", "tax_number",
-            "receipt_header", "receipt_footer", "show_receipt_logo", "receipt_show_cashier", "store_logo_url", "logo_variant",
+            "receipt_header", "receipt_footer", "show_receipt_logo", "receipt_show_cashier", "receipt_show_invoice_number", "receipt_show_paid", "receipt_show_change", "store_logo_url", "logo_variant",
             "store_instapay_address", "store_wallet_number"
         };
 
@@ -202,6 +202,31 @@ namespace RafiqPOS.Bridge
             response = null;
             switch (request.Action)
             {
+                case "system:showPrintDialog":
+                    string dialogKind = "browser";
+                    if (request.Payload != null)
+                    {
+                        try
+                        {
+                            Newtonsoft.Json.Linq.JObject dObj = request.Payload as Newtonsoft.Json.Linq.JObject;
+                            if (dObj != null && dObj["kind"] != null)
+                            {
+                                dialogKind = dObj["kind"].ToString();
+                            }
+                        }
+                        catch { }
+                    }
+                    if (RafiqPOS.MainForm.Instance != null)
+                    {
+                        RafiqPOS.MainForm.Instance.ShowPrintDialog(dialogKind);
+                        response = BridgeResponse.Ok(request.Id, new { triggered = true });
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Fail(request.Id, "MAIN_FORM_NOT_READY", "النافذة الرئيسية غير جاهزة لعرض الطباعة");
+                    }
+                    return true;
+
                 case "system:appReady":
                     if (RafiqPOS.MainForm.Instance != null)
                     {

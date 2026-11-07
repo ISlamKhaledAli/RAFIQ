@@ -84,7 +84,7 @@ describe('root console wiring in App', () => {
   });
 
   it('the demo-data notification opens the root data page', () => {
-    assert.ok(/onOpenDemoManagement: \(\) => \{\s*setActiveTab\('root'\);\s*setRootSubTab\('data'\);/.test(app));
+    assert.ok(/onOpenDemoManagement: \(\) => \{\s*navigateTo\('root', \(\) => \{\s*setRootSubTab\('data'\);/.test(app));
   });
 
   it('help from the root console opens the settings help section', () => {
@@ -339,7 +339,7 @@ describe('pre-login screens can always close the program (owner feedback D)', ()
   });
 
   it('the exit button is the same confirm + window:close flow as the sidebar button', () => {
-    const exit = block('const handleExitApp = async () => {', 'const handleNavClick');
+    const exit = block('const confirmAndExitApp = async () => {', 'const handleNavClick');
     assert.ok(exit.includes('rafiqConfirm') && exit.includes("variant: 'danger'") && exit.includes("invoke('window:close')"));
     assert.ok(app.includes("onClick={() => void handleExitApp()}") && app.includes('إغلاق البرنامج'), 'the sidebar button is unchanged');
     assert.ok(!/useState|useEffect|useAuth/.test(read('components/ExitAppButton.tsx')), 'no session dependency');

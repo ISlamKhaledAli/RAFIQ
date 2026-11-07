@@ -16,6 +16,7 @@ import { MoneyInput } from './MoneyInput';
 import { CustomSelect } from './CustomSelect';
 import { RequiredMark } from './RequiredMark';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
+import { formatUnitArabic } from '../utils/units';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
 export interface PurchaseEntryModalProps {
@@ -73,7 +74,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
   // Selected unit or fallback to default
   const selectedUnit = unitsList.find(u => u.id === selectedUnitId) || defaultUnit;
   const factor = selectedUnit && selectedUnit.conversionFactor > 0 ? selectedUnit.conversionFactor : 1;
-  const unitName = selectedUnit ? selectedUnit.unitName : (isKg ? 'كجم' : 'قطعة');
+  const unitName = selectedUnit ? formatUnitArabic(selectedUnit.unitName) : (isKg ? 'كجم' : 'قطعة');
 
   // Calculations
   const parsedQty = parseFloat(normalizeArabicNumerals(purchaseQtyInput));
@@ -200,7 +201,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
                     onChange={(val) => handleUnitChange(val)}
                     options={unitsList.map((u) => ({
                       value: u.id || '',
-                      label: `${u.unitName} ${u.conversionFactor > 1 ? `(تحتوي على ${u.conversionFactor} قطعة)` : '(الوحدة الأساسية)'}`
+                      label: `${formatUnitArabic(u.unitName)} ${u.conversionFactor > 1 ? `(تحتوي على ${u.conversionFactor} قطعة)` : '(الوحدة الأساسية)'}`
                     }))}
                     className="w-full"
                     size="md"

@@ -25,7 +25,7 @@ function Rows({ rows, small = false }: { rows: ReceiptRow[]; small?: boolean }) 
   );
 }
 
-// The real invoice barcode (Code 128) at its printed physical size: whole-dot modules, no digits underneath (the invoice number is in the header), always black on white.
+// The real invoice barcode (Code 128) at its printed physical size: whole-dot modules, distinctive RFQ-INV- signature underneath, always black on white.
 function InvoiceBarcode({ value, paper }: { value: string; paper: ReceiptPaperWidth }) {
   const bits = encodeInvoiceBarcode(value);
   if (!bits) return null;
@@ -54,6 +54,9 @@ function InvoiceBarcode({ value, paper }: { value: string; paper: ReceiptPaperWi
           <rect key={bar.x} x={bar.x} y={0} width={bar.width} height={1} fill="currentColor" />
         ))}
       </svg>
+      <div className="text-micro font-mono font-bold tracking-wider text-black mt-0.5 select-text">
+        {value}
+      </div>
     </div>
   );
 }

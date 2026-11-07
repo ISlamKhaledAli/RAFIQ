@@ -17,7 +17,7 @@ import {
 import type { Customer, CustomerLedgerEntry, CustomerBalanceVerification } from '../../types/models';
 import { CustomSelect } from '../../components/CustomSelect';
 import { DateFilterControl } from '../../components/DateFilterControl';
-import { type DateFilterValue, DEFAULT_DATE_FILTER, getDateFilterRange } from '../../utils/dateFilter';
+import { type DateFilterValue, DEFAULT_DATE_FILTER, isDateFilterActive, describeDateFilter } from '../../utils/dateFilter';
 import { CustomerReceiptVoucherModal } from './CustomerReceiptVoucherModal';
 import { PaginationBar } from '../../components/PaginationBar';
 import { formatArabicCurrency } from '../../utils/money';
@@ -33,10 +33,8 @@ export interface CustomerStatementModalProps {
   auditFeedback: string | null;
   onVerifyBalance: (customerId: string) => Promise<void>;
   onFixBalance: (customerId: string) => Promise<void>;
-  statementStartDate: string;
-  setStatementStartDate: (d: string) => void;
-  statementEndDate: string;
-  setStatementEndDate: (d: string) => void;
+  dateFilter: DateFilterValue;
+  onDateFilterChange: (value: DateFilterValue) => void;
   statementPeriodSummary: {
     openingBalancePiasters: number;
     periodDebitsPiasters: number;
@@ -68,10 +66,8 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   auditFeedback,
   onVerifyBalance,
   onFixBalance,
-  statementStartDate,
-  setStatementStartDate,
-  statementEndDate,
-  setStatementEndDate,
+  dateFilter,
+  onDateFilterChange,
   statementPeriodSummary,
   isStatementLoading,
   filteredStatementEntries,
@@ -91,22 +87,11 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   const [currentPage, setCurrentPage] = React.useState<number>(1);
   const [pageSize, setPageSize] = React.useState<number>(25);
 
-  const [dateFilter, setDateFilter] = React.useState<DateFilterValue>(() => {
-    if (statementStartDate || statementEndDate) {
-      return { preset: 'custom', startDate: statementStartDate, endDate: statementEndDate };
-    }
-    return DEFAULT_DATE_FILTER;
-  });
-
-  React.useEffect(() => {
-    if (!statementStartDate && !statementEndDate) {
-      setDateFilter(DEFAULT_DATE_FILTER);
-    }
-  }, [statementStartDate, statementEndDate]);
+  const dateActive = isDateFilterActive(dateFilter);
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCustomer?.id, statementStartDate, statementEndDate]);
+  }, [selectedCustomer?.id, dateFilter]);
 
   const paginatedStatementEntries = React.useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
@@ -212,16 +197,27 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <span className="text-ink-muted dark:text-ink-dark-muted text-micro font-semibold">الفترة:</span>
               <DateFilterControl
                 value={dateFilter}
-                onChange={(newFilter) => {
-                  setDateFilter(newFilter);
-                  const range = getDateFilterRange(newFilter);
-                  setStatementStartDate(range.startDate);
-                  setStatementEndDate(range.endDate);
-                }}
+                onChange={onDateFilterChange}
                 variant="pills"
                 size="sm"
               />
             </div>
+            {dateActive && (
+              <div className="flex items-center gap-2">
+                <span className="text-micro font-bold text-brand dark:text-brand-bright">
+                  {`الحركات خلال: ${describeDateFilter(dateFilter)} (${filteredStatementEntries.length})`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onDateFilterChange(DEFAULT_DATE_FILTER)}
+                  className="h-6 px-2 flex items-center gap-1 rounded border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-micro font-bold text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer transition-colors"
+                  title="إلغاء الفترة وعرض كل الحركات"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>كل الفترات</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Statement Summary Strip */}
@@ -312,7 +308,19 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             ) : filteredStatementEntries.length === 0 ? (
               <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted text-xs">
                 <AlertCircle className="w-6 h-6 text-ink-muted/40 dark:text-ink-dark-muted/40 mx-auto mb-2" />
-                مفيش حركات مسجلة خلال الفترة دي.
+                {dateActive ? 'مفيش حركات مسجلة خلال الفترة دي.' : 'مفيش حركات مسجلة على حساب الزبون.'}
+                {dateActive && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => onDateFilterChange(DEFAULT_DATE_FILTER)}
+                      className="h-7 px-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>عرض كل الحركات</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-surface dark:bg-surface-dark rounded border border-line dark:border-line-dark overflow-hidden shadow-xs">

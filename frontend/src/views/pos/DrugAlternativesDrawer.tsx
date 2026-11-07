@@ -56,11 +56,12 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
     const trimmedId = id ? id.trim() : '';
     const trimmedName = name ? name.trim() : '';
     try {
-      const list = await invoke<Array<{ productId?: string; freeText?: string; productName?: string; status?: string }>>('shortages:list', { status: 'open' });
+      const list = await invoke<Array<{ productId?: string; freeText?: string; productName?: string; status?: string }>>('shortages:list', { status: 'all' });
       if (Array.isArray(list)) {
         const found = list.some(item => 
-          (Boolean(trimmedId) && Boolean(item.productId) && item.productId === trimmedId) ||
-          (Boolean(trimmedName) && ((item.productName && item.productName.trim() === trimmedName) || (item.freeText && item.freeText.trim() === trimmedName)))
+          (item.status === 'open' || item.status === 'pending' || item.status === 'ordered') &&
+          ((Boolean(trimmedId) && Boolean(item.productId) && item.productId === trimmedId) ||
+           (Boolean(trimmedName) && ((item.productName && item.productName.trim() === trimmedName) || (item.freeText && item.freeText.trim() === trimmedName))))
         );
         setIsRecordedInShortages(found);
       }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Calendar,
   AlertTriangle,
@@ -26,6 +26,15 @@ import { rafiqAlert } from '../../utils/dialogService';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { RequiredMark } from '../../components/RequiredMark';
+import { ExpiryRangeFilter } from '../../components/ExpiryRangeFilter';
+import { describeDateFilter, normalizeDateRange } from '../../utils/dateFilter';
+import {
+  EMPTY_EXPIRY_RANGE,
+  isExpiryRangeActive,
+  matchesExpiryRange,
+  summarizeBatches,
+  type ExpiryRange,
+} from '../../utils/expiryRange';
 
 export interface BatchesTabProps {
   onBatchChanged?: () => void;
@@ -53,6 +62,10 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
   const [alertDays, setAlertDays] = useState<number>(30);
   const [isCustomDays, setIsCustomDays] = useState(false);
   const [customDaysInput, setCustomDaysInput] = useState('30');
+  // Expiry-date range (from/to, inclusive); independent of the alert window, both apply together
+  const [expiryRange, setExpiryRange] = useState<ExpiryRange>({ ...EMPTY_EXPIRY_RANGE });
+  const isExpiryActive = isExpiryRangeActive(expiryRange);
+  const expiryLabel = describeDateFilter({ preset: 'custom', ...normalizeDateRange(expiryRange.startDate, expiryRange.endDate) });
 
   const standardDayOptions = [7, 15, 30, 60, 90, 120, 180, 365];
   const isStandardOption = standardDayOptions.includes(alertDays);
@@ -262,8 +275,29 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
     }
   };
 
+  // Cards follow the expiry range; without a range they keep the backend totals
+  const expirySummary = useMemo(
+    () => (isExpiryActive ? summarizeBatches(batches.filter((b) => matchesExpiryRange(b.expiryDate, expiryRange))) : null),
+    [batches, expiryRange, isExpiryActive],
+  );
+  const cardActiveCount = expirySummary ? expirySummary.activeCount : summary?.totalActiveBatches || 0;
+  const cardExpiringCount = expirySummary ? expirySummary.expiringSoonCount : summary?.expiringSoonCount || 0;
+  const cardExpiringValue = expirySummary ? expirySummary.expiringSoonValuePiasters : summary?.expiringSoonValuePiasters || 0;
+  const cardExpiredCount = expirySummary ? expirySummary.expiredCount : summary?.expiredCount || 0;
+  const cardExpiredValue = expirySummary ? expirySummary.expiredValuePiasters : summary?.expiredValuePiasters || 0;
+  const cardTotalValue = expirySummary ? expirySummary.totalValuePiasters : summary?.totalBatchStockValuePiasters || 0;
+
+  const resetAllFilters = () => {
+    setExpiryRange({ ...EMPTY_EXPIRY_RANGE });
+    setStatusFilter('all');
+    setSearchQuery('');
+  };
+
   // Filtered batches
   const filteredBatches = batches.filter((b) => {
+    // Expiry range
+    if (isExpiryActive && !matchesExpiryRange(b.expiryDate, expiryRange)) return false;
+
     // Status Filter
     if (statusFilter === 'expired' && !b.isExpired) return false;
     if (statusFilter === 'expiring' && (!b.isExpiringSoon || b.isExpired)) return false;
@@ -287,7 +321,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
     pageSize,
     setPageSize,
     paginatedItems: pagedBatches,
-  } = useClientPagination(filteredBatches, 25, `${searchQuery}_${statusFilter}_${alertDays}`);
+  } = useClientPagination(filteredBatches, 25, `${searchQuery}_${statusFilter}_${alertDays}_${expiryRange.startDate}_${expiryRange.endDate}`);
 
   return (
     <div className="flex-1 flex flex-col gap-4 overflow-y-auto select-none">
@@ -302,8 +336,11 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
             <div>
               <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي الدفعات النشطة</div>
               <div className="text-lg font-mono font-bold text-ink dark:text-ink-dark">
-                {(summary?.totalActiveBatches || 0).toLocaleString('en-US')} دفعة
+                {cardActiveCount.toLocaleString('en-US')} دفعة
               </div>
+              {isExpiryActive && (
+                <div className="text-micro text-brand dark:text-brand-bright font-bold">تنتهي: {expiryLabel}</div>
+              )}
             </div>
           </div>
         </div>
@@ -311,7 +348,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
         {/* 2. Expiring Soon Card */}
         <div
           className={`p-4 rounded-xl border flex items-center justify-between gap-3 shadow-2xs ${
-            (summary?.expiringSoonCount || 0) > 0
+            cardExpiringCount > 0
               ? 'bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30'
               : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark'
           }`}
@@ -325,13 +362,13 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                 أوشكت على الانتهاء ({alertDays} يوم)
               </div>
               <div className="text-lg font-mono font-bold text-warn dark:text-warn-bright">
-                {(summary?.expiringSoonCount || 0).toLocaleString('en-US')} دفعة
+                {cardExpiringCount.toLocaleString('en-US')} دفعة
               </div>
             </div>
           </div>
-          {(summary?.expiringSoonCount || 0) > 0 && (
+          {cardExpiringCount > 0 && (
             <span className="text-micro font-mono font-bold text-warn dark:text-warn-bright bg-white/80 dark:bg-surface-dark-2 px-2 py-0.5 rounded-full border border-warn/20 dark:border-warn-bright/30">
-              {formatArabicCurrency(summary?.expiringSoonValuePiasters || 0)}
+              {formatArabicCurrency(cardExpiringValue)}
             </span>
           )}
         </div>
@@ -339,7 +376,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
         {/* 3. Expired Card */}
         <div
           className={`p-4 rounded-xl border flex items-center justify-between gap-3 shadow-2xs ${
-            (summary?.expiredCount || 0) > 0
+            cardExpiredCount > 0
               ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30'
               : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark'
           }`}
@@ -351,13 +388,13 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
             <div>
               <div className="text-micro text-danger dark:text-danger-bright font-bold">دفعات منتهية الصلاحية</div>
               <div className="text-lg font-mono font-bold text-danger dark:text-danger-bright">
-                {(summary?.expiredCount || 0).toLocaleString('en-US')} دفعة
+                {cardExpiredCount.toLocaleString('en-US')} دفعة
               </div>
             </div>
           </div>
-          {(summary?.expiredCount || 0) > 0 && (
+          {cardExpiredCount > 0 && (
             <span className="text-micro font-mono font-bold text-danger dark:text-danger-bright bg-white/80 dark:bg-surface-dark-2 px-2 py-0.5 rounded-full border border-danger/20 dark:border-danger-bright/30">
-              هالك: {formatArabicCurrency(summary?.expiredValuePiasters || 0)}
+              هالك: {formatArabicCurrency(cardExpiredValue)}
             </span>
           )}
         </div>
@@ -371,7 +408,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
             <div>
               <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-bold">قيمة مخزون الدفعات</div>
               <div className="text-base font-mono font-bold text-paid dark:text-paid-bright">
-                {formatArabicCurrency(summary?.totalBatchStockValuePiasters || 0)}
+                {formatArabicCurrency(cardTotalValue)}
               </div>
             </div>
           </div>
@@ -463,6 +500,9 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
             )}
           </div>
 
+          {/* Expiry date range: from/to, applies together with the alert window, status tabs and search */}
+          <ExpiryRangeFilter value={expiryRange} onChange={setExpiryRange} size="lg" />
+
           {/* Search Box */}
           <div className="relative flex-1 min-w-[14rem] h-10 flex items-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 focus-within:border-brand dark:focus-within:border-brand-bright focus-within:ring-2 focus-within:ring-brand/20 transition-all">
             <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted ml-2 shrink-0" />
@@ -510,10 +550,21 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
           ) : filteredBatches.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2">
               <Calendar className="w-10 h-10 opacity-40 dark:opacity-100" />
-              <span className="text-sm font-semibold text-ink dark:text-ink-dark">لا توجد دفعات مطابقة للمعايير المحددة</span>
+              <span className="text-sm font-semibold text-ink dark:text-ink-dark">
+                {isExpiryActive ? `لا توجد دفعات تنتهي صلاحيتها في الفترة دي (${expiryLabel})` : 'لا توجد دفعات مطابقة للمعايير المحددة'}
+              </span>
               <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
                 يتم تسجيل الدفعات وتواريخ الصلاحية تلقائياً عند استلام فواتير الشراء
               </span>
+              {(isExpiryActive || statusFilter !== 'all' || searchQuery.trim() !== '') && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="mt-1 h-9 px-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                >
+                  مسح الفلاتر وعرض كل الدفعات
+                </button>
+              )}
             </div>
           ) : (
             pagedBatches.map((b) => {

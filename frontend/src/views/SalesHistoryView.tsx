@@ -32,7 +32,9 @@ import { useModalDismiss } from '../hooks/useModalDismiss';
 import { RafiqLoadingState } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
 import { useAuth } from '../context/useAuth';
-import { useDateFilter } from '../utils/dateFilter';
+import { useDateFilter, useToday, isDateFilterActive, describeDateFilter, getDateFilterKey } from '../utils/dateFilter';
+import { formatUnitArabic } from '../utils/units';
+import { buildSalesHistoryQuery, summarizeSales, SALES_HISTORY_LIMIT, type SalesStatusFilter } from '../utils/salesHistoryFilter';
 
 export interface SalesHistoryViewProps {
   isActive?: boolean;
@@ -70,8 +72,16 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'cancelled' | 'refunded'>('all');
-  const { dateFilter, setDateFilter, filterDate } = useDateFilter();
+  const [statusFilter, setStatusFilter] = useState<SalesStatusFilter>('all');
+  const { dateFilter, setDateFilter, filterDate, resetDateFilter } = useDateFilter();
+  // Re-evaluates relative presets (today / last 7 days / this month) when the day rolls over
+  const today = useToday();
+  const dateActive = isDateFilterActive(dateFilter);
+  const loadQuery = useMemo(
+    () => buildSalesHistoryQuery(dateFilter, statusFilter, today),
+    [dateFilter, statusFilter, today]
+  );
+  const loadSeqRef = useRef(0);
   const [reprintFeedback, setReprintFeedback] = useState<string | null>(null);
   const [isReprinting, setIsReprinting] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -140,25 +150,29 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
     setReprintFeedback('تم تسجيل المرتجع');
   };
 
-  const loadSales = async () => {
+  // Date range and status are sent to the backend, so the row cap never hides older matching invoices
+  const loadSales = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     setSearchError(null);
     try {
-      const res = await invoke<Sale[]>('sales:getRecent', { limit: 100 });
+      const res = await invoke<Sale[]>('sales:getRecent', loadQuery);
+      if (seq !== loadSeqRef.current) return;
       setSales(Array.isArray(res) ? res : []);
     } catch (err: unknown) {
+      if (seq !== loadSeqRef.current) return;
       console.error(err);
       setSearchError('تعذر تحميل قائمة الفواتير من قاعدة البيانات');
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
-  };
+  }, [loadQuery]);
 
   useEffect(() => {
     if (isActive !== false) {
       void loadSales();
     }
-  }, [isActive]);
+  }, [isActive, loadSales]);
 
   // A wedge barcode scanner types into the focused field: keep the search box focused so a receipt barcode can be scanned right away
   useEffect(() => {
@@ -231,13 +245,14 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
       return;
     }
 
-    // 2. Perform backend search via sales:search
+    const notFoundMessage = `لم يتم العثور على أي فاتورة مطابقة لـ "${searchQuery}"${dateActive ? ` خلال ${describeDateFilter(dateFilter)}` : ''}`;
+
+    // 2. Perform backend search via sales:search (same date range and status as the list)
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     try {
-      const results = await invoke<Sale[]>('sales:search', {
-        query: raw,
-        status: statusFilter !== 'all' ? statusFilter : undefined
-      });
+      const results = await invoke<Sale[]>('sales:search', { query: raw, ...loadQuery });
+      if (seq !== loadSeqRef.current) return;
       if (results && results.length > 0) {
         setSales(results);
         if (results.length === 1) {
@@ -250,15 +265,15 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
           setSales((prev) => [found, ...prev.filter((p) => p.id !== found.id)]);
           void handleOpenDetails(found);
         } else {
-          setSearchError(`لم يتم العثور على أي فاتورة مطابقة لـ "${searchQuery}"`);
+          setSearchError(notFoundMessage);
         }
       } else {
-        setSearchError(`لم يتم العثور على أي فاتورة مطابقة لـ "${searchQuery}"`);
+        setSearchError(notFoundMessage);
       }
     } catch {
-      setSearchError(`لم يتم العثور على أي فاتورة مطابقة لـ "${searchQuery}"`);
+      setSearchError(notFoundMessage);
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   };
 
@@ -333,12 +348,19 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
     return true;
   });
 
-  // Summary Metrics calculations (Integer arithmetic)
-  const totalSalesPiasters = filteredSales
-    .filter((s) => s.status !== 'cancelled')
-    .reduce((sum, s) => sum + (s.totalPiasters || 0), 0);
-  const invoiceCount = filteredSales.length;
-  const averageInvoicePiasters = invoiceCount > 0 ? Math.round(totalSalesPiasters / invoiceCount) : 0;
+  // Summary Metrics calculations (Integer arithmetic) over exactly the rows on screen
+  const {
+    totalPiasters: totalSalesPiasters,
+    invoiceCount,
+    averagePiasters: averageInvoicePiasters,
+  } = summarizeSales(filteredSales);
+  const anyFilterActive = dateActive || statusFilter !== 'all' || Boolean(searchQuery.trim());
+  const resetAllFilters = () => {
+    resetDateFilter();
+    setStatusFilter('all');
+    setSearchQuery('');
+    setSearchError(null);
+  };
 
   // Pagination state
   const {
@@ -347,7 +369,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
     pageSize,
     setPageSize,
     paginatedItems: pagedSales,
-  } = useClientPagination(filteredSales, 25, `${searchQuery}_${statusFilter}_${dateFilter.preset}_${dateFilter.startDate}_${dateFilter.endDate}`);
+  } = useClientPagination(filteredSales, 25, `${searchQuery}_${statusFilter}_${getDateFilterKey(dateFilter)}`);
 
   return (
     <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-3 sm:p-3.5 gap-2.5 sm:gap-3 overflow-hidden select-none">
@@ -503,6 +525,25 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
           </button>
         </div>
 
+        {anyFilterActive && (
+          <button
+            type="button"
+            onClick={resetAllFilters}
+            className="h-8 px-2.5 flex items-center gap-1.5 rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer transition-colors"
+            title="إلغاء البحث والفترة والحالة والرجوع لكل الفواتير"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>مسح التصفية</span>
+          </button>
+        )}
+
+        {sales.length >= SALES_HISTORY_LIMIT && (
+          <div className="w-full flex items-center gap-1.5 text-xs text-warn dark:text-warn-bright font-semibold bg-warn-soft dark:bg-warn-dark-soft p-2 rounded-xl border border-warn/20 dark:border-warn-bright/30">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{`المعروض أحدث ${SALES_HISTORY_LIMIT} فاتورة فقط. حدد فترة أضيق عشان تشوف الباقي.`}</span>
+          </div>
+        )}
+
         {searchError && (
           <div className="w-full flex items-center gap-1.5 text-xs text-danger dark:text-danger-bright font-semibold bg-danger-soft dark:bg-danger-dark-soft p-2 rounded-xl border border-danger/20 dark:border-danger-bright/30">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -535,13 +576,23 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
             <div className="h-full flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2 p-6">
               <Clock className="w-12 h-12 stroke-[1.2] text-ink-muted dark:text-ink-dark-muted opacity-40" />
               <p className="text-sm font-semibold text-ink dark:text-ink-dark m-0">
-                {searchQuery || statusFilter !== 'all' || dateFilter.preset !== 'all' 
-                  ? 'مفيش فواتير مطابقة للي بتدور عليه' 
+                {anyFilterActive
+                  ? (dateActive ? `مفيش فواتير مطابقة خلال ${describeDateFilter(dateFilter)}` : 'مفيش فواتير مطابقة للي بتدور عليه')
                   : 'لسه مفيش فواتير بيع اتسجلت'}
               </p>
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted m-0">
-                {searchQuery ? 'اتأكد من رقم الفاتورة أو اسم الزبون واضغط Enter' : 'روح لشاشة الكاشير عشان تفتح فاتورة وتبيع'}
+                {searchQuery ? 'اتأكد من رقم الفاتورة أو اسم الزبون واضغط Enter' : anyFilterActive ? 'جرب فترة تانية أو ألغي التصفية' : 'روح لشاشة الكاشير عشان تفتح فاتورة وتبيع'}
               </p>
+              {anyFilterActive && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="mt-1 h-8 px-3 flex items-center gap-1.5 rounded-xl bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>مسح التصفية وعرض كل الفواتير</span>
+                </button>
+              )}
             </div>
           ) : (
             pagedSales.map((sale) => {
@@ -762,7 +813,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                     selectedSale.items.map((item, idx) => {
                       const retInfo = returnedInfoByProduct[item.productId];
                       const origQty = item.unit === 'kg' ? item.quantityMilli / 1000 : Math.round(item.quantityMilli / 1000);
-                      const unitStr = item.unit === 'kg' ? 'كجم' : 'قطعة';
+                      const unitStr = formatUnitArabic(item.unit);
                       const remainingQty = retInfo ? Math.max(0, origQty - retInfo.returnedPieces) : origQty;
                       const netLineTotal = Math.round(remainingQty * item.unitPricePiasters);
 
@@ -873,7 +924,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                                   <span className="w-1.5 h-1.5 rounded-full bg-warn dark:bg-warn-bright shrink-0" />
                                   <span className="font-bold">{ritem.productName}</span>
                                   <span className="text-ink-muted dark:text-ink-dark-muted font-mono font-bold text-micro">
-                                    × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {ritem.unit === 'kg' ? 'كجم' : 'قطعة'}
+                                    × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {formatUnitArabic(ritem.unit)}
                                   </span>
                                   {ritem.isDamaged && (
                                     <span className="text-danger font-bold text-micro bg-danger/10 px-1.5 py-0.2 rounded border border-danger/20">

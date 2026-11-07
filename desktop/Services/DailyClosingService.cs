@@ -102,6 +102,37 @@ namespace RafiqPOS.Services
                 preview.GrossProfitPiasters = existing.GrossProfitPiasters;
                 preview.InvoicesCount = existing.InvoicesCount;
 
+                if (!string.IsNullOrEmpty(existing.SummaryJson))
+                {
+                    try
+                    {
+                        var parsed = JsonConvert.DeserializeObject<DailyClosingPreview>(existing.SummaryJson);
+                        if (parsed != null)
+                        {
+                            preview.EpayTerminalsBalancePiasters = parsed.EpayTerminalsBalancePiasters;
+                            preview.EpayTillCashPiasters = parsed.EpayTillCashPiasters;
+                            preview.EpayDrawerCashPiasters = parsed.EpayDrawerCashPiasters;
+                            preview.EpayDrawerFundingPiasters = parsed.EpayDrawerFundingPiasters;
+                            preview.EpayNetProfitPiasters = parsed.EpayNetProfitPiasters;
+                            preview.WalletsBalancePiasters = parsed.WalletsBalancePiasters;
+                            preview.WalletsDrawerCashPiasters = parsed.WalletsDrawerCashPiasters;
+                            preview.WalletsDrawerFundingPiasters = parsed.WalletsDrawerFundingPiasters;
+                            preview.WalletsNetProfitPiasters = parsed.WalletsNetProfitPiasters;
+                            preview.PurchasesDrawerCashPiasters = parsed.PurchasesDrawerCashPiasters;
+                            preview.SupplierPaymentsDrawerCashPiasters = parsed.SupplierPaymentsDrawerCashPiasters;
+                            preview.OpeningFloatPiasters = parsed.OpeningFloatPiasters;
+                            preview.ManualCashInPiasters = parsed.ManualCashInPiasters;
+                            preview.ManualCashOutPiasters = parsed.ManualCashOutPiasters;
+                            preview.DrawerExpensesPiasters = parsed.DrawerExpensesPiasters;
+                            preview.SafeExpensesPiasters = parsed.SafeExpensesPiasters;
+                            preview.ZeroCostItemsCount = parsed.ZeroCostItemsCount;
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+
                 // Detect any sales registered after the closing was sealed
                 using (var conn = new SQLiteConnection(_connectionString))
                 {
@@ -129,6 +160,8 @@ namespace RafiqPOS.Services
                             }
                         }
                     }
+
+                    PopulateEpayAndWalletsDetails(conn, preview, businessDate, cutoff);
                 }
 
                 return preview;
@@ -601,9 +634,201 @@ namespace RafiqPOS.Services
                 preview.EpayDrawerFundingPiasters = calc.TerminalFundingPiasters;
                 preview.PurchasesDrawerCashPiasters = calc.PurchasesCashPiasters;
                 preview.SupplierPaymentsDrawerCashPiasters = calc.SupplierPaymentsPiasters;
+
+                PopulateEpayAndWalletsDetails(conn, preview, businessDate, cutoff);
             }
 
             return preview;
+        }
+
+        private static bool TableExists(SQLiteConnection conn, string tableName)
+        {
+            using (var cmd = new SQLiteCommand("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = @name LIMIT 1;", conn))
+            {
+                cmd.Parameters.AddWithValue("@name", tableName);
+                return cmd.ExecuteScalar() != null;
+            }
+        }
+
+        private void PopulateEpayAndWalletsDetails(SQLiteConnection conn, DailyClosingPreview preview, string businessDate, int cutoff)
+        {
+            preview.EpayTerminalsSummary = new List<DailyClosingEpayTerminalSummary>();
+            preview.EpayTransactions = new List<DailyClosingEpayTransactionItem>();
+            preview.WalletsSummary = new List<DailyClosingWalletSummary>();
+            preview.WalletTransactions = new List<DailyClosingWalletTransactionItem>();
+
+            // 1. Epay Terminals & Transactions
+            if (TableExists(conn, "epay_terminals") && TableExists(conn, "epay_transactions"))
+            {
+                // Terminals summary
+                string termSql = @"
+                    SELECT m.id, m.name, m.provider, m.balance_piasters,
+                           COUNT(t.id) AS tx_count,
+                           COALESCE(SUM(CASE WHEN t.payment_channel = 'terminal_till' THEN 
+                               (CASE WHEN t.service_type = 'cash_out' THEN (t.customer_fee_piasters - t.bill_amount_piasters) ELSE t.total_received_piasters END)
+                               ELSE 0 END), 0) AS till_cash,
+                           COALESCE(SUM(CASE WHEN t.payment_channel = 'cash_drawer' THEN 
+                               (CASE WHEN t.service_type = 'cash_out' THEN (t.customer_fee_piasters - t.bill_amount_piasters) ELSE t.total_received_piasters END)
+                               ELSE 0 END), 0) AS drawer_cash,
+                           COALESCE(SUM(t.net_profit_piasters), 0) AS net_profit
+                    FROM epay_terminals m
+                    LEFT JOIN epay_transactions t ON t.terminal_id = m.id 
+                        AND date(datetime(t.created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                        AND t.status = 'completed'
+                    WHERE m.is_active = 1
+                    GROUP BY m.id, m.name, m.provider, m.balance_piasters
+                    ORDER BY m.name ASC;";
+
+                using (var cmd = new SQLiteCommand(termSql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                    cmd.Parameters.AddWithValue("@bdate", businessDate);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var s = new DailyClosingEpayTerminalSummary();
+                            s.TerminalId = reader["id"].ToString();
+                            s.TerminalName = reader["name"].ToString();
+                            s.Provider = reader["provider"] != DBNull.Value ? reader["provider"].ToString() : "";
+                            s.CurrentBalancePiasters = Convert.ToInt64(reader["balance_piasters"]);
+                            s.TransactionsCount = Convert.ToInt32(reader["tx_count"]);
+                            s.TillCashPiasters = Convert.ToInt64(reader["till_cash"]);
+                            s.DrawerCashPiasters = Convert.ToInt64(reader["drawer_cash"]);
+                            s.NetProfitPiasters = Convert.ToInt64(reader["net_profit"]);
+                            preview.EpayTerminalsSummary.Add(s);
+                        }
+                    }
+                }
+
+                // Epay Transactions of the day
+                string epayTxSql = @"
+                    SELECT t.id, t.terminal_id, COALESCE(m.name, 'ماكينة غير معروفة') AS terminal_name,
+                           t.service_type, t.service_name, t.bill_amount_piasters, t.customer_fee_piasters,
+                           t.total_received_piasters, t.net_profit_piasters, t.payment_channel,
+                           t.cashier_name, t.reference_number, t.created_at
+                    FROM epay_transactions t
+                    LEFT JOIN epay_terminals m ON t.terminal_id = m.id
+                    WHERE date(datetime(t.created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                      AND t.status = 'completed'
+                    ORDER BY t.created_at DESC;";
+
+                using (var cmd = new SQLiteCommand(epayTxSql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                    cmd.Parameters.AddWithValue("@bdate", businessDate);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var item = new DailyClosingEpayTransactionItem();
+                            item.Id = reader["id"].ToString();
+                            item.TerminalId = reader["terminal_id"].ToString();
+                            item.TerminalName = reader["terminal_name"].ToString();
+                            item.ServiceType = reader["service_type"] != DBNull.Value ? reader["service_type"].ToString() : "";
+                            item.ServiceName = reader["service_name"] != DBNull.Value ? reader["service_name"].ToString() : "";
+                            item.BillAmountPiasters = Convert.ToInt64(reader["bill_amount_piasters"]);
+                            item.CustomerFeePiasters = Convert.ToInt64(reader["customer_fee_piasters"]);
+                            item.TotalReceivedPiasters = Convert.ToInt64(reader["total_received_piasters"]);
+                            item.NetProfitPiasters = Convert.ToInt64(reader["net_profit_piasters"]);
+                            item.PaymentChannel = reader["payment_channel"] != DBNull.Value ? reader["payment_channel"].ToString() : "cash_drawer";
+                            item.CashierName = reader["cashier_name"] != DBNull.Value ? reader["cashier_name"].ToString() : "";
+                            item.ReferenceNumber = reader["reference_number"] != DBNull.Value ? reader["reference_number"].ToString() : "";
+                            item.CreatedAt = reader["created_at"].ToString();
+                            preview.EpayTransactions.Add(item);
+                        }
+                    }
+                }
+            }
+
+            // 2. Digital Accounts & Wallets
+            if (TableExists(conn, "digital_accounts") && TableExists(conn, "digital_transactions"))
+            {
+                // Wallets summary
+                string walSql = @"
+                    SELECT a.id, a.name, a.type, a.provider, a.balance_piasters,
+                           COUNT(t.id) AS tx_count,
+                           COALESCE(SUM(CASE WHEN t.tx_type IN ('cash_in', 'pos_sale') THEN t.amount_piasters ELSE 0 END), 0) AS total_in,
+                           COALESCE(SUM(CASE WHEN t.tx_type = 'cash_out' THEN t.amount_piasters ELSE 0 END), 0) AS total_out,
+                           COALESCE(SUM(CASE WHEN t.payment_destination = 'cash_drawer' THEN 
+                               (CASE WHEN t.tx_type = 'cash_out' THEN t.total_collected_piasters 
+                                     WHEN t.tx_type = 'cash_in' THEN (t.profit_piasters - t.amount_piasters) 
+                                     ELSE 0 END) 
+                               ELSE 0 END), 0) AS drawer_cash,
+                           COALESCE(SUM(t.profit_piasters), 0) AS net_profit
+                    FROM digital_accounts a
+                    LEFT JOIN digital_transactions t ON t.account_id = a.id
+                        AND date(datetime(t.created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                        AND t.status = 'completed'
+                    WHERE a.is_active = 1
+                    GROUP BY a.id, a.name, a.type, a.provider, a.balance_piasters
+                    ORDER BY a.name ASC;";
+
+                using (var cmd = new SQLiteCommand(walSql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                    cmd.Parameters.AddWithValue("@bdate", businessDate);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var ws = new DailyClosingWalletSummary();
+                            ws.AccountId = reader["id"].ToString();
+                            ws.AccountName = reader["name"].ToString();
+                            ws.AccountType = reader["type"] != DBNull.Value ? reader["type"].ToString() : "wallet";
+                            ws.Provider = reader["provider"] != DBNull.Value ? reader["provider"].ToString() : "";
+                            ws.CurrentBalancePiasters = Convert.ToInt64(reader["balance_piasters"]);
+                            ws.TransactionsCount = Convert.ToInt32(reader["tx_count"]);
+                            ws.TotalInPiasters = Convert.ToInt64(reader["total_in"]);
+                            ws.TotalOutPiasters = Convert.ToInt64(reader["total_out"]);
+                            ws.DrawerCashImpactPiasters = Convert.ToInt64(reader["drawer_cash"]);
+                            ws.NetProfitPiasters = Convert.ToInt64(reader["net_profit"]);
+                            preview.WalletsSummary.Add(ws);
+                        }
+                    }
+                }
+
+                // Digital transactions of the day
+                string walTxSql = @"
+                    SELECT t.id, t.account_id, COALESCE(a.name, 'محفظة غير معروفة') AS account_name,
+                           COALESCE(a.type, 'wallet') AS account_type,
+                           t.tx_type, t.amount_piasters, t.profit_piasters, t.total_collected_piasters,
+                           t.customer_phone, t.customer_name, t.payment_destination,
+                           t.cashier_name, t.notes, t.created_at
+                    FROM digital_transactions t
+                    LEFT JOIN digital_accounts a ON t.account_id = a.id
+                    WHERE date(datetime(t.created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                      AND t.status = 'completed'
+                    ORDER BY t.created_at DESC;";
+
+                using (var cmd = new SQLiteCommand(walTxSql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                    cmd.Parameters.AddWithValue("@bdate", businessDate);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var wtx = new DailyClosingWalletTransactionItem();
+                            wtx.Id = reader["id"].ToString();
+                            wtx.AccountId = reader["account_id"].ToString();
+                            wtx.AccountName = reader["account_name"].ToString();
+                            wtx.AccountType = reader["account_type"].ToString();
+                            wtx.TxType = reader["tx_type"] != DBNull.Value ? reader["tx_type"].ToString() : "";
+                            wtx.AmountPiasters = Convert.ToInt64(reader["amount_piasters"]);
+                            wtx.ProfitPiasters = Convert.ToInt64(reader["profit_piasters"]);
+                            wtx.TotalCollectedPiasters = Convert.ToInt64(reader["total_collected_piasters"]);
+                            wtx.CustomerPhone = reader["customer_phone"] != DBNull.Value ? reader["customer_phone"].ToString() : "";
+                            wtx.CustomerName = reader["customer_name"] != DBNull.Value ? reader["customer_name"].ToString() : "";
+                            wtx.PaymentDestination = reader["payment_destination"] != DBNull.Value ? reader["payment_destination"].ToString() : "cash_drawer";
+                            wtx.CashierName = reader["cashier_name"] != DBNull.Value ? reader["cashier_name"].ToString() : "";
+                            wtx.Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : "";
+                            wtx.CreatedAt = reader["created_at"].ToString();
+                            preview.WalletTransactions.Add(wtx);
+                        }
+                    }
+                }
+            }
         }
 
         private int CountOpenShifts(string businessDate)
@@ -825,6 +1050,11 @@ namespace RafiqPOS.Services
         public List<DailyClosing> GetHistory(int limit)
         {
             return _closingRepo.GetHistory(limit);
+        }
+
+        public List<DailyClosing> GetHistory(int limit, string dateFrom, string dateTo)
+        {
+            return _closingRepo.GetHistory(limit, dateFrom, dateTo);
         }
 
         public DailyClosing GetById(string id)

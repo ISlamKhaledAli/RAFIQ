@@ -86,6 +86,8 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printStatus, setPrintStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [printMode, setPrintMode] = useState<'thermal' | 'a4'>('thermal');
   const [storeSettings, setStoreSettings] = useState<StoreReceiptSettings>(DEFAULT_STORE_SETTINGS);
 
@@ -125,9 +127,68 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
     }
   };
 
-  const handlePrint = useCallback(() => {
-    void printCompactReport(printMode === 'thermal' ? 'thermal' : 'a4');
-  }, [printMode]);
+  const issueDate = useMemo(() => {
+    try {
+      return new Date().toLocaleString('ar-EG-u-nu-latn', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return new Date().toLocaleString();
+    }
+  }, []);
+
+  const handlePrint = useCallback(async () => {
+    if (isPrinting) return;
+
+    if (printMode === 'a4') {
+      void printCompactReport('a4');
+      return;
+    }
+
+    setIsPrinting(true);
+    setPrintStatus(null);
+    try {
+      const res = await invoke<{ success: boolean; message?: string; printerUsed?: string }>(
+        'printer:printRecoveryVoucher',
+        {
+          recoveryCode,
+          paperWidth: storeSettings.paperWidth,
+          storeName: storeSettings.storeName,
+          phone: storeSettings.phone,
+          stationName: storeSettings.stationName,
+          issueDate,
+        }
+      );
+
+      if (res && res.success) {
+        setPrintStatus({
+          ok: true,
+          msg: `تم إرسال كارت الأمان إلى الطابعة (${res.printerUsed || 'الافتراضية'}) بنجاح`,
+        });
+      } else {
+        const errMsg = res?.message || 'تعذر إرسال أمر الطباعة للطابعة الحرارية. يرجى مراجعة التوصيل والكابل.';
+        setPrintStatus({ ok: false, msg: errMsg });
+      }
+    } catch {
+      // In web-only fallback environment where C# bridge is absent
+      try {
+        await printCompactReport('thermal');
+      } catch (err: unknown) {
+        setPrintStatus({
+          ok: false,
+          msg: (err as Error)?.message || 'حدث خطأ غير متوقع أثناء محاولة الطباعة.',
+        });
+      }
+    } finally {
+      setIsPrinting(false);
+    }
+  }, [isPrinting, printMode, recoveryCode, storeSettings, issueDate]);
 
   // Keyboard shortcut: F9 prints
   useEffect(() => {
@@ -155,22 +216,6 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
       setIsSubmitting(false);
     }
   };
-
-  const issueDate = useMemo(() => {
-    try {
-      return new Date().toLocaleString('ar-EG-u-nu-latn', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
-      });
-    } catch {
-      return new Date().toLocaleString();
-    }
-  }, []);
 
   if (!isOpen) return null;
 
@@ -249,14 +294,35 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
             <button
               type="button"
               onClick={handlePrint}
-              className="px-4 py-1.5 bg-brand hover:bg-brand-hover dark:bg-brand-bright dark:text-surface-dark text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
-              title="طباعة إيصال الأمان على الطابعة الحرارية (F9)"
+              disabled={isPrinting}
+              className="px-4 py-1.5 bg-brand hover:bg-brand-hover dark:bg-brand-bright dark:text-surface-dark text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              title="طباعة إيصال الأمان على الطابعة الحرارية مباشرة (F9)"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>طباعة كارت الأمان (F9)</span>
+              <span>{isPrinting ? 'جاري الطباعة...' : 'طباعة كارت الأمان (F9)'}</span>
             </button>
           </div>
         </div>
+
+        {/* Print Feedback Status Banner */}
+        {printStatus && (
+          <div
+            className={`no-print print:hidden px-5 py-2 border-b flex items-center justify-between text-xs font-semibold ${
+              printStatus.ok
+                ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/30 text-paid dark:text-paid-bright'
+                : 'bg-warn-soft dark:bg-warn-dark-soft border-warn-border dark:border-warn-bright/30 text-warn dark:text-warn-bright'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {printStatus.ok ? (
+                <Check className="w-4 h-4 shrink-0 text-paid dark:text-paid-bright" />
+              ) : (
+                <ShieldAlert className="w-4 h-4 shrink-0 text-warn dark:text-warn-bright" />
+              )}
+              <span>{printStatus.msg}</span>
+            </div>
+          </div>
+        )}
 
         {/* Scrollable Document Container */}
         <div className="flex-1 overflow-y-auto p-4 bg-canvas dark:bg-canvas-dark flex justify-center items-start print:p-0 print:bg-white print:overflow-visible">
@@ -302,9 +368,6 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
             <div className={`text-center font-black tracking-wide text-black ${is57mm ? 'text-xs' : 'text-sm'}`}>
               وثيقة أمان استرجاع البيانات المعتمدة
             </div>
-            <div className="text-center font-mono font-bold text-micro text-neutral-800 tracking-wider" dir="ltr">
-              EMERGENCY MASTER RECOVERY KEY
-            </div>
 
             <div className="bg-black text-white text-center font-bold text-micro py-1 px-2 my-2 tracking-wide uppercase">
               ★ سري للغاية — يُحفظ في مكان آمن ومحمي ★
@@ -323,11 +386,11 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
               </div>
               <div className="flex items-baseline justify-between gap-2">
                 <span className="font-semibold text-neutral-700">مستوى الأمان:</span>
-                <span className="font-bold">تشفير محلي عسكري (AES-256)</span>
+                <span className="font-bold">تشفير آمن فائق الحماية</span>
               </div>
               <div className="flex items-baseline justify-between gap-2">
                 <span className="font-semibold text-neutral-700">جهة الاعتماد:</span>
-                <span className="font-bold text-black">المالك الرئيسي للنظام (Owner)</span>
+                <span className="font-bold text-black">المالك الرئيسي للنظام</span>
               </div>
             </div>
 
@@ -376,13 +439,26 @@ export const RecoveryCodeModal: React.FC<RecoveryCodeModalProps> = ({
               </div>
             </div>
 
+            {/* Official Security Vault Seal / Shield Image Banner */}
+            <div className="border-t border-dashed border-black my-2.5"></div>
+            <div className="my-2 text-center select-none">
+              <img
+                src="/security_seal.png"
+                alt="بياناتك في أمان.. ورفيق هو الضمان !"
+                className="block mx-auto w-4/5 max-w-[280px] max-h-16 h-auto object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                }}
+              />
+            </div>
+
             {/* Footer */}
             <div className="border-t-2 border-black my-2"></div>
             <div className="text-center space-y-0.5 text-micro text-neutral-700">
               <div className="font-bold text-black">رفيق للأنظمة والحلول البرمجية</div>
               <div>للدعم الفني والاستفسار: 01097782965</div>
-              <div className="text-neutral-500 font-mono text-micro mt-0.5" dir="ltr">
-                Rafiq POS Security Vault • Confidential
+              <div className="text-neutral-500 text-micro mt-0.5">
+                بياناتك في أمان تام • نظام رفيق
               </div>
             </div>
           </div>

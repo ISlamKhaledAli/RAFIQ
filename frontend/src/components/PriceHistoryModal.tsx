@@ -4,6 +4,17 @@ import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { ProductPriceHistory } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
+import { DateFilterControl } from './DateFilterControl';
+import {
+  type DateFilterValue,
+  DEFAULT_DATE_FILTER,
+  describeDateFilter,
+  getDateFilterPayload,
+  isDateFilterActive,
+  useToday,
+} from '../utils/dateFilter';
+
+const PRICE_HISTORY_LIMIT = 200;
 
 interface PriceHistoryModalProps {
   isOpen: boolean;
@@ -21,6 +32,20 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
   const [history, setHistory] = useState<ProductPriceHistory[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ ...DEFAULT_DATE_FILTER });
+  // Re-evaluates relative presets when the day rolls over while the modal stays open
+  const today = useToday();
+
+  // Every opening (or another product) starts from an unfiltered period
+  const resetKey = isOpen ? productId : '';
+  const [handledResetKey, setHandledResetKey] = useState(resetKey);
+  if (handledResetKey !== resetKey) {
+    setHandledResetKey(resetKey);
+    setDateFilter({ ...DEFAULT_DATE_FILTER });
+  }
+
+  const isDateActive = isDateFilterActive(dateFilter);
+  const periodLabel = describeDateFilter(dateFilter);
 
   useEffect(() => {
     if (!isOpen || !productId) return;
@@ -30,7 +55,11 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
       setLoading(true);
       setError('');
       try {
-        const res = await invoke<ProductPriceHistory[]>('products:getPriceHistory', { productId, limit: 50 });
+        const res = await invoke<ProductPriceHistory[]>('products:getPriceHistory', {
+          productId,
+          limit: PRICE_HISTORY_LIMIT,
+          ...getDateFilterPayload(dateFilter),
+        });
         if (active) {
           setHistory(Array.isArray(res) ? res : []);
         }
@@ -49,7 +78,7 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
     return () => {
       active = false;
     };
-  }, [isOpen, productId]);
+  }, [isOpen, productId, dateFilter, today]);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -103,6 +132,19 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
           </button>
         </div>
 
+        {/* Period filter */}
+        <div className="px-5 py-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex items-center justify-between gap-x-3 gap-y-2 flex-wrap shrink-0">
+          <DateFilterControl
+            value={dateFilter}
+            onChange={setDateFilter}
+            size="md"
+            selectWidthClass="w-44 sm:w-48"
+          />
+          <div className="text-micro font-semibold text-ink-muted dark:text-ink-dark-muted font-mono">
+            {history.length} تعديل{isDateActive ? ` في الفترة: ${periodLabel}` : ' مسجل'}
+          </div>
+        </div>
+
         {/* Content */}
         <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-3 bg-surface dark:bg-surface-dark">
           {error && (
@@ -120,13 +162,26 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
           ) : history.length === 0 ? (
             <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted text-sm flex flex-col items-center gap-2 bg-canvas/60 dark:bg-canvas-dark rounded border border-dashed border-line dark:border-line-dark">
               <History className="w-8 h-8 text-ink-muted/50 dark:text-ink-dark-muted" />
-              <p className="font-semibold text-ink dark:text-ink-dark">لا توجد تعديلات أسعار سابقة مسجلة</p>
+              <p className="font-semibold text-ink dark:text-ink-dark">
+                {isDateActive ? `لا توجد تعديلات أسعار في الفترة دي (${periodLabel})` : 'لا توجد تعديلات أسعار سابقة مسجلة'}
+              </p>
               <p className="text-micro text-ink-muted dark:text-ink-dark-muted">سيتم تسجيل أي تعديل تقوم به على سعر البيع أو التكلفة تلقائياً هنا مع التاريخ والوقت والمستخدم المسؤول.</p>
+              {isDateActive && (
+                <button
+                  type="button"
+                  onClick={() => setDateFilter({ ...DEFAULT_DATE_FILTER })}
+                  className="mt-1 h-9 px-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                >
+                  عرض كل الفترات
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-2">
               <div className="text-micro font-semibold text-ink-muted dark:text-ink-dark-muted">
-                إجمالي التعديلات المسجلة: {history.length}
+                {history.length >= PRICE_HISTORY_LIMIT
+                  ? `معروض أحدث ${PRICE_HISTORY_LIMIT} تعديل فقط، حدّد فترة أضيق لعرض الأقدم`
+                  : `إجمالي التعديلات المسجلة: ${history.length}`}
               </div>
 
               <div className="border border-line dark:border-line-dark rounded overflow-hidden">

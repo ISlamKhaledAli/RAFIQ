@@ -65,6 +65,7 @@
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Security" />
+    <Reference Include="System.Management" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -96,7 +97,10 @@
     <Compile Include="Common\OsDetector.cs" />
     <Compile Include="Common\Logger.cs" />
     <Compile Include="Common\TimeGuard.cs" />
+    <Compile Include="Common\LocalDateRange.cs" />
     <Compile Include="Common\WindowHelper.cs" />
+    <Compile Include="Common\ChildProcessTracker.cs" />
+    <Compile Include="Common\WebViewProcessGuard.cs" />
     <Compile Include="Common\ArabicTextNormalizer.cs" />
     <Compile Include="Common\FeatureRegistry.cs" />
     <Compile Include="Common\CompoundStockHelper.cs" />
@@ -300,6 +304,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="logo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="security_seal.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\security_seal.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <!-- Built-in receipt signature images: every PNG dropped into Resources\signatures is embedded as RafiqPOS.signatures.<file name> and joins the rotation -->

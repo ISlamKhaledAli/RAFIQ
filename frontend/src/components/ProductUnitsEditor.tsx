@@ -10,6 +10,7 @@ import { PackagingWizardModal } from './PackagingWizardModal';
 import { rafiqConfirm } from '../utils/dialogService';
 import { getStoreTerminology } from '../utils/storeTerminology';
 import { useFeatures } from '../context/useFeatures';
+import { formatUnitArabic } from '../utils/units';
 
 export interface ProductUnitsEditorProps {
   units?: ProductUnit[];
@@ -60,8 +61,8 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
   const rawList = Array.isArray(units) ? units : [];
   const existingBase = rawList.find(u => u && u.isBaseUnit);
   const effectiveBaseUnitName = (existingBase && existingBase.unitName && existingBase.unitName.trim())
-    ? existingBase.unitName.trim()
-    : (baseUnitName || terminology.baseUnitDefaultName || (isWeightItem ? 'كيلو' : 'قطعة'));
+    ? formatUnitArabic(existingBase.unitName.trim())
+    : formatUnitArabic(baseUnitName || terminology.baseUnitDefaultName || (isWeightItem ? 'كيلو' : 'قطعة'));
 
   const currentUnits: ProductUnit[] = existingBase
     ? rawList.map(u => {
@@ -121,8 +122,8 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
       const returnToBox = await rafiqConfirm({
         title: 'إلغاء منظومة التعبئة وتحديد الوحدة الرئيسية',
-        message: `الصنف مسجل حالياً بوحدات تعبئة وتجزئة.\n\nهل تريد الرجوع للبيع بالـ «${retailPackUnit.unitName}» فقط بسعر (${(retailPackUnit.sellPricePiasters / 100).toFixed(2)} ج.م) وتحويل الرصيد ليكون (${convertedToBoxes} ${retailPackUnit.unitName})؟`,
-        confirmText: `نعم، الرجوع للـ «${retailPackUnit.unitName}» (${convertedToBoxes} ${retailPackUnit.unitName})`,
+        message: `الصنف مسجل حالياً بوحدات تعبئة وتجزئة.\n\nهل تريد الرجوع للبيع بالـ «${formatUnitArabic(retailPackUnit.unitName)}» فقط بسعر (${(retailPackUnit.sellPricePiasters / 100).toFixed(2)} ج.م) وتحويل الرصيد ليكون (${convertedToBoxes} ${formatUnitArabic(retailPackUnit.unitName)})؟`,
+        confirmText: `نعم، الرجوع للـ «${formatUnitArabic(retailPackUnit.unitName)}» (${convertedToBoxes} ${formatUnitArabic(retailPackUnit.unitName)})`,
         cancelText: `تراجع وإلغاء العملية`,
         variant: 'warning',
       });
@@ -143,7 +144,7 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
     } else {
       const confirmed = await rafiqConfirm({
         title: 'إلغاء العبوات الإضافية',
-        message: `هل تريد حقاً إلغاء جميع العبوات الإضافية والرجوع للبيع بوحدة (${effectiveBaseUnitName}) فقط بسعر (${((basePricePiasters || baseUnit.sellPricePiasters) / 100).toFixed(2)} ج.م)؟`,
+        message: `هل تريد حقاً إلغاء جميع العبوات الإضافية والرجوع للبيع بوحدة (${formatUnitArabic(effectiveBaseUnitName)}) فقط بسعر (${((basePricePiasters || baseUnit.sellPricePiasters) / 100).toFixed(2)} ج.م)؟`,
         confirmText: 'نعم، إلغاء العبوات الإضافية',
         cancelText: 'تراجع',
         variant: 'warning',

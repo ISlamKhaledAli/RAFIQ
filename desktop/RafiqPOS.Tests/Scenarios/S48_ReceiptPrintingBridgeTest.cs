@@ -437,5 +437,41 @@ namespace RafiqPOS.Tests.Scenarios
             Assert.IsNotNull(res.Error.Details, action);
             Assert.AreEqual(offline, (string)JObject.FromObject(res.Error.Details)["printerUsed"], action);
         }
+
+        [Test]
+        public void PrintRecoveryVoucher_ValidCode_PrintsDirectlyToThermalPrinter()
+        {
+            LoginAs(OwnerId);
+
+            BridgeResponse res = Dispatch("printer:printRecoveryVoucher", new
+            {
+                recoveryCode = "ATB9-3PGP-P32G",
+                printerName = Fake.Target,
+                paperWidth = "80mm",
+                storeName = "متجر رفيق للتجربة",
+                stationName = "محطة POS-01",
+                issueDate = "2026/11/07 12:00:00 ص"
+            });
+
+            Assert.IsTrue(res.Success, Describe(res));
+            byte[] job = Fake.WaitForJob(0);
+            Assert.IsNotNull(job, "thermal printer received ESC/POS raster job");
+            Assert.IsTrue(job.Length > 100, "contains rendered raster bytes of recovery voucher");
+        }
+
+        [Test]
+        public void PrintRecoveryVoucher_EmptyCode_ReturnsInvalidCode()
+        {
+            LoginAs(OwnerId);
+
+            BridgeResponse res = Dispatch("printer:printRecoveryVoucher", new
+            {
+                recoveryCode = "",
+                printerName = Fake.Target
+            });
+
+            Assert.IsFalse(res.Success);
+            Assert.AreEqual("INVALID_CODE", ErrorCode(res));
+        }
     }
 }

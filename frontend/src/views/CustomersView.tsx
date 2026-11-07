@@ -33,6 +33,8 @@ import { useClientPagination } from '../utils/usePagination';
 import { RafiqTableLoading } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
 import { createAttemptKey } from '../utils/idempotency';
+import { type DateFilterValue, DEFAULT_DATE_FILTER, getDateFilterRange, useToday } from '../utils/dateFilter';
+import { type CustomerStatementReport, buildStatementView, isStatementEntryCancelled } from './customers/customerStatementReport';
 
 export interface CustomersViewProps {
   isActive?: boolean;
@@ -73,8 +75,9 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
 
   // Statement modal state
   const [isStatementOpen, setIsStatementOpen] = useState(false);
-  const [statementEntries, setStatementEntries] = useState<CustomerLedgerEntry[]>([]);
+  const [statementReport, setStatementReport] = useState<CustomerStatementReport | null>(null);
   const [isStatementLoading, setIsStatementLoading] = useState(false);
+  const statementLoadSeqRef = useRef(0);
 
   // Payment cancellation modal state (Story 68 / Feature #136)
   const [cancellingEntry, setCancellingEntry] = useState<CustomerLedgerEntry | null>(null);
@@ -83,8 +86,13 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
   const [isCancellingPayment, setIsCancellingPayment] = useState(false);
 
   // Statement filtering and print state (Story 69 / Feature #43)
-  const [statementStartDate, setStatementStartDate] = useState('');
-  const [statementEndDate, setStatementEndDate] = useState('');
+  const [statementDateFilter, setStatementDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
+  // Relative presets (today / last 7 days / this month) are re-evaluated when the day rolls over
+  const today = useToday();
+  const statementRange = useMemo(
+    () => getDateFilterRange(statementDateFilter, today),
+    [statementDateFilter, today]
+  );
   const [isPrintStatementOpen, setIsPrintStatementOpen] = useState(false);
   const [statementPrintMode, setStatementPrintMode] = useState<'thermal' | 'a4'>('thermal');
 
@@ -413,22 +421,38 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
     }
   };
 
-  const openStatementModal = async (customer: Customer) => {
+  const openStatementModal = (customer: Customer) => {
     setSelectedCustomer(customer);
     setBalanceVerification(null);
     setAuditFeedback(null);
+    setStatementReport(null);
+    setStatementDateFilter(DEFAULT_DATE_FILTER);
     setIsStatementOpen(true);
-    setIsStatementLoading(true);
-
-    try {
-      const entries = await invoke<CustomerLedgerEntry[]>('customers:getStatement', { customerId: customer.id });
-      setStatementEntries(entries || []);
-    } catch {
-      setStatementEntries([]);
-    } finally {
-      setIsStatementLoading(false);
-    }
   };
+
+  // The period is applied by the backend over the whole ledger (not over a capped page of entries)
+  const customerIdForStatement = isStatementOpen ? selectedCustomer?.id : undefined;
+  const loadStatement = useCallback(async () => {
+    if (!customerIdForStatement) return;
+    const seq = ++statementLoadSeqRef.current;
+    setIsStatementLoading(true);
+    try {
+      const report = await invoke<CustomerStatementReport>('customers:getDetailedStatement', {
+        customerId: customerIdForStatement,
+        startDate: statementRange.startDate || undefined,
+        endDate: statementRange.endDate || undefined,
+      });
+      if (seq === statementLoadSeqRef.current) setStatementReport(report || null);
+    } catch {
+      if (seq === statementLoadSeqRef.current) setStatementReport(null);
+    } finally {
+      if (seq === statementLoadSeqRef.current) setIsStatementLoading(false);
+    }
+  }, [customerIdForStatement, statementRange]);
+
+  useEffect(() => {
+    void loadStatement();
+  }, [loadStatement]);
 
   const handleVerifyBalance = async (customerId: string) => {
     setIsVerifyingBalance(true);
@@ -476,78 +500,17 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
     }
   };
 
-  const isEntryCancelled = useCallback((entryId: string) => {
-    return statementEntries.some(e => e.type === 'payment_cancel' && e.saleId === entryId);
-  }, [statementEntries]);
+  const statementView = useMemo(
+    () => buildStatementView(statementReport, statementDateFilter),
+    [statementReport, statementDateFilter]
+  );
+  const filteredStatementEntries = statementView.entries;
+  const statementPeriodSummary = statementView.summary;
 
-  const filteredStatementEntries = useMemo(() => {
-    return statementEntries.filter(entry => {
-      const d = entry.createdAt.slice(0, 10);
-      if (statementStartDate && d < statementStartDate) return false;
-      if (statementEndDate && d > statementEndDate) return false;
-      return true;
-    });
-  }, [statementEntries, statementStartDate, statementEndDate]);
-
-  const statementPeriodSummary = useMemo(() => {
-    let openingBal = 0;
-    let salesDebits = 0;
-    let activeCashPayments = 0;
-    let refundsCredits = 0;
-
-    if (statementStartDate) {
-      // Calculate running balance strictly prior to startDate
-      statementEntries.forEach(entry => {
-        const d = entry.createdAt.slice(0, 10);
-        if (d < statementStartDate) {
-          const t = entry.type.toLowerCase();
-          const amt = Math.abs(entry.amountPiasters);
-          if (t === 'sale' || (t === 'opening_balance' && entry.amountPiasters >= 0) || t === 'debt_increase' || t === 'payment_cancel') {
-            openingBal += amt;
-          } else if (t === 'payment' || t === 'refund' || t === 'cancellation' || t === 'debt_decrease' || t === 'deposit' || (t === 'opening_balance' && entry.amountPiasters < 0)) {
-            openingBal -= amt;
-          }
-        }
-      });
-    }
-
-    filteredStatementEntries.forEach(entry => {
-      const t = entry.type.toLowerCase();
-      const amt = Math.abs(entry.amountPiasters);
-
-      if (t === 'opening_balance') {
-        if (!statementStartDate) {
-          if (entry.amountPiasters >= 0) {
-            openingBal += amt;
-          } else {
-            openingBal -= amt;
-          }
-        }
-      } else if (t === 'sale' || t === 'debt_increase') {
-        salesDebits += amt;
-      } else if (t === 'payment') {
-        if (!isEntryCancelled(entry.id)) {
-          activeCashPayments += amt;
-        }
-      } else if (t === 'payment_cancel') {
-        // Handled via !isEntryCancelled above
-      } else if (t === 'refund' || t === 'debt_decrease') {
-        refundsCredits += amt;
-      } else if (t === 'deposit') {
-        activeCashPayments += amt;
-      }
-    });
-
-    const closingBal = openingBal + salesDebits - activeCashPayments - refundsCredits;
-
-    return {
-      openingBalancePiasters: openingBal,
-      periodDebitsPiasters: salesDebits,
-      periodCreditsPiasters: activeCashPayments,
-      periodRefundsPiasters: refundsCredits,
-      closingBalancePiasters: closingBal
-    };
-  }, [filteredStatementEntries, statementEntries, statementStartDate, isEntryCancelled]);
+  const isEntryCancelled = useCallback(
+    (entryId: string) => isStatementEntryCancelled(filteredStatementEntries, entryId),
+    [filteredStatementEntries]
+  );
 
   const handleConfirmCancelPayment = async () => {
     if (!selectedCustomer || !cancellingEntry) return;
@@ -567,8 +530,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         setSelectedCustomer(updatedCust);
       }
 
-      const refreshedEntries = await invoke<CustomerLedgerEntry[]>('customers:getStatement', { customerId: selectedCustomer.id });
-      setStatementEntries(refreshedEntries || []);
+      await loadStatement();
 
       setCancellingEntry(null);
       setCustomCancelReason('');
@@ -905,7 +867,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                           {/* Statement Button */}
                           {canViewLedger && (
                           <button
-                            onClick={() => void openStatementModal(cust)}
+                            onClick={() => openStatementModal(cust)}
                             title="كشف حساب العميل"
                             className="flex items-center gap-1 h-7.5 px-2.5 whitespace-nowrap rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-brand dark:text-brand-bright hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-xs font-bold transition-all shadow-2xs cursor-pointer"
                           >
@@ -998,7 +960,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         initialBalancePiasters={initialBalancePiasters}
         setInitialBalancePiasters={setInitialBalancePiasters}
         onSave={(e) => void handleSaveCustomer(e)}
-        onOpenStatementForDuplicate={(dupCust) => void openStatementModal(dupCust)}
+        onOpenStatementForDuplicate={(dupCust) => openStatementModal(dupCust)}
       />
 
       {/* Modal 2: Record Payment */}
@@ -1024,10 +986,8 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         auditFeedback={auditFeedback}
         onVerifyBalance={handleVerifyBalance}
         onFixBalance={handleFixBalance}
-        statementStartDate={statementStartDate}
-        setStatementStartDate={setStatementStartDate}
-        statementEndDate={statementEndDate}
-        setStatementEndDate={setStatementEndDate}
+        dateFilter={statementDateFilter}
+        onDateFilterChange={setStatementDateFilter}
         statementPeriodSummary={statementPeriodSummary}
         isStatementLoading={isStatementLoading}
         filteredStatementEntries={filteredStatementEntries}
@@ -1048,8 +1008,8 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         isOpen={isPrintStatementOpen}
         onClose={() => setIsPrintStatementOpen(false)}
         selectedCustomer={selectedCustomer}
-        statementStartDate={statementStartDate}
-        statementEndDate={statementEndDate}
+        statementStartDate={statementRange.startDate}
+        statementEndDate={statementRange.endDate}
         statementPeriodSummary={statementPeriodSummary}
         filteredStatementEntries={filteredStatementEntries}
         statementPrintMode={statementPrintMode}

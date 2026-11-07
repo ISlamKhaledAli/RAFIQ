@@ -172,6 +172,34 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        if (!string.IsNullOrEmpty(entry.ProductId))
+                        {
+                            string checkExistingSql = @"
+                                SELECT id, status, requested_qty_milli, notes 
+                                FROM shortage_entries 
+                                WHERE product_id = @pid 
+                                  AND status IN ('open', 'pending', 'ordered') 
+                                ORDER BY CASE status WHEN 'ordered' THEN 1 ELSE 2 END 
+                                LIMIT 1;";
+                            using (var checkCmd = new SQLiteCommand(checkExistingSql, conn, trans))
+                            {
+                                checkCmd.Parameters.AddWithValue("@pid", entry.ProductId);
+                                using (var reader = checkCmd.ExecuteReader())
+                                {
+                                    if (reader.Read())
+                                    {
+                                        string existingId = reader["id"].ToString();
+                                        string existingStatus = reader["status"].ToString();
+                                        entry.Id = existingId;
+                                        if (string.Equals(existingStatus, "ordered", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            entry.Status = "ordered";
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         string sql = @"
                             INSERT OR REPLACE INTO shortage_entries (
                                 id, product_id, free_text, requested_qty_milli,
@@ -344,6 +372,22 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@purchase_id", (object)purchaseId ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@updated_at", now);
                                 cmd.ExecuteNonQuery();
+                            }
+
+                            // عند تحويل الصنف إلى 'ordered' (تم الطلب من المورد)، نقوم بحذف أي قيود معلقة مكررة لنفس الصنف
+                            if (string.Equals(status, "ordered", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(productId))
+                            {
+                                string cleanOtherSql = @"
+                                    DELETE FROM shortage_entries 
+                                    WHERE product_id = @pid 
+                                      AND id != @id 
+                                      AND status IN ('open', 'pending');";
+                                using (var cleanCmd = new SQLiteCommand(cleanOtherSql, conn, trans))
+                                {
+                                    cleanCmd.Parameters.AddWithValue("@pid", productId);
+                                    cleanCmd.Parameters.AddWithValue("@id", id);
+                                    cleanCmd.ExecuteNonQuery();
+                                }
                             }
                             trans.Commit();
                         }
@@ -711,20 +755,102 @@ namespace RafiqPOS.Repositories
             try
             {
                 string now = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-                string autoResolveSql = @"
+
+                // 1. تصحيح استباقي ذاتي: إعادة أي قيود وُسمت خطأ بأنها مستلمة وهي ما زالت تحت حد الطلب أو مساوية له دون شراء فعلي
+                string healMistakenReceivedSql = @"
+                    UPDATE shortage_entries
+                    SET status = 'pending',
+                        notes = REPLACE(notes, ' | تم الاستلام وتوريد الرصيد للمخزن تلقائياً', '')
+                    WHERE notes LIKE '%| تم الاستلام وتوريد الرصيد للمخزن تلقائياً%'
+                      AND purchase_id IS NULL
+                      AND product_id IN (
+                          SELECT id FROM products 
+                          WHERE stock_quantity_milli <= min_stock_quantity_milli
+                      );";
+                using (var healCmd = new SQLiteCommand(healMistakenReceivedSql, conn))
+                {
+                    healCmd.ExecuteNonQuery();
+                }
+
+                // 2. تنظيف أي قيود نواقص مكررة معلقة لنفس الصنف والإبقاء على الأحدث فقط
+                string deduplicatePendingSql = @"
+                    DELETE FROM shortage_entries 
+                    WHERE status IN ('open', 'pending') 
+                      AND product_id IS NOT NULL 
+                      AND id NOT IN (
+                          SELECT s1.id 
+                          FROM shortage_entries s1 
+                          WHERE s1.status IN ('open', 'pending') 
+                            AND s1.product_id IS NOT NULL 
+                            AND s1.rowid = (
+                                SELECT MAX(s2.rowid) 
+                                FROM shortage_entries s2 
+                                WHERE s2.product_id = s1.product_id 
+                                  AND s2.status IN ('open', 'pending')
+                            )
+                      );";
+                using (var dedupCmd = new SQLiteCommand(deduplicatePendingSql, conn))
+                {
+                    dedupCmd.ExecuteNonQuery();
+                }
+
+                // 3. تنظيف أي قيود نواقص معلقة (pending/open) إذا كان الصنف تم طلبه بالفعل من المورد (ordered)
+                string deduplicateOrderedSql = @"
+                    DELETE FROM shortage_entries 
+                    WHERE status IN ('open', 'pending') 
+                      AND product_id IS NOT NULL 
+                      AND product_id IN (
+                          SELECT product_id 
+                          FROM shortage_entries 
+                          WHERE status = 'ordered' AND product_id IS NOT NULL
+                      );";
+                using (var cleanCmd = new SQLiteCommand(deduplicateOrderedSql, conn))
+                {
+                    cleanCmd.ExecuteNonQuery();
+                }
+
+                // 4. تسوية النواقص التي تم توريدها واستلامها بالفعل عبر فواتير شراء مكتملة أُنشئت بعد تاريخ تسجيل قيد النواقص
+                string purchaseResolveSql = @"
                     UPDATE shortage_entries
                     SET status = 'received',
                         updated_at = @now,
-                        purchase_id = COALESCE(purchase_id, (
+                        purchase_id = (
                             SELECT pi.purchase_id 
                             FROM purchase_items pi 
-                            WHERE pi.product_id = shortage_entries.product_id 
-                            ORDER BY pi.created_at DESC 
+                            JOIN purchases pu ON pi.purchase_id = pu.id 
+                            WHERE (pi.product_id = shortage_entries.product_id OR (shortage_entries.product_id IS NULL AND shortage_entries.free_text = pi.item_name))
+                              AND pu.status = 'completed'
+                              AND pu.created_at >= shortage_entries.created_at
+                            ORDER BY pu.created_at DESC 
                             LIMIT 1
-                        )),
+                        ),
                         notes = CASE 
-                            WHEN notes IS NULL OR notes = '' THEN 'تم الاستلام وتوريد الرصيد للمخزن تلقائياً'
-                            ELSE notes || ' | تم الاستلام وتوريد الرصيد للمخزن تلقائياً'
+                            WHEN notes IS NULL OR notes = '' THEN 'تم الاستلام والتوريد تلقائياً عبر فاتورة شراء'
+                            ELSE notes || ' | تم الاستلام والتوريد تلقائياً عبر فاتورة شراء'
+                        END
+                    WHERE status IN ('open', 'pending', 'ordered')
+                      AND EXISTS (
+                          SELECT 1 
+                          FROM purchase_items pi 
+                          JOIN purchases pu ON pi.purchase_id = pu.id 
+                          WHERE (pi.product_id = shortage_entries.product_id OR (shortage_entries.product_id IS NULL AND shortage_entries.free_text = pi.item_name))
+                            AND pu.status = 'completed'
+                            AND pu.created_at >= shortage_entries.created_at
+                      );";
+                using (var purCmd = new SQLiteCommand(purchaseResolveSql, conn))
+                {
+                    purCmd.Parameters.AddWithValue("@now", now);
+                    purCmd.ExecuteNonQuery();
+                }
+
+                // 5. تسوية النواقص التي تم توريد رصيدها فعلياً وتجاوزت حد الأمان وغطت الكمية المطلوبة بالكامل
+                string stockResolveSql = @"
+                    UPDATE shortage_entries
+                    SET status = 'received',
+                        updated_at = @now,
+                        notes = CASE 
+                            WHEN notes IS NULL OR notes = '' THEN 'تم توفير الرصيد وتجاوز حد الأمان بالمخزن'
+                            ELSE notes || ' | تم توفير الرصيد وتجاوز حد الأمان بالمخزن'
                         END
                     WHERE status IN ('open', 'pending', 'ordered')
                       AND product_id IS NOT NULL
@@ -733,19 +859,14 @@ namespace RafiqPOS.Repositories
                           FROM products p 
                           WHERE p.stock_quantity_milli > 0 
                             AND (
-                                (p.min_stock_quantity_milli > 0 AND p.stock_quantity_milli >= p.min_stock_quantity_milli)
-                                OR p.stock_quantity_milli >= 1000
-                            )
-                            AND (
-                                EXISTS (SELECT 1 FROM purchase_items pi WHERE pi.product_id = p.id)
-                                OR p.stock_quantity_milli >= shortage_entries.requested_qty_milli
+                                (p.min_stock_quantity_milli > 0 AND p.stock_quantity_milli >= (p.min_stock_quantity_milli + shortage_entries.requested_qty_milli))
+                                OR (p.min_stock_quantity_milli <= 0 AND p.stock_quantity_milli >= shortage_entries.requested_qty_milli * 2)
                             )
                       );";
-
-                using (var cmd = new SQLiteCommand(autoResolveSql, conn))
+                using (var stockCmd = new SQLiteCommand(stockResolveSql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@now", now);
-                    cmd.ExecuteNonQuery();
+                    stockCmd.Parameters.AddWithValue("@now", now);
+                    stockCmd.ExecuteNonQuery();
                 }
             }
             catch
