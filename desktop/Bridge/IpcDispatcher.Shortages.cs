@@ -194,6 +194,9 @@ namespace RafiqPOS.Bridge
                             {
                                 if (rObj["fromDate"] != null) fromDate = rObj["fromDate"].ToString();
                                 if (rObj["toDate"] != null) toDate = rObj["toDate"].ToString();
+                                // Local calendar days (YYYY-MM-DD) from the shared date filter; the repository compares them in local time
+                                if (rObj["dateFrom"] != null && !string.IsNullOrEmpty(rObj["dateFrom"].ToString())) fromDate = rObj["dateFrom"].ToString();
+                                if (rObj["dateTo"] != null && !string.IsNullOrEmpty(rObj["dateTo"].ToString())) toDate = rObj["dateTo"].ToString();
                                 if (rObj["source"] != null) reportSource = rObj["source"].ToString();
                                 if (rObj["status"] != null) reportStatus = rObj["status"].ToString();
                                 if (rObj["days"] != null)

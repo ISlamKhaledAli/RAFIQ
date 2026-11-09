@@ -17,6 +17,7 @@ import {
   Printer,
 } from 'lucide-react';
 import type { CartItem } from './types';
+import { AppButton } from '../../components/AppButton';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { formatUnitArabic } from '../../utils/units';
 
@@ -125,20 +126,12 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={onRestoreDraft}
-              className="px-2.5 py-1 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-bold transition-colors shadow-2xs cursor-pointer"
-            >
+            <AppButton variant="primary" size="sm" onClick={onRestoreDraft}>
               رجع الفاتورة
-            </button>
-            <button
-              type="button"
-              onClick={onDiscardDraft}
-              className="px-2 py-1 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs transition-colors cursor-pointer"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="sm" onClick={onDiscardDraft}>
               تجاهل وابدأ جديدة
-            </button>
+            </AppButton>
           </div>
         </div>
       )}
@@ -214,24 +207,26 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                     >
                       {item.productName}
                     </span>
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="dangerSubtle"
+                      size="xs"
+                      icon={Trash2}
                       onClick={() => removeItem(index)}
-                      className="w-8 h-8 -mt-1 flex items-center justify-center rounded-lg border border-transparent text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft hover:border-danger-border dark:hover:border-danger-bright/40 focus-visible:border-danger dark:focus-visible:border-danger-bright transition-colors cursor-pointer shrink-0"
-                      title="حذف الصنف"
                       aria-label="حذف الصنف"
+                      title="حذف الصنف"
+                      className="-mt-0.5"
                     >
-                      <Trash2 className="w-[18px] h-[18px]" />
-                    </button>
+                      حذف
+                    </AppButton>
                   </div>
 
                   {/* Line 2: quantity / weight, unit price and the end-aligned line total */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     {isWeighed ? (
                       <button
                         type="button"
                         onClick={() => openWeightEditorForCartItem(index)}
-                        className="h-10 px-3 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand-soft/70 dark:hover:bg-surface-dark-3 border border-brand/30 dark:border-brand-bright/50 focus-visible:border-brand dark:focus-visible:border-brand-bright rounded-lg flex items-center gap-2 text-brand-dark dark:text-brand-bright transition-colors shadow-2xs cursor-pointer active:scale-95 shrink-0"
+                        className="h-10 px-3 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand-soft/70 dark:hover:bg-surface-dark-3 border border-brand/30 dark:border-brand-bright/50 focus-visible:border-brand dark:focus-visible:border-brand-bright rounded-lg flex items-center gap-2 text-brand-dark dark:text-brand-bright transition-colors shadow-2xs cursor-pointer shrink-0"
                         title="اضغط لتعديل الوزن بالجرام أو الكيلو"
                       >
                         <Scale className="w-4 h-4 shrink-0" />
@@ -286,7 +281,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                     )}
 
                     {/* Unit price (read-only from inventory) */}
-                    <span className="flex-1 min-w-0 truncate tabular-nums font-mono text-ink dark:text-ink-dark text-base font-semibold" title="سعر الوحدة">
+                    <span className="flex-1 min-w-fit whitespace-nowrap tabular-nums font-mono text-ink dark:text-ink-dark text-base font-semibold" title="سعر الوحدة">
                       × {formatArabicCurrency(item.unitPricePiasters, false)}
                       <span className="text-xs font-medium ms-1 text-ink-muted dark:text-ink-dark-muted max-xl:hidden">{isWeighed ? '/ كجم' : '/ وحدة'}</span>
                     </span>
@@ -310,21 +305,18 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
 
                   {/* Line 3: discount chip, then item specs (cold chain, location, unit, batch / expiry, modifiers) */}
                   <div className="flex items-center gap-2 text-micro text-ink-muted dark:text-ink-dark-muted min-w-0 flex-wrap">
-                    <button
-                      type="button"
+                    <AppButton
+                      variant={item.discountPiasters > 0 ? 'warningSoft' : 'secondary'}
+                      size="sm"
+                      icon={Tag}
                       onClick={() => onOpenItemDiscount(index)}
-                      className={`h-8 px-3 rounded-lg transition-colors text-sm font-semibold inline-flex items-center gap-1.5 cursor-pointer border max-w-full focus-visible:border-brand dark:focus-visible:border-brand-bright ${
-                        item.discountPiasters > 0
-                          ? 'text-ink dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border-warn-border dark:border-warn-bright/40 hover:bg-warn-soft/70 dark:hover:bg-warn-dark-soft/70'
-                          : 'text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark hover:text-paid dark:hover:text-paid-bright hover:bg-paid-soft dark:hover:bg-paid-dark-soft'
-                      }`}
+                      className="max-w-full"
                       title="تطبيق خصم خاص على هذا الصنف"
                     >
-                      <Tag className="w-3.5 h-3.5 shrink-0" />
                       <span className="tabular-nums truncate">
                         {item.discountPiasters > 0 ? `خصم -${formatArabicCurrency(item.discountPiasters, false)}` : 'خصم'}
                       </span>
-                    </button>
+                    </AppButton>
 
                     {item.isColdChain && (
                       <span className="shrink-0 h-6 px-2 bg-brand-soft dark:bg-brand-dark-soft border border-brand/25 dark:border-brand-bright/40 text-brand dark:text-brand-bright text-micro font-semibold rounded-md flex items-center gap-1" title="سلسلة تبريد: يحفظ في الثلاجة (2-8 مئوية)">
@@ -452,58 +444,54 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                     <div className="flex flex-wrap items-center gap-2 text-micro shrink-0">
                       {/* Drug Alternatives (F8) */}
                       {onOpenAlternatives && (
-                        <button
-                          type="button"
+                        <AppButton
+                          variant="secondary"
+                          size="xs"
+                          icon={Pill}
                           onClick={(e) => {
                             e.stopPropagation();
                             onOpenAlternatives(index);
                           }}
-                          className="h-7 px-2.5 rounded-md bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand dark:hover:bg-brand-soft/20 dark:hover:text-brand-bright border border-line dark:border-line-dark flex items-center gap-1.5 text-xs font-semibold text-ink-muted dark:text-ink-dark-muted cursor-pointer transition-colors shadow-2xs"
                           title="البحث عن بدائل ومثائل دوائية لهذا الصنف (F8)"
                         >
-                          <Pill className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
-                          <span>بدائل (F8)</span>
-                        </button>
+                          بدائل (F8)
+                        </AppButton>
                       )}
 
                       {/* Controlled Drug Dispense Documentation */}
                       {item.isControlled && (
-                        <button
-                          type="button"
+                        <AppButton
+                          variant={item.controlledDispense ? 'successSoft' : 'warningSoft'}
+                          size="xs"
+                          icon={ShieldAlert}
                           onClick={(e) => {
                             e.stopPropagation();
                             onOpenControlledDispense?.(index);
                           }}
-                          className={`h-7 px-2.5 rounded-md flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-colors shadow-2xs ${
-                            item.controlledDispense
-                              ? 'bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 text-paid dark:text-paid-bright hover:border-paid dark:hover:border-paid-bright'
-                              : 'bg-warn-soft dark:bg-warn-dark-soft border border-warn dark:border-warn-bright text-ink dark:text-warn-bright font-bold hover:bg-warn-soft/70 dark:hover:bg-warn-dark-soft/70'
-                          }`}
                           title={
                             item.controlledDispense
                               ? `تم توثيق الصرف للمريض: ${item.controlledDispense.patientName}`
                               : 'دواء جدول ورقابة مشددة - اضغط لتوثيق بيانات المريض والطبيب'
                           }
                         >
-                          <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
-                          <span>{item.controlledDispense ? 'موثق' : 'جدول'}</span>
-                        </button>
+                          {item.controlledDispense ? 'موثق' : 'جدول'}
+                        </AppButton>
                       )}
 
                       {/* Thermal Dosage Label Print */}
                       {onPrintDosageLabel && (
-                        <button
-                          type="button"
+                        <AppButton
+                          variant="secondary"
+                          size="xs"
+                          icon={Printer}
                           onClick={(e) => {
                             e.stopPropagation();
                             onPrintDosageLabel(index);
                           }}
-                          className="h-7 px-2.5 rounded-md bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand dark:hover:bg-brand-soft/20 dark:hover:text-brand-bright border border-line dark:border-line-dark flex items-center gap-1.5 text-xs font-semibold text-ink-muted dark:text-ink-dark-muted cursor-pointer transition-colors shadow-2xs"
                           title="طباعة ملصق جرعة حراري (استيكر صيدلي)"
                         >
-                          <Printer className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
-                          <span>ملصق</span>
-                        </button>
+                          ملصق
+                        </AppButton>
                       )}
                     </div>
                   )}

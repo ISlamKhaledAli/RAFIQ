@@ -55,6 +55,47 @@
     display: none !important;
   }
 
+  /* Themed native checkbox. Size utilities (w-3.5, w-5 ...), sr-only and hidden still win because utilities load after this layer.
+     The check and dash are masks painted by ::before, so their colour comes from tokens and never from a class on the input. */
+  input[type="checkbox"] {
+    @apply inline-block w-4 h-4 shrink-0 align-middle appearance-none rounded-[4px] border border-line-hover bg-surface transition-colors
+      enabled:hover:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40
+      dark:border-line-dark-strong dark:bg-surface-dark dark:enabled:hover:border-brand-bright dark:focus-visible:ring-brand-bright/50;
+  }
+
+  input[type="checkbox"]:disabled:not(:checked):not(:indeterminate) {
+    @apply bg-surface-2 dark:bg-surface-dark-2;
+  }
+
+  input[type="checkbox"]:checked,
+  input[type="checkbox"]:indeterminate {
+    @apply border-brand bg-brand dark:border-paid-bright dark:bg-paid-bright;
+  }
+
+  input[type="checkbox"].checkbox-danger:checked,
+  input[type="checkbox"].checkbox-danger:indeterminate {
+    @apply border-danger bg-danger dark:border-danger-bright dark:bg-danger-bright focus-visible:ring-danger/40 dark:focus-visible:ring-danger-bright/50;
+  }
+
+  input[type="checkbox"]::before {
+    @apply block w-full h-full bg-white dark:bg-surface-dark;
+    content: "";
+    transform: scale(0);
+    transition: transform 0.12s ease-out;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-6.5' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-6.5' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  }
+
+  input[type="checkbox"]:checked::before,
+  input[type="checkbox"]:indeterminate::before {
+    transform: scale(1);
+  }
+
+  input[type="checkbox"]:indeterminate::before {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  }
+
   /* High-clarity Arabic placeholder font & letter-spacing fix */
   input::placeholder, textarea::placeholder {
     font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif !important;
@@ -705,3 +746,405 @@ html.dark .unsaved-pulse {
   }
 }
 
+/*
+ * Opt-in motion. Every rule here needs html[data-motion="on"] (root switches `ui_motion_enabled` on, see utils/motion.ts)
+ * AND an OS that does not ask for reduced motion. Off = nothing below matches = the UI is unchanged.
+ * Only opacity and the individual `translate` / `scale` properties are animated (compositor only, they never
+ * clash with Tailwind's `transform`). Root picks the strength (html[data-motion-level]: soft / medium / strong) and the
+ * look (html[data-motion-style]: slide / fade / zoom); both only set the variables below, the rules never hard-code numbers.
+ * Longest duration is 360ms: long enough to be seen on a shop PC, still too short to ever delay a click.
+ */
+@media screen and (prefers-reduced-motion: no-preference) {
+  /* Strength (medium is the default when the attribute is missing) */
+  html[data-motion="on"] {
+    --rq-motion-duration: 240ms;
+    --rq-motion-distance: 16px;
+    --rq-motion-scale: 0.92;
+  }
+
+  html[data-motion="on"][data-motion-level="soft"] {
+    --rq-motion-duration: 160ms;
+    --rq-motion-distance: 8px;
+    --rq-motion-scale: 0.97;
+  }
+
+  html[data-motion="on"][data-motion-level="strong"] {
+    --rq-motion-duration: 360ms;
+    --rq-motion-distance: 28px;
+    --rq-motion-scale: 0.86;
+  }
+
+  /* Look (slide is the default). y/s drive panels and toasts, dy/ds drive dialogs: translate in px, scale from 1 */
+  html[data-motion="on"] {
+    --rq-motion-y: var(--rq-motion-distance);
+    --rq-motion-s: 1;
+    --rq-motion-dy: calc(var(--rq-motion-distance) * 0.875);
+    --rq-motion-ds: var(--rq-motion-scale);
+  }
+
+  html[data-motion="on"][data-motion-style="fade"] {
+    --rq-motion-y: 0px;
+    --rq-motion-s: 1;
+    --rq-motion-dy: 0px;
+    --rq-motion-ds: 1;
+  }
+
+  /* A whole page scaling from the full dialog value looks heavy, so panels use half of it */
+  html[data-motion="on"][data-motion-style="zoom"] {
+    --rq-motion-y: 0px;
+    --rq-motion-s: calc(1 - (1 - var(--rq-motion-scale)) / 2);
+    --rq-motion-dy: 0px;
+    --rq-motion-ds: var(--rq-motion-scale);
+  }
+
+  @keyframes rq-panel-in-a {
+    from { opacity: 0; translate: 0 var(--rq-motion-y, 16px); scale: var(--rq-motion-s, 1); }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+  }
+
+  /* Identical twin: switching the animation name is what restarts it on the next tab change without remounting */
+  @keyframes rq-panel-in-b {
+    from { opacity: 0; translate: 0 var(--rq-motion-y, 16px); scale: var(--rq-motion-s, 1); }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+  }
+
+  @keyframes rq-modal-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes rq-modal-panel-in {
+    from { opacity: 0; scale: var(--rq-motion-ds, 0.92); translate: 0 var(--rq-motion-dy, 14px); }
+    to { opacity: 1; scale: 1; translate: 0 0; }
+  }
+
+  @keyframes rq-toast-in {
+    from { opacity: 0; translate: 0 calc(var(--rq-motion-y, 16px) * -1); scale: var(--rq-motion-s, 1); }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+  }
+
+  /* Children of a tab/sub-view container swap in with a short fade + slide; the header marked .motion-static stays still */
+  html[data-motion="on"] [data-motion-phase="a"] > :not(.motion-static):not([class*="animate-"]) {
+    animation: rq-panel-in-a var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] [data-motion-phase="b"] > :not(.motion-static):not([class*="animate-"]) {
+    animation: rq-panel-in-b var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  /* Keep-alive page wrappers (toggled with display:none): the animation restarts every time they are shown again */
+  html[data-motion="on"] .motion-panel {
+    animation: rq-panel-in-a var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-modal-backdrop {
+    animation: rq-modal-backdrop-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-modal-panel {
+    animation: rq-modal-panel-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-toast {
+    animation: rq-toast-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  /* The ~170 popups, menus and drawers that already use the always-on `animate-in`, and the fades that use
+     `animate-fade-in` / `animate-fadeIn`, follow the same duration, easing, strength and look, so every popup in the app
+     feels the same; with motion off they keep their quick 150ms pop. Tailwind `duration-*` on them only sets
+     transition-duration, so it never changes the length of the entrance. */
+  html[data-motion="on"] :is(.animate-in, .animate-fade-in, .animate-fadeIn) {
+    animation-duration: var(--rq-motion-duration, 240ms);
+    animation-timing-function: ease-out;
+  }
+
+  /* Full-screen dialog backdrops (translucent black / ink fill) fade in with the shared duration wherever the overlay shell
+     comes from. Shells with their own animate-* class keep it (the rule above syncs its length); app shells, lock screens and
+     transparent click-catchers have no translucent fill, so they never match; .motion-static opts a shell out. */
+  html[data-motion="on"] .fixed.inset-0:is([class*="bg-black/"], [class*="bg-ink/"]):not(.motion-static):not([class*="animate-"]) {
+    animation: rq-modal-backdrop-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  /* Rotating chevrons and arrows next to a section that opens run as long as the section itself */
+  html[data-motion="on"] svg.transition-transform {
+    transition-duration: var(--rq-motion-duration, 240ms);
+    transition-timing-function: ease-out;
+  }
+
+  /* Side panels that glide their own width with a Tailwind transition keep their 150ms with motion off, the shared length with it on */
+  html[data-motion="on"] .motion-resize {
+    transition-duration: var(--rq-motion-duration, 240ms);
+    transition-timing-function: ease-out;
+  }
+
+  /* Dropdown menus that have no animate-in of their own */
+  @keyframes rq-popup-in {
+    from { opacity: 0; translate: 0 calc(var(--rq-motion-dy, 14px) * -0.7); }
+    to { opacity: 1; translate: 0 0; }
+  }
+
+  html[data-motion="on"] .motion-popup {
+    animation: rq-popup-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  /* A direct child of a tab container that still carries a legacy animate-in takes the same entrance as its siblings */
+  html[data-motion="on"] [data-motion-phase="a"] > .animate-in:not(.motion-static):not(.absolute):not(.fixed) {
+    animation: rq-panel-in-a var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] [data-motion-phase="b"] > .animate-in:not(.motion-static):not(.absolute):not(.fixed) {
+    animation: rq-panel-in-b var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  /* Fade and zoom looks drop the slide of popups that bring their own slide-in-from-* class; fade also drops their zoom */
+  html[data-motion="on"][data-motion-style="fade"] .animate-in,
+  html[data-motion="on"][data-motion-style="zoom"] .animate-in {
+    --tw-enter-translate-x: 0px;
+    --tw-enter-translate-y: 0px;
+  }
+
+  html[data-motion="on"][data-motion-style="fade"] .animate-in {
+    --tw-enter-scale: 1;
+  }
+
+  html[data-motion="on"] .fixed.inset-0 .animate-in.zoom-in-95 {
+    --tw-enter-scale: var(--rq-motion-ds, 0.92);
+    --tw-enter-translate-y: var(--rq-motion-dy, 14px);
+  }
+
+  /* Every slide-in-from-* class in use follows the strength variable (several of them have no base rule, so without this they did nothing) */
+  html[data-motion="on"] :is(.slide-in-from-top-1, .slide-in-from-top-2) {
+    --tw-enter-translate-y: calc(var(--rq-motion-dy, 14px) * -0.7);
+  }
+
+  html[data-motion="on"] :is(.slide-in-from-bottom-2, .slide-in-from-bottom-3) {
+    --tw-enter-translate-y: calc(var(--rq-motion-dy, 14px) * 0.85);
+  }
+
+  html[data-motion="on"] :is(.slide-in-from-left, .slide-in-from-left-2) {
+    --tw-enter-translate-x: calc(var(--rq-motion-dy, 14px) * -0.7);
+  }
+
+  /* Popups that only declare a slide or a zoom (no fade-in) would otherwise appear at full opacity: every entrance fades */
+  html[data-motion="on"] .animate-in:not(.fade-in) {
+    --tw-enter-opacity: 0;
+  }
+
+  /* Many dialogs only fade their backdrop and the panel just appears: give the panel (first real child of the overlay) the same entrance */
+  html[data-motion="on"] .fixed.inset-0 > div:first-child:not([class*="animate-"]):not(.motion-static):not(.absolute):not(.fixed) {
+    animation: rq-modal-panel-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .animate-scale-up {
+    animation: rq-modal-panel-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  /*
+   * POS side panels (أصناف المحل + أقسام المتجر). Both carry .motion-resize, so the width glide has the same length and
+   * easing; the cart column is flex-1 and follows the freed width in the same frames. The width glide is a layout
+   * transition on purpose (two side panels, only on the collapse / expand click, never while scanning or typing).
+   * The collapsed catalog needs an interpolable flex (grow 1 -> 0 and basis 0% -> 3.625rem): its flex-none + auto basis cannot be
+   * interpolated, so it would flip halfway through a long glide. Motion off keeps the classes in the markup untouched.
+   */
+  html[data-motion="on"] .motion-catalog {
+    position: relative;
+  }
+
+  html[data-motion="on"] .motion-catalog[data-collapsed="true"] {
+    flex: 0 0 3.625rem;
+  }
+
+  /* The body fades instead of display:none popping; it keeps a 300px layout so the grid does not reflow while the panel narrows */
+  html[data-motion="on"] .motion-catalog-body {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+    padding: inherit;
+    opacity: 1;
+    transition: opacity var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  /* visibility switches after the fade, so nothing hidden stays focusable (the body is also inert from the first frame) */
+  html[data-motion="on"] .motion-catalog[data-collapsed="true"] .motion-catalog-body {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--rq-motion-duration, 240ms) ease-out, visibility 0s linear var(--rq-motion-duration, 240ms);
+  }
+
+  /* Content that mounts when a panel switches between its strip and its full body fades in with the glide (same opacity-only keyframe as the dialog backdrops) */
+  html[data-motion="on"] .motion-swap-in,
+  html[data-motion="on"] .motion-swap-children > * {
+    animation: rq-modal-backdrop-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  /*
+   * Exits. hooks/useExitTransition.ts keeps a removed toast / drawer / list row mounted for --rq-motion-duration and sets
+   * data-exiting on it; these rules play the way out in the same duration, mirroring the entrances above. Without
+   * data-exiting (motion off, reduced motion, or the element still shown) none of them match. forwards holds the last frame until unmount.
+   */
+  @keyframes rq-fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  @keyframes rq-toast-out {
+    from { opacity: 1; translate: 0 0; scale: 1; }
+    to { opacity: 0; translate: 0 calc(var(--rq-motion-y, 16px) * -1); scale: var(--rq-motion-s, 1); }
+  }
+
+  @keyframes rq-toast-out-bottom {
+    from { opacity: 1; translate: 0 0; }
+    to { opacity: 0; translate: 0 calc(var(--rq-motion-dy, 14px) * 0.85); }
+  }
+
+  @keyframes rq-popup-out {
+    from { opacity: 1; translate: 0 0; }
+    to { opacity: 0; translate: 0 calc(var(--rq-motion-dy, 14px) * -0.7); }
+  }
+
+  @keyframes rq-modal-panel-out {
+    from { opacity: 1; scale: 1; translate: 0 0; }
+    to { opacity: 0; scale: var(--rq-motion-ds, 0.92); translate: 0 var(--rq-motion-dy, 14px); }
+  }
+
+  /* A removed list row fades and gives its height (and the gap under it) back; the rows below glide up with it */
+  @keyframes rq-collapse-out {
+    from { opacity: 1; grid-template-rows: 1fr; margin-bottom: 0; }
+    to { opacity: 0; grid-template-rows: 0fr; margin-bottom: calc(var(--rq-collapse-gap, 0px) * -1); }
+  }
+
+  html[data-motion="on"] [data-exiting] {
+    pointer-events: none;
+  }
+
+  html[data-motion="on"] .motion-exit-fade[data-exiting] {
+    animation: rq-fade-out var(--rq-motion-duration, 240ms) ease-out forwards;
+  }
+
+  html[data-motion="on"] .motion-exit-toast[data-exiting] {
+    animation: rq-toast-out var(--rq-motion-duration, 240ms) ease-out forwards;
+  }
+
+  html[data-motion="on"] .motion-exit-toast-bottom[data-exiting] {
+    animation: rq-toast-out-bottom var(--rq-motion-duration, 240ms) ease-out forwards;
+  }
+
+  html[data-motion="on"] .motion-exit-popup[data-exiting] {
+    animation: rq-popup-out var(--rq-motion-duration, 240ms) ease-out forwards;
+  }
+
+  html[data-motion="on"] .motion-exit-modal-panel[data-exiting] {
+    animation: rq-modal-panel-out var(--rq-motion-duration, 240ms) ease-out forwards;
+  }
+
+  html[data-motion="on"] .motion-exit-collapse[data-exiting] {
+    display: grid;
+    animation: rq-collapse-out var(--rq-motion-duration, 240ms) ease-out forwards;
+  }
+
+  html[data-motion="on"] .motion-exit-collapse[data-exiting] > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* The last row has no gap under it to give back */
+  html[data-motion="on"] .motion-exit-collapse[data-exiting]:last-child {
+    --rq-collapse-gap: 0px;
+  }
+
+  /* A dialog body that shows a spinner while its data loads keeps the room of a full dialog, so the shell does not jump when the content arrives */
+  html[data-motion="on"] .motion-loading-fill {
+    min-height: calc(92vh - 11rem);
+  }
+
+  /* The bell badge pops when the count goes up (the a / b twins restart it without remounting) */
+  @keyframes rq-badge-pop-a {
+    from { scale: calc(1 + (1 - var(--rq-motion-scale, 0.92)) * 1.9); }
+    to { scale: 1; }
+  }
+
+  @keyframes rq-badge-pop-b {
+    from { scale: calc(1 + (1 - var(--rq-motion-scale, 0.92)) * 1.9); }
+    to { scale: 1; }
+  }
+
+  html[data-motion="on"] [data-pop="a"] {
+    animation: rq-badge-pop-a var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] [data-pop="b"] {
+    animation: rq-badge-pop-b var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  /*
+   * Sidebar («القوائم الرئيسية»). Group children (components/SidebarGroupPanel.tsx) glide their height with opacity only: the
+   * wrapper is a one-row grid whose row runs 0fr <-> 1fr, the exit is the shared .motion-exit-collapse above, and the legacy
+   * slide-in-from-top pop of the inner block is switched off so nothing slides over the group header. The chevron turns with the
+   * same duration. Width follows the shared duration; the rows keep their expanded width while the aside narrows or widens (the aside
+   * clips them), so labels never wrap mid-glide, and the labels fade. Rows only transition colours: the active highlight fades its
+   * background, no font-weight or border-width layout change (the border is always 1px and transparent unless a dark:border colour sets it).
+   */
+  @keyframes rq-collapse-in {
+    from { opacity: 0; grid-template-rows: 0fr; }
+    to { opacity: 1; grid-template-rows: 1fr; }
+  }
+
+  html[data-motion="on"] .motion-nav-group {
+    display: grid;
+    grid-template-rows: 1fr;
+    animation: rq-collapse-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-nav-group > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  html[data-motion="on"] .motion-nav-group .animate-in {
+    animation: none;
+  }
+
+  html[data-motion="on"] .motion-chevron {
+    transition: transform var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-sidebar {
+    transition-property: width;
+    transition-duration: var(--rq-motion-duration, 240ms);
+    transition-timing-function: ease-out;
+  }
+
+  /* Inner width of the 256px expanded sidebar: its px width minus the p-2.5 padding (rem), so the rows never overflow at any text size */
+  html[data-motion="on"] .motion-sidebar:not([data-rail]) > * {
+    min-width: calc(256px - 1.25rem);
+  }
+
+  html[data-motion="on"] .motion-sidebar nav button {
+    transition: color var(--rq-motion-duration, 240ms) ease-out,
+                background-color var(--rq-motion-duration, 240ms) ease-out,
+                border-color var(--rq-motion-duration, 240ms) ease-out,
+                box-shadow var(--rq-motion-duration, 240ms) ease-out,
+                transform 0.08s ease;
+  }
+
+  :where(html[data-motion="on"] .motion-sidebar nav button) {
+    border-width: 1px;
+    border-color: transparent;
+  }
+
+  /* The icon rail is 42px per row, the full rows 41px: with motion on the rail takes 41 so the swap at the end of the glide moves nothing */
+  html[data-motion="on"] .motion-sidebar nav > button {
+    height: 41px;
+  }
+
+  html[data-motion="on"] .motion-sidebar-label {
+    animation: rq-modal-backdrop-in var(--rq-motion-duration, 240ms) ease-out;
+  }
+
+  html[data-motion="on"] .motion-sidebar[data-sidebar-exiting] .motion-sidebar-label {
+    animation: rq-fade-out var(--rq-motion-duration, 240ms) ease-out forwards;
+  }
+}

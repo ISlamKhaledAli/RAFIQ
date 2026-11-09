@@ -4,7 +4,8 @@ import { invoke } from '../../bridge/ipc';
 import { BarcodeScannerSettingsModal } from '../../components/BarcodeScannerSettingsModal';
 import { CertifiedHardwareModal } from '../../components/CertifiedHardwareModal';
 import { PinSettingsModal } from '../../components/PinSettingsModal';
-import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, SettingsCard } from '../settings/settingsParts';
+import { AppButton } from '../../components/AppButton';
+import { SettingsCard } from '../settings/settingsParts';
 
 interface PinStatus {
   isPinSet: boolean;
@@ -69,14 +70,12 @@ export const RootDevicesPage = () => {
         description="فحص استجابة القارئ وضبط سرعة الالتقاط، ومعرفة القارئات المجربة مع البرنامج."
         action={
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={() => setIsHardwareOpen(true)} className={SECONDARY_BUTTON_CLASS}>
-              <Server className="w-4 h-4 text-brand dark:text-brand-bright" />
-              <span>القارئات المعتمدة والمجربة</span>
-            </button>
-            <button type="button" onClick={() => setIsScannerOpen(true)} className={PRIMARY_BUTTON_CLASS}>
-              <Zap className="w-4 h-4" />
-              <span>فحص وتجربة قارئ الباركود</span>
-            </button>
+            <AppButton variant="secondary" size="lg" icon={Server} onClick={() => setIsHardwareOpen(true)}>
+              القارئات المعتمدة والمجربة
+            </AppButton>
+            <AppButton variant="primary" size="lg" icon={Zap} onClick={() => setIsScannerOpen(true)}>
+              فحص وتجربة قارئ الباركود
+            </AppButton>
           </div>
         }
       >
@@ -98,13 +97,12 @@ export const RootDevicesPage = () => {
 
       <SettingsCard
         icon={KeyRound}
-        title="حماية الشاشات والعمليات الحساسة بالرقم السري (PIN)"
+        title="حماية الشاشات والعمليات الحساسة بالرقم السري"
         description="قفل تعديل الأسعار والتقارير المالية واستعادة قاعدة البيانات برقم سري مشفّر."
         action={
-          <button type="button" onClick={() => setIsPinOpen(true)} className={PRIMARY_BUTTON_CLASS}>
-            <KeyRound className="w-4 h-4" />
-            <span>{pinStatus?.isPinSet ? 'إعدادات وتغيير الرقم السري' : 'إنشاء رقم سري'}</span>
-          </button>
+          <AppButton variant="primary" size="lg" icon={KeyRound} onClick={() => setIsPinOpen(true)}>
+            {pinStatus?.isPinSet ? 'إعدادات وتغيير الرقم السري' : 'إنشاء رقم سري'}
+          </AppButton>
         }
       >
         {pinError ? (

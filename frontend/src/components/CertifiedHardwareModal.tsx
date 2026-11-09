@@ -2,347 +2,68 @@ import React, { useState } from 'react';
 import {
   Server,
   Printer,
+  Tag,
   Barcode,
   Coins,
   Scale,
-  CheckCircle2,
+  BatteryCharging,
+  Check,
   X,
-  Search,
   Sliders,
-  Sparkles,
   Info,
   ChevronDown,
   ChevronUp,
-  FileText
+  FileText,
+  MapPin,
+  type LucideIcon,
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
+import { SegmentedTabs, type SegmentedTabOption } from './SegmentedTabs';
 import { useModalDismiss } from '../hooks/useModalDismiss';
-import { printReport } from '../utils/printReport';
+import { useMotionPanel } from '../hooks/useMotionPanel';
+import MotionHeight from './MotionHeight';
+import { AppButton } from './AppButton';
+import { usePrintReport } from '../hooks/usePrintReport';
+import {
+  CATEGORY_GUIDE,
+  CERTIFIED_DEVICES,
+  CONNECTION_HINTS,
+  CONNECTION_LABELS,
+  HARDWARE_CATEGORIES,
+  STATUS_LABELS,
+  filterCertifiedDevices,
+  type HardwareCategory,
+  type HardwareStatus,
+} from '../utils/certifiedHardware';
 
-interface CertifiedDevice {
-  id: string;
-  category: 'printer' | 'scanner' | 'drawer' | 'scale';
-  model: string;
-  brand: string;
-  type: string;
-  status: 'certified' | 'recommended';
-  arabicSupport: 'ممتاز (مدمج بدون تشويه)' | 'جيد جداً (عبر ESC/POS)' | 'قياسي';
-  connectionType: 'USB' | 'USB + LAN' | 'RJ11' | 'Serial / USB';
-  testResults: {
-    latency: string;
-    win7Compat: boolean;
-    win10_11Compat: boolean;
-    autoCutterOrTrigger: string;
-  };
-  setupSteps: string[];
-  recommendedSettings: {
-    paperOrCode?: string;
-    driverName?: string;
-    baudRateOrSuffix?: string;
-    drawerCode?: string;
-  };
-  notes: string;
-}
+type CategoryFilter = 'all' | HardwareCategory;
 
-const CERTIFIED_DEVICES: CertifiedDevice[] = [
-  // 1. RECEIPT PRINTERS
-  {
-    id: 'xp_n160ii',
-    category: 'printer',
-    model: 'XP-N160II / XP-Q200 / XP-C300H',
-    brand: 'Xprinter',
-    type: 'طابعة إيصالات حرارية 80mm',
-    status: 'recommended',
-    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
-    connectionType: 'USB + LAN',
-    testResults: {
-      latency: '< 150ms (فورية)',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'قاطع آلي سريع (Auto-Cutter)',
-    },
-    setupSteps: [
-      'توصيل كابل USB وتشغيل الطابعة.',
-      'تثبيت درايفر Xprinter الرسمي لنظام Windows (متوفر لويندوز 7 حتى 11).',
-      'في إعدادات رفيق > الطابعة الحرارية: اختر الطابعة الافتراضية ومقاس 80mm.',
-      'تفعيل خياري "طباعة فورية" و "فتح درج النقدية تلقائياً".',
-      'الضغط على "طباعة صفحة تجريبية" للتأكد من خروج الإيصال باللغة العربية الواضحة.',
-    ],
-    recommendedSettings: {
-      paperOrCode: '80mm (72mm printable area)',
-      driverName: 'Xprinter 80 Series Driver',
-      drawerCode: '27,112,0,25,250 (أمر فتح الدرج القياسي)',
-    },
-    notes: 'أكثر طابعات الفواتير انتشاراً واقتصادية في مصر، قطع الغيار ورولات الورق متوفرة في كل مكان، واعتماديتها ممتازة لكافة المحلات والمتاجر.',
-  },
-  {
-    id: 'bixolon_srp330',
-    category: 'printer',
-    model: 'SRP-330II / SRP-350III',
-    brand: 'Bixolon (Samsung)',
-    type: 'طابعة إيصالات حرارية للمهام الشاقة 80mm',
-    status: 'certified',
-    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
-    connectionType: 'USB',
-    testResults: {
-      latency: '< 100ms (فائقة السرعة)',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'قاطع هيفي ديوتي (2 مليون قطوع)',
-    },
-    setupSteps: [
-      'تثبيت درايفر Bixolon Windows Driver v7.',
-      'اختيار مقاس الورق 80mm × 297mm من خصائص الطابعة.',
-      'اختيار الطابعة كافتراضية في نظام رفيق واختبار الطباعة والدرج.',
-    ],
-    recommendedSettings: {
-      paperOrCode: '80mm',
-      driverName: 'Bixolon SRP-330II Driver',
-      drawerCode: 'Standard ESC/POS Pulse Pin 2',
-    },
-    notes: 'طابعة صناعية للمحلات الكبيرة والهايبرماركت، محرك طباعة صامت جداً ومقاوم للغبار ورطوبة المحل.',
-  },
-  {
-    id: 'epson_tmt20',
-    category: 'printer',
-    model: 'TM-T20III / TM-T88VI',
-    brand: 'Epson',
-    type: 'طابعة فواتير قياسية عالمية 80mm',
-    status: 'certified',
-    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
-    connectionType: 'USB',
-    testResults: {
-      latency: '< 120ms',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'قاطع آلي سيراميك',
-    },
-    setupSteps: [
-      'تثبيت برنامج Epson Advanced Printer Driver (APD).',
-      'ضبط خط الطابعة على وضع TrueType مع لغة Windows-1256.',
-      'تعيينها كطابعة فواتير افتراضية في شاشة نظام رفيق.',
-    ],
-    recommendedSettings: {
-      paperOrCode: '80mm Roll',
-      driverName: 'EPSON TM-T20III Receipt',
-    },
-    notes: 'الطابعة الأشهر في سلاسل المتاجر العالمية، استقرار عالي جداً على مدار 24 ساعة بدون انقطاع.',
-  },
-  {
-    id: 'mini_pos_58',
-    category: 'printer',
-    model: 'POS-58 Series / Milestone 58mm',
-    brand: 'Generic / Milestone',
-    type: 'طابعة كاشير مدمجة 57mm / 58mm',
-    status: 'certified',
-    arabicSupport: 'جيد جداً (عبر ESC/POS)',
-    connectionType: 'USB',
-    testResults: {
-      latency: '< 200ms',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'تمزيق يدوي (Manual Tear Bar)',
-    },
-    setupSteps: [
-      'تثبيت درايفر POS-58 Series Driver.',
-      'في إعدادات نظام رفيق > اختيار مقاس الورق: 57mm (بدلاً من 80mm).',
-      'إلغاء تفعيل قاطع الورق الآلي إن لم تكن مزودة به.',
-    ],
-    recommendedSettings: {
-      paperOrCode: '57mm / 58mm Roll',
-      driverName: 'POS-58 Driver',
-    },
-    notes: 'مثالية للأكشاك والمساحات الصغيرة حيث لا يتوفر مكان لطابعة 80mm الكبيرة، وتوفر استهلاك الورق.',
-  },
+const CATEGORY_ICONS: Record<HardwareCategory, LucideIcon> = {
+  printer: Printer,
+  label: Tag,
+  scanner: Barcode,
+  drawer: Coins,
+  scale: Scale,
+  power: BatteryCharging,
+};
 
-  // 2. BARCODE SCANNERS
-  {
-    id: 'datalogic_qd2400',
-    category: 'scanner',
-    model: 'QuickScan QD2100 / QD2400 2D',
-    brand: 'Datalogic',
-    type: 'قارئ باركود سلكي ضوئي 1D & 2D QR',
-    status: 'recommended',
-    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
-    connectionType: 'USB',
-    testResults: {
-      latency: '< 50ms (التقاط فوري)',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'زر زناد مريح + كشف تلقائي على الحامل',
-    },
-    setupSteps: [
-      'توصيل كابل USB بأي منفذ كمبيوتر (Plug & Play بدون تعريفات).',
-      'التأكد من أن القارئ يصدر نغمة تنبيه صوتية (Beep) عند المسح.',
-      'مسح باركود البرمجة "CR Suffix" لإرسال زر Enter تلقائياً بعد كل قراءة صنف.',
-      'في شاشة البيع: مرر أي صنف وسيُضاف فوراً للسلة.',
-    ],
-    recommendedSettings: {
-      paperOrCode: 'Code 128, EAN-13, QR, DataMatrix',
-      baudRateOrSuffix: 'USB HID Keyboard Emulation + CR (Enter)',
-    },
-    notes: 'القارئ الموصى به رقم 1 لمشروع رفيق؛ يتميز بضوء استهداف ناعم، وقراءة سريعة للأصناف المجعدة أو الباركودات الصغيرة على الحلوى واللبان.',
-  },
-  {
-    id: 'honeywell_1250g',
-    category: 'scanner',
-    model: 'Voyager 1250g / 1400g / 1450g 2D',
-    brand: 'Honeywell',
-    type: 'قارئ باركود ليزري عالي الحساسية',
-    status: 'certified',
-    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
-    connectionType: 'USB',
-    testResults: {
-      latency: '< 60ms',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'حامل تلقائي (Auto-Sense Stand)',
-    },
-    setupSteps: [
-      'توصيل كابل USB.',
-      'وضع القارئ على الحامل لتفعيل المسح المستمر دون لمس الزناد.',
-      'تأكد من إرسال Enter بنهاية كل باركود من خلال باركودات كتالوج Honeywell.',
-    ],
-    recommendedSettings: {
-      baudRateOrSuffix: 'USB Keyboard PC + Carriage Return',
-    },
-    notes: 'قدرة فائقة على قراءة الباركودات الباهتة والمطبوعة بجودة منخفضة من الموردين.',
-  },
-  {
-    id: 'zebra_ds9208',
-    category: 'scanner',
-    model: 'DS9208 / DS9308 Desktop Omnidirectional',
-    brand: 'Zebra (Symbol)',
-    type: 'قارئ طاولة متعدد الزوايا (شغل ثقيل كاشير)',
-    status: 'recommended',
-    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
-    connectionType: 'USB',
-    testResults: {
-      latency: '< 30ms (فائق السرعة)',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'مسح مستمر 360 درجة بدون زناد',
-    },
-    setupSteps: [
-      'تثبيت القارئ على طاولة الكاشير وتوصيل كابل USB.',
-      'لا يحتاج توجيه محدد؛ بمجرد تمرير المنتج أمامه يقرأ الباركود من أي زاوية.',
-    ],
-    recommendedSettings: {
-      baudRateOrSuffix: 'USB HID + Auto-Enter',
-    },
-    notes: 'الخيار الأفضل للمتاجر والمحلات المزدحمة؛ يرفع سرعة الكاشير بنسبة 40% لعدم الحاجة لرفع المسدس اليدوي.',
-  },
-  {
-    id: 'symbol_ls2208',
-    category: 'scanner',
-    model: 'LS2208 / DS2208 Handheld 1D & 2D',
-    brand: 'Zebra (Symbol Motorola)',
-    type: 'قارئ باركود يدوي كلاسيكي الأكثر اعتمادية عالمياً',
-    status: 'certified',
-    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
-    connectionType: 'USB',
-    testResults: {
-      latency: '< 40ms (التقاط ليزري فوري)',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'زناد فيزيائي مقاوم لمليون ضغطة + وضع الحامل الذكي',
-    },
-    setupSteps: [
-      'توصيل كابل USB بالكمبيوتر؛ يتعرف عليه ويندوز فوراً كـ HID Keyboard.',
-      'في حال عدم إرسال Enter تلقائياً: امسح باركود "Scan Options" ثم "Data Suffx" ثم "Enter" من كتالوج Zebra.',
-      'لتحويله لوضع USB HID القياسي في حال كان على Virtual COM: امسح باركود "HID KEYBOARD EMULATION".',
-    ],
-    recommendedSettings: {
-      baudRateOrSuffix: 'USB Keyboard Wedge (HID) + CR Suffix',
-      paperOrCode: 'Code 128, EAN-13, EAN-8, UPC-A, GS1-128',
-    },
-    notes: 'الجهاز الأكثر تحملاً واستقراراً في تاريخ أجهزة نقاط البيع، مقاوم للصدمات والسقوط المتكرر على الأرضيات الصلبة.',
-  },
-  {
-    id: 'netum_wireless_2d',
-    category: 'scanner',
-    model: 'NT-1228BL / C750 Wireless 2.4G & Bluetooth',
-    brand: 'Netum / Symcode',
-    type: 'قارئ باركود لاسلكي محمول مع فلاشة USB Dongle',
-    status: 'recommended',
-    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
-    connectionType: 'USB',
-    testResults: {
-      latency: '< 65ms (مدى لاسلكي حتى 50 متر)',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'تخزين أوفلاين فوري + مسح لاسلكي حر',
-    },
-    setupSteps: [
-      'توصيل فلاشة USB الصغيرة بالكمبيوتر.',
-      'تشغيل القارئ؛ يتصل بالقاعدة فوراً عبر تردد 2.4GHz المستقر.',
-      'يدعم وضعي "Instant Upload" للبيع المباشر، و "Inventory Storage Mode" لتخزين الباركودات أثناء جرد المخزن وتفريغها دفعة واحدة.',
-    ],
-    recommendedSettings: {
-      baudRateOrSuffix: '2.4GHz Wireless HID + Enter Suffix',
-      paperOrCode: '1D Barcodes + QR Code + DataMatrix',
-    },
-    notes: 'ممتاز للجرد والتنقل داخل المحل وحرية حركة الكاشير حول البضائع الكبيرة والأجهزة الثقيلة دون التقيد بأسلاك.',
-  },
+const STATUS_TONE: Record<HardwareStatus, string> = {
+  certified: 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30',
+  recommended: 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border-brand/20 dark:border-brand-bright/30',
+  untested: 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border-warn/20 dark:border-warn-bright/30',
+};
 
-  // 3. CASH DRAWERS
-  {
-    id: 'cash_drawer_standard',
-    category: 'drawer',
-    model: 'MK-410 / E-410 Heavy Duty Metal Drawer',
-    brand: 'Maken / POS-D',
-    type: 'درج نقدية إلكتروني حديدي 5 خانات نقدية و 8 فكة',
-    status: 'certified',
-    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
-    connectionType: 'RJ11',
-    testResults: {
-      latency: '< 50ms (فتح فوري مع أمر الطباعة)',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'ملف مغناطيسي 24V / 12V',
-    },
-    setupSteps: [
-      'توصيل كابل RJ11 المزود مع الدرج بمنفذ (DK / Cash Drawer) الموجود في ظهر طابعة الفواتير.',
-      'في شاشة الإعدادات بنظام رفيق > الطابعة الحرارية: فعّل خيار "فتح درج النقدية تلقائياً".',
-      'عند الضغط على "طباعة تجريبية" أو إنهاء أي عملية بيع، سيُفتح الدرج تلقائياً بصوت ناعم.',
-    ],
-    recommendedSettings: {
-      drawerCode: 'ESC p 0 25 250 (Pin 2 / 24V)',
-    },
-    notes: 'هيكل حديدي صلب مع مفتاح أمان ثلاثي الأوضاع (قفل / فتح إلكتروني / فتح يدوي بالطوارئ).',
-  },
+const CHIP = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold';
 
-  // 4. BARCODE SCALES
-  {
-    id: 'aclas_scale',
-    category: 'scale',
-    model: 'Aclas LS2X / Rongta RLS1000 / CAS CL5200',
-    brand: 'Aclas / Rongta / CAS',
-    type: 'ميزان باركود إلكتروني للأجبان والخضروات واللحوم',
-    status: 'certified',
-    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
-    connectionType: 'Serial / USB',
-    testResults: {
-      latency: '< 80ms استخراج الوزن والسعر',
-      win7Compat: true,
-      win10_11Compat: true,
-      autoCutterOrTrigger: 'طباعة ملصق باركود فوري على الميزان',
-    },
-    setupSteps: [
-      'ضبط صيغة الباركود في الميزان لتكون صيغة قياسية EAN-13 تبدأ بـ 20 أو 21 (النوع المعتمد للمتاجر ومحلات الأوزان والتجزئة).',
-      'تكويد الصنف في رفيق بنفس كود الـ PLU المحدد في الميزان واختيار الوحدة (كيلوجرام).',
-      'عند تمرير ملصق الميزان أمام الكاشير، يستخرج رفيق وزن الجرامات ويحسب السعر فوراً بدقة القروش.',
-    ],
-    recommendedSettings: {
-      paperOrCode: 'EAN-13 Scale Barcode (20-XXXX-WWWWW-C)',
-    },
-    notes: 'متوافق بالكامل مع خوارزمية فك شفرات الموازين المدمجة في نظام رفيق دون الحاجة لأي برامج وسيطة.',
-  },
+const CATEGORY_OPTIONS: SegmentedTabOption<CategoryFilter>[] = [
+  { value: 'all', label: 'الكل' },
+  ...HARDWARE_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_GUIDE[c].label, icon: CATEGORY_ICONS[c] })),
 ];
 
 interface CertifiedHardwareModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialCategory?: 'all' | 'printer' | 'scanner' | 'drawer' | 'scale';
+  initialCategory?: CategoryFilter;
 }
 
 export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
@@ -350,9 +71,10 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
   onClose,
   initialCategory = 'all',
 }) => {
-  const [activeCategory, setActiveCategory] = useState<'all' | 'printer' | 'scanner' | 'drawer' | 'scale'>(initialCategory);
+  const [activeCategory, setActiveCategory] = useState<CategoryFilter>(initialCategory);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedDeviceId, setExpandedDeviceId] = useState<string | null>(null);
+  const listPanel = useMotionPanel(activeCategory);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -360,21 +82,15 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
     isDirty: false,
   });
 
+  const { print: printSpecSheet, printing: isPrintingSpecSheet } = usePrintReport({
+    reportName: 'ورقة مواصفات الأجهزة المعتمدة',
+    kind: 'a4only',
+  });
+
   if (!isOpen) return null;
 
-  const filteredDevices = CERTIFIED_DEVICES.filter((d) => {
-    const matchesCat = activeCategory === 'all' || d.category === activeCategory;
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return matchesCat;
-
-    const matchesSearch =
-      d.model.toLowerCase().includes(q) ||
-      d.brand.toLowerCase().includes(q) ||
-      d.type.toLowerCase().includes(q) ||
-      d.notes.toLowerCase().includes(q);
-
-    return matchesCat && matchesSearch;
-  });
+  const filteredDevices = filterCertifiedDevices(CERTIFIED_DEVICES, activeCategory, searchQuery);
+  const visibleCategories = HARDWARE_CATEGORIES.filter((c) => filteredDevices.some((d) => d.category === c));
 
   return (
     <div
@@ -384,28 +100,24 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
     >
       <div
         data-print-root
-        className="w-full max-w-4xl h-[86vh] max-h-[800px] bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark flex flex-col overflow-hidden font-sans text-ink dark:text-ink-dark"
+        className="w-full max-w-5xl h-[92vh] max-h-[53.75rem] bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark flex flex-col overflow-hidden font-sans text-ink dark:text-ink-dark"
         role="dialog"
         aria-modal="true"
+        aria-label="دليل أجهزة الكاشير المعتمدة والمجربة"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-3.5 bg-brand-dark text-white flex items-center justify-between shrink-0 select-none shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-brand flex items-center justify-center text-white shadow-inner">
+        <div className="px-5 py-4 bg-brand-dark text-white flex items-center justify-between gap-4 shrink-0 select-none shadow-sm">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-brand flex items-center justify-center text-white shadow-inner shrink-0">
               <Server className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-wide">
-                  دليل أجهزة الكاشير المعتمدة والمجربة
-                </h2>
-                <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
-                  متوافق 100%
-                </span>
-              </div>
-              <p className="text-micro text-white/80 m-0">
-                قائمة الطابعات، وقارئات الباركود، وأدراج النقدية، والموازين المجربة مع خطوات تشغيل كل جهاز
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-white leading-snug m-0">
+                دليل أجهزة الكاشير المعتمدة والمجربة
+              </h2>
+              <p className="text-sm text-white/80 leading-relaxed m-0">
+                الطابعات وقارئات الباركود وأدراج النقدية والموازين وغيرها، مع ما يدعمه رفيق وطريقة تشغيل كل جهاز
               </p>
             </div>
           </div>
@@ -413,266 +125,181 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
           <button
             type="button"
             onClick={requestClose}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 shrink-0 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
             title="إغلاق (Esc)"
+            aria-label="إغلاق"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Filter bar & Search */}
-        <div className="p-3 bg-canvas dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3 shrink-0 select-none">
-          {/* Category Tabs */}
-          <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveCategory('all')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                activeCategory === 'all'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-              }`}
-            >
-              الكل ({CERTIFIED_DEVICES.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveCategory('printer')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeCategory === 'printer'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-              }`}
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>طابعات الفواتير</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveCategory('scanner')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeCategory === 'scanner'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-              }`}
-            >
-              <Barcode className="w-3.5 h-3.5" />
-              <span>قارئات الباركود</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveCategory('drawer')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeCategory === 'drawer'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-              }`}
-            >
-              <Coins className="w-3.5 h-3.5" />
-              <span>أدراج النقدية</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveCategory('scale')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeCategory === 'scale'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-              }`}
-            >
-              <Scale className="w-3.5 h-3.5" />
-              <span>موازين الباركود</span>
-            </button>
-          </div>
-
-          {/* Quick search input */}
-          <div className="relative w-64 max-w-full">
-            <Search className="w-3.5 h-3.5 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث بموديل أو ماركة الجهاز..."
-              className="w-full h-8.5 pr-8.5 pl-3 rounded-lg bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand text-xs text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 outline-none transition-all"
-            />
-          </div>
+        <div className="px-5 py-4 bg-canvas dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-x-8 gap-y-3 shrink-0 select-none">
+          <SearchInput
+            size="md"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="ابحث بموديل أو ماركة الجهاز..."
+            ariaLabel="بحث في الأجهزة المعتمدة"
+            className="w-96 max-w-full"
+          />
+          <span className="text-sm font-bold text-ink-muted dark:text-ink-dark-muted tabular-nums">
+            عرض {filteredDevices.length} من {CERTIFIED_DEVICES.length}
+          </span>
+          <SegmentedTabs options={CATEGORY_OPTIONS} value={activeCategory} onChange={setActiveCategory} ariaLabel="فئات الأجهزة" size="compact" fullWidth />
         </div>
 
         {/* Device Cards List */}
-        <div className="flex-1 p-4 overflow-y-auto bg-surface dark:bg-surface-dark-2 flex flex-col gap-3 min-h-0">
-          {/* Advice Banner */}
-          <div className="p-3 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs flex items-center justify-between shadow-2xs">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
-              <span>
-                <strong>ضمان التوافق 100%:</strong> كل الأجهزة دي متجربة عملياً وشغالة بامتياز على كل نسخ الويندوز (ويندوز 7 و 8 و 10 و 11) مع دعم كامل للغة العربي بدون أي تشويه.
-              </span>
-            </div>
-            <span className="text-micro font-bold text-paid dark:text-paid-bright bg-surface dark:bg-surface-dark px-2 py-0.5 rounded border border-line dark:border-line-dark shrink-0">
-              100% Plug & Play
-            </span>
+        <div {...listPanel} className="flex-1 px-5 py-4 overflow-y-auto bg-surface dark:bg-surface-dark-2 flex flex-col gap-4 min-h-0">
+          {/* How to read the guide */}
+          <div className="p-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft border border-line dark:border-line-dark text-ink dark:text-ink-dark text-sm leading-relaxed flex items-start gap-3">
+            <Info className="w-5 h-5 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
+            <p className="m-0">
+              <strong>معتمد</strong> و<strong>موصى به</strong> أجهزة جُرّبت مع رفيق. أما <strong>غير مجرّب بعد</strong> فبطاقة متطلبات عامة لنوع جهاز يدعمه رفيق دون موديل بعينه، فاختبره بأزرار الاختبار في الإعدادات قبل الاعتماد عليه.
+            </p>
           </div>
 
-          {filteredDevices.map((device) => {
-            const isExpanded = expandedDeviceId === device.id;
+          {filteredDevices.length === 0 && (
+            <div className="p-8 rounded-xl border border-dashed border-line dark:border-line-dark text-center text-sm text-ink-muted dark:text-ink-dark-muted">
+              لا توجد أجهزة مطابقة لبحثك. جرّب اسم الماركة أو الموديل أو غيّر الفئة.
+            </div>
+          )}
+
+          {visibleCategories.map((category) => {
+            const guide = CATEGORY_GUIDE[category];
+            const CategoryIcon = CATEGORY_ICONS[category];
+            const categoryDevices = filteredDevices.filter((d) => d.category === category);
             return (
-              <div
-                key={device.id}
-                className={`rounded-xl border transition-all overflow-hidden ${
-                  isExpanded
-                    ? 'border-brand dark:border-brand-bright bg-surface dark:bg-surface-dark shadow-sm'
-                    : 'border-line dark:border-line-dark bg-canvas dark:bg-surface-dark hover:border-line-hover dark:hover:border-line-dark-strong'
-                }`}
-              >
-                {/* Header row */}
-                <div
-                  onClick={() => setExpandedDeviceId(isExpanded ? null : device.id)}
-                  className="p-3.5 flex items-center justify-between gap-3 cursor-pointer select-none"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark flex items-center justify-center text-brand dark:text-brand-bright shadow-2xs shrink-0">
-                      {device.category === 'printer' && <Printer className="w-5 h-5" />}
-                      {device.category === 'scanner' && <Barcode className="w-5 h-5" />}
-                      {device.category === 'drawer' && <Coins className="w-5 h-5" />}
-                      {device.category === 'scale' && <Scale className="w-5 h-5" />}
+              <section key={category} className="flex flex-col gap-3" aria-label={guide.label}>
+                <div className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark border border-line dark:border-line-dark flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-dark-soft border border-line dark:border-line-dark flex items-center justify-center text-brand dark:text-brand-bright shrink-0">
+                      <CategoryIcon className="w-5 h-5" />
                     </div>
-
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-xs text-ink dark:text-ink-dark truncate">
-                          {device.brand} — {device.model}
-                        </span>
-                        <span className="text-micro font-bold px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
-                          {device.type}
-                        </span>
-                        {device.status === 'recommended' && (
-                          <span className="text-micro font-bold px-1.5 py-0.5 rounded bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
-                            موصى به للمتاجر المزدحمة
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-micro text-ink-muted dark:text-ink-dark-muted truncate m-0 mt-0.5">
-                        {device.notes}
-                      </p>
-                    </div>
+                    <h3 className="t-card-title text-ink dark:text-ink-dark m-0">{guide.label}</h3>
                   </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="hidden sm:flex items-center gap-2 text-micro font-medium text-ink-muted dark:text-ink-dark-muted">
-                      <span className="font-mono bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark px-2 py-0.5 rounded border border-line dark:border-line-dark">
-                        {device.connectionType}
-                      </span>
-                      <span className="text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded border border-paid/20 dark:border-paid/30">
-                        {device.testResults.latency}
-                      </span>
+                  <dl className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3 m-0 text-sm leading-relaxed">
+                    <div>
+                      <dt className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">ما يدعمه رفيق</dt>
+                      <dd className="m-0 text-ink dark:text-ink-dark">{guide.supports}</dd>
                     </div>
-
-                    <span className="text-ink-muted dark:text-ink-dark-muted">
-                      {isExpanded ? (
-                        <ChevronUp className="w-4 h-4 text-brand dark:text-brand-bright" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4" />
-                      )}
-                    </span>
-                  </div>
+                    <div>
+                      <dt className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">طريقة التوصيل</dt>
+                      <dd className="m-0 text-ink dark:text-ink-dark">{guide.connects}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1">أين تضبطه</dt>
+                      <dd className="m-0 text-ink dark:text-ink-dark">{guide.settings}</dd>
+                    </div>
+                  </dl>
                 </div>
 
-                {/* Expanded details & setup checklist */}
-                {isExpanded && (
-                  <div className="p-4 border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark flex flex-col gap-4 text-xs animate-in slide-in-from-top-1 duration-150">
-                    {/* Test Results Summary Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mb-0.5">سرعة الاستجابة</span>
-                        <span className="font-bold text-paid dark:text-paid-bright">{device.testResults.latency}</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mb-0.5">دعم اللغة العربية</span>
-                        <span className="font-bold text-ink dark:text-ink-dark">{device.arabicSupport}</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mb-0.5">ويندوز 7 و 8 و 10 و 11</span>
-                        <span className="font-bold text-paid dark:text-paid-bright flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>متوافق ومجرّب 100%</span>
-                        </span>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark">
-                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted block mb-0.5">القاطع / الزناد</span>
-                        <span className="font-bold text-ink dark:text-ink-dark truncate block">
-                          {device.testResults.autoCutterOrTrigger}
-                        </span>
-                      </div>
-                    </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                  {categoryDevices.map((device) => {
+                    const isExpanded = expandedDeviceId === device.id;
+                    const DeviceIcon = CATEGORY_ICONS[device.category];
+                    return (
+                      <article
+                        key={device.id}
+                        className={`rounded-xl border bg-surface dark:bg-surface-dark flex flex-col ${
+                          isExpanded ? 'border-brand dark:border-brand-bright shadow-sm' : 'border-line dark:border-line-dark'
+                        }`}
+                      >
+                        <MotionHeight>
+                        <div className="p-4 flex flex-col gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex items-center justify-center text-brand dark:text-brand-bright shrink-0">
+                              <DeviceIcon className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">{device.brand}</div>
+                              <h4 dir="auto" className="text-sm font-bold text-ink dark:text-ink-dark leading-snug m-0 mt-0.5 break-words">{device.model}</h4>
+                              <p className="text-sm text-ink-muted dark:text-ink-dark-muted leading-relaxed m-0 mt-1">{device.type}</p>
+                            </div>
+                            <span className={`${CHIP} shrink-0 ${STATUS_TONE[device.status]}`}>{STATUS_LABELS[device.status]}</span>
+                          </div>
 
-                    {/* Step by Step Setup Sheet */}
-                    <div className="flex flex-col gap-2">
-                      <span className="font-bold text-xs text-brand dark:text-brand-bright flex items-center gap-1.5">
-                        <Sliders className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
-                        <span>ورقة إعداد وتشغيل هذا الجهاز في نظام رفيق:</span>
-                      </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {device.connections.map((connection) => (
+                              <span
+                                key={connection}
+                                title={CONNECTION_HINTS[connection]}
+                                className={`${CHIP} bg-surface-2 dark:bg-surface-dark-3 text-ink dark:text-ink-dark border-line dark:border-line-dark`}
+                              >
+                                {CONNECTION_LABELS[connection]}
+                              </span>
+                            ))}
+                            {device.windows && (
+                              <span className={`${CHIP} bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30`}>
+                                <Check className="w-3.5 h-3.5" />
+                                {device.windows.win7 ? 'ويندوز 7 SP1 وحتى 11' : 'ويندوز 10 و11'}
+                              </span>
+                            )}
+                          </div>
 
-                      <div className="p-3 rounded-xl bg-canvas dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-1.5">
-                        {device.setupSteps.map((step, sIdx) => (
-                          <div key={sIdx} className="flex items-start gap-2 text-xs text-ink dark:text-ink-dark">
-                            <span className="w-4 h-4 rounded-full bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-micro font-bold flex items-center justify-center shrink-0 mt-0.5">
-                              {sIdx + 1}
-                            </span>
-                            <span className="leading-relaxed">{step}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                          <p className="text-sm leading-relaxed text-ink dark:text-ink-dark m-0">{device.notes}</p>
 
-                    {/* Recommended Driver & Commands */}
-                    {device.recommendedSettings && (
-                      <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs flex flex-wrap items-center justify-between gap-3 text-ink dark:text-ink-dark">
-                        {device.recommendedSettings.driverName && (
-                          <div>
-                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">اسم التعريف المعتمد:</span>
-                            <strong className="font-mono text-brand dark:text-brand-bright">{device.recommendedSettings.driverName}</strong>
+                          <dl className="flex flex-col m-0 px-3 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark divide-y divide-line dark:divide-line-dark">
+                            {device.specs.map((spec) => (
+                              <div key={spec.label} className="py-2.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                                <dt className="text-sm text-ink-muted dark:text-ink-dark-muted">{spec.label}</dt>
+                                <dd className="m-0 text-sm font-bold text-ink dark:text-ink-dark break-words">
+                                  {spec.ltr ? <span dir="ltr" className="inline-block font-mono">{spec.value}</span> : spec.value}
+                                </dd>
+                              </div>
+                            ))}
+                          </dl>
+
+                          <AppButton
+                            variant="secondary"
+                            size="sm"
+                            fullWidth
+                            icon={isExpanded ? ChevronUp : ChevronDown}
+                            aria-expanded={isExpanded}
+                            onClick={() => setExpandedDeviceId(isExpanded ? null : device.id)}
+                          >
+                            {isExpanded ? 'إخفاء خطوات التشغيل' : `عرض خطوات التشغيل (${device.setupSteps.length})`}
+                          </AppButton>
+                        </div>
+
+                          <div className={isExpanded ? 'px-4 pb-4' : 'hidden print:block px-4 pb-4'}>
+                            <div className="flex flex-col gap-3">
+                              <span className="font-bold text-sm text-brand dark:text-brand-bright flex items-center gap-2">
+                                <Sliders className="w-4 h-4 text-paid dark:text-paid-bright" />
+                                <span>خطوات تشغيل هذا الجهاز مع رفيق</span>
+                              </span>
+                              <ol className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-3 m-0 list-none">
+                                {device.setupSteps.map((step, stepIndex) => (
+                                  <li key={step} className="flex items-start gap-3 text-sm text-ink dark:text-ink-dark">
+                                    <span className="w-6 h-6 rounded-full bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                      {stepIndex + 1}
+                                    </span>
+                                    <span className="leading-relaxed">{step}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
                           </div>
-                        )}
-                        {device.recommendedSettings.paperOrCode && (
-                          <div>
-                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">المقاس / الشفرة:</span>
-                            <strong className="font-mono text-brand dark:text-brand-bright">{device.recommendedSettings.paperOrCode}</strong>
-                          </div>
-                        )}
-                        {device.recommendedSettings.drawerCode && (
-                          <div>
-                            <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">أمر فتح الدرج:</span>
-                            <strong className="font-mono text-paid dark:text-paid-bright">{device.recommendedSettings.drawerCode}</strong>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                        </MotionHeight>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
             );
           })}
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 bg-canvas dark:bg-surface-dark border-t border-line dark:border-line-dark flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted select-none shrink-0">
-          <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-paid dark:text-paid-bright" />
-            <span>
-              تقدر تطبع الورقة دي وتديها لمحل أو شركة أجهزة الكاشير عشان يجهزلك أجهزة متوافقة ومضمونة 100%.
-            </span>
+        <div className="px-5 py-4 bg-canvas dark:bg-surface-dark border-t border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-x-6 gap-y-3 text-sm text-ink-muted dark:text-ink-dark-muted select-none shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <MapPin className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
+            <span>اطبع هذه الورقة وسلّمها لمورد أجهزة الكاشير ليجهّز لك أجهزة تناسب رفيق.</span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => void printReport({ kind: 'a4only' })}
-              className="px-3.5 py-1.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
-              <span>طباعة ورقة المواصفات</span>
-            </button>
-          </div>
+          <AppButton variant="secondary" icon={FileText} onClick={printSpecSheet} loading={isPrintingSpecSheet}>
+            طباعة ورقة المواصفات
+          </AppButton>
         </div>
       </div>
     </div>

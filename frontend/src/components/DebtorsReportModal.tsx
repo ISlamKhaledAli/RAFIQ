@@ -2,18 +2,20 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, 
   Printer, 
-  Search, 
   X, 
   AlertTriangle,
   RotateCcw
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
 import type { DebtorReportItem } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
-import { printReport } from '../utils/printReport';
+import { usePrintReport } from '../hooks/usePrintReport';
 import { DateFilterControl } from './DateFilterControl';
 import { useDateFilter, isDateFilterActive, describeDateFilter, parseDateToLocalDateStr } from '../utils/dateFilter';
 
+import { AppButton } from './AppButton';
+import { formatPhoneDisplay } from '../utils/phoneFormat';
 interface DebtorsReportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -79,9 +81,11 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
     return periodDebtors.filter(d => d.creditLimitPiasters > 0 && d.balancePiasters > d.creditLimitPiasters).length;
   }, [periodDebtors]);
 
-  const handlePrint = () => {
-    void printReport({ kind: 'a4only' });
-  };
+  const { print: handlePrint, printing } = usePrintReport({
+    reportName: 'تقرير المديونيات',
+    kind: 'a4only',
+    hasData: filteredDebtors.length > 0,
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -121,17 +125,15 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <AppButton variant="secondary" size="sm" icon={Printer} onClick={handlePrint} loading={printing}>
+              طباعة كشف الديون
+            </AppButton>
             <button
-              onClick={handlePrint}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-brand hover:bg-white/90 transition flex items-center gap-1.5 shadow-xs"
-            >
-              <Printer className="w-4 h-4" />
-              <span>طباعة كشف الديون</span>
-            </button>
-            <button
+              type="button"
               onClick={onClose}
               className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
               title="إغلاق"
+              aria-label="إغلاق"
             >
               <X className="w-5 h-5" />
             </button>
@@ -175,18 +177,17 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
         </div>
 
         {/* Filters and Search Bar (hidden in print) */}
-        <div className="px-6 py-3 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث بالاسم أو رقم الهاتف..."
-              className="w-full text-xs pr-9 pl-3 py-2 rounded-xl border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-            />
-          </div>
+        <div className="px-6 py-3 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-x-8 gap-y-3 print:hidden">
+          <SearchInput
+            size="sm"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="بحث بالاسم أو رقم الهاتف..."
+            ariaLabel="بحث في المدينين"
+            className="flex-1 min-w-[18.75rem]"
+          />
 
+          <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">آخر حركة:</span>
             <DateFilterControl value={dateFilter} onChange={setDateFilter} size="sm" selectWidthClass="w-44" />
@@ -194,6 +195,8 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
 
           <div className="flex items-center gap-1.5 bg-canvas dark:bg-canvas-dark p-1 rounded-xl border border-line dark:border-line-dark text-xs">
             <button
+              type="button"
+              aria-pressed={filterMode === 'all'}
               onClick={() => setFilterMode('all')}
               className={`px-3 py-1.5 rounded-lg font-medium transition ${
                 filterMode === 'all' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs font-bold' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -202,6 +205,8 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
               جميع المدينين
             </button>
             <button
+              type="button"
+              aria-pressed={filterMode === 'overlimit'}
               onClick={() => setFilterMode('overlimit')}
               className={`px-3 py-1.5 rounded-lg font-medium transition ${
                 filterMode === 'overlimit' ? 'bg-surface dark:bg-surface-dark text-warn dark:text-warn-bright shadow-xs font-bold' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -209,6 +214,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
             >
               تجاوزوا الحد
             </button>
+          </div>
           </div>
         </div>
 
@@ -223,14 +229,9 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
                 {dateActive ? `لا يوجد مدينين آخر حركة لهم خلال ${describeDateFilter(dateFilter)}.` : 'لا يوجد أي عملاء مدينين مطابقين للبحث حالياً.'}
               </p>
               {dateActive && (
-                <button
-                  type="button"
-                  onClick={resetDateFilter}
-                  className="mt-3 h-8 px-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>عرض كل الفترات</span>
-                </button>
+                <AppButton variant="primary" size="sm" icon={RotateCcw} className="mt-3" onClick={resetDateFilter}>
+                  عرض كل الفترات
+                </AppButton>
               )}
             </div>
           ) : (
@@ -257,7 +258,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
                       <tr key={d.customerId} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40 transition">
                         <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted text-center">{idx + 1}</td>
                         <td className="p-3 font-bold text-ink dark:text-ink-dark">{d.name}</td>
-                        <td className="p-3 font-mono text-xs text-ink-muted dark:text-ink-dark-muted" dir="ltr">{d.phone || '-'}</td>
+                        <td className="p-3 font-mono text-xs text-ink-muted dark:text-ink-dark-muted" dir="ltr">{formatPhoneDisplay(d.phone) || '-'}</td>
                         <td className="p-3 font-black text-danger dark:text-danger-bright">{formatArabicCurrency(d.balancePiasters)}</td>
                         <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted">
                           {d.creditLimitPiasters > 0 ? formatArabicCurrency(d.creditLimitPiasters) : 'بلا حد'}

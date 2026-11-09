@@ -26,7 +26,8 @@ import { invoke } from '../../bridge/ipc';
 import { SearchBenchmarkModal } from '../../components/SearchBenchmarkModal';
 import { ReadinessCheckModal } from '../../components/ReadinessCheckModal';
 import { buildDiagnosticsSummary, type StatusRow, type StatusTone } from '../../utils/diagnosticsSummary';
-import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, SettingsCard } from '../settings/settingsParts';
+import { AppButton } from '../../components/AppButton';
+import { SettingsCard } from '../settings/settingsParts';
 import { useSystemSummary } from './useSystemSummary';
 import type { SystemInfo } from '../../App';
 
@@ -70,10 +71,9 @@ interface CheckButtonProps {
 }
 
 const CheckButton = ({ icon: Icon, label, onClick, disabled = false }: CheckButtonProps) => (
-  <button type="button" onClick={onClick} disabled={disabled} className={`${SECONDARY_BUTTON_CLASS} justify-start`}>
-    <Icon className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+  <AppButton variant="secondary" size="lg" icon={Icon} onClick={onClick} disabled={disabled} className="!justify-start">
     <span className="truncate">{label}</span>
-  </button>
+  </AppButton>
 );
 
 type CopyState = 'idle' | 'copied' | 'failed';
@@ -159,10 +159,9 @@ export const RootStatusPage = ({ sysInfo, onNavigateToTab }: RootStatusPageProps
         title="ملخص حالة النظام"
         description="لقطة حية من هذا الجهاز: الإصدار والترخيص والنسخ الاحتياطي والطابعة والميزات."
         action={
-          <button type="button" onClick={() => void loadHealth()} disabled={healthLoading} className={SECONDARY_BUTTON_CLASS}>
-            <RefreshCw className={`w-4 h-4 ${healthLoading ? 'animate-spin' : ''}`} />
-            <span>تحديث</span>
-          </button>
+          <AppButton variant="secondary" size="lg" icon={RefreshCw} loading={healthLoading} onClick={() => void loadHealth()}>
+            تحديث
+          </AppButton>
         }
       >
         {healthError && (
@@ -236,14 +235,7 @@ export const RootStatusPage = ({ sysInfo, onNavigateToTab }: RootStatusPageProps
         {checkResult && !busy && (
           <div role="status" className="flex items-start justify-between gap-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-4 leading-relaxed">
             <span className="min-w-0 break-words">{checkResult}</span>
-            <button
-              type="button"
-              onClick={() => setCheckResult(null)}
-              aria-label="إغلاق النتيجة"
-              className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <AppButton variant="subtle" icon={X} aria-label="إغلاق النتيجة" onClick={() => setCheckResult(null)} />
           </div>
         )}
       </SettingsCard>
@@ -268,28 +260,19 @@ export const RootStatusPage = ({ sysInfo, onNavigateToTab }: RootStatusPageProps
                 </span>
               )}
             </span>
-            <button type="button" onClick={() => void copySummary()} className={SECONDARY_BUTTON_CLASS}>
-              <ClipboardCopy className="w-4 h-4" />
-              <span>نسخ ملخص التشخيص</span>
-            </button>
-            <button type="button" onClick={() => void createBundle()} disabled={bundleLoading} className={PRIMARY_BUTTON_CLASS}>
-              <Package className="w-4 h-4" />
-              <span>{bundleLoading ? 'جاري تجهيز الملف...' : 'تجهيز ملف التشخيص'}</span>
-            </button>
+            <AppButton variant="secondary" size="lg" icon={ClipboardCopy} onClick={() => void copySummary()}>
+              نسخ ملخص التشخيص
+            </AppButton>
+            <AppButton variant="primary" size="lg" icon={Package} loading={bundleLoading} onClick={() => void createBundle()}>
+              {bundleLoading ? 'جاري تجهيز الملف...' : 'تجهيز ملف التشخيص'}
+            </AppButton>
           </div>
         }
       >
         {bundleMessage && (
           <div role="status" className="flex items-start justify-between gap-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid-bright/30 text-ink dark:text-ink-dark rounded-xl p-4 leading-relaxed whitespace-pre-line">
             <span className="min-w-0 break-words">{bundleMessage}</span>
-            <button
-              type="button"
-              onClick={() => setBundleMessage(null)}
-              aria-label="إغلاق الرسالة"
-              className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <AppButton variant="subtle" icon={X} aria-label="إغلاق الرسالة" onClick={() => setBundleMessage(null)} />
           </div>
         )}
       </SettingsCard>

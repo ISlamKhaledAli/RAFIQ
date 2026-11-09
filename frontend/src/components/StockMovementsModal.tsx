@@ -15,7 +15,9 @@ import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { StockMovement, ProductUnit } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { formatCompoundStock } from '../utils/packaging';
+import { cleanMovementNote, movementTypeLabel } from '../utils/movementText';
 import { DateFilterControl } from './DateFilterControl';
+import { AppButton } from './AppButton';
 import {
   type DateFilterValue,
   DEFAULT_DATE_FILTER,
@@ -162,14 +164,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
     return `${sign}${formatted} ${unitSuffix}`;
   };
 
-  const cleanNote = (note: string | null | undefined) => {
-    if (!note) return '—';
-    return note
-      .replace(/\[SURPLUS\]/g, '[فائض جردي]')
-      .replace(/\[SHORTAGE\]/g, '[عجز جردي]')
-      .replace(/\(piece\)/gi, '(قطعة)')
-      .replace(/\(pc\)/gi, '(قطعة)');
-  };
+  const cleanNote = (note: string | null | undefined) => cleanMovementNote(note) || '—';
 
   if (!isOpen) return null;
 
@@ -200,25 +195,19 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
           </div>
           <div className="flex items-center gap-2">
             {onOpenAdjustment && (
-              <button
-                type="button"
+              <AppButton
+                variant="primary"
+                size="sm"
+                icon={PlusCircle}
                 onClick={() => {
                   onClose();
                   onOpenAdjustment();
                 }}
-                className="h-7 px-2.5 rounded bg-brand text-white text-micro font-bold flex items-center gap-1 hover:bg-brand-hover transition-colors"
               >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>تسوية جردية</span>
-              </button>
+                تسوية جردية
+              </AppButton>
             )}
-            <button
-              type="button"
-              onClick={requestClose}
-              className="w-7 h-7 rounded flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 border border-transparent hover:border-line transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <AppButton variant="subtle" size="sm" icon={X} onClick={requestClose} aria-label="إغلاق" />
           </div>
         </div>
 
@@ -255,7 +244,10 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
               size="md"
               selectWidthClass="w-44 sm:w-48"
             />
-            <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">
+            <div
+              className="w-64 shrink-0 truncate text-micro text-ink-muted dark:text-ink-dark-muted font-mono"
+              title={isDateActive ? periodLabel : undefined}
+            >
               {movements.length}{isTruncated ? '+' : ''} حركة{isDateActive ? ` في الفترة: ${periodLabel}` : ' مسجلة'}
             </div>
           </div>
@@ -285,16 +277,16 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                 تسجل الحركات تلقائياً عند عمليات البيع، الشراء، أو التسويات الجردية.
               </p>
               {(isDateActive || movementTypeFilter !== 'ALL') && (
-                <button
-                  type="button"
+                <AppButton
+                  variant="soft"
                   onClick={() => {
                     setDateFilter({ ...DEFAULT_DATE_FILTER });
                     setMovementTypeFilter('ALL');
                   }}
-                  className="mt-1 h-9 px-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
+                  className="mt-1"
                 >
                   مسح الفلاتر وعرض كل الحركات
-                </button>
+                </AppButton>
               )}
             </div>
           ) : (
@@ -314,7 +306,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                     const isPositive = m.quantityMilli >= 0;
                     return (
                       <tr key={m.id} className="hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors">
-                        <td className="py-2.5 px-3 font-mono text-micro text-ink dark:text-ink-dark whitespace-nowrap">
+                        <td className="py-2.5 px-3 font-mono text-xs text-ink dark:text-ink-dark whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
                             <Calendar className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                             <span>{formatDate(m.createdAt)}</span>
@@ -323,7 +315,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
 
                         <td className="py-2.5 px-3 whitespace-nowrap">
                           <span className={`px-2 py-0.5 rounded text-micro font-bold border inline-block ${getBadgeStyle(m.movementType)}`}>
-                            {m.movementTypeArabic || m.movementType}
+                            {movementTypeLabel(m.movementType, m.movementTypeArabic)}
                           </span>
                         </td>
 

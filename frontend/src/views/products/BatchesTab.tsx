@@ -3,7 +3,6 @@ import {
   Calendar,
   AlertTriangle,
   Clock,
-  Search,
   X,
   Trash2,
   Sliders,
@@ -27,7 +26,11 @@ import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { RequiredMark } from '../../components/RequiredMark';
 import { ExpiryRangeFilter } from '../../components/ExpiryRangeFilter';
+import { AppButton } from '../../components/AppButton';
+import { SearchInput } from '../../components/SearchInput';
 import { describeDateFilter, normalizeDateRange } from '../../utils/dateFilter';
+import { formatUnitArabic } from '../../utils/units';
+import { isSameFormValue } from '../../utils/dirtyForm';
 import {
   EMPTY_EXPIRY_RANGE,
   isExpiryRangeActive,
@@ -99,7 +102,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
   const isAdjustDirty = useCallback(() => {
     if (!adjustingBatch) return false;
     const initialQty = (adjustingBatch.quantityMilli / 1000).toString();
-    return adjustQtyInput !== initialQty || adjustNote.trim().length > 0;
+    return !isSameFormValue(adjustQtyInput, initialQty) || adjustNote.trim().length > 0;
   }, [adjustingBatch, adjustQtyInput, adjustNote]);
 
   const { requestClose: requestCloseAdjust, handleBackdropClick: handleAdjustBackdropClick } = useModalDismiss({
@@ -338,9 +341,9 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
               <div className="text-lg font-mono font-bold text-ink dark:text-ink-dark">
                 {cardActiveCount.toLocaleString('en-US')} دفعة
               </div>
-              {isExpiryActive && (
-                <div className="text-micro text-brand dark:text-brand-bright font-bold">تنتهي: {expiryLabel}</div>
-              )}
+              <div className={`text-micro font-bold ${isExpiryActive ? 'text-brand dark:text-brand-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
+                تنتهي: {isExpiryActive ? expiryLabel : 'كل التواريخ'}
+              </div>
             </div>
           </div>
         </div>
@@ -427,7 +430,8 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
         />
 
         {/* Search & Alert Threshold */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-x-8 gap-y-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
           {/* Alert Days Selector */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-ink-muted dark:text-ink-dark-muted font-bold whitespace-nowrap">فترة التنبيه:</span>
@@ -450,23 +454,16 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                   />
                   <span className="text-micro text-ink-muted dark:text-ink-dark-muted mr-1 font-bold">يوم</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleApplyCustomDays}
-                  className="h-10 px-3 bg-brand text-white rounded-lg text-xs font-bold hover:bg-brand-dark transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                  title="تطبيق فترة التنبيه"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>تطبيق</span>
-                </button>
-                <button
-                  type="button"
+                <AppButton variant="primary" icon={Check} onClick={handleApplyCustomDays} title="تطبيق فترة التنبيه">
+                  تطبيق
+                </AppButton>
+                <AppButton
+                  variant="secondary"
+                  icon={X}
                   onClick={() => setIsCustomDays(false)}
-                  className="h-10 px-2.5 bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark border border-line dark:border-line-dark rounded-lg text-xs transition-colors cursor-pointer"
+                  aria-label="إلغاء والعودة للقائمة"
                   title="إلغاء والعودة للقائمة"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                />
               </div>
             ) : (
               <CustomSelect
@@ -502,34 +499,23 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
 
           {/* Expiry date range: from/to, applies together with the alert window, status tabs and search */}
           <ExpiryRangeFilter value={expiryRange} onChange={setExpiryRange} size="lg" />
-
-          {/* Search Box */}
-          <div className="relative flex-1 min-w-[14rem] h-10 flex items-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 focus-within:border-brand dark:focus-within:border-brand-bright focus-within:ring-2 focus-within:ring-brand/20 transition-all">
-            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted ml-2 shrink-0" />
-            <input
-              type="text"
-              placeholder="بحث بالصنف أو رقم الدفعة..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
-              className="w-full bg-transparent border-none text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
+          {/* Search Box */}
+          <SearchInput
+            size="md"
+            value={searchQuery}
+            onChange={(value) => setSearchQuery(normalizeArabicNumerals(value))}
+            placeholder="بحث بالصنف أو رقم الدفعة..."
+            ariaLabel="بحث في الدفعات وتواريخ الصلاحية"
+            className="flex-1 min-w-[18rem]"
+          />
 
 
         </div>
       </div>
 
       {/* Batches Table */}
-      <div className="flex-1 min-h-[320px] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl overflow-hidden flex flex-col shadow-xs">
+      <div className="flex-1 min-h-[20rem] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl overflow-hidden flex flex-col shadow-xs">
         <div className="h-10 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark grid grid-cols-12 px-4 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted shrink-0">
           <div className="col-span-3">اسم الصنف والباركود</div>
           <div className="col-span-2">رقم الدفعة</div>
@@ -557,13 +543,9 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                 يتم تسجيل الدفعات وتواريخ الصلاحية تلقائياً عند استلام فواتير الشراء
               </span>
               {(isExpiryActive || statusFilter !== 'all' || searchQuery.trim() !== '') && (
-                <button
-                  type="button"
-                  onClick={resetAllFilters}
-                  className="mt-1 h-9 px-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
-                >
+                <AppButton variant="soft" onClick={resetAllFilters} className="mt-1">
                   مسح الفلاتر وعرض كل الدفعات
-                </button>
+                </AppButton>
               )}
             </div>
           ) : (
@@ -624,7 +606,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
 
                   {/* Current Quantity */}
                   <div className="col-span-1 text-center font-mono font-bold text-ink dark:text-ink-dark">
-                    {qtyFormatted} {b.unit || 'قطعة'}
+                    {qtyFormatted} {formatUnitArabic(b.unit)}
                   </div>
 
                   {/* Unit Cost */}
@@ -660,30 +642,30 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
 
                   {/* Action Buttons */}
                   <div className="col-span-1 text-left flex items-center justify-end gap-1">
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="subtle"
+                      size="xs"
+                      icon={Sliders}
                       onClick={() => {
                         setAdjustingBatch(b);
                         setAdjustQtyInput((b.quantityMilli / 1000).toString());
                         setAdjustNote('');
                       }}
-                      className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg transition-colors cursor-pointer"
+                      aria-label="تسوية رصيد هذه الدفعة"
                       title="تسوية رصيد هذه الدفعة"
-                    >
-                      <Sliders className="w-4 h-4" />
-                    </button>
+                    />
                     {(b.isExpired || b.isExpiringSoon) && (
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="dangerSubtle"
+                        size="xs"
+                        icon={Trash2}
                         onClick={() => {
                           setDisposingBatch(b);
                           setDisposalReason('تالف ومنتهي الصلاحية');
                         }}
-                        className="p-1.5 text-danger dark:text-danger-bright hover:text-red-700 dark:hover:text-red-300 hover:bg-danger-soft dark:hover:bg-danger-dark-soft rounded-lg transition-colors cursor-pointer"
+                        aria-label="إتلاف الدفعة وتصفير رصيدها"
                         title="إتلاف الدفعة وتصفير رصيدها"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      />
                     )}
                   </div>
                 </div>
@@ -716,13 +698,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                 <Sliders className="w-5 h-5 text-brand dark:text-brand-bright" />
                 <h3 className="t-card-title text-ink dark:text-ink-dark">تسوية رصيد الدفعة يدويّاً</h3>
               </div>
-              <button
-                type="button"
-                onClick={() => void requestCloseAdjust()}
-                className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <AppButton variant="subtle" size="xs" icon={X} onClick={() => void requestCloseAdjust()} aria-label="إغلاق" />
             </div>
 
             <form onSubmit={handleAdjustSubmit} className="p-5 flex flex-col gap-4">
@@ -733,7 +709,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                 </div>
                 <div className="text-ink-muted dark:text-ink-dark-muted">
                   الرصيد المسجل حالياً: {(adjustingBatch.quantityMilli / 1000).toFixed(3)}{' '}
-                  {adjustingBatch.unit || 'قطعة'}
+                  {formatUnitArabic(adjustingBatch.unit)}
                 </div>
               </div>
 
@@ -765,21 +741,12 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-line dark:border-line-dark">
-                <button
-                  type="button"
-                  onClick={() => void requestCloseAdjust()}
-                  className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs font-bold text-ink dark:text-ink-dark cursor-pointer"
-                >
+                <AppButton variant="secondary" onClick={() => void requestCloseAdjust()}>
                   إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={adjustLoading}
-                  className="px-5 py-2 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark flex items-center gap-1.5"
-                >
-                  <ArrowUpDown className="w-3.5 h-3.5" />
-                  <span>{adjustLoading ? 'جاري الحفظ...' : 'تأكيد وحفظ التسوية'}</span>
-                </button>
+                </AppButton>
+                <AppButton type="submit" variant="primary" icon={ArrowUpDown} disabled={adjustLoading}>
+                  {adjustLoading ? 'جاري الحفظ...' : 'تأكيد وحفظ التسوية'}
+                </AppButton>
               </div>
             </form>
           </div>

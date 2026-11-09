@@ -1,8 +1,11 @@
 import React from 'react';
 import { Printer, X } from 'lucide-react';
 import type { Customer, CustomerLedgerEntry } from '../../types/models';
-import { getConfiguredReportPaper, printReport } from '../../utils/printReport';
+import { getConfiguredReportPaper } from '../../utils/printReport';
+import { usePrintReport } from '../../hooks/usePrintReport';
 
+import { AppButton } from '../../components/AppButton';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
 // date / description / amount / balance
 const COMPACT_COLS = 'grid-cols-[minmax(0,20fr)_minmax(0,34fr)_minmax(0,22fr)_minmax(0,24fr)]';
 
@@ -63,14 +66,17 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  const { print: handlePrint, printing } = usePrintReport({
+    reportName: 'كشف حساب ' + (selectedCustomer ? selectedCustomer.name : 'العميل'),
+    kind: 'compact',
+    paper: statementPrintMode === 'thermal' ? rollPaper : 'a4',
+    hasData: filteredStatementEntries.length > 0,
+  });
+
   if (!isOpen || !selectedCustomer) return null;
 
   const isCompact = statementPrintMode === 'thermal';
   const isNarrowRoll = isCompact && rollPaper === '58mm';
-
-  const handlePrint = () => {
-    void printReport({ kind: 'compact', paper: isCompact ? rollPaper : 'a4' });
-  };
 
   const entryRows = filteredStatementEntries.map((entry) => {
     const isPayment = entry.type === 'payment';
@@ -140,9 +146,7 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
               </button>
             </div>
 
-            <button onClick={onClose} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer">
-              <X className="w-4 h-4" />
-            </button>
+            <AppButton variant="subtle" size="xs" icon={X} onClick={onClose} aria-label="إغلاق" />
           </div>
         </div>
 
@@ -172,7 +176,7 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
               {selectedCustomer.phone && (
                 <div className="flex justify-between">
                   <span className="font-semibold text-neutral-600">رقم الموبايل:</span>
-                  <span className="font-mono">{selectedCustomer.phone}</span>
+                  <span className="font-mono">{formatPhoneDisplay(selectedCustomer.phone)}</span>
                 </div>
               )}
               <div className="flex justify-between">
@@ -281,21 +285,16 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
             {/* Print Footer Notice */}
             <div className="pt-3 border-t border-dashed border-neutral-400 text-center text-micro text-neutral-500">
               <p>شكراً لتعاملكم معنا. يرجى مراجعة الرصيد في حال وجود أي استفسار.</p>
-              <p className="font-mono mt-0.5">Rafiq POS System</p>
+              <p className="font-mono mt-0.5">نظام رفيق لنقاط البيع</p>
             </div>
           </div>
         </div>
 
         {/* Modal Footer Controls */}
         <div className="h-14 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-line dark:border-line-dark px-4 flex items-center justify-end shrink-0">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="px-5 py-2 rounded bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>اطبع دلوقتي</span>
-          </button>
+          <AppButton variant="primary" icon={Printer} onClick={handlePrint} loading={printing}>
+            اطبع دلوقتي
+          </AppButton>
         </div>
       </div>
     </div>

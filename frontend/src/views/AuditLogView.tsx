@@ -12,7 +12,6 @@ import {
   ArrowRightLeft,
   Lock,
   CheckCircle2,
-  Search,
   RotateCcw,
   Percent,
   XCircle,
@@ -23,12 +22,12 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   AlertOctagon,
-  X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from '../components/CustomSelect';
 import { DateFilterControl } from '../components/DateFilterControl';
+import { ClearFiltersButton } from '../components/ClearFiltersButton';
 import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
 import { RafiqLoadingState } from '../components/RafiqLoadingState';
@@ -38,6 +37,8 @@ import type { AuditLogEntry, AuditChainVerificationResult } from '../types/model
 import type { UserDto } from '../bridge/ipc';
 import { piastersToPounds } from '../utils/money';
 
+import { AppButton } from '../components/AppButton';
+import { SearchInput } from '../components/SearchInput';
 const AUDIT_PAGE_SIZE_OPTIONS = [15, 25, 50, 100];
 // Rows one load returns; the screen warns when a period holds more
 const AUDIT_LOAD_LIMIT = 250;
@@ -268,7 +269,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         const newP = piastersToPounds(Number(details.newPrice) || 0).toFixed(2);
         return (
           <div className="flex items-center gap-1.5 text-xs font-mono">
-            <span className="font-sans text-ink dark:text-ink-dark font-semibold truncate max-w-[140px]">{String(details.productName || '')}:</span>
+            <span className="font-sans text-ink dark:text-ink-dark font-semibold truncate max-w-[8.75rem]">{String(details.productName || '')}:</span>
             <span className="text-danger dark:text-danger-bright line-through">{oldP} ج.م</span>
             <ArrowRightLeft className="w-3 h-3 text-ink-muted dark:text-ink-muted-dark" />
             <span className="text-paid dark:text-paid-bright font-bold">{newP} ج.م</span>
@@ -282,7 +283,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         const newC = piastersToPounds(Number(details.newCost) || 0).toFixed(2);
         return (
           <div className="flex items-center gap-1.5 text-xs font-mono">
-            <span className="font-sans text-ink dark:text-ink-dark font-semibold truncate max-w-[140px]">{String(details.productName || '')}:</span>
+            <span className="font-sans text-ink dark:text-ink-dark font-semibold truncate max-w-[8.75rem]">{String(details.productName || '')}:</span>
             <span className="text-ink-muted dark:text-ink-muted-dark line-through">{oldC} ج.م</span>
             <ArrowRightLeft className="w-3 h-3 text-ink-muted dark:text-ink-muted-dark" />
             <span className="text-brand dark:text-brand-bright font-bold">{newC} ج.م</span>
@@ -296,7 +297,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         const newS = ((Number(details.newStock) || 0) / 1000).toFixed(0);
         return (
           <div className="flex items-center gap-1.5 text-xs font-mono">
-            <span className="font-sans text-ink dark:text-ink-dark font-semibold truncate max-w-[140px]">{String(details.productName || '')}:</span>
+            <span className="font-sans text-ink dark:text-ink-dark font-semibold truncate max-w-[8.75rem]">{String(details.productName || '')}:</span>
             <span className="text-ink-muted dark:text-ink-muted-dark">{oldS} قطعة</span>
             <ArrowRightLeft className="w-3 h-3 text-ink-muted dark:text-ink-muted-dark" />
             <span className="text-brand dark:text-brand-bright font-bold">{newS} قطعة</span>
@@ -530,7 +531,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
   return (
     <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-3 sm:p-3.5 gap-2.5 sm:gap-3 overflow-hidden select-none">
       {/* 1. Top Header Toolbar */}
-      <div className="h-[52px] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl px-4 flex items-center justify-between shrink-0">
+      <div className="h-[3.25rem] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright flex items-center justify-center font-bold">
             <ShieldAlert className="w-4 h-4" />
@@ -547,23 +548,35 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
 
         {/* Verification Trigger Button */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <AppButton
+            variant="soft"
+            size="sm"
             onClick={() => void handleVerifyChain()}
             disabled={verifying}
-            className="h-8 px-2.5 sm:px-3 flex items-center gap-1.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand-dark border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-xs font-bold rounded-lg transition-colors cursor-pointer"
             title="فحص السلسلة المشفرة للتأكد من عدم التلاعب بقاعدة البيانات"
+            aria-label="فحص سلامة السجل"
           >
-            <ShieldCheck className={`w-4 h-4 ${verifying ? 'animate-spin' : ''}`} />
+            <ShieldCheck className={`w-4 h-4 shrink-0 ${verifying ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">{verifying ? 'جارِ التحقق...' : 'فحص سلامة السجل'}</span>
-          </button>
+          </AppButton>
         </div>
       </div>
 
       {/* Multi-Criteria Filters Toolbar */}
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-2.5 flex items-center gap-2 flex-wrap shrink-0">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-2.5 flex items-center gap-x-8 gap-y-2 flex-wrap shrink-0">
+        {/* Search first, then the filters */}
+        <SearchInput
+          size="sm"
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="بحث برقم الفاتورة، اسم الصنف، السبب..."
+          ariaLabel="بحث في سجل العمليات"
+          className="flex-1 min-w-[18rem] max-w-md"
+        />
+
+        <div className="flex items-center gap-2 flex-wrap">
         {/* Action Type Filter */}
-        <div className="flex items-center gap-1.5 flex-1 min-w-[170px] sm:max-w-xs">
+        <div className="flex items-center gap-1.5 flex-1 min-w-[10.625rem] sm:max-w-xs">
           <Filter className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
           <CustomSelect
             value={selectedAction}
@@ -575,7 +588,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         </div>
 
         {/* User Filter */}
-        <div className="flex items-center gap-1.5 flex-1 min-w-[150px] sm:max-w-[200px]">
+        <div className="flex items-center gap-1.5 flex-1 min-w-[9.375rem] sm:max-w-[12.5rem]">
           <User className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark shrink-0" />
           <CustomSelect
             value={selectedUserId}
@@ -594,46 +607,21 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
           selectWidthClass="w-44 sm:w-48"
         />
 
-        {anyFilterActive && (
-          <button
-            type="button"
-            onClick={resetAllFilters}
-            className="h-8 px-2.5 flex items-center gap-1.5 rounded-lg border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer transition-colors"
-            title="إلغاء كل الفلاتر والرجوع لكل العمليات"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>مسح الفلاتر</span>
-          </button>
-        )}
-
-        {logs.length >= AUDIT_LOAD_LIMIT && (
-          <div className="w-full flex items-center gap-1.5 text-xs text-warn dark:text-warn-bright font-semibold bg-warn-soft dark:bg-warn-dark-soft p-2 rounded-lg border border-warn/20 dark:border-warn-bright/30">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>{`المعروض أحدث ${AUDIT_LOAD_LIMIT} عملية فقط${dateActive ? '' : '. حدد فترة عشان تشوف الأقدم'}.`}</span>
-          </div>
-        )}
-
-        {/* Search Input */}
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="بحث برقم الفاتورة، اسم الصنف، السبب..."
-            className="w-full h-8 pr-8 pl-7 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder-ink-muted focus:outline-none focus:border-brand transition-colors"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+        <ClearFiltersButton
+          active={anyFilterActive}
+          onClick={resetAllFilters}
+          label="مسح الفلاتر"
+          title="إلغاء كل الفلاتر والرجوع لكل العمليات"
+        />
         </div>
       </div>
+
+      {logs.length >= AUDIT_LOAD_LIMIT && (
+        <div className="flex items-center gap-1.5 text-xs text-warn dark:text-warn-bright font-semibold bg-warn-soft dark:bg-warn-dark-soft p-2 rounded-lg border border-warn/20 dark:border-warn-bright/30 shrink-0">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>{`المعروض أحدث ${AUDIT_LOAD_LIMIT} عملية فقط${dateActive ? '' : '. حدد فترة عشان تشوف الأقدم'}.`}</span>
+        </div>
+      )}
 
       {/* Verification Status Banner (Tamper-Proof) */}
       {verification && (
@@ -663,16 +651,16 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
           </div>
           <div className="flex items-center gap-2">
             {verification.isTampered && (
-              <button
-                type="button"
+              <AppButton
+                variant="danger"
+                size="sm"
+                icon={RefreshCw}
                 onClick={() => void handleResealChain()}
-                disabled={resealing}
-                className="px-3 py-1.5 bg-danger hover:bg-danger/90 active:scale-95 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                loading={resealing}
                 title="إعادة احتساب وتأمين أختام السلسلة الرقمية لجميع السجلات المسجلة"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${resealing ? 'animate-spin' : ''}`} />
-                <span>{resealing ? 'جارِ التأمين...' : 'إعادة ختم وتأمين السلسلة'}</span>
-              </button>
+                {resealing ? 'جارِ التأمين...' : 'إعادة ختم وتأمين السلسلة'}
+              </AppButton>
             )}
           </div>
         </div>
@@ -707,14 +695,9 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
                 كل تعديل في الأسعار أو فتح للدرج أو خصم أو حذف بيتسجل ويتوثق هنا تلقائياً لحماية المحل
               </p>
               {anyFilterActive && (
-                <button
-                  type="button"
-                  onClick={resetAllFilters}
-                  className="mt-1 h-8 px-3 flex items-center gap-1.5 rounded-lg bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>مسح الفلاتر وعرض كل العمليات</span>
-                </button>
+                <AppButton variant="primary" size="sm" icon={RotateCcw} className="mt-1" onClick={resetAllFilters}>
+                  مسح الفلاتر وعرض كل العمليات
+                </AppButton>
               )}
             </div>
           ) : (
@@ -757,7 +740,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
 
                   <div 
                     className="col-span-1 flex items-center justify-end gap-1 font-mono text-micro text-ink-muted dark:text-ink-muted-dark truncate" 
-                    title={`معرف السجل: ${log.id}\nبصمة التشفير: ${log.recordHash || 'محسوبة'}\nبصمة السجل السابق: ${log.prevHash || 'Genesis'}`}
+                    title={`معرف السجل: ${log.id}\nبصمة التشفير: ${log.recordHash || 'محسوبة'}\nبصمة السجل السابق: ${log.prevHash || 'بداية السلسلة'}`}
                   >
                     <Lock className="w-2.5 h-2.5 text-paid dark:text-paid-bright shrink-0" />
                     <span className="truncate">{log.recordHash ? log.recordHash.slice(0, 6) : log.id.slice(0, 6)}</span>
@@ -772,7 +755,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         <div className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark shrink-0">
           <span className="font-mono text-micro text-paid dark:text-paid-bright flex items-center gap-1">
             <Lock className="w-3 h-3 text-paid dark:text-paid-bright" />
-            سجل أمان غير قابل للتعديل ومحصّن بـ SQLite Triggers وبصمة SHA-256
+            سجل أمان غير قابل للتعديل ومحمي بقواعد قاعدة البيانات وبصمة SHA-256
           </span>
         </div>
       </div>

@@ -29,6 +29,11 @@ import { useModalDismiss } from '../hooks/useModalDismiss';
 import { DateFilterControl } from './DateFilterControl';
 import { useDateFilter, useToday, isDateFilterActive, describeDateFilter, getDateFilterPayload, formatLocalDateTime } from '../utils/dateFilter';
 
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
+import { useExitTransition, useExitValue } from '../hooks/useExitTransition';
+import { useMotionPanel } from '../hooks/useMotionPanel';
+import { formatPhoneDisplay } from '../utils/phoneFormat';
 // Without a period the list shows the latest 30 closings; with a period up to a year of days
 const CLOSING_HISTORY_DEFAULT_LIMIT = 30;
 const CLOSING_HISTORY_PERIOD_LIMIT = 400;
@@ -48,6 +53,39 @@ const METRIC_VALUE_CLASSES: Record<MetricTone, string> = {
   warn: 'text-ink dark:text-ink-dark',
   danger: 'text-danger dark:text-danger-bright',
 };
+
+const LOG_TH = 'sticky top-0 z-10 h-10 px-3 text-xs font-bold text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark whitespace-nowrap';
+const LOG_TH_NUM = `${LOG_TH} text-right`;
+const LOG_TD = 'px-3 py-2 align-middle text-sm';
+const LOG_TD_NUM = `${LOG_TD} text-right font-bold tabular-nums whitespace-nowrap`;
+const LOG_ROW = 'h-12 even:bg-surface-2/40 dark:even:bg-surface-dark-2/40 hover:bg-brand-soft/40 dark:hover:bg-brand-dark-soft/40 transition-colors';
+const LOG_BADGE = 'inline-flex items-center min-h-6 px-2 py-0.5 rounded-md text-xs font-bold leading-snug';
+
+interface LogSummaryRowProps {
+  label: string;
+  value: string;
+  valueClass: string;
+}
+
+function LogSummaryRow({ label, value, valueClass }: LogSummaryRowProps) {
+  return (
+    <div className="flex items-center justify-between gap-3 min-h-9 py-1.5">
+      <dt className="text-xs text-ink-muted dark:text-ink-dark-muted">{label}</dt>
+      <dd className={`m-0 text-sm font-bold tabular-nums ${valueClass}`} dir="ltr">{value}</dd>
+    </div>
+  );
+}
+
+function LogEmptyState({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-10 px-4 rounded-xl border border-dashed border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 text-center">
+      <span className="w-10 h-10 rounded-full flex items-center justify-center bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
+        <Icon className="w-5 h-5" />
+      </span>
+      <span className="text-sm text-ink-muted dark:text-ink-dark-muted">{text}</span>
+    </div>
+  );
+}
 
 interface MetricTileProps {
   label: string;
@@ -91,6 +129,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   
   // Closing form state
   const [actualCashPiasters, setActualCashPiasters] = useState<number>(0);
+  // The expected cash the preview pre-fills: only a different count is a change made by the cashier
+  const [prefilledCashPiasters, setPrefilledCashPiasters] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
   const [confirmSuspiciousDate, setConfirmSuspiciousDate] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -118,6 +158,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   // Epay & Wallets details accordion state ("حاجة بتتقفل وتتفتح")
   const [showEpayDetails, setShowEpayDetails] = useState<boolean>(false);
   const [activeEpaySubTab, setActiveEpaySubTab] = useState<'terminals' | 'wallets'>('terminals');
+  const motionPanel = useMotionPanel(activeEpaySubTab);
 
   const loadPreview = useCallback(async () => {
     setLoading(true);
@@ -135,7 +176,10 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
         } else {
           setSavedClosing(null);
           // Default actual cash to expected cash initially
-          setActualCashPiasters(toSafePiasters(res.expectedCashPiasters, 'closing:getPreview.expectedCashPiasters'));
+          const expectedCash = toSafePiasters(res.expectedCashPiasters, 'closing:getPreview.expectedCashPiasters');
+          setActualCashPiasters(expectedCash);
+          setPrefilledCashPiasters(expectedCash);
+          setNotes('');
         }
       }
     } catch (err: unknown) {
@@ -231,7 +275,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
       }
     } catch (err: unknown) {
       console.error(err);
-      setPrintFeedback('تعذر الاتصال بالطابعة أو حدث خطأ أثناء الطباعة.');
+      // The host message names the real cause (printer missing, offline, paper out); the closing itself is already saved
+      setPrintFeedback('تعذرت طباعة الإقفال (الإقفال محفوظ): ' + (err instanceof Error ? err.message : 'تعذر الاتصال بالطابعة'));
     } finally {
       setIsPrinting(false);
     }
@@ -289,7 +334,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
     }
   };
 
-  const isDirty = !savedClosing && !isAlreadyClosed && (actualCashPiasters > 0 || Boolean(notes.trim()));
+  const isDirty = !savedClosing && !isAlreadyClosed && (actualCashPiasters !== prefilledCashPiasters || Boolean(notes.trim()));
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -299,11 +344,24 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
     confirmMessage: 'تم إدخال مبالغ جرد للدرج. هل أنت متأكد من الخروج دون اعتماد التقفيل؟',
   });
 
-  if (!isOpen) return null;
+  // Dismissing keeps the dialog (and the print prompt over it) mounted for the exit animation; state and logic are untouched
+  const { mounted, exiting } = useExitTransition(isOpen);
+  const printPrompt = useExitValue(showPrintPrompt ? savedClosing : null);
+  const promptClosing = printPrompt.value;
+
+  if (!mounted) return null;
 
   return (
-    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 select-none" dir="rtl">
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div
+      onClick={handleBackdropClick}
+      data-exiting={exiting || undefined}
+      className="motion-static motion-modal-backdrop motion-exit-fade fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 select-none"
+      dir="rtl"
+    >
+      <div
+        data-exiting={exiting || undefined}
+        className="motion-exit-modal-panel bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+      >
         
         {/* Header */}
         <div className="px-6 py-5 bg-brand-dark dark:bg-surface-dark-2 text-white dark:text-ink-dark border-b dark:border-line-dark flex flex-wrap items-center justify-between gap-3">
@@ -327,7 +385,9 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            <AppButton
+              variant="secondary"
+              icon={History}
               onClick={() => {
                 if (showHistory) {
                   setShowHistory(false);
@@ -336,25 +396,17 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   setShowHistory(true);
                 }
               }}
-              className="px-4 h-10 rounded-lg text-sm font-medium bg-white/15 dark:bg-surface-dark-3 hover:bg-white/25 dark:hover:bg-surface-dark text-white dark:text-ink-dark transition flex items-center gap-2 cursor-pointer"
             >
-              <History className="w-4 h-4" />
-              <span>{showHistory ? 'الرجوع لليومية الحالية' : 'سجل الورديات المقفولة'}</span>
-            </button>
-            <button
-              onClick={requestClose}
-              className="w-10 h-10 flex items-center justify-center rounded-lg text-white/80 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition cursor-pointer"
-              title="إغلاق"
-            >
-              <X className="w-5 h-5" />
-            </button>
+              {showHistory ? 'الرجوع لليومية الحالية' : 'سجل الورديات المقفولة'}
+            </AppButton>
+            <AppButton variant="secondary" icon={X} onClick={requestClose} title="إغلاق" aria-label="إغلاق" />
           </div>
         </div>
 
         {/* Body content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-canvas dark:bg-canvas-dark">
+        <div className="motion-swap-children flex-1 overflow-y-auto p-6 space-y-6 bg-canvas dark:bg-canvas-dark">
           {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-3 text-ink-muted dark:text-ink-dark-muted">
+            <div className="motion-loading-fill py-20 flex flex-col items-center justify-center gap-3 text-ink-muted dark:text-ink-dark-muted">
               <div className="w-8 h-8 border-3 border-brand dark:border-brand-bright border-t-transparent rounded-full animate-spin" />
               <p className="text-sm font-medium">بنحسب أرقام المبيعات وفلوس الدرج من الداتابيز...</p>
             </div>
@@ -365,7 +417,10 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 <h3 className="t-card-title text-ink dark:text-ink-dark">سجل الإقفالات اليومية المعتمدة</h3>
                 <div className="flex flex-wrap items-center gap-2">
                   <DateFilterControl value={historyFilter} onChange={setHistoryFilter} size="sm" selectWidthClass="w-44" />
-                  <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
+                  <span
+                    className="w-56 truncate text-xs text-ink-muted dark:text-ink-dark-muted"
+                    title={historyDateActive ? describeDateFilter(historyFilter) : undefined}
+                  >
                     {historyDateActive
                       ? `${historyList.length} إقفال خلال ${describeDateFilter(historyFilter)}`
                       : `آخر ${CLOSING_HISTORY_DEFAULT_LIMIT} إقفال`}
@@ -379,14 +434,9 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   {historyDateActive ? `مفيش إقفالات يومية خلال ${describeDateFilter(historyFilter)}.` : 'لم يتم إجراء أي إقفال يومي بعد.'}
                   {historyDateActive && (
                     <div className="mt-3">
-                      <button
-                        type="button"
-                        onClick={resetHistoryFilter}
-                        className="h-8 px-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>عرض آخر الإقفالات</span>
-                      </button>
+                      <AppButton variant="primary" size="sm" icon={RotateCcw} onClick={resetHistoryFilter}>
+                        عرض آخر الإقفالات
+                      </AppButton>
                     </div>
                   )}
                 </div>
@@ -432,14 +482,16 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                               )}
                             </td>
                             <td className="p-3 text-center">
-                              <button
+                              <AppButton
+                                variant="secondary"
+                                size="xs"
+                                icon={Printer}
+                                className="mx-auto"
                                 onClick={() => handlePrintReceipt(h)}
-                                className="px-2.5 py-1 text-xs rounded-lg border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark flex items-center gap-1 mx-auto cursor-pointer transition-colors"
                                 title="إعادة طباعة إيصال الإقفال"
                               >
-                                <Printer className="w-3.5 h-3.5" />
-                                <span>طباعة</span>
-                              </button>
+                                طباعة
+                              </AppButton>
                             </td>
                           </tr>
                         );
@@ -469,7 +521,6 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                       type="checkbox"
                       checked={confirmSuspiciousDate}
                       onChange={(e) => setConfirmSuspiciousDate(e.target.checked)}
-                      className="w-4 h-4 rounded text-brand focus:ring-brand"
                     />
                     <span>أؤكد صحة الإقفال على هذا التاريخ بالرغم من تحذير الساعة، وأتحمل المسؤولية</span>
                   </label>
@@ -570,7 +621,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   />
 
                   <MetricTile
-                    label="انستاباي (InstaPay)"
+                    label="إنستاباي"
                     value={formatArabicCurrency(preview.instapaySalesPiasters || 0)}
                     hint="إلكتروني (خارج الدرج)"
                     icon={Smartphone}
@@ -823,22 +874,24 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 )}
 
                 {/* 2.B Detailed Accordion for All POS Terminals and Wallets Transactions ("حاجة بتتقفل وتتفتح") */}
-                <div className="rounded-2xl border-2 border-line dark:border-line-dark overflow-hidden transition-all bg-surface-2 dark:bg-surface-dark-2 shadow-xs">
+                <MotionHeight className="rounded-2xl border border-line dark:border-line-dark overflow-hidden bg-surface-2 dark:bg-surface-dark-2 shadow-xs">
                   <button
                     type="button"
                     onClick={() => setShowEpayDetails((prev) => !prev)}
-                    className="w-full p-4 flex flex-wrap items-center justify-between gap-3 text-right hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
+                    aria-expanded={showEpayDetails}
+                    aria-controls="daily-closing-epay-log"
+                    className="w-full min-h-16 px-4 py-3 flex items-center justify-between gap-3 text-right hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shrink-0 border border-paid/20 dark:border-paid/40">
                         <History className="w-5 h-5" />
                       </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                           <span className="font-bold text-ink dark:text-ink-dark text-base">
                             سجل وتفاصيل كافة حركات الماكينات والمحافظ لليوم
                           </span>
-                          <span className="text-xs bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright font-bold px-2.5 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/30">
+                          <span className="inline-flex items-center h-6 text-xs bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright font-bold px-2.5 rounded-full border border-brand/20 dark:border-brand-bright/30 whitespace-nowrap">
                             {totalEpayAndWalletTxCount} معاملة مسجلة
                           </span>
                         </div>
@@ -848,33 +901,36 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark px-3 py-1.5 rounded-lg border border-line dark:border-line-dark">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="hidden sm:inline-flex items-center h-8 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-xs font-bold text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
                         {showEpayDetails ? 'طي التفاصيل' : 'عرض كافة الحركات'}
                       </span>
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark transition-transform duration-200 ${showEpayDetails ? 'rotate-180 text-brand dark:text-brand-bright' : ''}`}>
+                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark transition-transform duration-200 ${showEpayDetails ? 'rotate-180 text-brand dark:text-brand-bright' : ''}`}>
                         <ChevronDown className="w-4 h-4" />
-                      </div>
+                      </span>
                     </div>
                   </button>
 
                   {showEpayDetails && (
-                    <div className="p-5 border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark space-y-5 animate-in fade-in duration-200">
+                    <div id="daily-closing-epay-log" {...motionPanel} className="px-4 py-4 border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark space-y-4 animate-in fade-in duration-200">
                       {/* Sub-tabs switcher */}
-                      <div className="flex flex-wrap items-center gap-2 border-b border-line dark:border-line-dark pb-3">
+                      <div role="tablist" className="motion-static flex flex-wrap items-center gap-2">
                         <button
                           type="button"
+                          role="tab"
+                          aria-selected={activeEpaySubTab === 'terminals'}
+                          title="فوري / أمان / سوبر باي"
                           onClick={() => setActiveEpaySubTab('terminals')}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                          className={`flex-1 min-w-48 h-10 flex items-center justify-center gap-2 px-4 rounded-lg text-sm font-bold transition-colors ${
                             activeEpaySubTab === 'terminals'
-                              ? 'bg-paid text-white shadow-xs'
+                              ? 'bg-paid text-white dark:bg-paid-dark-soft dark:text-paid-bright dark:ring-1 dark:ring-inset dark:ring-paid-bright/40 shadow-xs'
                               : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                           }`}
                         >
-                          <CreditCard className="w-4 h-4" />
-                          <span>ماكينات الدفع الإلكتروني (فوري / أمان / سوبر باي)</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                            activeEpaySubTab === 'terminals' ? 'bg-white/20 text-white' : 'bg-surface dark:bg-surface-dark text-ink-muted'
+                          <CreditCard className="w-4 h-4 shrink-0" />
+                          <span>ماكينات الدفع الإلكتروني</span>
+                          <span className={`min-w-6 h-6 inline-flex items-center justify-center text-xs px-2 rounded-full font-bold ${
+                            activeEpaySubTab === 'terminals' ? 'bg-white/20 text-white dark:bg-paid-bright/15 dark:text-paid-bright' : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
                           }`}>
                             {epayTxList.length}
                           </span>
@@ -882,17 +938,20 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
                         <button
                           type="button"
+                          role="tab"
+                          aria-selected={activeEpaySubTab === 'wallets'}
+                          title="فودافون كاش / إنستاباي"
                           onClick={() => setActiveEpaySubTab('wallets')}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                          className={`flex-1 min-w-48 h-10 flex items-center justify-center gap-2 px-4 rounded-lg text-sm font-bold transition-colors ${
                             activeEpaySubTab === 'wallets'
-                              ? 'bg-brand text-white shadow-xs'
+                              ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
                               : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                           }`}
                         >
-                          <Smartphone className="w-4 h-4" />
-                          <span>المحافظ الإلكترونية وإنستاباي (فودافون كاش / إنستاباي)</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                            activeEpaySubTab === 'wallets' ? 'bg-white/20 text-white' : 'bg-surface dark:bg-surface-dark text-ink-muted'
+                          <Smartphone className="w-4 h-4 shrink-0" />
+                          <span>المحافظ الإلكترونية وإنستاباي</span>
+                          <span className={`min-w-6 h-6 inline-flex items-center justify-center text-xs px-2 rounded-full font-bold ${
+                            activeEpaySubTab === 'wallets' ? 'bg-white/20 text-white dark:bg-brand-bright/15 dark:text-brand-bright' : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted'
                           }`}>
                             {walletTxList.length}
                           </span>
@@ -904,29 +963,20 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                         <div className="space-y-4">
                           {/* Terminals summary cards */}
                           {epayTerminalsList.length > 0 && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               {epayTerminalsList.map((term) => (
-                                <div key={term.terminalId} className="p-3.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-bold text-sm text-ink dark:text-ink-dark">{term.terminalName}</span>
-                                    <span className="text-xs bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-semibold px-2 py-0.5 rounded-md">
+                                <div key={term.terminalId} className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="font-bold text-sm text-ink dark:text-ink-dark truncate">{term.terminalName}</span>
+                                    <span className="shrink-0 inline-flex items-center h-6 text-xs bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-semibold px-2 rounded-md whitespace-nowrap">
                                       {term.transactionsCount} عمليات اليوم
                                     </span>
                                   </div>
-                                  <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-line/60 dark:border-line-dark/60">
-                                    <div>
-                                      <span className="text-ink-muted dark:text-ink-dark-muted block">الرصيد المتوفر:</span>
-                                      <span className="font-bold text-paid dark:text-paid-bright">{formatArabicCurrency(term.currentBalancePiasters)}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-ink-muted dark:text-ink-dark-muted block">نقدية المحفظة (الشنطة):</span>
-                                      <span className="font-bold text-brand dark:text-brand-bright">{formatArabicCurrency(term.tillCashPiasters)}</span>
-                                    </div>
-                                    <div className="col-span-2 flex items-center justify-between pt-1">
-                                      <span className="text-ink-muted dark:text-ink-dark-muted">صافي الربح والعمولات:</span>
-                                      <span className="font-bold text-paid dark:text-paid-bright">{formatArabicCurrency(term.netProfitPiasters)}</span>
-                                    </div>
-                                  </div>
+                                  <dl className="m-0 divide-y divide-line/60 dark:divide-line-dark/60 border-t border-line/60 dark:border-line-dark/60">
+                                    <LogSummaryRow label="الرصيد المتوفر" value={formatArabicCurrency(term.currentBalancePiasters)} valueClass="text-paid dark:text-paid-bright" />
+                                    <LogSummaryRow label="نقدية المحفظة (الشنطة)" value={formatArabicCurrency(term.tillCashPiasters)} valueClass="text-brand dark:text-brand-bright" />
+                                    <LogSummaryRow label="صافي الربح والعمولات" value={formatArabicCurrency(term.netProfitPiasters)} valueClass="text-paid dark:text-paid-bright" />
+                                  </dl>
                                 </div>
                               ))}
                             </div>
@@ -934,49 +984,49 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
                           {/* Terminals transactions log */}
                           {epayTxList.length === 0 ? (
-                            <div className="py-8 text-center bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-sm">
-                              لا توجد عمليات منفذة على ماكينات الدفع الإلكتروني لهذا اليوم.
-                            </div>
+                            <LogEmptyState icon={CreditCard} text="لا توجد عمليات منفذة على ماكينات الدفع الإلكتروني لهذا اليوم." />
                           ) : (
-                            <div className="overflow-x-auto rounded-xl border border-line dark:border-line-dark">
-                              <table className="w-full text-right text-xs">
-                                <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
+                            <div className="max-h-80 overflow-y-auto overflow-x-hidden rounded-xl border border-line dark:border-line-dark">
+                              <table className="w-full text-right">
+                                <thead>
                                   <tr>
-                                    <th className="py-2.5 px-3">الوقت</th>
-                                    <th className="py-2.5 px-3">الماكينة</th>
-                                    <th className="py-2.5 px-3">الخدمة</th>
-                                    <th className="py-2.5 px-3">المبلغ</th>
-                                    <th className="py-2.5 px-3">العمولة/الربح</th>
-                                    <th className="py-2.5 px-3">الإجمالي المحصل</th>
-                                    <th className="py-2.5 px-3">جهة النقدية</th>
-                                    <th className="py-2.5 px-3">الكاشير / المرجع</th>
+                                    <th className={LOG_TH}>الوقت / الماكينة</th>
+                                    <th className={LOG_TH}>الخدمة</th>
+                                    <th className={LOG_TH_NUM}>المبلغ</th>
+                                    <th className={LOG_TH_NUM}>العمولة / الربح</th>
+                                    <th className={LOG_TH_NUM}>الإجمالي المحصل</th>
+                                    <th className={LOG_TH}>جهة النقدية / الكاشير</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-line/60 dark:divide-line-dark/60 text-ink dark:text-ink-dark">
                                   {epayTxList.map((tx) => (
-                                    <tr key={tx.id} className="hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors">
-                                      <td className="py-2 px-3 font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">{formatTimeOnly(tx.createdAt)}</td>
-                                      <td className="py-2 px-3 font-semibold whitespace-nowrap">{tx.terminalName}</td>
-                                      <td className="py-2 px-3">
+                                    <tr key={tx.id} className={LOG_ROW}>
+                                      <td className={LOG_TD}>
                                         <div className="flex flex-col">
-                                          <span className="font-bold">{tx.serviceName || formatEpayServiceType(tx.serviceType)}</span>
-                                          <span className="text-xs opacity-75 text-ink-muted dark:text-ink-dark-muted">{formatEpayServiceType(tx.serviceType)}</span>
+                                          <span className="font-semibold">{tx.terminalName}</span>
+                                          <span className="text-xs tabular-nums text-ink-muted dark:text-ink-dark-muted">{formatTimeOnly(tx.createdAt)}</span>
                                         </div>
                                       </td>
-                                      <td className="py-2 px-3 font-bold tabular-nums whitespace-nowrap">{formatArabicCurrency(tx.billAmountPiasters)}</td>
-                                      <td className="py-2 px-3 font-semibold text-paid dark:text-paid-bright tabular-nums whitespace-nowrap">{formatArabicCurrency(tx.netProfitPiasters)}</td>
-                                      <td className="py-2 px-3 font-bold tabular-nums whitespace-nowrap">{formatArabicCurrency(tx.totalReceivedPiasters)}</td>
-                                      <td className="py-2 px-3 whitespace-nowrap">
-                                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                                          tx.paymentChannel === 'terminal_till'
-                                            ? 'bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright'
-                                            : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
-                                        }`}>
-                                          {tx.paymentChannel === 'terminal_till' ? 'شنطة الماكينة' : 'درج المحل'}
-                                        </span>
+                                      <td className={LOG_TD}>
+                                        <div className="flex flex-col">
+                                          <span className="font-bold">{tx.serviceName || formatEpayServiceType(tx.serviceType)}</span>
+                                          <span className="text-xs text-ink-muted dark:text-ink-dark-muted">{formatEpayServiceType(tx.serviceType)}</span>
+                                        </div>
                                       </td>
-                                      <td className="py-2 px-3 text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
-                                        {tx.cashierName || tx.referenceNumber || '—'}
+                                      <td className={LOG_TD_NUM} dir="ltr">{formatArabicCurrency(tx.billAmountPiasters)}</td>
+                                      <td className={`${LOG_TD_NUM} text-paid dark:text-paid-bright`} dir="ltr">{formatArabicCurrency(tx.netProfitPiasters)}</td>
+                                      <td className={LOG_TD_NUM} dir="ltr">{formatArabicCurrency(tx.totalReceivedPiasters)}</td>
+                                      <td className={LOG_TD}>
+                                        <div className="flex flex-col items-start gap-1">
+                                          <span className={`${LOG_BADGE} ${
+                                            tx.paymentChannel === 'terminal_till'
+                                              ? 'bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright'
+                                              : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright'
+                                          }`}>
+                                            {tx.paymentChannel === 'terminal_till' ? 'شنطة الماكينة' : 'درج المحل'}
+                                          </span>
+                                          <span className="text-xs text-ink-muted dark:text-ink-dark-muted">{tx.cashierName || tx.referenceNumber || '—'}</span>
+                                        </div>
                                       </td>
                                     </tr>
                                   ))}
@@ -992,31 +1042,24 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                         <div className="space-y-4">
                           {/* Wallets summary cards */}
                           {walletsSummaryList.length > 0 && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               {walletsSummaryList.map((acc) => (
-                                <div key={acc.accountId} className="p-3.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-bold text-sm text-ink dark:text-ink-dark">{acc.accountName}</span>
-                                    <span className="text-xs bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright font-semibold px-2 py-0.5 rounded-md">
+                                <div key={acc.accountId} className="p-4 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="font-bold text-sm text-ink dark:text-ink-dark truncate">{acc.accountName}</span>
+                                    <span className="shrink-0 inline-flex items-center h-6 text-xs bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright font-semibold px-2 rounded-md whitespace-nowrap">
                                       {acc.transactionsCount} عمليات اليوم
                                     </span>
                                   </div>
-                                  <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-line/60 dark:border-line-dark/60">
-                                    <div>
-                                      <span className="text-ink-muted dark:text-ink-dark-muted block">الرصيد المتاح:</span>
-                                      <span className="font-bold text-paid dark:text-paid-bright">{formatArabicCurrency(acc.currentBalancePiasters)}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-ink-muted dark:text-ink-dark-muted block">أثر الدرج:</span>
-                                      <span className={`font-bold ${acc.drawerCashImpactPiasters >= 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
-                                        {formatArabicCurrency(acc.drawerCashImpactPiasters)}
-                                      </span>
-                                    </div>
-                                    <div className="col-span-2 flex items-center justify-between pt-1">
-                                      <span className="text-ink-muted dark:text-ink-dark-muted">أرباح الحساب:</span>
-                                      <span className="font-bold text-paid dark:text-paid-bright">{formatArabicCurrency(acc.netProfitPiasters)}</span>
-                                    </div>
-                                  </div>
+                                  <dl className="m-0 divide-y divide-line/60 dark:divide-line-dark/60 border-t border-line/60 dark:border-line-dark/60">
+                                    <LogSummaryRow label="الرصيد المتاح" value={formatArabicCurrency(acc.currentBalancePiasters)} valueClass="text-paid dark:text-paid-bright" />
+                                    <LogSummaryRow
+                                      label="أثر الدرج"
+                                      value={formatArabicCurrency(acc.drawerCashImpactPiasters)}
+                                      valueClass={acc.drawerCashImpactPiasters >= 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}
+                                    />
+                                    <LogSummaryRow label="أرباح الحساب" value={formatArabicCurrency(acc.netProfitPiasters)} valueClass="text-paid dark:text-paid-bright" />
+                                  </dl>
                                 </div>
                               ))}
                             </div>
@@ -1024,22 +1067,19 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
                           {/* Wallets transactions log */}
                           {walletTxList.length === 0 ? (
-                            <div className="py-8 text-center bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-sm">
-                              لا توجد عمليات منفذة على المحافظ الإلكترونية أو إنستاباي لهذا اليوم.
-                            </div>
+                            <LogEmptyState icon={Smartphone} text="لا توجد عمليات منفذة على المحافظ الإلكترونية أو إنستاباي لهذا اليوم." />
                           ) : (
-                            <div className="overflow-x-auto rounded-xl border border-line dark:border-line-dark">
-                              <table className="w-full text-right text-xs">
-                                <thead className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
+                            <div className="max-h-80 overflow-y-auto overflow-x-hidden rounded-xl border border-line dark:border-line-dark">
+                              <table className="w-full text-right">
+                                <thead>
                                   <tr>
-                                    <th className="py-2.5 px-3">الوقت</th>
-                                    <th className="py-2.5 px-3">الحساب / المحفظة</th>
-                                    <th className="py-2.5 px-3">نوع المعاملة</th>
-                                    <th className="py-2.5 px-3">المبلغ</th>
-                                    <th className="py-2.5 px-3">العمولة / الربح</th>
-                                    <th className="py-2.5 px-3">الإجمالي</th>
-                                    <th className="py-2.5 px-3">حركة نقدية الدرج</th>
-                                    <th className="py-2.5 px-3">بيانات العميل / ملاحظات</th>
+                                    <th className={LOG_TH}>الوقت / الحساب</th>
+                                    <th className={LOG_TH}>نوع المعاملة</th>
+                                    <th className={LOG_TH_NUM}>المبلغ</th>
+                                    <th className={LOG_TH_NUM}>العمولة / الربح</th>
+                                    <th className={LOG_TH_NUM}>الإجمالي</th>
+                                    <th className={LOG_TH}>حركة نقدية الدرج</th>
+                                    <th className={LOG_TH}>بيانات العميل / ملاحظات</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-line/60 dark:divide-line-dark/60 text-ink dark:text-ink-dark">
@@ -1047,11 +1087,15 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                                     const isDrawerIn = wtx.paymentDestination === 'cash_drawer' && wtx.txType === 'cash_out';
                                     const isDrawerOut = wtx.paymentDestination === 'cash_drawer' && wtx.txType === 'cash_in';
                                     return (
-                                      <tr key={wtx.id} className="hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors">
-                                        <td className="py-2 px-3 font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">{formatTimeOnly(wtx.createdAt)}</td>
-                                        <td className="py-2 px-3 font-semibold whitespace-nowrap">{wtx.accountName}</td>
-                                        <td className="py-2 px-3 whitespace-nowrap">
-                                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                      <tr key={wtx.id} className={LOG_ROW}>
+                                        <td className={LOG_TD}>
+                                          <div className="flex flex-col">
+                                            <span className="font-semibold">{wtx.accountName}</span>
+                                            <span className="text-xs tabular-nums text-ink-muted dark:text-ink-dark-muted">{formatTimeOnly(wtx.createdAt)}</span>
+                                          </div>
+                                        </td>
+                                        <td className={LOG_TD}>
+                                          <span className={`${LOG_BADGE} ${
                                             wtx.txType === 'cash_in'
                                               ? 'bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright'
                                               : wtx.txType === 'cash_out'
@@ -1061,28 +1105,28 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                                             {formatWalletTxType(wtx.txType)}
                                           </span>
                                         </td>
-                                        <td className="py-2 px-3 font-bold tabular-nums whitespace-nowrap">{formatArabicCurrency(wtx.amountPiasters)}</td>
-                                        <td className="py-2 px-3 font-semibold text-paid dark:text-paid-bright tabular-nums whitespace-nowrap">{formatArabicCurrency(wtx.profitPiasters)}</td>
-                                        <td className="py-2 px-3 font-bold tabular-nums whitespace-nowrap">{formatArabicCurrency(wtx.totalCollectedPiasters)}</td>
-                                        <td className="py-2 px-3 whitespace-nowrap">
+                                        <td className={LOG_TD_NUM} dir="ltr">{formatArabicCurrency(wtx.amountPiasters)}</td>
+                                        <td className={`${LOG_TD_NUM} text-paid dark:text-paid-bright`} dir="ltr">{formatArabicCurrency(wtx.profitPiasters)}</td>
+                                        <td className={LOG_TD_NUM} dir="ltr">{formatArabicCurrency(wtx.totalCollectedPiasters)}</td>
+                                        <td className={LOG_TD}>
                                           {isDrawerIn && (
-                                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright">
+                                            <span className={`${LOG_BADGE} bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright`}>
                                               + محصل في الدرج ({formatArabicCurrency(wtx.totalCollectedPiasters)})
                                             </span>
                                           )}
                                           {isDrawerOut && (
-                                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright">
+                                            <span className={`${LOG_BADGE} bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright`}>
                                               - مسلّم للعميل ({formatArabicCurrency(wtx.amountPiasters - wtx.profitPiasters)})
                                             </span>
                                           )}
                                           {!isDrawerIn && !isDrawerOut && (
-                                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted">
+                                            <span className={`${LOG_BADGE} bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted`}>
                                               {wtx.paymentDestination === 'wallet' ? 'إلكتروني فقط (خارج الدرج)' : wtx.paymentDestination}
                                             </span>
                                           )}
                                         </td>
-                                        <td className="py-2 px-3 text-ink-muted dark:text-ink-dark-muted">
-                                          {wtx.customerPhone ? `${wtx.customerPhone} ` : ''}
+                                        <td className={`${LOG_TD} text-xs text-ink-muted dark:text-ink-dark-muted break-words`}>
+                                          {wtx.customerPhone ? `${formatPhoneDisplay(wtx.customerPhone)} ` : ''}
                                           {wtx.customerName ? `(${wtx.customerName}) ` : ''}
                                           {wtx.notes ? wtx.notes : (!wtx.customerPhone && !wtx.customerName ? '—' : '')}
                                         </td>
@@ -1097,7 +1141,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                       )}
                     </div>
                   )}
-                </div>
+                </MotionHeight>
               </div>
 
               {/* Profit & Zero-cost alert (Story 84 / Feature #46) */}
@@ -1149,31 +1193,25 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
-              onClick={onClose}
-              className="px-5 min-h-[44px] text-sm font-semibold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl transition cursor-pointer"
-            >
+            <AppButton variant="secondary" size="lg" onClick={onClose}>
               إلغاء
-            </button>
+            </AppButton>
 
             {savedClosing || isAlreadyClosed ? (
-              <button
-                onClick={() => handlePrintReceipt()}
-                disabled={isPrinting}
-                className="px-6 min-h-[44px] text-sm font-bold text-white bg-paid dark:bg-paid-bright dark:text-surface-dark hover:bg-paid/90 dark:hover:bg-paid-bright-hover rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>{isPrinting ? 'بنطبع...' : 'طباعة وصل التقفيل'}</span>
-              </button>
+              <AppButton variant="success" size="lg" icon={Printer} onClick={() => handlePrintReceipt()} loading={isPrinting}>
+                {isPrinting ? 'بنطبع...' : 'طباعة وصل التقفيل'}
+              </AppButton>
             ) : (
-              <button
+              <AppButton
+                variant="primary"
+                size="lg"
+                icon={Lock}
                 onClick={handleSaveClosing}
-                disabled={isSubmitting || (preview?.isDateSuspicious && !confirmSuspiciousDate) || (preview?.openShiftsCount ?? 0) > 0}
-                className="px-6 min-h-[44px] text-sm font-bold text-white bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-brand-bright/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer"
+                loading={isSubmitting}
+                disabled={(preview?.isDateSuspicious && !confirmSuspiciousDate) || (preview?.openShiftsCount ?? 0) > 0}
               >
-                <Lock className="w-4 h-4" />
-                <span>{isSubmitting ? 'بنقفل اليومية...' : 'اعتماد وتقفيل اليومية رسمياً'}</span>
-              </button>
+                {isSubmitting ? 'بنقفل اليومية...' : 'اعتماد وتقفيل اليومية رسمياً'}
+              </AppButton>
             )}
           </div>
         </div>
@@ -1181,9 +1219,15 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
       </div>
 
       {/* Modal-over-Modal: Post-closing confirmation & Print Z-Report Prompt */}
-      {showPrintPrompt && savedClosing && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+      {promptClosing && (
+        <div
+          data-exiting={printPrompt.exiting || undefined}
+          className="motion-exit-fade fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+        >
+          <div
+            data-exiting={printPrompt.exiting || undefined}
+            className="motion-exit-modal-panel bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
+          >
             <div className="p-6 text-center space-y-4">
               
               {/* Success Badge */}
@@ -1194,9 +1238,9 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
               <div>
                 <h3 className="t-card-title text-ink dark:text-ink-dark">تم تقفيل اليومية والوردية</h3>
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 mt-2 rounded-full text-xs font-semibold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/40">
-                  <span>تقفيل معتمد #{savedClosing.closingNumber}</span>
+                  <span>تقفيل معتمد #{promptClosing.closingNumber}</span>
                   <span>•</span>
-                  <span>{savedClosing.businessDate}</span>
+                  <span>{promptClosing.businessDate}</span>
                 </div>
               </div>
 
@@ -1204,26 +1248,26 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
               <div className="grid grid-cols-3 gap-2.5 p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-right">
                 <div>
                   <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">إجمالي المبيعات</span>
-                  <span className="text-sm font-bold text-ink dark:text-ink-dark">{formatArabicCurrency(savedClosing.totalSalesPiasters)}</span>
+                  <span className="text-sm font-bold text-ink dark:text-ink-dark">{formatArabicCurrency(promptClosing.totalSalesPiasters)}</span>
                 </div>
                 <div>
                   <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">الفلوس اللي في الدرج</span>
-                  <span className="text-sm font-bold text-brand dark:text-brand-bright">{formatArabicCurrency(savedClosing.actualCashPiasters)}</span>
+                  <span className="text-sm font-bold text-brand dark:text-brand-bright">{formatArabicCurrency(promptClosing.actualCashPiasters)}</span>
                 </div>
                 <div>
                   <span className="text-micro text-ink-muted dark:text-ink-dark-muted block">حالة الدرج</span>
                   <span className={`text-xs font-bold ${
-                    savedClosing.differencePiasters === 0 
+                    promptClosing.differencePiasters === 0 
                       ? 'text-paid dark:text-paid-bright' 
-                      : savedClosing.differencePiasters < 0 
+                      : promptClosing.differencePiasters < 0 
                         ? 'text-danger dark:text-danger-bright' 
                         : 'text-warn dark:text-warn-bright'
                   }`}>
-                    {savedClosing.differencePiasters === 0 
+                    {promptClosing.differencePiasters === 0 
                       ? 'الدرج مظبوط تماماً' 
-                      : savedClosing.differencePiasters < 0 
-                        ? `عجز ${formatArabicCurrency(Math.abs(savedClosing.differencePiasters))}`
-                        : `زيادة ${formatArabicCurrency(savedClosing.differencePiasters)}`}
+                      : promptClosing.differencePiasters < 0 
+                        ? `عجز ${formatArabicCurrency(Math.abs(promptClosing.differencePiasters))}`
+                        : `زيادة ${formatArabicCurrency(promptClosing.differencePiasters)}`}
                   </span>
                 </div>
               </div>
@@ -1234,28 +1278,27 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
               {/* Actions */}
               <div className="flex items-center gap-2.5 pt-2">
-                <button
-                  type="button"
+                <AppButton
+                  variant="success"
+                  icon={Printer}
+                  className="flex-1"
                   onClick={() => {
-                    void handlePrintReceipt(savedClosing);
+                    void handlePrintReceipt(promptClosing);
                     setShowPrintPrompt(false);
                     onClose();
                   }}
-                  className="flex-1 py-2.5 px-4 bg-paid dark:bg-paid-bright dark:text-surface-dark hover:bg-paid/90 dark:hover:bg-paid-bright-hover text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                 >
-                  <Printer className="w-4 h-4" />
-                  <span>أيوه، اطبع وصل التقفيل دلوقتي</span>
-                </button>
-                <button
-                  type="button"
+                  أيوه، اطبع وصل التقفيل دلوقتي
+                </AppButton>
+                <AppButton
+                  variant="secondary"
                   onClick={() => {
                     setShowPrintPrompt(false);
                     onClose();
                   }}
-                  className="py-2.5 px-4 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-semibold text-xs rounded-xl transition-colors cursor-pointer"
                 >
-                  <span>إنهاء ومتابعة الشغل</span>
-                </button>
+                  إنهاء ومتابعة الشغل
+                </AppButton>
               </div>
 
             </div>

@@ -1,19 +1,35 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   X,
-  CheckCircle2,
   Keyboard,
   Sparkles,
   ArrowRight,
   ArrowLeft,
   Check,
+  Compass,
   ShoppingCart,
-  Boxes,
-  Users,
+  Banknote,
   FileText,
+  Users,
+  Package,
+  Truck,
+  Wallet,
+  Clock,
   BarChart3,
+  ShieldCheck,
+  Settings,
+  HardDrive,
+  Pill,
+  UtensilsCrossed,
+  type LucideIcon,
 } from 'lucide-react';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { useAuth } from '../context/useAuth';
+import { useFeatures } from '../context/useFeatures';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
+import { useMotionPanel } from '../hooks/useMotionPanel';
+import { getVisibleTourSteps, type TourIconName } from '../utils/tourSteps';
 
 interface GuidedTourModalProps {
   isOpen: boolean;
@@ -22,100 +38,23 @@ interface GuidedTourModalProps {
   hasDemoData?: boolean;
 }
 
-interface TourStep {
-  step: number;
-  title: string;
-  subtitle: string;
-  icon: string;
-  color: string;
-  description: string;
-  keyFeatures: string[];
-  shortcutTip?: string;
-  badgeText: string;
-}
-
-const TOUR_STEPS: TourStep[] = [
-  {
-    step: 1,
-    title: 'شاشة البيع السريع ونقطة البيع (الكاشير)',
-    subtitle: 'قراءة الباركود، بحث فوري، وأزرار سريعة للأصناف اللي ملهاش باركود',
-    icon: 'fa-barcode',
-    color: 'from-brand-dark to-brand',
-    description:
-      'شاشة البيع في رفيق معموله عشان تكون أسرع حاجة للكاشير. مؤشر الماوس بيفضل واقف تلقائياً في خانة الباركود بعد كل بيعة، عشان تشتغل بالكيبورد وقارئ الباركود علطول من غير ما تلمس الماوس.',
-    keyFeatures: [
-      'قراءة فورية بالباركود ودعم كامل لموازين الباركود الموزونة.',
-      'بحث فوري بالاسم أو جزء منه حتى وسط 50,000 صنف في أقل من رمشة عين (10ms).',
-      'أزرار سريعة للأصناف السايبة والعيش مع ألوان وتصنيف واضح بالصور.',
-    ],
-    shortcutTip: 'اضغط F2 في أي وقت للوقوف على خانة الباركود، أو F3 للبحث بالاسم.',
-    badgeText: 'الخطوة 1 من 5',
-  },
-  {
-    step: 2,
-    title: 'سلة الفاتورة والكميات والأوزان',
-    subtitle: 'تعديل سريع للكمية والوزن بالجرام مع حماية المخزن',
-    icon: 'fa-shopping-basket',
-    color: 'from-brand to-paid',
-    description:
-      'جدول الفاتورة بيعرض أصنافك بوضوح، وتقدر تعدل الكمية أو الوزن فوراً بأزرار الكيبورد، مع حساب دقيق للأوزان بالجرام من غير أي كسور ملخبطة.',
-    keyFeatures: [
-      'أمان مالي 100% وحسابات بالقروش بدون أي كسور عشرية عشوائية.',
-      'دعم بيع الوزن بالكيلو والجرام (زي 0.750 كجم جبنة أو لحوم) بضغطة واحدة.',
-      'تنبيه فوري لما بضاعة الصنف تقرب تخلص عشان تاخد بالك.',
-    ],
-    shortcutTip: 'استخدم زراير + و - لتعديل الكمية، أو زرار Delete لحذف الصنف من السلة.',
-    badgeText: 'الخطوة 2 من 5',
-  },
-  {
-    step: 3,
-    title: 'الدفع السريع والفاتورة وطباعة الوصل',
-    subtitle: 'دفع كاش، شكك على الحساب، وطباعة وصل حراري فوري',
-    icon: 'fa-file-invoice-dollar',
-    color: 'from-paid to-brand-dark',
-    description:
-      'شاشة الدفع بتخلص البيعة في ثانيتين؛ بتحسب الباقي للزبون تلقائياً، وتقدر تسجل الفاتورة على حساب الزبون بالشكك، وتطبع وصل الكاشير وتفتح الدرج في نفس اللحظة.',
-    keyFeatures: [
-      'تقفيل البيع السريع بضغطة زر واحدة على Enter أو F12 وحساب الباقي للزبون.',
-      'دعم كامل للبيع الآجل (الشكك) للزبائن مع متابعة الرصيد والحد الأقصى.',
-      'دعم طابعات الفواتير 80 مم و 57 مم مع طباعة سريعة ومباشرة بدون إنترنت.',
-    ],
-    shortcutTip: 'اضغط مسافة (Space) لفتح نافذة الدفع، وبعدها Enter لتأكيد استلام الكاش.',
-    badgeText: 'الخطوة 3 من 5',
-  },
-  {
-    step: 4,
-    title: 'إدارة البضاعة والتصنيفات والمخزن',
-    subtitle: 'إضافة أصناف، استيراد إكسيل، وكشف النواقص وجرد بضاعة المحل',
-    icon: 'fa-boxes',
-    color: 'from-brand to-brand-dark',
-    description:
-      'شاشة المنتجات بتديك سجل كامل لكل أصناف المحل والباركودات البديلة، مع متابعة تلقائية لحركات بضاعة المخزن وأرباح كل صنف.',
-    keyFeatures: [
-      'إضافة صنف جديد في 10 ثواني وتوليد باركود تلقائي لو الصنف ملوش باركود.',
-      'استيراد وتصدير الأصناف والأسعار دفعة واحدة من شيتات Excel.',
-      'كشف فوري بالنواقص والأصناف اللي قربت تخلص عشان تلحق تطلبها من الشركات.',
-    ],
-    shortcutTip: 'تقدر تضيف صنف جديد علطول وأنت واقف في شاشة البيع من غير ما تخرج منها.',
-    badgeText: 'الخطوة 4 من 5',
-  },
-  {
-    step: 5,
-    title: 'التقارير والأرباح وأمان المحل',
-    subtitle: 'قفل بالرقم السري، تقرير الوردية، وأمان تام ضد انقطاع الكهرباء',
-    icon: 'fa-shield-halved',
-    color: 'from-brand-dark to-paid',
-    description:
-      'نظام رفيق مصمم خصيصاً للمحلات والمتاجر: حفظ محلي فوري وآمن حتى لو الكهرباء قطعت فجأة، مع حماية العمليات بالرقم السري ونسخ احتياطي تلقائي.',
-    keyFeatures: [
-      'رقم سري (PIN) لحماية شاشات التقارير وتعديل الأسعار واسترجاع البيانات.',
-      'تقارير أرباح ووردية مفصلة وجرد مبيعات يومي وأسبوعي وشهري.',
-      'نسخ احتياطي محلي تلقائي عند قفل البرنامج، مع تنبيه لو الفلاشة اتشالت.',
-    ],
-    shortcutTip: 'احفظ نسخة احتياطية على فلاشة خارجية بانتظام عشان تضمن أمان محلك وفلوسك.',
-    badgeText: 'الخطوة 5 من 5',
-  },
-];
+const TOUR_ICONS: Record<TourIconName, LucideIcon> = {
+  Compass,
+  ShoppingCart,
+  Banknote,
+  FileText,
+  Users,
+  Package,
+  Truck,
+  Wallet,
+  Clock,
+  BarChart3,
+  ShieldCheck,
+  Settings,
+  HardDrive,
+  Pill,
+  UtensilsCrossed,
+};
 
 export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
   isOpen,
@@ -123,15 +62,31 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
   onLoadDemoData,
   hasDemoData = false,
 }) => {
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const { currentUser, isRoot, isAdmin, hasPermission } = useAuth();
+  const { isEnabled } = useFeatures();
+  const [requestedStepIndex, setRequestedStepIndex] = useState(0);
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  const tourSteps = useMemo(
+    () => getVisibleTourSteps({ user: currentUser, isRoot, isAdmin, hasPermission, isEnabled }),
+    [currentUser, isRoot, isAdmin, hasPermission, isEnabled],
+  );
+  const currentStepIndex = Math.min(requestedStepIndex, tourSteps.length - 1);
+  const motionPanel = useMotionPanel(String(currentStepIndex));
 
-  const currentStep = TOUR_STEPS[currentStepIndex];
+  // A reopened tour always starts from its first step
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setRequestedStepIndex(0);
+  }
+
+  const currentStep = tourSteps[currentStepIndex];
+  const StepIcon = TOUR_ICONS[currentStep.icon];
   const isFirst = currentStepIndex === 0;
-  const isLast = currentStepIndex === TOUR_STEPS.length - 1;
+  const isLast = currentStepIndex === tourSteps.length - 1;
 
   const handleNext = () => {
     if (!isLast) {
-      setCurrentStepIndex(prev => prev + 1);
+      setRequestedStepIndex(currentStepIndex + 1);
     } else {
       onClose();
     }
@@ -139,7 +94,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
 
   const handlePrev = () => {
     if (!isFirst) {
-      setCurrentStepIndex(prev => prev - 1);
+      setRequestedStepIndex(currentStepIndex - 1);
     }
   };
 
@@ -161,138 +116,119 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header with gradient and icon */}
-        <div className={`bg-gradient-to-r ${currentStep.color} text-white px-6 py-5 relative transition-all duration-300`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl shadow-inner">
-                {currentStep.step === 1 && <ShoppingCart className="w-6 h-6 text-white" />}
-                {currentStep.step === 2 && <Boxes className="w-6 h-6 text-white" />}
-                {currentStep.step === 3 && <Users className="w-6 h-6 text-white" />}
-                {currentStep.step === 4 && <FileText className="w-6 h-6 text-white" />}
-                {currentStep.step >= 5 && <BarChart3 className="w-6 h-6 text-white" />}
+        {/* Header: step icon, title, step counter and a clickable progress bar */}
+        <div className="bg-gradient-to-r from-brand-dark to-brand text-white px-6 py-5 flex flex-col gap-4 shrink-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+                <StepIcon className="w-6 h-6 text-white" />
               </div>
-              <div>
-                <span className="inline-block text-xs font-bold bg-white/25 px-2.5 py-0.5 rounded-full mb-1">
-                  {currentStep.badgeText}
+              <div className="min-w-0">
+                <span className="inline-block text-xs font-bold bg-white/25 px-2.5 py-1 rounded-full mb-1.5">
+                  الخطوة {currentStepIndex + 1} من {tourSteps.length}
                 </span>
-                <h2 className="t-modal-title leading-tight">{currentStep.title}</h2>
+                <h2 className="t-modal-title leading-snug m-0">{currentStep.title}</h2>
               </div>
             </div>
             <button
+              type="button"
               onClick={requestClose}
-              className="text-white/80 hover:text-white hover:bg-white/10 rounded-lg p-2 transition-colors cursor-pointer"
+              className="w-8 h-8 shrink-0 text-white/80 hover:text-white hover:bg-white/10 rounded-lg flex items-center justify-center"
               title="إغلاق"
+              aria-label="إغلاق"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
-          <p className="text-sm text-white/90 mt-2 font-medium">{currentStep.subtitle}</p>
 
-          {/* Stepper Dots */}
-          <div className="flex items-center justify-center gap-2 mt-4">
-            {TOUR_STEPS.map((s, idx) => (
+          <nav aria-label="تقدم الجولة" className="flex items-center gap-1.5">
+            {tourSteps.map((s, idx) => (
               <button
-                key={s.step}
-                onClick={() => setCurrentStepIndex(idx)}
-                className={`h-2 transition-all rounded-full ${
-                  idx === currentStepIndex
-                    ? 'w-8 bg-white dark:bg-surface-dark shadow'
-                    : idx < currentStepIndex
-                    ? 'w-3 bg-white/70'
-                    : 'w-2 bg-white/30'
-                }`}
-                title={`الخطوة ${s.step}: ${s.title}`}
-              />
+                type="button"
+                key={s.id}
+                onClick={() => setRequestedStepIndex(idx)}
+                aria-label={`الخطوة ${idx + 1}: ${s.title}`}
+                aria-current={idx === currentStepIndex ? 'step' : undefined}
+                title={`الخطوة ${idx + 1}: ${s.title}`}
+                className="h-5 flex-1 flex items-center"
+              >
+                <span
+                  className={`block h-1.5 w-full rounded-full ${
+                    idx === currentStepIndex ? 'bg-white' : idx < currentStepIndex ? 'bg-white/70' : 'bg-white/30'
+                  }`}
+                />
+              </button>
             ))}
-          </div>
+          </nav>
         </div>
 
-        {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-canvas dark:bg-canvas-dark">
-          <p className="text-ink dark:text-ink-dark leading-relaxed text-base font-normal">
-            {currentStep.description}
-          </p>
-
-          {/* Key Features List */}
-          <div className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-4 space-y-2.5">
-            <h4 className="t-label text-ink-muted dark:text-ink-dark-muted flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright" />
-              أهم المزايا في هذه الشاشة
-            </h4>
-            <ul className="space-y-2 text-sm text-ink dark:text-ink-dark">
-              {currentStep.keyFeatures.map((feat, idx) => (
-                <li key={idx} className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                    {idx + 1}
-                  </span>
-                  <span className="leading-snug">{feat}</span>
-                </li>
-              ))}
-            </ul>
+        {/* Content body: the step swaps with an entrance and the dialog height glides between steps of different length */}
+        <MotionHeight className="px-6 py-5 overflow-y-auto flex-1 bg-canvas dark:bg-canvas-dark">
+        <div {...motionPanel} className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-muted dark:text-ink-dark-muted">
+            <Compass className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+            <span>المكان في البرنامج:</span>
+            <strong className="font-bold text-ink dark:text-ink-dark">{currentStep.where}</strong>
           </div>
 
-          {/* Shortcut Tip Callout */}
-          {currentStep.shortcutTip && (
-            <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-border/30 rounded-xl p-3.5 flex items-center gap-3 text-ink dark:text-ink-dark text-sm">
-              <div className="w-9 h-9 rounded-lg bg-surface dark:bg-surface-dark-3 text-warn dark:text-warn-bright flex items-center justify-center shrink-0 border border-line dark:border-line-dark">
-                <Keyboard className="w-4 h-4" />
+          <ul className="bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-5 flex flex-col gap-4 m-0 list-none">
+            {currentStep.sentences.map((sentence) => (
+              <li key={sentence} className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shrink-0 mt-0.5">
+                  <Check className="w-3.5 h-3.5" />
+                </span>
+                <span className="text-base leading-relaxed text-ink dark:text-ink-dark">{sentence}</span>
+              </li>
+            ))}
+          </ul>
+
+          {currentStep.shortcut && (
+            <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-border/30 rounded-xl p-4 flex items-center gap-3 text-ink dark:text-ink-dark text-sm">
+              <div className="w-10 h-10 rounded-lg bg-surface dark:bg-surface-dark-3 text-warn dark:text-warn-bright flex items-center justify-center shrink-0 border border-line dark:border-line-dark">
+                <Keyboard className="w-5 h-5" />
               </div>
-              <div className="flex-1">
-                <span className="font-bold block text-xs text-warn dark:text-warn-bright">تلميح الكيبورد السريع للكاشير:</span>
-                <p className="text-xs text-ink dark:text-ink-dark font-medium leading-relaxed">
-                  {currentStep.shortcutTip}
-                </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-w-0">
+                <span className="font-bold text-warn dark:text-warn-bright">اختصار مفيد:</span>
+                <kbd dir="ltr" className="px-2.5 py-1 rounded-md border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 font-mono text-xs font-bold">
+                  {currentStep.shortcut.keys}
+                </kbd>
+                <span className="font-medium leading-relaxed">{currentStep.shortcut.label}</span>
               </div>
             </div>
           )}
         </div>
+        </MotionHeight>
 
         {/* Footer Navigation */}
-        <div className="bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-6 py-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <div className="bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-6 py-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             {!hasDemoData && onLoadDemoData && (
-              <button
-                type="button"
+              <AppButton
+                variant="soft"
+                icon={Sparkles}
                 onClick={() => {
                   onClose();
                   onLoadDemoData();
                 }}
-                className="text-xs text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-brand-bright font-bold bg-brand/10 dark:bg-brand-dark-soft hover:bg-brand/20 px-3 py-2 rounded-lg border border-brand/30 dark:border-brand-bright/30 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
-                <Sparkles className="w-3.5 h-3.5" />
                 تحميل بيانات تجريبية للتدريب
-              </button>
+              </AppButton>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-xs text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark font-semibold px-2 py-1 cursor-pointer"
-            >
+            <AppButton variant="subtle" onClick={onClose}>
               تخطي الجولة
-            </button>
+            </AppButton>
           </div>
 
           <div className="flex items-center gap-2">
             {!isFirst && (
-              <button
-                type="button"
-                onClick={handlePrev}
-                className="px-4 py-2 text-sm font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <ArrowRight className="w-4 h-4" />
+              <AppButton variant="secondary" icon={ArrowRight} onClick={handlePrev}>
                 السابق
-              </button>
+              </AppButton>
             )}
 
-            <button
-              type="button"
-              onClick={handleNext}
-              className="px-5 py-2 text-sm font-bold text-white bg-paid hover:bg-paid/90 active:scale-95 rounded-xl transition-all shadow hover:shadow-md flex items-center gap-1.5 cursor-pointer"
-            >
-              <span>{isLast ? 'إنهاء الجولة وبدء الشغل' : 'التالي'}</span>
-              {isLast ? <Check className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
-            </button>
+            <AppButton variant="primary" icon={isLast ? Check : ArrowLeft} iconPosition="end" onClick={handleNext}>
+              {isLast ? 'إنهاء الجولة وبدء الشغل' : 'التالي'}
+            </AppButton>
           </div>
         </div>
       </div>

@@ -424,7 +424,7 @@ namespace RafiqPOS.Repositories
                                             string movementNote = "مبيعات كاشير [دفعة " + bDed.BatchNumber + "] - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
                                             if (!string.IsNullOrWhiteSpace(item.UnitName))
                                             {
-                                                string cleanUnit = (item.UnitName == "piece" || item.UnitName == "pc" || item.UnitName == "unit" || item.UnitName == "item") ? "قطعة" : item.UnitName;
+                                                string cleanUnit = CompoundStockHelper.LocalizeUnit(item.UnitName);
                                                 movementNote += string.Format(" ({0})", cleanUnit);
                                             }
                                             cmd.Parameters.AddWithValue("@mNote", movementNote);
@@ -490,7 +490,7 @@ namespace RafiqPOS.Repositories
                                             string movementNote = "مبيعات كاشير (فائض عن الدفعات) - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
                                             if (!string.IsNullOrWhiteSpace(item.UnitName))
                                             {
-                                                string cleanUnit = (item.UnitName == "piece" || item.UnitName == "pc" || item.UnitName == "unit" || item.UnitName == "item") ? "قطعة" : item.UnitName;
+                                                string cleanUnit = CompoundStockHelper.LocalizeUnit(item.UnitName);
                                                 movementNote += string.Format(" ({0})", cleanUnit);
                                             }
                                             cmd.Parameters.AddWithValue("@mNote", movementNote);
@@ -521,7 +521,7 @@ namespace RafiqPOS.Repositories
                                         string movementNote = "مبيعات كاشير - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
                                         if (!string.IsNullOrWhiteSpace(item.UnitName))
                                         {
-                                            string cleanUnit = (item.UnitName == "piece" || item.UnitName == "pc" || item.UnitName == "unit" || item.UnitName == "item") ? "قطعة" : item.UnitName;
+                                            string cleanUnit = CompoundStockHelper.LocalizeUnit(item.UnitName);
                                             movementNote += string.Format(" ({0})", cleanUnit);
                                         }
                                         cmd.Parameters.AddWithValue("@mNote", movementNote);
@@ -665,7 +665,7 @@ namespace RafiqPOS.Repositories
 
                                 if (string.IsNullOrEmpty(targetAccId))
                                 {
-                                    string arabicTypeName = (dType == "instapay") ? "إنستاباي (InstaPay)" : "محفظة إلكترونية (Vodafone Cash / Wallet)";
+                                    string arabicTypeName = (dType == "instapay") ? "إنستاباي" : "محفظة إلكترونية (فودافون كاش وغيرها)";
                                     throw new InvalidOperationException(string.Format("لا يمكن إتمام عملية البيع: لا يوجد حساب {0} نشط ومفعل في النظام لاستقبال الدفعة ({1:N2} ج.م). يرجى تفعيل أو إضافة الحساب من شاشة المحافظ الرقمية أولاً.", arabicTypeName, dp.AmountPiasters / 100.0));
                                 }
 

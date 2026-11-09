@@ -1276,18 +1276,23 @@ namespace RafiqPOS.Services
             var initialStatus = demoService.GetStatus();
             Assert(initialStatus != null && !initialStatus.HasDemoData && initialStatus.DemoProductsCount == 0, "التحقق من خلو النظام من اي بيانات تجريبية مسبقة", result);
 
-            // 2. Load Pharmacy demo data
-            var loadResult = demoService.LoadDemoData("pharmacy");
+            // 2. Load Pharmacy demo data (refused by design once real invoices exist on this database)
+            var loadResult = demoService.LoadDemoData("pharmacy", true);
+            if (initialStatus.RealSalesCount > 0)
+            {
+                Assert(loadResult != null && !loadResult.Success && loadResult.Code == "REAL_SALES_EXIST", "رفض تحميل البيانات التجريبية لوجود فواتير حقيقية في النظام", result);
+                return;
+            }
             Assert(loadResult != null && loadResult.Success && loadResult.ProductsAdded > 0, "تحميل البيانات التجريبية لنشاط الصيدلية: " + (loadResult != null ? loadResult.Message : "null"), result);
-            Assert(loadResult.CustomersAdded == 2 && loadResult.SalesAdded == 1, "توليد عميلين وفاتورة تدريبية تجريبية", result);
+            Assert(loadResult.CustomersAdded == 2, "توليد عميلين تجريبيين بدون أي فواتير", result);
 
             var activeStatus = demoService.GetStatus();
-            Assert(activeStatus.HasDemoData && activeStatus.DemoProductsCount > 0, "رصد وجود بيانات تجريبية نشطة في النظام", result);
+            Assert(activeStatus.HasDemoData && activeStatus.DemoProductsCount > 0 && activeStatus.DemoSalesCount == 0, "رصد وجود بيانات تجريبية نشطة في النظام بدون فواتير", result);
 
             // 3. Clear demo data (Zero-Residue cleanup)
             var clearResult = demoService.ClearDemoData();
             Assert(clearResult != null && clearResult.Success, "تصفير ومسح البيانات التجريبية بنقرة واحدة", result);
-            Assert(clearResult.DeletedProducts > 0 && clearResult.DeletedSales > 0, "حذف كافة المنتجات والفواتير التجريبية", result);
+            Assert(clearResult.DeletedProducts > 0, "حذف كافة المنتجات التجريبية", result);
 
             // 4. Verify zero residue in database and counter reset
             using (var conn = new SQLiteConnection(connStr))

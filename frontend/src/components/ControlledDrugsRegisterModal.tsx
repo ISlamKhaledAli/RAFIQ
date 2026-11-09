@@ -5,15 +5,16 @@ import {
   X,
   FileSpreadsheet,
   Pill,
-  Search,
   Eye,
   EyeOff,
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
-import { printReport } from '../utils/printReport';
+import { usePrintReport } from '../hooks/usePrintReport';
 import type { ControlledInspectionReportRow } from '../types/pharma';
 import type { Product } from '../types/models';
 import { CustomSelect, type SelectOption } from './CustomSelect';
+import { AppButton } from './AppButton';
 import { useAuth } from '../context/useAuth';
 import { DateFilterControl } from './DateFilterControl';
 import { type DateFilterValue, DEFAULT_DATE_FILTER, isDateFilterActive, describeDateFilter, useToday } from '../utils/dateFilter';
@@ -161,9 +162,12 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
     setSearchFilter('');
   };
 
-  const handlePrint = () => {
-    void printReport({ kind: 'a4only', orientation: 'landscape' });
-  };
+  const { print: handlePrint, printing } = usePrintReport({
+    reportName: 'دفتر المخدرات والمراقبة',
+    kind: 'a4only',
+    orientation: 'landscape',
+    hasData: filteredRows.length > 0,
+  });
 
   if (!isOpen) return null;
 
@@ -195,73 +199,51 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
           </div>
 
           <div className="flex items-center gap-2 print:hidden">
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={rows.length === 0}
-              className="h-8 px-3 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark transition-colors shadow-2xs"
-            >
-              <Printer className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-              <span>طباعة الدفتر A4</span>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <AppButton variant="secondary" size="sm" icon={Printer} onClick={handlePrint} loading={printing}>
+              طباعة الدفتر A4
+            </AppButton>
+            <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={onClose} />
           </div>
         </div>
 
         {/* Filter Controls Bar (Hidden during print) */}
         <div className="p-3.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden text-xs">
-          <div className="flex items-center gap-3 flex-wrap flex-1 min-w-[280px]">
-            {/* Product Selector */}
-            <div className="w-72">
-              <CustomSelect
-                options={productOptions}
-                value={selectedProductId}
-                onChange={(val) => setSelectedProductId(val)}
-                size="sm"
-              />
+          <div className="flex items-center gap-x-8 gap-y-3 flex-wrap flex-1 min-w-[17.5rem]">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Product Selector */}
+              <div className="w-72">
+                <CustomSelect
+                  options={productOptions}
+                  value={selectedProductId}
+                  onChange={(val) => setSelectedProductId(val)}
+                  size="sm"
+                />
+              </div>
+
+              {/* Date Filter */}
+              <DateFilterControl value={dateFilter} onChange={setDateFilter} variant="select" size="sm" />
             </div>
-
-            {/* Date Filter */}
-            <DateFilterControl value={dateFilter} onChange={setDateFilter} variant="select" size="sm" />
-
             {/* Quick Search inside register */}
-            <div className="relative min-w-[160px]">
-              <input
-                type="text"
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="بحث بالمريض/الطبيب/الروشتة..."
-                className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-7.5 px-2.5 pr-7 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-              />
-              <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2 top-2 pointer-events-none" />
-            </div>
+            <SearchInput
+              size="sm"
+              value={searchFilter}
+              onChange={setSearchFilter}
+              placeholder="بحث بالمريض/الطبيب/الروشتة..."
+              ariaLabel="بحث في سجل المخدرات"
+              className="min-w-[13.75rem]"
+            />
           </div>
 
           {/* Privacy Toggle: Full National IDs (if permitted) */}
           {canViewFullNationalId && (
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              size="sm"
+              icon={showFullNationalIds ? EyeOff : Eye}
               onClick={() => setShowFullNationalIds((v) => !v)}
-              className="h-7.5 px-2.5 rounded-lg border border-line dark:border-line-dark hover:border-brand text-xs font-bold flex items-center gap-1.5 text-ink dark:text-ink-dark transition-colors cursor-pointer"
             >
-              {showFullNationalIds ? (
-                <>
-                  <EyeOff className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
-                  <span>تقنيع الأرقام القومية</span>
-                </>
-              ) : (
-                <>
-                  <Eye className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                  <span>إظهار الأرقام القومية كاملة</span>
-                </>
-              )}
-            </button>
+              {showFullNationalIds ? 'تقنيع الأرقام القومية' : 'إظهار الأرقام القومية كاملة'}
+            </AppButton>
           )}
         </div>
 
@@ -328,13 +310,9 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
                   : 'لا توجد حركات مسجلة لهذا الصنف'}
               </span>
               {(dateActive || searchFilter.trim()) && (
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="h-8 px-3 rounded-lg bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
-                >
+                <AppButton variant="secondary" size="sm" onClick={resetFilters}>
                   إعادة ضبط البحث والفترة
-                </button>
+                </AppButton>
               )}
             </div>
           ) : (
@@ -438,13 +416,9 @@ export const ControlledDrugsRegisterModal: React.FC<ControlledDrugsRegisterModal
                 {dateActive ? `لا توجد حركات خلال ${describeDateFilter(dateFilter)}` : 'لا توجد حركات مسجلة'}
               </span>
               {dateActive && (
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="h-8 px-3 rounded-lg bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
-                >
+                <AppButton variant="secondary" size="sm" onClick={resetFilters}>
                   إعادة ضبط الفترة
-                </button>
+                </AppButton>
               )}
             </div>
           )}

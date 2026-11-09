@@ -21,7 +21,7 @@ describe('POS catalog panel (أصناف المحل) is collapsible like the cate
   it('uses the same animation and toggle icons as the categories rail', () => {
     assert.match(categories, /w-\[3\.625rem\] min-w-\[3\.625rem\]/);
     assert.match(panel, /flex-none w-\[3\.625rem\] min-w-\[3\.625rem\]'/);
-    assert.match(panel, /'flex-1 min-w-\[300px\] p-2\.5 sm:p-3'/);
+    assert.match(panel, /'flex-1 min-w-\[18\.75rem\] p-2\.5 sm:p-3'/);
     assert.match(panel, /transition-all duration-150/);
     assert.ok(!panel.includes('PanelLeftOpen'), 'no icon in the collapsed catalog strip');
     assert.match(panel, /PanelLeftClose/);
@@ -36,14 +36,14 @@ describe('POS catalog panel (أصناف المحل) is collapsible like the cate
 
   it('the collapsed strip is only the title text: no icon and no count', () => {
     const start = panel.indexOf('{isCollapsed && (');
-    const strip = panel.slice(start, panel.indexOf("<div className={isCollapsed ? 'hidden' : 'contents'}>"));
+    const strip = panel.slice(start, panel.indexOf("<div className={isCollapsed ? 'hidden motion-catalog-body' : 'contents motion-catalog-body'}"));
     assert.ok(start > 0 && strip.includes('أصناف المحل') && strip.includes('onClick={toggleCollapsed}'));
     assert.ok(!/<Sparkles|<PanelLeft|displayedCatalogItems/.test(strip), 'no icon and no count while collapsed');
     assert.doesNotMatch(panel, /text-\[\d+px\]/);
   });
 
   it('state survives: the body stays mounted (hidden), search/tab live in PosView, grid scroll is restored', () => {
-    assert.match(panel, /<div className=\{isCollapsed \? 'hidden' : 'contents'\}>/);
+    assert.match(panel, /<div className=\{isCollapsed \? 'hidden motion-catalog-body' : 'contents motion-catalog-body'\} inert=\{isCollapsed\}>/);
     assert.match(panel, /savedScrollTopRef\.current = gridRef\.current\.scrollTop/);
     assert.match(panel, /gridRef\.current\.scrollTop = savedScrollTopRef\.current/);
     assert.match(panel, /catalogSearchQuery,\s*setCatalogSearchQuery,\s*activeCatalogTab/);
@@ -56,7 +56,7 @@ describe('POS catalog panel (أصناف المحل) is collapsible like the cate
   });
 
   it('the cart region keeps flex-1 so it takes the freed width without a layout change when expanded', () => {
-    assert.match(posView, /showFastItems \? 'flex-1 min-w-\[360px\]' : 'flex-1'/);
+    assert.match(posView, /showFastItems \? 'flex-1 min-w-\[22\.5rem\]' : 'flex-1'/);
   });
 });
 

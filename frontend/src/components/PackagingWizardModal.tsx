@@ -23,6 +23,7 @@ import { invoke } from '../bridge/ipc';
 import { rafiqAlert, rafiqConfirm } from '../utils/dialogService';
 import { getStoreTerminology } from '../utils/storeTerminology';
 import { formatUnitArabic } from '../utils/units';
+import { AppButton } from './AppButton';
 
 export interface PackagingWizardModalProps {
   isOpen: boolean;
@@ -865,7 +866,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
   return createPortal(
     <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-150">
       {/* Maximum comfortable, wide desktop layout to completely avoid horizontal or vertical cramping */}
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-[96vw] max-w-[1360px] max-h-[92vh] flex flex-col overflow-hidden text-right font-sans">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-[96vw] max-w-[85rem] max-h-[92vh] flex flex-col overflow-hidden text-right font-sans">
         
         {/* Modal Header */}
         <div className="px-6 py-3.5 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0 bg-surface-2/60 dark:bg-surface-dark-2/60">
@@ -885,13 +886,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {/* Modal Body */}
@@ -976,7 +971,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                 <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1 whitespace-nowrap">
                   {terminology.looseSellingLabel}
                 </span>
-                <div className="flex items-center gap-2 h-[32px] whitespace-nowrap">
+                <div className="flex items-center gap-2 h-[2rem] whitespace-nowrap">
                   <ToggleSwitch
                     checked={isLooseSellable}
                     onChange={setIsLooseSellable}
@@ -1015,26 +1010,26 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
+                <AppButton
+                  variant="soft"
+                  size="sm"
+                  icon={Plus}
                   onClick={handleAddLargerLevel}
                   disabled={levels.length >= 4}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand/30 hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-brand dark:text-brand-bright text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-2xs active:scale-95"
                   title="إضافة عبوة أكبر للبيع بالجملة (مثل كرتونة أو باكت أو قاروصة - يتم ضرب السعر)"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ إضافة عبوة أكبر (أعلى)</span>
-                </button>
-                <button
-                  type="button"
+                  إضافة عبوة أكبر (أعلى)
+                </AppButton>
+                <AppButton
+                  variant="successSoft"
+                  size="sm"
+                  icon={Plus}
                   onClick={handleAddSmallerLevel}
                   disabled={levels.length >= 4}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-paid/30 hover:bg-paid-soft dark:hover:bg-paid-dark-soft text-paid dark:text-paid-bright text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-2xs active:scale-95"
                   title="تجزئة العبوة لوحدة أصغر للبيع فرط (مثل بيع بالسيجارة، بالقرص، بالبيضة - يتم قسمة السعر)"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ إضافة وحدة تجزئة أصغر (أسفل)</span>
-                </button>
+                  إضافة وحدة تجزئة أصغر (أسفل)
+                </AppButton>
               </div>
             </div>
 
@@ -1109,7 +1104,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                                 placeholder="0"
                                 className="w-14 h-7 px-1 text-center bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md font-mono font-bold text-xs focus:ring-1 focus:ring-brand focus:border-brand"
                               />
-                              <span className="text-ink dark:text-ink-dark font-bold text-xs truncate max-w-[100px] whitespace-nowrap">
+                              <span className="text-ink dark:text-ink-dark font-bold text-xs truncate max-w-[6.25rem] whitespace-nowrap">
                                 {nextUnit.name}
                               </span>
                             </div>
@@ -1136,17 +1131,18 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                               className="h-8 text-xs font-bold text-paid dark:text-paid-bright flex-1"
                             />
                             {!isBase && (
-                              <button
-                                type="button"
+                              <AppButton
+                                variant="soft"
+                                size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleAutoCalculateRow(idx);
                                 }}
+                                className="shrink-0"
                                 title="إعادة الحساب التلقائي للسعر بناءً على المعامل وقاعدة التقريب"
-                                className="h-8 px-2 rounded-md bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand hover:text-white dark:hover:text-white text-brand dark:text-brand-bright transition-colors cursor-pointer shrink-0 text-xs font-bold flex items-center justify-center whitespace-nowrap"
                               >
-                                <span className="whitespace-nowrap">تلقائي</span>
-                              </button>
+                                تلقائي
+                              </AppButton>
                             )}
                           </div>
                         </td>
@@ -1170,17 +1166,18 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                               placeholder="باركود العبوة"
                               className="w-full h-8 px-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-md font-mono text-xs focus:ring-1 focus:ring-brand"
                             />
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="secondary"
+                              size="sm"
+                              icon={BarcodeIcon}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleGenerateBarcode(idx);
                               }}
+                              className="shrink-0"
+                              aria-label="توليد باركود دولي عشوائي لهذه العبوة"
                               title="توليد باركود دولي عشوائي لهذه العبوة"
-                              className="h-8 w-8 rounded-md bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand hover:text-white dark:hover:text-white text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark transition-colors cursor-pointer shrink-0 flex items-center justify-center"
-                            >
-                              <BarcodeIcon className="w-3.5 h-3.5" />
-                            </button>
+                            />
                           </div>
                         </td>
 
@@ -1192,17 +1189,17 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                               <span>المعروضة بالخارج</span>
                             </span>
                           ) : (
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="secondary"
+                              size="xs"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setDisplayUnitId(lvl.id);
                               }}
-                              className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright px-2.5 py-1 rounded-lg border border-line dark:border-line-dark hover:border-brand/40 bg-surface dark:bg-surface-dark cursor-pointer transition-colors shadow-2xs active:scale-95 whitespace-nowrap"
                               title="تحديد هذه الوحدة لتظهر في بطاقة الصنف بالخارج وفي الكتالوج"
                             >
-                              <span>عرض بالخارج</span>
-                            </button>
+                              عرض بالخارج
+                            </AppButton>
                           )}
                         </td>
 
@@ -1214,34 +1211,34 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                               <span>الافتراضية للبيع</span>
                             </span>
                           ) : (
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="secondary"
+                              size="xs"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setDefaultSaleUnitId(lvl.id);
                               }}
-                              className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-paid-bright px-2.5 py-1 rounded-lg border border-line dark:border-line-dark hover:border-paid/40 bg-surface dark:bg-surface-dark cursor-pointer transition-colors shadow-2xs active:scale-95 whitespace-nowrap"
                               title="تعيين هذه العبوة لتنزل في الفاتورة افتراضياً عند ضرب الباركود"
                             >
-                              <span>تعيين كافتراضية</span>
-                            </button>
+                              تعيين كافتراضية
+                            </AppButton>
                           )}
                         </td>
 
                         {/* Delete Row */}
                         <td className="py-2.5 px-1 text-center">
                           {levels.length > 1 && (
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="dangerSubtle"
+                              size="xs"
+                              icon={Trash2}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleRemoveLevel(idx);
                               }}
-                              className="p-1.5 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer inline-flex items-center justify-center"
+                              aria-label="حذف هذا المستوى"
                               title="حذف هذا المستوى"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            />
                           )}
                         </td>
                       </tr>
@@ -1296,29 +1293,12 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isRebasing}
-              className="px-5 py-2 rounded-xl border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark text-xs font-bold transition-all cursor-pointer"
-            >
+            <AppButton variant="secondary" onClick={onClose} disabled={isRebasing}>
               إلغاء
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveAndConfirm}
-              disabled={isRebasing}
-              className="px-6 py-2 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark active:scale-95"
-            >
-              {isRebasing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>جاري ترحيل المخزن...</span>
-                </>
-              ) : (
-                <span>اعتماد منظومة التعبئة</span>
-              )}
-            </button>
+            </AppButton>
+            <AppButton variant="primary" onClick={handleSaveAndConfirm} loading={isRebasing}>
+              {isRebasing ? 'جاري ترحيل المخزن...' : 'اعتماد منظومة التعبئة'}
+            </AppButton>
           </div>
         </div>
       </div>

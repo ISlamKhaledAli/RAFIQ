@@ -1,6 +1,7 @@
 using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Services;
 
@@ -16,13 +17,15 @@ namespace RafiqPOS.Bridge
                 case "backup:getStatus":
                     string backupListFrom = null;
                     string backupListTo = null;
+                    int backupListLimit = 0;
                     JObject backupStatusObj = request.Payload as JObject;
                     if (backupStatusObj != null)
                     {
                         if (backupStatusObj["dateFrom"] != null) backupListFrom = backupStatusObj["dateFrom"].ToString();
                         if (backupStatusObj["dateTo"] != null) backupListTo = backupStatusObj["dateTo"].ToString();
+                        if (backupStatusObj["limit"] != null) int.TryParse(backupStatusObj["limit"].ToString(), out backupListLimit);
                     }
-                    var backupStatus = DatabaseService.Backup.GetStatus(backupListFrom, backupListTo);
+                    var backupStatus = DatabaseService.Backup.GetStatus(backupListFrom, backupListTo, backupListLimit);
                     response = BridgeResponse.Ok(request.Id, backupStatus);
                     return true;
 
@@ -35,6 +38,12 @@ namespace RafiqPOS.Bridge
                         {
                             customFolder = bkObj["folder"].ToString();
                         }
+                    }
+                    string customFolderError = BackupService.ValidateTargetFolder(customFolder);
+                    if (customFolderError != null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_FOLDER", customFolderError);
+                        return true;
                     }
                     var createResult = DatabaseService.Backup.CreateBackup(customFolder);
                     response = BridgeResponse.Ok(request.Id, createResult);
@@ -52,13 +61,29 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
                     JObject cfgObj = request.Payload as JObject;
-                    string bFolder = cfgObj != null && cfgObj["targetFolder"] != null ? cfgObj["targetFolder"].ToString() : "";
+                    string bFolder = cfgObj != null && cfgObj["targetFolder"] != null ? cfgObj["targetFolder"].ToString().Trim() : "";
+                    string bFolderError = BackupService.ValidateTargetFolder(bFolder);
+                    if (bFolderError != null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_FOLDER", bFolderError);
+                        return true;
+                    }
                     bool bAutoClose = cfgObj != null && cfgObj["autoOnClose"] != null ? cfgObj["autoOnClose"].Value<bool>() : true;
                     bool bAutoDaily = cfgObj != null && cfgObj["autoDaily"] != null ? cfgObj["autoDaily"].Value<bool>() : true;
-                    int bRetDays = cfgObj != null && cfgObj["retentionDays"] != null ? cfgObj["retentionDays"].Value<int>() : 7;
-                    int bRetWeeks = cfgObj != null && cfgObj["retentionWeeks"] != null ? cfgObj["retentionWeeks"].Value<int>() : 4;
-                    int bWarnDays = cfgObj != null && cfgObj["warnAfterDays"] != null ? cfgObj["warnAfterDays"].Value<int>() : 2;
-                    int bMaxCopies = cfgObj != null && cfgObj["maxCopies"] != null ? cfgObj["maxCopies"].Value<int>() : 20;
+                    // A missing field keeps the stored (or default) value, so a partial payload never rewrites the retention policy
+                    int bRetDays = cfgObj != null && cfgObj["retentionDays"] != null ? cfgObj["retentionDays"].Value<int>() : DatabaseService.Backup.GetRetentionDays();
+                    int bRetWeeks = cfgObj != null && cfgObj["retentionWeeks"] != null ? cfgObj["retentionWeeks"].Value<int>() : DatabaseService.Backup.GetRetentionWeeks();
+                    int bWarnDays = cfgObj != null && cfgObj["warnAfterDays"] != null ? cfgObj["warnAfterDays"].Value<int>() : DatabaseService.Backup.GetWarnAfterDays();
+                    int bMaxCopies = cfgObj != null && cfgObj["maxCopies"] != null ? cfgObj["maxCopies"].Value<int>() : DatabaseService.Backup.GetMaxCopies();
+
+                    // The retention policy decides which backups are deleted: only root changes it; resending the same values is a no-op
+                    if (!IsCurrentUserRoot() && DatabaseService.Backup.RetentionWouldChange(bRetDays, bRetWeeks, bMaxCopies))
+                    {
+                        string retentionWho = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Username : "";
+                        Logger.Warn(string.Format("رفض تعديل سياسة الاحتفاظ بالنسخ الاحتياطية للمستخدم {0}: يتطلب حساب الروت.", retentionWho));
+                        response = BridgeResponse.Fail(request.Id, "FORBIDDEN", BackupService.RETENTION_ROOT_ONLY_MESSAGE);
+                        return true;
+                    }
 
                     DatabaseService.Backup.SaveConfiguration(bFolder, bAutoClose, bAutoDaily, bRetDays, bRetWeeks, bWarnDays, bMaxCopies);
                     response = BridgeResponse.Ok(request.Id, new { success = true });
@@ -148,16 +173,13 @@ namespace RafiqPOS.Bridge
                             }
                         }
                     }
-                    // The owner recovery code is the restore authorisation: mandatory without a session (corrupt database)
-                    // and, whenever supplied, it must really open the chosen backup
-                    if (DatabaseService.IsCorrupted || !string.IsNullOrWhiteSpace(restoreMasterKey))
+                    // The owner recovery code is the restore authorisation in every state (not only on a corrupt database):
+                    // the file must pass the path gate, be an encrypted Rafiq backup and really open with that code
+                    string recoveryError = DatabaseService.ValidateRecoveryBackup(restoreFilePath, restoreMasterKey);
+                    if (recoveryError != null)
                     {
-                        string recoveryError = DatabaseService.ValidateRecoveryBackup(restoreFilePath, restoreMasterKey);
-                        if (recoveryError != null)
-                        {
-                            response = BridgeResponse.Fail(request.Id, "RECOVERY_REJECTED", recoveryError);
-                            return true;
-                        }
+                        response = BridgeResponse.Fail(request.Id, "RECOVERY_REJECTED", recoveryError);
+                        return true;
                     }
                     var restoreResult = DatabaseService.RestoreFromBackup(restoreFilePath, restoreMasterKey);
                     if (restoreResult.Success)
@@ -187,7 +209,16 @@ namespace RafiqPOS.Bridge
                     long pCount = 0;
                     long sCount = 0;
                     string vMsg = "";
-                    bool isVerified = DatabaseService.Backup.VerifyBackupDetailed(verifyFilePath, false, out pCount, out sCount, out vMsg);
+                    string verifyFullPath;
+                    string verifyAllowedFolder = DatabaseService.Settings != null ? DatabaseService.Settings.Get("backup_target_folder", "") : null;
+                    string verifyLiveFolder = string.IsNullOrEmpty(DatabaseService.DbPath) ? null : System.IO.Path.GetDirectoryName(DatabaseService.DbPath);
+                    string verifyPathError = BackupService.ValidateRestoreSource(verifyFilePath, verifyAllowedFolder, verifyLiveFolder, out verifyFullPath);
+                    bool isVerified = verifyPathError == null
+                        && DatabaseService.Backup.VerifyBackupDetailed(verifyFullPath, false, out pCount, out sCount, out vMsg);
+                    if (verifyPathError != null)
+                    {
+                        vMsg = verifyPathError;
+                    }
                     response = BridgeResponse.Ok(request.Id, new
                     {
                         success = isVerified,
@@ -369,7 +400,7 @@ namespace RafiqPOS.Bridge
                     {
                         using (var ofd = new System.Windows.Forms.OpenFileDialog())
                         {
-                            ofd.Filter = "حزمة رفيق للنقل (*.rafiqpkg;*.zip)|*.rafiqpkg;*.zip|جميع الملفات (*.*)|*.*";
+                            ofd.Filter = "حزمة رفيق للنقل (*.rafiqpkg)|*.rafiqpkg|جميع الملفات (*.*)|*.*";
                             ofd.Title = "اختر حزمة نقل نظام رفيق لاسترجاعها";
                             if (ofd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                             {

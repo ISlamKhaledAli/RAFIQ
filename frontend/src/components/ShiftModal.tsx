@@ -36,6 +36,9 @@ import {
 } from '../utils/shiftSummary';
 import { RequiredMark } from './RequiredMark';
 
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 interface ShiftModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -86,6 +89,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
   const canCashOut = isRoot || isAdmin || hasPermission('shifts.cash_out');
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const motionPanel = useMotionPanel(activeTab);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -203,6 +207,12 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
     if (isOpen) {
       actualCashEditedRef.current = false;
       setActiveTab('overview');
+      setOpeningFloatPiasters(0);
+      setOpenShiftNotes('');
+      setCashInAmountPiasters(0);
+      setCashInCustomReason('');
+      setCashOutAmountPiasters(0);
+      setCashOutCustomReason('');
       setErrorMessage(null);
       setSuccessMessage(null);
       void fetchShiftData();
@@ -451,12 +461,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => void requestClose()}
-              className="p-2 rounded-xl text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark transition-all cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <AppButton variant="secondary" size="sm" icon={X} onClick={() => void requestClose()} aria-label="إغلاق" title="إغلاق" />
           </div>
         </div>
 
@@ -485,10 +490,11 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         {activeShift && (
           <div className="flex items-center gap-1 p-2 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark overflow-x-auto shrink-0">
             <button
+              type="button"
               onClick={() => selectTab('overview')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 activeTab === 'overview'
-                  ? 'bg-brand text-white shadow-xs'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
@@ -497,10 +503,11 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => selectTab('cash_in')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 activeTab === 'cash_in'
-                  ? 'bg-brand text-white shadow-xs'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
@@ -509,10 +516,11 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => selectTab('cash_out')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 activeTab === 'cash_out'
-                  ? 'bg-brand text-white shadow-xs'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
@@ -521,10 +529,11 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => selectTab('history')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                 activeTab === 'history'
-                  ? 'bg-brand text-white shadow-xs'
+                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
                   : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-2 dark:hover:bg-surface-dark-2'
               }`}
             >
@@ -533,10 +542,11 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => selectTab('close')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all mr-auto ${
                 activeTab === 'close'
-                  ? 'bg-danger text-white shadow-xs'
+                  ? 'bg-danger text-white dark:bg-danger-dark-soft dark:text-danger-bright dark:ring-1 dark:ring-inset dark:ring-danger-bright/40 shadow-xs'
                   : 'text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30'
               }`}
             >
@@ -547,7 +557,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         )}
 
         {/* Modal Main Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        <MotionHeight className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div {...motionPanel} className="space-y-6">
           {/* CASE A: NO ACTIVE SHIFT (PROMPT TO OPEN) */}
           {!activeShift ? (
             <div className="space-y-6">
@@ -605,14 +616,17 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   />
                 </div>
 
-                <button
+                <AppButton
+                  variant="success"
+                  size="lg"
+                  icon={Unlock}
+                  fullWidth
                   onClick={() => void handleOpenShift()}
-                  disabled={actionLoading || !canOpenShift}
-                  className="w-full h-12 bg-paid hover:bg-paid-hover text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  loading={actionLoading}
+                  disabled={!canOpenShift}
                 >
-                  <Unlock className="w-4 h-4" />
-                  <span>{actionLoading ? 'جاري فتح الوردية...' : 'فتح الوردية واستلام الدرج'}</span>
-                </button>
+                  {actionLoading ? 'جاري فتح الوردية...' : 'فتح الوردية واستلام الدرج'}
+                </AppButton>
               </div>
 
               {/* Recent closed shifts archive */}
@@ -891,14 +905,17 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     </div>
                   )}
 
-                  <button
+                  <AppButton
+                    variant="success"
+                    size="lg"
+                    icon={ArrowDownLeft}
+                    fullWidth
                     onClick={() => void handleCashIn()}
-                    disabled={actionLoading || cashInAmountPiasters <= 0 || !canCashIn}
-                    className="w-full h-11 bg-paid hover:bg-paid-hover text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                    loading={actionLoading}
+                    disabled={cashInAmountPiasters <= 0 || !canCashIn}
                   >
-                    <ArrowDownLeft className="w-4 h-4" />
-                    <span>{actionLoading ? 'جاري التسجيل...' : 'تأكيد تسجيل الإيداع في الدرج'}</span>
-                  </button>
+                    {actionLoading ? 'جاري التسجيل...' : 'تأكيد تسجيل الإيداع في الدرج'}
+                  </AppButton>
                 </div>
               )}
 
@@ -958,14 +975,17 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     </div>
                   )}
 
-                  <button
+                  <AppButton
+                    variant="danger"
+                    size="lg"
+                    icon={ArrowUpRight}
+                    fullWidth
                     onClick={() => void handleCashOut()}
-                    disabled={actionLoading || !shiftSummary || cashOutAmountPiasters <= 0 || cashOutAmountPiasters > expectedCash || !canCashOut}
-                    className="w-full h-11 bg-danger hover:bg-danger/90 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                    loading={actionLoading}
+                    disabled={!shiftSummary || cashOutAmountPiasters <= 0 || cashOutAmountPiasters > expectedCash || !canCashOut}
                   >
-                    <ArrowUpRight className="w-4 h-4" />
-                    <span>{actionLoading ? 'جاري التسجيل...' : 'تأكيد تسجيل السحب من الدرج'}</span>
-                  </button>
+                    {actionLoading ? 'جاري التسجيل...' : 'تأكيد تسجيل السحب من الدرج'}
+                  </AppButton>
                 </div>
               )}
 
@@ -1087,19 +1107,23 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     />
                   </div>
 
-                  <button
+                  <AppButton
+                    variant="danger"
+                    size="lg"
+                    icon={Lock}
+                    fullWidth
                     onClick={() => void handleCloseShift()}
-                    disabled={actionLoading || !shiftSummary || !canCloseShift}
-                    className="w-full h-12 bg-danger hover:bg-danger/90 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                    loading={actionLoading}
+                    disabled={!shiftSummary || !canCloseShift}
                   >
-                    <Lock className="w-4 h-4" />
-                    <span>{actionLoading ? 'جاري الإغلاق والتشميع...' : 'إغلاق وتشميع الوردية نهائياً'}</span>
-                  </button>
+                    {actionLoading ? 'جاري الإغلاق والتشميع...' : 'إغلاق وتشميع الوردية نهائياً'}
+                  </AppButton>
                 </div>
               )}
             </>
           )}
         </div>
+        </MotionHeight>
 
         {/* Modal Bottom Footer */}
         <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between shrink-0 text-xs text-ink-muted dark:text-ink-dark-muted">

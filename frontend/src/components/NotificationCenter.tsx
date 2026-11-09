@@ -15,7 +15,9 @@ import {
   DownloadCloud,
 } from 'lucide-react';
 import type { SystemNotificationItem } from '../utils/useSystemNotifications';
+import { useExitList, useExitTransition, useExitValue } from '../hooks/useExitTransition';
 
+import { AppButton } from './AppButton';
 interface NotificationCenterProps {
   notifications: SystemNotificationItem[];
   isDrawerOpen: boolean;
@@ -49,6 +51,12 @@ export const NotificationBellButton: React.FC<{
       : 'bg-surface dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark hover:border-paid dark:hover:border-brand-bright hover:text-paid dark:hover:text-brand-bright hover:bg-paid-soft/50 dark:hover:bg-brand-dark-soft shadow-2xs';
   }, [count, hasCritical, isOpen]);
 
+  // The badge pops (index.css, motion on only) when the count goes up; the a / b phase restarts it without remounting
+  const [pop, setPop] = useState<{ count: number; phase: 'a' | 'b' | null }>({ count, phase: null });
+  if (pop.count !== count) {
+    setPop({ count, phase: count > pop.count ? (pop.phase === 'a' ? 'b' : 'a') : pop.phase });
+  }
+
   const iconColor = hasCritical
     ? 'text-danger dark:text-danger-bright'
     : count > 0
@@ -61,14 +69,15 @@ export const NotificationBellButton: React.FC<{
     <button
       type="button"
       onClick={onClick}
-      className={`relative group flex items-center justify-center w-8.5 h-8.5 min-w-[34px] min-h-[34px] rounded-xl border transition-all cursor-pointer active:scale-95 ${buttonStyle}`}
+      className={`relative group flex items-center justify-center w-8.5 h-8.5 min-w-[2.125rem] min-h-[2.125rem] rounded-xl border transition-all cursor-pointer ${buttonStyle}`}
       title={count > 0 ? `مركز الإشعارات والتنبيهات (${count} تنبيه نشط)` : 'مركز الإشعارات (لا توجد تنبيهات)'}
       aria-label={count > 0 ? `مركز الإشعارات، ${count} تنبيه نشط` : 'مركز الإشعارات'}
     >
       <Bell className={`w-4 h-4 shrink-0 transition-transform ${iconColor}`} />
       {count > 0 && (
         <span
-          className={`absolute -top-2 -end-2 min-w-[20px] h-5 px-1 rounded-full text-micro font-black font-mono flex items-center justify-center text-white border-2 border-surface dark:border-surface-dark shadow-xs pointer-events-none select-none ${
+          data-pop={pop.phase ?? undefined}
+          className={`absolute -top-2 -end-2 min-w-[1.25rem] h-5 px-1 rounded-full text-micro font-black font-mono flex items-center justify-center text-white border-2 border-surface dark:border-surface-dark shadow-xs pointer-events-none select-none ${
             hasCritical ? 'bg-danger' : 'bg-warn'
           }`}
         >
@@ -84,7 +93,9 @@ export const NotificationBellButton: React.FC<{
  */
 export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
   ({ notifications, isDrawerOpen, onCloseDrawer }) => {
-    if (!isDrawerOpen) return null;
+    const { mounted, exiting } = useExitTransition(isDrawerOpen);
+    const rows = useExitList(notifications, mounted);
+    if (!mounted) return null;
 
     const renderIcon = (iconType: SystemNotificationItem['iconType'], type: SystemNotificationItem['type']) => {
       switch (iconType) {
@@ -115,11 +126,15 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
     return (
       <div className="fixed inset-0 z-50 overflow-hidden" onClick={onCloseDrawer}>
         {/* Backdrop */}
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-2xs transition-opacity" />
+        <div
+          className="motion-modal-backdrop motion-exit-fade absolute inset-0 bg-black/20 backdrop-blur-2xs transition-opacity"
+          data-exiting={exiting || undefined}
+        />
 
         {/* Popover Card positioned nicely below the header on the left side (RTL direction) */}
         <div
-          className="absolute top-16 left-6 w-[420px] max-w-[calc(100vw-32px)] bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col z-50 animate-in slide-in-from-top-2 duration-150"
+          className="absolute top-16 left-6 w-[26.25rem] max-w-[calc(100vw-32px)] bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col z-50 motion-exit-popup animate-in slide-in-from-top-2 duration-150"
+          data-exiting={exiting || undefined}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -133,6 +148,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
             <button
               type="button"
               onClick={onCloseDrawer}
+              aria-label="إغلاق"
               className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
               title="إغلاق"
             >
@@ -142,16 +158,22 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
 
           {/* List of Notifications */}
           <div className="p-3 max-h-[70vh] overflow-y-auto flex flex-col gap-2.5 bg-surface-2 dark:bg-surface-dark-2">
-            {notifications.length === 0 ? (
+            {rows.length === 0 ? (
               <div className="py-8 text-center flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted">
                 <CheckCircle2 className="w-10 h-10 text-paid dark:text-brand-bright mb-2 opacity-80" />
                 <p className="text-sm font-bold text-ink dark:text-ink-dark">كافة الأنظمة تعمل بشكل سليم</p>
                 <p className="text-xs mt-1 text-ink-muted dark:text-ink-dark-muted">لا توجد أي تنبيهات أو متطلبات صيانة معلقة حالياً.</p>
               </div>
             ) : (
-              notifications.map((item) => (
+              rows.map(({ item, exiting: leaving }) => (
                 <div
                   key={item.id}
+                  className="motion-exit-collapse [--rq-collapse-gap:0.625rem]"
+                  data-exiting={leaving || undefined}
+                  inert={leaving || undefined}
+                >
+                <div>
+                <div
                   className={`p-3 rounded-xl border text-right transition-all shadow-2xs relative flex flex-col gap-2 ${
                     item.type === 'critical'
                       ? 'bg-danger-soft/90 dark:bg-danger-dark-soft/90 border-danger-border dark:border-danger/30 text-danger-ink dark:text-danger-bright'
@@ -191,14 +213,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                     </div>
 
                     {item.dismissible && item.onDismiss && (
-                      <button
-                        type="button"
-                        onClick={item.onDismiss}
-                        className="text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
-                        title="إخفاء"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                      <AppButton variant="subtle" size="xs" icon={X} className="shrink-0" onClick={item.onDismiss} title="إخفاء" aria-label="إخفاء" />
                     )}
                   </div>
 
@@ -214,18 +229,20 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                     )}
 
                     {item.actionLabel && item.onAction && (
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="primary"
+                        size="xs"
                         onClick={() => {
                           item.onAction?.();
                           onCloseDrawer();
                         }}
-                        className="bg-brand-dark hover:bg-brand text-white text-micro font-bold px-3 py-1 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer"
                       >
                         {item.actionLabel}
-                      </button>
+                      </AppButton>
                     )}
                   </div>
+                </div>
+                </div>
                 </div>
               ))
             )}
@@ -247,19 +264,21 @@ export const CompactAlertTickerBar: React.FC<{
   onDismissTicker: () => void;
 }> = memo(({ notifications, onOpenDrawer, isDismissed, onDismissTicker }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  // The bar keeps its last content while it plays the exit (dismissed, or the last alert went away)
+  const bar = useExitValue(notifications.length > 0 && !isDismissed ? notifications : null);
+  const list = bar.value;
 
-  const safeIndex = notifications.length > 0 && currentIndex >= notifications.length ? 0 : currentIndex;
+  if (!list) return null;
 
-  if (notifications.length === 0 || isDismissed) return null;
-
-  const current = notifications[safeIndex] || notifications[0];
+  const safeIndex = currentIndex >= list.length ? 0 : currentIndex;
+  const current = list[safeIndex] || list[0];
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % notifications.length);
+    setCurrentIndex((prev) => (prev + 1) % list.length);
   };
 
   const handlePrev = () => {
-    setCurrentIndex((prev) => (prev - 1 + notifications.length) % notifications.length);
+    setCurrentIndex((prev) => (prev - 1 + list.length) % list.length);
   };
 
   const isCritical = current.type === 'critical';
@@ -275,8 +294,10 @@ export const CompactAlertTickerBar: React.FC<{
     : 'bg-paid-soft dark:bg-paid-dark-soft border-b border-paid-border dark:border-paid/30 text-paid dark:text-brand-bright';
 
   return (
+    <div className="motion-exit-collapse shrink-0" data-exiting={bar.exiting || undefined} inert={bar.exiting || undefined}>
+    <div>
     <div
-      className={`h-[34px] px-4 flex items-center justify-between text-micro font-medium shrink-0 select-none shadow-2xs animate-in slide-in-from-top-1 duration-150 ${barBg}`}
+      className={`h-[2.125rem] px-4 flex items-center justify-between text-micro font-medium shrink-0 select-none shadow-2xs animate-in slide-in-from-top-1 duration-150 ${barBg}`}
     >
       {/* Right side: Badge + Message + Cycling */}
       <div className="flex items-center gap-2.5 overflow-hidden">
@@ -308,24 +329,26 @@ export const CompactAlertTickerBar: React.FC<{
         )}
 
         {/* Multi-notification ticker indicator (e.g. 1/3) */}
-        {notifications.length > 1 && (
+        {list.length > 1 && (
           <div className="flex items-center gap-1 bg-black/5 dark:bg-white/10 px-2 py-0.5 rounded-md font-mono text-micro font-bold shrink-0">
             <button
               type="button"
               onClick={handlePrev}
               className="hover:text-black dark:hover:text-ink-dark p-0.5 cursor-pointer"
               title="السابق"
+              aria-label="التنبيه السابق"
             >
               <ChevronRight className="w-3 h-3" />
             </button>
             <span>
-              {safeIndex + 1} / {notifications.length}
+              {safeIndex + 1} / {list.length}
             </span>
             <button
               type="button"
               onClick={handleNext}
               className="hover:text-black dark:hover:text-ink-dark p-0.5 cursor-pointer"
               title="التالي"
+              aria-label="التنبيه التالي"
             >
               <ChevronLeft className="w-3 h-3" />
             </button>
@@ -336,43 +359,28 @@ export const CompactAlertTickerBar: React.FC<{
       {/* Left side: Action Button + View All + Dismiss */}
       <div className="flex items-center gap-2 shrink-0">
         {current.actionLabel && current.onAction && (
-          <button
-            type="button"
-            onClick={current.onAction}
-            className={`text-white text-micro font-bold px-3 py-1 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
-              isCritical
-                ? 'bg-danger hover:bg-danger/90'
-                : isWarning
-                ? 'bg-warn hover:bg-warn/90'
-                : isInfo
-                ? 'bg-blue-600 hover:bg-blue-700'
-                : 'bg-paid hover:bg-paid/90'
-            }`}
-          >
-            <span>{current.actionLabel}</span>
-          </button>
+          <AppButton variant={isCritical ? 'danger' : isWarning ? 'warning' : isInfo ? 'primary' : 'success'} size="xs" onClick={current.onAction}>
+            {current.actionLabel}
+          </AppButton>
         )}
 
-        {notifications.length > 1 && (
-          <button
-            type="button"
-            onClick={onOpenDrawer}
-            className="text-micro font-bold underline hover:opacity-80 px-1 cursor-pointer flex items-center gap-1"
-          >
-            <Layers className="w-3 h-3" />
-            <span>عرض الكل</span>
-          </button>
+        {list.length > 1 && (
+          <AppButton variant="subtle" size="xs" icon={Layers} onClick={onOpenDrawer}>
+            عرض الكل
+          </AppButton>
         )}
 
-        <button
-          type="button"
+        <AppButton
+          variant="subtle"
+          size="xs"
+          icon={X}
           onClick={onDismissTicker}
-          className="hover:bg-black/10 text-current p-1 rounded-md transition-colors cursor-pointer"
           title="طي شريط التنبيهات (يبقى في جرس الإشعارات)"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+          aria-label="طي شريط التنبيهات"
+        />
       </div>
+    </div>
+    </div>
     </div>
   );
 });

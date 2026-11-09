@@ -16,6 +16,7 @@ import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { Product, ProductVariant } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { getStoreTerminology } from '../utils/storeTerminology';
+import { AppButton } from './AppButton';
 
 interface ProductVariantsListModalProps {
   isOpen: boolean;
@@ -108,7 +109,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
     >
       <div
         dir="rtl"
-        className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl w-full max-w-3xl overflow-hidden text-ink dark:text-ink-dark font-sans flex flex-col max-h-[85vh]"
+        className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl w-full max-w-4xl overflow-hidden text-ink dark:text-ink-dark font-sans flex flex-col max-h-[90vh]"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-line dark:border-line-dark bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
@@ -130,26 +131,20 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
           </div>
           <div className="flex items-center gap-2">
             {onOpenMatrixModal && variants.length > 0 && (
-              <button
-                type="button"
+              <AppButton
+                variant="soft"
+                size="sm"
+                icon={Plus}
                 onClick={() => {
                   onClose();
                   onOpenMatrixModal();
                 }}
-                className="px-3 py-1.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand dark:hover:bg-brand-bright text-brand dark:text-brand-bright hover:text-white dark:hover:text-surface-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-brand/20 dark:border-brand-bright/20"
                 title="تعديل أو إضافة أصناف متفرعة جديدة"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>تعديل أو إضافة أصناف</span>
-              </button>
+                تعديل أو إضافة أصناف
+              </AppButton>
             )}
-            <button
-              onClick={() => void requestClose()}
-              className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-line/40 dark:hover:bg-line-dark/40 rounded-lg transition-colors cursor-pointer"
-              title="إغلاق"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <AppButton variant="subtle" size="sm" icon={X} onClick={() => void requestClose()} aria-label="إغلاق" title="إغلاق" />
           </div>
         </div>
 
@@ -161,13 +156,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMessage}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setErrorMessage(null)}
-                className="p-1 hover:bg-danger/20 rounded cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <AppButton variant="subtle" size="xs" icon={X} onClick={() => setErrorMessage(null)} aria-label="إغلاق الرسالة" />
             </div>
           )}
 
@@ -177,13 +166,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{successMessage}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setSuccessMessage(null)}
-                className="p-1 hover:bg-paid/20 rounded cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <AppButton variant="subtle" size="xs" icon={X} onClick={() => setSuccessMessage(null)} aria-label="إغلاق الرسالة" />
             </div>
           )}
 
@@ -197,17 +180,16 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
               <Package className="w-10 h-10 opacity-40 dark:opacity-100 text-brand dark:text-brand-bright" />
               <span>لا توجد أصناف متفرعة مسجلة لهذا الصنف حالياً</span>
               {onOpenMatrixModal && (
-                <button
-                  type="button"
+                <AppButton
+                  variant="primary"
+                  icon={Plus}
                   onClick={() => {
                     onClose();
                     onOpenMatrixModal();
                   }}
-                  className="px-3.5 py-1.5 bg-brand dark:bg-brand-bright hover:bg-brand-dark text-white dark:text-surface-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>إنشاء الأصناف المتفرعة الآن</span>
-                </button>
+                  إنشاء الأصناف المتفرعة الآن
+                </AppButton>
               )}
             </div>
           ) : (
@@ -258,27 +240,27 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                         <td className="py-2.5 px-3 text-center">
                           <div className="flex items-center justify-center gap-1">
                             {onPrintVariantLabel && (
-                              <button
-                                type="button"
+                              <AppButton
+                                variant="subtle"
+                                size="xs"
+                                icon={Tag}
                                 onClick={() => onPrintVariantLabel(v)}
-                                className="p-1.5 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft transition-colors cursor-pointer"
+                                aria-label="طباعة ملصق باركود لهذا الصنف"
                                 title="طباعة ملصق باركود لهذا الصنف"
-                              >
-                                <Tag className="w-3.5 h-3.5" />
-                              </button>
+                              />
                             )}
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="dangerSubtle"
+                              size="xs"
+                              icon={Trash2}
                               onClick={() => {
                                 setErrorMessage(null);
                                 setSuccessMessage(null);
                                 setVariantToDelete(v);
                               }}
-                              className="p-1.5 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger/10 dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
+                              aria-label="حذف هذا الصنف المتفرع"
                               title="حذف هذا الصنف المتفرع"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            />
                           </div>
                         </td>
                       </tr>
@@ -304,23 +286,12 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                 <span className="text-micro text-warn dark:text-warn-bright font-semibold">تنبيه: سيتم رفض الحذف تلقائياً إذا كان للمتغير مبيعات أو حركات مخزنية سابقة.</span>
               </p>
               <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setVariantToDelete(null)}
-                  disabled={isDeleting}
-                  className="px-3 py-1.5 rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-medium hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-                >
+                <AppButton variant="secondary" onClick={() => setVariantToDelete(null)} disabled={isDeleting}>
                   إلغاء
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteVariant()}
-                  disabled={isDeleting}
-                  className="px-4 py-1.5 rounded-lg bg-danger text-white text-xs font-bold hover:bg-danger/90 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
-                >
-                  {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                  <span>{isDeleting ? 'جاري الحذف...' : 'تأكيد الحذف'}</span>
-                </button>
+                </AppButton>
+                <AppButton variant="danger" icon={Trash2} onClick={() => void handleDeleteVariant()} loading={isDeleting}>
+                  {isDeleting ? 'جاري الحذف...' : 'تأكيد الحذف'}
+                </AppButton>
               </div>
             </div>
           </div>
@@ -334,17 +305,16 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
           </div>
           <div className="flex items-center gap-2">
             {onOpenMatrixModal && (
-              <button
-                type="button"
+              <AppButton
+                variant="soft"
+                icon={Plus}
                 onClick={() => {
                   onClose();
                   onOpenMatrixModal();
                 }}
-                className="px-3.5 py-1.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand-soft/80 dark:hover:bg-brand-dark-soft/80 text-brand dark:text-brand-bright border border-brand/30 dark:border-brand-bright/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>إضافة مقاسات جديدة</span>
-              </button>
+                إضافة مقاسات جديدة
+              </AppButton>
             )}
           </div>
         </div>

@@ -10,11 +10,11 @@ import {
   CheckCircle2, 
   RefreshCw,
   FileText,
-  Search,
   ChevronLeft,
   ChevronRight,
   Eye
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import type { Product, Category } from '../types/models';
 import { 
   downloadExcelTemplate, 
@@ -26,6 +26,9 @@ import {
 import { invoke } from '../bridge/ipc';
 import { formatArabicCurrency } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { buildImportOutcome, type ImportHostResult, type ImportOutcome } from '../views/products/importRefresh';
 
@@ -53,6 +56,7 @@ export const ExcelImportModal = ({
   const [importing, setImporting] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [parsedRows, setParsedRows] = useState<ValidatedImportRow[]>([]);
+  const motionPanel = useMotionPanel(importOutcome ? 'outcome' : parsing ? 'parsing' : parsedRows.length > 0 ? 'preview' : 'pick');
   const [duplicateStrategy, setDuplicateStrategy] = useState<'skip' | 'update' | 'error'>('skip');
   const [onlyValidRows, setOnlyValidRows] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -227,17 +231,12 @@ export const ExcelImportModal = ({
               <p className="text-micro text-ink-muted dark:text-ink-dark-muted">إضافة وتحديث المنتجات والمخزون دفعة واحدة في معاملة آمنة ومحمية</p>
             </div>
           </div>
-          <button
-            onClick={requestClose}
-            disabled={importing}
-            className="p-1 rounded text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={requestClose} disabled={importing} aria-label="إغلاق" />
         </div>
 
         {/* 2. Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+        <MotionHeight className="flex-1 overflow-y-auto p-5 text-xs">
+        <div {...motionPanel} className="space-y-4">
           {importOutcome ? (
             <div className="space-y-4" role="status">
               <div className="bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border text-paid dark:text-paid-bright px-3.5 py-2.5 rounded-md flex items-center gap-2 text-xs font-bold">
@@ -294,8 +293,10 @@ export const ExcelImportModal = ({
                 </p>
               </div>
             </div>
-            <button
-              type="button"
+            <AppButton
+              variant="success"
+              icon={Download}
+              loading={downloadingTemplate}
               onClick={async () => {
                 setDownloadingTemplate(true);
                 try {
@@ -304,12 +305,10 @@ export const ExcelImportModal = ({
                   setDownloadingTemplate(false);
                 }
               }}
-              disabled={downloadingTemplate}
-              className="shrink-0 h-9 px-3.5 rounded bg-paid hover:bg-paid-hover text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark font-bold text-micro flex items-center justify-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
+              className="shrink-0"
             >
-              <Download className="w-4 h-4" />
-              <span>{downloadingTemplate ? 'جاري التحميل...' : 'تحميل نموذج الإكسل الجاهز (.xlsx)'}</span>
-            </button>
+              {downloadingTemplate ? 'جاري التحميل...' : 'تحميل نموذج الإكسل الجاهز (.xlsx)'}
+            </AppButton>
           </div>
 
           {/* Upload Dropzone */}
@@ -352,21 +351,10 @@ export const ExcelImportModal = ({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-2.5 py-1 text-micro font-bold rounded bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 hairline-all text-ink dark:text-ink-dark transition-colors"
-                >
+                <AppButton variant="secondary" size="xs" onClick={() => fileInputRef.current?.click()}>
                   تغيير الملف
-                </button>
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright rounded transition-colors"
-                  title="إلغاء الملف"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                </AppButton>
+                <AppButton variant="dangerSubtle" size="xs" icon={X} onClick={handleReset} aria-label="إلغاء الملف" title="إلغاء الملف" />
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -486,21 +474,20 @@ export const ExcelImportModal = ({
                         type="checkbox"
                         checked={onlyValidRows}
                         onChange={(e) => setOnlyValidRows(e.target.checked)}
-                        className="rounded border-line dark:border-line-dark text-brand focus:ring-0"
                       />
                       <span>استيراد الصفوف السليمة وتجاوز الأخطاء</span>
                     </label>
 
                     {errorRows.length > 0 && (
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="dangerSoft"
+                        size="xs"
+                        icon={Download}
                         onClick={() => downloadErrorReport(errorRows)}
-                        className="h-7 px-2.5 rounded bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright text-micro font-bold flex items-center gap-1 transition-colors border border-danger/20 dark:border-danger-bright/30 cursor-pointer"
                         title="تحميل تقرير تفصيلي بأسباب أخطاء الصفوف لتصحيحها"
                       >
-                        <Download className="w-3 h-3" />
-                        <span>تصدير تقرير الأخطاء</span>
-                      </button>
+                        تصدير تقرير الأخطاء
+                      </AppButton>
                     )}
                   </div>
                 </div>
@@ -508,16 +495,14 @@ export const ExcelImportModal = ({
                 {/* Search & Status Filter Tabs */}
                 <div className="pt-2 border-t border-line/50 dark:border-line-dark flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   {/* Fast Search Input (status filters are the summary cards above) */}
-                  <div className="relative w-full sm:w-60">
-                    <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                      placeholder="بحث بالاسم أو الباركود أو الكود..."
-                      className="w-full h-7 pr-8 pl-2.5 rounded bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-micro text-ink placeholder:text-ink-muted/70 focus:outline-none focus:border-brand"
-                    />
-                  </div>
+                  <SearchInput
+                    size="sm"
+                    value={searchQuery}
+                    onChange={(value) => { setSearchQuery(value); setCurrentPage(1); }}
+                    placeholder="بحث بالاسم أو الباركود أو الكود..."
+                    ariaLabel="بحث في صفوف المعاينة"
+                    className="w-full sm:w-72"
+                  />
                 </div>
               </div>
 
@@ -558,7 +543,7 @@ export const ExcelImportModal = ({
                               <td className="py-2 px-2.5 text-center font-mono text-ink-muted dark:text-ink-dark-muted font-bold">
                                 <span>#{row.rowIndex}</span>
                                 {row.sheetName && row.sheetName !== 'عام' && (
-                                  <span className="block text-micro text-ink-muted dark:text-ink-dark-muted truncate max-w-[50px] mx-auto" title={row.sheetName}>
+                                  <span className="block text-micro text-ink-muted dark:text-ink-dark-muted truncate max-w-[3.125rem] mx-auto" title={row.sheetName}>
                                     {row.sheetName}
                                   </span>
                                 )}
@@ -641,24 +626,25 @@ export const ExcelImportModal = ({
                     <span className="font-mono text-ink dark:text-ink-dark text-micro ml-2">
                       صفحة {currentSafePage} من {totalPages}
                     </span>
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="secondary"
+                      size="xs"
+                      icon={ChevronRight}
                       onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                       disabled={currentSafePage <= 1}
-                      className="h-6 px-2 rounded bg-surface dark:bg-surface-dark hairline-all text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-micro"
                     >
-                      <ChevronRight className="w-3 h-3" />
-                      <span>السابق</span>
-                    </button>
-                    <button
-                      type="button"
+                      السابق
+                    </AppButton>
+                    <AppButton
+                      variant="secondary"
+                      size="xs"
+                      icon={ChevronLeft}
+                      iconPosition="end"
                       onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                       disabled={currentSafePage >= totalPages}
-                      className="h-6 px-2 rounded bg-surface dark:bg-surface-dark hairline-all text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-micro"
                     >
-                      <span>التالي</span>
-                      <ChevronLeft className="w-3 h-3" />
-                    </button>
+                      التالي
+                    </AppButton>
                   </div>
                 </div>
               </div>
@@ -669,25 +655,17 @@ export const ExcelImportModal = ({
           )}
 
         </div>
+        </MotionHeight>
 
         {/* 3. Footer Actions */}
         {importOutcome ? (
           <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-line dark:border-line-dark bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-8 px-4 rounded bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 hairline-all text-ink dark:text-ink-dark font-bold text-micro transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" onClick={onClose}>
               إغلاق
-            </button>
-            <button
-              type="button"
-              onClick={onViewImported}
-              className="h-8 px-5 rounded bg-paid hover:bg-paid-hover text-white dark:bg-paid-bright dark:hover:bg-paid-bright-hover dark:text-surface-dark font-bold text-micro flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>عرض الأصناف المستوردة</span>
-            </button>
+            </AppButton>
+            <AppButton variant="success" icon={Eye} onClick={onViewImported}>
+              عرض الأصناف المستوردة
+            </AppButton>
           </div>
         ) : (
         <div className="flex items-center justify-between px-5 py-3.5 border-t border-line dark:border-line-dark bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
@@ -699,36 +677,18 @@ export const ExcelImportModal = ({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={requestClose}
-              disabled={importing}
-              className="h-8 px-4 rounded bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 hairline-all text-ink dark:text-ink-dark font-bold text-micro transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" onClick={requestClose} disabled={importing}>
               إلغاء
-            </button>
-            <button
-              type="button"
+            </AppButton>
+            <AppButton
+              variant="success"
+              icon={CheckCircle2}
               onClick={() => void handleConfirmImport()}
-              disabled={!canImport || importing}
-              className={`h-8 px-5 rounded font-bold text-micro flex items-center gap-1.5 transition-colors shadow-sm ${
-                canImport && !importing
-                  ? 'bg-paid hover:bg-paid-dark text-white'
-                  : 'bg-surface-3 dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark cursor-not-allowed opacity-60 dark:opacity-100'
-              }`}
+              disabled={!canImport}
+              loading={importing}
             >
-              {importing ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>جاري الاستيراد والتخزين...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>تأكيد استيراد ({rowsToImport.length}) صنف</span>
-                </>
-              )}
-            </button>
+              {importing ? 'جاري الاستيراد والتخزين...' : `تأكيد استيراد (${rowsToImport.length}) صنف`}
+            </AppButton>
           </div>
         </div>
         )}

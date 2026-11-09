@@ -27,14 +27,17 @@ describe('accounts form: holder name and main account', () => {
   it('sends holderName and isDefault with the account and loads them when editing', () => {
     assert.match(wallets, /holderName: accountFormHolder\.trim\(\)/);
     assert.match(wallets, /isDefault: accountMainLocked \? true : accountFormIsDefault/);
-    assert.match(wallets, /setAccountFormHolder\(acc\.holderName \|\| ''\)/);
-    assert.match(wallets, /setAccountFormIsDefault\(acc\.isDefault === true\)/);
+    assert.match(wallets, /holder: acc\.holderName \|\| ''/);
+    assert.match(wallets, /isDefault: acc\.isDefault === true/);
+    assert.match(wallets, /setAccountFormHolder\(values\.holder\)/);
+    assert.match(wallets, /setAccountFormIsDefault\(values\.isDefault\)/);
   });
 
   it('counts the new fields in the unsaved-changes check', () => {
     const dirty = wallets.slice(wallets.indexOf('const isAccountDirty'), wallets.indexOf('const { requestClose: requestCloseAccount'));
-    assert.match(dirty, /accountFormHolder !== \(editingAccount\.holderName \|\| ''\)/);
-    assert.match(dirty, /accountFormIsDefault !== \(editingAccount\.isDefault === true\)/);
+    assert.match(dirty, /isFormDirty<AccountFormValues>\(accountFormBaseline,/);
+    assert.match(dirty, /holder: accountFormHolder/);
+    assert.match(dirty, /isDefault: accountFormIsDefault/);
   });
 
   it('has the main-account ToggleSwitch row with the agreed wording', () => {

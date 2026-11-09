@@ -10,10 +10,10 @@ import {
   Building2, 
   Users, 
   Clock, 
-  Search,
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
-import { printReport } from '../utils/printReport';
+import { usePrintReport } from '../hooks/usePrintReport';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 import { createAttemptKey } from '../utils/idempotency';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -28,6 +28,9 @@ import type {
 import type { Supplier } from '../types/models';
 import { DateFilterControl } from './DateFilterControl';
 import { ExpiryRangeFilter } from './ExpiryRangeFilter';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import {
   type DateFilterValue,
   DEFAULT_DATE_FILTER,
@@ -57,6 +60,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
   onSuccess,
 }) => {
   const [activeTab, setActiveTab] = useState<'returns' | 'writeoff' | 'history'>('returns');
+  const motionPanel = useMotionPanel(activeTab);
 
   // Suppliers list for filtering
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -336,9 +340,10 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
     }
   };
 
-  const handlePrintCertificate = () => {
-    void printReport({ kind: 'a4only' });
-  };
+  const { print: handlePrintCertificate, printing: isPrintingCertificate } = usePrintReport({
+    reportName: 'محضر إعدام الأصناف المنتهية',
+    kind: 'a4only',
+  });
 
   const isDirty = selectedReturnItems.length > 0 || selectedWriteOffItems.length > 0;
 
@@ -447,14 +452,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => void requestClose()}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-              title="إغلاق"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <AppButton variant="subtle" size="sm" icon={X} onClick={() => void requestClose()} aria-label="إغلاق" title="إغلاق" />
           </div>
         </div>
 
@@ -473,7 +471,8 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
         )}
 
         {/* 2. Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 print:p-0 print:overflow-visible">
+        <MotionHeight className="flex-1 overflow-y-auto p-6 print:p-0 print:overflow-visible">
+        <div {...motionPanel} className="space-y-4">
           {/* TAB 1: SUPPLIER EXPIRY RETURNS */}
           {activeTab === 'returns' && (
             <div className="space-y-4 print:hidden">
@@ -532,7 +531,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                             });
                             setSelectedBatchesMap(newMap);
                           }}
-                          className="rounded border-line dark:border-line-dark text-brand focus:ring-brand cursor-pointer"
+                          className="cursor-pointer"
                         />
                       </th>
                       <th className="p-3">اسم الصنف الدوائي</th>
@@ -572,7 +571,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                                   },
                                 }));
                               }}
-                              className="rounded border-line dark:border-line-dark text-brand focus:ring-brand cursor-pointer"
+                              className="cursor-pointer"
                             />
                           </td>
                           <td className="p-3">
@@ -594,7 +593,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                               {b.expiryDate}
                             </span>
                           </td>
-                          <td className="p-3 text-micro">
+                          <td className="p-3 text-xs">
                             {b.daysUntilExpiry <= 0 ? (
                               <span className="text-danger dark:text-danger-bright font-bold">منتهي منذ {Math.abs(b.daysUntilExpiry)} يوم</span>
                             ) : (
@@ -642,13 +641,9 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                           <p className="text-xs font-bold">
                             لا توجد تشغيلات تنتهي صلاحيتها في الفترة دي ({describeDateFilter({ preset: 'custom', ...returnsExpiryRange })}).
                           </p>
-                          <button
-                            type="button"
-                            onClick={() => setReturnsExpiryRange({ ...EMPTY_EXPIRY_RANGE })}
-                            className="mt-2 h-8 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
-                          >
+                          <AppButton variant="soft" size="sm" onClick={() => setReturnsExpiryRange({ ...EMPTY_EXPIRY_RANGE })} className="mt-2">
                             عرض كل التشغيلات
-                          </button>
+                          </AppButton>
                         </td>
                       </tr>
                     )}
@@ -674,15 +669,15 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                   className="w-full sm:w-96 h-10 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                 />
 
-                <button
-                  type="button"
+                <AppButton
+                  variant="primary"
+                  icon={RotateCcw}
                   onClick={() => void handleCreateReturnDraft()}
                   disabled={isSubmittingReturn || selectedReturnItems.length === 0}
-                  className="w-full sm:w-auto h-10 px-5 rounded-xl bg-brand dark:bg-brand-bright hover:bg-brand-dark text-white dark:text-surface-dark font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer"
+                  className="w-full sm:w-auto"
                 >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>{isSubmittingReturn ? 'جاري ترحيل المرتجع...' : 'إنشاء إشعار خصم ومرتجع مشتريات للمورد'}</span>
-                </button>
+                  {isSubmittingReturn ? 'جاري ترحيل المرتجع...' : 'إنشاء إشعار خصم ومرتجع مشتريات للمورد'}
+                </AppButton>
               </div>
             </div>
           )}
@@ -700,21 +695,12 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                       <span>تم توثيق محضر الإعدام #{currentCertificate.certificateNumber} وخصم المخزون</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handlePrintCertificate}
-                        className="h-9 px-4 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                      >
-                        <Printer className="w-4 h-4" />
-                        <span>طباعة المحضر الرسمي (A4)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCurrentCertificate(null)}
-                        className="h-9 px-3 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
-                      >
+                      <AppButton variant="primary" icon={Printer} onClick={handlePrintCertificate} loading={isPrintingCertificate}>
+                        طباعة المحضر الرسمي (A4)
+                      </AppButton>
+                      <AppButton variant="secondary" onClick={() => setCurrentCertificate(null)}>
                         محضر جديد
-                      </button>
+                      </AppButton>
                     </div>
                   </div>
 
@@ -843,7 +829,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                                 });
                                 setSelectedWriteOffMap(newMap);
                               }}
-                              className="rounded border-line dark:border-line-dark text-brand focus:ring-brand cursor-pointer"
+                              className="cursor-pointer"
                             />
                           </th>
                           <th className="p-3">اسم الصنف الدوائي</th>
@@ -876,7 +862,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                                       },
                                     }));
                                   }}
-                                  className="rounded border-line dark:border-line-dark text-danger focus:ring-danger cursor-pointer"
+                                  className="checkbox-danger cursor-pointer"
                                 />
                               </td>
                               <td className="p-3 font-bold text-ink dark:text-ink-dark">{b.productName}</td>
@@ -913,13 +899,9 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                               <p className="text-xs font-bold">
                                 لا توجد تشغيلات منتهية في الفترة دي ({describeDateFilter({ preset: 'custom', ...writeOffExpiryRange })}).
                               </p>
-                              <button
-                                type="button"
-                                onClick={() => setWriteOffExpiryRange({ ...EMPTY_EXPIRY_RANGE })}
-                                className="mt-2 h-8 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
-                              >
+                              <AppButton variant="soft" size="sm" onClick={() => setWriteOffExpiryRange({ ...EMPTY_EXPIRY_RANGE })} className="mt-2">
                                 عرض كل التشغيلات
-                              </button>
+                              </AppButton>
                             </td>
                           </tr>
                         )}
@@ -974,15 +956,15 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                         className="flex-1 h-10 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                       />
 
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="danger"
+                        icon={Trash2}
                         onClick={() => void handleExecuteWriteOff()}
                         disabled={isSubmittingWriteOff || selectedWriteOffItems.length === 0}
-                        className="h-10 px-5 rounded-xl bg-danger hover:bg-danger/90 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-xs disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer shrink-0"
+                        className="shrink-0"
                       >
-                        <Trash2 className="w-4 h-4" />
-                        <span>{isSubmittingWriteOff ? 'جاري توثيق الإعدام...' : 'تنفيذ محضر الإعدام وخصم المخزون'}</span>
-                      </button>
+                        {isSubmittingWriteOff ? 'جاري توثيق الإعدام...' : 'تنفيذ محضر الإعدام وخصم المخزون'}
+                      </AppButton>
                     </div>
                   </div>
                 </div>
@@ -993,17 +975,15 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
           {/* TAB 3: WRITE-OFF HISTORY */}
           {activeTab === 'history' && (
             <div className="space-y-4 print:hidden">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="relative flex-1 min-w-[14rem]">
-                  <input
-                    type="text"
-                    placeholder="ابحث في سجل المحاضر برقم المحضر، اسم الدواء، أو التشغيلة..."
-                    value={historySearch}
-                    onChange={(e) => setHistorySearch(e.target.value)}
-                    className="w-full h-10 pl-9 pr-3.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                  />
-                  <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute left-3 top-3" />
-                </div>
+              <div className="flex items-center justify-between gap-x-8 gap-y-3 flex-wrap">
+                <SearchInput
+                  size="md"
+                  value={historySearch}
+                  onChange={setHistorySearch}
+                  placeholder="ابحث في سجل المحاضر برقم المحضر، اسم الدواء، أو التشغيلة..."
+                  ariaLabel="بحث في سجل محاضر المرتجعات"
+                  className="flex-1 min-w-[18rem]"
+                />
                 <DateFilterControl
                   value={historyDateFilter}
                   onChange={setHistoryDateFilter}
@@ -1030,7 +1010,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                     {filteredHistory.map((item) => (
                       <tr key={item.id} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40">
                         <td className="p-3 font-mono font-bold text-brand dark:text-brand-bright">{item.writeOffNumber}</td>
-                        <td className="p-3 font-mono text-ink-muted dark:text-ink-dark-muted text-micro">{parseDateToLocalDateStr(item.createdAt) ?? '-'}</td>
+                        <td className="p-3 font-mono text-ink-muted dark:text-ink-dark-muted text-xs">{parseDateToLocalDateStr(item.createdAt) ?? '-'}</td>
                         <td className="p-3 font-bold text-ink dark:text-ink-dark">{item.productName}</td>
                         <td className="p-3 font-mono">{item.batchNumber || '-'}</td>
                         <td className="p-3 text-center font-mono font-bold">{(item.quantityMilli / 1000).toFixed(0)}</td>
@@ -1050,13 +1030,9 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
                               : 'لا توجد محاضر إعدام سابقة مسجلة.'}
                           </p>
                           {writeOffHistory.length > 0 && isDateFilterActive(historyDateFilter) && (
-                            <button
-                              type="button"
-                              onClick={() => setHistoryDateFilter({ ...DEFAULT_DATE_FILTER })}
-                              className="mt-2 h-8 px-3 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
-                            >
+                            <AppButton variant="soft" size="sm" onClick={() => setHistoryDateFilter({ ...DEFAULT_DATE_FILTER })} className="mt-2">
                               عرض كل الفترات
-                            </button>
+                            </AppButton>
                           )}
                         </td>
                       </tr>
@@ -1067,6 +1043,7 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
             </div>
           )}
         </div>
+        </MotionHeight>
 
         {/* 3. Footer (Print Hidden) */}
         <div className="px-6 py-3.5 border-t border-line dark:border-line-dark bg-surface-2/40 dark:bg-surface-dark-2/40 flex items-center justify-between shrink-0 print:hidden">
@@ -1075,13 +1052,9 @@ export const ExpiryReturnsModal: React.FC<ExpiryReturnsModalProps> = ({
             <span>نظام إثبات محاضر الإعدام معتمد لدى التفتيش الصيدلي وتتبع الصلاحيات</span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="px-4 h-9 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-          >
+          <AppButton variant="secondary" onClick={() => void requestClose()}>
             إغلاق
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>

@@ -16,9 +16,11 @@ import {
   Loader2
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import { printReport } from '../utils/printReport';
+import { usePrintReport } from '../hooks/usePrintReport';
 import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from './CustomSelect';
+import { AppButton } from './AppButton';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import { formatArabicCurrency } from '../utils/money';
 import { DateFilterControl } from './DateFilterControl';
 import { type DateFilterValue, DEFAULT_DATE_FILTER, isDateFilterActive, describeDateFilter, useToday } from '../utils/dateFilter';
@@ -141,6 +143,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
   initialTab = 'expiry',
 }) => {
   const [activeTab, setActiveTab] = useState<'expiry' | 'stagnant' | 'profitability'>(initialTab);
+  const motionPanel = useMotionPanel(activeTab);
 
   // Expiry state
   const [heatmap, setHeatmap] = useState<ExpiryHeatmapReport | null>(null);
@@ -237,6 +240,13 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
     else if (activeTab === 'profitability') void fetchProfitability();
   });
 
+  const { print: printReportSheet, printing: isPrintingReport } = usePrintReport({
+    reportName: activeTab === 'expiry' ? 'خريطة الصلاحيات' : activeTab === 'stagnant' ? 'تقرير الأصناف الراكدة' : 'تقرير ربحية المصنعين والمواد الفعالة',
+    kind: 'a4only',
+    orientation: 'landscape',
+    hasData: Boolean(activeTab === 'expiry' ? heatmap : activeTab === 'stagnant' ? stagnantReport : profReport),
+  });
+
   if (!isOpen) return null;
 
   const toggleMonth = (key: string) => {
@@ -281,22 +291,11 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void printReport({ kind: 'a4only', orientation: 'landscape' })}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
-            >
-              <Printer className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
-              <span>طباعة التقرير</span>
-            </button>
+            <AppButton variant="secondary" size="sm" icon={Printer} onClick={printReportSheet} loading={isPrintingReport}>
+              طباعة التقرير
+            </AppButton>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark rounded-lg hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={onClose} />
           </div>
         </div>
 
@@ -353,7 +352,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
         )}
 
         {/* Body Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div {...motionPanel} className="flex-1 overflow-y-auto p-6">
           {/* TAB 1: EXPIRY HEATMAP */}
           {activeTab === 'expiry' && (
             <div className="space-y-6">
@@ -436,7 +435,7 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                             bucket.isExpired
                               ? 'bg-danger text-white'
                               : bucket.isUrgent
-                              ? 'bg-warn text-white dark:bg-warn-bright dark:text-surface-dark'
+                              ? 'bg-warn-bright text-ink dark:bg-warn-bright dark:text-surface-dark'
                               : 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright'
                           }`}>
                             {bucket.isExpired ? (
@@ -755,13 +754,9 @@ export const SpecializedPharmacyReportsModal: React.FC<SpecializedPharmacyReport
                         : 'لا توجد مبيعات مسجلة'}
                     </span>
                     {isDateFilterActive(profFilter) && (
-                      <button
-                        type="button"
-                        onClick={() => setProfFilter(DEFAULT_DATE_FILTER)}
-                        className="h-8 px-3 rounded-lg bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
-                      >
+                      <AppButton variant="secondary" size="sm" onClick={() => setProfFilter(DEFAULT_DATE_FILTER)}>
                         عرض كل الفترات
-                      </button>
+                      </AppButton>
                     )}
                   </div>
                 )}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AppButton } from '../../components/AppButton';
 import {
   ShieldAlert,
   X,
@@ -128,7 +129,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
   // Handle Supervisor PIN verification
   const handleVerifySupervisorPin = async () => {
     if (!supervisorPin.trim()) {
-      setPinError('يرجى إدخال رمز PIN للمشرف');
+      setPinError('يرجى إدخال الرقم السري للمشرف');
       return;
     }
     try {
@@ -141,7 +142,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
         setPinVerified(true);
         setSupervisorName(res.supervisorName || 'الصيدلي المشرف');
       } else {
-        setPinError(res?.error || 'رمز PIN غير صحيح أو لا يملك صلاحية الاعتماد');
+        setPinError(res?.error || 'الرقم السري غير صحيح أو لا يملك صلاحية الاعتماد');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -212,7 +213,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
 
     // 7. Validate Supervisor Approval if cashier lacks permission
     if (!canDispenseDirectly && !pinVerified) {
-      setFormError('يلزم اعتماد الصيدلي المشرف وإدخال رمز PIN لإتمام الصرف');
+      setFormError('يلزم اعتماد الصيدلي المشرف وإدخال الرقم السري لإتمام الصرف');
       return;
     }
 
@@ -306,13 +307,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {/* Scrollable Form Body */}
@@ -504,7 +499,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
 
               {imagePreview && (
                 <div className="relative w-10 h-10 rounded border border-line overflow-hidden shrink-0">
-                  <img src={imagePreview} alt="Prescription Preview" className="w-full h-full object-cover" />
+                  <img src={imagePreview} alt="معاينة الروشتة" className="w-full h-full object-cover" />
                 </div>
               )}
             </div>
@@ -516,7 +511,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-danger font-bold text-xs">
                   <Lock className="w-4 h-4 text-danger" />
-                  <span>اعتماد الصيدلي المشرف إلزامي (PIN Override)</span>
+                  <span>اعتماد الصيدلي المشرف إلزامي</span>
                 </div>
                 {pinVerified && (
                   <span className="text-micro font-bold px-2 py-0.5 rounded-full bg-paid-soft text-paid border border-paid/30 flex items-center gap-1">
@@ -526,7 +521,7 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
                 )}
               </div>
               <p className="text-micro text-ink-muted m-0">
-                المستخدم الحالي لا يملك صلاحية صرف أدوية الجدول مباشرة، يلزم إدخال رمز PIN لصيدلي مشرف أو مدير معتمد.
+                المستخدم الحالي لا يملك صلاحية صرف أدوية الجدول مباشرة، يلزم إدخال الرقم السري لصيدلي مشرف أو مدير معتمد.
               </p>
 
               {!pinVerified ? (
@@ -535,17 +530,13 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
                     type="password"
                     value={supervisorPin}
                     onChange={(e) => setSupervisorPin(e.target.value)}
-                    placeholder="رمز PIN للمشرف..."
+                    placeholder="الرقم السري للمشرف..."
                     maxLength={10}
                     className="w-40 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg h-9 px-3 text-center font-mono text-sm tracking-widest text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                   />
-                  <button
-                    type="button"
-                    onClick={() => void handleVerifySupervisorPin()}
-                    className="h-9 px-4 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-bold transition-colors cursor-pointer"
-                  >
+                  <AppButton variant="primary" size="md" onClick={() => void handleVerifySupervisorPin()}>
                     تحقق واعتماد
-                  </button>
+                  </AppButton>
                   {pinError && <span className="text-danger text-micro font-bold">{pinError}</span>}
                 </div>
               ) : (
@@ -559,34 +550,31 @@ export const ControlledDrugDispenseModal: React.FC<ControlledDrugDispenseModalPr
           {/* Footer Actions */}
           <div className="pt-2 flex items-center justify-between gap-3 border-t border-line dark:border-line-dark">
             {onRemoveItem ? (
-              <button
-                type="button"
+              <AppButton
+                variant="dangerSoft"
+                size="md"
                 onClick={() => {
                   onRemoveItem(item);
                   onClose();
                 }}
-                className="h-9 px-3.5 rounded-xl border border-danger/30 text-danger dark:text-danger-bright hover:bg-danger/10 text-xs font-bold transition-colors cursor-pointer"
               >
                 حذف الصنف من السلة
-              </button>
+              </AppButton>
             ) : <div />}
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-9 px-4 rounded-xl border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs font-bold transition-colors cursor-pointer"
-              >
+              <AppButton variant="secondary" size="md" onClick={onClose}>
                 إلغاء
-              </button>
-              <button
+              </AppButton>
+              <AppButton
                 type="submit"
+                variant="primary"
+                size="md"
+                icon={CheckCircle2}
                 disabled={isUploadingImage || (!canDispenseDirectly && !pinVerified)}
-                className="h-9 px-5 rounded-xl bg-brand hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>توثيق وحفظ بيانات الصرف</span>
-              </button>
+                توثيق وحفظ بيانات الصرف
+              </AppButton>
             </div>
           </div>
         </form>

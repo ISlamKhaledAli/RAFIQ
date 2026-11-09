@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { AppButton } from '../../components/AppButton';
 import {
   Pill,
   X,
@@ -199,7 +200,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full sm:w-[680px] md:w-[740px] max-w-[96vw] h-full bg-surface dark:bg-surface-dark border-r border-line dark:border-line-dark shadow-2xl flex flex-col select-none animate-in slide-in-from-left duration-200">
+      <div className="w-full sm:w-[42.5rem] md:w-[46.25rem] max-w-[96vw] h-full bg-surface dark:bg-surface-dark border-r border-line dark:border-line-dark shadow-2xl flex flex-col select-none animate-in slide-in-from-left duration-200">
         {/* Header Bar */}
         <div className="px-5 py-3.5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -222,14 +223,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-high flex items-center justify-center text-ink-muted dark:text-ink-dark hover:text-ink dark:hover:text-white transition-colors shadow-2xs cursor-pointer"
-              title="إغلاق النافذة"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <AppButton variant="secondary" size="sm" icon={X} onClick={onClose} aria-label="إغلاق النافذة" />
           </div>
         </div>
 
@@ -258,28 +252,28 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
                   <span>مُسجل في النواقص</span>
                 </span>
               ) : (
-                <button
-                  type="button"
+                <AppButton
+                  variant="warningSoft"
+                  size="xs"
+                  icon={ClipboardList}
                   onClick={handleQuickRecordShortage}
                   disabled={shortageSaving}
-                  className="px-2.5 py-1 rounded-lg bg-warn-soft dark:bg-warn-dark-soft hover:bg-warn-border text-warn dark:text-warn-bright text-micro font-bold border border-warn-border dark:border-warn-bright/30 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs disabled:opacity-50"
                   title="تسجيل هذا الدواء في كشكول النواقص بنقرة واحدة لطلبه من الموزعين"
                 >
-                  <ClipboardList className="w-3.5 h-3.5" />
-                  <span>{shortageSaving ? 'جاري التسجيل...' : '+ إضافة للنواقص'}</span>
-                </button>
+                  {shortageSaving ? 'جاري التسجيل...' : '+ إضافة للنواقص'}
+                </AppButton>
               )}
 
               {onOpenShortageModal && (
-                <button
-                  type="button"
+                <AppButton
+                  variant="secondary"
+                  size="xs"
+                  icon={UserPlus}
                   onClick={() => onOpenShortageModal(productId, currentProductName)}
-                  className="px-2 py-1 rounded-lg bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-micro font-medium border border-line dark:border-line-dark flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                   title="حجز الصنف باسم ورقم هاتف المريض مع تحديد كمية مخصصة"
                 >
-                  <UserPlus className="w-3 h-3" />
-                  <span>حجز لمريض</span>
-                </button>
+                  حجز لمريض
+                </AppButton>
               )}
             </div>
           </div>
@@ -320,7 +314,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
             onClick={() => setActiveTier(1)}
             className={`py-2 px-1 rounded-lg text-center flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
               activeTier === 1
-                ? 'bg-paid text-white shadow-2xs font-bold'
+                ? 'bg-paid text-white dark:bg-paid-dark-soft dark:text-paid-bright dark:ring-1 dark:ring-inset dark:ring-paid-bright/40 shadow-2xs font-bold'
                 : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface dark:hover:bg-surface-dark hover:text-ink dark:hover:text-ink-dark'
             }`}
           >
@@ -360,7 +354,7 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
             onClick={() => setActiveTier(3)}
             className={`py-2 px-1 rounded-lg text-center flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
               activeTier === 3
-                ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-2xs font-bold'
+                ? 'bg-warn-bright text-ink dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-2xs font-bold'
                 : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface dark:hover:bg-surface-dark hover:text-ink dark:hover:text-ink-dark'
             }`}
           >
@@ -513,23 +507,13 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
 
                 {/* Actions per item */}
                 <div className="flex items-center justify-end gap-2 mt-3 pt-2.5 border-t border-line/40 dark:border-line-dark/60">
-                  <button
-                    type="button"
-                    onClick={() => void handleAction(item, 'add')}
-                    className="h-7.5 px-3 rounded-lg border border-line dark:border-line-dark-strong bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-high text-ink dark:text-ink-dark text-micro font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3 text-brand dark:text-brand-bright" />
-                    <span>إضافة للسلة</span>
-                  </button>
+                  <AppButton variant="secondary" size="sm" icon={Plus} onClick={() => void handleAction(item, 'add')}>
+                    إضافة للسلة
+                  </AppButton>
 
-                  <button
-                    type="button"
-                    onClick={() => void handleAction(item, 'substitute')}
-                    className="h-7.5 px-3.5 rounded-lg bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white border border-brand/40 dark:border-brand-bright/30 text-micro font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
-                  >
-                    <ArrowRightLeft className="w-3 h-3" />
-                    <span>استبدال في السلة</span>
-                  </button>
+                  <AppButton variant="primary" size="sm" icon={ArrowRightLeft} onClick={() => void handleAction(item, 'substitute')}>
+                    استبدال في السلة
+                  </AppButton>
                 </div>
               </div>
             );

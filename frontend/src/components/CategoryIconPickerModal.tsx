@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { 
   X, 
-  Search, 
   Sparkles, 
   Check, 
   RotateCcw,
   Layers
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { 
   CATEGORY_ICON_CATALOG, 
   CATEGORY_ICON_MAP, 
@@ -17,6 +17,11 @@ import {
 } from '../utils/categoryIcons';
 import { normalizeArabicText } from '../utils/money';
 import { getCurrentStoreType } from '../utils/storeTerminology';
+import { AppButton } from './AppButton';
+import { ToggleSwitch } from './ToggleSwitch';
+import MotionHeight from './MotionHeight';
+import { useMotionPanel } from '../hooks/useMotionPanel';
+import { filterIconsForStoreType, getStoreTypeIconLabel } from '../utils/categoryIconFilter';
 
 interface CategoryIconPickerModalProps {
   categoryName: string;
@@ -40,6 +45,8 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
   const storeType = useMemo(() => getCurrentStoreType(), []);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTabId, setSelectedTabId] = useState<string>('recommended');
+  const [showAllActivities, setShowAllActivities] = useState(false);
+  const gridPanel = useMotionPanel(`${selectedTabId}|${showAllActivities}`);
 
   const smartSuggestedKey = useMemo(() => {
     return detectSmartCategoryIconKey(categoryName, storeType);
@@ -51,6 +58,12 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
 
   const activeKey = currentCustomKey || smartSuggestedKey;
   const isAutoMode = !currentCustomKey;
+
+  // الأيقونات المناسبة لنشاط المتجر، مع إبقاء المختارة حالياً والمقترحة ظاهرة دائماً
+  const visibleIcons = useMemo(
+    () => (showAllActivities ? CATEGORY_ICON_CATALOG : filterIconsForStoreType(CATEGORY_ICON_CATALOG, storeType, [activeKey, smartSuggestedKey])),
+    [showAllActivities, storeType, activeKey, smartSuggestedKey]
+  );
 
   // Custom filter tabs per store profile to reduce distraction and clutter
   const filterTabs = useMemo<FilterTab[]>(() => {
@@ -78,7 +91,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
         },
         {
           id: 'all',
-          label: 'كل الأيقونات',
+          label: 'الكل',
           matcher: () => true
         }
       ];
@@ -108,7 +121,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
         },
         {
           id: 'all',
-          label: 'كل الأيقونات',
+          label: 'الكل',
           matcher: () => true
         }
       ];
@@ -138,7 +151,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
         },
         {
           id: 'all',
-          label: 'كل الأيقونات',
+          label: 'الكل',
           matcher: () => true
         }
       ];
@@ -168,7 +181,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
         },
         {
           id: 'all',
-          label: 'كل الأيقونات',
+          label: 'الكل',
           matcher: () => true
         }
       ];
@@ -193,7 +206,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
         },
         {
           id: 'all',
-          label: 'كل الأيقونات',
+          label: 'الكل',
           matcher: () => true
         }
       ];
@@ -218,7 +231,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
         },
         {
           id: 'all',
-          label: 'كل الأيقونات',
+          label: 'الكل',
           matcher: () => true
         }
       ];
@@ -248,7 +261,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
       },
       {
         id: 'all',
-        label: 'كل الأيقونات',
+        label: 'الكل',
         matcher: () => true
       }
     ];
@@ -260,16 +273,20 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
 
   const filteredIcons = useMemo(() => {
     const query = normalizeArabicText(searchQuery.trim());
-    return CATEGORY_ICON_CATALOG.filter((item) => {
-      // If user is searching, search everywhere across catalog
+    return visibleIcons.filter((item) => {
+      // Searching covers the whole visible set, regardless of the selected tab
       if (query) {
         const itemName = normalizeArabicText(item.name);
         return itemName.includes(query) || item.key.toLowerCase().includes(query.toLowerCase());
       }
-      // Otherwise filter by selected tab matcher
       return activeTab.matcher(item);
     });
-  }, [searchQuery, activeTab]);
+  }, [searchQuery, activeTab, visibleIcons]);
+
+  const handleToggleAllActivities = (checked: boolean) => {
+    setShowAllActivities(checked);
+    setSelectedTabId(checked ? 'all' : 'recommended');
+  };
 
   const handleSelectIcon = (key: string | null) => {
     setCustomCategoryIcon(categoryId || categoryName, key);
@@ -289,6 +306,8 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
   }, [onClose]);
 
   const SmartIconComponent = CATEGORY_ICON_MAP[smartSuggestedKey];
+  const smartIconName = CATEGORY_ICON_CATALOG.find((item) => item.key === smartSuggestedKey)?.name;
+  const storeTypeLabel = getStoreTypeIconLabel(storeType);
 
   return (
     <div 
@@ -297,7 +316,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-xl max-h-[85vh] bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark overflow-hidden flex flex-col text-right text-ink dark:text-ink-dark">
+      <div className="w-full max-w-3xl max-h-[90vh] bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark overflow-hidden flex flex-col text-right text-ink dark:text-ink-dark">
         {/* Header */}
         <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-b border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
@@ -308,17 +327,12 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
               </h3>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright p-1 rounded-lg transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {/* Body */}
-        <div className="p-4 flex flex-col gap-3.5 text-xs flex-1 min-h-0 overflow-y-auto bg-surface dark:bg-surface-dark">
+        <MotionHeight className="flex-1 min-h-0 overflow-y-auto bg-surface dark:bg-surface-dark">
+        <div className="p-4 flex flex-col gap-3.5 text-xs">
           {/* Smart Auto Card */}
           <div className="p-3 rounded-xl bg-brand-soft/40 dark:bg-brand-dark-soft border border-brand/20 dark:border-brand/30 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
@@ -328,7 +342,9 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
               <div>
                 <div className="flex items-center gap-1.5">
                   <span className="font-bold text-ink dark:text-ink-dark">الأيقونة الذكية المقترحة:</span>
-                  <span className="font-mono text-brand dark:text-brand-bright font-bold">{smartSuggestedKey}</span>
+                  {smartIconName && (
+                    <span className="text-brand dark:text-brand-bright font-bold">{smartIconName}</span>
+                  )}
                   {isAutoMode && (
                     <span className="text-micro bg-brand dark:bg-brand-container text-white font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5">
                       <Sparkles className="w-2.5 h-2.5" />
@@ -343,31 +359,43 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
             </div>
 
             {!isAutoMode && (
-              <button
-                type="button"
+              <AppButton
+                variant="secondary"
+                size="xs"
+                icon={RotateCcw}
                 onClick={() => handleSelectIcon(null)}
-                className="px-2.5 py-1.5 rounded-lg bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark text-micro font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer"
+                className="shrink-0"
                 title="إعادة التعيين للاقتراح الذكي"
               >
-                <RotateCcw className="w-3 h-3 text-brand dark:text-brand-bright" />
-                <span>استعادة التلقائي</span>
-              </button>
+                استعادة التلقائي
+              </AppButton>
             )}
+          </div>
+
+          {/* Store type filter note + toggle to reveal every activity */}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark px-3 py-2">
+            <span className="text-micro font-bold text-ink-muted dark:text-ink-dark-muted">
+              {showAllActivities ? 'تُعرض أيقونات كل الأنشطة' : `أيقونات مناسبة لنشاط: ${storeTypeLabel}`}
+            </span>
+            <ToggleSwitch
+              size="sm"
+              checked={showAllActivities}
+              onChange={handleToggleAllActivities}
+              label="عرض أيقونات كل الأنشطة"
+            />
           </div>
 
           {/* Search Bar & Store Tailored Filter Tabs */}
           <div className="flex flex-col gap-2">
-            <div className="relative w-full">
-              <Search className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted pointer-events-none" />
-              <input
-                type="text"
-                placeholder="ابحث في جميع الأيقونات بالاسم أو الكود..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg h-9 pr-9 pl-3 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                autoFocus
-              />
-            </div>
+            <SearchInput
+              size="sm"
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="ابحث في جميع الأيقونات بالاسم أو الكود..."
+              autoFocus
+              ariaLabel="بحث في الأيقونات"
+              className="w-full"
+            />
 
             {/* Filter Tabs (Tailored to active store type) */}
             <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-lg border border-line dark:border-line-dark overflow-x-auto shrink-0">
@@ -392,7 +420,8 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
           </div>
 
           {/* Icons Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-1">
+          <div {...gridPanel}>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-2 p-1">
             {filteredIcons.length === 0 ? (
               <div className="col-span-full py-8 text-center text-ink-muted dark:text-ink-dark-muted bg-surface-2/50 dark:bg-surface-dark-2 rounded-xl border border-dashed border-line dark:border-line-dark">
                 لا توجد أيقونة مطابقة للبحث
@@ -408,6 +437,7 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
                     type="button"
                     key={item.key}
                     onClick={() => handleSelectIcon(item.key)}
+                    title={item.name}
                     className={`p-2.5 rounded-xl border text-right transition-all flex items-center gap-2.5 cursor-pointer group relative ${
                       isCustomCurrent
                         ? 'border-brand dark:border-brand-bright bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-bold shadow-xs'
@@ -425,11 +455,8 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="text-micro truncate leading-tight">
+                      <div className="text-micro break-words leading-snug">
                         {item.name}
-                      </div>
-                      <div className="text-micro text-ink-muted dark:text-ink-dark-muted truncate font-mono mt-0.5">
-                        {item.key}
                       </div>
                     </div>
 
@@ -441,10 +468,12 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
               })
             )}
           </div>
+          </div>
         </div>
+        </MotionHeight>
 
         {/* Footer */}
-        <div className="h-11 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted">
+        <div className="h-11 shrink-0 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted">
           <span>يتم تطبيق الأيقونة فوراً في شريط الكاشير وكافة شاشات المتجر.</span>
         </div>
       </div>

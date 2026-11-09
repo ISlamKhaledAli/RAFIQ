@@ -906,7 +906,7 @@ namespace RafiqPOS.Services
                 if (SecurityService.CurrentUser != null && DatabaseService.Security != null &&
                     !DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "insurance.sell"))
                 {
-                    throw new InvalidOperationException("المستخدم الحالي لا يملك صلاحية بيع روشتات التأمين الطبي (insurance.sell).");
+                    throw new InvalidOperationException("المستخدم الحالي لا يملك صلاحية بيع روشتات التأمين الطبي.");
                 }
 
                 if (DatabaseService.Insurance == null)

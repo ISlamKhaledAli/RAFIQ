@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import { 
   SlidersHorizontal, 
   Sparkles, 
-  Search, 
   Store, 
   ShoppingCart, 
   Package, 
@@ -32,14 +31,16 @@ import {
   Flame,
   ChevronDown,
   ChevronUp,
-  X
 } from 'lucide-react';
+import { SearchInput } from '../../components/SearchInput';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { SegmentedTabs } from '../../components/SegmentedTabs';
+import { RootMotionCard } from './RootMotionCard';
 import { useFeatures } from '../../context/useFeatures';
 import { rafiqAlert } from '../../utils/dialogService';
 import { INITIAL_STORE_TEMPLATES } from '../../constants/storeTemplates';
-import { PRIMARY_BUTTON_CLASS } from '../settings/settingsParts';
+import { AppButton } from '../../components/AppButton';
+import MotionHeight from '../../components/MotionHeight';
 
 interface RootFeaturesPageProps {
   flags: Record<string, boolean>;
@@ -228,14 +229,15 @@ export const RootFeaturesPage = ({
           </div>
         </div>
 
-        <button type="button" onClick={onOpenWizard} className={`${PRIMARY_BUTTON_CLASS} shrink-0 self-start lg:self-auto`}>
-          <Sparkles className="w-4 h-4" />
-          <span>تغيير نشاط المتجر (معالج الإعداد)</span>
-        </button>
+        <AppButton variant="primary" size="lg" icon={Sparkles} onClick={onOpenWizard} className="self-start lg:self-auto">
+          تغيير نشاط المتجر (معالج الإعداد)
+        </AppButton>
       </div>
 
+      <RootMotionCard />
+
       {/* 2. Collapsible clarification: InstaPay at the till vs wallet agency */}
-      <div className="bg-paid-soft/40 dark:bg-paid-dark-soft/20 border border-paid/20 dark:border-paid-bright/30 rounded-2xl p-4">
+      <MotionHeight className="bg-paid-soft/40 dark:bg-paid-dark-soft/20 border border-paid/20 dark:border-paid-bright/30 rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-3">
           <div className="flex items-center gap-3">
             <Info className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
@@ -243,15 +245,16 @@ export const RootFeaturesPage = ({
               الفرق بين قبول إنستاباي في الكاشير وخدمة المحافظ الإلكترونية
             </span>
           </div>
-          <button
-            type="button"
+          <AppButton
+            variant="successSoft"
+            size="lg"
+            icon={showTipBanner ? ChevronUp : ChevronDown}
+            iconPosition="end"
             onClick={() => setShowTipBanner(!showTipBanner)}
             aria-expanded={showTipBanner}
-            className="h-11 px-4 text-sm font-bold text-paid hover:text-paid-dark dark:text-paid-bright dark:hover:text-paid-bright flex items-center gap-2 cursor-pointer bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/70 dark:hover:bg-paid-dark-soft/70 rounded-lg border border-paid/20 dark:border-paid-bright/30 transition-colors"
           >
-            <span>{showTipBanner ? 'إخفاء التوضيح' : 'عرض التوضيح'}</span>
-            {showTipBanner ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
+            {showTipBanner ? 'إخفاء التوضيح' : 'عرض التوضيح'}
+          </AppButton>
         </div>
 
         {showTipBanner && (
@@ -266,7 +269,7 @@ export const RootFeaturesPage = ({
             </div>
           </div>
         )}
-      </div>
+      </MotionHeight>
 
       {/* 3. Category filter and live search */}
       <div className="flex flex-col gap-4">
@@ -282,27 +285,14 @@ export const RootFeaturesPage = ({
           }))}
         />
 
-        <div className="relative w-full md:max-w-md">
-          <Search className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="بحث في أسماء الميزات..."
-            aria-label="بحث في الميزات"
-            className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl h-11 pr-10 pl-11 text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-muted-dark/70 focus:outline-none focus:border-brand dark:focus:border-brand-bright transition-colors"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              aria-label="مسح البحث"
-              className="absolute left-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        <SearchInput
+          size="md"
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="بحث في أسماء الميزات..."
+          ariaLabel="بحث في الميزات"
+          className="w-full md:max-w-md"
+        />
       </div>
 
       {/* 4. Features grid */}

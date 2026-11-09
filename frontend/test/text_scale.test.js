@@ -22,15 +22,16 @@ const fakeRoot = () => {
 };
 
 describe('text scale preference', () => {
-  it('offers three levels with the default in the list', () => {
-    assert.deepEqual(TEXT_SCALE_LEVELS.map((l) => l.value), [0.9, 1, 1.1]);
+  it('offers four levels with the default in the list', () => {
+    assert.deepEqual(TEXT_SCALE_LEVELS.map((l) => l.value), [0.9, 1, 1.1, 1.2]);
     assert.ok(TEXT_SCALE_LEVELS.some((l) => l.value === DEFAULT_TEXT_SCALE));
   });
 
   it('parses valid levels and falls back to the default for anything else', () => {
     assert.equal(parseTextScale('1.1'), 1.1);
     assert.equal(parseTextScale('0.9'), 0.9);
-    assert.equal(parseTextScale('1.2'), DEFAULT_TEXT_SCALE, 'level above the cap is rejected');
+    assert.equal(parseTextScale('1.2'), 1.2);
+    assert.equal(parseTextScale('1.3'), DEFAULT_TEXT_SCALE, 'level above the largest is rejected');
     for (const bad of [null, undefined, '', '  ', 'abc', '0', '2', '-1', '1.05', 'NaN', 'Infinity']) {
       assert.equal(parseTextScale(bad), DEFAULT_TEXT_SCALE, `input ${String(bad)}`);
     }

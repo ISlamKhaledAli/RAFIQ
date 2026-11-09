@@ -34,12 +34,22 @@ namespace RafiqPOS.Services
                 PassedAssertions = 0
             };
 
-            string sourceDbPath = Path.Combine(Path.GetTempPath(), "rafiq_mig_src_" + Guid.NewGuid().ToString("N") + ".db");
+            // Each machine gets its own folder: a package may not be read from or written to the folder of the database it belongs to
+            string workRoot = Path.Combine(Path.GetTempPath(), "rafiq_mig_selftest_" + Guid.NewGuid().ToString("N"));
+            string sourceFolder = Path.Combine(workRoot, "source");
+            string targetFolder = Path.Combine(workRoot, "target");
+            string flashFolder = Path.Combine(workRoot, "flash");
+            Directory.CreateDirectory(sourceFolder);
+            Directory.CreateDirectory(targetFolder);
+            Directory.CreateDirectory(flashFolder);
+
+            string sourceDbPath = Path.Combine(sourceFolder, "rafiq_pos.db");
             string sourceConnStr = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", sourceDbPath);
 
-            string targetDbPath = Path.Combine(Path.GetTempPath(), "rafiq_mig_tgt_" + Guid.NewGuid().ToString("N") + ".db");
+            string targetDbPath = Path.Combine(targetFolder, "rafiq_pos.db");
             string targetConnStr = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", targetDbPath);
 
+            string recoveryCode = EncryptionService.GenerateRecoveryCode();
             string packageFilePath = null;
 
             try
@@ -126,7 +136,7 @@ namespace RafiqPOS.Services
 
                 // 2. Export Migration Package (Task 139-1)
                 var srcMigrationService = new MigrationService(sourceConnStr, sourceDbPath, srcSettings, srcAudit);
-                var exportRes = srcMigrationService.CreateMigrationPackage(Path.GetTempPath());
+                var exportRes = srcMigrationService.CreateMigrationPackage(flashFolder, recoveryCode);
 
                 Assert(exportRes.Success, "نجاح إنشاء حزمة النقل (.rafiqpkg)", result);
                 Assert(!string.IsNullOrEmpty(exportRes.FilePath) && File.Exists(exportRes.FilePath), "وجود ملف الحزمة في المجلد المحدد", result);
@@ -142,7 +152,7 @@ namespace RafiqPOS.Services
 
                 // 3. Inspect Package on New / Target Machine (Task 139-2)
                 var tgtMigrationService = new MigrationService(targetConnStr, targetDbPath, null, null);
-                var inspectRes = tgtMigrationService.InspectPackage(packageFilePath);
+                var inspectRes = tgtMigrationService.InspectPackage(packageFilePath, recoveryCode);
 
                 Assert(inspectRes.Success, "فحص الحزمة على الجهاز الجديد وقراءتها بنجاح", result);
                 Assert(inspectRes.IsCompatible, "توافق هيكل الحزمة مع إصدار البرنامج الحالي", result);
@@ -153,7 +163,7 @@ namespace RafiqPOS.Services
                 // Initialize target DB with standard migrations first (simulating fresh install)
                 MigrationRunner.ApplyMigrations(targetConnStr, targetDbPath);
 
-                var restoreRes = tgtMigrationService.RestorePackage(packageFilePath);
+                var restoreRes = tgtMigrationService.RestorePackage(packageFilePath, recoveryCode);
                 Assert(restoreRes.Success, "استرجاع حزمة النقل بنجاح وتثبيتها في قاعدة الهدف", result);
                 Assert(restoreRes.IsMatch, "تطابق كافة الأرقام والإحصائيات بنسبة 100% بين المصدر والهدف", result);
                 Assert(restoreRes.Differences.Count == 0, "خلو قائمة الفروقات من أي اختلافات", result);
@@ -197,14 +207,16 @@ namespace RafiqPOS.Services
                     GC.Collect();
                     GC.WaitForPendingFinalizers();
 
-                    if (File.Exists(sourceDbPath)) File.Delete(sourceDbPath);
-                    if (File.Exists(targetDbPath)) File.Delete(targetDbPath);
-                    if (!string.IsNullOrEmpty(packageFilePath) && File.Exists(packageFilePath))
-                    {
-                        File.Delete(packageFilePath);
-                    }
+                    if (Directory.Exists(workRoot)) Directory.Delete(workRoot, true);
                 }
-                catch { }
+                catch (IOException ex)
+                {
+                    Logger.Warn("تعذر حذف ملفات اختبار النقل المؤقتة: " + ex.Message);
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    Logger.Warn("تعذر حذف ملفات اختبار النقل المؤقتة: " + ex.Message);
+                }
             }
 
             if (result.Success && result.PassedAssertions == result.TotalAssertions)

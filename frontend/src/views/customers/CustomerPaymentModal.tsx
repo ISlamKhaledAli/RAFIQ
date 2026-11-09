@@ -8,6 +8,9 @@ import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatArabicCurrency } from '../../utils/money';
 import { invoke } from '../../bridge/ipc';
 
+import { AppButton } from '../../components/AppButton';
+import MotionHeight from '../../components/MotionHeight';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 export interface CustomerPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -39,6 +42,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   // 'credit_account' = استلام المبلغ كاملاً وتسجيل الزيادة رصيد دائن تحت الحساب
   const [excessAction, setExcessAction] = useState<'return_change' | 'credit_account'>('return_change');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet' | 'card'>('cash');
+  const methodPanel = useMotionPanel(paymentMethod);
   const [digitalAccountId, setDigitalAccountId] = useState<string>('');
   const [digitalAccounts, setDigitalAccounts] = useState<{ id: string; name: string; type: string; isActive?: boolean }[]>([]);
 
@@ -127,7 +131,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
 
   return (
     <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/75 backdrop-blur-sm p-4">
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="h-13 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
@@ -143,260 +147,246 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={requestClose} aria-label="إغلاق" />
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs flex-1 min-h-0 overflow-y-auto">
-          {/* Customer Balance Summary Card */}
-          <div className="p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-ink-muted dark:text-ink-dark-muted">
-                {currentBal > 0
-                  ? 'إجمالي المديونية المستحقة عليه:'
-                  : currentBal < 0
-                  ? 'رصيد دائن سابق (له فلوس):'
-                  : 'حالة الحساب الحالية:'}
-              </span>
-              <span
-                className={`font-mono font-black text-sm ${
-                  currentBal > 0
-                    ? 'text-danger dark:text-danger-bright'
+        <form onSubmit={handleSubmit} className="text-xs flex-1 min-h-0 flex flex-col">
+          <MotionHeight className="flex-1 min-h-0 overflow-y-auto p-5">
+          <div className="space-y-4">
+            {/* Customer Balance Summary Card */}
+            <div className="p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-ink-muted dark:text-ink-dark-muted">
+                  {currentBal > 0
+                    ? 'إجمالي المديونية المستحقة عليه:'
                     : currentBal < 0
-                    ? 'text-paid dark:text-paid-bright'
-                    : 'text-ink-muted dark:text-ink-dark-muted'
-                }`}
-              >
-                {currentBal !== 0
-                  ? formatArabicCurrency(Math.abs(currentBal))
-                  : 'خالص تماماً'}
-              </span>
-            </div>
-          </div>
-
-          {/* Payment Method Selector */}
-          <div>
-            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1.5">
-              طريقة استلام وسداد الدفعة
-            </label>
-            <CustomSelect
-              value={paymentMethod}
-              onChange={(val) => {
-                setPaymentMethod(val as 'cash' | 'instapay' | 'wallet' | 'card');
-                setDigitalAccountId('');
-              }}
-              options={[
-                { value: 'cash', label: 'نقداً (كاش بالدرج)', icon: <Coins className="w-4 h-4 text-paid dark:text-paid-bright" /> },
-                { value: 'instapay', label: 'إنستاباي (InstaPay)', icon: <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" /> },
-                { value: 'wallet', label: 'محفظة كاش (فودافون / أورنج / اتصالات)', icon: <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" /> },
-                { value: 'card', label: 'تحويل بنكي / فيزا', icon: <Building2 className="w-4 h-4 text-brand dark:text-brand-bright" /> },
-              ]}
-              className="w-full"
-            />
-          </div>
-
-          {availableDigitalAccounts.length > 0 && (
-            <div className="animate-in fade-in duration-150">
-              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-                توجيه الرصيد إلى الحساب / المحفظة
-              </label>
-              <CustomSelect
-                value={digitalAccountId}
-                onChange={setDigitalAccountId}
-                options={[
-                  { value: '', label: 'الحساب الافتراضي للنظام' },
-                  ...availableDigitalAccounts.map((acc) => ({
-                    value: acc.id,
-                    label: acc.name,
-                  })),
-                ]}
-                className="w-full"
-              />
-            </div>
-          )}
-
-          {/* Amount Input */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-ink dark:text-ink-dark block">
-                {paymentMethod === 'cash'
-                  ? 'المبلغ المستلم كاش من يد العميل'
-                  : 'المبلغ المحول إلكترونياً من العميل'}{' '}
-                <RequiredMark />
-              </label>
-              {isDebt && (
-                <button
-                  type="button"
-                  onClick={() => setPaymentAmountPiasters(currentBal)}
-                  className="text-micro font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer flex items-center gap-1"
+                    ? 'رصيد دائن سابق (له فلوس):'
+                    : 'حالة الحساب الحالية:'}
+                </span>
+                <span
+                  className={`font-mono font-black text-sm ${
+                    currentBal > 0
+                      ? 'text-danger dark:text-danger-bright'
+                      : currentBal < 0
+                      ? 'text-paid dark:text-paid-bright'
+                      : 'text-ink-muted dark:text-ink-dark-muted'
+                  }`}
                 >
-                  <Coins className="w-3 h-3" />
-                  <span>دفع كامل الدين بالظبط</span>
-                </button>
+                  {currentBal !== 0
+                    ? formatArabicCurrency(Math.abs(currentBal))
+                    : 'خالص تماماً'}
+                </span>
+              </div>
+            </div>
+
+            <div {...methodPanel} className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+              {/* Payment Method Selector */}
+              <div className={`motion-static${availableDigitalAccounts.length > 0 ? '' : ' sm:col-span-2'}`}>
+                <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1.5">
+                  طريقة استلام وسداد الدفعة
+                </label>
+                <CustomSelect
+                  value={paymentMethod}
+                  onChange={(val) => {
+                    setPaymentMethod(val as 'cash' | 'instapay' | 'wallet' | 'card');
+                    setDigitalAccountId('');
+                  }}
+                  options={[
+                    { value: 'cash', label: 'نقداً (كاش بالدرج)', icon: <Coins className="w-4 h-4 text-paid dark:text-paid-bright" /> },
+                    { value: 'instapay', label: 'إنستاباي', icon: <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" /> },
+                    { value: 'wallet', label: 'محفظة كاش (فودافون / أورنج / اتصالات)', icon: <Smartphone className="w-4 h-4 text-brand dark:text-brand-bright" /> },
+                    { value: 'card', label: 'تحويل بنكي / فيزا', icon: <Building2 className="w-4 h-4 text-brand dark:text-brand-bright" /> },
+                  ]}
+                  className="w-full"
+                />
+              </div>
+
+              {availableDigitalAccounts.length > 0 && (
+                <div className="animate-in fade-in">
+                  <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
+                    توجيه الرصيد إلى الحساب / المحفظة
+                  </label>
+                  <CustomSelect
+                    value={digitalAccountId}
+                    onChange={setDigitalAccountId}
+                    options={[
+                      { value: '', label: 'الحساب الافتراضي للنظام' },
+                      ...availableDigitalAccounts.map((acc) => ({
+                        value: acc.id,
+                        label: acc.name,
+                      })),
+                    ]}
+                    className="w-full"
+                  />
+                </div>
               )}
             </div>
 
-            <MoneyInput
-              valuePiasters={paymentAmountPiasters}
-              onChangePiasters={setPaymentAmountPiasters}
-              className="h-11 text-base text-paid dark:text-paid-bright font-black"
-              autoFocus
-            />
-          </div>
-
-          {/* Smart Excess Resolution Box when payment exceeds debt */}
-          {hasExcess && (
-            <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl space-y-2 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 px-3 py-1.5 rounded-lg text-xs">
-                <div className="flex items-center gap-1.5 font-bold text-ink dark:text-ink-dark">
-                  <AlertCircle className="w-3.5 h-3.5 text-warn dark:text-warn-bright shrink-0" />
-                  <span>زيادة عن الدين المطلوب:</span>
-                </div>
-                <span className="font-mono font-black text-warn dark:text-warn-bright text-xs">
-                  {formatArabicCurrency(excessPiasters)}
-                </span>
+            {/* Amount Input */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-ink dark:text-ink-dark block">
+                  {paymentMethod === 'cash'
+                    ? 'المبلغ المستلم كاش من يد العميل'
+                    : 'المبلغ المحول إلكترونياً من العميل'}{' '}
+                  <RequiredMark />
+                </label>
+                {isDebt && (
+                  <AppButton variant="subtle" size="xs" icon={Coins} onClick={() => setPaymentAmountPiasters(currentBal)}>
+                    دفع كامل الدين بالظبط
+                  </AppButton>
+                )}
               </div>
 
-              {/* Resolution Option 1: Return Change */}
-              <button
-                type="button"
-                onClick={() => setExcessAction('return_change')}
-                className={`w-full p-2.5 rounded-lg border text-right transition-all flex items-start gap-2.5 cursor-pointer ${
-                  excessAction === 'return_change'
-                    ? 'bg-surface dark:bg-surface-dark border-brand dark:border-brand-bright ring-1 ring-brand dark:ring-brand-bright text-ink dark:text-ink-dark shadow-2xs'
-                    : 'bg-surface/50 dark:bg-surface-dark/50 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:bg-surface dark:hover:bg-surface-dark hover:text-ink dark:hover:text-ink-dark'
-                }`}
-              >
-                <div className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
-                  excessAction === 'return_change'
-                    ? 'border-brand dark:border-brand-bright bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
-                    : 'border-line dark:border-line-dark'
-                }`}>
-                  {excessAction === 'return_change' && <Check className="w-2.5 h-2.5" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-ink dark:text-ink-dark flex items-center gap-1.5">
-                      <Coins className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                      <span>رجّع الباقي كاش للزبون</span>
-                    </span>
-                  </div>
-                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
-                    سداد الدين كامل، وترد له الزيادة فكة في إيده.
-                  </p>
-                </div>
-              </button>
-
-              {/* Resolution Option 2: Credit Account */}
-              <button
-                type="button"
-                onClick={() => setExcessAction('credit_account')}
-                className={`w-full p-2.5 rounded-lg border text-right transition-all flex items-start gap-2.5 cursor-pointer ${
-                  excessAction === 'credit_account'
-                    ? 'bg-surface dark:bg-surface-dark border-paid dark:border-paid-bright ring-1 ring-paid dark:ring-paid-bright text-ink dark:text-ink-dark shadow-2xs'
-                    : 'bg-surface/50 dark:bg-surface-dark/50 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:bg-surface dark:hover:bg-surface-dark hover:text-ink dark:hover:text-ink-dark'
-                }`}
-              >
-                <div className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
-                  excessAction === 'credit_account'
-                    ? 'border-paid dark:border-paid-bright bg-paid dark:bg-paid-dark-soft text-white dark:text-paid-bright dark:ring-1 dark:ring-inset dark:ring-paid-bright/40'
-                    : 'border-line dark:border-line-dark'
-                }`}>
-                  {excessAction === 'credit_account' && <Check className="w-2.5 h-2.5" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-ink dark:text-ink-dark flex items-center gap-1.5">
-                      <ArrowLeftRight className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
-                      <span>سيب الزيادة رصيد في حسابه</span>
-                    </span>
-                  </div>
-                  <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
-                    تسجيل الزيادة رصيد له تتخصم من فواتيره الجاية.
-                  </p>
-                </div>
-              </button>
+              <MoneyInput
+                valuePiasters={paymentAmountPiasters}
+                onChangePiasters={setPaymentAmountPiasters}
+                className="h-11 text-base text-paid dark:text-paid-bright font-black"
+                autoFocus
+              />
             </div>
-          )}
 
-          {/* When customer had no debt initially */}
-          {!isDebt && paymentAmountPiasters > 0 && (
-            <div className="p-2.5 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-emerald-800/40 rounded-xl text-xs text-paid dark:text-paid-bright flex items-start gap-2">
-              <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold block">دفعة مقدّمة تحت الحساب:</span>
-                <span className="text-micro block mt-0.5">
-                  الزبون معلهوش دين حالياً — الدفعة هتتسجل رصيد في حسابه يتخصم من مشترياته الجاية.
-                </span>
-              </div>
-            </div>
-          )}
+            {/* Smart Excess Resolution Box when payment exceeds debt */}
+            {hasExcess && (
+              <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl space-y-2 animate-in fade-in">
+                <div className="flex items-center justify-between bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 px-3 py-1.5 rounded-lg text-xs">
+                  <div className="flex items-center gap-1.5 font-bold text-ink dark:text-ink-dark">
+                    <AlertCircle className="w-3.5 h-3.5 text-warn dark:text-warn-bright shrink-0" />
+                    <span>زيادة عن الدين المطلوب:</span>
+                  </div>
+                  <span className="font-mono font-black text-warn dark:text-warn-bright text-xs">
+                    {formatArabicCurrency(excessPiasters)}
+                  </span>
+                </div>
 
-          {/* Outcome Preview Banner */}
-          {paymentAmountPiasters > 0 && (
-            <div className={`p-3 rounded-xl border text-micro flex items-center justify-between font-medium ${
-              balanceAfter > 0
-                ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
-                : balanceAfter < 0
-                ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-emerald-800/40 text-paid dark:text-paid-bright'
-                : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark'
-            }`}>
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold">حساب العميل بعد التنفيذ:</span>
+                {/* Resolution Option 1: Return Change */}
+                <button
+                  type="button"
+                  onClick={() => setExcessAction('return_change')}
+                  className={`w-full p-2.5 rounded-lg border text-right transition-all flex items-start gap-2.5 cursor-pointer ${
+                    excessAction === 'return_change'
+                      ? 'bg-surface dark:bg-surface-dark border-brand dark:border-brand-bright ring-1 ring-brand dark:ring-brand-bright text-ink dark:text-ink-dark shadow-2xs'
+                      : 'bg-surface/50 dark:bg-surface-dark/50 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:bg-surface dark:hover:bg-surface-dark hover:text-ink dark:hover:text-ink-dark'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
+                    excessAction === 'return_change'
+                      ? 'border-brand dark:border-brand-bright bg-brand dark:bg-brand-dark-soft text-white dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40'
+                      : 'border-line dark:border-line-dark'
+                  }`}>
+                    {excessAction === 'return_change' && <Check className="w-2.5 h-2.5" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-ink dark:text-ink-dark flex items-center gap-1.5">
+                        <Coins className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                        <span>رجّع الباقي كاش للزبون</span>
+                      </span>
+                    </div>
+                    <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
+                      سداد الدين كامل، وترد له الزيادة فكة في إيده.
+                    </p>
+                  </div>
+                </button>
+
+                {/* Resolution Option 2: Credit Account */}
+                <button
+                  type="button"
+                  onClick={() => setExcessAction('credit_account')}
+                  className={`w-full p-2.5 rounded-lg border text-right transition-all flex items-start gap-2.5 cursor-pointer ${
+                    excessAction === 'credit_account'
+                      ? 'bg-surface dark:bg-surface-dark border-paid dark:border-paid-bright ring-1 ring-paid dark:ring-paid-bright text-ink dark:text-ink-dark shadow-2xs'
+                      : 'bg-surface/50 dark:bg-surface-dark/50 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:bg-surface dark:hover:bg-surface-dark hover:text-ink dark:hover:text-ink-dark'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
+                    excessAction === 'credit_account'
+                      ? 'border-paid dark:border-paid-bright bg-paid dark:bg-paid-dark-soft text-white dark:text-paid-bright dark:ring-1 dark:ring-inset dark:ring-paid-bright/40'
+                      : 'border-line dark:border-line-dark'
+                  }`}>
+                    {excessAction === 'credit_account' && <Check className="w-2.5 h-2.5" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-ink dark:text-ink-dark flex items-center gap-1.5">
+                        <ArrowLeftRight className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
+                        <span>سيب الزيادة رصيد في حسابه</span>
+                      </span>
+                    </div>
+                    <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
+                      تسجيل الزيادة رصيد له تتخصم من فواتيره الجاية.
+                    </p>
+                  </div>
+                </button>
               </div>
-              <span className="font-mono font-bold text-xs">
-                {balanceAfter > 0
-                  ? `متبقي عليه: ${formatArabicCurrency(balanceAfter)}`
+            )}
+
+            {/* When customer had no debt initially */}
+            {!isDebt && paymentAmountPiasters > 0 && (
+              <div className="p-2.5 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-emerald-800/40 rounded-xl text-xs text-paid dark:text-paid-bright flex items-start gap-2">
+                <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">دفعة مقدّمة تحت الحساب:</span>
+                  <span className="text-micro block mt-0.5">
+                    الزبون معلهوش دين حالياً — الدفعة هتتسجل رصيد في حسابه يتخصم من مشترياته الجاية.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Outcome Preview Banner */}
+            {paymentAmountPiasters > 0 && (
+              <div className={`p-3 rounded-xl border text-micro flex items-center justify-between font-medium ${
+                balanceAfter > 0
+                  ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
                   : balanceAfter < 0
-                  ? `له في المحل: ${formatArabicCurrency(Math.abs(balanceAfter))} (دائن)`
-                  : 'خالص تماماً'}
-              </span>
-            </div>
-          )}
+                  ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-emerald-800/40 text-paid dark:text-paid-bright'
+                  : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark'
+              }`}>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold">حساب العميل بعد التنفيذ:</span>
+                </div>
+                <span className="font-mono font-bold text-xs">
+                  {balanceAfter > 0
+                    ? `متبقي عليه: ${formatArabicCurrency(balanceAfter)}`
+                    : balanceAfter < 0
+                    ? `له في المحل: ${formatArabicCurrency(Math.abs(balanceAfter))} (دائن)`
+                    : 'خالص تماماً'}
+                </span>
+              </div>
+            )}
 
-          {/* Notes Input */}
-          <div>
-            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
-              ملاحظات أو بيان السند
-            </label>
-            <input
-              type="text"
-              value={paymentNotes}
-              onChange={(e) => setPaymentNotes(e.target.value)}
-              placeholder={
-                hasExcess
-                  ? (excessAction === 'return_change' ? 'تم رد باقي الفكة للعميل' : 'سداد وفائض تحت الحساب')
-                  : isDebt
-                  ? 'سداد نقدي من العميل'
-                  : 'دفعة مقدمة تحت الحساب'
-              }
-              className="w-full h-9 px-3 bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark text-xs transition-colors"
-            />
+            {/* Notes Input */}
+            <div>
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
+                ملاحظات أو بيان السند
+              </label>
+              <input
+                type="text"
+                value={paymentNotes}
+                onChange={(e) => setPaymentNotes(e.target.value)}
+                placeholder={
+                  hasExcess
+                    ? (excessAction === 'return_change' ? 'تم رد باقي الفكة للعميل' : 'سداد وفائض تحت الحساب')
+                    : isDebt
+                    ? 'سداد نقدي من العميل'
+                    : 'دفعة مقدمة تحت الحساب'
+                }
+                className="w-full h-9 px-3 bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark text-xs transition-colors"
+              />
+            </div>
           </div>
+          </MotionHeight>
 
           {/* Actions */}
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-line dark:border-line-dark">
-            <button
-              type="button"
-              onClick={requestClose}
-              className="px-4 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark font-semibold transition-colors cursor-pointer"
-            >
+          <div className="px-5 py-3 flex items-center justify-end gap-2 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 shrink-0">
+            <AppButton variant="secondary" onClick={requestClose}>
               إلغاء
-            </button>
-            <button
-              type="submit"
-              disabled={paymentAmountPiasters <= 0}
-              className="px-5 py-2 rounded-xl bg-paid hover:bg-paid-hover text-white font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
-            >
-              <Check className="w-4 h-4" />
-              <span>تأكيد السداد</span>
-            </button>
+            </AppButton>
+            <AppButton type="submit" variant="success" icon={Check} disabled={paymentAmountPiasters <= 0}>
+              تأكيد السداد
+            </AppButton>
           </div>
         </form>
       </div>

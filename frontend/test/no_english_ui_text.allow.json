@@ -1,0 +1,16 @@
+{
+  "_comment": "Legitimate Latin text allowed inside parentheses after Arabic UI text. Everything else in that position is an English gloss and fails test/no_english_ui_text.test.js.",
+  "glossTokens": {
+    "brands": [
+      "AAIB", "ABK", "ADCB", "ADIB", "Al Baraka", "Alex Wallet", "AlexBank", "Arab Bank", "BDC", "Banque Misr",
+      "CIB", "EBank", "Egypt Post", "Emirates NBD", "FABMISR", "HDB", "Meeza", "Meeza Wallet", "NBE", "NBK",
+      "Orange Cash", "Suez Canal Bank", "The United Bank", "Vodafone Cash"
+    ],
+    "technical": [
+      "APD", "Bluetooth", "C", "Code 128", "DK / Cash Drawer", "Desktop / RafiqExport", "EAN-13", "ESC/POS", "Excel", "HID", "IU",
+      "LAN", "POS-01", "Pin 2", "Pin 2 + Pin 5", "Pin 5", "Rx", "SHA-256", "SKU", "UPS", "USB", "USB HID", "USB Virtual COM / RS232"
+    ],
+    "keyboardKeys": ["Ctrl+C", "Ctrl+Q", "Ctrl+Z", "Enter", "Esc", "Space"],
+    "drugNames": ["Pantoprazole", "Paracetamol"]
+  }
+}

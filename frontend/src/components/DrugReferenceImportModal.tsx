@@ -15,11 +15,15 @@ import {
   Check,
   AlertCircle
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
 import { downloadBase64File } from '../utils/excelImport';
 import { formatArabicCurrency } from '../utils/money';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { ConfirmModal } from './ConfirmModal';
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 import { PaginationBar } from './PaginationBar';
 import type { 
   DrugReferenceItem, 
@@ -47,6 +51,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
   onSuccess,
 }) => {
   const [activeTab, setActiveTab] = useState<'import' | 'browse'>('import');
+  const motionPanel = useMotionPanel(activeTab);
   
   // Import tab states
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -195,6 +200,18 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
 
   const [isLoadingBuiltin, setIsLoadingBuiltin] = useState(false);
   const [isBuiltinCatalog, setIsBuiltinCatalog] = useState(false);
+
+  // A discarded or finished import never leaks its file into the next opening
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedFile(null);
+      setFileBase64('');
+      setPreviewData(null);
+      setIsBuiltinCatalog(false);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+    }
+  }, [isOpen]);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
 
   const handleImportBuiltinCatalog = async () => {
@@ -442,14 +459,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => void requestClose()}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-                title="إغلاق"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => void requestClose()} />
             </div>
           </div>
 
@@ -469,7 +479,8 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
           )}
 
           {/* 2. Scrollable Body */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <MotionHeight className="flex-1 overflow-y-auto p-6">
+          <div {...motionPanel} className="space-y-4">
             {activeTab === 'import' ? (
               <>
                 {/* Download Template Banner */}
@@ -488,16 +499,18 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="success"
+                      size="md"
+                      icon={RefreshCw}
+                      loading={isLoadingBuiltin}
+                      className="shrink-0"
                       onClick={() => void handleImportBuiltinCatalog()}
                       disabled={isLoadingBuiltin || isPreviewing}
-                      className="shrink-0 h-9 px-3.5 rounded-xl bg-paid hover:bg-paid-dark text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                       title="استيراد ومعاينة الدليل الشامل (26,562 دواء مصري) بضغطة زر واحدة مباشرة"
                     >
-                      <RefreshCw className={`w-4 h-4 ${isLoadingBuiltin ? 'animate-spin' : ''}`} />
-                      <span>{isLoadingBuiltin ? 'جاري قراءة الدليل...' : 'استيراد الدليل المصري المدمج فوراً'}</span>
-                    </button>
+                      {isLoadingBuiltin ? 'جاري قراءة الدليل...' : 'استيراد الدليل المصري المدمج فوراً'}
+                    </AppButton>
                     <a
                       href="/دليل_الأدوية_المصرية_الشامل.xlsx"
                       download="دليل_الأدوية_المصرية_الشامل.xlsx"
@@ -507,15 +520,16 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                       <Download className="w-4 h-4" />
                       <span>تحميل إكسل الدليل الشامل</span>
                     </a>
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="secondary"
+                      size="md"
+                      icon={FileSpreadsheet}
+                      className="shrink-0"
                       onClick={() => void handleDownloadTemplate()}
                       disabled={isDownloadingTemplate}
-                      className="shrink-0 h-9 px-3 rounded-xl bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                     >
-                      <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-paid-bright" />
-                      <span>{isDownloadingTemplate ? 'جاري التوليد...' : 'قالب إكسل فارغ'}</span>
-                    </button>
+                      {isDownloadingTemplate ? 'جاري التوليد...' : 'قالب إكسل فارغ'}
+                    </AppButton>
                   </div>
                 </div>
 
@@ -564,18 +578,18 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                           <p className="text-micro text-ink-muted dark:text-ink-dark-muted">{(selectedFile.size / 1024).toFixed(1)} كيلوبايت</p>
                         </div>
                       </div>
-                      <button
-                        type="button"
+                      <AppButton
+                        variant="secondary"
+                        size="sm"
                         onClick={() => {
                           setSelectedFile(null);
                           setFileBase64('');
                           setPreviewData(null);
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
-                        className="px-3 h-8 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:border-danger/30 transition-colors cursor-pointer"
                       >
                         اختيار ملف آخر
-                      </button>
+                      </AppButton>
                     </div>
 
                     {isPreviewing && (
@@ -651,16 +665,13 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
                         </div>
 
                         {/* Search inside preview */}
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="بحث في نتائج المعاينة بالباركود أو الاسم..."
-                            value={previewSearch}
-                            onChange={(e) => setPreviewSearch(e.target.value)}
-                            className="w-full h-9 pl-8 pr-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                          />
-                          <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute left-2.5 top-2.5" />
-                        </div>
+                        <SearchInput
+                          size="sm"
+                          value={previewSearch}
+                          onChange={setPreviewSearch}
+                          placeholder="بحث في نتائج المعاينة بالباركود أو الاسم..."
+                          ariaLabel="بحث في نتائج المعاينة"
+                        />
 
                         {/* Preview Table */}
                         <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden max-h-72 overflow-y-auto">
@@ -757,39 +768,24 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
               /* Browse Tab */
               <div className="space-y-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      placeholder="ابحث بالاسم التجاري، المادة الفعالة، أو الباركود..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleTriggerSearch();
-                      }}
-                      className="w-full h-10 pl-9 pr-3.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                    />
-                    <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute left-3 top-3" />
-                  </div>
+                  <SearchInput
+                    size="md"
+                    searchButton={false}
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    onSubmit={handleTriggerSearch}
+                    placeholder="ابحث بالاسم التجاري، المادة الفعالة، أو الباركود..."
+                    ariaLabel="بحث في دليل الأدوية"
+                    className="flex-1"
+                  />
 
-                  <button
-                    type="button"
-                    onClick={handleTriggerSearch}
-                    disabled={isSearching}
-                    className="h-10 px-4 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isSearching ? 'animate-spin' : ''}`} />
-                    <span>بحث</span>
-                  </button>
+                  <AppButton variant="primary" size="md" icon={RefreshCw} loading={isSearching} onClick={handleTriggerSearch} disabled={isSearching}>
+                    بحث
+                  </AppButton>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsConfirmClearOpen(true)}
-                    className="h-10 px-3.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-danger dark:text-danger-bright font-bold text-xs flex items-center gap-1.5 hover:bg-red-100 dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
-                    title="تفريغ الدليل بالكامل"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>مسح الدليل كاملاً</span>
-                  </button>
+                  <AppButton variant="dangerSoft" size="md" icon={Trash2} title="تفريغ الدليل بالكامل" onClick={() => setIsConfirmClearOpen(true)}>
+                    مسح الدليل كاملاً
+                  </AppButton>
                 </div>
 
                 {/* Table of Drugs */}
@@ -878,6 +874,7 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
               </div>
             )}
           </div>
+          </MotionHeight>
 
           {/* 3. Footer */}
           <div className="px-6 py-3.5 border-t border-line dark:border-line-dark bg-surface-2/40 dark:bg-surface-dark-2/40 flex items-center justify-between shrink-0">
@@ -893,30 +890,24 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void requestClose()}
-                className="px-4 h-9 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-              >
+              <AppButton variant="secondary" size="md" onClick={() => void requestClose()}>
                 إغلاق
-              </button>
+              </AppButton>
 
               {activeTab === 'import' && previewData && (
-                <button
-                  type="button"
+                <AppButton
+                  variant="primary"
+                  size="md"
+                  icon={CheckCircle2}
                   onClick={() => void handleConfirmImport()}
                   disabled={isImporting || (previewData.newRowsCount === 0 && previewData.updateRowsCount === 0)}
-                  className="px-5 h-9 bg-brand dark:bg-brand-bright hover:bg-brand-dark text-white dark:text-surface-dark rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark flex items-center gap-1.5"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>
-                    {isImporting
-                      ? importProgress
-                        ? `جاري حفظ الدليل (${importProgress.current.toLocaleString('ar-EG')} / ${importProgress.total.toLocaleString('ar-EG')})...`
-                        : 'جاري الاستيراد والتحديث بالدليل...'
-                      : 'تأكيد الاستيراد والحفظ بالدليل'}
-                  </span>
-                </button>
+                  {isImporting
+                    ? importProgress
+                      ? `جاري حفظ الدليل (${importProgress.current.toLocaleString('ar-EG')} / ${importProgress.total.toLocaleString('ar-EG')})...`
+                      : 'جاري الاستيراد والتحديث بالدليل...'
+                    : 'تأكيد الاستيراد والحفظ بالدليل'}
+                </AppButton>
               )}
             </div>
           </div>

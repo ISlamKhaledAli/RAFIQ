@@ -87,7 +87,7 @@ namespace RafiqPOS.Services
             {
                 if (string.IsNullOrWhiteSpace(returnObj.CustomerId))
                 {
-                    throw new InvalidOperationException("لا يمكن اختيار الاسترداد كرصيد آجل (credit) بدون تحديد عميل مسجل في النظام.");
+                    throw new InvalidOperationException("لا يمكن اختيار الاسترداد كرصيد آجل بدون تحديد عميل مسجل في النظام.");
                 }
                 if (string.Equals(returnObj.CustomerId, "cust_general_cash", StringComparison.OrdinalIgnoreCase))
                 {
@@ -451,7 +451,7 @@ namespace RafiqPOS.Services
                     if (refundMethod != "cash" && refundMethod != "card" && refundMethod != "instapay" && refundMethod != "wallet" && refundMethod != "vodafone_cash" && refundMethod != "credit" && refundMethod != "customer_balance")
                     {
                         throw new InvalidOperationException(string.Format(
-                            "طريقة استرداد المرتجع غير صالحة: '{0}'. الطرق المسموح بها هي: نقدي (cash)، بطاقة (card)، إنستاباي (instapay)، محفظة (wallet)، رصيد آجل (credit).",
+                            "طريقة استرداد المرتجع غير صالحة: '{0}'. الطرق المسموح بها هي: نقدي، بطاقة، إنستاباي، محفظة، رصيد آجل.",
                             returnObj.RefundMethod));
                     }
 
@@ -462,7 +462,7 @@ namespace RafiqPOS.Services
                         {
                             if (netCashPaidOnOrig <= 0)
                             {
-                                throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل (credit).");
+                                throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل.");
                             }
                             else if (currentReturnTotal > allowableCashRefund)
                             {
@@ -475,7 +475,7 @@ namespace RafiqPOS.Services
                         {
                             if (netCardPaidOnOrig <= 0)
                             {
-                                throw new InvalidOperationException("لا يمكن استرداد المرتجع عبر البطاقة (card) لفاتورة بيع لم يُسدد منها بالبطاقة.");
+                                throw new InvalidOperationException("لا يمكن استرداد المرتجع عبر البطاقة لفاتورة بيع لم يُسدد منها بالبطاقة.");
                             }
                             else if (currentReturnTotal > allowableCardRefund)
                             {
@@ -488,7 +488,7 @@ namespace RafiqPOS.Services
                         {
                             if (netInstapayPaidOnOrig <= 0)
                             {
-                                throw new InvalidOperationException("لا يمكن صرف مرتجع عبر إنستاباي لفاتورة بيع لم يُسدد منها عبر إنستاباي. يجب اختيار استرداد كرصيد آجل (credit).");
+                                throw new InvalidOperationException("لا يمكن صرف مرتجع عبر إنستاباي لفاتورة بيع لم يُسدد منها عبر إنستاباي. يجب اختيار استرداد كرصيد آجل.");
                             }
                             else if (currentReturnTotal > allowableInstapayRefund)
                             {
@@ -502,7 +502,7 @@ namespace RafiqPOS.Services
                         {
                             if (netWalletPaidOnOrig <= 0)
                             {
-                                throw new InvalidOperationException("لا يمكن صرف مرتجع عبر المحفظة الإلكترونية لفاتورة بيع لم يُسدد منها عبر المحفظة. يجب اختيار استرداد كرصيد آجل (credit).");
+                                throw new InvalidOperationException("لا يمكن صرف مرتجع عبر المحفظة الإلكترونية لفاتورة بيع لم يُسدد منها عبر المحفظة. يجب اختيار استرداد كرصيد آجل.");
                             }
                             else if (currentReturnTotal > allowableWalletRefund)
                             {
@@ -547,7 +547,7 @@ namespace RafiqPOS.Services
                     if (liveBal != null && liveBal.AvailableCashPiasters < totalCashToRefund)
                     {
                         throw new InvalidOperationException(string.Format(
-                            "رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لصرف قيمة المرتجع نقداً ({1:N2} ج.م). يرجى استرداد القيمة كرصيد آجل (credit) في حساب العميل أو توريد نقدية للدرج أولاً.",
+                            "رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لصرف قيمة المرتجع نقداً ({1:N2} ج.م). يرجى استرداد القيمة كرصيد آجل في حساب العميل أو توريد نقدية للدرج أولاً.",
                             liveBal.AvailableCashPiasters / 100.0, totalCashToRefund / 100.0));
                     }
                 }

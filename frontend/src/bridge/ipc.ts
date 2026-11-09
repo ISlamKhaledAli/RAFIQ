@@ -101,6 +101,7 @@ import { emitDataChanged, type RafiqDataTopic } from '../utils/eventBus.ts';
 import { DEFAULT_REGISTRY } from '../context/featureTypes.ts';
 import { DEFAULT_DEVELOPER_SIGNATURE } from '../utils/receiptLayout.ts';
 import { matchesDateFilter } from '../utils/dateFilter.ts';
+import { filterVisibleStaff, getTier } from '../utils/roleLabels.ts';
 
 const pendingRequests = new Map<string, {
   action: string;
@@ -395,7 +396,13 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         version: '1.0.0-Spike',
         osVersion: 'Windows 10/11 (Dev Mock)',
         isWebView2: false,
-        dbStatus: 'Connected',
+        dbStatus: 'متصلة وسليمة',
+        dbOk: true,
+        dbJournalMode: 'wal',
+        dbSchemaVersion: 66,
+        dbSizeBytes: 4404019,
+        dbError: '',
+        lastBackupAt: new Date().toISOString(),
       };
 
     case 'updates:check': {
@@ -665,12 +672,61 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       };
 
     case 'printer:printReceipt':
+      if (localStorage.getItem('rafiq_mock_printer') === 'error') {
+        throw new Error("الطابعة 'POS-80 Thermal Printer' غير موجودة على هذا الجهاز أو غير مثبتة. الفاتورة محفوظة بأمان ويمكن حفظ الإيصال كصورة.");
+      }
       return {
         success: true,
         printerName: payload?.printerName || 'POS-80 Thermal Printer',
         paperWidth: payload?.paperWidth || '80mm',
         message: 'تم إرسال إيصال الفاتورة للطابعة بنجاح (Mock)',
       };
+
+    // Dev-only report output simulation: localStorage rafiq_mock_printer = 'none' | 'error' and rafiq_mock_save = 'pdf-fail' | 'fail'
+    case 'report:getPrinterStatus':
+      return {
+        hasPrinter: localStorage.getItem('rafiq_mock_printer') !== 'none',
+        printerCount: 2,
+        defaultPrinter: 'POS-80 Thermal Printer',
+        configuredPrinter: '',
+        configuredFound: true,
+      };
+
+    case 'report:savePdf':
+    case 'report:saveFile':
+    case 'printer:saveReceiptImage': {
+      const saveMode = localStorage.getItem('rafiq_mock_save');
+      if (saveMode === 'fail' || (saveMode === 'pdf-fail' && action === 'report:savePdf')) {
+        throw new Error('تعذر حفظ الملف: لا توجد صلاحية كتابة على المجلد.');
+      }
+      const mockExt = action === 'report:savePdf' ? 'pdf' : action === 'printer:saveReceiptImage' ? 'png' : payload?.extension || 'html';
+      const mockName = `${payload?.reportName || 'إيصال'}_20260101_120000.${mockExt}`;
+      const mockFolder = 'C:\\Users\\Shop\\Documents\\RafiqPOS\\Reports';
+      return { path: `${mockFolder}\\${mockName}`, folder: mockFolder, fileName: mockName, sizeBytes: 2048 };
+    }
+
+    case 'returns:getForSale': {
+      // Mock history invoices that are partially refunded (every 11th, not cancelled) carry one return receipt
+      const retN = Number(String(payload?.saleId || '').replace('sale_hist_', ''));
+      if (!(retN > 0 && retN % 11 === 0 && retN % 7 !== 0)) return [];
+      return [
+        {
+          id: `ret_hist_${retN}`,
+          returnNumber: retN,
+          saleId: payload.saleId,
+          totalPiasters: 4000,
+          refundMethod: 'cash',
+          reason: 'العبوة تالفة',
+          createdAt: new Date().toISOString(),
+          items: [
+            { id: `ret_item_${retN}`, productId: 'p_1', productName: 'لبن جهينة كامل الدسم 1 لتر', quantityMilli: 1000, unitPricePiasters: 4000, totalPiasters: 4000, unit: 'piece', isDamaged: true },
+          ],
+        },
+      ];
+    }
+
+    case 'report:openFolder':
+      return { success: true, folder: 'C:\\Users\\Shop\\Documents\\RafiqPOS\\Reports' };
 
     case 'printer:printRecoveryVoucher':
       return {
@@ -684,35 +740,56 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'sales:getByInvoiceNumber': {
       const invNum = typeof payload === 'object' && payload !== null ? Number(payload.invoiceNumber) : Number(payload);
+      // Same status/customer rules as the mock history list so the details modal shows every invoice kind
+      const histN = invNum - 1000;
+      const isCredit = histN > 0 && histN % 5 === 0;
+      const mockDiscount = histN > 0 && histN % 4 === 0 ? 500 : 0;
+      const mockTotal = 12500 - mockDiscount;
       return {
-        id: `sale_mock_${invNum}`,
+        id: `sale_hist_${histN}`,
         invoiceNumber: invNum,
         cashierId: 'usr_admin_default',
         cashierName: 'مدير النظام',
-        subtotalPiasters: 8000,
-        discountPiasters: 0,
+        customerName: isCredit ? 'أحمد محمود إسماعيل' : null,
+        customerPhone: isCredit ? '01012345678' : null,
+        subtotalPiasters: 12500,
+        discountPiasters: mockDiscount,
         taxPiasters: 0,
-        totalPiasters: 8000,
-        paidPiasters: 8000,
-        paymentMethod: 'cash',
-        status: 'completed',
+        totalPiasters: mockTotal,
+        paidPiasters: isCredit ? 5000 : mockTotal,
+        paymentMethod: isCredit ? 'credit' : 'cash',
+        status: histN > 0 && histN % 7 === 0 ? 'cancelled' : histN > 0 && histN % 11 === 0 ? 'partially_refunded' : 'completed',
         createdAt: new Date().toISOString(),
         items: [
           {
             id: `item_${invNum}_1`,
-            saleId: `sale_mock_${invNum}`,
+            saleId: `sale_hist_${histN}`,
             productId: 'p_1',
             productName: 'لبن جهينة كامل الدسم 1 لتر',
+            barcode: '6221031000012',
             quantityMilli: 2000,
             unitPricePiasters: 4000,
             discountPiasters: 0,
             taxPiasters: 0,
             totalPiasters: 8000,
             unit: 'piece'
+          },
+          {
+            id: `item_${invNum}_2`,
+            saleId: `sale_hist_${histN}`,
+            productId: 'p_2',
+            productName: 'مناديل ورقية فاين سوفت 10 علب عرض خاص مع هدية',
+            barcode: '6221031000029',
+            quantityMilli: 3000,
+            unitPricePiasters: 1500,
+            discountPiasters: 0,
+            taxPiasters: 0,
+            totalPiasters: 4500,
+            unit: 'piece'
           }
         ],
         payments: [
-          { method: 'cash', amountPiasters: 8000 }
+          { method: isCredit ? 'credit' : 'cash', amountPiasters: isCredit ? 5000 : mockTotal }
         ]
       };
     }
@@ -1256,16 +1333,13 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       if (currentU?.role !== 'admin' && currentU?.role !== 'root' && !isSupervisor && mockCurrentUserId) {
         throw new Error('غير مصرح: عرض بيانات الموظفين يتطلب صلاحيات مدير النظام.');
       }
-      const isRootCaller = currentU?.role === 'root';
-      return mockUsers
-        .filter(u => isRootCaller || u.role !== 'root')
-        .map(u => ({ ...u, permissions: getMockPermissionsForRole(u.role) }));
+      return getMockStaffVisibleToCaller().map(u => ({ ...u, permissions: getMockPermissionsForRole(u.role) }));
     }
 
     case 'users:create': {
       const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
       const isSupervisor = payload?.supervisorPin === (mockPinHash || '1234');
-      if (currentU?.role !== 'admin' && !isSupervisor && mockCurrentUserId) {
+      if (currentU?.role !== 'admin' && currentU?.role !== 'root' && !isSupervisor && mockCurrentUserId) {
         throw new Error('غير مصرح: إضافة موظفين تتطلب صلاحيات مدير النظام.');
       }
       const { username, displayName, role } = payload || {};
@@ -1289,7 +1363,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'users:update': {
       const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
       const isSupervisor = payload?.supervisorPin === (mockPinHash || '1234');
-      if (currentU?.role !== 'admin' && !isSupervisor && mockCurrentUserId) {
+      if (currentU?.role !== 'admin' && currentU?.role !== 'root' && !isSupervisor && mockCurrentUserId) {
         throw new Error('غير مصرح: تعديل بيانات الموظفين يتطلب صلاحيات مدير النظام.');
       }
       const { id, displayName, role, isActive } = payload || {};
@@ -1313,7 +1387,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       const target = mockUsers.find(x => x.id === id);
       if (!target) throw new Error('الموظف غير موجود');
       const isSupervisor = supervisorPin === (mockPinHash || '1234');
-      const isCurrentAdmin = currentU?.role === 'admin';
+      const isCurrentAdmin = currentU?.role === 'admin' || currentU?.role === 'root';
 
       if (target.role === 'admin') {
         const adminPin = mockPinHash || '1234';
@@ -1330,10 +1404,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'users:getTree': {
-      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
-      const isRootCaller = currentU?.role === 'root';
-      const visible = mockUsers.filter(u => isRootCaller || u.role !== 'root');
-      return visible.map(u => ({ ...u, permissions: getMockPermissionsForRole(u.role), children: [] }));
+      return getMockStaffVisibleToCaller().map(u => ({ ...u, permissions: getMockPermissionsForRole(u.role), children: [] }));
     }
 
     case 'users:createSubUser': {
@@ -3271,6 +3342,18 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'settings:getAll':
       return getMockAppSettings();
 
+    case 'settings:getStoreProfile': {
+      const profile = getMockAppSettings();
+      return {
+        storeName: profile.store_name,
+        storePhone: profile.store_phone,
+        storeAddress: profile.store_address,
+        uiMotionEnabled: profile.ui_motion_enabled === '1',
+        uiMotionLevel: profile.ui_motion_level,
+        uiMotionStyle: profile.ui_motion_style,
+      };
+    }
+
     case 'settings:save':
       return saveMockAppSettings(payload);
 
@@ -3303,7 +3386,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         const raw = localStorage.getItem('rafiq_backup_config');
         if (raw) cfg = JSON.parse(raw);
       } catch {}
-      // one backup file per local day for the last 40 days; dateFrom/dateTo applied before the list cap (15, or 200 with a period)
+      // one backup file per local day for the last 40 days; dateFrom/dateTo applied before the list cap (limit, else 15, or 200 with a period)
       const bkPad = (n: number) => String(n).padStart(2, '0');
       const bkNow = new Date();
       const bkFrom = typeof payload?.dateFrom === 'string' ? payload.dateFrom : '';
@@ -3318,16 +3401,29 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           fullPath: `C:\\RafiqPOS\\backups\\rafiq_backup_${dayKey.replace(/-/g, '')}_0230.db`,
           sizeBytes: 1500000 + day * 1000,
           createdAt: `${dayKey} 02:30`,
-          isVerified: true,
         });
       }
+      const bkLimit = Number(payload?.limit) > 0 ? Math.min(Number(payload.limit), 200) : bkFrom || bkTo ? 200 : 15;
+      // dev hook: set rafiq_backup_config.mockFolderStatus to 'unavailable' | 'unreadable' | 'empty' to preview those states
+      const bkFolderStatus = cfg.mockFolderStatus === 'unavailable' || cfg.mockFolderStatus === 'unreadable' ? cfg.mockFolderStatus : 'ok';
+      const bkVisible = cfg.mockFolderStatus === 'empty' || bkFolderStatus === 'unreadable' ? [] : bkFiles;
       return {
-        recentBackups: bkFiles.slice(0, bkFrom || bkTo ? 200 : 15),
+        recentBackups: bkVisible.slice(0, bkLimit),
+        totalBackupCount: bkVisible.length,
+        listedFolder: 'C:\\RafiqPOS\\backups',
+        folderStatus: bkFolderStatus,
+        folderMessage:
+          bkFolderStatus === 'unavailable'
+            ? 'تعذر الوصول إلى مجلد النسخ المحدد (الفلاشة غير متصلة أو المجلد غير موجود). المعروض هنا هو سجل المجلد المحلي الآمن بدلاً منه.'
+            : bkFolderStatus === 'unreadable'
+              ? 'تعذر قراءة مجلد النسخ الاحتياطية: Access to the path is denied.'
+              : null,
         configuredFolder: cfg.targetFolder || 'C:\\RafiqPOS\\backups',
         autoOnClose: cfg.autoOnClose ?? true,
         autoDaily: cfg.autoDaily ?? true,
-        retentionDays: cfg.retentionDays || 7,
-        retentionWeeks: cfg.retentionWeeks || 4,
+        retentionDays: cfg.retentionDays || 14,
+        retentionWeeks: cfg.retentionWeeks || 8,
+        maxCopies: cfg.maxCopies || 30,
         warnAfterDays: cfg.warnAfterDays || 2,
         lastBackupAt: cfg.lastBackupAt || new Date().toISOString(),
         backupFilesCount: 3,
@@ -4411,6 +4507,9 @@ const DEFAULT_APP_SETTINGS: Record<string, string> = {
   scanner_prefix: '',
   scanner_suffix: 'Enter',
   scanner_min_length: '3',
+  ui_motion_enabled: '0',
+  ui_motion_level: 'medium',
+  ui_motion_style: 'slide',
 };
 
 function getMockAppSettings(): Record<string, string> {
@@ -4530,6 +4629,28 @@ let mockUsers: UserDto[] = [
     createdAt: new Date().toISOString(),
   },
   {
+    id: 'usr_manager_1',
+    username: 'manager1',
+    displayName: 'مدير (1)',
+    role: 'admin',
+    isActive: true,
+    canDelegate: true,
+    maxDepth: 2,
+    parentId: 'usr_admin_default',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'usr_cashier_2',
+    username: 'cashier2',
+    displayName: 'كاشير (2)',
+    role: 'cashier',
+    isActive: true,
+    canDelegate: false,
+    maxDepth: 0,
+    parentId: 'usr_manager_1',
+    createdAt: new Date().toISOString(),
+  },
+  {
     id: 'usr_root_developer',
     username: 'islam',
     displayName: 'المطور (Root)',
@@ -4545,6 +4666,23 @@ let mockUsers: UserDto[] = [
 let mockCurrentUserId = typeof window !== 'undefined'
   ? (localStorage.getItem('rafiq_mock_user_id') || 'usr_admin_default')
   : 'usr_admin_default';
+
+// Mirrors the host staff-list rule: strictly below the caller's tier (a cashier-tier caller: his descendants); no session sees nobody
+function getMockStaffVisibleToCaller(): UserDto[] {
+  const caller = mockUsers.find(x => x.id === mockCurrentUserId);
+  if (!caller) return [];
+  if (getTier(caller) >= 1) return filterVisibleStaff(caller, mockUsers);
+  const isDescendant = (u: UserDto): boolean => {
+    let cursor = u.parentId;
+    for (let depth = 0; cursor && depth < 50; depth++) {
+      if (cursor === caller.id) return true;
+      const parent = mockUsers.find(x => x.id === cursor);
+      cursor = parent ? parent.parentId : null;
+    }
+    return false;
+  };
+  return mockUsers.filter(isDescendant);
+}
 
 function getMockPermissionsForRole(role: string): Record<string, boolean> {
   const isRoot = role === 'root';

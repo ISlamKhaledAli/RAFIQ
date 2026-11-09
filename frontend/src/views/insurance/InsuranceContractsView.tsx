@@ -5,18 +5,24 @@ import {
   CheckCircle2,
   AlertCircle,
   Plus,
-  Search,
   Download,
   ShieldAlert,
   X,
-  Phone
+  Phone,
+  Mail,
+  MapPin,
+  Hash,
+  Pencil
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useAuth } from '../../context/useAuth';
 import { useDataSubscription } from '../../utils/eventBus';
+import { AppButton } from '../../components/AppButton';
+import { SearchInput } from '../../components/SearchInput';
 import { CustomSelect } from '../../components/CustomSelect';
 import { PaginationBar } from '../../components/PaginationBar';
 import { DateFilterControl } from '../../components/DateFilterControl';
+import { ClearFiltersButton } from '../../components/ClearFiltersButton';
 import {
   useDateFilter,
   useToday,
@@ -28,6 +34,8 @@ import {
   toLocalDateString,
 } from '../../utils/dateFilter';
 import { RequiredMark } from '../../components/RequiredMark';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 import type {
   InsuranceCompany,
   InsuranceContract,
@@ -35,6 +43,28 @@ import type {
   InsuranceClaimBatch,
   InsuranceClaimLine
 } from '../../types/insurance';
+
+interface CompanyIdentityRow {
+  key: string;
+  label: string;
+  value: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  ltr: boolean;
+}
+
+// Only the identifying fields the company record actually has, each as a labelled row
+const companyIdentityRows = (comp: InsuranceCompany): CompanyIdentityRow[] => {
+  const rows: CompanyIdentityRow[] = [];
+  const phone = (comp.phone ?? '').trim();
+  const email = (comp.email ?? '').trim();
+  const taxNumber = (comp.taxNumber ?? '').trim();
+  const address = (comp.address ?? '').trim();
+  if (phone) rows.push({ key: 'phone', label: 'رقم الهاتف', value: phone, Icon: Phone, ltr: true });
+  if (email) rows.push({ key: 'email', label: 'البريد الإلكتروني', value: email, Icon: Mail, ltr: true });
+  if (taxNumber) rows.push({ key: 'tax', label: 'البطاقة الضريبية', value: taxNumber, Icon: Hash, ltr: true });
+  if (address) rows.push({ key: 'address', label: 'العنوان', value: address, Icon: MapPin, ltr: false });
+  return rows;
+};
 
 export type InsuranceSubTab = 'companies' | 'members' | 'batches' | 'settlement';
 
@@ -59,6 +89,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   }, [activeSubTab]);
 
   const activeTab = activeSubTab || internalTab;
+  const motionPanel = useMotionPanel(activeTab);
   const [_loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -346,9 +377,9 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark overflow-hidden">
+    <div {...motionPanel} className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark overflow-hidden">
       {/* Top Header */}
-      <div className="bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="motion-static bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <Building2 className="w-6 h-6 text-brand dark:text-brand-bright" />
@@ -361,7 +392,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       </div>
 
       {/* KPI Stats Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-6 pb-2">
+      <div className="motion-static grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-6 pb-2">
         <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark shadow-sm">
           <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted text-xs">
             <span>شركات التأمين المتعاقدة</span>
@@ -403,26 +434,22 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
 
       {/* Alerts */}
       {error && (
-        <div className="mx-6 mt-2 p-3 bg-red-50 border border-red-200 text-danger text-sm rounded-lg flex items-center justify-between">
+        <div className="mx-6 mt-2 p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright text-sm rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
-          <button onClick={() => setError(null)} className="text-danger dark:text-danger-bright hover:opacity-75">
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={() => setError(null)} />
         </div>
       )}
 
       {successMsg && (
-        <div className="mx-6 mt-2 p-3 bg-paid-soft border border-paid/20 text-paid text-sm rounded-lg flex items-center justify-between">
+        <div className="mx-6 mt-2 p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 text-paid dark:text-paid-bright text-sm rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{successMsg}</span>
           </div>
-          <button onClick={() => setSuccessMsg(null)} className="text-paid hover:opacity-75">
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="xs" icon={X} aria-label="إغلاق" onClick={() => setSuccessMsg(null)} />
         </div>
       )}
 
@@ -434,44 +461,57 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
           <div className="flex items-center justify-between">
             <h2 className="t-section-title text-ink dark:text-ink-dark">دليل شركات التأمين الطبي المتعاقدة</h2>
             {canManageContracts && (
-              <button
+              <AppButton
+                variant="primary"
+                size="md"
+                icon={Plus}
                 onClick={() => {
                   setEditingCompany({ isActive: true });
                   setShowCompanyModal(true);
                 }}
-                className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg flex items-center gap-1.5 shadow-sm transition-colors"
               >
-                <Plus className="w-4 h-4" />
                 إضافة شركة تأمين
-              </button>
+              </AppButton>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {companies.map((comp) => {
               const compContracts = contracts.filter((c) => c.companyId === comp.id);
+              const identityRows = companyIdentityRows(comp);
               return (
                 <div key={comp.id} className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-sm overflow-hidden flex flex-col justify-between">
                   <div className="p-5">
                     <div className="flex items-start justify-between">
                       <div>
                         <h3 className="t-card-title text-ink dark:text-ink-dark">{comp.name}</h3>
-                        {comp.taxNumber && (
-                          <div className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">البطاقة الضريبية: {comp.taxNumber}</div>
-                        )}
                       </div>
                       <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright">
                         نشط
                       </span>
                     </div>
 
-                    <div className="mt-4 space-y-1.5 text-xs text-ink-muted dark:text-ink-dark-muted">
-                      {comp.phone && (
-                        <div className="flex items-center gap-1.5">
-                          <Phone className="w-3.5 h-3.5" />
-                          <span>{comp.phone}</span>
-                        </div>
-                      )}
+                    {identityRows.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-line dark:border-line-dark px-3 py-2 flex flex-col gap-1.5 min-w-0" data-testid="company-identity">
+                        {identityRows.map((row) => (
+                          <div key={row.key} className="flex items-center justify-between gap-3 min-w-0" data-testid={`company-${row.key}-row`}>
+                            <span className="shrink-0 flex items-center gap-1.5 text-micro font-bold text-ink-muted dark:text-ink-dark-muted">
+                              <row.Icon className="w-3.5 h-3.5" />
+                              <span>{row.label}</span>
+                            </span>
+                            <span
+                              dir={row.ltr ? 'ltr' : undefined}
+                              className={`min-w-0 text-sm font-bold text-ink dark:text-ink-dark leading-snug ${row.ltr ? 'text-left font-mono tabular-nums break-all' : 'break-words'}`}
+                              title={row.value}
+                            >
+                              {row.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="mt-3 text-xs text-ink-muted dark:text-ink-dark-muted">
                       <div className="flex items-center gap-1.5 text-brand dark:text-brand-bright font-medium">
                         <AlertCircle className="w-3.5 h-3.5" />
                         <span>مطالبات معلقة: {((comp.pendingClaimsPiasters || 0) / 100).toFixed(2)} ج.م</span>
@@ -486,7 +526,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                       ) : (
                         <div className="space-y-1.5">
                           {compContracts.map((cnt) => (
-                            <div key={cnt.id} className="p-2 bg-surface-2 dark:bg-surface-dark-2 rounded-lg text-xs flex items-center justify-between">
+                            <div key={cnt.id} className="p-2 bg-surface-2 dark:bg-surface-dark-2 rounded-lg text-xs flex items-center justify-between gap-2">
                               <div>
                                 <span className="font-medium text-ink dark:text-ink-dark">{cnt.name}</span>
                                 <div className="text-micro text-ink-muted dark:text-ink-dark-muted">
@@ -496,15 +536,18 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                                 </div>
                               </div>
                               {canManageContracts && (
-                                <button
+                                <AppButton
+                                  variant="secondary"
+                                  size="xs"
+                                  icon={Pencil}
+                                  className="shrink-0"
                                   onClick={() => {
                                     setEditingContract(cnt);
                                     setShowContractModal(true);
                                   }}
-                                  className="text-brand dark:text-brand-bright hover:underline font-medium text-micro"
                                 >
                                   تعديل
-                                </button>
+                                </AppButton>
                               )}
                             </div>
                           ))}
@@ -513,29 +556,32 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="bg-surface-2 dark:bg-surface-dark-2 px-5 py-3 border-t border-line dark:border-line-dark flex items-center justify-between">
+                  <div className="bg-surface-2 dark:bg-surface-dark-2 px-5 py-3 border-t border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-2">
                     {canManageContracts && (
-                      <button
+                      <AppButton
+                        variant="soft"
+                        size="sm"
+                        icon={Plus}
                         onClick={() => {
                           setEditingContract({ companyId: comp.id, patientShareBps: 2000, excludesCosmetics: true, isActive: true });
                           setShowContractModal(true);
                         }}
-                        className="text-xs font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1"
                       >
-                        <Plus className="w-3.5 h-3.5" />
                         إضافة عقد فئة جديدة
-                      </button>
+                      </AppButton>
                     )}
                     {canManageContracts && (
-                      <button
+                      <AppButton
+                        variant="secondary"
+                        size="sm"
+                        icon={Pencil}
                         onClick={() => {
                           setEditingCompany(comp);
                           setShowCompanyModal(true);
                         }}
-                        className="text-xs text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark font-medium"
                       >
                         تعديل الشركة
-                      </button>
+                      </AppButton>
                     )}
                   </div>
                 </div>
@@ -549,17 +595,15 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       {activeTab === 'members' && (
         <div className="flex-1 overflow-auto p-6 space-y-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="بحث برقم الكارنيه أو اسم المريض..."
-                  value={memberSearchQuery}
-                  onChange={(e) => setMemberSearchQuery(e.target.value)}
-                  className="w-full pl-3 pr-9 py-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark placeholder-ink-muted/60 dark:placeholder-ink-dark-muted/60 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                />
-              </div>
+            <div className="flex items-center gap-x-8 gap-y-3 w-full sm:w-auto">
+              <SearchInput
+                size="md"
+                value={memberSearchQuery}
+                onChange={setMemberSearchQuery}
+                placeholder="بحث برقم الكارنيه أو اسم المريض..."
+                ariaLabel="بحث في المشتركين"
+                className="w-full sm:w-96"
+              />
 
               <div className="w-64">
                 <CustomSelect
@@ -573,16 +617,18 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               </div>
             </div>
 
-            <button
+            <AppButton
+              variant="primary"
+              size="md"
+              icon={Plus}
+              className="shrink-0"
               onClick={() => {
                 setEditingMember({ contractId: contracts[0]?.id || '', isActive: true });
                 setShowMemberModal(true);
               }}
-              className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg flex items-center gap-1.5 shadow-sm transition-colors shrink-0"
             >
-              <Plus className="w-4 h-4" />
               تسجيل مشترك جديد
-            </button>
+            </AppButton>
           </div>
 
           <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-sm overflow-hidden">
@@ -615,7 +661,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                         <div className="text-ink dark:text-ink-dark font-medium">{mem.contractName}</div>
                       </td>
                       <td className="py-3 px-4 text-xs font-mono text-ink-muted dark:text-ink-dark-muted">{mem.nationalId || '-'}</td>
-                      <td className="py-3 px-4 text-xs text-ink dark:text-ink-dark">{mem.phone || '-'}</td>
+                      <td className="py-3 px-4 text-xs text-ink dark:text-ink-dark">{formatPhoneDisplay(mem.phone) || '-'}</td>
                       <td className="py-3 px-4 text-xs text-ink dark:text-ink-dark">{mem.validTo || 'غير محدد'}</td>
                       <td className="py-3 px-4 text-center">
                         <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${mem.isActive ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid' : 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright'}`}>
@@ -651,7 +697,10 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
           <div className="flex items-center justify-between">
             <h2 className="t-section-title text-ink dark:text-ink-dark">دليل المطالبات الشهرية المجمعة للشركات</h2>
             {canManageClaims && (
-              <button
+              <AppButton
+                variant="primary"
+                size="md"
+                icon={Plus}
                 onClick={() => {
                   setNewBatchCompanyId(companies[0]?.id || '');
                   setNewBatchNumber(`CLM-${toLocalDateString(new Date()).substring(0, 7)}-${Math.floor(Math.random() * 900 + 100)}`);
@@ -659,26 +708,20 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                   setSelectedPendingClaimIds([]);
                   setShowBatchModal(true);
                 }}
-                className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg flex items-center gap-1.5 shadow-sm transition-colors"
               >
-                <Plus className="w-4 h-4" />
                 إصدار دفعة مطالبة مجمعة
-              </button>
+              </AppButton>
             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">تاريخ إصدار الدفعة:</span>
             <DateFilterControl value={batchesDateFilter} onChange={setBatchesDateFilter} size="sm" />
-            {isDateFilterActive(batchesDateFilter) && (
-              <button
-                type="button"
-                onClick={resetBatchesDateFilter}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
-              >
-                إلغاء الفلترة
-              </button>
-            )}
+            <ClearFiltersButton
+              active={isDateFilterActive(batchesDateFilter)}
+              onClick={resetBatchesDateFilter}
+              label="إلغاء الفلترة"
+            />
           </div>
 
           <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-sm overflow-hidden">
@@ -705,13 +748,9 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                       ) : (
                         <div className="flex flex-col items-center gap-3">
                           <span>لا توجد مطالبات مجمعة صادرة في الفترة ({describeDateFilter(batchesDateFilter)})</span>
-                          <button
-                            type="button"
-                            onClick={resetBatchesDateFilter}
-                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-brand dark:text-brand-bright border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-                          >
+                          <AppButton variant="secondary" size="sm" onClick={resetBatchesDateFilter}>
                             عرض كل المطالبات
-                          </button>
+                          </AppButton>
                         </div>
                       )}
                     </td>
@@ -758,15 +797,17 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                       </td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <button
+                          <AppButton
+                            variant="subtle"
+                            size="xs"
+                            icon={Download}
+                            aria-label="تصدير كشف إكسل رسمي"
                             onClick={() => handleExportExcel(batch.id)}
-                            title="تصدير كشف إكسل رسمي"
-                            className="p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded text-paid dark:text-paid-bright"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
+                          />
                           {canSettleClaims && batch.status !== 'settled' && (
-                            <button
+                            <AppButton
+                              variant="soft"
+                              size="xs"
                               onClick={() => {
                                 setSettlingBatch(batch);
                                 setApprovedAmountEgp((batch.totalAmountPiasters / 100).toString());
@@ -774,10 +815,9 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                                 setRejectionReason('');
                                 setShowSettleModal(true);
                               }}
-                              className="px-2.5 py-1 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright hover:bg-brand hover:text-white dark:hover:text-white rounded text-xs font-medium transition-colors"
                             >
                               تسوية
-                            </button>
+                            </AppButton>
                           )}
                         </div>
                       </td>
@@ -812,7 +852,7 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
             <p className="text-sm text-ink-muted dark:text-ink-dark-muted leading-relaxed">
               وفق المعايير المالية المحاسبية لنقاط البيع، عند استلام إشعار سداد مطالبة شركة التأمين متضمناً خصومات أو
               رفوضات لأدوية غير مطابقة للبروتوكول:
-              يتم ترحيل المرفوضات تلقائياً كـ <strong>قيد مصروفات وخسائر تأمين (Contra-Entry)</strong> لحماية حسابات
+              يتم ترحيل المرفوضات تلقائياً كـ <strong>قيد مصروفات وخسائر تأمين</strong> لحماية حسابات
               المحل ومنع أي عجز أو تلاعب في عهدة الكاشير وصندوق الخزينة.
             </p>
           </div>
@@ -835,7 +875,9 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                   </div>
 
                   <div className="mt-5 pt-3 border-t border-line dark:border-line-dark flex justify-end">
-                    <button
+                    <AppButton
+                      variant="primary"
+                      size="md"
                       onClick={() => {
                         setSettlingBatch(b);
                         setApprovedAmountEgp((b.totalAmountPiasters / 100).toString());
@@ -843,10 +885,9 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                         setRejectionReason('');
                         setShowSettleModal(true);
                       }}
-                      className="px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg text-sm font-medium transition-colors"
                     >
                       تسجيل إشعار التسوية
-                    </button>
+                    </AppButton>
                   </div>
                 </div>
               ))}
@@ -857,16 +898,14 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       {/* Modal: Company */}
       {showCompanyModal && editingCompany && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
-            <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
+            <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 shrink-0">
               <h3 className="t-card-title text-ink dark:text-ink-dark">
                 {editingCompany.id ? 'تعديل بيانات شركة التأمين' : 'إضافة شركة تأمين جديدة'}
               </h3>
-              <button onClick={() => setShowCompanyModal(false)} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
-                <X className="w-5 h-5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowCompanyModal(false)} />
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم شركة التأمين <RequiredMark /></label>
                 <input
@@ -878,26 +917,28 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم الهاتف</label>
-                <input
-                  type="text"
-                  value={editingCompany.phone || ''}
-                  onChange={(e) => setEditingCompany({ ...editingCompany, phone: e.target.value })}
-                  placeholder="0225550000"
-                  className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                />
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم الهاتف</label>
+                  <input
+                    type="text"
+                    value={editingCompany.phone || ''}
+                    onChange={(e) => setEditingCompany({ ...editingCompany, phone: e.target.value })}
+                    placeholder="0225550000"
+                    className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم التسجيل الضريبي</label>
-                <input
-                  type="text"
-                  value={editingCompany.taxNumber || ''}
-                  onChange={(e) => setEditingCompany({ ...editingCompany, taxNumber: e.target.value })}
-                  placeholder="123-456-789"
-                  className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                />
+                <div>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم التسجيل الضريبي</label>
+                  <input
+                    type="text"
+                    value={editingCompany.taxNumber || ''}
+                    onChange={(e) => setEditingCompany({ ...editingCompany, taxNumber: e.target.value })}
+                    placeholder="123-456-789"
+                    className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  />
+                </div>
               </div>
 
               <div>
@@ -910,19 +951,13 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 />
               </div>
             </div>
-            <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2">
-              <button
-                onClick={() => setShowCompanyModal(false)}
-                className="px-4 py-2 border border-line dark:border-line-dark rounded-lg text-sm font-medium text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3"
-              >
+            <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
+              <AppButton variant="secondary" size="md" onClick={() => setShowCompanyModal(false)}>
                 إلغاء
-              </button>
-              <button
-                onClick={handleSaveCompany}
-                className="px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg text-sm font-medium transition-colors"
-              >
+              </AppButton>
+              <AppButton variant="primary" size="md" onClick={handleSaveCompany}>
                 حفظ الشركة
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -931,37 +966,37 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       {/* Modal: Contract */}
       {showContractModal && editingContract && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
-            <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
+            <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 shrink-0">
               <h3 className="t-card-title text-ink dark:text-ink-dark">
                 {editingContract.id ? 'تعديل عقد وفئة التأمين' : 'إضافة عقد فئة جديد'}
               </h3>
-              <button onClick={() => setShowContractModal(false)} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
-                <X className="w-5 h-5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowContractModal(false)} />
             </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">شركة التأمين</label>
-                <CustomSelect
-                  value={editingContract.companyId || ''}
-                  onChange={(val) => setEditingContract({ ...editingContract, companyId: val })}
-                  options={companies.map((c) => ({ value: c.id, label: c.name }))}
-                />
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">شركة التأمين</label>
+                  <CustomSelect
+                    value={editingContract.companyId || ''}
+                    onChange={(val) => setEditingContract({ ...editingContract, companyId: val })}
+                    options={companies.map((c) => ({ value: c.id, label: c.name }))}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم العقد / الفئة <RequiredMark /></label>
+                  <input
+                    type="text"
+                    value={editingContract.name || ''}
+                    onChange={(e) => setEditingContract({ ...editingContract, name: e.target.value })}
+                    placeholder="مثال: فئة الذهب - تغطية 80%"
+                    className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم العقد / الفئة <RequiredMark /></label>
-                <input
-                  type="text"
-                  value={editingContract.name || ''}
-                  onChange={(e) => setEditingContract({ ...editingContract, name: e.target.value })}
-                  placeholder="مثال: فئة VIP الذهب - تغطية 80%"
-                  className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">نسبة تحمل المريض (%)</label>
                   <input
@@ -1005,26 +1040,19 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                   id="chkCosmetics"
                   checked={editingContract.excludesCosmetics ?? true}
                   onChange={(e) => setEditingContract({ ...editingContract, excludesCosmetics: e.target.checked })}
-                  className="rounded border-line text-brand focus:ring-brand w-4 h-4"
                 />
                 <label htmlFor="chkCosmetics" className="text-xs font-bold text-ink dark:text-ink-dark cursor-pointer">
                   استثناء مستحضرات التجميل تلقائياً (تحمل المريض 100%)
                 </label>
               </div>
             </div>
-            <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2">
-              <button
-                onClick={() => setShowContractModal(false)}
-                className="px-4 py-2 border border-line dark:border-line-dark rounded-lg text-sm font-medium text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3"
-              >
+            <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
+              <AppButton variant="secondary" size="md" onClick={() => setShowContractModal(false)}>
                 إلغاء
-              </button>
-              <button
-                onClick={handleSaveContract}
-                className="px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg text-sm font-medium transition-colors"
-              >
+              </AppButton>
+              <AppButton variant="primary" size="md" onClick={handleSaveContract}>
                 حفظ العقد
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -1033,14 +1061,12 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       {/* Modal: Member */}
       {showMemberModal && editingMember && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
-            <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
+            <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 shrink-0">
               <h3 className="t-card-title text-ink dark:text-ink-dark">تسجيل مشترك تأمين جديد</h3>
-              <button onClick={() => setShowMemberModal(false)} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
-                <X className="w-5 h-5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowMemberModal(false)} />
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">العقد التأميني</label>
                 <CustomSelect
@@ -1050,65 +1076,59 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم المشترك / المريض <RequiredMark /></label>
-                <input
-                  type="text"
-                  value={editingMember.memberName || ''}
-                  onChange={(e) => setEditingMember({ ...editingMember, memberName: e.target.value })}
-                  placeholder="مثال: أحمد محمد كمال"
-                  className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم الكارنيه / العضوية <RequiredMark /></label>
-                <input
-                  type="text"
-                  value={editingMember.memberNo || ''}
-                  onChange={(e) => setEditingMember({ ...editingMember, memberNo: e.target.value })}
-                  placeholder="مثال: CARD-100234"
-                  className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">الرقم القومي</label>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم المشترك / المريض <RequiredMark /></label>
                   <input
                     type="text"
-                    value={editingMember.nationalId || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, nationalId: e.target.value })}
-                    placeholder="14 رقم"
+                    value={editingMember.memberName || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, memberName: e.target.value })}
+                    placeholder="مثال: أحمد محمد كمال"
+                    className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم الكارنيه / العضوية <RequiredMark /></label>
+                  <input
+                    type="text"
+                    value={editingMember.memberNo || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, memberNo: e.target.value })}
+                    placeholder="مثال: CARD-100234"
                     className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم الهاتف</label>
-                  <input
-                    type="text"
-                    value={editingMember.phone || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
-                    placeholder="010..."
-                    className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                  />
-                </div>
+                    <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">الرقم القومي</label>
+                    <input
+                      type="text"
+                      value={editingMember.nationalId || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, nationalId: e.target.value })}
+                      placeholder="14 رقم"
+                      className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">رقم الهاتف</label>
+                    <input
+                      type="text"
+                      value={editingMember.phone || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
+                      placeholder="010..."
+                      className="w-full px-3 py-2 bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-sm text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                    />
+                  </div>
               </div>
             </div>
-            <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2">
-              <button
-                onClick={() => setShowMemberModal(false)}
-                className="px-4 py-2 border border-line dark:border-line-dark rounded-lg text-sm font-medium text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3"
-              >
+            <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
+              <AppButton variant="secondary" size="md" onClick={() => setShowMemberModal(false)}>
                 إلغاء
-              </button>
-              <button
-                onClick={handleSaveMember}
-                className="px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg text-sm font-medium transition-colors"
-              >
+              </AppButton>
+              <AppButton variant="primary" size="md" onClick={handleSaveMember}>
                 حفظ المشترك
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -1117,12 +1137,10 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       {/* Modal: Create Batch */}
       {showBatchModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh] text-ink dark:text-ink-dark">
-            <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh] text-ink dark:text-ink-dark">
+            <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 shrink-0">
               <h3 className="t-card-title text-ink dark:text-ink-dark">إصدار دفعة مطالبة مجمعة لشركة التأمين</h3>
-              <button onClick={() => setShowBatchModal(false)} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
-                <X className="w-5 h-5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowBatchModal(false)} />
             </div>
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1174,8 +1192,9 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold text-ink dark:text-ink-dark">الفواتير المعلقة القابلة للإدراج: <RequiredMark /></label>
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="soft"
+                    size="xs"
                     onClick={() => {
                       if (filteredPendingClaims.length > 0 && selectedPendingClaimIds.length === filteredPendingClaims.length) {
                         setSelectedPendingClaimIds([]);
@@ -1184,24 +1203,19 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                       }
                     }}
                     disabled={filteredPendingClaims.length === 0}
-                    className="text-xs text-brand dark:text-brand-bright font-bold hover:underline disabled:opacity-40 disabled:no-underline"
                   >
                     {filteredPendingClaims.length > 0 && selectedPendingClaimIds.length === filteredPendingClaims.length ? 'إلغاء تحديد الكل' : 'تحديد جميع الفواتير'}
-                  </button>
+                  </AppButton>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5 mb-2">
                   <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">تاريخ الفاتورة:</span>
                   <DateFilterControl value={claimsDateFilter} onChange={setClaimsDateFilter} size="sm" />
-                  {isDateFilterActive(claimsDateFilter) && (
-                    <button
-                      type="button"
-                      onClick={resetClaimsDateFilter}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
-                    >
-                      إلغاء الفلترة
-                    </button>
-                  )}
+                  <ClearFiltersButton
+                    active={isDateFilterActive(claimsDateFilter)}
+                    onClick={resetClaimsDateFilter}
+                    label="إلغاء الفلترة"
+                  />
                 </div>
 
                 <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden max-h-60 overflow-y-auto">
@@ -1245,7 +1259,6 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={() => {}}
-                                  className="rounded border-line text-brand focus:ring-brand"
                                 />
                               </td>
                               <td className="p-2 font-mono font-bold">#{clm.invoiceNumber}</td>
@@ -1264,23 +1277,17 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 </div>
               </div>
             </div>
-            <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between">
+            <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between shrink-0">
               <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
                 المحدد: <strong className="text-ink dark:text-ink-dark">{selectedPendingClaimIds.length}</strong> فاتورة
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowBatchModal(false)}
-                  className="px-4 py-2 border border-line dark:border-line-dark rounded-lg text-sm font-medium text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3"
-                >
+                <AppButton variant="secondary" size="md" onClick={() => setShowBatchModal(false)}>
                   إلغاء
-                </button>
-                <button
-                  onClick={handleCreateBatch}
-                  className="px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg text-sm font-medium transition-colors"
-                >
+                </AppButton>
+                <AppButton variant="primary" size="md" onClick={handleCreateBatch}>
                   إصدار المطالبة الرسمية
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -1290,21 +1297,19 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
       {/* Modal: Settle Batch */}
       {showSettleModal && settlingBatch && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
-            <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl w-full max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-ink dark:text-ink-dark">
+            <div className="px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 shrink-0">
               <h3 className="t-card-title text-ink dark:text-ink-dark">تسوية مطالبة شركة التأمين</h3>
-              <button onClick={() => setShowSettleModal(false)} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
-                <X className="w-5 h-5" />
-              </button>
+              <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={() => setShowSettleModal(false)} />
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-xs space-y-1 text-ink dark:text-ink-dark">
                 <div>الشركة: <strong>{settlingBatch.companyName}</strong></div>
                 <div>رقم الدفعة: <strong>{settlingBatch.batchNumber}</strong></div>
                 <div>إجمالي المطالبة: <strong className="text-brand font-mono">{(settlingBatch.totalAmountPiasters / 100).toFixed(2)} ج.م</strong></div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-paid dark:text-paid-bright mb-1">المبلغ المعتمد والمسدد (ج.م)</label>
                   <input
@@ -1363,19 +1368,13 @@ export const InsuranceContractsView: React.FC<InsuranceContractsViewProps> = ({
                 </>
               )}
             </div>
-            <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2">
-              <button
-                onClick={() => setShowSettleModal(false)}
-                className="px-4 py-2 border border-line dark:border-line-dark rounded-lg text-sm font-medium text-ink dark:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3"
-              >
+            <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
+              <AppButton variant="secondary" size="md" onClick={() => setShowSettleModal(false)}>
                 إلغاء
-              </button>
-              <button
-                onClick={handleSettleBatch}
-                className="px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg text-sm font-medium transition-colors"
-              >
+              </AppButton>
+              <AppButton variant="primary" size="md" onClick={handleSettleBatch}>
                 اعتماد التسوية
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>

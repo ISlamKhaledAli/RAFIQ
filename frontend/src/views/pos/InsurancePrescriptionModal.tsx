@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { AppButton } from '../../components/AppButton';
 import { 
   Building2, 
   FileText, 
@@ -7,12 +8,12 @@ import {
   AlertCircle, 
   CheckCircle2, 
   X, 
-  Search, 
   Percent, 
   Check, 
   Trash2, 
   Info
 } from 'lucide-react';
+import { SearchInput } from '../../components/SearchInput';
 import { invoke } from '../../bridge/ipc';
 import { CustomSelect } from '../../components/CustomSelect';
 import { formatArabicCurrency } from '../../utils/money';
@@ -269,13 +270,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-3 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={onClose} aria-label="إغلاق" />
         </div>
 
         {/* Modal Body */}
@@ -353,16 +348,14 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                     <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
                       رقم العضوية / رقم البطاقة الطبية <RequiredMark />
                     </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={memberNo}
-                        onChange={(e) => setMemberNo(e.target.value)}
-                        placeholder="أدخل أو امسح الباركود للكارنيه..."
-                        className="w-full h-9 px-3 pl-8 text-xs bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark font-mono font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50"
-                      />
-                      <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted absolute left-2.5 top-3 pointer-events-none" />
-                    </div>
+                    <SearchInput
+                      size="sm"
+                      searchButton={false}
+                      value={memberNo}
+                      onChange={setMemberNo}
+                      placeholder="أدخل أو امسح الباركود للكارنيه..."
+                      ariaLabel="رقم الكارنيه"
+                    />
                     {matchedMember ? (
                       <p className="mt-1 text-micro text-paid dark:text-paid-bright font-semibold flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
@@ -396,7 +389,7 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-micro font-bold text-ink-muted dark:text-ink-dark-muted mb-1">
-                      رقم الموافقة الطبية (Medical Approval No)
+                      رقم الموافقة الطبية
                     </label>
                     <input
                       type="text"
@@ -525,37 +518,33 @@ export const InsurancePrescriptionModal: React.FC<InsurancePrescriptionModalProp
         <div className="px-5 py-3.5 border-t border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between">
           <div>
             {currentClaim && onRemoveClaim && (
-              <button
-                type="button"
+              <AppButton
+                variant="dangerSoft"
+                size="md"
+                icon={Trash2}
                 onClick={() => {
                   onRemoveClaim();
                   onClose();
                 }}
-                className="h-9 px-3 bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 text-danger dark:text-danger-bright border border-danger-border dark:border-danger/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>إلغاء التأمين من الفاتورة</span>
-              </button>
+                إلغاء التأمين من الفاتورة
+              </AppButton>
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-9 px-4 bg-surface dark:bg-surface-dark-3 hover:bg-surface-3 dark:hover:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" size="md" onClick={onClose}>
               إلغاء
-            </button>
-            <button
-              type="button"
+            </AppButton>
+            <AppButton
+              variant="primary"
+              size="md"
+              icon={Check}
               onClick={handleApply}
               disabled={loading || calculating || cart.length === 0 || !selectedContractId || !calcResult}
-              className="h-9 px-5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
             >
-              <Check className="w-4 h-4" />
-              <span>تطبيق الروشتة على الفاتورة</span>
-            </button>
+              تطبيق الروشتة على الفاتورة
+            </AppButton>
           </div>
         </div>
       </div>

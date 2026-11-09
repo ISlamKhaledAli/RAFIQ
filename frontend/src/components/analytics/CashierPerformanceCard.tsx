@@ -48,7 +48,7 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
 
   if (isLoading) {
     return (
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col items-center justify-center min-h-[160px] animate-pulse">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-5 shadow-2xs flex flex-col items-center justify-center min-h-[10rem] animate-pulse">
         <Users className="w-6 h-6 text-ink-muted dark:text-ink-dark-muted animate-spin mb-2" />
         <span className="text-xs text-ink-muted dark:text-ink-dark-muted">جاري تحليل إنتاجية الكاشير...</span>
       </div>
@@ -73,7 +73,7 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
       <div className="flex items-center justify-between pb-3 border-b border-line/60 dark:border-line-dark/60">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center font-bold">
-            <Users className="w-4 h-4 text-paid dark:text-paid-bright" />
+            <Users className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
           </div>
           <div>
             <h3 className="t-card-title text-ink dark:text-ink-dark">مقارنة كفاءة ونشاط الكاشيرات</h3>
@@ -94,7 +94,7 @@ export const CashierPerformanceCard: FC<CashierPerformanceCardProps> = ({
           return (
             <div 
               key={item.cashierId || idx}
-              className="p-3 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line/70 dark:border-line-dark/70 flex flex-col justify-between hover:border-line-hover dark:hover:border-line-dark transition-all"
+              className="p-3 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line/70 dark:border-line-dark/70 flex flex-col justify-between"
             >
               {/* Cashier Top Info */}
               <div className="flex items-center justify-between pb-2 border-b border-line/50 dark:border-line-dark/50">

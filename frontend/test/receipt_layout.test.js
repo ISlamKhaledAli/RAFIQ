@@ -416,7 +416,7 @@ test('invoice search text: a scanned 8-digit barcode finds the invoice, other se
 test('SalesHistoryView resolves a scan: keeps the search box focused, Enter searches, the padded value is normalised', () => {
   const view = fs.readFileSync(path.resolve('src', 'views', 'SalesHistoryView.tsx'), 'utf8');
   assert.ok(view.includes('ref={searchInputRef}') && view.includes('searchInputRef.current?.focus()'), 'the search box takes the scanner input');
-  assert.ok(/e\.key === 'Enter'[\s\S]{0,60}handleSearchInvoice\(\)/.test(view), 'the Enter a wedge scanner sends runs the search');
+  assert.ok(/<SearchInput[\s\S]{0,400}onSubmit=\{\(\) => void handleSearchInvoice\(\)\}/.test(view), 'the Enter a wedge scanner sends runs the search (SearchInput onSubmit)');
   assert.ok(view.includes('const raw = normalizeInvoiceSearchText(searchQuery)'), 'the search strips the padding zeros before parseInt / sales:search');
   assert.ok(view.includes('normalizeInvoiceSearchText(searchQuery).toLowerCase()'), 'the list filter uses the same normalised text');
 });

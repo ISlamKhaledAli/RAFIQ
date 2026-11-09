@@ -4,6 +4,7 @@ import {
   Banknote,
   RotateCcw, 
   Clock, 
+  ClipboardList,
   Undo2,
   Receipt,
   Smartphone,
@@ -21,6 +22,7 @@ import type { CartInteractionCheckResult } from '../../types/pharma';
 import { formatArabicCurrency } from '../../utils/money';
 import { useFeatures } from '../../context/useFeatures';
 import { usePermission } from '../../utils/usePermission';
+import { AppButton } from '../../components/AppButton';
 
 // Shared look of the secondary action row (h-11, readable label, tokens only); icons drop below xl so five buttons fit one row.
 const SECONDARY_BTN =
@@ -170,20 +172,17 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
           </span>
 
           {onOpenInvoiceDiscount ? (
-            <button
-              type="button"
+            <AppButton
+              variant={discountPiasters > 0 ? 'dangerSoft' : 'secondary'}
+              size="sm"
+              icon={Tag}
               onClick={onOpenInvoiceDiscount}
               disabled={cart.length === 0}
-              className={`h-8 px-3 rounded-lg border text-sm font-bold tabular-nums whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer transition-colors focus-visible:border-brand dark:focus-visible:border-brand-bright disabled:cursor-not-allowed disabled:bg-surface-2 disabled:border-line disabled:text-ink-muted dark:disabled:bg-surface-dark-2 dark:disabled:border-line-dark dark:disabled:text-ink-dark-muted ${
-                discountPiasters > 0
-                  ? 'text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/40 enabled:hover:bg-danger-soft/60 dark:enabled:hover:bg-danger-dark-soft/60'
-                  : 'text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark enabled:hover:bg-surface-2 dark:enabled:hover:bg-surface-dark-3 enabled:hover:border-line-hover dark:enabled:hover:border-line-dark-hover'
-              }`}
+              className="tabular-nums"
               title="إضافة أو تعديل خصم على إجمالي الفاتورة (F4)"
             >
-              <Tag className="w-4 h-4 shrink-0" />
-              <span>{discountPiasters > 0 ? `خصم: -${formatArabicCurrency(discountPiasters)}` : 'خصم على الفاتورة'}</span>
-            </button>
+              {discountPiasters > 0 ? `خصم: -${formatArabicCurrency(discountPiasters)}` : 'خصم على الفاتورة'}
+            </AppButton>
           ) : (
             discountPiasters > 0 && (
               <span className="text-sm text-danger dark:text-danger-bright font-bold tabular-nums bg-danger-soft dark:bg-danger-dark-soft px-3 py-1 rounded-lg border border-danger-border dark:border-danger-bright/30 whitespace-nowrap">
@@ -248,12 +247,13 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
           <button
             type="button"
             onClick={onOpenHeldSales}
-            className={`${SECONDARY_BTN} ${SECONDARY_NEUTRAL}`}
+            className={`${SECONDARY_BTN} ${SECONDARY_NEUTRAL} relative`}
             title="عرض واسترجاع الفواتير المعلقة"
           >
+            <ClipboardList className={`${SECONDARY_ICON} text-ink-muted dark:text-ink-dark-muted`} />
             <span>معلقة</span>
             {heldSalesCount > 0 && (
-              <span className="min-w-6 h-6 px-1.5 rounded-full bg-warn text-white dark:bg-warn-bright dark:text-surface-dark font-mono text-xs tabular-nums flex items-center justify-center font-bold shrink-0">
+              <span className="absolute -top-2 -start-2 min-w-5 h-5 px-1 rounded-full bg-warn-bright text-ink dark:bg-warn-bright dark:text-surface-dark font-mono text-xs tabular-nums flex items-center justify-center font-bold shadow-2xs">
                 {heldSalesCount}
               </span>
             )}
@@ -289,14 +289,14 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
             <span className="opacity-40">|</span>
             <span className="font-bold">مطالبة: {formatArabicCurrency(activeInsuranceClaim.companyPiasters)}</span>
             {onRemoveInsuranceClaim && (
-              <button
-                type="button"
+              <AppButton
+                variant="dangerSubtle"
+                size="xs"
+                icon={X}
                 onClick={onRemoveInsuranceClaim}
-                className="text-danger dark:text-danger-bright hover:opacity-80 p-0.5 cursor-pointer"
-                title="إلغاء التأمين من الفاتورة"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+                aria-label="إلغاء التأمين من الفاتورة"
+                className="-my-1"
+              />
             )}
           </div>
         </div>
@@ -318,13 +318,9 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
             </div>
           </div>
           {shiftBlock.canOpenShift && (
-            <button
-              type="button"
-              onClick={shiftBlock.onOpenShift}
-              className="h-10 px-4 shrink-0 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-bold shadow-2xs active:scale-[0.98] transition-colors cursor-pointer"
-            >
+            <AppButton variant="primary" size="md" onClick={shiftBlock.onOpenShift} className="shrink-0">
               فتح وردية
-            </button>
+            </AppButton>
           )}
         </div>
       )}

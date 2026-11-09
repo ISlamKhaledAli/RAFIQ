@@ -14,10 +14,15 @@ import {
   ArrowLeft,
   Undo2,
 } from 'lucide-react';
+import { SearchInput } from '../../components/SearchInput';
 import { invoke } from '../../bridge/ipc';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { CustomSelect } from '../../components/CustomSelect';
+import { AppButton } from '../../components/AppButton';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { useFormBaseline } from '../../hooks/useFormBaseline';
+import { isFormDirty } from '../../utils/dirtyForm';
 import type {
   Category,
   BulkPricePreviewResult,
@@ -26,6 +31,17 @@ import type {
   BulkPriceExcelItem,
   BulkPriceRevertResult,
 } from '../../types/models';
+
+// The adjustment a fresh form starts with
+const DEFAULT_ADJUSTMENT = {
+  targetField: 'price',
+  method: 'percentage',
+  percentageValue: '10',
+  amountValue: '2.00',
+  roundingRule: 'one_pound',
+  reason: 'تحديث أسعار دوري',
+  excelFileName: null,
+} as const;
 
 export interface BulkPriceAdjustmentModalProps {
   isOpen: boolean;
@@ -49,17 +65,18 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('cat_general');
 
   // Adjustment Parameters
-  const [targetField, setTargetField] = useState<'price' | 'cost' | 'both'>('price');
-  const [method, setMethod] = useState<'percentage' | 'fixed_amount' | 'excel'>('percentage');
-  const [percentageValue, setPercentageValue] = useState<string>('10');
-  const [amountValue, setAmountValue] = useState<string>('2.00');
+  const [targetField, setTargetField] = useState<'price' | 'cost' | 'both'>(DEFAULT_ADJUSTMENT.targetField);
+  const [method, setMethod] = useState<'percentage' | 'fixed_amount' | 'excel'>(DEFAULT_ADJUSTMENT.method);
+  const motionPanel = useMotionPanel(method);
+  const [percentageValue, setPercentageValue] = useState<string>(DEFAULT_ADJUSTMENT.percentageValue);
+  const [amountValue, setAmountValue] = useState<string>(DEFAULT_ADJUSTMENT.amountValue);
   const [roundingRule, setRoundingRule] = useState<
     'none' | 'quarter_pound' | 'half_pound' | 'one_pound' | 'five_pounds' | 'ceil_pound' | 'psychological_95' | 'psychological_50'
-  >('one_pound');
-  const [reason, setReason] = useState<string>('تحديث أسعار دوري');
+  >(DEFAULT_ADJUSTMENT.roundingRule);
+  const [reason, setReason] = useState<string>(DEFAULT_ADJUSTMENT.reason);
 
   // Excel Upload State
-  const [excelFileName, setExcelFileName] = useState<string | null>(null);
+  const [excelFileName, setExcelFileName] = useState<string | null>(DEFAULT_ADJUSTMENT.excelFileName);
   const [excelItems, setExcelItems] = useState<BulkPriceExcelItem[]>([]);
 
   // Preview State
@@ -296,7 +313,18 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
     }
   };
 
-  const isDirty = Boolean(percentageValue.trim() || amountValue.trim() || excelFileName);
+  const adjustmentValues = {
+    targetField,
+    method,
+    percentageValue,
+    amountValue,
+    roundingRule,
+    reason,
+    excelFileName,
+  };
+  // The form is not cleared between openings, so "dirty" is measured from the values it opened with
+  const openedAdjustment = useFormBaseline(isOpen, adjustmentValues);
+  const isDirty = isFormDirty(openedAdjustment, adjustmentValues);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -310,7 +338,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
 
   return (
     <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-ink/60 dark:bg-black/75 backdrop-blur-xs select-none animate-in fade-in duration-200">
-      <div className="w-full max-w-5xl h-[92vh] max-h-[820px] bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl flex flex-col overflow-hidden">
+      <div className="w-full max-w-5xl h-[92vh] max-h-[51.25rem] bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl flex flex-col overflow-hidden">
         
         {/* 1. Header */}
         <div className="h-14 px-5 bg-brand-dark dark:bg-surface-dark-lowest text-white flex items-center justify-between border-b border-brand dark:border-brand/40 shrink-0">
@@ -326,6 +354,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
           <button
             type="button"
             onClick={requestClose}
+            aria-label="إغلاق"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -383,7 +412,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 onClick={() => setMethod('percentage')}
                 className={`flex-1 py-1 px-1.5 rounded-lg font-bold text-micro flex items-center justify-center gap-1 border transition-all cursor-pointer ${
                   method === 'percentage'
-                    ? 'bg-brand text-white border-brand shadow-2xs'
+                    ? 'bg-brand text-white border-brand dark:bg-paid-bright dark:text-surface-dark dark:border-paid-bright'
                     : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
@@ -395,7 +424,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 onClick={() => setMethod('fixed_amount')}
                 className={`flex-1 py-1 px-1.5 rounded-lg font-bold text-micro flex items-center justify-center gap-1 border transition-all cursor-pointer ${
                   method === 'fixed_amount'
-                    ? 'bg-brand text-white border-brand shadow-2xs'
+                    ? 'bg-brand text-white border-brand dark:bg-paid-bright dark:text-surface-dark dark:border-paid-bright'
                     : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
@@ -407,7 +436,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 onClick={() => setMethod('excel')}
                 className={`flex-1 py-1 px-1.5 rounded-lg font-bold text-micro flex items-center justify-center gap-1 border transition-all cursor-pointer ${
                   method === 'excel'
-                    ? 'bg-brand text-white border-brand shadow-2xs'
+                    ? 'bg-brand text-white border-brand dark:bg-paid-bright dark:text-surface-dark dark:border-paid-bright'
                     : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
@@ -418,7 +447,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
           </div>
 
           {/* Value Input */}
-          <div className="flex flex-col gap-1.5">
+          <div {...motionPanel} className="flex flex-col gap-1.5">
             {method === 'percentage' && (
               <>
                 <label className="font-bold text-ink dark:text-ink-dark">نسبة التغيير (+ زيادة، - تخفيض)</label>
@@ -461,7 +490,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                     <input type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
                   </label>
                   {excelFileName && (
-                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted truncate max-w-[120px] font-mono">{excelFileName}</span>
+                    <span className="text-micro text-ink-muted dark:text-ink-dark-muted truncate max-w-[7.5rem] font-mono">{excelFileName}</span>
                   )}
                 </div>
               </>
@@ -500,15 +529,9 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               />
             </div>
 
-            <button
-              type="button"
-              onClick={() => void handleGeneratePreview()}
-              disabled={previewLoading}
-              className="h-8 px-4 bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright hover:bg-brand dark:hover:bg-brand hover:text-white dark:hover:text-white border border-brand/30 dark:border-brand-bright/30 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-98"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${previewLoading ? 'animate-spin' : ''}`} />
-              <span>{previewLoading ? 'جاري الحساب والمعاينة...' : 'تحديث ومعاينة الأسعار'}</span>
-            </button>
+            <AppButton variant="soft" size="sm" icon={RefreshCw} onClick={() => void handleGeneratePreview()} disabled={previewLoading}>
+              {previewLoading ? 'جاري الحساب والمعاينة...' : 'تحديث ومعاينة الأسعار'}
+            </AppButton>
           </div>
         </div>
 
@@ -543,21 +566,14 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
             </div>
 
             {/* Preview Search Filter */}
-            <div className="relative w-56 h-7 flex items-center bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg px-2">
-              <Search className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted ml-1.5 pointer-events-none" />
-              <input
-                type="text"
-                value={previewSearch}
-                onChange={(e) => setPreviewSearch(normalizeArabicNumerals(e.target.value))}
-                placeholder="دور في البضاعة المعروضة..."
-                className="w-full bg-transparent border-none text-micro text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
-              />
-              {previewSearch && (
-                <button type="button" onClick={() => setPreviewSearch('')} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark">
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
+            <SearchInput
+              size="sm"
+              value={previewSearch}
+              onChange={(value) => setPreviewSearch(normalizeArabicNumerals(value))}
+              placeholder="دور في البضاعة المعروضة..."
+              ariaLabel="بحث في البضاعة المعروضة"
+              className="w-72"
+            />
           </div>
         )}
 
@@ -568,9 +584,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <AlertTriangle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
               <span>{errorMsg}</span>
             </div>
-            <button type="button" onClick={() => setErrorMsg(null)} className="p-1 hover:text-ink dark:hover:text-ink-dark">
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <AppButton variant="subtle" size="xs" icon={X} onClick={() => setErrorMsg(null)} aria-label="إغلاق الرسالة" />
           </div>
         )}
 
@@ -589,20 +603,12 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmBelowCostWarning(false)}
-                className="px-3 py-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-lg text-xs font-bold hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer"
-              >
+              <AppButton variant="secondary" size="xs" onClick={() => setConfirmBelowCostWarning(false)}>
                 إلغاء ومراجعة الأسعار
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleApplyChanges()}
-                className="px-3 py-1 bg-warn hover:bg-warn-dark dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark rounded-lg text-xs font-bold cursor-pointer shadow-xs"
-              >
+              </AppButton>
+              <AppButton variant="warning" size="xs" onClick={() => void handleApplyChanges()}>
                 أيوه، اعتمد الأسعار رغم الخسارة
-              </button>
+              </AppButton>
             </div>
           </div>
         )}
@@ -620,7 +626,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                     filteredPreviewItems.every(it => selectedItemsMap[it.productId])
                   }
                   onChange={(e) => toggleSelectAll(e.target.checked)}
-                  className="w-4 h-4 rounded border-line dark:border-line-dark accent-paid cursor-pointer"
+                  className="cursor-pointer"
                   title="تحديد أو إلغاء تحديد الكل"
                 />
                 <span>تطبيق</span>
@@ -677,7 +683,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => toggleItem(item.productId)}
-                          className="w-4 h-4 rounded border-line dark:border-line-dark accent-paid cursor-pointer"
+                          className="cursor-pointer"
                         />
                       </div>
 
@@ -769,38 +775,24 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => setShowRevertConfirm(true)}
-              disabled={applying || reverting}
-              className="h-9 px-3.5 rounded-xl border border-warn/40 dark:border-warn-bright/40 text-warn dark:text-warn-bright font-bold text-xs hover:bg-warn-soft dark:hover:bg-warn-dark-soft transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-              title="التراجع السريع عن آخر تعديل جماعي واستعادة الأسعار السابقة"
-            >
-              <Undo2 className="w-3.5 h-3.5" />
-              <span>تراجع عن آخر تعديل</span>
-            </button>
+            <AppButton variant="warningSoft" icon={Undo2} onClick={() => setShowRevertConfirm(true)} disabled={applying || reverting} title="التراجع السريع عن آخر تعديل جماعي واستعادة الأسعار السابقة">
+              تراجع عن آخر تعديل
+            </AppButton>
 
-            <button
-              type="button"
-              onClick={requestClose}
-              className="h-9 px-4 rounded-xl border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" onClick={requestClose}>
               إلغاء
-            </button>
+            </AppButton>
 
-            <button
-              type="button"
+            <AppButton
+              variant="primary"
+              icon={Check}
               disabled={applying || activeSelectedCount === 0 || previewLoading || reverting}
               onClick={() => void handleApplyChanges()}
-              className="h-9 px-5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark disabled:cursor-not-allowed cursor-pointer active:scale-98"
             >
-              <Check className="w-4 h-4 text-emerald-300" />
-              <span>
-                {applying
-                  ? 'جاري حفظ الأسعار الجديدة...'
-                  : 'اعتماد وتطبيق الأسعار الجديدة'}
-              </span>
-            </button>
+              {applying
+                ? 'جاري حفظ الأسعار الجديدة...'
+                : 'اعتماد وتطبيق الأسعار الجديدة'}
+            </AppButton>
           </div>
         </div>
 
@@ -823,23 +815,12 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               </p>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-line dark:border-line-dark">
-                <button
-                  type="button"
-                  onClick={() => setShowRevertConfirm(false)}
-                  disabled={reverting}
-                  className="h-8 px-4 rounded-xl border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-                >
+                <AppButton variant="secondary" onClick={() => setShowRevertConfirm(false)} disabled={reverting}>
                   إلغاء
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleRevertLastAdjustment()}
-                  disabled={reverting}
-                  className="h-8 px-4 rounded-xl bg-warn hover:bg-amber-700 dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
-                >
-                  <Undo2 className={`w-3.5 h-3.5 ${reverting ? 'animate-spin' : ''}`} />
-                  <span>{reverting ? 'جاري التراجع...' : 'تأكيد التراجع الآن'}</span>
-                </button>
+                </AppButton>
+                <AppButton variant="warning" icon={Undo2} onClick={() => void handleRevertLastAdjustment()} loading={reverting}>
+                  {reverting ? 'جاري التراجع...' : 'تأكيد التراجع الآن'}
+                </AppButton>
               </div>
             </div>
           </div>

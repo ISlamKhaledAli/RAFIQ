@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
+import { AppButton } from '../AppButton';
 import { UserCheck, UserPlus } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import { CustomSelect } from '../CustomSelect';
 import { RequiredMark } from '../RequiredMark';
+import { useMotionPanel } from '../../hooks/useMotionPanel';
 
 interface CustomerPickerProps {
   customerId: string | null;
@@ -34,8 +36,11 @@ export const CustomerPicker = ({
   status,
   children,
 }: CustomerPickerProps) => {
+  const motionPanel = useMotionPanel(quickAddOpen ? 'quick-add' : 'picker');
+
   return (
     <section
+      {...motionPanel}
       aria-label="الزبون"
       className="flex-1 min-h-0 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark p-4 flex flex-col gap-3"
     >
@@ -71,15 +76,9 @@ export const CustomerPicker = ({
             searchable
           />
 
-          <button
-            type="button"
-            onClick={onOpenQuickAdd}
-            className="h-11 px-4 text-sm font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-paid-border dark:border-paid-dark-border rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-2"
-            title="تسجيل زبون جديد في النوتة فوراً"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>تسجيل زبون جديد</span>
-          </button>
+          <AppButton variant="successSoft" size="lg" icon={UserPlus} onClick={onOpenQuickAdd} title="تسجيل زبون جديد في النوتة فوراً">
+            تسجيل زبون جديد
+          </AppButton>
 
           {hint && (
             <p className="m-0 text-xs leading-relaxed text-ink-muted dark:text-ink-dark-muted">{hint}</p>

@@ -17,12 +17,14 @@ import {
 import type { Customer, CustomerLedgerEntry, CustomerBalanceVerification } from '../../types/models';
 import { CustomSelect } from '../../components/CustomSelect';
 import { DateFilterControl } from '../../components/DateFilterControl';
+import { ClearFiltersButton } from '../../components/ClearFiltersButton';
 import { type DateFilterValue, DEFAULT_DATE_FILTER, isDateFilterActive, describeDateFilter } from '../../utils/dateFilter';
 import { CustomerReceiptVoucherModal } from './CustomerReceiptVoucherModal';
 import { PaginationBar } from '../../components/PaginationBar';
 import { formatArabicCurrency } from '../../utils/money';
 import { usePermission } from '../../utils/usePermission';
 
+import { AppButton } from '../../components/AppButton';
 export interface CustomerStatementModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -138,20 +140,18 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <span className="text-sm font-bold text-ink dark:text-ink-dark">
                 كشف حساب الزبون: {selectedCustomer.name}
               </span>
-              <button
-                type="button"
+              <AppButton
+                variant="secondary"
+                size="xs"
                 onClick={() => void onVerifyBalance(selectedCustomer.id)}
                 disabled={isVerifyingBalance || isFixingBalance}
-                className="h-6 px-2 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-micro font-bold flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
                 title="مراجعة وتدقيق مطابقة الرصيد الحالي مع مجموع حركات الديون والمدفوعات"
               >
                 <ShieldCheck className={`w-3.5 h-3.5 text-brand dark:text-brand-bright ${isVerifyingBalance ? 'animate-spin' : ''}`} />
                 <span>{isVerifyingBalance ? 'بنطابق الحساب...' : 'مطابقة الرصيد وتدقيقه'}</span>
-              </button>
+              </AppButton>
             </div>
-            <button onClick={onClose} className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer">
-              <X className="w-4 h-4" />
-            </button>
+            <AppButton variant="subtle" size="xs" icon={X} onClick={onClose} aria-label="إغلاق" />
           </div>
 
           {/* Balance Verification Banner */}
@@ -171,14 +171,15 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 </span>
               </div>
               {!balanceVerification.isBalanced && (
-                <button
-                  type="button"
+                <AppButton
+                  variant="danger"
+                  size="xs"
+                  className="shrink-0"
                   onClick={() => void onFixBalance(selectedCustomer.id)}
                   disabled={isFixingBalance}
-                  className="px-2.5 py-1 bg-danger hover:bg-danger/90 text-white rounded text-micro font-bold flex items-center gap-1 transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
                 >
-                  <span>{isFixingBalance ? 'جاري التصحيح...' : 'إعادة حساب وتصحيح الرصيد'}</span>
-                </button>
+                  {isFixingBalance ? 'جاري التصحيح...' : 'إعادة حساب وتصحيح الرصيد'}
+                </AppButton>
               )}
             </div>
           )}
@@ -202,28 +203,25 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 size="sm"
               />
             </div>
-            {dateActive && (
-              <div className="flex items-center gap-2">
-                <span className="text-micro font-bold text-brand dark:text-brand-bright">
-                  {`الحركات خلال: ${describeDateFilter(dateFilter)} (${filteredStatementEntries.length})`}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onDateFilterChange(DEFAULT_DATE_FILTER)}
-                  className="h-6 px-2 flex items-center gap-1 rounded border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-micro font-bold text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright cursor-pointer transition-colors"
-                  title="إلغاء الفترة وعرض كل الحركات"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>كل الفترات</span>
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <span className="w-64 truncate text-micro font-bold text-brand dark:text-brand-bright">
+                {dateActive
+                  ? `الحركات خلال: ${describeDateFilter(dateFilter)} (${filteredStatementEntries.length})`
+                  : `كل الحركات (${filteredStatementEntries.length})`}
+              </span>
+              <ClearFiltersButton
+                active={dateActive}
+                onClick={() => onDateFilterChange(DEFAULT_DATE_FILTER)}
+                label="كل الفترات"
+                title="إلغاء الفترة وعرض كل الحركات"
+              />
+            </div>
           </div>
 
           {/* Statement Summary Strip */}
           <div className="bg-surface dark:bg-surface-dark hairline-b border-line dark:border-line-dark px-4 py-2.5 shrink-0 flex flex-wrap items-center justify-between gap-3">
             {/* Hero Net Balance Card */}
-            <div className={`flex items-center gap-3 px-3.5 py-2 rounded-lg border flex-1 min-w-[280px] ${
+            <div className={`flex items-center gap-3 px-3.5 py-2 rounded-lg border flex-1 min-w-[17.5rem] ${
               statementPeriodSummary.closingBalancePiasters > 0
                 ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright'
                 : statementPeriodSummary.closingBalancePiasters < 0
@@ -258,7 +256,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             {/* Simplified Period Details */}
             <div className="flex items-center gap-2 shrink-0">
               {/* Period Purchases */}
-              <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[130px]">
+              <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[8.125rem]">
                 <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold">أخد بضاعة (على الحساب)</span>
                 <span className="font-mono text-xs font-bold text-danger dark:text-danger-bright">
                   {formatArabicCurrency(statementPeriodSummary.periodDebitsPiasters, true)}
@@ -266,7 +264,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               </div>
 
               {/* Period Payments */}
-              <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[130px]">
+              <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[8.125rem]">
                 <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold">سدد فلوس (دفع كاش)</span>
                 <span className="font-mono text-xs font-bold text-paid dark:text-paid-bright">
                   {formatArabicCurrency(statementPeriodSummary.periodCreditsPiasters, true)}
@@ -275,7 +273,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
 
               {/* Period Refunds if any */}
               {Boolean(statementPeriodSummary.periodRefundsPiasters && statementPeriodSummary.periodRefundsPiasters > 0) && (
-                <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[130px]">
+                <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[8.125rem]">
                   <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold">مرتجع بضاعة (خصم)</span>
                   <span className="font-mono text-xs font-bold text-paid dark:text-paid-bright">
                     -{formatArabicCurrency(statementPeriodSummary.periodRefundsPiasters!, true)}
@@ -284,7 +282,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               )}
 
               {/* Prior Balance */}
-              <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[135px]">
+              <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[8.4375rem]">
                 <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-bold">حسابه القديم (اللي فات)</span>
                 <span className="font-mono text-xs font-bold text-ink dark:text-ink-dark">
                   {formatArabicCurrency(Math.abs(statementPeriodSummary.openingBalancePiasters), true)}
@@ -311,14 +309,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 {dateActive ? 'مفيش حركات مسجلة خلال الفترة دي.' : 'مفيش حركات مسجلة على حساب الزبون.'}
                 {dateActive && (
                   <div className="mt-2">
-                    <button
-                      type="button"
-                      onClick={() => onDateFilterChange(DEFAULT_DATE_FILTER)}
-                      className="h-7 px-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>عرض كل الحركات</span>
-                    </button>
+                    <AppButton variant="primary" size="xs" icon={RotateCcw} onClick={() => onDateFilterChange(DEFAULT_DATE_FILTER)}>
+                      عرض كل الحركات
+                    </AppButton>
                   </div>
                 )}
               </div>
@@ -346,7 +339,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
 
                       return (
                         <tr key={entry.id} className="h-9 hover:bg-surface-2 dark:hover:bg-surface-dark-2">
-                          <td className="px-3 text-ink-muted dark:text-ink-dark-muted text-micro font-mono">
+                          <td className="px-3 text-ink-muted dark:text-ink-dark-muted text-xs font-mono">
                             <div className="flex items-center gap-1">
                               <Clock className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
                               <span>{new Date(entry.createdAt).toLocaleDateString('ar-EG-u-nu-latn')}</span>
@@ -413,26 +406,26 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                           <td className="px-3 text-center">
                             <div className="flex items-center justify-center gap-2">
                               {isPayment && (
-                                <button
-                                  type="button"
+                                <AppButton
+                                  variant="soft"
+                                  size="xs"
+                                  icon={Receipt}
                                   onClick={() => setViewingReceiptEntry(entry)}
-                                  className="inline-flex items-center gap-1 text-micro text-brand dark:text-brand-bright hover:underline font-semibold cursor-pointer"
                                   title="عرض وطباعة سند القبض المالي للدفعة"
                                 >
-                                  <Receipt className="w-3 h-3" />
-                                  <span>سند قبض</span>
-                                </button>
+                                  سند قبض
+                                </AppButton>
                               )}
                               {isPayment && !alreadyCancelled && canCancelPayment && (
-                                <button
-                                  type="button"
+                                <AppButton
+                                  variant="dangerSoft"
+                                  size="xs"
+                                  icon={RotateCcw}
                                   onClick={() => setCancellingEntry(entry)}
-                                  className="inline-flex items-center gap-1 text-micro text-danger dark:text-danger-bright hover:text-red-700 dark:hover:text-red-300 hover:underline font-semibold cursor-pointer"
                                   title="إلغاء دفعة السداد بقيد معاكس دون حذف"
                                 >
-                                  <RotateCcw className="w-3 h-3" />
-                                  <span>إلغاء</span>
-                                </button>
+                                  إلغاء
+                                </AppButton>
                               )}
                             </div>
                           </td>
@@ -461,14 +454,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
 
           {/* Footer */}
           <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-t border-line dark:border-line-dark px-4 flex items-center justify-end shrink-0">
-            <button
-              type="button"
-              onClick={onOpenPrintStatement}
-              className="px-3.5 py-1.5 rounded bg-brand text-white text-xs font-bold hover:bg-brand-hover flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>طباعة كشف الحساب</span>
-            </button>
+            <AppButton variant="primary" icon={Printer} onClick={onOpenPrintStatement}>
+              طباعة كشف الحساب
+            </AppButton>
           </div>
         </div>
       </div>
@@ -482,9 +470,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 <RotateCcw className="w-4 h-4" />
                 <span>إلغاء سداد بالخطأ (قيد عكسي)</span>
               </div>
-              <button onClick={() => setCancellingEntry(null)} className="text-danger dark:text-danger-bright hover:opacity-75 cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
+              <AppButton variant="dangerSubtle" size="xs" icon={X} onClick={() => setCancellingEntry(null)} aria-label="إغلاق" />
             </div>
 
             <div className="p-4 space-y-3.5 text-xs">
@@ -547,23 +533,12 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               </div>
 
               <div className="pt-2 flex justify-end gap-2 hairline-t border-line dark:border-line-dark">
-                <button
-                  type="button"
-                  onClick={() => setCancellingEntry(null)}
-                  disabled={isCancellingPayment}
-                  className="px-4 py-1.5 rounded bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark font-medium cursor-pointer"
-                >
+                <AppButton variant="secondary" onClick={() => setCancellingEntry(null)} disabled={isCancellingPayment}>
                   رجوع
-                </button>
-                <button
-                  type="button"
-                  onClick={onConfirmCancelPayment}
-                  disabled={isCancellingPayment}
-                  className="px-5 py-1.5 rounded bg-danger text-white hover:bg-red-700 font-bold flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>{isCancellingPayment ? 'بنلغي السداد...' : 'تأكيد إلغاء السداد'}</span>
-                </button>
+                </AppButton>
+                <AppButton variant="danger" icon={RotateCcw} onClick={onConfirmCancelPayment} loading={isCancellingPayment}>
+                  {isCancellingPayment ? 'بنلغي السداد...' : 'تأكيد إلغاء السداد'}
+                </AppButton>
               </div>
             </div>
           </div>

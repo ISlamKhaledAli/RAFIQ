@@ -46,8 +46,8 @@ describe('store settings screens: dead settings are gone, live ones still saved'
   });
 
   it('save buttons stay disabled until something changed', () => {
-    assert.ok(profileTab.includes('disabled={saveLoading || hasTextError || !dirty}'));
-    assert.ok(policiesTab.includes('disabled={!creditLimitDirty || saveLoading}'));
+    assert.ok(profileTab.includes('loading={saveLoading}') && profileTab.includes('disabled={hasTextError || !dirty}'));
+    assert.ok(policiesTab.includes('loading={saveLoading}') && policiesTab.includes('disabled={!creditLimitDirty}'));
     assert.ok(settingsView.includes('profileBaseline === null || profileSnapshot !== profileBaseline'));
   });
 
@@ -116,7 +116,7 @@ describe('store settings screens: dead settings are gone, live ones still saved'
     assert.ok(!card.includes('السطر الأول يُطبع غامقاً'), 'no stale bold-first-line hint');
     assert.ok(!profileTab.includes('SignatureImageField') && !profileTab.includes('توقيع المطور أسفل الوصل'), 'the owner profile has no signature card');
     for (const label of ['إضافة صورة', 'إرجاع الافتراضية', 'بدون صور']) {
-      assert.ok(signatureField.includes(`<span>${label}</span>`) || signatureField.includes(`'${label}'`), `${label} action`);
+      assert.ok(signatureField.includes(`<span>${label}</span>`) || signatureField.includes(`'${label}'`) || new RegExp(`>\\s*${label}\\s*</AppButton>`).test(signatureField), `${label} action`);
     }
     assert.ok(signatureField.includes('تتحول الصورة تلقائياً إلى أبيض وأسود وتُقص حوافها لتناسب الطابعة الحرارية.'));
     assert.ok(signatureField.includes('تُختار صورة واحدة عشوائياً لكل فاتورة، وتظهر نفس الصورة عند إعادة طباعة نفس الفاتورة.'), 'the random-per-invoice note');
@@ -126,7 +126,7 @@ describe('store settings screens: dead settings are gone, live ones still saved'
     assert.ok(signatureField.includes('الحد الأقصى ${MAX_SIGNATURE_IMAGES} صور') && signatureField.includes('current.length >= MAX_SIGNATURE_IMAGES'), 'the 8-image cap message');
     assert.ok(signatureField.includes('SIGNATURE_IMAGE_LIST_MAX_CHARS') && signatureField.includes('مجموع حجم الصور كبير'), 'the total length cap refuses the image with a message');
     assert.ok(signatureField.includes('commit(current)') && signatureField.includes('problems.push('), 'successful files are kept, per-file errors are listed');
-    assert.ok(signatureField.includes('aria-label="حذف الصورة"') && signatureField.includes('Trash2') && signatureField.includes('w-11 h-11'), 'a 44px remove button on every tile (the default included)');
+    assert.ok(signatureField.includes('aria-label="حذف الصورة"') && signatureField.includes('Trash2') && /size="lg"[\s\S]{0,40}icon=\{Trash2\}/.test(signatureField), 'a 44px (lg) remove button on every tile (the default included)');
     assert.ok(signatureField.includes("'الافتراضية'") && signatureField.includes('removeAt(index)'), 'the default tile is labelled and removable like the others');
     assert.ok(signatureField.includes('reset([SIGNATURE_IMAGE_DEFAULT])') && signatureField.includes('reset([])'), 'default and none actions');
     assert.ok(signatureField.includes("'صورة واحدة'") && signatureField.includes("'صورتان'") && signatureField.includes("'صورتين'"), 'natural Arabic counts');

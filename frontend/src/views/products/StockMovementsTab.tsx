@@ -4,7 +4,6 @@ import {
   RotateCcw,
   CheckCircle2,
   AlertTriangle,
-  Search,
   X,
   Calendar,
   ArrowUpRight,
@@ -25,7 +24,9 @@ import {
   isDateFilterActive,
 } from '../../utils/dateFilter';
 import { MOVEMENTS_LOAD_LIMIT } from './stockMovementsQuery';
-
+import { AppButton } from '../../components/AppButton';
+import { SearchInput } from '../../components/SearchInput';
+import { cleanMovementNote, movementTypeLabel } from '../../utils/movementText';
 /** Shared column template so the header and every row line up; fixed gaps keep the last columns apart. */
 const MOVEMENTS_GRID =
   'grid grid-cols-[minmax(7.75rem,1.3fr)_minmax(0,2.6fr)_minmax(6rem,1.1fr)_minmax(6.5rem,1.2fr)_minmax(5rem,1fr)_minmax(0,2fr)] gap-x-4';
@@ -92,7 +93,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
       result = result.filter((m) =>
         (m.productName && m.productName.toLowerCase().includes(q)) ||
         (m.productBarcode && m.productBarcode.toLowerCase().includes(q)) ||
-        (m.note && m.note.toLowerCase().includes(q))
+        (m.note && cleanMovementNote(m.note).toLowerCase().includes(q))
       );
     }
     return result;
@@ -121,9 +122,9 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
               <div className="text-lg font-mono font-bold text-ink dark:text-ink-dark">
                 {filteredMovements.length}{isTruncated ? '+' : ''} حركة
               </div>
-              {isDateActive && (
-                <div className="text-micro text-brand dark:text-brand-bright font-bold">في الفترة: {periodLabel}</div>
-              )}
+              <div className={`text-micro font-bold ${isDateActive ? 'text-brand dark:text-brand-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
+                في الفترة: {isDateActive ? periodLabel : 'كل الفترات'}
+              </div>
             </div>
           </div>
         </div>
@@ -157,16 +158,16 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
 
         {/* 3. Reconcile Card (Task 34-3) */}
         <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark flex items-center justify-between gap-2">
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            icon={RotateCcw}
             onClick={onRecalculateStock}
-            disabled={recalculating}
-            className="w-full h-10 px-4 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-2xs"
+            loading={recalculating}
+            fullWidth
             title="أداة تدقيق ومطابقة رصيد المخزن بناءً على حركات البيع والشراء الفعلية"
           >
-            <RotateCcw className={`w-4 h-4 text-brand dark:text-brand-bright ${recalculating ? 'animate-spin' : ''}`} />
-            <span>{recalculating ? 'جاري مراجعة ومطابقة رصيد المخزن...' : 'إعادة مطابقة وحساب رصيد البضاعة بالمخزن'}</span>
-          </button>
+            {recalculating ? 'جاري مراجعة ومطابقة رصيد المخزن...' : 'إعادة مطابقة وحساب رصيد البضاعة بالمخزن'}
+          </AppButton>
         </div>
       </div>
 
@@ -177,65 +178,51 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
             <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright" />
             <span>{recalcSuccessMsg}</span>
           </div>
-          <button
-            type="button"
+          <AppButton
+            variant="subtle"
+            size="xs"
+            icon={X}
             onClick={() => setRecalcSuccessMsg(null)}
-            className="text-paid dark:text-paid-bright hover:text-ink dark:hover:text-ink-dark p-1"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+            aria-label="إغلاق الرسالة"
+          />
         </div>
       )}
 
-      {/* Movements Toolbar & Filters */}
-      <div className="bg-surface dark:bg-surface-dark hairline-all rounded-2xl p-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 shrink-0">
-        {/* Filter Pills */}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          {MOVEMENT_TYPE_FILTERS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setMovementTypeFilter(tab.id)}
-              className={`h-9 px-3.5 rounded-full font-semibold transition-colors shrink-0 cursor-pointer ${
-                movementTypeFilter === tab.id
-                  ? 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs'
-                  : 'bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      {/* Movements Toolbar & Filters: search first, then the date filter, then the type pills */}
+      <div className="bg-surface dark:bg-surface-dark hairline-all rounded-2xl p-4 flex flex-col gap-3 shrink-0">
+        <div className="flex items-center gap-x-8 gap-y-3 flex-wrap">
+          <SearchInput
+            size="md"
+            value={movementSearchQuery}
+            onChange={(value) => setMovementSearchQuery(normalizeArabicNumerals(value))}
+            placeholder="دور في حركات البضاعة..."
+            ariaLabel="بحث في حركات البضاعة"
+            className="w-full sm:w-96"
+          />
 
-        <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
           <DateFilterControl
             value={movementDateFilter}
             onChange={setMovementDateFilter}
             size="md"
             selectWidthClass="w-44 sm:w-48"
           />
+        </div>
 
-          {/* Search Input for Movements */}
-          <div className="relative w-full sm:w-72 h-10 flex items-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 focus-within:border-brand dark:focus-within:border-brand-bright focus-within:bg-surface dark:focus-within:bg-surface-dark">
-            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted ml-2 shrink-0 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="دور في حركات البضاعة..."
-              value={movementSearchQuery}
-              onChange={(e) => setMovementSearchQuery(normalizeArabicNumerals(e.target.value))}
-              className="w-full bg-transparent border-none text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
-            />
-            {movementSearchQuery && (
-              <button
-                type="button"
-                onClick={() => setMovementSearchQuery('')}
-                aria-label="مسح نص البحث"
-                className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {MOVEMENT_TYPE_FILTERS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setMovementTypeFilter(tab.id)}
+              className={`h-8 px-3.5 rounded-full text-xs font-bold shrink-0 cursor-pointer ${
+                movementTypeFilter === tab.id
+                  ? 'bg-brand text-white dark:bg-paid-bright dark:text-surface-dark'
+                  : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:text-ink dark:hover:text-ink-dark'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -268,13 +255,9 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
                 حركات المخزن بتتسجل تلقائياً مع كل فاتورة بيع أو شراء أو تسوية جرد.
               </p>
               {hasAnyFilter && (
-                <button
-                  type="button"
-                  onClick={resetAllFilters}
-                  className="mt-1 h-9 px-4 rounded-xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 text-xs font-bold cursor-pointer hover:bg-brand/10 transition-colors"
-                >
+                <AppButton variant="soft" onClick={resetAllFilters} className="mt-1">
                   مسح الفلاتر وعرض كل الحركات
-                </button>
+                </AppButton>
               )}
             </div>
           ) : (
@@ -310,7 +293,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
               return (
                 <div
                   key={m.id}
-                  className={`h-[48px] hairline-b px-4 ${MOVEMENTS_GRID} items-center text-xs hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors`}
+                  className={`h-[3rem] hairline-b px-4 ${MOVEMENTS_GRID} items-center text-xs hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors`}
                 >
                   {/* 1. Date */}
                   <div className="flex items-center gap-1.5 font-mono text-micro text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
@@ -329,7 +312,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
                   {/* 3. Movement Type */}
                   <div className="flex justify-center">
                     <span className={`px-2.5 py-0.5 rounded text-micro font-bold border whitespace-nowrap ${badgeClass}`}>
-                      {m.movementTypeArabic || m.movementType}
+                      {movementTypeLabel(m.movementType, m.movementTypeArabic)}
                     </span>
                   </div>
 
@@ -351,8 +334,8 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
                   </span>
 
                   {/* 6. Note */}
-                  <div className="min-w-0 truncate text-micro text-ink-muted dark:text-ink-dark-muted" title={m.note || ''}>
-                    {m.note || <span className="opacity-40">—</span>}
+                  <div className="min-w-0 truncate text-micro text-ink-muted dark:text-ink-dark-muted" title={cleanMovementNote(m.note)}>
+                    {cleanMovementNote(m.note) || <span className="opacity-40">—</span>}
                   </div>
                 </div>
               );
@@ -361,7 +344,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
         </div>
 
         {/* Table Footer */}
-        <div className="h-[32px] bg-surface-2 dark:bg-surface-dark-2 hairline-t px-4 flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted shrink-0">
+        <div className="h-[2rem] bg-surface-2 dark:bg-surface-dark-2 hairline-t px-4 flex items-center justify-between text-micro text-ink-muted dark:text-ink-dark-muted shrink-0">
           <span>
             {isTruncated
               ? `معروض أحدث ${MOVEMENTS_LOAD_LIMIT} حركة فقط، حدّد فترة أضيق لعرض الحركات الأقدم.`

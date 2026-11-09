@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '../bridge/ipc';
+import { Delete, X } from 'lucide-react';
+import { AppButton } from './AppButton';
 
 interface SupervisorPromptModalProps {
   isOpen: boolean;
@@ -119,15 +121,7 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
               <p className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium">{actionTitle}</p>
             </div>
           </div>
-          <button
-            onClick={onCancel}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
-            title="إغلاق"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} aria-label="إغلاق" onClick={onCancel} />
         </div>
 
         {/* Body */}
@@ -146,7 +140,7 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
             maxLength={8}
             autoFocus
             autoComplete="off"
-            aria-label="الرقم السري (PIN)"
+            aria-label="الرقم السري"
             value={pin}
             readOnly={loading}
             onChange={(e) => {
@@ -174,61 +168,36 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
           {/* Tactile Keypad */}
           <div className="grid grid-cols-3 gap-2">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-              <button
+              <AppButton
                 key={digit}
-                type="button"
+                variant="secondary"
+                size="lg"
+                className="!text-lg"
                 disabled={loading}
                 onClick={() => handleNumberClick(digit)}
-                className="h-11 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-lg rounded-xl border border-line dark:border-line-dark active:scale-95 transition-all shadow-2xs"
               >
                 {digit}
-              </button>
+              </AppButton>
             ))}
-            <button
-              type="button"
-              disabled={loading || pin.length === 0}
-              onClick={handleClear}
-              className="h-11 bg-surface dark:bg-surface-dark-2 hover:bg-warn-soft dark:hover:bg-warn-dark-soft text-warn dark:text-warn-bright font-bold text-xs rounded-xl border border-line dark:border-line-dark active:scale-95 transition-all"
-            >
+            <AppButton variant="warningSoft" size="lg" disabled={loading || pin.length === 0} onClick={handleClear}>
               مسح
-            </button>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => handleNumberClick('0')}
-              className="h-11 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-lg rounded-xl border border-line dark:border-line-dark active:scale-95 transition-all shadow-2xs"
-            >
+            </AppButton>
+            <AppButton variant="secondary" size="lg" className="!text-lg" disabled={loading} onClick={() => handleNumberClick('0')}>
               0
-            </button>
-            <button
-              type="button"
-              disabled={loading || pin.length === 0}
-              onClick={handleBackspace}
-              className="h-11 bg-surface dark:bg-surface-dark-2 hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-danger dark:text-danger-bright font-bold text-xs rounded-xl border border-line dark:border-line-dark active:scale-95 transition-all flex items-center justify-center"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
-              </svg>
-            </button>
+            </AppButton>
+            <AppButton variant="dangerSoft" size="lg" aria-label="حذف رقم" disabled={loading || pin.length === 0} onClick={handleBackspace}>
+              <Delete className="w-5 h-5" />
+            </AppButton>
           </div>
 
           {/* Action buttons */}
           <div className="flex items-center gap-3 pt-2">
-            <button
-              type="button"
-              disabled={loading || !pin}
-              onClick={() => handleSubmit()}
-              className="flex-1 py-3 bg-brand dark:bg-brand-container hover:bg-brand-hover dark:hover:bg-brand text-white font-bold text-sm rounded-xl transition-all shadow-xs disabled:opacity-40"
-            >
+            <AppButton variant="primary" loading={loading} disabled={!pin} onClick={() => handleSubmit()} className="flex-1">
               {loading ? 'جاري التحقق...' : 'تأكيد الموافقة (Enter)'}
-            </button>
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-3 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-sm rounded-xl transition-colors"
-            >
+            </AppButton>
+            <AppButton variant="secondary" onClick={onCancel}>
               إلغاء
-            </button>
+            </AppButton>
           </div>
         </div>
       </div>

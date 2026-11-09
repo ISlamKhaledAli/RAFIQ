@@ -16,6 +16,7 @@ import {
   PackageCheck
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { AppButton } from './AppButton';
 import type { Sale } from '../types/models';
 import { ReceiptModal } from './ReceiptModal';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -223,7 +224,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                     <span className="px-2.5 py-0.5 rounded-full text-micro font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                       لوحة التحقق الشامل
                     </span>
-                    <span className="text-xs text-emerald-200/70 font-mono">Rafiq Pre-Flight</span>
+                    <span className="text-xs text-emerald-200/70 font-mono">فحص ما قبل التشغيل</span>
                   </div>
                   <h2 className="t-modal-title text-white mt-1">جاهزية نقطة البيع والتشغيل</h2>
                   <p className="text-xs text-emerald-100/80 mt-0.5">
@@ -235,8 +236,9 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
               <button
                 type="button"
                 onClick={requestClose}
-                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors border border-white/15"
+                className="w-9 h-9 shrink-0 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center border border-white/15"
                 title="إغلاق"
+                aria-label="إغلاق"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -335,18 +337,13 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                       {/* Action trigger button */}
                       <div className="shrink-0 flex items-center pt-1">
                         {chk.key === 'printer' ? (
-                          <button
-                            type="button"
-                            onClick={handleTestPrint}
-                            disabled={testingPrinter}
-                            className="px-3.5 py-2 bg-brand hover:bg-brand-dark active:bg-brand-darker text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                          >
-                            <Printer className={`w-3.5 h-3.5 ${testingPrinter ? 'animate-bounce' : ''}`} />
-                            <span>{testingPrinter ? 'جاري الطباعة...' : 'طباعة ورقة اختبار'}</span>
-                          </button>
+                          <AppButton variant="primary" size="sm" icon={Printer} loading={testingPrinter} onClick={handleTestPrint}>
+                            {testingPrinter ? 'جاري الطباعة...' : 'طباعة ورقة اختبار'}
+                          </AppButton>
                         ) : (
-                          <button
-                            type="button"
+                          <AppButton
+                            variant={isSuccess ? 'secondary' : 'warning'}
+                            size="sm"
                             onClick={() => {
                               if (onNavigateToTab) {
                                 if (chk.key === 'store_profile' || chk.key === 'backup' || chk.key === 'os_environment' || chk.key === 'storage_permissions' || chk.key === 'root_security') {
@@ -357,14 +354,9 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                               }
                               onClose();
                             }}
-                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer ${
-                              isSuccess
-                                ? 'bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark'
-                                : 'bg-warn hover:bg-warn-dark dark:hover:bg-warn-bright/90 text-white dark:bg-warn-bright dark:text-surface-dark shadow-sm'
-                            }`}
                           >
                             {chk.actionLabel}
-                          </button>
+                          </AppButton>
                         )}
                       </div>
                     </div>
@@ -427,12 +419,9 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                     <Zap className="w-4 h-4 text-brand dark:text-brand-bright" />
                   </div>
                 </div>
-                <button
-                  type="submit"
-                  className="px-4 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold transition-colors shrink-0 shadow-xs cursor-pointer"
-                >
+                <AppButton type="submit" variant="primary" className="shrink-0">
                   فحص الكود
-                </button>
+                </AppButton>
               </form>
 
               {lastScannedItem && (
@@ -459,7 +448,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <h4 className="t-label text-ink dark:text-ink-dark">
-                    بيعة تجريبية آمنة (Pilot Test Sale)
+                    بيعة تجريبية آمنة
                   </h4>
                   <span className="px-2 py-0.5 rounded text-micro font-black bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
                     آمنة 100%
@@ -470,24 +459,9 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleExecuteTestSale}
-                disabled={testSaleLoading}
-                className="px-4 py-2.5 bg-paid hover:bg-paid-dark active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all shadow hover:shadow-md flex items-center gap-2 shrink-0 disabled:opacity-50 cursor-pointer"
-              >
-                {testSaleLoading ? (
-                  <>
-                    <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>جاري التجهيز...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>تنفيذ بيعة تجريبية</span>
-                  </>
-                )}
-              </button>
+              <AppButton variant="success" icon={Play} loading={testSaleLoading} onClick={handleExecuteTestSale} className="shrink-0">
+                {testSaleLoading ? 'جاري التجهيز...' : 'تنفيذ بيعة تجريبية'}
+              </AppButton>
             </div>
           </div>
 
@@ -495,7 +469,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
           <div className="bg-surface dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-7 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2 text-xs text-ink-muted dark:text-ink-dark-muted font-medium">
               <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
-              <span>نظام رفيق مصمم للاستقرار التام ويعمل محلياً (Offline-First) بدون إنترنت.</span>
+              <span>نظام رفيق مصمم للاستقرار التام ويعمل محلياً بدون إنترنت.</span>
             </div>
           </div>
         </div>

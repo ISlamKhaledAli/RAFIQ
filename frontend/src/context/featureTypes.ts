@@ -63,7 +63,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   {
     key: 'feature_expiry_dates',
     nameAr: 'تواريخ الصلاحية وتشغيلات البضاعة',
-    descriptionAr: 'متابعة تواريخ انتهاء الصلاحية والتنبيهات وسياسة صرف الأقدم أولاً (FEFO).',
+    descriptionAr: 'متابعة تواريخ انتهاء الصلاحية والتنبيهات وسياسة صرف الأقدم أولاً.',
     category: 'المخزون والتشغيلات',
     defaultValue: false,
     requires: [],
@@ -262,7 +262,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_cafe_restaurant',
-    nameAr: 'وضع الكافيهات والمطاعم (Hospitality Mode)',
+    nameAr: 'وضع الكافيهات والمطاعم',
     descriptionAr: 'تفعيل واجهة الكافيهات والمطاعم في الكاشير (اختيار نوع الطلب صالة/تيك أواي/دليفري، رقم النداء اليومي، ورسوم الخدمة)',
     category: 'الكافيهات والمطاعم',
     defaultValue: false,
@@ -272,7 +272,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_table_management',
-    nameAr: 'إدارة الصالة والطاولات (Floor & Tables)',
+    nameAr: 'إدارة الصالة والطاولات',
     descriptionAr: 'خريطة الطاولات التفاعلية، فتح الطلبات باسم الويتر وعدد الضيوف، نقل الطاولات، دمجها، وتقسيم الحساب بالأصناف',
     category: 'الكافيهات والمطاعم',
     defaultValue: false,
@@ -282,8 +282,8 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_kitchen_printer',
-    nameAr: 'طابعة المطبخ والبار (Kitchen & Bar KOT)',
-    descriptionAr: 'طباعة بون التحضير للمطبخ والبار بدون أسعار وبخط واضح مع تتبع الكميات المضافة فقط (Delta KOT)',
+    nameAr: 'طابعة المطبخ والبار',
+    descriptionAr: 'طباعة بون التحضير للمطبخ والبار بدون أسعار وبخط واضح مع تتبع الكميات المضافة فقط',
     category: 'الكافيهات والمطاعم',
     defaultValue: false,
     requires: ['feature_cafe_restaurant'],
@@ -292,7 +292,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_item_modifiers',
-    nameAr: 'إضافات وتخصيصات الأصناف (Item Modifiers)',
+    nameAr: 'إضافات وتخصيصات الأصناف',
     descriptionAr: 'مجموعات الإضافات والتخصيصات المجانية والمدفوعة لكل صنف (مثل مستوى السكر، نوع الحليب، الإضافات الخاصة)',
     category: 'الكافيهات والمطاعم',
     defaultValue: false,
@@ -302,7 +302,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_delivery_management',
-    nameAr: 'إدارة الدليفري والطيارين (Delivery & Riders)',
+    nameAr: 'إدارة الدليفري والطيارين',
     descriptionAr: 'مناطق التوصيل ورسومها، إسناد الطلبات للطيارين، تتبع حالة التوصيل، وتصفية عهدة الطيارين النقدية',
     category: 'الكافيهات والمطاعم',
     defaultValue: false,
@@ -312,7 +312,7 @@ export const DEFAULT_REGISTRY: FeatureDefinitionDto[] = [
   },
   {
     key: 'feature_manufacturing_recipes',
-    nameAr: 'الرسبي والتصنيع وخصم الخامات (Recipes / BOM)',
+    nameAr: 'الرسبي والتصنيع وخصم الخامات',
     descriptionAr: 'ربط الأصناف بمكوناتها الخام مع الخصم التلقائي بالملي/الجرام عند البيع أو عبر أوامر الإنتاج المجمع',
     category: 'الكافيهات والمطاعم',
     defaultValue: false,

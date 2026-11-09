@@ -1,5 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { AlertTriangle, Pencil, RotateCcw, Save } from 'lucide-react';
+import { AppButton } from './AppButton';
 import { unsavedChangesMessage } from '../utils/unsavedChangesGuard';
 
 export interface UnsavedChangesDialogProps {
@@ -15,17 +16,10 @@ export interface UnsavedChangesDialogProps {
 
 const FOCUSABLE = 'button:not([disabled])';
 
-const baseButton =
-  'h-10 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface dark:focus:ring-offset-surface-dark';
-
-const SAVE_BUTTON = `${baseButton} bg-brand dark:bg-paid-bright hover:bg-brand-dark dark:hover:bg-paid-bright-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-muted-dark text-white dark:text-surface-dark focus:ring-brand dark:focus:ring-brand-bright`;
-const DISCARD_BUTTON = `${baseButton} bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/10 dark:hover:bg-danger-dark-soft/70 disabled:opacity-60 border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright focus:ring-danger dark:focus:ring-danger-bright`;
-const STAY_BUTTON = `${baseButton} bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 disabled:opacity-60 border border-line dark:border-line-dark text-ink dark:text-ink-dark focus:ring-brand dark:focus:ring-brand-bright`;
-
 /** Asks what to do with unsaved changes. Opens focused on "stay", so Enter never throws work away by accident. */
 export const UnsavedChangesDialog = ({ labels, canSave, saving, onSave, onDiscard, onStay }: UnsavedChangesDialogProps) => {
   const panelRef = useRef<HTMLDivElement>(null);
-  const stayRef = useRef<HTMLButtonElement>(null);
+  const stayRef = useRef<HTMLButtonElement | HTMLAnchorElement>(null);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -89,19 +83,16 @@ export const UnsavedChangesDialog = ({ labels, canSave, saving, onSave, onDiscar
 
         <div className="px-5 py-4 flex flex-wrap items-center justify-end gap-2.5 border-t border-line dark:border-line-dark">
           {canSave && (
-            <button type="button" onClick={onSave} disabled={saving} className={SAVE_BUTTON}>
-              <Save className="w-4 h-4" />
-              <span>{saving ? 'جاري الحفظ...' : 'حفظ ثم المتابعة'}</span>
-            </button>
+            <AppButton variant="primary" icon={Save} loading={saving} onClick={onSave}>
+              {saving ? 'جاري الحفظ...' : 'حفظ ثم المتابعة'}
+            </AppButton>
           )}
-          <button type="button" onClick={onDiscard} disabled={saving} className={DISCARD_BUTTON}>
-            <RotateCcw className="w-4 h-4" />
-            <span>تجاهل التغييرات والمتابعة</span>
-          </button>
-          <button ref={stayRef} type="button" onClick={onStay} disabled={saving} className={STAY_BUTTON}>
-            <Pencil className="w-4 h-4" />
-            <span>البقاء في الصفحة</span>
-          </button>
+          <AppButton variant="dangerSoft" icon={RotateCcw} onClick={onDiscard} disabled={saving}>
+            تجاهل التغييرات والمتابعة
+          </AppButton>
+          <AppButton ref={stayRef} variant="secondary" icon={Pencil} onClick={onStay} disabled={saving}>
+            البقاء في الصفحة
+          </AppButton>
         </div>
       </div>
     </div>

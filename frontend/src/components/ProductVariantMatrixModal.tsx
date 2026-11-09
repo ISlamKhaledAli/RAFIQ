@@ -14,7 +14,9 @@ import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
 import { MoneyInput } from './MoneyInput';
 import { RequiredMark } from './RequiredMark';
+import { AppButton } from './AppButton';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { isFormDirty } from '../utils/dirtyForm';
 import type { Category, VariantMatrixCell, CreateVariantMatrixRequest, ParentProductWithVariants, Product, ProductVariant } from '../types/models';
 
 interface ProductVariantMatrixModalProps {
@@ -44,6 +46,21 @@ const PRESET_COLORS = [
   'أصفر'
 ];
 
+const DEFAULT_SIZES = ['M', 'L', 'XL'];
+const DEFAULT_COLORS = ['أسود', 'كحلي'];
+const DEFAULT_MIN_STOCK_MILLI = 2000; // 2 pieces
+
+const cellSignature = (cell: VariantMatrixCell): string =>
+  [
+    `${cell.color}_${cell.size}`,
+    cell.barcode,
+    cell.sku,
+    cell.pricePiasters,
+    cell.costPiasters,
+    cell.stockQuantityMilli,
+    cell.minStockQuantityMilli,
+  ].join('|');
+
 export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps> = ({
   isOpen,
   onClose,
@@ -56,11 +73,13 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
   const [categoryId, setCategoryId] = useState('');
   const [defaultPricePiasters, setDefaultPricePiasters] = useState<number>(0);
   const [defaultCostPiasters, setDefaultCostPiasters] = useState<number>(0);
-  const [defaultMinStock, setDefaultMinStock] = useState<number>(2000); // 2 pieces
+  const [defaultMinStock, setDefaultMinStock] = useState<number>(DEFAULT_MIN_STOCK_MILLI);
 
   // Selected sizes & colors tags
-  const [sizes, setSizes] = useState<string[]>(['M', 'L', 'XL']);
-  const [colors, setColors] = useState<string[]>(['أسود', 'كحلي']);
+  const [sizes, setSizes] = useState<string[]>(DEFAULT_SIZES);
+  const [colors, setColors] = useState<string[]>(DEFAULT_COLORS);
+  // The saved variants the edit form was opened with (empty for a new product)
+  const [loadedVariants, setLoadedVariants] = useState<ProductVariant[]>([]);
   const [newSizeInput, setNewSizeInput] = useState('');
   const [newColorInput, setNewColorInput] = useState('');
 
@@ -92,11 +111,17 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
       setCategoryId(parentProduct.categoryId || '');
       setDefaultPricePiasters(parentProduct.pricePiasters || 0);
       setDefaultCostPiasters(parentProduct.costPiasters || 0);
-      setDefaultMinStock(parentProduct.minStockQuantityMilli || 2000);
+      setDefaultMinStock(parentProduct.minStockQuantityMilli || DEFAULT_MIN_STOCK_MILLI);
+      // Nothing from a previous opening survives while the saved variants load
+      setSizes(DEFAULT_SIZES);
+      setColors(DEFAULT_COLORS);
+      setMatrixCells({});
+      setLoadedVariants([]);
 
       void invoke<ProductVariant[]>('variants:getByParentId', { parentId: parentProduct.id })
         .then((existingList) => {
           if (existingList && existingList.length > 0) {
+            setLoadedVariants(existingList);
             const distinctSizes = Array.from(new Set(existingList.map((v) => v.size).filter(Boolean)));
             const distinctColors = Array.from(new Set(existingList.map((v) => v.color).filter(Boolean)));
             if (distinctSizes.length > 0) setSizes(distinctSizes);
@@ -130,10 +155,11 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
       setCategoryId('');
       setDefaultPricePiasters(0);
       setDefaultCostPiasters(0);
-      setDefaultMinStock(2000);
-      setSizes(['M', 'L', 'XL']);
-      setColors(['أسود', 'كحلي']);
+      setDefaultMinStock(DEFAULT_MIN_STOCK_MILLI);
+      setSizes(DEFAULT_SIZES);
+      setColors(DEFAULT_COLORS);
       setMatrixCells({});
+      setLoadedVariants([]);
     }
   }, [isOpen, parentProduct]);
 
@@ -318,7 +344,56 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
     }
   };
 
-  const isDirty = Boolean(parentName.trim() || activeCells.length > 0);
+  // Dirty = differs from the form as it opened: an empty matrix with the default tags, or the saved variants of the product
+  const savedVariantKeys = new Map(loadedVariants.map((v) => [`${v.color}_${v.size}`, v]));
+  const openedSizes = Array.from(new Set(loadedVariants.map((v) => v.size).filter(Boolean)));
+  const openedColors = Array.from(new Set(loadedVariants.map((v) => v.color).filter(Boolean)));
+  const openedDefaults = {
+    price: parentProduct?.pricePiasters || 0,
+    cost: parentProduct?.costPiasters || 0,
+    min: parentProduct?.minStockQuantityMilli || DEFAULT_MIN_STOCK_MILLI,
+  };
+  const openedCellSignatures: string[] = [];
+  for (const color of openedColors.length > 0 ? openedColors : DEFAULT_COLORS) {
+    for (const size of openedSizes.length > 0 ? openedSizes : DEFAULT_SIZES) {
+      const saved = savedVariantKeys.get(`${color}_${size}`);
+      openedCellSignatures.push(
+        cellSignature({
+          color,
+          size,
+          barcode: saved?.barcode || '',
+          sku: saved?.sku || '',
+          pricePiasters: saved ? saved.pricePiasters : openedDefaults.price,
+          costPiasters: saved ? saved.costPiasters : openedDefaults.cost,
+          stockQuantityMilli: saved ? saved.stockQuantityMilli : 0,
+          minStockQuantityMilli: saved ? saved.minStockQuantityMilli : openedDefaults.min,
+          isEnabled: true,
+        }),
+      );
+    }
+  }
+  const isDirty = isFormDirty(
+    {
+      parentName: parentProduct?.name,
+      categoryId: parentProduct?.categoryId,
+      defaultPricePiasters: openedDefaults.price,
+      defaultCostPiasters: openedDefaults.cost,
+      defaultMinStock: openedDefaults.min,
+      sizes: openedSizes.length > 0 ? openedSizes : DEFAULT_SIZES,
+      colors: openedColors.length > 0 ? openedColors : DEFAULT_COLORS,
+      cells: openedCellSignatures,
+    },
+    {
+      parentName,
+      categoryId,
+      defaultPricePiasters,
+      defaultCostPiasters,
+      defaultMinStock,
+      sizes,
+      colors,
+      cells: activeCells.map(cellSignature),
+    },
+  );
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -356,12 +431,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
               </p>
             </div>
           </div>
-          <button
-            onClick={requestClose}
-            className="p-2 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-line/40 dark:hover:bg-line-dark/40 rounded-xl transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" icon={X} onClick={requestClose} aria-label="إغلاق" />
         </div>
 
         {/* Modal Body */}
@@ -445,14 +515,9 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
               </div>
 
               <div className="md:col-span-2 flex items-end">
-                <button
-                  type="button"
-                  onClick={applyDefaultPricesToAll}
-                  className="h-10 px-4 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:text-brand dark:hover:text-brand-bright text-xs font-semibold text-ink dark:text-ink-dark transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
+                <AppButton variant="secondary" icon={RefreshCw} onClick={applyDefaultPricesToAll}>
                   تطبيق الأسعار الافتراضية على كل التركيبات
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -486,7 +551,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
               </div>
 
               {/* Tags */}
-              <div className="flex flex-wrap gap-1.5 min-h-[42px] p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+              <div className="flex flex-wrap gap-1.5 min-h-[2.625rem] p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                 {sizes.map((s) => (
                   <span
                     key={s}
@@ -496,6 +561,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                     <button
                       type="button"
                       onClick={() => handleRemoveSize(s)}
+                      aria-label={`إزالة المقاس ${s}`}
                       className="hover:text-danger dark:hover:text-danger-bright hover:bg-danger/10 rounded p-0.5 cursor-pointer"
                     >
                       <X className="w-3 h-3" />
@@ -520,16 +586,11 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                     }
                   }}
                   placeholder="أدخل مقاساً واضغط Enter..."
-                  className="flex-1 h-9 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 text-xs outline-none focus:border-brand dark:focus:border-brand-bright"
+                  className="flex-1 h-10 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 text-xs outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
-                <button
-                  type="button"
-                  onClick={() => handleAddSize(newSizeInput)}
-                  className="h-9 px-3 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright text-ink dark:text-ink-dark text-xs font-medium flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
+                <AppButton variant="secondary" icon={Plus} onClick={() => handleAddSize(newSizeInput)}>
                   إضافة
-                </button>
+                </AppButton>
               </div>
             </div>
 
@@ -556,7 +617,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
               </div>
 
               {/* Tags */}
-              <div className="flex flex-wrap gap-1.5 min-h-[42px] p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+              <div className="flex flex-wrap gap-1.5 min-h-[2.625rem] p-2 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
                 {colors.map((c) => (
                   <span
                     key={c}
@@ -566,6 +627,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                     <button
                       type="button"
                       onClick={() => handleRemoveColor(c)}
+                      aria-label={`إزالة اللون ${c}`}
                       className="hover:text-danger dark:hover:text-danger-bright hover:bg-danger/10 rounded p-0.5 cursor-pointer"
                     >
                       <X className="w-3 h-3" />
@@ -590,16 +652,11 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                     }
                   }}
                   placeholder="أدخل لوناً واضغط Enter..."
-                  className="flex-1 h-9 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 text-xs outline-none focus:border-brand dark:focus:border-brand-bright"
+                  className="flex-1 h-10 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 text-xs outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
-                <button
-                  type="button"
-                  onClick={() => handleAddColor(newColorInput)}
-                  className="h-9 px-3 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-paid dark:hover:border-paid-dark-border text-ink dark:text-ink-dark text-xs font-medium flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
+                <AppButton variant="secondary" icon={Plus} onClick={() => handleAddColor(newColorInput)}>
                   إضافة
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -609,28 +666,15 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
             <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark p-3 rounded-xl">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-ink dark:text-ink-dark">إجراءات جماعية سريعة:</span>
-                <button
-                  type="button"
-                  onClick={autoGenerateAllBarcodes}
-                  className="px-2.5 py-1 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright text-xs font-semibold text-brand dark:text-brand-bright flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Barcode className="w-3.5 h-3.5" />
+                <AppButton variant="secondary" size="sm" icon={Barcode} onClick={autoGenerateAllBarcodes}>
                   توليد باركود فريد للكل (214)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleAllCells(true)}
-                  className="px-2.5 py-1 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-xs font-medium text-ink dark:text-ink-dark transition-colors cursor-pointer"
-                >
+                </AppButton>
+                <AppButton variant="secondary" size="sm" onClick={() => toggleAllCells(true)}>
                   تحديد الكل
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleAllCells(false)}
-                  className="px-2.5 py-1 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-xs font-medium text-ink dark:text-ink-dark transition-colors cursor-pointer"
-                >
+                </AppButton>
+                <AppButton variant="secondary" size="sm" onClick={() => toggleAllCells(false)}>
                   إلغاء تحديد الكل
-                </button>
+                </AppButton>
               </div>
 
               <div className="flex items-center gap-2">
@@ -642,19 +686,15 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                   onChange={(e) => setBulkStockUnits(e.target.value)}
                   className="w-16 h-8 px-2 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink dark:text-ink-dark text-xs text-center outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
-                <button
-                  type="button"
-                  onClick={applyBulkStockToAll}
-                  className="h-8 px-3 rounded-lg bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-semibold hover:bg-brand-dark transition-colors cursor-pointer"
-                >
+                <AppButton variant="primary" size="sm" onClick={applyBulkStockToAll}>
                   تطبيق
-                </button>
+                </AppButton>
               </div>
             </div>
 
             {/* Matrix Table */}
             <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden bg-surface dark:bg-surface-dark shadow-sm">
-              <div className="max-h-[360px] overflow-y-auto">
+              <div className="max-h-[22.5rem] overflow-y-auto">
                 <table className="w-full text-right border-collapse text-xs">
                   <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted sticky top-0 z-10 border-b border-line dark:border-line-dark font-bold">
                     <tr>
@@ -773,7 +813,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                                     [key]: { ...prev[key], isEnabled: e.target.checked },
                                   }))
                                 }
-                                className="w-4 h-4 rounded text-brand border-line dark:border-line-dark focus:ring-brand cursor-pointer"
+                                className="cursor-pointer"
                               />
                             </td>
                           </tr>
@@ -808,32 +848,17 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={requestClose}
-              disabled={isSubmitting}
-              className="h-10 px-4 rounded-xl border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-xs font-semibold transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" onClick={requestClose} disabled={isSubmitting}>
               إلغاء
-            </button>
-            <button
-              type="button"
+            </AppButton>
+            <AppButton
+              variant="primary"
+              icon={CheckCircle2}
               onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="h-10 px-6 rounded-xl bg-brand dark:bg-brand-bright text-white dark:text-surface-dark hover:bg-brand-dark text-xs font-bold transition-all shadow-md flex items-center gap-2 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark cursor-pointer"
+              loading={isSubmitting}
             >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  جاري الحفظ والإنشاء الذري...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  حفظ مصفوفة التركيبات في المخزن
-                </>
-              )}
-            </button>
+              {isSubmitting ? 'جاري الحفظ والإنشاء الذري...' : 'حفظ مصفوفة التركيبات في المخزن'}
+            </AppButton>
           </div>
         </div>
       </div>

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { 
   Printer, 
   X, 
-  Search, 
   Plus, 
   Minus, 
   Trash2, 
@@ -17,9 +16,11 @@ import {
   Settings2,
   RefreshCw
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import JsBarcode from 'jsbarcode';
 import { invoke } from '../bridge/ipc';
-import { printReport } from '../utils/printReport';
+import { usePrintReport } from '../hooks/usePrintReport';
+import { AppButton } from './AppButton';
 import type { 
   Product, 
   Category, 
@@ -32,6 +33,7 @@ import { formatArabicCurrency } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
 // ToggleSwitch replaced by compact content chips
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { isFormDirty } from '../utils/dirtyForm';
 
 export interface BarcodeLabelModalProps {
   isOpen: boolean;
@@ -131,6 +133,8 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   sourceTitle,
 }) => {
   const [queue, setQueue] = useState<LabelQueueItem[]>([]);
+  // The queue the modal opened with (pre-selected product or invoice items): only a different queue is a change
+  const [openedQueue, setOpenedQueue] = useState<LabelQueueItem[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [installedPrinters, setInstalledPrinters] = useState<{ name: string; isDefault: boolean }[]>([]);
@@ -239,6 +243,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   useEffect(() => {
     if (!isOpen) {
       setQueue([]);
+      setOpenedQueue([]);
       setPreviewIndex(0);
       setStatusMessage(null);
       setSearchQuery('');
@@ -248,27 +253,29 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
 
     if (initialQueueItems && initialQueueItems.length > 0) {
       setQueue(initialQueueItems);
+      setOpenedQueue(initialQueueItems);
       setPreviewIndex(0);
       return;
     }
 
     if (preselectedProduct && preselectedProduct.barcode) {
-      setQueue([
-        {
-          productId: preselectedProduct.id,
-          productName: preselectedProduct.name,
-          barcode: preselectedProduct.barcode,
-          pricePiasters: preselectedProduct.pricePiasters,
-          variantInfo: preselectedProduct.variantColor && preselectedProduct.variantSize 
-            ? `${preselectedProduct.variantColor} / ${preselectedProduct.variantSize}` 
-            : (preselectedProduct.variantSize || preselectedProduct.variantColor || ''),
-          copies: Math.max(1, Math.floor((preselectedProduct.stockQuantityMilli || 1000) / 1000)),
-          stockQuantityMilli: preselectedProduct.stockQuantityMilli,
-        },
-      ]);
+      const preselectedItem: LabelQueueItem = {
+        productId: preselectedProduct.id,
+        productName: preselectedProduct.name,
+        barcode: preselectedProduct.barcode,
+        pricePiasters: preselectedProduct.pricePiasters,
+        variantInfo: preselectedProduct.variantColor && preselectedProduct.variantSize 
+          ? `${preselectedProduct.variantColor} / ${preselectedProduct.variantSize}` 
+          : (preselectedProduct.variantSize || preselectedProduct.variantColor || ''),
+        copies: Math.max(1, Math.floor((preselectedProduct.stockQuantityMilli || 1000) / 1000)),
+        stockQuantityMilli: preselectedProduct.stockQuantityMilli,
+      };
+      setQueue([preselectedItem]);
+      setOpenedQueue([preselectedItem]);
       setPreviewIndex(0);
     } else if (preselectedProduct && !preselectedProduct.barcode) {
       setQueue([]);
+      setOpenedQueue([]);
       setPreviewIndex(0);
       setStatusMessage({
         text: `تنبيه: الصنف "${preselectedProduct.name}" ليس له رقم باركود مسجل!`,
@@ -276,6 +283,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
       });
     } else {
       setQueue([]);
+      setOpenedQueue([]);
       setPreviewIndex(0);
     }
   }, [isOpen, preselectedProduct, initialQueueItems]);
@@ -505,12 +513,14 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   };
 
   // Browser Print Preview (Standard A4 Print Dialog)
-  const handleBrowserPrint = () => {
-    if (queue.length === 0) return;
-    void printReport({ kind: 'a4only' });
-  };
+  const { print: handleBrowserPrint, printing: isBrowserPrinting } = usePrintReport({
+    reportName: 'ملصقات الباركود',
+    kind: 'a4only',
+    hasData: queue.length > 0,
+  });
 
-  const isDirty = queue.length > 0;
+  const labelQueueSignature = (items: LabelQueueItem[]) => items.map((item) => `${item.productId}:${item.copies || 1}`);
+  const isDirty = isFormDirty({ queue: labelQueueSignature(openedQueue) }, { queue: labelQueueSignature(queue) });
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -544,6 +554,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
           <button
             type="button"
             onClick={requestClose}
+            aria-label="إغلاق"
             className="p-1.5 hover:bg-white/15 rounded-lg text-white/80 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -561,13 +572,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
           >
             {statusMessage.type === 'success' ? <Check className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
             <span className="flex-1">{statusMessage.text}</span>
-            <button
-              type="button"
-              onClick={() => setStatusMessage(null)}
-              className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <AppButton variant="subtle" size="xs" icon={X} onClick={() => setStatusMessage(null)} aria-label="إغلاق الرسالة" />
           </div>
         )}
 
@@ -578,25 +583,24 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
           <div className="lg:col-span-7 flex flex-col gap-3 min-w-0">
 
             {/* Search with dropdown results */}
-            <div className="relative flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder="ابحث بالاسم أو امسح الباركود ثم Enter..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
+            <div className="relative flex items-center gap-x-8 gap-y-2">
+              <SearchInput
+                size="md"
+                searchButton={false}
+                value={searchQuery}
+                onChange={(value) => {
+                    setSearchQuery(value);
                     setHighlightIndex(0);
                     setShowResults(true);
                   }}
-                  onFocus={() => setShowResults(true)}
-                  onBlur={() => setShowResults(false)}
-                  onKeyDown={handleSearchKeyDown}
-                  className="w-full pl-3 pr-9 h-10 text-sm bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark shadow-2xs"
-                />
-              </div>
+                onFocus={() => setShowResults(true)}
+                onBlur={() => setShowResults(false)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="ابحث بالاسم أو امسح الباركود ثم Enter..."
+                autoFocus
+                ariaLabel="بحث عن صنف لطباعة ملصقه"
+                className="flex-1"
+              />
               <div className="w-44 shrink-0">
                 <CustomSelect
                   value={selectedCategoryId}
@@ -672,39 +676,28 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                 {queue.length > 0 && (
                   <div className="flex items-center gap-1 shrink-0">
                     <span className="text-micro text-ink-muted dark:text-ink-dark-muted whitespace-nowrap ml-1">عدد النسخ:</span>
-                    <button
-                      type="button"
-                      onClick={fillCopiesFromStock}
-                      title="عدد نسخ كل صنف = رصيده في المخزن"
-                      className="px-2 py-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-micro font-bold text-ink dark:text-ink-dark flex items-center gap-1 whitespace-nowrap transition-colors cursor-pointer"
-                    >
-                      <Layers className="w-3 h-3 text-brand dark:text-brand-bright shrink-0" />
+                    <AppButton variant="secondary" size="xs" icon={Layers} onClick={fillCopiesFromStock} title="عدد نسخ كل صنف = رصيده في المخزن">
                       حسب الرصيد
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetCopiesToOne}
-                      title="نسخة واحدة لكل صنف"
-                      className="px-2 py-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-micro font-bold text-ink dark:text-ink-dark whitespace-nowrap transition-colors cursor-pointer"
-                    >
+                    </AppButton>
+                    <AppButton variant="secondary" size="xs" onClick={resetCopiesToOne} title="نسخة واحدة لكل صنف">
                       1 لكل صنف
-                    </button>
-                    <button
-                      type="button"
+                    </AppButton>
+                    <AppButton
+                      variant="dangerSubtle"
+                      size="xs"
+                      icon={Trash2}
                       onClick={() => {
                         setQueue([]);
                         setPreviewIndex(0);
                       }}
+                      aria-label="تفريغ القائمة"
                       title="تفريغ القائمة"
-                      className="p-1 rounded-md text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    />
                   </div>
                 )}
               </div>
 
-              <div className="h-[340px] overflow-y-auto divide-y divide-line/60 dark:divide-line-dark">
+              <div className="h-[21.25rem] overflow-y-auto divide-y divide-line/60 dark:divide-line-dark">
                 {queue.length === 0 ? (
                   <div className="h-full p-6 text-center text-xs text-ink-muted dark:text-ink-dark-muted flex flex-col items-center justify-center gap-2">
                     <Tag className="w-8 h-8 text-ink-muted/40 dark:text-ink-dark-muted" />
@@ -746,36 +739,37 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
 
                       {/* Copies Controls */}
                       <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
+                        <AppButton
+                          variant="secondary"
+                          size="xs"
+                          icon={Minus}
                           onClick={() => updateCopies(idx, item.copies - 1)}
-                          className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-line-dark flex items-center justify-center text-ink dark:text-ink-dark cursor-pointer"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </button>
+                          aria-label="تقليل عدد النسخ"
+                        />
                         <input
                           type="number"
                           min="1"
                           max="999"
                           value={item.copies}
                           onChange={(e) => updateCopies(idx, parseInt(e.target.value, 10) || 1)}
-                          className="w-12 h-6 text-center text-xs font-bold bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-md text-ink dark:text-ink-dark font-mono"
+                          className="w-12 h-7 text-center text-xs font-bold bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-md text-ink dark:text-ink-dark font-mono"
                         />
-                        <button
-                          type="button"
+                        <AppButton
+                          variant="secondary"
+                          size="xs"
+                          icon={Plus}
                           onClick={() => updateCopies(idx, item.copies + 1)}
-                          className="w-6 h-6 rounded-md bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-line-dark flex items-center justify-center text-ink dark:text-ink-dark cursor-pointer"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
+                          aria-label="زيادة عدد النسخ"
+                        />
+                        <AppButton
+                          variant="dangerSubtle"
+                          size="xs"
+                          icon={Trash2}
                           onClick={() => removeProductFromQueue(idx)}
+                          className="mr-1"
+                          aria-label="حذف من القائمة"
                           title="حذف من القائمة"
-                          className="w-6 h-6 mr-1 rounded-md hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright flex items-center justify-center cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        />
                       </div>
                     </div>
                   ))
@@ -799,28 +793,28 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                 </div>
                 {queue.length > 1 && (
                   <div className="flex items-center gap-1 text-micro text-ink-muted dark:text-ink-dark-muted font-bold">
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="subtle"
+                      size="xs"
+                      icon={ChevronRight}
                       onClick={() => setPreviewIndex((p) => Math.max(0, p - 1))}
                       disabled={previewIndex === 0}
-                      className="p-1 rounded hover:bg-surface-2 dark:hover:bg-surface-dark-2 disabled:opacity-40 cursor-pointer"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                      aria-label="الملصق السابق"
+                    />
                     <span className="font-mono">{previewIndex + 1} / {queue.length}</span>
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="subtle"
+                      size="xs"
+                      icon={ChevronLeft}
                       onClick={() => setPreviewIndex((p) => Math.min(queue.length - 1, p + 1))}
                       disabled={previewIndex === queue.length - 1}
-                      className="p-1 rounded hover:bg-surface-2 dark:hover:bg-surface-dark-2 disabled:opacity-40 cursor-pointer"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                    </button>
+                      aria-label="الملصق التالي"
+                    />
                   </div>
                 )}
               </div>
 
-              <div className="h-[200px] bg-surface-2/60 dark:bg-surface-dark-2/60 rounded-lg flex items-center justify-center border border-dashed border-line dark:border-line-dark">
+              <div className="h-[12.5rem] bg-surface-2/60 dark:bg-surface-dark-2/60 rounded-lg flex items-center justify-center border border-dashed border-line dark:border-line-dark">
                 {currentPreviewItem ? (
                   <div
                     style={{
@@ -988,44 +982,22 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
 
         {/* Footer Actions */}
         <div className="px-5 py-3 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex items-center justify-between gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={handleTestLabelPrint}
-            disabled={loading}
-            className="px-3 py-2 rounded-xl text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <AppButton variant="subtle" icon={RefreshCw} onClick={handleTestLabelPrint} disabled={loading}>
             ملصق تجريبي
-          </button>
+          </AppButton>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={requestClose}
-              className="px-4 py-2 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
-            >
+            <AppButton variant="secondary" onClick={requestClose}>
               إغلاق
-            </button>
+            </AppButton>
 
-            <button
-              type="button"
-              onClick={handleBrowserPrint}
-              disabled={queue.length === 0}
-              className="px-4 py-2 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 transition-colors disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted cursor-pointer"
-            >
-              <Copy className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
+            <AppButton variant="secondary" icon={Copy} onClick={handleBrowserPrint} loading={isBrowserPrinting} disabled={queue.length === 0}>
               ورق A4
-            </button>
+            </AppButton>
 
-            <button
-              type="button"
-              onClick={handlePrintLabels}
-              disabled={loading || queue.length === 0}
-              className="px-6 py-2.5 bg-paid hover:bg-paid-hover text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg flex items-center gap-2 transition-all disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>{loading ? 'جاري الطباعة...' : `طباعة ${totalLabelsCount} ملصق`}</span>
-            </button>
+            <AppButton variant="success" icon={Printer} onClick={handlePrintLabels} disabled={loading || queue.length === 0}>
+              {loading ? 'جاري الطباعة...' : `طباعة ${totalLabelsCount} ملصق`}
+            </AppButton>
           </div>
         </div>
       </div>

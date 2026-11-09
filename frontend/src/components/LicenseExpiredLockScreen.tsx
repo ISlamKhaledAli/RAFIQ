@@ -18,6 +18,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
 import { RequiredMark } from './RequiredMark';
+import { AppButton } from './AppButton';
 import { useAuth } from '../context/useAuth';
 
 export interface LicenseExpiryDetails {
@@ -350,15 +351,9 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
                   {expiryInfo?.deviceFingerprint || '—'}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handleCopyFp}
-                className="flex items-center gap-1 bg-white dark:bg-surface-dark hover:bg-emerald-50 dark:hover:bg-brand-dark-soft hover:text-emerald-700 dark:hover:text-paid-bright hover:border-emerald-300 dark:hover:border-paid-bright/30 border border-slate-200 dark:border-line-dark text-slate-700 dark:text-ink-dark px-2.5 py-1 rounded-lg text-xs font-semibold transition active:scale-95 shrink-0 shadow-xs cursor-pointer"
-                title="نسخ بصمة الجهاز لإرسالها للإدارة"
-              >
-                {copiedFp ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-paid-bright" /> : <Copy className="w-3.5 h-3.5 text-slate-400 dark:text-ink-muted-dark" />}
-                <span>{copiedFp ? 'تم النسخ' : 'نسخ'}</span>
-              </button>
+              <AppButton variant="secondary" size="sm" icon={copiedFp ? Check : Copy} onClick={handleCopyFp} className="shrink-0" title="نسخ بصمة الجهاز لإرسالها للإدارة">
+                {copiedFp ? 'تم النسخ' : 'نسخ'}
+              </AppButton>
             </div>
           </div>
         </div>
@@ -370,14 +365,9 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>يلزم دخول صاحب المحل أو مدير منحه المالك صلاحية الترخيص لتفعيل الترخيص</span>
             </div>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="w-full flex items-center justify-center gap-2 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold py-2.5 px-3 rounded-xl text-xs transition active:scale-95 cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>تسجيل الخروج</span>
-            </button>
+            <AppButton variant="secondary" fullWidth icon={LogOut} onClick={() => void logout()}>
+              تسجيل الخروج
+            </AppButton>
           </div>
         ) : (
         <div className="px-6 sm:px-8 space-y-2 mb-4">
@@ -403,61 +393,48 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
                 placeholder="RFQ-XXXX-XXXX-XXXX"
                 dir="ltr"
                 className={`w-full bg-white dark:bg-surface-dark-2 border-2 border-slate-200 dark:border-line-dark focus:border-[#006d41] dark:focus:border-brand-bright focus:ring-4 focus:ring-emerald-500/10 dark:focus:ring-brand-bright/10 rounded-xl pl-3.5 ${
-                  newKey ? 'pr-16' : 'pr-10'
+                  newKey ? 'pr-20' : 'pr-10'
                 } py-2.5 text-slate-900 dark:text-ink-dark placeholder-slate-400 dark:placeholder-ink-muted-dark/50 font-mono text-sm tracking-widest ${
                   newKey.startsWith('RFQ-SUP-') ? '' : 'uppercase'
                 } transition outline-none shadow-xs`}
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 {newKey && (
-                  <button
-                    type="button"
-                    onClick={() => setNewKey('')}
-                    className="p-1 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright transition rounded-md hover:bg-danger-soft dark:hover:bg-danger-dark-soft cursor-pointer"
-                    title="مسح الكود"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <AppButton variant="dangerSubtle" size="xs" icon={X} aria-label="مسح الكود" title="مسح الكود" onClick={() => setNewKey('')} />
                 )}
                 {newKey ? (
-                  <button
-                    type="button"
-                    onClick={handleCopyKey}
-                    className="p-1 text-slate-400 dark:text-ink-muted-dark hover:text-[#006d41] dark:hover:text-paid-bright transition rounded-md hover:bg-slate-100 dark:hover:bg-surface-dark cursor-pointer"
+                  <AppButton
+                    variant="subtle"
+                    size="xs"
+                    icon={keyActionSuccess ? Check : Copy}
+                    aria-label="نسخ الكود"
                     title={keyActionSuccess ? 'تم النسخ!' : 'نسخ الكود'}
-                  >
-                    {keyActionSuccess ? (
-                      <Check className="w-4 h-4 text-emerald-600 dark:text-paid-bright animate-in zoom-in-75 duration-150" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
+                    onClick={handleCopyKey}
+                  />
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => void handlePasteKey()}
-                    className="p-1 text-slate-400 dark:text-ink-muted-dark hover:text-[#006d41] dark:hover:text-paid-bright transition rounded-md hover:bg-slate-100 dark:hover:bg-surface-dark cursor-pointer"
+                  <AppButton
+                    variant="subtle"
+                    size="xs"
+                    icon={keyActionSuccess ? Check : ClipboardPaste}
+                    aria-label="لصق من الحافظة"
                     title={keyActionSuccess ? 'تم اللصق!' : 'لصق من الحافظة'}
-                  >
-                    {keyActionSuccess ? (
-                      <Check className="w-4 h-4 text-emerald-600 dark:text-paid-bright animate-in zoom-in-75 duration-150" />
-                    ) : (
-                      <ClipboardPaste className="w-4 h-4" />
-                    )}
-                  </button>
+                    onClick={() => void handlePasteKey()}
+                  />
                 )}
               </div>
             </div>
 
-            <button
-              type="button"
-              disabled={isLoading || !newKey.trim()}
+            <AppButton
+              variant="primary"
+              size="lg"
+              icon={KeyRound}
+              loading={isLoading}
+              disabled={!newKey.trim()}
               onClick={() => void handleActivateNewKey()}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-[#00372d] to-[#006d41] hover:from-[#002d24] hover:to-[#005c36] dark:from-brand-dark-soft dark:to-brand dark:hover:from-brand-dark dark:hover:to-brand-container disabled:opacity-50 disabled:cursor-not-allowed text-white font-black px-5 py-2.5 rounded-xl text-sm transition shadow-md shadow-emerald-900/15 active:scale-95 shrink-0 cursor-pointer"
+              className="shrink-0"
             >
-              <KeyRound className="w-4 h-4" />
-              <span>تفعيل</span>
-            </button>
+              تفعيل
+            </AppButton>
           </div>
 
           {errorMessage && (
@@ -471,26 +448,19 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
 
         {/* Action Buttons */}
         <div className="px-6 sm:px-8 grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4">
-          <button
-            type="button"
-            disabled={isLoading}
-            onClick={() => void handleVerifyOnline()}
-            className="flex items-center justify-center gap-2 bg-white dark:bg-surface-dark-2 hover:bg-emerald-50/50 dark:hover:bg-brand-dark-soft border-2 border-slate-200 dark:border-line-dark hover:border-[#006d41]/50 dark:hover:border-paid-bright/40 text-slate-700 dark:text-ink-dark hover:text-[#006d41] dark:hover:text-paid-bright font-bold py-2.5 px-3 rounded-xl text-xs transition active:scale-95 shadow-xs cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#006d41] dark:text-paid-bright ${isLoading ? 'animate-spin' : ''}`} />
-            <span>تحقق من السيرفر (تم التمديد)</span>
-          </button>
+          <AppButton variant="secondary" icon={RefreshCw} loading={isLoading} onClick={() => void handleVerifyOnline()}>
+            تحقق من السيرفر (تم التمديد)
+          </AppButton>
 
           {!isUnlicensed && onEnterReadOnlyMode && (
-            <button
-              type="button"
+            <AppButton
+              variant="secondary"
+              icon={FileText}
               onClick={onEnterReadOnlyMode}
-              className="flex items-center justify-center gap-2 bg-slate-100 dark:bg-surface-dark-2 hover:bg-slate-200/70 dark:hover:bg-surface-dark-3 border border-slate-200 dark:border-line-dark text-slate-700 dark:text-ink-dark font-semibold py-2.5 px-3 rounded-xl text-xs transition active:scale-95 cursor-pointer"
               title="السماح بمراجعة الفواتير السابقة والتقارير والنسخ الاحتياطي دون إمكانية إنشاء مبيعات جديدة"
             >
-              <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-ink-muted-dark" />
-              <span>وضع القراءة والنسخ الاحتياطي</span>
-            </button>
+              وضع القراءة والنسخ الاحتياطي
+            </AppButton>
           )}
         </div>
 

@@ -9,7 +9,7 @@ export interface RoleSubject {
 
 export type RoleKind = 'root' | 'owner' | 'manager' | 'cashier';
 
-export const ROLE_LABEL_ROOT = 'المطور (Root)';
+export const ROLE_LABEL_ROOT = 'المطور';
 export const ROLE_LABEL_OWNER = 'المالك';
 export const ROLE_LABEL_MANAGER = 'مدير';
 export const ROLE_LABEL_CASHIER = 'كاشير';
@@ -44,6 +44,20 @@ export function getTier(user: RoleSubject | null | undefined): number {
 export function canManageUser(me: RoleSubject | null | undefined, target: RoleSubject | null | undefined): boolean {
   if (!me || !target) return false;
   return getTier(me) > getTier(target);
+}
+
+/**
+ * Staff-list rule (mirrors the host): a viewer of tier >= 1 sees only accounts strictly below his own tier;
+ * a cashier-tier viewer never sees himself (the host already limits him to his descendants); no viewer sees nobody.
+ */
+export function filterVisibleStaff<T extends RoleSubject & { id: string }>(
+  viewer: (RoleSubject & { id?: string }) | null | undefined,
+  list: T[]
+): T[] {
+  if (!viewer) return [];
+  const viewerTier = getTier(viewer);
+  if (viewerTier >= 1) return list.filter((u) => getTier(u) < viewerTier);
+  return list.filter((u) => u.id !== viewer.id);
 }
 
 /** Owner or root: the only sessions allowed to run owner-level operations. */

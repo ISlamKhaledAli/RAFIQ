@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useMemo } from 'react';
+import { AppButton } from './AppButton';
 import { Package, X, Check } from 'lucide-react';
 import type { Product, ProductUnit } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
@@ -88,7 +89,7 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
                   {units.length} وحدات
                 </span>
               </h3>
-              <p className="text-xs text-white/80 dark:text-ink-dark-muted font-medium truncate max-w-[260px]" title={product.name}>
+              <p className="text-xs text-white/80 dark:text-ink-dark-muted font-medium truncate max-w-[16.25rem]" title={product.name}>
                 {product.name}
               </p>
             </div>
@@ -97,7 +98,8 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
             type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
-            title="إغلاق (Esc)"
+            aria-label="إغلاق"
+          title="إغلاق (Esc)"
           >
             <X className="w-4 h-4" />
           </button>
@@ -184,13 +186,9 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
         {/* Footer */}
         <div className="px-5 py-3 bg-canvas dark:bg-canvas-dark border-t border-line dark:border-line-dark flex items-center justify-between text-xs text-ink-muted dark:text-ink-dark-muted">
           <span>اختر الوحدة المطلوبة للبيع</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3.5 py-1.5 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold transition-colors cursor-pointer"
-          >
+          <AppButton variant="secondary" size="md" onClick={onClose}>
             إلغاء
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>

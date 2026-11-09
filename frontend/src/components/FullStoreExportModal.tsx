@@ -17,6 +17,7 @@ import {
 import { invoke, type FullStoreExportResult } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { AppButton } from './AppButton';
 
 interface FullStoreExportModalProps {
   isOpen: boolean;
@@ -149,12 +150,15 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
               </p>
             </div>
           </div>
-          <button 
-            onClick={requestClose} 
+          <button
+            type="button"
+            onClick={requestClose}
             disabled={isExporting}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition-colors disabled:opacity-50"
+            aria-label="إغلاق"
+            title="إغلاق"
+            className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-white/70 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 disabled:opacity-50"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -220,15 +224,9 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
                 className="flex-1 px-3.5 py-2.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-mono text-ink-muted dark:text-ink-dark-muted select-all"
                 dir="ltr"
               />
-              <button
-                type="button"
-                onClick={handleBrowseFolder}
-                disabled={isExporting}
-                className="px-4 py-2.5 rounded-xl bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-line-hover text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50"
-              >
-                <FolderOpen className="w-4 h-4 text-brand dark:text-brand-bright" />
-                <span>تغيير المجلد</span>
-              </button>
+              <AppButton variant="secondary" icon={FolderOpen} onClick={handleBrowseFolder} disabled={isExporting}>
+                تغيير المجلد
+              </AppButton>
             </div>
           </div>
 
@@ -240,13 +238,9 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
                   <span>تم تصدير {exportResult.generatedFiles.length} ملفات</span>
                 </div>
-                <button
-                  onClick={handleOpenFolder}
-                  className="px-3 py-1.5 rounded-lg bg-paid dark:bg-paid-hover text-white text-xs font-bold flex items-center gap-1.5 hover:bg-paid/90 transition-all shadow-xs"
-                >
-                  <FolderOpen className="w-3.5 h-3.5" />
-                  <span>فتح المجلد دلوقتي</span>
-                </button>
+                <AppButton variant="success" size="sm" icon={FolderOpen} onClick={handleOpenFolder}>
+                  فتح المجلد دلوقتي
+                </AppButton>
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-xs font-medium text-ink dark:text-ink-dark pt-1 border-t border-paid/20 dark:border-paid-dark-border">
@@ -262,7 +256,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
               </div>
 
               <div className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted break-all" dir="ltr">
-                Folder: {exportResult.exportFolder}
+                المجلد: {exportResult.exportFolder}
               </div>
             </div>
           )}
@@ -270,34 +264,18 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
 
         {/* Modal Footer */}
         <div className="bg-surface-2 dark:bg-surface-dark-2 px-6 py-4 border-t border-line dark:border-line-dark flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={handleRunParityTests}
-            disabled={isExporting}
-            className="px-3.5 py-2 rounded-xl bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-line-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs font-medium transition-all disabled:opacity-50 flex items-center gap-1.5"
-            title="فحص مطابقة عدد الصفوف والمجاميع بين إكسل وقاعدة البيانات"
-          >
-            <FileCheck className="w-4 h-4 text-paid dark:text-paid-bright" />
-            <span>مطابقة الأرقام والإجمالي</span>
-          </button>
+          <AppButton variant="secondary" icon={FileCheck} onClick={handleRunParityTests} disabled={isExporting} title="فحص مطابقة عدد الصفوف والمجاميع بين إكسل وقاعدة البيانات">
+            مطابقة الأرقام والإجمالي
+          </AppButton>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              disabled={isExporting}
-              className="px-4 py-2 rounded-xl border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs font-semibold hover:bg-surface dark:hover:bg-surface-dark-3 transition-all disabled:opacity-50"
-            >
+            <AppButton variant="secondary" onClick={onClose} disabled={isExporting}>
               إغلاق
-            </button>
+            </AppButton>
 
-            <button
-              onClick={handleExport}
-              disabled={isExporting}
-              className="px-5 py-2 rounded-xl bg-brand dark:bg-brand-container hover:bg-brand-dark dark:hover:bg-brand text-white text-xs font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
-            >
-              <FolderDown className="w-4 h-4" />
-              <span>{isExporting ? 'بيتم تجهيز وتصدير كل الملفات دلوقتي...' : 'تصدير كل البيانات بضغطة واحدة'}</span>
-            </button>
+            <AppButton variant="primary" icon={FolderDown} onClick={handleExport} disabled={isExporting}>
+              {isExporting ? 'بيتم تجهيز وتصدير كل الملفات دلوقتي...' : 'تصدير كل البيانات بضغطة واحدة'}
+            </AppButton>
           </div>
         </div>
       </div>

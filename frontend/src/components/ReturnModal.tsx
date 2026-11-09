@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 import {
   RotateCcw,
   X,
-  Search,
   AlertCircle,
   Printer,
   Check,
@@ -17,6 +16,7 @@ import {
   Minus,
   Plus
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import type { Sale, Return, Product } from '../types/models';
 import { extractProducts } from '../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
@@ -27,6 +27,9 @@ import { useAuth } from '../context/useAuth';
 import { createAttemptKey } from '../utils/idempotency';
 import { RequiredMark } from './RequiredMark';
 
+import { AppButton } from './AppButton';
+import MotionHeight from './MotionHeight';
+import { useMotionPanel } from '../hooks/useMotionPanel';
 interface ReturnModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -48,12 +51,8 @@ interface ReturnItemDraft {
 
 const FIELD =
   'w-full h-11 px-3.5 text-sm bg-surface dark:bg-surface-dark-3 border border-line dark:border-line-dark rounded-lg text-ink dark:text-ink-dark placeholder:text-ink-muted/60 dark:placeholder:text-ink-dark-muted/60 focus:outline-none focus:border-warn dark:focus:border-warn-bright focus:ring-2 focus:ring-warn/20 transition-colors';
-const BTN_SECONDARY =
-  'h-11 px-5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
-const BTN_WARN =
-  'rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 whitespace-nowrap bg-warn hover:bg-warn-dark dark:bg-warn-dark-soft dark:hover:bg-warn-dark-soft text-white dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/50 shadow-xs transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed';
 const TAB_ACTIVE =
-  'bg-warn dark:bg-warn-dark-soft text-white dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs';
+  'bg-warn-bright dark:bg-warn-dark-soft text-ink dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 shadow-xs';
 const TAB_IDLE =
   'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark';
 const STEP_CARD = 'rounded-xl border border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 p-5 flex flex-col gap-4';
@@ -134,6 +133,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   const canReturnWithoutInvoice = isRoot || isAdmin || hasPermission('returns.without_invoice');
 
   const [mode, setMode] = useState<'withInvoice' | 'withoutInvoice'>('withInvoice');
+  const motionPanel = useMotionPanel(mode);
   const [invoiceQuery, setInvoiceQuery] = useState<string>(() => (initialSale?.invoiceNumber ? String(initialSale.invoiceNumber) : ''));
   const [loadedSale, setLoadedSale] = useState<Sale | null>(() => initialSale || null);
   const [searchingSale, setSearchingSale] = useState(false);
@@ -493,14 +493,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
             </div>
             <h2 className="t-modal-title text-ink dark:text-ink-dark m-0 truncate">مرتجع بضاعة واسترجاع فلوس</h2>
           </div>
-          <button
-            type="button"
-            onClick={() => void requestClose()}
-            className="w-10 h-10 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" icon={X} onClick={() => void requestClose()} title="إغلاق" aria-label="إغلاق" />
         </div>
 
         {completedReturn ? (
@@ -548,35 +541,31 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
             </div>
 
             <div className="px-5 py-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2 shrink-0">
-              <button type="button" onClick={() => void requestClose()} className={BTN_SECONDARY}>
+              <AppButton variant="secondary" size="lg" onClick={() => void requestClose()}>
                 إغلاق
-              </button>
-              <button
-                type="button"
-                onClick={handlePrintReceipt}
-                className="h-11 px-5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover text-white shadow-xs transition-colors cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>طباعة وصل المرتجع</span>
-              </button>
+              </AppButton>
+              <AppButton variant="primary" size="lg" icon={Printer} onClick={handlePrintReceipt}>
+                طباعة وصل المرتجع
+              </AppButton>
             </div>
           </>
         ) : (
           <>
             {/* Return Form */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-5">
+            <MotionHeight className="flex-1 min-h-0 overflow-y-auto p-5">
+            <div {...motionPanel} className="flex flex-col gap-5">
               {/* Mode Tabs */}
               <div
                 role="tablist"
                 aria-label="نوع المرتجع"
-                className="grid grid-cols-2 gap-1.5 p-1.5 rounded-2xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark"
+                className="motion-static grid grid-cols-2 gap-1.5 p-1.5 rounded-2xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark"
               >
                 <button
                   type="button"
                   role="tab"
                   aria-selected={mode === 'withInvoice'}
                   onClick={() => setMode('withInvoice')}
-                  className={`min-h-[44px] px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  className={`min-h-[2.75rem] px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     mode === 'withInvoice' ? TAB_ACTIVE : TAB_IDLE
                   }`}
                 >
@@ -590,12 +579,12 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                   disabled={!canReturnWithoutInvoice}
                   onClick={() => {
                     if (!canReturnWithoutInvoice) {
-                      setSubmitError('ليس لديك صلاحية تسجيل مرتجع بدون فاتورة (returns.without_invoice)');
+                      setSubmitError('ليس لديك صلاحية تسجيل مرتجع بدون فاتورة');
                       return;
                     }
                     setMode('withoutInvoice');
                   }}
-                  className={`min-h-[44px] px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                  className={`min-h-[2.75rem] px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
                     !canReturnWithoutInvoice
                       ? 'opacity-50 cursor-not-allowed text-ink-muted dark:text-ink-dark-muted'
                       : `cursor-pointer ${mode === 'withoutInvoice' ? TAB_ACTIVE : TAB_IDLE}`
@@ -612,25 +601,19 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 <section className={STEP_CARD}>
                   <StepHeader step={1} title="ابحث عن الفاتورة" />
                   <form onSubmit={handleSearchInvoice} className="flex gap-3">
-                    <div className="relative flex-1 min-w-0">
-                      <Search className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        type="text"
-                        aria-label="رقم الفاتورة"
-                        placeholder="امسح باركود الفاتورة (RFQ-INV-...) أو اكتب رقمها..."
-                        value={invoiceQuery}
-                        onChange={(e) => setInvoiceQuery(e.target.value)}
-                        autoFocus
-                        className={`${FIELD} h-12 pr-12 text-base font-mono font-bold`}
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={searchingSale || !invoiceQuery.trim()}
-                      className={`${BTN_WARN} h-12 px-6 shrink-0`}
-                    >
-                      <span>{searchingSale ? 'بندور عليها...' : 'هات الفاتورة'}</span>
-                    </button>
+                    <SearchInput
+                      size="md"
+                      searchButton={false}
+                      value={invoiceQuery}
+                      onChange={setInvoiceQuery}
+                      placeholder="امسح باركود الفاتورة (RFQ-INV-...) أو اكتب رقمها..."
+                      autoFocus
+                      ariaLabel="رقم الفاتورة"
+                      className="flex-1 min-w-0"
+                    />
+                    <AppButton type="submit" variant="warning" size="md" className="shrink-0" disabled={searchingSale || !invoiceQuery.trim()}>
+                      {searchingSale ? 'بندور عليها...' : 'هات الفاتورة'}
+                    </AppButton>
                   </form>
 
                   {saleError && (
@@ -655,17 +638,13 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
               ) : (
                 <section className={STEP_CARD}>
                   <StepHeader step={1} title="ابحث عن الصنف" />
-                  <div className="relative">
-                    <Search className="w-5 h-5 text-ink-muted dark:text-ink-dark-muted absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      type="text"
-                      aria-label="بحث عن صنف"
-                      placeholder="اكتب اسم الصنف أو اضرب الباركود عشان تضيفه للمرتجع..."
-                      value={catalogQuery}
-                      onChange={(e) => void handleSearchCatalog(e.target.value)}
-                      className={`${FIELD} h-12 pr-12 text-base font-bold`}
-                    />
-                  </div>
+                  <SearchInput
+                    size="md"
+                    value={catalogQuery}
+                    onChange={(value) => void handleSearchCatalog(value)}
+                    placeholder="اكتب اسم الصنف أو اضرب الباركود عشان تضيفه للمرتجع..."
+                    ariaLabel="بحث عن صنف"
+                  />
 
                   {searchingCatalog && (
                     <div className="text-xs text-ink-muted dark:text-ink-dark-muted">بندور في بضاعة المحل...</div>
@@ -752,28 +731,15 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
                           <div>
                             <div className="text-xs font-bold text-ink dark:text-ink-dark mb-1.5">حالة البضاعة</div>
-                            <button
-                              type="button"
+                            <AppButton
+                              variant={item.isDamaged ? 'dangerSoft' : 'successSoft'}
+                              icon={item.isDamaged ? AlertTriangle : Check}
+                              aria-pressed={item.isDamaged}
                               onClick={() => toggleItemDamaged(idx)}
-                              className={`h-10 px-3 rounded-lg text-sm font-bold border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                                item.isDamaged
-                                  ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/30'
-                                  : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid-border dark:border-paid-dark-border'
-                              }`}
                               title={item.isDamaged ? 'بضاعة تالفة: مش هتدخل المخزن' : 'بضاعة سليمة: هترجع رصيد في المخزن'}
                             >
-                              {item.isDamaged ? (
-                                <>
-                                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                                  <span>بايظ / تالف</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Check className="w-4 h-4 shrink-0" />
-                                  <span>سليم</span>
-                                </>
-                              )}
-                            </button>
+                              {item.isDamaged ? 'بايظ / تالف' : 'سليم'}
+                            </AppButton>
                           </div>
 
                           <div className="min-w-[8rem] text-left">
@@ -834,7 +800,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                         disabled={isUnpaidCreditSale}
                         onClick={() => setRefundMethod('cash')}
                         title={isUnpaidCreditSale ? 'الفاتورة شكك لم يُسدد منها كاش، الاسترداد يتم كرصيد آجل لخصم المديونية' : undefined}
-                        className={`min-h-[44px] px-2 rounded-lg text-sm font-bold border flex items-center justify-center gap-2 transition-colors ${
+                        className={`min-h-[2.75rem] px-2 rounded-lg text-sm font-bold border flex items-center justify-center gap-2 transition-colors ${
                           isUnpaidCreditSale
                             ? 'opacity-50 cursor-not-allowed bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted'
                             : refundMethod === 'cash'
@@ -848,7 +814,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                       <button
                         type="button"
                         onClick={() => setRefundMethod('credit')}
-                        className={`min-h-[44px] px-2 rounded-lg text-sm font-bold border flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                        className={`min-h-[2.75rem] px-2 rounded-lg text-sm font-bold border flex items-center justify-center gap-2 transition-colors cursor-pointer ${
                           refundMethod === 'credit'
                             ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/40 dark:border-warn-bright/50 text-warn dark:text-warn-bright shadow-2xs'
                             : 'bg-surface dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
@@ -899,6 +865,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 )}
               </section>
             </div>
+            </MotionHeight>
 
             {submitError && (
               <div className="px-5 pt-3 pb-1 shrink-0" role="alert">
@@ -919,23 +886,19 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void requestClose()}
-                  disabled={loading}
-                  className={BTN_SECONDARY}
-                >
+                <AppButton variant="secondary" size="lg" onClick={() => void requestClose()} disabled={loading}>
                   إلغاء
-                </button>
-                <button
-                  type="button"
+                </AppButton>
+                <AppButton
+                  variant="warning"
+                  size="lg"
+                  icon={RotateCcw}
                   onClick={() => void handleSubmitReturn()}
-                  disabled={loading || activeReturnItems.length === 0 || cashShortfall}
-                  className={`${BTN_WARN} h-11 px-6`}
+                  loading={loading}
+                  disabled={activeReturnItems.length === 0 || cashShortfall}
                 >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>{loading ? 'بنحفظ المرتجع...' : 'تنفيذ المرتجع'}</span>
-                </button>
+                  {loading ? 'بنحفظ المرتجع...' : 'تنفيذ المرتجع'}
+                </AppButton>
               </div>
             </div>
           </>

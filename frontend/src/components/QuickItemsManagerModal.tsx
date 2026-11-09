@@ -10,7 +10,6 @@ import {
   GripVertical,
   AlertCircle,
   Package,
-  Search,
   Check,
   Tag,
   FolderPlus,
@@ -18,17 +17,17 @@ import {
   Boxes,
   Link2,
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
 import { extractProducts, type QuickItem, type Product } from '../types/models';
 import { CustomSelect } from './CustomSelect';
 import { SegmentedTabs } from './SegmentedTabs';
 import { ToggleSwitch } from './ToggleSwitch';
+import { AppButton } from './AppButton';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { isFormDirty } from '../utils/dirtyForm';
 import {
   QUICK_FIELD,
-  QUICK_BTN,
-  QUICK_BTN_SECONDARY,
-  QUICK_BTN_PRIMARY,
   FieldLabel,
   FormSection,
   ExtrasSection,
@@ -37,14 +36,31 @@ import {
   SmallChip,
 } from './QuickItemFormParts';
 
+interface QuickItemFormValues {
+  name: string;
+  priceEgp: string;
+  isOpenPrice: boolean;
+  unit: string;
+  category: string;
+  newCategory: string;
+  productId: string | null;
+}
+
+const EMPTY_ITEM_FORM: QuickItemFormValues = {
+  name: '',
+  priceEgp: '',
+  isOpenPrice: false,
+  unit: 'piece',
+  category: '',
+  newCategory: '',
+  productId: null,
+};
+
 interface QuickItemsManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onItemsChanged?: () => void;
 }
-
-const ROW_ICON_BTN =
-  'w-9 h-9 shrink-0 rounded-lg inline-flex items-center justify-center border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed';
 
 export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ isOpen, onClose, onItemsChanged }) => {
   const [items, setItems] = useState<QuickItem[]>([]);
@@ -71,6 +87,8 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
   const [formCategory, setFormCategory] = useState('');
   const [formNewCategory, setFormNewCategory] = useState('');
   const [formProductId, setFormProductId] = useState<string | null>(null);
+  // The values the form was opened with; "dirty" is the difference from it
+  const [formBaseline, setFormBaseline] = useState<QuickItemFormValues>(EMPTY_ITEM_FORM);
 
   // Product Search for Linking
   const [isSearchingProduct, setIsSearchingProduct] = useState(false);
@@ -215,14 +233,16 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
   const openAddForm = () => {
+    const category = activeCategory || 'عام';
     setEditingId(null);
     setFormName('');
     setFormPriceEgp('');
     setFormIsOpenPrice(false);
     setFormUnit('piece');
-    setFormCategory(activeCategory || 'عام');
+    setFormCategory(category);
     setFormNewCategory('');
     setFormProductId(null);
+    setFormBaseline({ ...EMPTY_ITEM_FORM, category });
     setIsSearchingProduct(false);
     setProductSearchQuery('');
     setSearchResults([]);
@@ -230,14 +250,24 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
   };
 
   const openEditForm = (item: QuickItem) => {
+    const values: QuickItemFormValues = {
+      name: item.name,
+      priceEgp: (item.pricePiasters / 100).toFixed(2),
+      isOpenPrice: item.isOpenPrice,
+      unit: item.unit || 'piece',
+      category: item.categoryName || 'عام',
+      newCategory: '',
+      productId: item.productId || null,
+    };
     setEditingId(item.id);
-    setFormName(item.name);
-    setFormPriceEgp((item.pricePiasters / 100).toFixed(2));
-    setFormIsOpenPrice(item.isOpenPrice);
-    setFormUnit(item.unit || 'piece');
-    setFormCategory(item.categoryName || 'عام');
+    setFormName(values.name);
+    setFormPriceEgp(values.priceEgp);
+    setFormIsOpenPrice(values.isOpenPrice);
+    setFormUnit(values.unit);
+    setFormCategory(values.category);
     setFormNewCategory('');
-    setFormProductId(item.productId || null);
+    setFormProductId(values.productId);
+    setFormBaseline(values);
     setIsSearchingProduct(false);
     setProductSearchQuery('');
     setSearchResults([]);
@@ -377,7 +407,17 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
     await persistOrder(reordered);
   };
 
-  const isDirty = isFormOpen && Boolean(formName.trim() || formPriceEgp.trim() || formProductId);
+  const isDirty =
+    isFormOpen &&
+    isFormDirty(formBaseline, {
+      name: formName,
+      priceEgp: formPriceEgp,
+      isOpenPrice: formIsOpenPrice,
+      unit: formUnit,
+      category: formCategory,
+      newCategory: formNewCategory,
+      productId: formProductId,
+    });
 
   const handleDismissAction = () => {
     if (isFormOpen) {
@@ -404,7 +444,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
   return (
     <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div
-        className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-2xl w-full max-w-5xl h-[88vh] max-h-[850px] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95 duration-150"
+        className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-2xl w-full max-w-5xl h-[88vh] max-h-[53.125rem] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95 duration-150"
         dir="rtl"
       >
         {/* Header */}
@@ -420,14 +460,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="w-10 h-10 rounded-lg hover:bg-surface dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer flex items-center justify-center shrink-0"
-            title="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <AppButton variant="subtle" icon={X} onClick={requestClose} className="shrink-0" aria-label="إغلاق" title="إغلاق" />
         </div>
 
         {/* Alerts */}
@@ -479,34 +512,24 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                   );
                 })}
 
-                <button
-                  type="button"
+                <AppButton
+                  variant={isAddingCategory ? 'soft' : 'secondary'}
+                  icon={FolderPlus}
                   onClick={() => {
                     setIsAddingCategory(!isAddingCategory);
                     setIsRenamingCategory(false);
                     setDeleteCategoryConfirm(null);
                     setNewCategoryName('');
                   }}
-                  className={`h-10 px-3 text-sm font-bold rounded-lg border border-dashed flex items-center gap-2 transition-colors cursor-pointer ${
-                    isAddingCategory
-                      ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border-brand dark:border-brand-bright'
-                      : 'border-line-hover dark:border-line-dark-strong text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft'
-                  }`}
                   title="إضافة قسم أو تصنيف جديد للأصناف السريعة"
                 >
-                  <FolderPlus className="w-4 h-4" />
-                  <span>تصنيف جديد</span>
-                </button>
+                  تصنيف جديد
+                </AppButton>
               </div>
 
-              <button
-                type="button"
-                onClick={openAddForm}
-                className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY} shrink-0`}
-              >
-                <Plus className="w-4 h-4" />
-                <span>إضافة صنف</span>
-              </button>
+              <AppButton variant="primary" icon={Plus} onClick={openAddForm} className="shrink-0">
+                إضافة صنف
+              </AppButton>
             </div>
 
             {/* Active category strip */}
@@ -522,34 +545,32 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="secondary"
+                    icon={Edit2}
                     onClick={() => {
                       setRenamedCategoryName(activeCategory);
                       setIsRenamingCategory(!isRenamingCategory);
                       setIsAddingCategory(false);
                       setDeleteCategoryConfirm(null);
                     }}
-                    className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}
                     title="تعديل اسم هذا القسم"
                   >
-                    <Edit2 className="w-4 h-4 text-brand dark:text-brand-bright" />
-                    <span>تعديل الاسم</span>
-                  </button>
+                    تعديل الاسم
+                  </AppButton>
 
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="dangerSoft"
+                    icon={Trash2}
                     onClick={() => {
                       setDeleteCategoryConfirm(activeCategory);
                       setIsAddingCategory(false);
                       setIsRenamingCategory(false);
                     }}
-                    className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY} hover:border-danger/40 dark:hover:border-danger-bright/40`}
                     title="حذف هذا القسم بالكامل"
                   >
-                    <Trash2 className="w-4 h-4 text-danger dark:text-danger-bright" />
-                    <span>حذف التصنيف</span>
-                  </button>
+                    حذف التصنيف
+                  </AppButton>
                 </div>
               </div>
             )}
@@ -566,13 +587,12 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                   className={`${QUICK_FIELD} flex-1`}
                   autoFocus
                 />
-                <button type="submit" className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY}`}>
-                  <Check className="w-4 h-4" />
-                  <span>إضافة القسم</span>
-                </button>
-                <button type="button" onClick={() => setIsAddingCategory(false)} className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}>
+                <AppButton type="submit" variant="primary" icon={Check}>
+                  إضافة القسم
+                </AppButton>
+                <AppButton variant="secondary" onClick={() => setIsAddingCategory(false)}>
                   إلغاء
-                </button>
+                </AppButton>
               </form>
             )}
 
@@ -588,13 +608,12 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                   className={`${QUICK_FIELD} flex-1`}
                   autoFocus
                 />
-                <button type="submit" disabled={loading} className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY}`}>
-                  <Check className="w-4 h-4" />
-                  <span>حفظ الاسم</span>
-                </button>
-                <button type="button" onClick={() => setIsRenamingCategory(false)} className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}>
+                <AppButton type="submit" variant="primary" icon={Check} disabled={loading}>
+                  حفظ الاسم
+                </AppButton>
+                <AppButton variant="secondary" onClick={() => setIsRenamingCategory(false)}>
                   إلغاء
-                </button>
+                </AppButton>
               </form>
             )}
 
@@ -612,18 +631,17 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                   </span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="danger"
+                    icon={Trash2}
                     disabled={loading}
                     onClick={() => handleDeleteCategory(deleteCategoryConfirm)}
-                    className={`${QUICK_BTN} bg-danger hover:bg-danger-ink text-white dark:bg-danger-dark-fill dark:hover:bg-danger-dark-fill/90`}
                   >
-                    <Trash2 className="w-4 h-4" />
-                    <span>نعم، حذف القسم</span>
-                  </button>
-                  <button type="button" onClick={() => setDeleteCategoryConfirm(null)} className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}>
+                    نعم، حذف القسم
+                  </AppButton>
+                  <AppButton variant="secondary" onClick={() => setDeleteCategoryConfirm(null)}>
                     إلغاء
-                  </button>
+                  </AppButton>
                 </div>
               </div>
             )}
@@ -634,7 +652,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                 جاري التحميل...
               </div>
             ) : filteredItems.length === 0 ? (
-              <div className="flex-1 min-h-[220px] flex flex-col items-center justify-center gap-3 p-8 text-center border border-dashed border-line-hover dark:border-line-dark-strong rounded-xl bg-surface-2 dark:bg-surface-dark-2">
+              <div className="flex-1 min-h-[13.75rem] flex flex-col items-center justify-center gap-3 p-8 text-center border border-dashed border-line-hover dark:border-line-dark-strong rounded-xl bg-surface-2 dark:bg-surface-dark-2">
                 <div className="w-14 h-14 rounded-2xl bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
                   <Package className="w-7 h-7" />
                 </div>
@@ -644,10 +662,9 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                     الأزرار السريعة بتظهر في شاشة البيع وتنزل السلة بنقرة واحدة، مناسبة للأصناف اللي من غير باركود زي الخبز والخضار.
                   </p>
                 </div>
-                <button type="button" onClick={openAddForm} className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY}`}>
-                  <Plus className="w-4 h-4" />
-                  <span>إضافة أول صنف</span>
-                </button>
+                <AppButton variant="primary" icon={Plus} onClick={openAddForm}>
+                  إضافة أول صنف
+                </AppButton>
               </div>
             ) : (
               <ul className="flex flex-col gap-2 m-0 p-0 list-none">
@@ -676,7 +693,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                         setDragIndex(null);
                         setOverIndex(null);
                       }}
-                      className={`min-h-[64px] px-3 py-2 rounded-xl border flex items-center gap-3 transition-colors ${
+                      className={`min-h-[4rem] px-3 py-2 rounded-xl border flex items-center gap-3 transition-colors ${
                         isDropTarget
                           ? 'border-brand dark:border-brand-bright bg-brand-soft dark:bg-brand-dark-soft'
                           : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 hover:border-brand/50 dark:hover:border-brand-bright/50'
@@ -722,7 +739,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                       </div>
 
                       {/* Price */}
-                      <div className="shrink-0 text-left min-w-[84px]">
+                      <div className="shrink-0 text-left min-w-[5.25rem]">
                         {item.isOpenPrice ? (
                           <SmallChip tone="warn">سعر حر</SmallChip>
                         ) : (
@@ -737,57 +754,49 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                         {deleteConfirmId === item.id ? (
                           <div className="flex items-center gap-1.5 bg-danger-soft dark:bg-danger-dark-soft px-2 py-1 rounded-lg border border-danger-border dark:border-danger-bright/30">
                             <span className="text-xs text-danger dark:text-danger-bright font-bold">تأكيد الحذف؟</span>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteItem(item.id)}
-                              className="h-8 px-3 bg-danger hover:bg-danger-ink dark:bg-danger-dark-fill text-white rounded-md text-xs font-bold cursor-pointer"
-                            >
+                            <AppButton variant="danger" size="sm" onClick={() => handleDeleteItem(item.id)}>
                               نعم
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteConfirmId(null)}
-                              className="h-8 px-3 bg-surface dark:bg-surface-dark-3 text-ink dark:text-ink-dark rounded-md text-xs font-bold border border-line dark:border-line-dark cursor-pointer"
-                            >
+                            </AppButton>
+                            <AppButton variant="secondary" size="sm" onClick={() => setDeleteConfirmId(null)}>
                               إلغاء
-                            </button>
+                            </AppButton>
                           </div>
                         ) : (
                           <>
-                            <button
-                              type="button"
+                            <AppButton
+                              variant="secondary"
+                              size="sm"
+                              icon={ArrowUp}
                               onClick={() => handleMove(index, 'up')}
                               disabled={index === 0}
-                              className={`${ROW_ICON_BTN} hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright`}
+                              aria-label="تحريك لأعلى"
                               title="تحريك لأعلى"
-                            >
-                              <ArrowUp className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
+                            />
+                            <AppButton
+                              variant="secondary"
+                              size="sm"
+                              icon={ArrowDown}
                               onClick={() => handleMove(index, 'down')}
                               disabled={index === filteredItems.length - 1}
-                              className={`${ROW_ICON_BTN} hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright`}
+                              aria-label="تحريك لأسفل"
                               title="تحريك لأسفل"
-                            >
-                              <ArrowDown className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
+                            />
+                            <AppButton
+                              variant="secondary"
+                              size="sm"
+                              icon={Edit2}
                               onClick={() => openEditForm(item)}
-                              className={`${ROW_ICON_BTN} hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft`}
+                              aria-label="تعديل"
                               title="تعديل"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
+                            />
+                            <AppButton
+                              variant="dangerSoft"
+                              size="sm"
+                              icon={Trash2}
                               onClick={() => setDeleteConfirmId(item.id)}
-                              className={`${ROW_ICON_BTN} hover:text-danger dark:hover:text-danger-bright hover:border-danger dark:hover:border-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft`}
+                              aria-label="حذف"
                               title="حذف"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            />
                           </>
                         )}
                       </div>
@@ -800,20 +809,20 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
 
           {/* Form Sidebar (Add / Edit) */}
           {isFormOpen && (
-            <aside className="w-[380px] shrink-0 border-r border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col min-h-0 animate-in slide-in-from-left-2 duration-150">
+            <aside className="w-[23.75rem] shrink-0 border-r border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex flex-col min-h-0 animate-in slide-in-from-left-2 duration-150">
               <form key={editingId ?? 'new'} onSubmit={handleSaveItem} className="flex-1 min-h-0 flex flex-col">
                 <div className="h-14 px-5 flex items-center justify-between border-b border-line dark:border-line-dark shrink-0">
                   <span className="text-sm font-extrabold text-ink dark:text-ink-dark">
                     {editingId ? 'تعديل الصنف السريع' : 'إضافة صنف سريع جديد'}
                   </span>
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="subtle"
+                    icon={X}
                     onClick={() => setIsFormOpen(false)}
-                    className="w-10 h-10 -ml-2 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
+                    className="-ml-2"
+                    aria-label="إغلاق النموذج"
                     title="إغلاق النموذج"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  />
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
@@ -863,28 +872,20 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                   <ExtrasSection summary={formExtrasSummary}>
                     <div>
                       <FieldLabel>ربط بالمخزن</FieldLabel>
-                      <button
-                        type="button"
-                        onClick={() => setIsSearchingProduct(!isSearchingProduct)}
-                        className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY} w-full`}
-                      >
-                        <Package className="w-4 h-4 text-brand dark:text-brand-bright" />
-                        <span>{formProductId ? 'تغيير الربط بالمخزن' : 'ربط بمنتج مسجل بالمخزن'}</span>
-                      </button>
+                      <AppButton variant="secondary" icon={Package} onClick={() => setIsSearchingProduct(!isSearchingProduct)} fullWidth>
+                        {formProductId ? 'تغيير الربط بالمخزن' : 'ربط بمنتج مسجل بالمخزن'}
+                      </AppButton>
 
                       {isSearchingProduct && (
                         <div className="mt-2 p-2 bg-surface dark:bg-surface-dark-3 border border-brand/30 dark:border-brand-bright/30 rounded-lg flex flex-col gap-2">
-                          <div className="relative">
-                            <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-dark-muted pointer-events-none" />
-                            <input
-                              type="text"
-                              value={productSearchQuery}
-                              onChange={(e) => handleProductSearch(e.target.value)}
-                              placeholder="ابحث بالاسم أو الباركود..."
-                              className={`${QUICK_FIELD} pr-9`}
-                              autoFocus
-                            />
-                          </div>
+                          <SearchInput
+                            size="md"
+                            value={productSearchQuery}
+                            onChange={handleProductSearch}
+                            placeholder="ابحث بالاسم أو الباركود..."
+                            autoFocus
+                            ariaLabel="بحث عن صنف لإضافته"
+                          />
                           {searchingLoading && (
                             <div className="text-xs text-ink-muted dark:text-ink-dark-muted text-center py-1">جاري البحث...</div>
                           )}
@@ -948,20 +949,12 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                 </div>
 
                 <div className="px-5 py-3 border-t border-line dark:border-line-dark flex items-center gap-2 shrink-0">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className={`${QUICK_BTN} ${QUICK_BTN_PRIMARY} flex-1`}
-                  >
+                  <AppButton type="submit" variant="primary" disabled={loading} className="flex-1">
                     {editingId ? 'حفظ التعديلات' : 'إضافة الصنف'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={requestClose}
-                    className={`${QUICK_BTN} ${QUICK_BTN_SECONDARY}`}
-                  >
+                  </AppButton>
+                  <AppButton variant="secondary" onClick={requestClose}>
                     إلغاء
-                  </button>
+                  </AppButton>
                 </div>
               </form>
             </aside>

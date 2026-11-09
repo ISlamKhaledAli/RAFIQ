@@ -1,13 +1,14 @@
 import React from 'react';
+import { AppButton } from '../AppButton';
 import { CheckCircle2, Plus, Smartphone, Wallet } from 'lucide-react';
 import type { DigitalAccount } from '../../types/models';
 import {
   digitalProviderLabel,
-  formatAccountValue,
   isNumericAccountValue,
   rawAccountValue,
   receivingNumbers,
 } from '../../utils/digitalAccounts';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
 
 export interface ReceivingAccountCardProps {
   /** The account the host will credit (see pickReceivingAccount), or null when none is set up. */
@@ -50,10 +51,10 @@ export const ReceivingAccountCard: React.FC<ReceivingAccountCardProps> = ({
   // InstaPay shows the payment address and the phone with equal weight; a wallet shows its number
   const rows: NumberRow[] = [];
   if (account && numbers) {
-    if (numbers.primary) rows.push({ label: rowLabel(numbers.primary, isInstapay), display: formatAccountValue(numbers.primary) });
-    if (numbers.secondary) rows.push({ label: rowLabel(numbers.secondary, isInstapay), display: formatAccountValue(numbers.secondary) });
+    if (numbers.primary) rows.push({ label: rowLabel(numbers.primary, isInstapay), display: formatPhoneDisplay(numbers.primary) });
+    if (numbers.secondary) rows.push({ label: rowLabel(numbers.secondary, isInstapay), display: formatPhoneDisplay(numbers.secondary) });
   } else if (storeRaw) {
-    rows.push({ label: rowLabel(storeRaw, isInstapay), display: formatAccountValue(storeRaw) });
+    rows.push({ label: rowLabel(storeRaw, isInstapay), display: formatPhoneDisplay(storeRaw) });
   }
 
   const holderName = (account?.holderName ?? '').trim();
@@ -153,14 +154,9 @@ export const ReceivingAccountCard: React.FC<ReceivingAccountCardProps> = ({
           </div>
           {onNavigateToWallets && (
             <div className="min-h-11 flex items-center">
-              <button
-                type="button"
-                onClick={onNavigateToWallets}
-                className="h-11 px-3 rounded-lg border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 focus-visible:border-brand dark:focus-visible:border-brand-bright text-sm font-bold text-brand dark:text-brand-bright flex items-center gap-2 cursor-pointer transition-colors"
-              >
-                <Plus className="w-4 h-4 shrink-0" />
-                <span>ربط حساب بمكتب المحافظ</span>
-              </button>
+              <AppButton variant="secondary" size="lg" icon={Plus} onClick={onNavigateToWallets}>
+                ربط حساب بمكتب المحافظ
+              </AppButton>
             </div>
           )}
         </>

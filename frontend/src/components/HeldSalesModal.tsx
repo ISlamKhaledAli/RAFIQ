@@ -6,6 +6,7 @@ import { invoke } from '../bridge/ipc';
 import { DateFilterControl } from './DateFilterControl';
 import { useDateFilter, isDateFilterActive, describeDateFilter, toLocalDateString, parseDateToLocalDateStr } from '../utils/dateFilter';
 
+import { AppButton } from './AppButton';
 interface HeldSalesModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -120,12 +121,12 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-[640px] bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-brand dark:border-t-brand-bright"
+        className="w-full max-w-3xl bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-brand dark:border-t-brand-bright"
         onClick={(e) => e.stopPropagation()}
         dir="rtl"
       >
         {/* Modal Header */}
-        <div className="h-14 px-5 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
+        <div className="h-14 px-5 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2 shrink-0">
           <div className="flex items-center gap-2.5">
             <PauseCircle className="w-5 h-5 text-brand dark:text-brand-bright" />
             <h2 className="t-modal-title text-ink dark:text-ink-dark m-0">الفواتير المعلقة (المحجوزة مؤقتاً)</h2>
@@ -133,18 +134,11 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
               {visibleSales.length} معلقة
             </span>
           </div>
-          <button 
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
-            title="إغلاق النافذة"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <AppButton variant="subtle" size="sm" icon={X} onClick={onClose} title="إغلاق النافذة" aria-label="إغلاق النافذة" />
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 space-y-3 overflow-y-auto max-h-[60vh]">
+        <div className="p-4 space-y-3 overflow-y-auto flex-1 min-h-0">
           {/* Informational Note */}
           <div className="flex items-center gap-2 text-xs text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-3.5 py-2.5 rounded-xl border border-line dark:border-line-dark">
             <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
@@ -180,7 +174,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
                     <th className="px-3">الوقت</th>
                     <th className="px-3">الأصناف</th>
                     <th className="px-3">المبلغ</th>
-                    <th className="px-3 text-center w-[165px]">التحكم</th>
+                    <th className="px-3 text-center w-[10.3125rem]">التحكم</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line dark:divide-line-dark bg-surface dark:bg-surface-dark">
@@ -189,7 +183,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
                       <td className="px-3 font-bold text-ink dark:text-ink-dark text-xs">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-warn shrink-0" />
-                          <div className="truncate max-w-[140px]">
+                          <div className="truncate max-w-[13.75rem]">
                             <span>{sale.customerName || sale.notes || `معلقة #${idx + 1}`}</span>
                             {sale.notes && sale.customerName && (
                               <span className="block text-micro text-ink-muted dark:text-ink-dark-muted font-normal truncate">
@@ -216,27 +210,27 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
                       </td>
                       <td className="px-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            type="button"
+                          <AppButton
+                            variant="primary"
+                            size="xs"
+                            icon={RotateCcw}
                             onClick={() => void handleRecall(sale)}
                             disabled={loading}
-                            className="h-7.5 px-2.5 bg-brand text-white hover:bg-brand-dark rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer disabled:opacity-50 whitespace-nowrap"
                             title="استرجاع السلة والمتابعة"
                           >
-                            <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-                            <span>كمّل الفاتورة</span>
-                          </button>
-                          <button
-                            type="button"
+                            كمّل الفاتورة
+                          </AppButton>
+                          <AppButton
+                            variant="dangerSubtle"
+                            size="xs"
+                            icon={Trash2}
                             onClick={() => {
                               if (sale.id) void handleDelete(sale.id);
                             }}
                             disabled={deletingId === sale.id || loading}
-                            className="h-7.5 w-7.5 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:border-danger/30 hover:bg-danger-soft dark:hover:bg-danger/20 rounded-lg flex items-center justify-center transition-colors shadow-2xs cursor-pointer shrink-0"
                             title="مسح الفاتورة المعلقة"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                            aria-label="مسح الفاتورة المعلقة"
+                          />
                         </div>
                       </td>
                     </tr>
@@ -250,14 +244,9 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
               {dateActive && heldSales.length > 0 ? (
                 <>
                   <p className="text-sm font-bold text-ink dark:text-ink-dark">{`مفيش فواتير معلقة خلال ${describeDateFilter(dateFilter)}`}</p>
-                  <button
-                    type="button"
-                    onClick={resetDateFilter}
-                    className="mt-2 h-8 px-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-dark dark:bg-brand text-white text-xs font-bold cursor-pointer"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>عرض كل المعلقة</span>
-                  </button>
+                  <AppButton variant="primary" size="sm" icon={RotateCcw} className="mt-2" onClick={resetDateFilter}>
+                    عرض كل المعلقة
+                  </AppButton>
                 </>
               ) : (
                 <>

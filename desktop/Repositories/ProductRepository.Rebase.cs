@@ -93,7 +93,7 @@ namespace RafiqPOS.Repositories
                     long heldCount = Convert.ToInt64(heldCmd.ExecuteScalar());
                     if (heldCount > 0)
                     {
-                        throw new InvalidOperationException("لا يمكن إعادة تأسيس الصنف لوجود فواتير معلقة (Held Sales) تحتوي عليه في الوردية الحالية. يرجى استرجاعها وإتمامها أو إلغاؤها أولاً لحماية سلامة البيانات.");
+                        throw new InvalidOperationException("لا يمكن إعادة تأسيس الصنف لوجود فواتير معلقة تحتوي عليه في الوردية الحالية. يرجى استرجاعها وإتمامها أو إلغاؤها أولاً لحماية سلامة البيانات.");
                     }
                 }
 

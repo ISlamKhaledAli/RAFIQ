@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import type { OrderMode, RestaurantTable, DeliveryOrderCreateInfo } from '../../types/cafe';
 import { formatArabicCurrency } from '../../utils/money';
+import { formatPhoneDisplay } from '../../utils/phoneFormat';
+import { AppButton } from '../../components/AppButton';
 
 interface PosOrderModeBarProps {
   orderType: OrderMode;
@@ -111,23 +113,14 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
       {/* 2. Context-Specific Controls (Dine-In Table / Delivery Info) */}
       <div className="flex flex-wrap items-center gap-2">
         {showTableManagement && (
-          <button
-            type="button"
-            onClick={onOpenFloorMap}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
-              needsTable
-                ? 'bg-warn/15 dark:bg-warn-dark-soft border-warn/40 dark:border-warn-border/30 text-warn dark:text-warn-bright hover:bg-warn/25'
-                : 'bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand/10 dark:hover:bg-brand-dark-soft border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 text-ink dark:text-ink-dark'
-            }`}
-          >
-            <LayoutGrid className={`w-3.5 h-3.5 ${needsTable ? '' : 'text-brand dark:text-brand-bright'}`} />
+          <AppButton variant={needsTable ? 'warningSoft' : 'secondary'} size="sm" icon={LayoutGrid} onClick={onOpenFloorMap}>
             <span>{needsTable ? 'اختر طاولة للطلب' : 'خريطة الصالة والطاولات'}</span>
             {occupiedTablesCount > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-warn/20 dark:bg-warn-dark-soft text-warn dark:text-warn-bright text-xs font-black tabular-nums">
                 {occupiedTablesCount} مشغولة
               </span>
             )}
-          </button>
+          </AppButton>
         )}
 
         {orderType === 'dine_in' && showTableManagement && (
@@ -146,37 +139,31 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
                 {activeTable.waiterName && (
                   <span className="text-brand dark:text-brand-bright font-bold">• {activeTable.waiterName}</span>
                 )}
-                <button
-                  type="button"
+                <AppButton
+                  variant="dangerSubtle"
+                  size="xs"
+                  icon={X}
                   onClick={onClearActiveTable}
-                  title="إلغاء تحديد الطاولة من الشاشة"
-                  className="p-0.5 rounded hover:bg-danger/10 dark:hover:bg-danger-dark-soft text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright transition-colors cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                  aria-label="إلغاء تحديد الطاولة من الشاشة"
+                  className="-my-1.5"
+                />
               </div>
             )}
 
             {activeTable && (
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  disabled={tableSaving || !cartNotEmpty}
-                  onClick={onSaveTableOrder}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-paid text-white text-xs font-black hover:opacity-90 disabled:opacity-50 transition-all cursor-pointer"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>{tableSaving ? 'جاري الحفظ...' : 'تعليق وحفظ بالطاولة'}</span>
-                </button>
-                <button
-                  type="button"
+                <AppButton variant="success" size="sm" icon={Save} disabled={tableSaving || !cartNotEmpty} onClick={onSaveTableOrder}>
+                  {tableSaving ? 'جاري الحفظ...' : 'تعليق وحفظ بالطاولة'}
+                </AppButton>
+                <AppButton
+                  variant="secondary"
+                  size="sm"
+                  icon={FileText}
                   onClick={onPrintPreBill}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright text-ink dark:text-ink-dark text-xs font-bold transition-all cursor-pointer"
                   title="طباعة شيك مبدئي للمراجعة دون إغلاق الطاولة"
                 >
-                  <FileText className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                  <span>شيك مبدئي</span>
-                </button>
+                  شيك مبدئي
+                </AppButton>
               </div>
             )}
 
@@ -201,29 +188,19 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
         {orderType === 'delivery' && showDeliveryManagement && (
           <div className="flex items-center gap-2">
             {deliveryInfo ? (
-              <button
-                type="button"
-                onClick={() => onOpenDeliveryModal('order_setup')}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-brand/10 dark:bg-brand-dark-soft border border-brand/30 dark:border-brand-bright/30 text-xs hover:bg-brand/15 transition-all cursor-pointer"
-              >
-                <MapPin className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+              <AppButton variant="soft" size="sm" icon={MapPin} onClick={() => onOpenDeliveryModal('order_setup')}>
                 <span className="font-black text-ink dark:text-ink-dark">{deliveryInfo.customerName}</span>
-                <span className="text-ink-muted dark:text-ink-dark-muted font-bold">({deliveryInfo.customerPhone})</span>
+                <span className="text-ink-muted dark:text-ink-dark-muted font-bold">({formatPhoneDisplay(deliveryInfo.customerPhone)})</span>
                 {deliveryInfo.zoneName && (
                   <span className="px-1.5 py-0.5 rounded bg-surface dark:bg-surface-dark-2 text-brand dark:text-brand-bright font-black">
                     {deliveryInfo.zoneName} • {formatArabicCurrency(deliveryInfo.deliveryFeePiasters)}
                   </span>
                 )}
-              </button>
+              </AppButton>
             ) : (
-              <button
-                type="button"
-                onClick={() => onOpenDeliveryModal('order_setup')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-warn/15 dark:bg-warn-dark-soft border border-warn/40 dark:border-warn-border/30 text-warn dark:text-warn-bright text-xs font-black hover:bg-warn/25 transition-all cursor-pointer"
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>تحديد عنوان ومنطقة التوصيل</span>
-              </button>
+              <AppButton variant="warningSoft" size="sm" icon={MapPin} onClick={() => onOpenDeliveryModal('order_setup')}>
+                تحديد عنوان ومنطقة التوصيل
+              </AppButton>
             )}
           </div>
         )}
@@ -232,32 +209,27 @@ export const PosOrderModeBar: React.FC<PosOrderModeBarProps> = ({
       {/* 3. Action Buttons (KOT Printer & Delivery Command Center) */}
       <div className="flex items-center gap-2">
         {showKitchenPrinter && (
-          <button
-            type="button"
+          <AppButton
+            variant="secondary"
+            size="sm"
+            icon={Printer}
             disabled={!cartNotEmpty || kotPrinting}
             onClick={onPrintKot}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand/10 dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 text-ink dark:text-ink-dark text-xs font-black disabled:opacity-40 transition-all cursor-pointer"
             title="إرسال الأصناف لطابعة المطبخ والبار (بدون أسعار)"
           >
-            <Printer className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-            <span>{kotPrinting ? 'جاري الإرسال...' : 'إرسال للمطبخ / البار (KOT)'}</span>
-          </button>
+            {kotPrinting ? 'جاري الإرسال...' : 'إرسال للمطبخ / البار'}
+          </AppButton>
         )}
 
         {showDeliveryManagement && (
-          <button
-            type="button"
-            onClick={() => onOpenDeliveryModal('active_orders')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-brand/10 dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 text-ink dark:text-ink-dark text-xs font-black transition-all cursor-pointer"
-          >
-            <Bike className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+          <AppButton variant="secondary" size="sm" icon={Bike} onClick={() => onOpenDeliveryModal('active_orders')}>
             <span>مركز الدليفري والطيارين</span>
             {activeDeliveryOrdersCount > 0 && (
-              <span className="min-w-[20px] text-center px-1.5 py-0.5 rounded-full bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black tabular-nums">
+              <span className="min-w-[1.25rem] text-center px-1.5 py-0.5 rounded-full bg-brand dark:bg-brand-bright text-white dark:text-surface-dark text-xs font-black tabular-nums">
                 {activeDeliveryOrdersCount}
               </span>
             )}
-          </button>
+          </AppButton>
         )}
       </div>
     </div>

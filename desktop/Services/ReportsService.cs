@@ -3352,7 +3352,7 @@ namespace RafiqPOS.Services
             {
                 conn.Open();
 
-                string sql = @"
+                const string deadCandidatesSql = @"
                     SELECT 
                         p.id,
                         p.barcode,
@@ -3369,10 +3369,14 @@ namespace RafiqPOS.Services
                     LEFT JOIN sales s ON si.sale_id = s.id AND s.status != 'cancelled' AND s.id NOT LIKE 'demo_%' AND s.id NOT LIKE 'stress_%'
                     WHERE p.is_active = 1 AND p.stock_quantity_milli > 0
                     GROUP BY p.id
-                    HAVING last_sold IS NULL OR date(last_sold, 'localtime') <= date('now', 'localtime', '-' || @days || ' days')
+                    HAVING last_sold IS NULL OR date(last_sold, 'localtime') <= date('now', 'localtime', '-' || @days || ' days')";
+
+                // The list shows the 50 largest; the headline totals must cover every dead item, not just those 50
+                string sql = deadCandidatesSql + @"
                     ORDER BY (COALESCE(p.stock_quantity_milli, 0) * COALESCE(p.cost_piasters, 0)) DESC
                     LIMIT 50;
                 ";
+                string totalsSql = "SELECT COUNT(*), COALESCE(SUM((stock_milli * cost_piasters) / 1000), 0) FROM (" + deadCandidatesSql + ") dead;";
 
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -3418,13 +3422,24 @@ namespace RafiqPOS.Services
                             };
 
                             report.Items.Add(item);
-                            report.TotalTiedCapitalPiasters += tiedCapital;
+                        }
+                    }
+                }
+
+                using (var totalsCmd = new SQLiteCommand(totalsSql, conn))
+                {
+                    totalsCmd.Parameters.AddWithValue("@days", daysThreshold);
+                    using (var totalsReader = totalsCmd.ExecuteReader())
+                    {
+                        if (totalsReader.Read())
+                        {
+                            report.TotalDeadItemsCount = Convert.ToInt32(totalsReader[0]);
+                            report.TotalTiedCapitalPiasters = Convert.ToInt64(totalsReader[1]);
                         }
                     }
                 }
             }
 
-            report.TotalDeadItemsCount = report.Items.Count;
             return report;
         }
 

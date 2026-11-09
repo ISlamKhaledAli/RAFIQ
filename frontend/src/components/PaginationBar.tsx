@@ -1,6 +1,12 @@
 import React from 'react';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 
+// Every chip shares one geometry (h-8, rounded-lg, text-xs) and one dark-mode pair.
+const CHIP = 'h-8 min-w-8 px-2.5 flex items-center justify-center rounded-lg text-xs font-bold cursor-pointer';
+const CHIP_ACTIVE = 'bg-brand text-white dark:bg-brand-dark-soft dark:text-brand-bright dark:ring-1 dark:ring-inset dark:ring-brand-bright/40 shadow-xs';
+const CHIP_IDLE = 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:bg-brand-soft dark:hover:bg-brand-dark-soft hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright';
+const CHIP_NAV = 'w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:bg-brand-soft dark:hover:bg-brand-dark-soft hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer';
+
 export interface PaginationBarProps {
   currentPage: number;
   pageSize: number;
@@ -66,11 +72,8 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
                 onClick={() => {
                   onPageSizeChange(size);
                 }}
-                className={`px-2.5 py-1 rounded-lg text-micro font-bold transition-all cursor-pointer ${
-                  pageSize === size
-                    ? 'bg-brand dark:bg-brand text-white shadow-xs'
-                    : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:text-brand dark:hover:text-brand-bright'
-                }`}
+                aria-pressed={pageSize === size}
+                className={`${CHIP} ${pageSize === size ? CHIP_ACTIVE : CHIP_IDLE}`}
               >
                 {size}
               </button>
@@ -83,8 +86,9 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
           type="button"
           disabled={currentPage <= 1}
           onClick={() => onPageChange(currentPage - 1)}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:bg-brand-soft dark:hover:bg-brand-soft/20 hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+          className={CHIP_NAV}
           title="الصفحة السابقة"
+          aria-label="الصفحة السابقة"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -100,11 +104,8 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
               key={p}
               type="button"
               onClick={() => onPageChange(p)}
-              className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                currentPage === p
-                  ? 'bg-brand dark:bg-brand text-white shadow-xs'
-                  : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:bg-brand-soft dark:hover:bg-brand-soft/20 hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright'
-              }`}
+              aria-current={currentPage === p ? 'page' : undefined}
+              className={`${CHIP} ${currentPage === p ? CHIP_ACTIVE : CHIP_IDLE}`}
             >
               {p}
             </button>
@@ -116,8 +117,9 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
           type="button"
           disabled={currentPage >= totalPages}
           onClick={() => onPageChange(currentPage + 1)}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:bg-brand-soft dark:hover:bg-brand-soft/20 hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+          className={CHIP_NAV}
           title="الصفحة التالية"
+          aria-label="الصفحة التالية"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>

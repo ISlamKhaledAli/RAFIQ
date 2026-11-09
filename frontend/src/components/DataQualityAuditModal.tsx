@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   X, 
-  Search, 
   Printer, 
   RefreshCw, 
   ShieldCheck, 
@@ -21,13 +20,15 @@ import {
   FolderX,
   DollarSign
 } from 'lucide-react';
+import { SearchInput } from './SearchInput';
 import { invoke } from '../bridge/ipc';
-import { printReport } from '../utils/printReport';
+import { usePrintReport } from '../hooks/usePrintReport';
 import type { DataQualityReport, DataQualityIssueItem, DataQualityIssueType, BulkGenerateBarcodesResult, AssignBarcodeResult, DataQualityRepairResult } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { rafiqAlert } from '../utils/dialogService';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { useDataSubscription } from '../utils/eventBus';
+import { AppButton } from './AppButton';
 
 interface DataQualityAuditModalProps {
   isOpen: boolean;
@@ -190,9 +191,12 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
     return list;
   }, [report, activeFilter, searchQuery]);
 
-  const handlePrint = () => {
-    void printReport({ kind: 'a4only' });
-  };
+  const { print: handlePrint, printing } = usePrintReport({
+    reportName: 'تقرير جودة البيانات',
+    kind: 'a4only',
+    // A clean audit (no issues) is still a printable result: only a missing report means nothing to print
+    hasData: Boolean(report),
+  });
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -237,31 +241,28 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
+            <AppButton
+              variant="success"
+              size="md"
+              icon={Wrench}
+              loading={isRepairing}
               onClick={() => void handleRepairDataQuality()}
               disabled={isRepairing || loading}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-paid hover:bg-paid/90 text-white transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
               title="إصلاح الفواتير غير المكتملة، تسوية حسابات العملاء مع كشف الحساب، وإعادة ربط الأصناف اليتيمة"
             >
-              <Wrench className={`w-3.5 h-3.5 ${isRepairing ? 'animate-spin' : ''}`} />
-              <span>{isRepairing ? 'جاري التسوية...' : 'تسوية ومعالجة آلية'}</span>
-            </button>
+              {isRepairing ? 'جاري التسوية...' : 'تسوية ومعالجة آلية'}
+            </AppButton>
 
 
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-surface-dark text-brand dark:text-brand-bright hover:bg-white/90 transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>طباعة التقرير</span>
-            </button>
+            <AppButton variant="secondary" size="md" icon={Printer} onClick={handlePrint} loading={printing}>
+              طباعة التقرير
+            </AppButton>
 
             <button 
               type="button"
               onClick={requestClose}
               className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              aria-label="إغلاق النافذة"
               title="إغلاق النافذة"
             >
               <X className="w-5 h-5" />
@@ -285,7 +286,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                 isExcellent 
                   ? 'bg-paid text-white border-paid' 
                   : isFair 
-                  ? 'bg-warn text-white dark:bg-warn-bright dark:text-surface-dark border-warn' 
+                  ? 'bg-warn-bright text-ink dark:bg-warn-bright dark:text-surface-dark border-warn-bright' 
                   : 'bg-danger text-white border-danger'
               }`}>
                 {score}%
@@ -299,7 +300,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                     isExcellent 
                       ? 'bg-paid text-white' 
                       : isFair 
-                      ? 'bg-warn text-white dark:bg-warn-bright dark:text-surface-dark' 
+                      ? 'bg-warn-bright text-ink dark:bg-warn-bright dark:text-surface-dark' 
                       : 'bg-danger text-white'
                   }`}>
                     {isExcellent ? 'بيانات ممتازة ومكتملة' : isFair ? 'بيانات مقبولة وبحاجة لمراجعة' : 'تتطلب تصحيحاً عاجلاً'}
@@ -312,15 +313,15 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
             </div>
 
             <div className="flex items-center gap-3 text-xs shrink-0 font-medium">
-              <div className="bg-surface dark:bg-surface-dark px-3 py-2 rounded-xl border border-line dark:border-line-dark shadow-2xs text-center min-w-[90px]">
+              <div className="bg-surface dark:bg-surface-dark px-3 py-2 rounded-xl border border-line dark:border-line-dark shadow-2xs text-center min-w-[5.625rem]">
                 <span className="block text-micro text-ink-muted dark:text-ink-dark-muted">إجمالي الأصناف</span>
                 <span className="font-mono font-bold text-sm text-ink dark:text-ink-dark">{report?.totalProductsAudited ?? 0}</span>
               </div>
-              <div className="bg-surface dark:bg-surface-dark px-3 py-2 rounded-xl border border-line dark:border-line-dark shadow-2xs text-center min-w-[90px]">
+              <div className="bg-surface dark:bg-surface-dark px-3 py-2 rounded-xl border border-line dark:border-line-dark shadow-2xs text-center min-w-[5.625rem]">
                 <span className="block text-micro text-paid font-bold">أصناف سليمة</span>
                 <span className="font-mono font-bold text-sm text-paid">{report?.healthyProductsCount ?? 0}</span>
               </div>
-              <div className="bg-surface dark:bg-surface-dark px-3 py-2 rounded-xl border border-line dark:border-line-dark shadow-2xs text-center min-w-[90px]">
+              <div className="bg-surface dark:bg-surface-dark px-3 py-2 rounded-xl border border-line dark:border-line-dark shadow-2xs text-center min-w-[5.625rem]">
                 <span className="block text-micro text-danger dark:text-danger-bright font-bold">ملاحظات ومشاكل</span>
                 <span className="font-mono font-bold text-sm text-danger dark:text-danger-bright">{report?.totalIssuesCount ?? 0}</span>
               </div>
@@ -370,7 +371,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               onClick={() => setActiveFilter('orphan_product')}
               className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                 activeFilter === 'orphan_product'
-                  ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border-warn shadow-xs'
+                  ? 'bg-warn-bright text-ink dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border-warn-bright shadow-xs'
                   : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-warn'
               }`}
             >
@@ -442,7 +443,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               onClick={() => setActiveFilter('missing_barcode')}
               className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                 activeFilter === 'missing_barcode'
-                  ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border-warn shadow-xs'
+                  ? 'bg-warn-bright text-ink dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border-warn-bright shadow-xs'
                   : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-warn'
               }`}
             >
@@ -460,7 +461,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               onClick={() => setActiveFilter('missing_cost')}
               className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                 activeFilter === 'missing_cost'
-                  ? 'bg-warn text-white dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border-warn shadow-xs'
+                  ? 'bg-warn-bright text-ink dark:bg-warn-dark-soft dark:text-warn-bright dark:ring-1 dark:ring-inset dark:ring-warn-bright/40 border-warn-bright shadow-xs'
                   : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark text-ink dark:text-ink-dark hover:border-warn'
               }`}
             >
@@ -548,16 +549,14 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
 
           {/* Search Bar & Result Count */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-surface dark:bg-surface-dark p-3 rounded-xl border border-line dark:border-line-dark print:hidden">
-            <div className="relative w-full sm:w-96">
-              <input
-                type="text"
-                placeholder="ابحث بالاسم أو الباركود أو التصنيف..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-9 pl-4 pr-9 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg focus:outline-none focus:border-brand text-ink"
-              />
-              <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-2.5" />
-            </div>
+            <SearchInput
+              size="sm"
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="ابحث بالاسم أو الباركود أو التصنيف..."
+              ariaLabel="بحث في ملاحظات جودة البيانات"
+              className="w-full sm:w-96"
+            />
 
             <div className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold self-end sm:self-center">
               عرض <strong className="text-ink dark:text-ink-dark font-mono">{filteredIssues.length}</strong> ملاحظة من إجمالي <strong className="text-ink dark:text-ink-dark font-mono">{report?.totalIssuesCount ?? 0}</strong>
@@ -576,20 +575,20 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                     يوجد <strong className="font-mono text-brand dark:text-brand-bright font-black">{report?.missingBarcodeCount}</strong> صنف بدون باركود في الكتالوج
                   </h4>
                   <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5">
-                    يمكنك توليد باركودات داخلية قياسية موحدة (EAN-13 مع بادئة GS1: 200 ورقم تحقق Modulo 10) لجميع الأصناف الناقصة دفعة واحدة.
+                    يمكنك توليد باركودات داخلية قياسية موحدة (EAN-13 مع بادئة GS1: 200 ورقم تحقق حسابي) لجميع الأصناف الناقصة دفعة واحدة.
                   </p>
                 </div>
               </div>
 
-              <button
-                type="button"
+              <AppButton
+                variant="primary"
+                size="md"
+                icon={Barcode}
                 onClick={() => void handleBulkGenerateBarcodes()}
                 disabled={isBulkGenerating || loading}
-                className="px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
               >
-                <Barcode className="w-4 h-4" />
-                <span>{isBulkGenerating ? 'جاري التوليد للجميع...' : `توليد باركود لجميع النواقص (${report?.missingBarcodeCount})`}</span>
-              </button>
+                {isBulkGenerating ? 'جاري التوليد للجميع...' : `توليد باركود لجميع النواقص (${report?.missingBarcodeCount})`}
+              </AppButton>
             </div>
           )}
 
@@ -666,7 +665,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                               {issue.issueDescription}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-micro font-mono tabular-nums">
+                          <td className="py-3 px-4 text-xs font-mono tabular-nums">
                             <div>الرصيد: <strong className={issue.stockMilli < 0 ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'}>{(issue.stockMilli / 1000).toFixed( issue.unit === 'kg' ? 3 : 0 )} {issue.unit === 'kg' ? 'كجم' : 'ق'}</strong></div>
                             <div>التكلفة: <strong className={issue.costPiasters <= 0 ? 'text-warn dark:text-warn-bright font-bold' : 'text-ink dark:text-ink-dark'}>{formatArabicCurrency(issue.costPiasters)}</strong></div>
                             <div>البيع: <strong className="text-ink dark:text-ink-dark">{formatArabicCurrency(issue.pricePiasters)}</strong></div>
@@ -678,41 +677,42 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                           <td className="py-3 px-4 text-center print:hidden">
                             <div className="flex items-center justify-center gap-1.5">
                               {(issue.issueType === 'incomplete_sale' || issue.issueType === 'accounting_imbalance' || issue.issueType === 'orphan_product') && (
-                                <button
-                                  type="button"
+                                <AppButton
+                                  variant="success"
+                                  size="xs"
+                                  icon={Wrench}
                                   onClick={() => void handleRepairDataQuality()}
                                   disabled={isRepairing}
-                                  className="px-2.5 py-1.5 bg-paid text-white hover:bg-paid/90 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                                   title="تنفيذ التسوية والمعالجة المحاسبية التلقائية"
                                 >
-                                  <Wrench className="w-3.5 h-3.5" />
-                                  <span>تسوية</span>
-                                </button>
+                                  تسوية
+                                </AppButton>
                               )}
                               {issue.issueType === 'missing_barcode' && (
-                                <button
-                                  type="button"
+                                <AppButton
+                                  variant="success"
+                                  size="xs"
+                                  icon={Barcode}
                                   onClick={() => void handleQuickAssignBarcode(issue.productId)}
                                   disabled={assigningProductId === issue.productId}
-                                  className="px-2.5 py-1.5 bg-paid text-white hover:bg-paid/90 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50 dark:disabled:opacity-100 dark:disabled:bg-surface-dark-3 dark:disabled:text-ink-dark-muted dark:disabled:border-line-dark"
                                   title="توليد وتعيين باركود داخلي قياسي فوراً لهذا الصنف"
                                 >
-                                  <Barcode className="w-3.5 h-3.5" />
-                                  <span>{assigningProductId === issue.productId ? '...' : 'توليد كود'}</span>
-                                </button>
+                                  {assigningProductId === issue.productId ? '...' : 'توليد كود'}
+                                </AppButton>
                               )}
                               {onFixProduct && (
-                                <button
-                                  type="button"
+                                <AppButton
+                                  variant="primary"
+                                  size="xs"
+                                  icon={ExternalLink}
+                                  iconPosition="end"
                                   onClick={() => {
                                     onFixProduct(issue.productId);
                                   }}
-                                  className="px-3 py-1.5 bg-brand text-white hover:bg-brand-dark rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
                                   title="فتح شاشة تعديل الصنف مباشرة"
                                 >
-                                  <span>تصحيح</span>
-                                  <ExternalLink className="w-3 h-3" />
-                                </button>
+                                  تصحيح
+                                </AppButton>
                               )}
                             </div>
                           </td>

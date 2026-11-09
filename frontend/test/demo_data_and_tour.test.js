@@ -47,22 +47,14 @@ test('Feature #113: Demo Data & Guided Tour (Story 60)', async (t) => {
       { id: 'demo_cust_2', name: 'عميلة تجريبية - أم كريم (تجريبي)', phone: '01122334455' },
     ];
 
-    const sampleDemoSale = {
-      id: 'demo_sale_1',
-      invoiceNumber: 99901,
-      totalPiasters: 7700,
-    };
-
     db.products.push(...sampleDemoProducts);
     db.customers.push(...sampleDemoCustomers);
-    db.sales.push(sampleDemoSale);
     db.settings.has_demo_data = '1';
 
     return {
       success: true,
       productsAdded: sampleDemoProducts.length,
       customersAdded: sampleDemoCustomers.length,
-      salesAdded: 1,
       storeType,
     };
   };
@@ -101,18 +93,18 @@ test('Feature #113: Demo Data & Guided Tour (Story 60)', async (t) => {
     assert.strictEqual(res.success, true);
     assert.strictEqual(res.productsAdded, 4);
     assert.strictEqual(res.customersAdded, 2);
-    assert.strictEqual(res.salesAdded, 1);
+    assert.strictEqual(res.salesAdded, undefined, 'No demo invoice is ever created');
 
     const status = getDemoStatus();
     assert.strictEqual(status.hasDemoData, true);
     assert.strictEqual(status.demoProductsCount, 4);
     assert.strictEqual(status.demoCustomersCount, 2);
-    assert.strictEqual(status.demoSalesCount, 1);
+    assert.strictEqual(status.demoSalesCount, 0);
 
     // Total products in DB is now 2 real + 4 demo = 6
     assert.strictEqual(db.products.length, 6);
     assert.strictEqual(db.customers.length, 3);
-    assert.strictEqual(db.sales.length, 2);
+    assert.strictEqual(db.sales.length, 1, 'Only the real sale exists');
   });
 
   await t.test('113-3: Integer financial math is strictly preserved in demo data', () => {
@@ -134,7 +126,7 @@ test('Feature #113: Demo Data & Guided Tour (Story 60)', async (t) => {
     assert.strictEqual(clearRes.success, true);
     assert.strictEqual(clearRes.deletedProducts, 4);
     assert.strictEqual(clearRes.deletedCustomers, 2);
-    assert.strictEqual(clearRes.deletedSales, 1);
+    assert.strictEqual(clearRes.deletedSales, 0);
 
     // Status after clear
     const status = getDemoStatus();
