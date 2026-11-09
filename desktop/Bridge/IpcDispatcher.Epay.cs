@@ -147,7 +147,19 @@ namespace RafiqPOS.Bridge
                         JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
                         string terminalId = payloadObj["terminalId"] != null ? (string)payloadObj["terminalId"] : null;
                         long amountPiasters = payloadObj["amountPiasters"] != null ? (long)payloadObj["amountPiasters"] : 0;
-                        string fundingSource = payloadObj["fundingSource"] != null ? (string)payloadObj["fundingSource"] : "cash_drawer";
+                        string fundingSource = null;
+                        if (payloadObj["fundingSource"] != null && !string.IsNullOrWhiteSpace(payloadObj["fundingSource"].ToString()))
+                        {
+                            fundingSource = payloadObj["fundingSource"].ToString().Trim();
+                        }
+                        else if (payloadObj["source"] != null && !string.IsNullOrWhiteSpace(payloadObj["source"].ToString()))
+                        {
+                            fundingSource = payloadObj["source"].ToString().Trim();
+                        }
+                        if (string.IsNullOrEmpty(fundingSource))
+                        {
+                            fundingSource = "cash_drawer";
+                        }
                         string notes = payloadObj["notes"] != null ? (string)payloadObj["notes"] : null;
                         string createdBy = SessionActorName();
                         string fundIdempotencyKey = payloadObj["idempotencyKey"] != null ? (string)payloadObj["idempotencyKey"] : null;

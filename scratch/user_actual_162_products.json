@@ -1,0 +1,1622 @@
+[
+  {
+    "barcode": "6223000554944",
+    "name": "كيك هوهوز بالشوكولاتة إيديتا (باكو فردي)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 500,
+    "cost_piasters": 400,
+    "price_egp": 5.0,
+    "cost_egp": 4.0,
+    "unit": "قطعة"
+  },
+  {
+    "barcode": "6224005291179",
+    "name": "كيك سويس رول محشو ومغطى بالشوكولاتة الفاخرة (45 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 700,
+    "cost_piasters": 550,
+    "price_egp": 7.0,
+    "cost_egp": 5.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224007235096",
+    "name": "بسكويت شاي سادة فيري (115 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223005501905",
+    "name": "ويفر كرانشي محشو بكريمة الفراولة كامارا باي لاك (28 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 500,
+    "cost_piasters": 400,
+    "price_egp": 5.0,
+    "cost_egp": 4.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224000945282",
+    "name": "ويفر مقرمش بالشوكولاتة قبايلي (35 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 700,
+    "cost_piasters": 550,
+    "price_egp": 7.0,
+    "cost_egp": 5.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "7622202350092",
+    "name": "شوكولاتة ماندولين بالبسكويت والكراميل كادبوري",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001690269",
+    "name": "بسكويت محشو بمعجون التمر الطبيعي أبو عوف (45 جم - باكو فردي)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221030012342",
+    "name": "بسكويت مغطى بالشوكولاتة البيضاء 2 صباع الشمعدان (باكو فردي)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 500,
+    "cost_piasters": 400,
+    "price_egp": 5.0,
+    "cost_egp": 4.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222001100921",
+    "name": "بسكويت سادة لوكس بسكو مصر باكو فردي (6 قطع - 40 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 500,
+    "cost_piasters": 400,
+    "price_egp": 5.0,
+    "cost_egp": 4.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223005501912",
+    "name": "ويفر كرانشي محشو بكريمة الكاكاو والبندق كامارا باي لاك (28 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 500,
+    "cost_piasters": 400,
+    "price_egp": 5.0,
+    "cost_egp": 4.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224003990036",
+    "name": "بسكويت كرانش رول محشو كريمة الشوكولاتة والكراميل (35 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 700,
+    "cost_piasters": 550,
+    "price_egp": 7.0,
+    "cost_egp": 5.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222024104920",
+    "name": "بسكويت الشوفان هوب نوبس ماكفيتيز",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000436097",
+    "name": "بسكويت بالحليب ريتش بيك باكو فردي (40 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221030004392",
+    "name": "بسكويت الشمعدان نواعم - 48جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 500,
+    "cost_piasters": 400,
+    "price_egp": 5.0,
+    "cost_egp": 4.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000436202",
+    "name": "بسكويت بجوز الهند ريتش بيك باكو فردي (40 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "8690120095516",
+    "name": "لوح شوكولاتة بالحليب 4×4 نوجا وكراميل وفول سوداني توركو (50 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1500,
+    "cost_piasters": 1200,
+    "price_egp": 15.0,
+    "cost_egp": 12.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223017970393",
+    "name": "ويفر محشو كريمة الفانيليا ماكس وان (25 جم - باكو فردي)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 500,
+    "cost_piasters": 400,
+    "price_egp": 5.0,
+    "cost_egp": 4.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224008017240",
+    "name": "عصير مانجو طبيعي عبور لاند عبوة تتراباك (200 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221333005812",
+    "name": "مقرمشات ذرة دوريتوس بطعم الفلفل الحلو",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221031003707",
+    "name": "رقائق بطاطس حار نار ميكس جريل كرانشى - 45 - 49جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221333003023",
+    "name": "مقرمشات شيتوس كرانشي حار نار",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000354810",
+    "name": "زبادي طبيعي سادة جهينة كوب صغير (75 جم)",
+    "category": "ألبان وأجبان",
+    "price_piasters": 800,
+    "cost_piasters": 680,
+    "price_egp": 8.0,
+    "cost_egp": 6.8,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221333003016",
+    "name": "مقرمشات شيتوس كرانشي بالجبنة",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221031006388",
+    "name": "مقرمشات شيتوس باف بوبس بالجبنة",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000416228",
+    "name": "سناكس بريك مخبوز بالخضروات والبهارات (57 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000553855",
+    "name": "كرواسون مولتو إكس إكس إل بالشوكولاتة والبندق",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1200,
+    "cost_piasters": 950,
+    "price_egp": 12.0,
+    "cost_egp": 9.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035263869",
+    "name": "سناكس جاجوار ستيكس ماكس كاتشب (60 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035233794",
+    "name": "سناكس جاجوار طبقات ليمون حلو كيس فردي (55 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035249757",
+    "name": "رقائق بطاطس بيج شيبس بالفلفل الحلو الهالابينو (55-65 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000418765",
+    "name": "سناكس ذرة مقرمشة ويندوز بطعم الجبنة (50 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221333002743",
+    "name": "رقائق بطاطس خل وملح شيبسي - 92 - 102جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 2000,
+    "cost_piasters": 1600,
+    "price_egp": 20.0,
+    "cost_egp": 16.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221333002767",
+    "name": "رقائق بطاطس جبنة متبلة شيبسي - 124-134جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 2000,
+    "cost_piasters": 1600,
+    "price_egp": 20.0,
+    "cost_egp": 16.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221031003950",
+    "name": "رقائق بطاطس كباب شيبسي - 74-84جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1500,
+    "cost_piasters": 1170,
+    "price_egp": 15.0,
+    "cost_egp": 11.7,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221333001944",
+    "name": "رقائق ذرة حار نار دوريتوس - 57-67جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035249351",
+    "name": "رقائق بطاطس بيج شيبس كرانشي شيدر تشيز (55-65 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000418468",
+    "name": "رقائق بطاطس لايون شيبس بالملح (55 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "5285000391746",
+    "name": "شعرية سريعة التحضير خضار حار سوبرمي اندومي - 100جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "5285000395140",
+    "name": "شعرية سريعة التحضير خضار سوبرمي اندومي - 100جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "5285000397601",
+    "name": "شعرية سريعة التحضير بطعم اللحمة كيس صغير إندومي (56 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222001103526",
+    "name": "بسكويت داتو كينج بالتمر بسكو مصر (4 قطع - 40 جم - باكو فردي)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 500,
+    "cost_piasters": 415,
+    "price_egp": 5.0,
+    "cost_egp": 4.15,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223019010738",
+    "name": "رقائق بطاطس شيك تشيليز بالفلفل الأسود والشطة والليمون (65 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221031003998",
+    "name": "بطاطس شيبسي حجم اللمة الكبير بالملح الخالص (74-84 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1500,
+    "cost_piasters": 1170,
+    "price_egp": 15.0,
+    "cost_egp": 11.7,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223019010011",
+    "name": "سناكس ذرة شيك بوبس بالطماطم والهلابينو (65 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035227786",
+    "name": "مقرمشات بروتين بالانس بالكريمة الحامضة والبصل",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1500,
+    "cost_piasters": 1230,
+    "price_egp": 15.0,
+    "cost_egp": 12.3,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000555033",
+    "name": "سناكس ميكس جبن بيك رولز - 58-62جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 840,
+    "price_egp": 10.0,
+    "cost_egp": 8.4,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221065013581",
+    "name": "فول مدمس بالخلطة المصرية السرية مصراوي (400 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 2200,
+    "cost_piasters": 1800,
+    "price_egp": 22.0,
+    "cost_egp": 18.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6225000877658",
+    "name": "عصير فواكه طبيعي مانجو وفراولة طبيعي فروزي (250 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035231196",
+    "name": "رقائق بطاطس بيج شيبس بطعم الخل والملح (55-65 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223003190217",
+    "name": "كرواسون شوكولاتة جامبو برانش - 1قطعة",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1500,
+    "cost_piasters": 1200,
+    "price_egp": 15.0,
+    "cost_egp": 12.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223003191085",
+    "name": "تارت وكرواسون محشو بمربى الفراولة الطبيعية برانش (قطعة فردية)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1500,
+    "cost_piasters": 1200,
+    "price_egp": 15.0,
+    "cost_egp": 12.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "7622202340833",
+    "name": "عصير برتقال بودرة تانج - 20جم",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "7622202339462",
+    "name": "عصير بودرة تانج مانجو ظرف فردي (20 جم)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222000553834",
+    "name": "سمن نباتي أبيض كريستال ظرف اقتصادي (55 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224000045012",
+    "name": "مقرمشات مملحة فلامنكو",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 830,
+    "price_egp": 10.0,
+    "cost_egp": 8.3,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221333006680",
+    "name": "رقائق بطاطس شيبسي ويڤي بطعم الطماطم الإيطالية (57 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1500,
+    "cost_piasters": 1200,
+    "price_egp": 15.0,
+    "cost_egp": 12.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221031003974",
+    "name": "بطاطس شيبسي كبير اللمة بطعم الطماطم جامبو (74-84 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1500,
+    "cost_piasters": 1245,
+    "price_egp": 15.0,
+    "cost_egp": 12.45,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224000045517",
+    "name": "مقرمشات ذرة فلامنكو بنكهة زبدة الفول السوداني (كيس فردي)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224001074240",
+    "name": "شعرية سريعة التحضير نودلز يودلز بطعم الجبنة (60 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224001074974",
+    "name": "شعرية سريعة التحضير نودلز يودلز بالجمبري الحار (60 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035253396",
+    "name": "سناكس جاجوار بوب كورن بطعم الجبنة الخفيفة (53-63 جم - كيس فردي)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 830,
+    "price_egp": 10.0,
+    "cost_egp": 8.3,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224004184861",
+    "name": "مشروب شعير فاموس بالرمان كانز (300 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1500,
+    "cost_piasters": 1200,
+    "price_egp": 15.0,
+    "cost_egp": 12.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224004184854",
+    "name": "مشروب شعير فاموس بالتوت البري كانز (300 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1500,
+    "cost_piasters": 1200,
+    "price_egp": 15.0,
+    "cost_egp": 12.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224001074219",
+    "name": "شعرية سريعة التحضير نودلز يودلز بطعم الخضار المشكل (60 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035231189",
+    "name": "رقائق بطاطس ليمون حلو بيج شيبس - 53-63جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035264514",
+    "name": "رقائق بطاطس بيج شيبس بطعم الكاتشب الحلو (55-65 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035231219",
+    "name": "رقائق بطاطس صلصة حلوة بيج شيبس - 52-62جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035262701",
+    "name": "رقائق بطاطس تايجر تشيكن لافا حار (55-65 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221031490675",
+    "name": "رقائق بطاطس شطة وليمون شيبسي - 53-63جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 780,
+    "price_egp": 10.0,
+    "cost_egp": 7.8,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035231226",
+    "name": "رقائق بطاطس كباب مشوي بيج شيبس- 53-63جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221031003691",
+    "name": "بطاطس شيبسي كرانشي بطعم الفراخ (70-80 جم - كيس فردي)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 830,
+    "price_egp": 10.0,
+    "cost_egp": 8.3,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221333002095",
+    "name": "سناكس مخبوزة صن بايتس بطعم الفلفل الحلو (53-63 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1200,
+    "cost_piasters": 950,
+    "price_egp": 12.0,
+    "cost_egp": 9.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222063701838",
+    "name": "مشروب غازي رمان منعش ميمو زجاجة (235 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1200,
+    "cost_piasters": 950,
+    "price_egp": 12.0,
+    "cost_egp": 9.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221031490699",
+    "name": "رقائق بطاطس طماطم شيبسي - 53-63جم",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 780,
+    "price_egp": 10.0,
+    "cost_egp": 7.8,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223010040239",
+    "name": "عصير تفاح طبيعي فوكس عبوة تتراباك فردية (250 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224003585027",
+    "name": "مشروب طاقة تويست بطعم المانجو الاستوائي كانز (250 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1500,
+    "cost_piasters": 1200,
+    "price_egp": 15.0,
+    "cost_egp": 12.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221031490750",
+    "name": "رقائق بطاطس شيبسي بطعم الجبنة المتبلة (53-63 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 780,
+    "price_egp": 10.0,
+    "cost_egp": 7.8,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035256946",
+    "name": "سناكس جاجوار جامبو ستيكس مكس تشيز (كيس فردي)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 830,
+    "price_egp": 10.0,
+    "cost_egp": 8.3,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223019010431",
+    "name": "سناكس شيك بوبس مكس أجبان فاخرة (65 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035256984",
+    "name": "سناكس جاجوار كرانشي ستيكس كباب مشوي (60 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222035256908",
+    "name": "سناكس جاجوار كرانشي ستيكس بطعم الجبنة الشيدر (60 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223019010455",
+    "name": "سناكس بريك بطعم الطماطم وميكس التوت (60 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000419861",
+    "name": "رقائق بطاطس لايون شيبس بالشطة والليمون الفلفل الحار (55 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223004353802",
+    "name": "حلوى بونبون كولا منعشة ميمكس برستس (9 قطع - لفة فردية)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 500,
+    "cost_piasters": 400,
+    "price_egp": 5.0,
+    "cost_egp": 4.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224007458778",
+    "name": "بهارات مشكلة وتوابل شرقية فاخرة ريحانة ظرف (50 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1200,
+    "cost_piasters": 950,
+    "price_egp": 12.0,
+    "cost_egp": 9.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6287104391010",
+    "name": "لاصق سريع سوبر جلو الصاروخ إيبوبوند أنبوبة فردية (3 جم)",
+    "category": "منظفات وعناية منزلية",
+    "price_piasters": 1000,
+    "cost_piasters": 750,
+    "price_egp": 10.0,
+    "cost_egp": 7.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000418017",
+    "name": "رقائق بطاطس لايون شيبس بالجبنة المتبلة (55 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000418062",
+    "name": "رقائق بطاطس لايون شيبس بالطماطم (55 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222000551694",
+    "name": "سمن نباتي الهانم ظرف اقتصادي (55 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222000553452",
+    "name": "سمن نباتي أصفر كريستال (700 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 9500,
+    "cost_piasters": 8100,
+    "price_egp": 95.0,
+    "cost_egp": 81.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222000552486",
+    "name": "سمن نباتي الهانم 1.5 كجم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 17500,
+    "cost_piasters": 15000,
+    "price_egp": 175.0,
+    "cost_egp": 150.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222000553827",
+    "name": "سمن بطعم وريحة الزبدة الصفراء كريستال - 1.5كجم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 18500,
+    "cost_piasters": 16000,
+    "price_egp": 185.0,
+    "cost_egp": 160.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6225000529823",
+    "name": "زيت خليط للقلي والطبخ رافيتا زجاجة (1 لتر)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 6500,
+    "cost_piasters": 5600,
+    "price_egp": 65.0,
+    "cost_egp": 56.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223014217453",
+    "name": "سائل غسيل أطباق أوكسي بالليمون الأخضر ظرف اقتصادي (35 جم)",
+    "category": "منظفات وعناية منزلية",
+    "price_piasters": 300,
+    "cost_piasters": 240,
+    "price_egp": 3.0,
+    "cost_egp": 2.4,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221022111510",
+    "name": "مكرونة هلالية ستار - 400جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1600,
+    "cost_piasters": 1350,
+    "price_egp": 16.0,
+    "cost_egp": 13.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222000579872",
+    "name": "زيت ذرة نقي كريستال زجاجة فردية (700 مل)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 10500,
+    "cost_piasters": 9000,
+    "price_egp": 105.0,
+    "cost_egp": 90.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6225000846340",
+    "name": "جبنة قريش طبيعية صحية قليلة الدسم مفازا (350 جم)",
+    "category": "ألبان وأجبان",
+    "price_piasters": 4500,
+    "cost_piasters": 3800,
+    "price_egp": 45.0,
+    "cost_egp": 38.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001875246",
+    "name": "عصير برتقال بيتي تروبيكانا - 235مل",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222014330506",
+    "name": "عصير مانجو جهينه - 235مل",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001512509",
+    "name": "مكرونة قلم الملكة 400 جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1500,
+    "cost_piasters": 1250,
+    "price_egp": 15.0,
+    "cost_egp": 12.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001510031",
+    "name": "مكرونة مرمرية الملكة - 1ك",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 4000,
+    "cost_piasters": 3350,
+    "price_egp": 40.0,
+    "cost_egp": 33.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001510499",
+    "name": "مكرونة سباجيتي الملكة -1ك",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 4000,
+    "cost_piasters": 3350,
+    "price_egp": 40.0,
+    "cost_egp": 33.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001512158",
+    "name": "مكرونة الملكة خواتم كيس فردي (400 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1500,
+    "cost_piasters": 1250,
+    "price_egp": 15.0,
+    "cost_egp": 12.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224000848071",
+    "name": "أرز مصري عريض الحبة فاخر الحمد كيس (1 كجم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 3600,
+    "cost_piasters": 3100,
+    "price_egp": 36.0,
+    "cost_egp": 31.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224009210022",
+    "name": "جبنة فيتا رودِس - 250جم",
+    "category": "ألبان وأجبان",
+    "price_piasters": 2800,
+    "cost_piasters": 2400,
+    "price_egp": 28.0,
+    "cost_egp": 24.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224000147143",
+    "name": "جبنة فيتا سادة عبور لاند (250 جم)",
+    "category": "ألبان وأجبان",
+    "price_piasters": 2800,
+    "cost_piasters": 2400,
+    "price_egp": 28.0,
+    "cost_egp": 24.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "8720608632664",
+    "name": "شاي ليبتون العلامة الصفراء أسود ناعم باكو جيب (40 جم)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1400,
+    "cost_piasters": 1150,
+    "price_egp": 14.0,
+    "cost_egp": 11.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001089001",
+    "name": "مشروب شوكولاتة بودرة شوكو دريم هوت شوكليت (70 جم)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 2000,
+    "cost_piasters": 1650,
+    "price_egp": 20.0,
+    "cost_egp": 16.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "9556106007029",
+    "name": "تونة مفتتة سهلة الفتح في زيت نباتي ومحلول ملحي (140 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 3500,
+    "cost_piasters": 2800,
+    "price_egp": 35.0,
+    "cost_egp": 28.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000717431",
+    "name": "تونة قطع صن شاين - 185جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 7500,
+    "cost_piasters": 6200,
+    "price_egp": 75.0,
+    "cost_egp": 62.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6225000640511",
+    "name": "تونة قطع سهلة الفتح كافا في زيت دوار الشمس (170 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 6500,
+    "cost_piasters": 5400,
+    "price_egp": 65.0,
+    "cost_egp": 54.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001878001",
+    "name": "حليب المراعي كامل الدسم 1 لتر",
+    "category": "ألبان وأجبان",
+    "price_piasters": 5000,
+    "cost_piasters": 4300,
+    "price_egp": 50.0,
+    "cost_egp": 43.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221073000016",
+    "name": "مشروب شوكولاتة بودرة كورونا 60 جم",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 2500,
+    "cost_piasters": 2075,
+    "price_egp": 25.0,
+    "cost_egp": 20.75,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221155112873",
+    "name": "مكعب مرقة دجاج فاين فودز كنور (مكعب فردي 9 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 250,
+    "cost_piasters": 200,
+    "price_egp": 2.5,
+    "cost_egp": 2.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221007039037",
+    "name": "لبن بودرة الاساسى نيدو - 25جم",
+    "category": "ألبان وأجبان",
+    "price_piasters": 1200,
+    "cost_piasters": 1000,
+    "price_egp": 12.0,
+    "cost_egp": 10.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000204917",
+    "name": "جبنة مثلثات ديري - 8 قطع",
+    "category": "ألبان وأجبان",
+    "price_piasters": 2200,
+    "cost_piasters": 1800,
+    "price_egp": 22.0,
+    "cost_egp": 18.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224009210817",
+    "name": "جبنة فيتا بطعم الجبنة الرومي رودس عبوة تتراباك (250 جم)",
+    "category": "ألبان وأجبان",
+    "price_piasters": 3000,
+    "cost_piasters": 2550,
+    "price_egp": 30.0,
+    "cost_egp": 25.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001086017",
+    "name": "كريم شانتيه سادة دريم ظرف فردي (45 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 2000,
+    "cost_piasters": 1600,
+    "price_egp": 20.0,
+    "cost_egp": 16.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001030409",
+    "name": "فانيليا تاج الملوك - 1جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 200,
+    "cost_piasters": 150,
+    "price_egp": 2.0,
+    "cost_egp": 1.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223009650050",
+    "name": "خلطة صوص بشاميل جاهزة بالكريمة ويلز ظرف (60 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1500,
+    "cost_piasters": 1200,
+    "price_egp": 15.0,
+    "cost_egp": 12.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223003942922",
+    "name": "خميرة فورية جافة للمخبوزات دريم (11 جم - ظرف فردي)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 800,
+    "cost_piasters": 696,
+    "price_egp": 8.0,
+    "cost_egp": 6.96,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001030638",
+    "name": "نشاء ذرة ناعم نقي تاج الملوك كيس (100 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001030232",
+    "name": "بيكنج باودر تاج الملوك - 16جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 500,
+    "cost_piasters": 400,
+    "price_egp": 5.0,
+    "cost_egp": 4.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6625000921007",
+    "name": "مقرمشات كراكرز بالجبنة والسمسم هارفست جولد (50 جم)",
+    "category": "بسكويت وحلويات",
+    "price_piasters": 700,
+    "cost_piasters": 550,
+    "price_egp": 7.0,
+    "cost_egp": 5.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000273371",
+    "name": "كابتشينو بالبندق كوفي بريك ظرف فردي (18.5 جم)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000276495",
+    "name": "كابتشينو بالشوكولاتة كوفي بريك ظرف فردي (18.5 جم)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000272633",
+    "name": "كابتشينو كلاسيك بالرغوة الغنية كوفي بريك ظرف فردي (18.5 جم)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000273340",
+    "name": "كابتشينو بالفانيليا كوفي بريك مصر كافيه ظرف فردي (18.5 جم)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 800,
+    "cost_piasters": 696,
+    "price_egp": 8.0,
+    "cost_egp": 6.96,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000273401",
+    "name": "كابتشينو بالكراميل كوفي بريك ظرف فردي (18.5 جم)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 800,
+    "cost_piasters": 650,
+    "price_egp": 8.0,
+    "cost_egp": 6.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001085416",
+    "name": "محسن كيك وبيكنج باودر كيك شيف دريم (23 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 700,
+    "cost_piasters": 609,
+    "price_egp": 7.0,
+    "cost_egp": 6.09,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221007034933",
+    "name": "بونجورنو كوفي ميكس 2×1 ظرف فردي (12 جم)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 700,
+    "cost_piasters": 609,
+    "price_egp": 7.0,
+    "cost_egp": 6.09,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000433027",
+    "name": "بقسماط مطحون ريتش بيك - 400جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 3500,
+    "cost_piasters": 2850,
+    "price_egp": 35.0,
+    "cost_egp": 28.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "712345678911",
+    "name": "صوص شوكولاتة مركز لتزيين الحلويات سنابل زجاجة (750 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 6500,
+    "cost_piasters": 5200,
+    "price_egp": 65.0,
+    "cost_egp": 52.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000055960",
+    "name": "طحينة بيضاء الرشيدي الميزان ظرف فردي (20 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 500,
+    "cost_piasters": 435,
+    "price_egp": 5.0,
+    "cost_egp": 4.35,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000276549",
+    "name": "قهوة سريعة التحضير 2 في 1 كوفي بريك - 11جم",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 600,
+    "cost_piasters": 500,
+    "price_egp": 6.0,
+    "cost_egp": 5.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001064275",
+    "name": "صلصة طماطم هارفست - 30جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 400,
+    "cost_piasters": 320,
+    "price_egp": 4.0,
+    "cost_egp": 3.2,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223003944179",
+    "name": "فانيليا برتقال بودرة دريم - 5جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 600,
+    "cost_piasters": 500,
+    "price_egp": 6.0,
+    "cost_egp": 5.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222000557870",
+    "name": "سمن بطعم ورائحة الزبدة الفلاحي كريستال ظرف (55 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223006127258",
+    "name": "مسحوق غسيل يدوي أوكسي بنسيم الربيع كيس صغير (50 جم)",
+    "category": "منظفات وعناية منزلية",
+    "price_piasters": 500,
+    "cost_piasters": 400,
+    "price_egp": 5.0,
+    "cost_egp": 4.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223014213158",
+    "name": "مسحوق غسيل يدوي وأوتوماتيك أوكسي باللافندر كيس (110 جم)",
+    "category": "منظفات وعناية منزلية",
+    "price_piasters": 1000,
+    "cost_piasters": 800,
+    "price_egp": 10.0,
+    "cost_egp": 8.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222057610597",
+    "name": "صابون تواليت ريفولي بالعود الملكي (120 جم)",
+    "category": "منظفات وعناية منزلية",
+    "price_piasters": 1800,
+    "cost_piasters": 1450,
+    "price_egp": 18.0,
+    "cost_egp": 14.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222057611181",
+    "name": "صابون تواليت ريفولي بزهور اللافندر المنعشة (120 جم)",
+    "category": "منظفات وعناية منزلية",
+    "price_piasters": 1800,
+    "cost_piasters": 1450,
+    "price_egp": 18.0,
+    "cost_egp": 14.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "795697281091",
+    "name": "صوص مستردة خردل فاخر شيفي ميكس زجاجة (400 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 4500,
+    "cost_piasters": 3600,
+    "price_egp": 45.0,
+    "cost_egp": 36.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000082201",
+    "name": "مشروب شعير فيروز بالأناناس كانز 330 مل",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1600,
+    "cost_piasters": 1350,
+    "price_egp": 16.0,
+    "cost_egp": 13.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001366973",
+    "name": "مشروب غازي كولا بيبسي إكسترا فيز زجاجة بلاستيك (300 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1300,
+    "cost_piasters": 1050,
+    "price_egp": 13.0,
+    "cost_egp": 10.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000758021",
+    "name": "جبنة فيتا بطعم الجبنة الرومي دومتي بلس عبوة تتراباك (250 جم)",
+    "category": "ألبان وأجبان",
+    "price_piasters": 3000,
+    "cost_piasters": 2550,
+    "price_egp": 30.0,
+    "cost_egp": 25.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224003311121",
+    "name": "مشروب طاقة تويست بجوز الهند والتوت كانز فردي (250 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1500,
+    "cost_piasters": 1245,
+    "price_egp": 15.0,
+    "cost_egp": 12.45,
+    "unit": "piece"
+  },
+  {
+    "barcode": "5449000295521",
+    "name": "مشروب غازي كوكاكولا - 950مل",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 2800,
+    "cost_piasters": 2350,
+    "price_egp": 28.0,
+    "cost_egp": 23.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6221022111428",
+    "name": "مكرونة ستار خواتم مرمرية 400 جم",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 1600,
+    "cost_piasters": 1350,
+    "price_egp": 16.0,
+    "cost_egp": 13.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "5449000321589",
+    "name": "شويبس ليمون ونعناع كانز فردي (250 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1500,
+    "cost_piasters": 1200,
+    "price_egp": 15.0,
+    "cost_egp": 12.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000350157",
+    "name": "حليب بخيره كامل الدسم كيس جهينة (500 مل)",
+    "category": "ألبان وأجبان",
+    "price_piasters": 2100,
+    "cost_piasters": 1800,
+    "price_egp": 21.0,
+    "cost_egp": 18.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224008526520",
+    "name": "مياه غازية ماكسي كولا كانز 300 مل",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1200,
+    "cost_piasters": 996,
+    "price_egp": 12.0,
+    "cost_egp": 9.96,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224004646109",
+    "name": "صلصة طماطم مركزة ظرف ألورا (35 جم)",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 400,
+    "cost_piasters": 320,
+    "price_egp": 4.0,
+    "cost_egp": 3.2,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224008526537",
+    "name": "مياه غازية ماكسي برتقال كانز (300 مل)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1200,
+    "cost_piasters": 996,
+    "price_egp": 12.0,
+    "cost_egp": 9.96,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223001512653",
+    "name": "مكرونة فرن مشرشر الملكة - 1ك",
+    "category": "معلبات وبقوليات",
+    "price_piasters": 4000,
+    "cost_piasters": 3350,
+    "price_egp": 40.0,
+    "cost_egp": 33.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "5449000298188",
+    "name": "مشروب غازي برتقال فانتا - 2.45لتر",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 4500,
+    "cost_piasters": 3750,
+    "price_egp": 45.0,
+    "cost_egp": 37.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "5449000298201",
+    "name": "مشروب غازي ليمون سبرايت - 2.45لتر",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 4500,
+    "cost_piasters": 3750,
+    "price_egp": 45.0,
+    "cost_egp": 37.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6224011374941",
+    "name": "مشروب غازي أناناس ماكسي أوريجينال زجاجة بلاستيك (2 لتر)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 2500,
+    "cost_piasters": 2050,
+    "price_egp": 25.0,
+    "cost_egp": 20.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "90377266",
+    "name": "مشروب غازي ليمون سبرايت - 300مل",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1300,
+    "cost_piasters": 1050,
+    "price_egp": 13.0,
+    "cost_egp": 10.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "5449000298195",
+    "name": "مشروب غازي كوكاكولا - 2.45لتر",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 4500,
+    "cost_piasters": 3750,
+    "price_egp": 45.0,
+    "cost_egp": 37.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "5449000028976",
+    "name": "مشروب غازي ليمون سبرايت زجاجة بلاستيك (1.25 لتر)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 2500,
+    "cost_piasters": 2100,
+    "price_egp": 25.0,
+    "cost_egp": 21.0,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6222002300023",
+    "name": "شاي العروسة ناعم باكو فردي (100 جم)",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 2500,
+    "cost_piasters": 2150,
+    "price_egp": 25.0,
+    "cost_egp": 21.5,
+    "unit": "piece"
+  },
+  {
+    "barcode": "6223000083758",
+    "name": "مشروب شعير بيريل غير كحولي كانز 330 مل",
+    "category": "مشروبات وعصائر",
+    "price_piasters": 1600,
+    "cost_piasters": 1350,
+    "price_egp": 16.0,
+    "cost_egp": 13.5,
+    "unit": "piece"
+  }
+]

@@ -44,6 +44,13 @@ import { MOVEMENTS_LOAD_LIMIT, buildMovementsRequest } from './products/stockMov
 import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult, BulkPriceRevertResult, StorageLocation, ProductBatch } from '../types/models';
 import type { ProductPharmaInfo } from '../types/pharma';
 import { normalizeArabicNumerals } from '../utils/money';
+import {
+  loadScannerSettings,
+  type BarcodeScannerSettings,
+  DEFAULT_SCANNER_SETTINGS,
+  physicalCodeToChar,
+  sanitizeScannedBarcode,
+} from '../utils/barcodeReader';
 import { exportProductsToExcel } from '../utils/excelImport';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { PaginationBar } from '../components/PaginationBar';
@@ -113,6 +120,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [scannerSettings, setScannerSettings] = useState<BarcodeScannerSettings>(DEFAULT_SCANNER_SETTINGS);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
@@ -213,6 +222,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         }
       })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    void loadScannerSettings().then(setScannerSettings);
   }, []);
 
   const isPharmacy = storeType === 'pharmacy' || isEnabled('feature_pharmacy');
@@ -732,6 +745,152 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     void loadProducts(searchQuery, 1, pageSize);
   };
 
+  // Hardware Scanner & F2 Shortcut for Products Catalog
+  useEffect(() => {
+    if (!isActive || activeSubView !== 'catalog') return;
+
+    let scanBuffer = '';
+    let lastKeyTime = 0;
+    let scanStartTime = 0;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isInputFocused = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
+      const isModalActive = Boolean(document.querySelector('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
+
+      if (isModalActive) {
+        scanBuffer = '';
+        return;
+      }
+
+      // F2: Focus Search Bar
+      if (e.key === 'F2') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      // Scanner Burst Discrimination
+      if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
+
+      const now = performance.now();
+      const timeDelta = lastKeyTime > 0 ? now - lastKeyTime : 0;
+      lastKeyTime = now;
+
+      const isSuffix = 
+        (scannerSettings.suffix === 'Enter' && e.key === 'Enter') ||
+        (scannerSettings.suffix === 'Tab' && e.key === 'Tab');
+
+      if (isSuffix) {
+        if (idleTimer) clearTimeout(idleTimer);
+        const totalElapsed = scanStartTime > 0 ? now - scanStartTime : timeDelta;
+        const avgDelta = scanBuffer.length > 1 ? totalElapsed / (scanBuffer.length - 1) : timeDelta;
+
+        const maxSuffixDelta = Math.max(scannerSettings.speedThresholdMs + 60, 200);
+        const isSpeedMatch = avgDelta <= (scannerSettings.speedThresholdMs + 35) && timeDelta <= maxSuffixDelta;
+        const isNotFocusedScanner = !isInputFocused && avgDelta <= Math.max(scannerSettings.speedThresholdMs + 45, 110);
+
+        if (scanBuffer.length >= scannerSettings.minBarcodeLength && (isSpeedMatch || isNotFocusedScanner)) {
+          const barcode = sanitizeScannedBarcode(scanBuffer, scannerSettings.prefix);
+          scanBuffer = '';
+          scanStartTime = 0;
+          e.preventDefault();
+          e.stopPropagation();
+
+          setSearchQuery(barcode);
+          setCurrentPage(1);
+          void loadProducts(barcode, 1, pageSize, stockStatusFilter, selectedCategoryFilter);
+          searchInputRef.current?.focus();
+          return;
+        }
+
+        scanBuffer = '';
+        scanStartTime = 0;
+        return;
+      }
+
+      const physicalChar = physicalCodeToChar(e.code, e.shiftKey);
+      const charToAdd = physicalChar || (e.key.length === 1 ? e.key : null);
+
+      if (charToAdd) {
+        if (timeDelta < scannerSettings.speedThresholdMs || scanBuffer.length === 0) {
+          if (scanBuffer.length === 0) {
+            scanStartTime = now;
+          }
+          scanBuffer += charToAdd;
+        } else {
+          scanBuffer = charToAdd;
+          scanStartTime = now;
+        }
+
+        if (scannerSettings.suffix === 'None') {
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            if (scanBuffer.length >= scannerSettings.minBarcodeLength) {
+              const currentNow = performance.now();
+              const elapsed = scanStartTime > 0 ? currentNow - scanStartTime : 0;
+              const avg = scanBuffer.length > 1 ? elapsed / (scanBuffer.length - 1) : 0;
+              if (avg <= (scannerSettings.speedThresholdMs + 35)) {
+                const barcode = sanitizeScannedBarcode(scanBuffer, scannerSettings.prefix);
+                scanBuffer = '';
+                scanStartTime = 0;
+                setSearchQuery(barcode);
+                setCurrentPage(1);
+                void loadProducts(barcode, 1, pageSize, stockStatusFilter, selectedCategoryFilter);
+                searchInputRef.current?.focus();
+              }
+            }
+          }, scannerSettings.speedThresholdMs + 45);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    return () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      window.removeEventListener('keydown', handleGlobalKeyDown, true);
+    };
+  }, [isActive, activeSubView, scannerSettings, pageSize, stockStatusFilter, selectedCategoryFilter, loadProducts]);
+
+  // Keep search input focused on click in Products Catalog
+  useEffect(() => {
+    if (!isActive || activeSubView !== 'catalog') return;
+
+    const timer = setTimeout(() => {
+      const isModalActive = Boolean(document.querySelector('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
+      if (!isModalActive) {
+        searchInputRef.current?.focus();
+      }
+    }, 100);
+
+    const handleWindowClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const isInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+      const isModal = Boolean(target.closest('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
+      if (isInput || isModal) return;
+
+      setTimeout(() => {
+        const modalNow = Boolean(document.querySelector('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
+        if (!modalNow && searchInputRef.current && document.activeElement !== searchInputRef.current) {
+          const currentActive = document.activeElement as HTMLElement | null;
+          const currentIsInput = currentActive instanceof HTMLInputElement || currentActive instanceof HTMLTextAreaElement;
+          if (!currentIsInput) {
+            searchInputRef.current.focus();
+          }
+        }
+      }, 50);
+    };
+
+    window.addEventListener('click', handleWindowClick);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', handleWindowClick);
+    };
+  }, [isActive, activeSubView]);
+
   const openAddModal = () => {
     setEditingId(null);
     setName('');
@@ -789,6 +948,21 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         const normalizedUnits = units.map(u => ({ ...u, unitName: formatUnitArabic(u.unitName) }));
         setProductUnits(normalizedUnits);
         setEditingProduct(prev => (prev && prev.id === productId ? { ...prev, units: normalizedUnits } : prev));
+
+        // Synchronize modal's pricePiasters and costPiasters with the configured display unit:
+        const targetDisplay = (displayUnitId ? normalizedUnits.find(u => u.id === displayUnitId) : null)
+          || (defaultSaleUnitId ? normalizedUnits.find(u => u.id === defaultSaleUnitId) : null)
+          || normalizedUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1)
+          || normalizedUnits.find(u => u.isBaseUnit);
+
+        if (targetDisplay) {
+          if (targetDisplay.sellPricePiasters > 0) {
+            setPricePiasters(targetDisplay.sellPricePiasters);
+          }
+          if (targetDisplay.costPricePiasters > 0) {
+            setCostPiasters(targetDisplay.costPricePiasters);
+          }
+        }
       }
       setUnitsLoadState('ready');
     }).catch(() => {
@@ -1094,10 +1268,22 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
       const targetDisplayId = displayUnitId || defaultSaleUnitId;
       const hasMultipleUnits = productUnits && productUnits.length > 1;
+      const targetUnit = hasMultipleUnits
+        ? ((targetDisplayId ? productUnits.find(u => u.id === targetDisplayId) : null)
+           || productUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1)
+           || productUnits.find(u => u.isBaseUnit)
+           || productUnits[0])
+        : null;
+      const targetFactor = targetUnit && targetUnit.conversionFactor > 0 ? targetUnit.conversionFactor : 1;
+      const baseCostPiasters = targetFactor > 1 ? Math.round(costPiasters / targetFactor) : costPiasters;
+      const basePricePiasters = targetFactor > 1 ? Math.round(pricePiasters / targetFactor) : pricePiasters;
+
       const synchronizedUnits = productUnits.map(u => {
-        const isTarget = hasMultipleUnits
-          ? (targetDisplayId ? u.id === targetDisplayId : u.isBaseUnit)
-          : u.isBaseUnit;
+        const isTarget = targetUnit ? u.id === targetUnit.id : u.isBaseUnit;
+        const cleanBarcode = (primaryBarcode && u.barcode && u.barcode.trim() === primaryBarcode.trim())
+          ? (isTarget ? (primaryBarcode || u.barcode || '') : '')
+          : (u.barcode || '');
+
         if (isTarget) {
           return {
             ...u,
@@ -1107,14 +1293,26 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             unitName: formatUnitArabic(u.unitName.trim()) || (unit === 'kg' ? 'كيلو' : 'قطعة'),
             isDivisible: unit === 'kg' || u.isDivisible
           };
-        } else {
-          // If another unit in the product had the same barcode as primaryBarcode, clear it to prevent duplicate error
-          const cleanBarcode = (primaryBarcode && u.barcode && u.barcode.trim() === primaryBarcode.trim())
-            ? ''
-            : (u.barcode || '');
+        } else if (u.isBaseUnit) {
           return {
             ...u,
-            barcode: cleanBarcode
+            sellPricePiasters: basePricePiasters,
+            costPricePiasters: baseCostPiasters,
+            barcode: cleanBarcode,
+            unitName: formatUnitArabic(u.unitName.trim()) || (unit === 'kg' ? 'كيلو' : 'قطعة'),
+            isDivisible: unit === 'kg' || u.isDivisible
+          };
+        } else {
+          const factor = u.conversionFactor > 0 ? u.conversionFactor : 1;
+          const uCost = u.costPricePiasters > 0 ? u.costPricePiasters : Math.round(baseCostPiasters * factor);
+          const uSell = u.sellPricePiasters > 0 ? u.sellPricePiasters : Math.round(basePricePiasters * factor);
+          return {
+            ...u,
+            sellPricePiasters: uSell,
+            costPricePiasters: uCost,
+            barcode: cleanBarcode,
+            unitName: formatUnitArabic(u.unitName.trim()),
+            isDivisible: false
           };
         }
       });
@@ -1163,8 +1361,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         categoryId: categoryId || 'cat_general',
         internalCode: internalCode.trim(),
         taxCategoryCode: isEnabled('feature_taxes') ? taxCategoryCode.trim() : '',
-        pricePiasters,
-        costPiasters,
+        pricePiasters: basePricePiasters,
+        costPiasters: baseCostPiasters,
         stockQuantityMilli,
         originalStockQuantityMilli: editingId && editingProduct ? editingProduct.stockQuantityMilli : undefined,
         stockAdjustReason: isStockAdjustment ? effectiveStockAdjustReason : undefined,
@@ -1633,6 +1831,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               <div className="relative flex-1 h-11 flex items-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 focus-within:border-brand dark:focus-within:border-brand-bright focus-within:ring-2 focus-within:ring-brand/20 dark:focus-within:ring-brand-bright/30 focus-within:bg-surface dark:focus-within:bg-surface-dark transition-all">
                 <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted ml-2.5 shrink-0 pointer-events-none" />
                 <input
+                  ref={searchInputRef}
                   type="text"
                   placeholder="اكتب اسم الصنف أو اضرب الباركود..."
                   value={searchQuery}
@@ -1650,6 +1849,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     <X className="w-4 h-4" />
                   </button>
                 )}
+                <div className="mr-2 flex items-center shrink-0">
+                  <span className="px-2 py-0.5 text-xs font-mono font-bold bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted rounded-md border border-line dark:border-line-dark">
+                    F2
+                  </span>
+                </div>
               </div>
               <button
                 type="submit"

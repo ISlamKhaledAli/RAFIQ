@@ -1005,10 +1005,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 bg-ink/40 dark:bg-black/60 z-50 flex items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 bg-ink/40 dark:bg-black/60 z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150"
       onClick={handleBackdropClick}
     >
-      <div className="w-full max-w-3xl max-h-[92vh] bg-surface dark:bg-surface-dark rounded-xl border border-brand/50 dark:border-brand/40 shadow-2xl overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-3xl max-h-[92vh] bg-surface dark:bg-surface-dark rounded-xl border border-brand/50 dark:border-brand/40 shadow-xl overflow-hidden flex flex-col select-none transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150">
         
         {/* Modal Header */}
         <div className="h-[48px] bg-surface-2 dark:bg-surface-dark-2 hairline-b border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
@@ -1655,34 +1655,61 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
 
               {/* Selling Price & Cost in Piasters */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-ink dark:text-ink-dark font-semibold mb-1">
-                    {unit === 'kg' ? 'سعر بيع الكيلو للزبون' :
-                     isPharmacy ? 'سعر بيع العلبة للجمهور' :
-                     isClothing ? 'سعر بيع القطعة للزبون' : 'سعر البيع للزبون (للقطعة)'}{' '}
-                    <RequiredMark />
-                  </label>
-                  <MoneyInput
-                    valuePiasters={pricePiasters}
-                    onChangePiasters={setPricePiasters}
-                    className="h-[38px] text-sm font-bold text-brand dark:text-brand-bright"
-                  />
-                </div>
+              {(() => {
+                const targetDisplayUnit = productUnits && productUnits.length > 1
+                  ? ((displayUnitId ? productUnits.find((u) => u.id === displayUnitId) : null)
+                     || (defaultSaleUnitId ? productUnits.find((u) => u.id === defaultSaleUnitId) : null)
+                     || productUnits.find((u) => !u.isBaseUnit && u.conversionFactor > 1)
+                     || productUnits.find((u) => u.isBaseUnit))
+                  : null;
+                const baseUnitObj = productUnits?.find((u) => u.isBaseUnit);
+                const displayUnitName = targetDisplayUnit ? formatUnitArabic(targetDisplayUnit.unitName) : (unit === 'kg' ? 'الكيلو' : isClothing ? 'القطعة' : 'القطعة');
+                const hasPackTier = Boolean(targetDisplayUnit && targetDisplayUnit.conversionFactor > 1);
+                const factor = targetDisplayUnit?.conversionFactor || 1;
 
-                <div>
-                  <label className="block text-ink dark:text-ink-dark font-semibold mb-1">
-                    {unit === 'kg' ? 'تكلفة شراء الكيلو من المورد' :
-                     isPharmacy ? 'تكلفة شراء العلبة من الشركات' :
-                     isClothing ? 'تكلفة شراء القطعة من المصنع' : 'تكلفة الشراء من الشركات والموردين'}
-                  </label>
-                  <MoneyInput
-                    valuePiasters={costPiasters}
-                    onChangePiasters={setCostPiasters}
-                    className="h-[38px] text-sm"
-                  />
-                </div>
-              </div>
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-ink dark:text-ink-dark font-semibold mb-1">
+                        {unit === 'kg' ? 'سعر بيع الكيلو للزبون' :
+                         isPharmacy ? 'سعر بيع العلبة للجمهور' :
+                         targetDisplayUnit ? `سعر البيع للزبون (لل${displayUnitName})` :
+                         isClothing ? 'سعر بيع القطعة للزبون' : 'سعر البيع للزبون (للقطعة)'}{' '}
+                        <RequiredMark />
+                      </label>
+                      <MoneyInput
+                        valuePiasters={pricePiasters}
+                        onChangePiasters={setPricePiasters}
+                        className="h-[38px] text-sm font-bold text-brand dark:text-brand-bright"
+                      />
+                      {hasPackTier && baseUnitObj && pricePiasters > 0 && (
+                        <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted block mt-1">
+                          بيع ال{formatUnitArabic(baseUnitObj.unitName)}: {formatArabicCurrency(Math.round(pricePiasters / factor))}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-ink dark:text-ink-dark font-semibold mb-1">
+                        {unit === 'kg' ? 'تكلفة شراء الكيلو من المورد' :
+                         isPharmacy ? 'تكلفة شراء العلبة من الشركات' :
+                         targetDisplayUnit ? `تكلفة الشراء من الشركات (لل${displayUnitName})` :
+                         isClothing ? 'تكلفة شراء القطعة من المصنع' : 'تكلفة الشراء من الشركات والموردين'}
+                      </label>
+                      <MoneyInput
+                        valuePiasters={costPiasters}
+                        onChangePiasters={setCostPiasters}
+                        className="h-[38px] text-sm"
+                      />
+                      {hasPackTier && baseUnitObj && costPiasters > 0 && (
+                        <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted block mt-1">
+                          تكلفة ال{formatUnitArabic(baseUnitObj.unitName)}: {formatArabicCurrency(Math.round(costPiasters / factor))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Smart Supplier Cost Calculator Card (Expandable) */}
               {showCostCalculator && (
@@ -2617,7 +2644,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
           {/* Pinned Warnings & Action Banners (Docked above footer, ALWAYS in viewport) */}
           {similarWarning && (
-            <div className="shrink-0 border-t border-b border-warn/30 bg-warn-soft/95 dark:bg-warn-dark-soft/95 backdrop-blur-xs p-3 sm:px-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-in slide-in-from-bottom-2 duration-200">
+            <div className="shrink-0 border-t border-b border-warn/30 bg-warn-soft dark:bg-warn-dark-soft p-3 sm:px-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md animate-in slide-in-from-bottom-2 duration-200">
               <div className="flex items-start gap-2.5 text-xs text-warn dark:text-warn-bright leading-relaxed">
                 <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
                 <div>
@@ -2655,7 +2682,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           )}
 
           {belowCostWarning && (
-            <div className="shrink-0 border-t border-b border-warn/30 bg-warn-soft/95 dark:bg-warn-dark-soft/95 backdrop-blur-xs p-3 sm:px-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg animate-in slide-in-from-bottom-2 duration-200">
+            <div className="shrink-0 border-t border-b border-warn/30 bg-warn-soft dark:bg-warn-dark-soft p-3 sm:px-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md animate-in slide-in-from-bottom-2 duration-200">
               <div className="flex items-start gap-2.5 text-xs text-warn dark:text-warn-bright leading-relaxed">
                 <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
                 <div>

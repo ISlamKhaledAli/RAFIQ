@@ -23,6 +23,7 @@ import { invoke, type UserDto } from '../bridge/ipc';
 import { CustomSelect, type SelectOption } from '../components/CustomSelect';
 import { RequiredMark } from '../components/RequiredMark';
 import { getRoleLabel, getTier } from '../utils/roleLabels';
+import { normalizeTokenOrKey } from '../utils/tokenNormalizer';
 
 export const LoginScreen: React.FC = () => {
   const { login, refreshUser } = useAuth();
@@ -79,7 +80,8 @@ export const LoginScreen: React.FC = () => {
 
   const handleLoginRoot = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rootTokenInput.trim()) {
+    const cleanToken = normalizeTokenOrKey(rootTokenInput);
+    if (!cleanToken) {
       setRootError('يرجى لصق تصريح دخول Root الموقّع من المطور');
       return;
     }
@@ -87,7 +89,7 @@ export const LoginScreen: React.FC = () => {
     setRootError('');
     try {
       const res = await invoke<any>('auth:loginRootChallenge', {
-        token: rootTokenInput.trim(),
+        token: cleanToken,
       });
       if (res?.success && res?.user) {
         setIsRootModalOpen(false);
@@ -212,7 +214,7 @@ export const LoginScreen: React.FC = () => {
 
   const handleResetWithRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanCode = recoveryCodeInput.trim().toUpperCase();
+    const cleanCode = normalizeTokenOrKey(recoveryCodeInput);
     if (!cleanCode) {
       setRecoveryError('يرجى إدخال كود الدعم الفني أو رمز الاسترجاع.');
       return;
@@ -284,7 +286,7 @@ export const LoginScreen: React.FC = () => {
             </div>
 
             <div className="mt-8 space-y-4">
-              <div className="p-4 rounded-xl bg-white/10 border border-white/15 backdrop-blur-sm">
+              <div className="p-4 rounded-xl bg-white/10 border border-white/15 shadow-sm">
                 <p className="text-xs text-emerald-100 font-medium mb-1">المتجر الحالي:</p>
                 <p className="text-lg font-bold text-white truncate">{storeName}</p>
               </div>
@@ -591,8 +593,8 @@ export const LoginScreen: React.FC = () => {
 
       {/* Root Developer Challenge-Response Modal (SEC-01) */}
       {isRootModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl max-w-md w-full overflow-hidden transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="bg-brand-soft dark:bg-brand-dark/40 px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -698,8 +700,8 @@ export const LoginScreen: React.FC = () => {
 
       {/* Emergency Support / Recovery Modal */}
       {isRecoveryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl max-w-md w-full overflow-hidden transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="bg-brand-soft dark:bg-brand-dark/40 px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between">
               <div className="flex items-center gap-2.5">

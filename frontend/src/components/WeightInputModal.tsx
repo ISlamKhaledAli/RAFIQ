@@ -136,11 +136,11 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
   return (
     <div 
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150"
       dir="rtl"
     >
       <div 
-        className="w-full max-w-[480px] bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150"
+        className="w-full max-w-[480px] bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-xl overflow-hidden flex flex-col transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150"
       >
         {/* Header */}
         <div className="px-5 py-3.5 bg-surface-2 dark:bg-surface-dark-2 hairline-b flex items-center justify-between">

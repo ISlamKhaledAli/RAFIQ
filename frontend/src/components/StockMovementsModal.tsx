@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Boxes, 
   X, 
@@ -15,6 +15,7 @@ import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { StockMovement, ProductUnit } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { formatCompoundStock } from '../utils/packaging';
+import { formatUnitArabic } from '../utils/units';
 import { DateFilterControl } from './DateFilterControl';
 import {
   type DateFilterValue,
@@ -74,6 +75,8 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
     ? 'قطعة'
     : rawBaseUnit;
 
+  const isMultiUnit = Boolean(units && units.length > 1 && !isKg);
+
   const compoundStock = (units && units.length > 1 && !isKg)
     ? formatCompoundStock(currentStockMilli, units, baseUnitClean)
     : null;
@@ -83,6 +86,55 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
     : compoundStock
       ? `${compoundStock} (${Math.round(currentStockMilli / 1000)} ${baseUnitClean})`
       : `${Math.round(currentStockMilli / 1000)} ${baseUnitClean}`;
+
+  // Structured breakdown of current stock across units for the top strip
+  const retailBreakdown = useMemo(() => {
+    if (!isMultiUnit || !units) return null;
+
+    const validUnits = units
+      .filter((u) => u && u.conversionFactor > 0)
+      .map((u) => ({ ...u, unitName: formatUnitArabic(u.unitName) }))
+      .sort((a, b) => b.conversionFactor - a.conversionFactor);
+
+    if (validUnits.length <= 1) return null;
+
+    const absStock = Math.floor(Math.abs(currentStockMilli) / 1000);
+    let rem = absStock;
+    const items: { name: string; count: number; factor: number; isBase: boolean }[] = [];
+
+    for (const u of validUnits) {
+      if (u.conversionFactor > 1) {
+        const c = Math.floor(rem / u.conversionFactor);
+        items.push({ name: u.unitName, count: c, factor: u.conversionFactor, isBase: false });
+        rem %= u.conversionFactor;
+      }
+    }
+
+    const baseUnitObj = validUnits.find((u) => u.isBaseUnit || u.conversionFactor === 1);
+    const baseName = baseUnitObj?.unitName || baseUnitClean;
+    items.push({ name: `${baseName} (فرط)`, count: rem, factor: 1, isBase: true });
+
+    return items;
+  }, [isMultiUnit, units, currentStockMilli, baseUnitClean]);
+
+  // Fallback / Calibration map of running balances
+  const computedBalances = useMemo(() => {
+    // If backend provided balanceAfterMilli and it aligns with currentStockMilli:
+    if (movements.length > 0 && typeof movements[0].balanceAfterMilli === 'number') {
+      const latestBal = movements[0].balanceAfterMilli;
+      if (Math.abs(latestBal - currentStockMilli) < 1000) {
+        return null;
+      }
+    }
+    // Backward reconstruction from currentStockMilli guarantees table always reconciles with live stock
+    const map = new Map<string, number>();
+    let running = currentStockMilli;
+    for (const m of movements) {
+      map.set(m.id, running);
+      running -= m.quantityMilli;
+    }
+    return map;
+  }, [movements, currentStockMilli]);
 
   useEffect(() => {
     if (!isOpen || !productId) return;
@@ -138,28 +190,206 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
   };
 
   const getBadgeStyle = (type: string) => {
-    switch (type) {
+    switch (type?.toUpperCase()) {
       case 'INITIAL':
         return 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border-brand/20 dark:border-brand/30';
       case 'SALE':
+      case 'RECIPE_SALE_CONSUMPTION':
         return 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30';
       case 'PURCHASE':
         return 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30';
       case 'ADJUSTMENT':
         return 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border-warn/20 dark:border-warn-bright/30';
       case 'RETURN':
+      case 'REFUND':
+      case 'RECIPE_SALE_REVERSAL':
+      case 'SALE_CANCEL':
         return 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30';
+      case 'DAMAGED_RETURN':
+      case 'DAMAGE':
+        return 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30';
       default:
         return 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark';
     }
   };
 
-  const formatQuantity = (milli: number) => {
-    const qty = Math.abs(milli / 1000);
-    const formatted = isKg ? qty.toFixed(3).replace(/\.?0+$/, '') : Math.round(qty);
-    const sign = milli >= 0 ? '+' : '-';
-    const unitSuffix = isKg ? 'كجم' : (baseUnitClean === 'قطعة' ? 'ق' : ` ${baseUnitClean}`);
-    return `${sign}${formatted} ${unitSuffix}`;
+  const getMovementTypeArabic = (m: StockMovement) => {
+    if (m.movementTypeArabic && m.movementTypeArabic !== m.movementType) {
+      return m.movementTypeArabic;
+    }
+    switch (m.movementType?.toUpperCase()) {
+      case 'INITIAL': return 'رصيد افتتاحي';
+      case 'SALE': return 'مبيعات كاشير';
+      case 'PURCHASE': return 'استلام مشتريات';
+      case 'ADJUSTMENT': return 'تسوية جردية';
+      case 'RETURN':
+      case 'REFUND': return 'مرتجع مبيعات';
+      case 'DAMAGED_RETURN':
+      case 'DAMAGE': return 'مرتجع تالف';
+      case 'RECIPE_SALE_CONSUMPTION': return 'استهلاك تصنيع';
+      case 'RECIPE_SALE_REVERSAL': return 'إلغاء استهلاك';
+      case 'SALE_CANCEL': return 'إلغاء بيع';
+      default: return m.movementTypeArabic || m.movementType || 'حركة مخزون';
+    }
+  };
+
+  const formatMovementDetail = (m: StockMovement) => {
+    const isPositive = m.quantityMilli >= 0;
+    const sign = isPositive ? '+' : '-';
+    const absQty = Math.abs(m.quantityMilli / 1000);
+
+    if (isKg) {
+      return {
+        mainDisplay: `${sign}${absQty.toFixed(3).replace(/\.?0+$/, '')} كجم`,
+        equivalentDisplay: null,
+        unitLabel: 'كجم',
+        factor: 1,
+      };
+    }
+
+    if (!isMultiUnit || !units || units.length <= 1) {
+      const formatted = Math.round(absQty);
+      const unitLabel = baseUnitClean === 'قطعة' ? 'ق' : ` ${baseUnitClean}`;
+      return {
+        mainDisplay: `${sign}${formatted}${unitLabel}`,
+        equivalentDisplay: null,
+        unitLabel: baseUnitClean,
+        factor: 1,
+      };
+    }
+
+    const noteClean = (m.note || '').toLowerCase();
+    const sortedUnits = [...units]
+      .filter((u) => u && u.conversionFactor > 0)
+      .sort((a, b) => b.conversionFactor - a.conversionFactor);
+
+    let matchedUnitName: string | null = null;
+    let matchedUnitCount: number | null = null;
+
+    for (const u of sortedUnits) {
+      const uArabic = formatUnitArabic(u.unitName).toLowerCase();
+      const escaped = uArabic.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regexWithCount = new RegExp(`\\((\\d+)\\s*${escaped}\\)`, 'i');
+      const regexBare = new RegExp(`\\(${escaped}\\)`, 'i');
+
+      const matchCount = noteClean.match(regexWithCount);
+      if (matchCount) {
+        matchedUnitName = u.unitName;
+        matchedUnitCount = parseInt(matchCount[1], 10);
+        break;
+      }
+
+      if (regexBare.test(noteClean)) {
+        matchedUnitName = u.unitName;
+        matchedUnitCount = Math.round(absQty / u.conversionFactor);
+        break;
+      }
+    }
+
+    // Fallback: check exact factor match if note didn't specify unit
+    if (!matchedUnitName) {
+      for (const u of sortedUnits) {
+        if (u.conversionFactor > 1 && absQty >= u.conversionFactor && absQty % u.conversionFactor === 0) {
+          matchedUnitName = u.unitName;
+          matchedUnitCount = Math.round(absQty / u.conversionFactor);
+          break;
+        }
+      }
+    }
+
+    if (matchedUnitName && matchedUnitCount !== null && matchedUnitCount > 0) {
+      const matchedObj = sortedUnits.find((u) => u.unitName === matchedUnitName);
+      const uClean = formatUnitArabic(matchedUnitName);
+      const isBaseUnitMatch = matchedObj?.isBaseUnit;
+      if (!isBaseUnitMatch) {
+        return {
+          mainDisplay: `${sign}${matchedUnitCount} ${uClean}`,
+          equivalentDisplay: `يعادل ${sign}${Math.round(absQty)} ${baseUnitClean}`,
+          unitLabel: uClean,
+          factor: matchedObj?.conversionFactor || 1,
+        };
+      }
+    }
+
+    return {
+      mainDisplay: `${sign}${Math.round(absQty)} ${baseUnitClean}`,
+      equivalentDisplay: null,
+      unitLabel: baseUnitClean,
+      factor: 1,
+    };
+  };
+
+  const formatCostDetail = (m: StockMovement, movementDetail: { unitLabel: string; factor: number }) => {
+    const rawCost = m.unitCostPiasters;
+    if (!rawCost || rawCost <= 0) {
+      return { main: '0.00 ج.م', sub: null };
+    }
+
+    if (isKg) {
+      return {
+        main: `${formatArabicCurrency(rawCost)} لكل كجم`,
+        sub: null,
+      };
+    }
+
+    if (!isMultiUnit || movementDetail.factor <= 1) {
+      return {
+        main: `${formatArabicCurrency(rawCost)} لكل ${baseUnitClean}`,
+        sub: null,
+      };
+    }
+
+    const factor = movementDetail.factor;
+    const isPurchase = m.movementType?.toUpperCase() === 'PURCHASE';
+
+    if (isPurchase) {
+      // In purchases, unitCostPiasters is stored per base unit (e.g. 3.00 EGP per cigarette)
+      const baseCost = rawCost;
+      const packageCost = rawCost * factor;
+      return {
+        main: `${formatArabicCurrency(baseCost)} لكل ${baseUnitClean}`,
+        sub: `${formatArabicCurrency(packageCost)} لكل ${movementDetail.unitLabel}`,
+      };
+    } else {
+      // In sales, unitCostPiasters is stored per transacted unit (e.g. 575.00 EGP per carton or 58.20 per pack)
+      const packageCost = rawCost;
+      const baseCost = Math.round(rawCost / factor);
+      return {
+        main: `${formatArabicCurrency(packageCost)} لكل ${movementDetail.unitLabel}`,
+        sub: `${formatArabicCurrency(baseCost)} لكل ${baseUnitClean}`,
+      };
+    }
+  };
+
+  const formatBalanceAfter = (balanceMilli: number | null | undefined) => {
+    if (balanceMilli === undefined || balanceMilli === null) {
+      return { main: '—', sub: null, isNegative: false, isZero: false };
+    }
+    if (isKg) {
+      const val = (balanceMilli / 1000).toFixed(3).replace(/\.?0+$/, '');
+      return { main: `${val} كجم`, sub: null, isNegative: balanceMilli < 0, isZero: balanceMilli === 0 };
+    }
+
+    const isNeg = balanceMilli < 0;
+    const isZero = balanceMilli === 0;
+    const baseCount = Math.round(balanceMilli / 1000);
+
+    if (isMultiUnit && units && units.length > 1) {
+      const comp = formatCompoundStock(balanceMilli, units, baseUnitClean);
+      return {
+        main: comp,
+        sub: `${baseCount} ${baseUnitClean}`,
+        isNegative: isNeg,
+        isZero,
+      };
+    }
+
+    return {
+      main: `${baseCount} ${baseUnitClean}`,
+      sub: null,
+      isNegative: isNeg,
+      isZero,
+    };
   };
 
   const cleanNote = (note: string | null | undefined) => {
@@ -168,7 +398,14 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
       .replace(/\[SURPLUS\]/g, '[فائض جردي]')
       .replace(/\[SHORTAGE\]/g, '[عجز جردي]')
       .replace(/\(piece\)/gi, '(قطعة)')
-      .replace(/\(pc\)/gi, '(قطعة)');
+      .replace(/\(pc\)/gi, '(قطعة)')
+      .replace(/\(carton\)/gi, '(كرتونة)')
+      .replace(/\(box\)/gi, '(علبة)')
+      .replace(/\(strip\)/gi, '(شريط)')
+      .replace(/\(kg\)/gi, '(كجم)')
+      .replace(/\(pack\)/gi, '(بكتة)')
+      .replace(/\(unit\)/gi, '(قطعة)')
+      .replace(/\(item\)/gi, '(قطعة)');
   };
 
   if (!isOpen) return null;
@@ -183,22 +420,30 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
+        <div className="px-5 py-4 border-b border-line dark:border-line-dark flex items-center justify-between gap-3 bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
               <Boxes className="w-4 h-4" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="t-modal-title text-ink dark:text-ink-dark leading-tight">كارت حركة المخزون</h3>
-                <span className="px-2 py-0.5 rounded text-micro font-mono font-bold bg-brand text-white">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="t-modal-title text-ink dark:text-ink-dark leading-tight whitespace-nowrap">كارت حركة المخزون</h3>
+                <span className={`px-2.5 py-0.5 rounded-full text-micro font-mono font-bold whitespace-nowrap shadow-2xs ${
+                  currentStockMilli > 0
+                    ? 'bg-brand dark:bg-brand text-white'
+                    : currentStockMilli === 0
+                    ? 'bg-warn text-white'
+                    : 'bg-danger text-white'
+                }`}>
                   الرصيد الحالي: {currentStockDisplay}
                 </span>
               </div>
-              <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-tight mt-0.5">{productName}</p>
+              <p className="text-micro text-ink-muted dark:text-ink-dark-muted leading-tight mt-1 truncate" title={productName}>
+                {productName}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {onOpenAdjustment && (
               <button
                 type="button"
@@ -206,7 +451,8 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                   onClose();
                   onOpenAdjustment();
                 }}
-                className="h-7 px-2.5 rounded bg-brand text-white text-micro font-bold flex items-center gap-1 hover:bg-brand-hover transition-colors"
+                className="h-8 px-3 rounded-lg bg-brand hover:bg-brand-hover text-white text-micro font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:scale-95"
+                title="تسجيل تسوية جردية لهذا الصنف"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>تسوية جردية</span>
@@ -215,16 +461,45 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
             <button
               type="button"
               onClick={requestClose}
-              className="w-7 h-7 rounded flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 border border-transparent hover:border-line transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-2 border border-line/60 dark:border-line-dark/60 transition-colors cursor-pointer"
+              title="إغلاق (Esc)"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
+        {/* Retail Packaging Breakdown Strip (Multi-tier retail stock clarification) */}
+        {retailBreakdown && retailBreakdown.length > 1 && (
+          <div className="px-5 py-2.5 bg-brand-soft/50 dark:bg-brand-dark-soft/40 border-b border-line dark:border-line-dark flex items-center justify-between gap-3 flex-wrap shrink-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 text-micro font-bold text-brand dark:text-brand-bright shrink-0">
+                <Boxes className="w-4 h-4" />
+                <span>تفكيك رصيد التجزئة الفعلي:</span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {retailBreakdown.map((item, idx) => (
+                  <React.Fragment key={item.name}>
+                    {idx > 0 && <span className="text-ink-muted/50 dark:text-ink-dark-muted text-xs font-bold">+</span>}
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg shadow-2xs text-xs">
+                      <span className="text-ink-muted dark:text-ink-dark-muted text-micro font-semibold">{item.name}:</span>
+                      <span className={`font-mono font-extrabold ${item.count > 0 ? 'text-brand dark:text-brand-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
+                        {item.count}
+                      </span>
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+            <div className="text-micro font-mono font-bold text-ink-muted dark:text-ink-dark-muted shrink-0 mr-auto">
+              إجمالي الرصيد: <span className="text-brand dark:text-brand-bright font-extrabold">{Math.round(currentStockMilli / 1000)} {baseUnitClean}</span>
+            </div>
+          </div>
+        )}
+
         {/* Filter Toolbar */}
-        <div className="px-5 py-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex items-center justify-between gap-x-3 gap-y-2 flex-wrap shrink-0">
-          <div className="flex items-center gap-1.5 flex-wrap text-micro">
+        <div className="px-5 py-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex items-center justify-between gap-x-4 gap-y-2.5 flex-wrap shrink-0">
+          <div className="flex items-center gap-1 flex-wrap text-micro">
             {[
               { id: 'ALL', label: 'كل الحركات' },
               { id: 'INITIAL', label: 'رصيد افتتاحي' },
@@ -237,9 +512,9 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                 key={tab.id}
                 type="button"
                 onClick={() => setMovementTypeFilter(tab.id)}
-                className={`px-2.5 py-1 rounded font-semibold transition-colors shrink-0 ${
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer shrink-0 ${
                   movementTypeFilter === tab.id
-                    ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-bold'
+                    ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
                     : 'text-ink-muted dark:text-ink-dark-muted hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
@@ -255,8 +530,8 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
               size="md"
               selectWidthClass="w-44 sm:w-48"
             />
-            <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">
-              {movements.length}{isTruncated ? '+' : ''} حركة{isDateActive ? ` في الفترة: ${periodLabel}` : ' مسجلة'}
+            <div className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono font-bold shrink-0">
+              {movements.length}{isTruncated ? '+' : ''} حركة{isDateActive ? ` (${periodLabel})` : ' مسجلة'}
             </div>
           </div>
         </div>
@@ -298,48 +573,95 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
               )}
             </div>
           ) : (
-            <div className="border border-line dark:border-line-dark rounded overflow-hidden">
-              <table className="w-full text-right border-collapse text-xs">
+            <div className="border border-line dark:border-line-dark rounded-xl overflow-x-auto shadow-2xs bg-surface dark:bg-surface-dark">
+              <table className="w-full min-w-[820px] text-right border-collapse text-xs">
                 <thead>
-                  <tr className="bg-surface-2/80 dark:bg-surface-dark-2/80 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-semibold text-micro">
-                    <th className="py-2.5 px-3">التاريخ والوقت</th>
-                    <th className="py-2.5 px-3">نوع الحركة</th>
-                    <th className="py-2.5 px-3">الكمية</th>
-                    <th className="py-2.5 px-3">تكلفة الوحدة</th>
+                  <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold text-micro h-9">
+                    <th className="py-2.5 px-3 whitespace-nowrap">التاريخ والوقت</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">نوع الحركة</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap font-mono">الكمية وتفصيلها</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap font-mono">الرصيد بعد الحركة</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap font-mono">تكلفة الوحدة</th>
                     <th className="py-2.5 px-3">الملاحظات والسبب</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line dark:divide-line-dark">
                   {movements.map(m => {
                     const isPositive = m.quantityMilli >= 0;
+                    const movementDetail = formatMovementDetail(m);
+                    const rawBalanceMilli = typeof m.balanceAfterMilli === 'number'
+                      ? m.balanceAfterMilli
+                      : computedBalances?.get(m.id);
+                    const bal = formatBalanceAfter(rawBalanceMilli);
+
                     return (
-                      <tr key={m.id} className="hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors">
+                      <tr key={m.id} className="hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors h-12">
                         <td className="py-2.5 px-3 font-mono text-micro text-ink dark:text-ink-dark whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
-                            <Calendar className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
+                            <Calendar className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted shrink-0" />
                             <span>{formatDate(m.createdAt)}</span>
                           </div>
                         </td>
 
                         <td className="py-2.5 px-3 whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded text-micro font-bold border inline-block ${getBadgeStyle(m.movementType)}`}>
-                            {m.movementTypeArabic || m.movementType}
+                          <span className={`px-2.5 py-0.5 rounded-full text-micro font-bold border inline-block whitespace-nowrap ${getBadgeStyle(m.movementType)}`}>
+                            {getMovementTypeArabic(m)}
                           </span>
                         </td>
 
-                        <td className="py-2.5 px-3 font-mono font-bold whitespace-nowrap">
-                          <div className={`flex items-center gap-1 ${isPositive ? 'text-paid' : 'text-danger dark:text-danger-bright'}`}>
-                            {isPositive ? (
-                              <ArrowUpRight className="w-3.5 h-3.5" />
-                            ) : (
-                              <ArrowDownLeft className="w-3.5 h-3.5" />
+                        <td className="py-2 px-3 whitespace-nowrap">
+                          <div className="flex flex-col items-start leading-tight">
+                            <div className={`inline-flex items-center gap-1 font-mono font-bold text-xs ${isPositive ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
+                              {isPositive ? (
+                                <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+                              ) : (
+                                <ArrowDownLeft className="w-3.5 h-3.5 shrink-0" />
+                              )}
+                              <span dir="ltr">{movementDetail.mainDisplay}</span>
+                            </div>
+                            {movementDetail.equivalentDisplay && (
+                              <span className="text-micro text-ink-muted/80 dark:text-ink-dark-muted font-sans font-medium mt-0.5" dir="rtl">
+                                ({movementDetail.equivalentDisplay})
+                              </span>
                             )}
-                            <span dir="ltr">{formatQuantity(m.quantityMilli)}</span>
                           </div>
                         </td>
 
-                        <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
-                          {formatArabicCurrency(m.unitCostPiasters)}
+                        <td className="py-2 px-3 whitespace-nowrap">
+                          <div className="flex flex-col items-start leading-tight">
+                            <span
+                              className={`font-mono font-bold text-xs ${
+                                bal.isNegative
+                                  ? 'text-danger dark:text-danger-bright'
+                                  : bal.isZero
+                                  ? 'text-ink-muted dark:text-ink-dark-muted'
+                                  : 'text-paid dark:text-paid-bright'
+                              }`}
+                            >
+                              {bal.main}
+                            </span>
+                            {bal.sub && (
+                              <span className="text-micro font-mono text-ink-muted/80 dark:text-ink-dark-muted mt-0.5" dir="rtl">
+                                ({bal.sub})
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-2.5 px-3 font-mono text-ink dark:text-ink-dark whitespace-nowrap">
+                          {(() => {
+                            const costDetail = formatCostDetail(m, movementDetail);
+                            return (
+                              <div className="flex flex-col items-start leading-tight">
+                                <span className="font-bold">{costDetail.main}</span>
+                                {costDetail.sub && (
+                                  <span className="text-micro text-ink-muted/80 dark:text-ink-dark-muted font-sans font-normal mt-0.5">
+                                    ({costDetail.sub})
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         <td className="py-2.5 px-3 text-ink-muted dark:text-ink-dark-muted text-micro max-w-sm truncate" title={cleanNote(m.note)}>

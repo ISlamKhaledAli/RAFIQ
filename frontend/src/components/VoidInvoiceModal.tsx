@@ -79,11 +79,11 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
       onClick={handleBackdropClick}
     >
       <div 
-        className="w-full max-w-[480px] bg-surface rounded-xl border border-line shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-danger"
+        className="w-full max-w-[480px] bg-surface rounded-xl border border-line shadow-xl overflow-hidden flex flex-col transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-danger"
         dir="rtl"
       >
         {/* Modal Header */}

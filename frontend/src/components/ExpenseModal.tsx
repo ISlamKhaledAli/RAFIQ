@@ -240,11 +240,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 select-none" 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 select-none animate-in fade-in duration-150" 
       onClick={handleBackdropClick}
       dir="rtl"
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-xl border border-line dark:border-line-dark w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
         <div className="px-5 py-4 bg-brand-dark dark:bg-surface-dark-2 text-white dark:text-ink-dark border-b dark:border-line-dark flex items-center justify-between">

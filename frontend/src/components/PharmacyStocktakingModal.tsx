@@ -18,6 +18,7 @@ import { printReport } from '../utils/printReport';
 import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from './CustomSelect';
 import { formatArabicCurrency } from '../utils/money';
+import { formatUnitArabic } from '../utils/units';
 
 interface PharmacyStocktakingModalProps {
   isOpen: boolean;
@@ -559,7 +560,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                         <span className="font-bold text-ink dark:text-ink-dark">مستويات التعبئة:</span>
                         {units.map((u, ui) => (
                           <span key={u.unitId} className="px-2 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line/60 dark:border-line-dark font-mono">
-                            {u.unitName} = {u.conversionFactor} {ui < units.length - 1 ? '←' : ''}
+                            {formatUnitArabic(u.unitName)} = {u.conversionFactor} {ui < units.length - 1 ? '←' : ''}
                           </span>
                         ))}
                       </div>
@@ -604,7 +605,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                                           onChange={(e) => handleCompoundUnitChange(batch.batchId, u.unitId, e.target.value, units)}
                                           className="w-14 px-2 py-1 text-center font-mono font-bold rounded border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink text-xs focus:border-brand focus:outline-hidden"
                                         />
-                                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted">{u.unitName}</span>
+                                        <span className="text-micro text-ink-muted dark:text-ink-dark-muted">{formatUnitArabic(u.unitName)}</span>
                                       </div>
                                     ))}
                                   </div>
@@ -659,7 +660,7 @@ export const PharmacyStocktakingModal: React.FC<PharmacyStocktakingModalProps> =
                                     onChange={(e) => handleCompoundUnitChange(item.productId, u.unitId, e.target.value, units)}
                                     className="w-14 px-2 py-1 text-center font-mono font-bold rounded border border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink text-xs focus:border-brand focus:outline-hidden"
                                   />
-                                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">{u.unitName}</span>
+                                  <span className="text-micro text-ink-muted dark:text-ink-dark-muted">{formatUnitArabic(u.unitName)}</span>
                                 </div>
                               ))}
                             </div>

@@ -116,11 +116,11 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-[640px] bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-brand dark:border-t-brand-bright"
+        className="w-full max-w-[640px] bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl overflow-hidden flex flex-col max-h-[85vh] transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-brand dark:border-t-brand-bright"
         onClick={(e) => e.stopPropagation()}
         dir="rtl"
       >

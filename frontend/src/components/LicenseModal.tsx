@@ -21,6 +21,7 @@ import { invoke } from '../bridge/ipc';
 import { rafiqAlert, rafiqConfirm } from '../utils/dialogService';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { RequiredMark } from './RequiredMark';
+import { normalizeTokenOrKey } from '../utils/tokenNormalizer';
 
 export interface LicenseInfoData {
   isActive: boolean;
@@ -58,11 +59,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
     reader.onload = (event) => {
       const content = (event.target?.result as string || '').trim();
       if (content) {
-        if (content.toUpperCase().startsWith('RFQ-SUP-')) {
-          setSupportCode('RFQ-SUP-' + content.slice(8).trim());
-        } else {
-          setSupportCode(content);
-        }
+        setSupportCode(normalizeTokenOrKey(content));
         setStatusMessage({ text: 'تمت قراءة كود الدعم من الملف', type: 'success' });
       }
     };
@@ -323,11 +320,11 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150 select-none"
       onClick={handleBackdropClick}
     >
       <div 
-        className="bg-surface dark:bg-surface-dark rounded-3xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh] text-ink dark:text-ink-dark font-sans"
+        className="bg-surface dark:bg-surface-dark rounded-3xl shadow-xl border border-line dark:border-line-dark w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh] text-ink dark:text-ink-dark font-sans transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -552,7 +549,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
               <input
                 type="text"
                 value={inputKey}
-                onChange={(e) => setInputKey(e.target.value.toUpperCase())}
+                onChange={(e) => setInputKey(normalizeTokenOrKey(e.target.value))}
                 placeholder="RFQ-PERM-XXXX-XXXX"
                 className="w-full h-12 bg-surface dark:bg-surface-dark-2 border-2 border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-2xl px-4 text-sm font-mono tracking-widest font-black text-ink dark:text-ink-dark placeholder:text-ink-muted/40 dark:placeholder:text-ink-dark-muted/40 text-center dir-ltr shadow-2xs focus:outline-none transition-all"
               />
@@ -590,14 +587,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 <input
                   type="text"
                   value={supportCode}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val.trim().toUpperCase().startsWith('RFQ-SUP-')) {
-                      setSupportCode('RFQ-SUP-' + val.trim().slice(8));
-                    } else {
-                      setSupportCode(val);
-                    }
-                  }}
+                  onChange={(e) => setSupportCode(normalizeTokenOrKey(e.target.value))}
                   placeholder="RFQ-SUP-eyJhbGci..."
                   className="w-full h-12 bg-surface dark:bg-surface-dark-2 border-2 border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright rounded-2xl px-4 text-sm font-mono tracking-widest font-black text-ink dark:text-ink-dark placeholder:text-ink-muted/40 dark:placeholder:text-ink-dark-muted/40 text-center dir-ltr shadow-2xs focus:outline-none transition-all"
                 />

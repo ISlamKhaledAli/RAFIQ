@@ -20,6 +20,7 @@ import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { useAuth } from '../../context/useAuth';
 import { invoke } from '../../bridge/ipc';
 import { printReport } from '../../utils/printReport';
+import { formatUnitArabic } from '../../utils/units';
 import { RequiredMark } from '../../components/RequiredMark';
 
 interface StorageLocationsModalProps {
@@ -606,7 +607,7 @@ export const StorageLocationsModal: React.FC<StorageLocationsModalProps> = ({
                             </div>
                           </td>
                           <td className="p-2.5 font-mono text-ink-muted dark:text-ink-dark-muted">{item.barcode || '—'}</td>
-                          <td className="p-2.5">{item.unitName}</td>
+                          <td className="p-2.5">{formatUnitArabic(item.unitName)}</td>
                           <td className="p-2.5 font-mono font-bold text-ink dark:text-ink-dark">
                             {item.bookStockQuantityMilli / 1000}
                           </td>

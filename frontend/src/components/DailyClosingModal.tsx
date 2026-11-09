@@ -86,7 +86,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   onClosingCompleted
 }) => {
   const [preview, setPreview] = useState<DailyClosingPreview | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // Closing form state
@@ -148,6 +148,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setLoading(true);
       setPrintFeedback(null);
       setSavedClosing(null);
       setShowPrintPrompt(false);
@@ -155,6 +156,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
       setShowEpayDetails(false);
       setActiveEpaySubTab('terminals');
       void loadPreview();
+    } else {
+      setPreview(null);
     }
   }, [isOpen, loadPreview]);
 
@@ -302,8 +305,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 select-none" dir="rtl">
-      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 select-none animate-in fade-in duration-150" dir="rtl">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-xl border border-line dark:border-line-dark w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
         <div className="px-6 py-5 bg-brand-dark dark:bg-surface-dark-2 text-white dark:text-ink-dark border-b dark:border-line-dark flex flex-wrap items-center justify-between gap-3">
@@ -354,7 +357,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
         {/* Body content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-canvas dark:bg-canvas-dark">
           {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-3 text-ink-muted dark:text-ink-dark-muted">
+            <div className="py-24 flex flex-col items-center justify-center gap-3 text-ink-muted dark:text-ink-dark-muted min-h-[380px]">
               <div className="w-8 h-8 border-3 border-brand dark:border-brand-bright border-t-transparent rounded-full animate-spin" />
               <p className="text-sm font-medium">بنحسب أرقام المبيعات وفلوس الدرج من الداتابيز...</p>
             </div>
@@ -451,7 +454,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
             </div>
           ) : preview ? (
             /* Main Closing View */
-            <div className="space-y-6">
+            <div className="space-y-6 animate-in fade-in duration-150">
               {/* Suspicious Clock Warning (Story 89 / Task 127-4) */}
               {preview.isDateSuspicious && !savedClosing && (
                 <div className="p-5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright space-y-3">
@@ -1182,8 +1185,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
       {/* Modal-over-Modal: Post-closing confirmation & Print Z-Report Prompt */}
       {showPrintPrompt && savedClosing && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-xl border border-line dark:border-line-dark w-full max-w-lg overflow-hidden transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150">
             <div className="p-6 text-center space-y-4">
               
               {/* Success Badge */}

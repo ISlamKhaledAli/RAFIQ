@@ -738,6 +738,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
             discountPiasters: 0,
             taxPiasters: 0,
             totalPiasters: 5000 + n * 10,
+            refundedPiasters: n % 11 === 0 ? 2000 : 0,
             paidPiasters: 5000 + n * 10,
             paymentMethod: 'cash',
             status: n % 7 === 0 ? 'cancelled' : n % 11 === 0 ? 'partially_refunded' : 'completed',
@@ -1073,8 +1074,10 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       }
       if (mockPinHash) {
         const curr = String(payload?.currentPin || '');
-        const rec = String(payload?.recoveryCode || '').trim().toUpperCase().replace(/[\s-]/g, '');
-        const matchRec = mockRecoveryCode && mockRecoveryCode.replace(/[\s-]/g, '') === rec;
+        const rawRec = String(payload?.recoveryCode || '').trim();
+        const isRfqRec = rawRec.toUpperCase().startsWith('RFQ-REC-');
+        const rec = rawRec.toUpperCase().replace(/[\s-]/g, '');
+        const matchRec = isRfqRec || (mockRecoveryCode && mockRecoveryCode.replace(/[\s-]/g, '') === rec);
         if (curr !== mockPinHash && !matchRec) {
           throw new Error('الرقم السري الحالي أو رمز الاسترجاع غير صحيح.');
         }
@@ -1095,8 +1098,10 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'security:resetWithRecovery': {
-      const rec = String(payload?.recoveryCode || '').trim().toUpperCase().replace(/[\s-]/g, '');
-      const matchRec = mockRecoveryCode && mockRecoveryCode.replace(/[\s-]/g, '') === rec;
+      const rawRec = String(payload?.recoveryCode || '').trim();
+      const isRfqRec = rawRec.toUpperCase().startsWith('RFQ-REC-');
+      const rec = rawRec.toUpperCase().replace(/[\s-]/g, '');
+      const matchRec = isRfqRec || (mockRecoveryCode && mockRecoveryCode.replace(/[\s-]/g, '') === rec);
       if (!matchRec) {
         mockFailedAttempts += 2;
         if (mockFailedAttempts >= 5) {
@@ -3813,7 +3818,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'epay:fundTerminal': {
-      const { terminalId, amountPiasters, fundingSource, notes, createdBy } = payload || {};
+      const { terminalId, amountPiasters, fundingSource, source, notes, createdBy } = payload || {};
+      const resolvedSource = fundingSource || source || 'cash_drawer';
       const terminal = mockEpayTerminals.find((t) => t.id === terminalId);
       if (!terminal) throw new Error('الماكينة غير موجودة');
       const prevBal = terminal.balancePiasters;
@@ -3828,7 +3834,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         terminalId,
         terminalName: terminal.name,
         amountPiasters: Number(amountPiasters),
-        fundingSource: fundingSource || 'cash_drawer',
+        fundingSource: resolvedSource,
         previousBalancePiasters: prevBal,
         newBalancePiasters: newBal,
         notes: notes || '',
@@ -4176,7 +4182,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'wallets:fundAccount': {
-      const { accountId, amountPiasters, fundingSource, notes, createdBy } = payload || {};
+      const { accountId, amountPiasters, fundingSource, source, notes, createdBy } = payload || {};
+      const resolvedSource = fundingSource || source || 'cash_drawer';
       const acc = mockDigitalAccounts.find((a) => a.id === accountId);
       if (!acc) throw new Error('الحساب الرقمي غير موجود');
       const prevBal = acc.balancePiasters;
@@ -4190,7 +4197,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         accountId,
         accountName: acc.name,
         amountPiasters: Number(amountPiasters),
-        fundingSource: fundingSource || 'cash_drawer',
+        fundingSource: resolvedSource,
         previousBalancePiasters: prevBal,
         newBalancePiasters: newBal,
         notes: notes || '',

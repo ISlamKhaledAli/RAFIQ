@@ -213,7 +213,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               <th className="px-3 text-right min-w-[200px]">اسم الصنف</th>
               <th className="w-36 px-3 text-right">سعر البيع</th>
               <th className="w-28 px-3 text-right">سعر الشراء (التكلفة)</th>
-              <th className="w-32 px-3 text-center" title="رصيد المخزن الحالي / حد التنبيه بالنواقص">
+              <th className="w-48 min-w-[170px] px-3 text-center" title="رصيد المخزن الحالي / حد التنبيه بالنواقص">
                 رصيد المخزن / النواقص
               </th>
               <th className="w-24 px-3 text-center">حالة الصنف</th>
@@ -295,8 +295,8 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   if (wholeLarge > 0) {
                     unitBreakdown =
                       rem > 0
-                        ? `${wholeLarge} ${primaryLargeUnit.unitName} + ${rem}`
-                        : `${wholeLarge} ${primaryLargeUnit.unitName}`;
+                        ? `${wholeLarge} ${formatUnitArabic(primaryLargeUnit.unitName)} + ${rem}`
+                        : `${wholeLarge} ${formatUnitArabic(primaryLargeUnit.unitName)}`;
                   }
                 }
 
@@ -456,7 +456,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     </td>
 
                     {/* 6. Stock / Min Stock */}
-                    <td className="w-32 px-3 text-center whitespace-nowrap">
+                    <td className="w-48 min-w-[170px] px-3 text-center whitespace-nowrap">
                       <div
                         onClick={() => onSelectProdForMovements(prod)}
                         className="inline-flex flex-col items-center justify-center font-mono tabular-nums leading-tight cursor-pointer hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg px-2 py-0.5 group transition-colors"
@@ -467,14 +467,14 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         </span>
                         {compoundStock ? (
                           <span
-                            className="text-micro text-paid dark:text-paid-bright font-bold truncate max-w-[130px]"
+                            className="text-micro text-paid dark:text-paid-bright font-bold whitespace-nowrap block mt-0.5"
                             title={`المخزون المركب: ${compoundStock}`}
                           >
                             {compoundStock}
                           </span>
                         ) : unitBreakdown ? (
                           <span
-                            className="text-micro text-paid dark:text-paid-bright font-bold truncate max-w-[110px]"
+                            className="text-micro text-paid dark:text-paid-bright font-bold whitespace-nowrap block mt-0.5"
                             title={`المكافئ بالوحدة الكبيرة: ${unitBreakdown}`}
                           >
                             ≈ {unitBreakdown}

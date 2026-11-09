@@ -75,7 +75,7 @@ export const UndoToast: React.FC<UndoToastProps> = ({
   }, [durationMs, message]);
 
   return (
-    <div className="fixed bottom-6 left-6 z-50 max-w-sm w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark shadow-2xl dark:shadow-black/60 rounded-xl overflow-hidden animate-in slide-in-from-bottom-3 duration-200 select-none">
+    <div data-undo-toast="true" className="fixed bottom-6 left-6 z-40 max-w-sm w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark shadow-2xl dark:shadow-black/60 rounded-xl overflow-hidden animate-in slide-in-from-bottom-3 duration-200 select-none">
       <div className="p-3.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center shrink-0">

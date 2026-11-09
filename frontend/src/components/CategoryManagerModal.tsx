@@ -198,10 +198,10 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
   return (
     <>
       <div 
-        className="fixed inset-0 z-50 bg-ink/50 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-150"
+        className="fixed inset-0 z-50 bg-ink/50 dark:bg-black/70 flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-150"
         onClick={handleBackdropClick}
       >
-        <div className="w-full max-w-3xl max-h-[88vh] bg-surface dark:bg-surface-dark rounded-[8px] shadow-2xl border border-line dark:border-line-dark overflow-hidden flex flex-col text-right text-ink dark:text-ink-dark">
+        <div className="w-full max-w-3xl max-h-[88vh] bg-surface dark:bg-surface-dark rounded-[8px] shadow-xl border border-line dark:border-line-dark overflow-hidden flex flex-col text-right text-ink dark:text-ink-dark transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150">
           {/* Modal Header */}
           <div className="h-[48px] bg-surface-2 dark:bg-surface-dark-2 hairline-b border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">

@@ -17,7 +17,7 @@ namespace RafiqPOS.Services
         public static bool RunAllTests()
         {
             Console.WriteLine("=================================================");
-            Console.WriteLine("بدء الاختبارات الآلية لطباعة ملصقات الباركود والأسعار (فيتشر #57)");
+            Console.WriteLine("Starting Automated Tests for Barcode & Labels (#57)");
             Console.WriteLine("=================================================");
 
             int passed = 0;
@@ -40,7 +40,7 @@ namespace RafiqPOS.Services
             if (TestA4SheetLabelLayout()) passed++;
 
             Console.WriteLine("-------------------------------------------------");
-            Console.WriteLine(string.Format("النتيجة النهائية: نجح {0} من أصل {1} اختبارات ({2:P0})", passed, total, (double)passed / total));
+            Console.WriteLine(string.Format("Final Result: {0} of {1} tests passed ({2:P0})", passed, total, (double)passed / total));
             Console.WriteLine("=================================================");
 
             return passed == total;
@@ -48,7 +48,7 @@ namespace RafiqPOS.Services
 
         private static bool TestCode128BitEncoding()
         {
-            Console.Write("[1/7] فحص توليد بتات باركود Code 128 القياسي: ");
+            Console.Write("[1/15] Testing Code 128 standard bit encoding: ");
             try
             {
                 string barcode = "214000100018";
@@ -56,154 +56,152 @@ namespace RafiqPOS.Services
 
                 if (string.IsNullOrEmpty(bits))
                 {
-                    Console.WriteLine("فشل - السلسلة الثنائية فارغة!");
+                    Console.WriteLine("FAILED - Bit string is empty!");
                     return false;
                 }
 
-                // يجب أن يبدأ برمز Start B (11010010000)
+                // Starts with Start B (11010010000)
                 if (!bits.StartsWith("11010010000"))
                 {
-                    Console.WriteLine("فشل - البداية لا تطابق رمز Start B!");
+                    Console.WriteLine("FAILED - Does not start with Start B symbol!");
                     return false;
                 }
 
-                // يجب أن ينتهي برمز Stop (1100011101011)
+                // Ends with Stop (1100011101011)
                 if (!bits.EndsWith("1100011101011"))
                 {
-                    Console.WriteLine("فشل - النهاية لا تطابق رمز Stop!");
+                    Console.WriteLine("FAILED - Does not end with Stop symbol!");
                     return false;
                 }
 
                 int expectedLength = (1 + barcode.Length + 1) * 11 + 13;
                 if (bits.Length != expectedLength)
                 {
-                    Console.WriteLine(string.Format("فشل - الطول المحسوب ({0}) لا يطابق المتوقع ({1})!", bits.Length, expectedLength));
+                    Console.WriteLine(string.Format("FAILED - Length ({0}) does not match expected ({1})!", bits.Length, expectedLength));
                     return false;
                 }
 
-                Console.WriteLine("نجح (تطابق تام لمعيار ISO/IEC 15417)");
+                Console.WriteLine("PASSED (Full ISO/IEC 15417 compliance)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestCode128Checksum()
         {
-            Console.Write("[2/7] فحص دقة المجموع الاختباري Modulo 103: ");
+            Console.Write("[2/15] Testing Modulo 103 checksum accuracy: ");
             try
             {
                 int expectedSum = (104 + (52 * 1) + (37 * 2) + (51 * 3) + (52 * 4)) % 103;
                 if (expectedSum != 76)
                 {
-                    Console.WriteLine("فشل في المعادلة الرياضية!");
+                    Console.WriteLine("FAILED - Math formula mismatch!");
                     return false;
                 }
 
                 string bits = BarcodeGenerator.EncodeCode128("TEST");
                 if (string.IsNullOrEmpty(bits))
                 {
-                    Console.WriteLine("فشل في الترميز!");
+                    Console.WriteLine("FAILED - Encoding returned empty string!");
                     return false;
                 }
 
-                Console.WriteLine("نجح (Modulo 103 = 76)");
+                Console.WriteLine("PASSED (Modulo 103 = 76)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestDimensionParsing()
         {
-            Console.Write("[3/7] فحص أبعاد مقاسات الملصقات المختلفة (38x25, 50x30, ومقاسات مخصصة): ");
+            Console.Write("[3/15] Testing label dimensions parsing: ");
             try
             {
                 var service = new BarcodeLabelService(null, null);
 
-                // اختبار مقاس 38x25
+                // 38x25
                 float w38, h38;
                 service.ParseLabelDimensions("38x25", 0, 0, out w38, out h38);
                 if (w38 != 38f || h38 != 25f)
                 {
-                    Console.WriteLine("فشل في مقاس 38x25!");
+                    Console.WriteLine("FAILED - 38x25 dimension mismatch!");
                     return false;
                 }
 
-                // اختبار مقاس 50x30
+                // 50x30
                 float w50, h50;
                 service.ParseLabelDimensions("50x30", 0, 0, out w50, out h50);
                 if (w50 != 50f || h50 != 30f)
                 {
-                    Console.WriteLine("فشل في مقاس 50x30!");
+                    Console.WriteLine("FAILED - 50x30 dimension mismatch!");
                     return false;
                 }
 
-                // اختبار مقاس مخصص عبر الأرقام المباشرة (Custom Width & Height)
+                // Custom Width & Height
                 float wCust, hCust;
                 service.ParseLabelDimensions("custom", 45, 35, out wCust, out hCust);
                 if (wCust != 45f || hCust != 35f)
                 {
-                    Console.WriteLine("فشل في المقاس المخصص بالأرقام!");
+                    Console.WriteLine("FAILED - Custom dimension mismatch!");
                     return false;
                 }
 
-                // اختبار مقاس مخصص كنص (مثلاً 55x35)
+                // Text format e.g. 55x35
                 float wText, hText;
                 service.ParseLabelDimensions("55x35", 0, 0, out wText, out hText);
                 if (wText != 55f || hText != 35f)
                 {
-                    Console.WriteLine("فشل في المقاس المخصص النصي!");
+                    Console.WriteLine("FAILED - Textual dimension mismatch!");
                     return false;
                 }
 
-                Console.WriteLine("نجح (دعم 38x25, 50x30, 40x30, 50x40, ومقاسات Custom)");
+                Console.WriteLine("PASSED (Supports 38x25, 50x30, 40x30, 50x40, Custom)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestBitmapLabelRendering()
         {
-            Console.Write("[4/7] فحص رسم الملصق بيانياً والتأكد من وضوح الباركود والـ Quiet Zones: ");
+            Console.Write("[4/15] Testing bitmap label rendering and Quiet Zones: ");
             try
             {
                 var service = new BarcodeLabelService(null, null);
                 var testItem = new BarcodeLabelItem
                 {
-                    ProductName = "جبنة رومي قديمة فاخرة",
+                    ProductName = "Old Rumi Cheese",
                     Barcode = "6223001234042",
                     PricePiasters = 32000,
-                    VariantInfo = "قطاعي",
+                    VariantInfo = "Retail",
                     Copies = 1
                 };
 
                 var config = new BarcodeLabelConfig
                 {
-                    StoreName = "رفيق ماركت التجريبي",
+                    StoreName = "Rafiq Market",
                     ShowStoreName = true,
                     ShowPrice = true,
                     ShowBarcodeText = true
                 };
 
-                // إنشاء صورة افتراضية بالذاكرة ورسم الملصق عليها
                 using (var bmp = new Bitmap(200, 130))
                 using (var g = Graphics.FromImage(bmp))
                 {
                     g.Clear(Color.White);
                     service.DrawSingleLabel(g, testItem, config, new RectangleF(0, 0, 200, 130), 38f, 25f);
 
-                    // التأكد من أن الصورة ليست بيضاء بالكامل
                     bool hasDrawnPixels = false;
                     for (int x = 10; x < 190 && !hasDrawnPixels; x += 10)
                     {
@@ -219,24 +217,24 @@ namespace RafiqPOS.Services
 
                     if (!hasDrawnPixels)
                     {
-                        Console.WriteLine("فشل - لم يتم رسم أي محتوى على الملصق!");
+                        Console.WriteLine("FAILED - No content rendered on bitmap!");
                         return false;
                     }
                 }
 
-                Console.WriteLine("نجح (تم رسم النصوص، السعر، والباركود بالبكسلات بدقة وتباين)");
+                Console.WriteLine("PASSED (Text, price, and barcode rendered with crisp contrast)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestFlatListCopiesGeneration()
         {
-            Console.Write("[5/7] فحص تكرار النسخ (Copies Unrolling): ");
+            Console.Write("[5/15] Testing copies unrolling: ");
             try
             {
                 var req = new PrintLabelsRequest();
@@ -253,23 +251,23 @@ namespace RafiqPOS.Services
 
                 if (totalCalculated != totalExpected)
                 {
-                    Console.WriteLine("فشل في حساب إجمالي النسخ!");
+                    Console.WriteLine("FAILED - Total copies calculation mismatch!");
                     return false;
                 }
 
-                Console.WriteLine(string.Format("نجح (إجمالي النسخ المحسوبة = {0})", totalCalculated));
+                Console.WriteLine(string.Format("PASSED (Total calculated copies = {0})", totalCalculated));
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestEmptyRequestValidation()
         {
-            Console.Write("[6/7] فحص رفض الطلبات الفارغة بدون انهيار النظام: ");
+            Console.Write("[6/15] Testing empty and null request validation: ");
             try
             {
                 var service = new BarcodeLabelService(null, null);
@@ -278,30 +276,30 @@ namespace RafiqPOS.Services
                 var res = service.PrintLabels(emptyReq);
                 if (res.Success)
                 {
-                    Console.WriteLine("فشل - كان يجب رفض الطلب الفارغ!");
+                    Console.WriteLine("FAILED - Empty request should be rejected!");
                     return false;
                 }
 
                 var nullRes = service.PrintLabels(null);
                 if (nullRes.Success)
                 {
-                    Console.WriteLine("فشل - كان يجب رفض الطلب الفارغ (Null)!");
+                    Console.WriteLine("FAILED - Null request should be rejected!");
                     return false;
                 }
 
-                Console.WriteLine("نجح (تم رفض الطلب الفارغ بأمان ورسالة واضحة)");
+                Console.WriteLine("PASSED (Empty/null request safely rejected)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestPurchaseInvoiceItemsCopiesMapping()
         {
-            Console.Write("[7/7] فحص توليد ملصقات الباركود مباشرة من فاتورة المشتريات: ");
+            Console.Write("[7/15] Testing labels creation from purchase invoice: ");
             try
             {
                 var purchase = new Purchase
@@ -313,25 +311,25 @@ namespace RafiqPOS.Services
                         new PurchaseItem
                         {
                             ProductId = "prod_tea",
-                            ProductName = "شاي العروسة 250 جم",
+                            ProductName = "El Arosa Tea 250g",
                             Barcode = "6224005544015",
-                            QuantityMilli = 24000, // 24 قطعة
+                            QuantityMilli = 24000, // 24 pcs
                             UnitCostPiasters = 3200
                         },
                         new PurchaseItem
                         {
                             ProductId = "prod_sugar",
-                            ProductName = "سكر الأسرة 1 كجم",
+                            ProductName = "El Osra Sugar 1kg",
                             Barcode = "6221100998811",
-                            QuantityMilli = 50000, // 50 قطعة
+                            QuantityMilli = 50000, // 50 pcs
                             UnitCostPiasters = 2500
                         },
                         new PurchaseItem
                         {
                             ProductId = "prod_oil",
-                            ProductName = "زيت ذرة عافية 800 مل",
+                            ProductName = "Afia Corn Oil 800ml",
                             Barcode = "6223300112233",
-                            QuantityMilli = 12000, // 12 قطعة
+                            QuantityMilli = 12000, // 12 pcs
                             UnitCostPiasters = 6000
                         }
                     }
@@ -348,26 +346,25 @@ namespace RafiqPOS.Services
 
                 if (labelItems == null || labelItems.Count != 3)
                 {
-                    Console.WriteLine("فشل - عدد بنود الملصقات لا يطابق بنود الفاتورة!");
+                    Console.WriteLine("FAILED - Label item count does not match purchase items!");
                     return false;
                 }
 
-                // التحقق من تكرار النسخ (Copies) لكل صنف مساوي للكمية المشتراة
                 if (labelItems[0].Copies != 24 || labelItems[0].PricePiasters != 3800)
                 {
-                    Console.WriteLine(string.Format("فشل - البند الأول نسخه ({0}) أو سعره ({1}) غير مطابق!", labelItems[0].Copies, labelItems[0].PricePiasters));
+                    Console.WriteLine(string.Format("FAILED - First item copies ({0}) or price ({1}) mismatch!", labelItems[0].Copies, labelItems[0].PricePiasters));
                     return false;
                 }
 
                 if (labelItems[1].Copies != 50 || labelItems[1].PricePiasters != 3000)
                 {
-                    Console.WriteLine(string.Format("فشل - البند الثاني نسخه ({0}) غير مطابق!", labelItems[1].Copies));
+                    Console.WriteLine(string.Format("FAILED - Second item copies ({0}) mismatch!", labelItems[1].Copies));
                     return false;
                 }
 
                 if (labelItems[2].Copies != 12 || labelItems[2].PricePiasters != 7200)
                 {
-                    Console.WriteLine(string.Format("فشل - البند الثالث نسخه ({0}) غير مطابق!", labelItems[2].Copies));
+                    Console.WriteLine(string.Format("FAILED - Third item copies ({0}) mismatch!", labelItems[2].Copies));
                     return false;
                 }
 
@@ -375,23 +372,23 @@ namespace RafiqPOS.Services
                 for (int i = 0; i < labelItems.Count; i++) totalStickers += labelItems[i].Copies;
                 if (totalStickers != 86)
                 {
-                    Console.WriteLine("فشل - إجمالي الملصقات لا يساوي 86!");
+                    Console.WriteLine("FAILED - Total sticker count does not equal 86!");
                     return false;
                 }
 
-                Console.WriteLine(string.Format("نجح (تم استخراج {0} صنف بإجمالي {1} ملصق مطابق لكميات الشراء والأسعار)", labelItems.Count, totalStickers));
+                Console.WriteLine(string.Format("PASSED (Extracted {0} items with {1} total labels matching quantities and prices)", labelItems.Count, totalStickers));
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestQuietZoneStandardCompliance()
         {
-            Console.Write("[8/15] فحص المنطقة الهادئة (Quiet Zone >= 2.54mm ISO 15417): ");
+            Console.Write("[8/15] Testing Quiet Zone (>= 2.54mm ISO 15417): ");
             try
             {
                 float widthMm = 38f;
@@ -401,23 +398,23 @@ namespace RafiqPOS.Services
                 // 2.54 mm = 10.0 hundredths of an inch
                 if (quietZoneUnits < 10f)
                 {
-                    Console.WriteLine(string.Format("فشل - المنطقة الهادئة ({0}) أقل من 10 وحدات (2.54 مم)!", quietZoneUnits));
+                    Console.WriteLine(string.Format("FAILED - Quiet zone ({0}) is under 10 units (2.54mm)!", quietZoneUnits));
                     return false;
                 }
 
-                Console.WriteLine(string.Format("نجح (Quiet Zone = {0:F1} وحدة = {1:F2} مم مطابق لمعيار ISO)", quietZoneUnits, quietZoneUnits / 3.937f));
+                Console.WriteLine(string.Format("PASSED (Quiet Zone = {0:F1} units = {1:F2} mm ISO compliant)", quietZoneUnits, quietZoneUnits / 3.937f));
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestLaserScannerModuleSnapping()
         {
-            Console.Write("[9/15] فحص محاذاة موديول الباركود على بكسلات فيزيائية (Integer Dot Snapping): ");
+            Console.Write("[9/15] Testing integer dot snapping on physical pixels: ");
             try
             {
                 using (var bmp = new Bitmap(300, 100))
@@ -427,7 +424,6 @@ namespace RafiqPOS.Services
                     var rect = new RectangleF(10, 10, 260, 80);
                     BarcodeGenerator.DrawBarcode(g, "6221234567890", rect, true);
 
-                    // التأكد من أن الأعمدة مرسومة بتباين حاد (أبيض وأسود صريح بدون ضبابية)
                     int blackPixelCount = 0;
                     for (int x = 20; x < 250; x++)
                     {
@@ -440,39 +436,39 @@ namespace RafiqPOS.Services
 
                     if (blackPixelCount < 50)
                     {
-                        Console.WriteLine("فشل - أعمدة الباركود غير واضحة أو غير مرسومة!");
+                        Console.WriteLine("FAILED - Barcode bars not rendered or blurry!");
                         return false;
                     }
                 }
 
-                Console.WriteLine("نجح (محاذاة تامة للبكسلات وقراءة ليزرية فورية)");
+                Console.WriteLine("PASSED (Exact pixel alignment for instant laser scanning)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestPaperSize38x25Rendering()
         {
-            Console.Write("[10/15] فحص تصيير ملصق 38x25 مم بدقة كاملة: ");
+            Console.Write("[10/15] Testing 38x25mm label rendering: ");
             try
             {
                 var service = new BarcodeLabelService(null, null);
                 var item = new BarcodeLabelItem
                 {
-                    ProductName = "عصير جهينة برتقال 1 لتر",
+                    ProductName = "Juhayna Orange Juice 1L",
                     Barcode = "6221000112233",
                     PricePiasters = 3500,
-                    VariantInfo = "كرتونة",
+                    VariantInfo = "Carton",
                     Copies = 1
                 };
 
                 var config = new BarcodeLabelConfig
                 {
-                    StoreName = "سوبر ماركت السلام",
+                    StoreName = "El Salam Supermarket",
                     ShowStoreName = true,
                     ShowPrice = true,
                     ShowBarcodeText = true,
@@ -488,7 +484,6 @@ namespace RafiqPOS.Services
                     g.Clear(Color.White);
                     service.DrawSingleLabel(g, item, config, new RectangleF(0, 0, w, h), 38f, 25f);
 
-                    // فحص وجود بكسلات سوداء في الربع العلوي (اسم المحل والمنتج)، الأوسط (السعر)، والسفلي (الباركود)
                     bool topDrawn = false, midDrawn = false, btmDrawn = false;
                     for (int x = 15; x < w - 15; x += 5)
                     {
@@ -499,39 +494,39 @@ namespace RafiqPOS.Services
 
                     if (!topDrawn || !midDrawn || !btmDrawn)
                     {
-                        Console.WriteLine("فشل - أحد عناصر الملصق لم يكتمل رسمه في 38x25 مم!");
+                        Console.WriteLine("FAILED - Incomplete elements in 38x25mm rendering!");
                         return false;
                     }
                 }
 
-                Console.WriteLine("نجح (38x25 مم: أبعاد 150x98 وحدة مكتملة العناصر)");
+                Console.WriteLine("PASSED (38x25mm: 150x98 units fully rendered)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestPaperSize50x30Rendering()
         {
-            Console.Write("[11/15] فحص تصيير ملصق 50x30 مم القياسي: ");
+            Console.Write("[11/15] Testing 50x30mm label rendering: ");
             try
             {
                 var service = new BarcodeLabelService(null, null);
                 var item = new BarcodeLabelItem
                 {
-                    ProductName = "منظف أرضيات ديتول 900 مل لافندر",
+                    ProductName = "Dettol Floor Cleaner 900ml",
                     Barcode = "6221122334455",
                     PricePiasters = 8500,
-                    VariantInfo = "رائحة اللافندر",
+                    VariantInfo = "Lavender",
                     Copies = 1
                 };
 
                 var config = new BarcodeLabelConfig
                 {
-                    StoreName = "هايبر ماركت التوفير",
+                    StoreName = "El Tawfeer Hypermarket",
                     ShowStoreName = true,
                     ShowPrice = true,
                     ShowBarcodeText = true,
@@ -558,24 +553,24 @@ namespace RafiqPOS.Services
 
                     if (blackPixels < 100)
                     {
-                        Console.WriteLine("فشل - كثافة المحتوى المرسوم منخفضة!");
+                        Console.WriteLine("FAILED - Rendered pixel density too low!");
                         return false;
                     }
                 }
 
-                Console.WriteLine("نجح (50x30 مم: أبعاد 197x118 وحدة توازن ممتاز)");
+                Console.WriteLine("PASSED (50x30mm: 197x118 units well balanced)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestCustomPaperDimensionsRendering()
         {
-            Console.Write("[12/15] فحص دعم المقاسات المخصصة والمتنوعة (60x40, 80x50, 100x150, Custom): ");
+            Console.Write("[12/15] Testing custom paper dimensions (60x40, 80x50, 100x150, Custom): ");
             try
             {
                 var service = new BarcodeLabelService(null, null);
@@ -596,19 +591,19 @@ namespace RafiqPOS.Services
                 service.ParseLabelDimensions("custom", 45, 35, out wCust, out hCust);
                 if (wCust != 45f || hCust != 35f) return false;
 
-                Console.WriteLine("نجح (دعم 60x40, 80x50, 100x150، ومقاسات Custom يدوية)");
+                Console.WriteLine("PASSED (Supports 60x40, 80x50, 100x150, Custom)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestPriceFormattingNoDuplicate()
         {
-            Console.Write("[13/15] فحص تنسيق السعر وعدم تكرار عملة ج.م: ");
+            Console.Write("[13/15] Testing price formatting without duplicate currency: ");
             try
             {
                 long pricePiasters = 5500;
@@ -616,30 +611,29 @@ namespace RafiqPOS.Services
 
                 if (!formatted.Contains("ج.م"))
                 {
-                    Console.WriteLine("فشل - النص لا يحتوي على رمز العملة ج.م!");
+                    Console.WriteLine("FAILED - Price text missing currency symbol!");
                     return false;
                 }
 
-                // فحص عدم التكرار "ج.م ج.م"
                 if (formatted.Contains("ج.م ج.م"))
                 {
-                    Console.WriteLine("فشل - يوجد تكرار لرمز العملة ج.م ج.م!");
+                    Console.WriteLine("FAILED - Duplicate currency symbol detected!");
                     return false;
                 }
 
-                Console.WriteLine("نجح (تنسيق نظيف بدون أي تكرار: " + formatted + ")");
+                Console.WriteLine("PASSED (Clean formatting without duplicate: " + formatted + ")");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestPurchaseBonusQuantityInclusion()
         {
-            Console.Write("[14/15] فحص إضافة بضاعة البونص المجانية لنسخ ملصقات المشتريات: ");
+            Console.Write("[14/15] Testing purchase bonus quantity label inclusion: ");
             try
             {
                 var pur = new Purchase
@@ -651,10 +645,10 @@ namespace RafiqPOS.Services
                         new PurchaseItem
                         {
                             ProductId = "prod_biscuit",
-                            ProductName = "بسكويت أولكر فانيليا",
+                            ProductName = "Ulker Vanilla Biscuit",
                             Barcode = "6225544332211",
-                            QuantityMilli = 20000,      // 20 باكو
-                            BonusQuantityMilli = 2000,   // 2 باكو بونص مجاني من المورد
+                            QuantityMilli = 20000,
+                            BonusQuantityMilli = 2000,
                             UnitCostPiasters = 500,
                             NewSellingPricePiasters = 700
                         }
@@ -664,36 +658,35 @@ namespace RafiqPOS.Services
                 var items = BarcodeLabelService.CreateItemsFromPurchase(pur);
                 if (items == null || items.Count != 1)
                 {
-                    Console.WriteLine("فشل في استخراج بنود الشراء!");
+                    Console.WriteLine("FAILED - Failed to extract purchase items!");
                     return false;
                 }
 
-                // 20 باكو مشتراة + 2 باكو بونص = 22 ملصق
                 if (items[0].Copies != 22)
                 {
-                    Console.WriteLine(string.Format("فشل - عدد النسخ ({0}) لا يساوي 22 (20 أساسي + 2 بونص)!", items[0].Copies));
+                    Console.WriteLine(string.Format("FAILED - Copies count ({0}) does not equal 22 (20 base + 2 bonus)!", items[0].Copies));
                     return false;
                 }
 
                 if (items[0].PricePiasters != 700)
                 {
-                    Console.WriteLine("فشل - لم يتم تطبيق سعر البيع الجديد المحدد بالفاتورة!");
+                    Console.WriteLine("FAILED - New selling price from invoice not applied!");
                     return false;
                 }
 
-                Console.WriteLine("نجح (20 مشتراة + 2 بونص = 22 ملصق بسعر البيع 7.00 ج.م)");
+                Console.WriteLine("PASSED (20 purchased + 2 bonus = 22 labels with 7.00 price)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }
 
         private static bool TestA4SheetLabelLayout()
         {
-            Console.Write("[15/15] فحص تقسيمات ورق الملصقات على مقاس A4 (24 و 40 ملصق): ");
+            Console.Write("[15/15] Testing A4 sheet label layout (24 & 40 labels): ");
             try
             {
                 var cfg24 = new BarcodeLabelConfig { PaperSize = "a4_24" };
@@ -706,12 +699,12 @@ namespace RafiqPOS.Services
                 int total40 = cols40 * rows40;
                 if (total40 != 40) return false;
 
-                Console.WriteLine("نجح (a4_24: 24 ملصق 3x8 | a4_40: 40 ملصق 4x10)");
+                Console.WriteLine("PASSED (a4_24: 24 labels 3x8 | a4_40: 40 labels 4x10)");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("استثناء: " + ex.Message);
+                Console.WriteLine("Exception: " + ex.Message);
                 return false;
             }
         }

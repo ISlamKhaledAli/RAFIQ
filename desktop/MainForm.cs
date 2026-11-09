@@ -1280,13 +1280,16 @@ namespace RafiqPOS
 
                 string userDataFolder = Path.Combine(baseDataFolder, "webview_profile");
 
-                // تحسينات سرعة التشغيل الصارمة لويندوز 7 والعمل بدون إنترنت وحماية استقرار معالج الرسوميات (DWM & GPU) عند تشغيل برامج أخرى بجانب التطبيق
+                // تحسينات سرعة التشغيل الصارمة لويندوز 7 والعمل بدون إنترنت وحماية استقرار معالج الرسوميات (DWM & GPU) ومنع التقطيع واللاج عند فتح القوائم والنوافذ
                 string browserArgs = "--no-proxy-server " +
                                      "--disable-background-networking " +
                                      "--disable-component-update " +
                                      "--disable-domain-reliability " +
                                      "--disable-sync " +
-                                     "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider " +
+                                     "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider,CalculateNativeWinOcclusion,InterestFeedContentSuggestions " +
+                                     "--disable-background-timer-throttling " +
+                                     "--disable-backgrounding-occluded-windows " +
+                                     "--disable-renderer-backgrounding " +
                                      "--disable-gpu-watchdog " +
                                      "--no-first-run " +
                                      "--autoplay-policy=no-user-gesture-required";

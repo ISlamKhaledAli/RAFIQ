@@ -15,6 +15,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { RequiredMark } from './RequiredMark';
+import { normalizeTokenOrKey } from '../utils/tokenNormalizer';
 
 export interface PinCodeModalProps {
   isOpen: boolean;
@@ -187,7 +188,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
     e.preventDefault();
     if (loading) return;
 
-    const cleanCode = recoveryCode.trim().toUpperCase();
+    const cleanCode = normalizeTokenOrKey(recoveryCode);
     if (!cleanCode) {
       setError('الرجاء إدخال رمز استرجاع الطوارئ.');
       return;
@@ -326,8 +327,8 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                 <input
                   type="text"
                   value={recoveryCode}
-                  onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
-                  placeholder="RFK-...."
+                  onChange={(e) => setRecoveryCode(normalizeTokenOrKey(e.target.value))}
+                  placeholder="RFK-.... أو RFQ-REC-...."
                   className="w-full px-3 py-2 text-center font-mono font-bold tracking-widest text-sm rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
                   required
                 />

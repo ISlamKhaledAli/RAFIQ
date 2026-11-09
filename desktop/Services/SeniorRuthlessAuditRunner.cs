@@ -225,6 +225,49 @@ namespace RafiqPOS.Services
             AssertCondition(preview.ExpectedCashPiasters == -83000,
                 "حساب النقدية المتوقعة في الدرج يعكس العجز الحقيقي بدقة القروش (-830.00 ج.م)",
                 "النقدية المتوقعة غير صالحة: " + preview.ExpectedCashPiasters, report);
+
+            // Fund account with 500 EGP from external_cash (owner money) - MUST NOT affect drawer cash or drawer funding
+            digRepo.FundAccount(acc.Id, 50000, "external_cash", "تغذية من كاش صاحب المحل", "مالك المحل");
+            var reloadedAfterExternal = digRepo.GetAccountById(acc.Id);
+            AssertCondition(reloadedAfterExternal.BalancePiasters == 185000,
+                "زيادة رصيد المحفظة إلى 1,850.00 ج.م بعد التغذية من كاش خارجي",
+                "رصيد المحفظة بعد التغذية الخارجية غير مطابق: " + reloadedAfterExternal.BalancePiasters, report);
+
+            var previewAfterExternal = closingService.GetClosingPreview(bDate);
+            AssertCondition(previewAfterExternal.WalletsDrawerFundingPiasters == 100000,
+                "ثبات تغذية الدرج عند 1,000.00 ج.م وعدم الخصم من الدرج عند التغذية الخارجية",
+                "تم خصم تغذية كاش خارجي من درج الكاشير بالخطأ: " + previewAfterExternal.WalletsDrawerFundingPiasters, report);
+            AssertCondition(previewAfterExternal.ExpectedCashPiasters == -83000,
+                "ثبات النقدية المتوقعة في الدرج دون تأثر بالتغذية الخارجية (-830.00 ج.م)",
+                "تأثرت نقدية الدرج بالتغذية الخارجية: " + previewAfterExternal.ExpectedCashPiasters, report);
+
+            // Fund account with 200 EGP from bank_transfer via IPC dispatcher (payload sends 'source')
+            var fundReq = new Bridge.BridgeRequest
+            {
+                Id = "req_fund_bank",
+                Action = "wallets:fundAccount",
+                Payload = Newtonsoft.Json.Linq.JObject.FromObject(new
+                {
+                    accountId = acc.Id,
+                    amountPiasters = 20000,
+                    source = "bank_transfer",
+                    notes = "تحويل بنكي"
+                })
+            };
+            var fundResp = Bridge.IpcDispatcher.Dispatch(fundReq);
+            AssertCondition(fundResp.Success,
+                "نجاح تغذية المحفظة بتحويل بنكي عبر جسر IPC باستخدام مفتاح source",
+                "فشل جسر IPC في تنفيذ تغذية المحفظة: " + fundResp.Error, report);
+
+            var reloadedAfterBank = digRepo.GetAccountById(acc.Id);
+            AssertCondition(reloadedAfterBank.BalancePiasters == 205000,
+                "زيادة رصيد المحفظة إلى 2,050.00 ج.م بعد التحويل البنكي",
+                "رصيد المحفظة غير مطابق: " + reloadedAfterBank.BalancePiasters, report);
+
+            var previewAfterBank = closingService.GetClosingPreview(bDate);
+            AssertCondition(previewAfterBank.WalletsDrawerFundingPiasters == 100000,
+                "ثبات نقدية الدرج عند 1,000.00 ج.م وعدم الخصم من الدرج عند التغذية البنكية",
+                "تم خصم التحويل البنكي من الدرج: " + previewAfterBank.WalletsDrawerFundingPiasters, report);
         }
 
         // Test 2: Digital Wallet Sale Cancellation Symmetry

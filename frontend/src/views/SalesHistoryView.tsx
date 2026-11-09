@@ -654,11 +654,40 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   </span>
 
                   {/* Total Piasters */}
-                  <span className={`col-span-2 text-left pl-2 font-mono font-bold text-xs tabular-nums ${
-                    isCancelled ? 'text-ink-muted dark:text-ink-dark-muted line-through' : 'text-paid dark:text-paid-bright'
-                  }`}>
-                    {formatArabicCurrency(sale.totalPiasters, false)}
-                  </span>
+                  {(() => {
+                    const refunded = sale.refundedPiasters || 0;
+                    const hasRefund = isRefunded || refunded > 0;
+                    const netTotal = isRefunded && sale.status === 'refunded' && refunded === 0
+                      ? 0
+                      : Math.max(0, sale.totalPiasters - refunded);
+
+                    if (isCancelled) {
+                      return (
+                        <span className="col-span-2 text-left pl-2 font-mono font-bold text-xs tabular-nums text-ink-muted dark:text-ink-dark-muted line-through">
+                          {formatArabicCurrency(sale.totalPiasters, false)}
+                        </span>
+                      );
+                    }
+
+                    if (hasRefund && (refunded > 0 || sale.status === 'refunded')) {
+                      return (
+                        <div className="col-span-2 text-left pl-2 font-mono tabular-nums leading-tight">
+                          <span className="block line-through text-ink-muted/60 dark:text-ink-dark-muted/60 text-micro">
+                            {formatArabicCurrency(sale.totalPiasters, false)}
+                          </span>
+                          <span className={`block font-bold text-xs ${netTotal > 0 ? 'text-paid dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`}>
+                            {formatArabicCurrency(netTotal, false)}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <span className="col-span-2 text-left pl-2 font-mono font-bold text-xs tabular-nums text-paid dark:text-paid-bright">
+                        {formatArabicCurrency(sale.totalPiasters, false)}
+                      </span>
+                    );
+                  })()}
 
                   {/* Action View */}
                   <div className="col-span-1 flex justify-center">
@@ -693,8 +722,8 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
       {/* 4. Full Invoice Details Modal */}
       {selectedSale && (
-        <div onClick={handleSaleDetailsBackdropClick} className="fixed inset-0 bg-ink/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col select-none max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+        <div onClick={handleSaleDetailsBackdropClick} className="fixed inset-0 bg-ink/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-3xl bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-xl overflow-hidden flex flex-col select-none max-h-[90vh] transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
@@ -904,7 +933,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                               title="طباعة إيصال هذا المرتجع"
                             >
                               <Printer className="w-3 h-3" />
-                              <span>طباعة وصل</span>
+                              <span>إيصال المرتجع</span>
                             </button>
                             )}
                           </div>
@@ -1037,10 +1066,10 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   onClick={() => void handleReprint()}
                   disabled={isReprinting || loadingDetails}
                   className="h-[36px] px-4 bg-brand hover:bg-brand-hover text-white rounded text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
-                  title="طباعة إيصال يحمل علامة نسخة طبق الأصل وتوثيقه في السجل"
+                  title="طباعة نسخة طبق الأصل من فاتورة البيع وتوثيقها في السجل"
                 >
                   <Printer className={`w-4 h-4 ${isReprinting ? 'animate-spin' : ''}`} />
-                  <span>{isReprinting ? 'جاري الطباعة...' : 'طباعة وصل تاني'}</span>
+                  <span>{isReprinting ? 'جاري الطباعة...' : 'طباعة نسخة الفاتورة'}</span>
                 </button>
                 )}
               </div>

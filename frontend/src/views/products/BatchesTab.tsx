@@ -23,6 +23,7 @@ import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { rafiqAlert } from '../../utils/dialogService';
+import { formatUnitArabic } from '../../utils/units';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { RequiredMark } from '../../components/RequiredMark';
@@ -624,7 +625,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
 
                   {/* Current Quantity */}
                   <div className="col-span-1 text-center font-mono font-bold text-ink dark:text-ink-dark">
-                    {qtyFormatted} {b.unit || 'قطعة'}
+                    {qtyFormatted} {formatUnitArabic(b.unit)}
                   </div>
 
                   {/* Unit Cost */}
@@ -733,7 +734,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                 </div>
                 <div className="text-ink-muted dark:text-ink-dark-muted">
                   الرصيد المسجل حالياً: {(adjustingBatch.quantityMilli / 1000).toFixed(3)}{' '}
-                  {adjustingBatch.unit || 'قطعة'}
+                  {formatUnitArabic(adjustingBatch.unit)}
                 </div>
               </div>
 
@@ -791,7 +792,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
         <ConfirmModal
           isOpen={!!disposingBatch}
           title="تأكيد إتلاف الدفعة المنتهية الصلاحية"
-          message={`هل أنت متأكد من إتلاف الدفعة (${disposingBatch.batchNumber}) للصنف "${disposingBatch.productName}"؟ سيتم تصفير رصيدها (${(disposingBatch.quantityMilli / 1000).toFixed(0)} ${disposingBatch.unit || 'قطعة'}) وتسجيل قيد هالك في سجل المخزون.`}
+          message={`هل أنت متأكد من إتلاف الدفعة (${disposingBatch.batchNumber}) للصنف "${disposingBatch.productName}"؟ سيتم تصفير رصيدها (${(disposingBatch.quantityMilli / 1000).toFixed(0)} ${formatUnitArabic(disposingBatch.unit)}) وتسجيل قيد هالك في سجل المخزون.`}
           confirmText={disposeLoading ? 'جاري الإتلاف...' : 'تأكيد الإتلاف وتصفير الرصيد'}
           cancelText="تراجع"
           isDanger={true}

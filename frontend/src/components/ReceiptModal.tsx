@@ -154,10 +154,10 @@ export function ReceiptModal({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-2xl border border-line dark:border-line-dark flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-xl border border-line dark:border-line-dark flex flex-col max-h-[92vh] overflow-hidden transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150">
         
         {/* Modal Header */}
         <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-b px-4 flex items-center justify-between gap-4">

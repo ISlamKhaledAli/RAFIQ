@@ -406,11 +406,11 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-fade-in font-sans"
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 animate-in fade-in duration-150 font-sans"
       onClick={handleBackdropClick}
     >
       <div
-        className="bg-white dark:bg-surface-dark w-full max-w-4xl rounded-2xl shadow-2xl border border-line dark:border-line-dark flex flex-col max-h-[92vh] overflow-hidden"
+        className="bg-white dark:bg-surface-dark w-full max-w-4xl rounded-2xl shadow-xl border border-line dark:border-line-dark flex flex-col max-h-[92vh] overflow-hidden transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >

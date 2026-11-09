@@ -22,6 +22,7 @@ desktop/wwwroot/
 frontend/.cache/
 license-server/node_modules/
 license-server/.wrangler/
+.wrangler/
 license-server/dist/
 *.log
 *.tsbuildinfo

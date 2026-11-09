@@ -23,6 +23,7 @@ import {
   Coins,
   Smartphone,
   Wallet,
+  Clock,
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
@@ -301,9 +302,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     item.selectedUnitName = targetUnit.unitName;
     item.selectedUnitFactor = targetFactor;
     item.purchaseUnitMode = isTargetPackage ? 'package' : 'base';
-    item.packageUnitName = targetUnit.unitName;
-    item.packSize = targetFactor;
-    item.packSizeInput = isTargetPackage ? String(targetFactor) : '';
+    item.packageUnitName = isTargetPackage ? targetUnit.unitName : item.packageUnitName;
+    item.packSize = isTargetPackage ? targetFactor : (item.packSize || 1);
+    item.packSizeInput = isTargetPackage ? String(targetFactor) : item.packSizeInput;
 
     if (isTargetPackage) {
       const currentUnits = item.quantityUnits || 0;
@@ -322,39 +323,69 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       item.looseInput = String(currentUnits);
     }
 
-    // Set cost for target unit
-    let targetCost = targetUnit.costPricePiasters;
-    if (!targetCost || targetCost <= 0) {
-      if (item.unitCostPiasters > 0) {
-        targetCost = isTargetPackage ? Math.round(item.unitCostPiasters * targetFactor) : item.unitCostPiasters;
+    // Proportional multi-tier packaging factor (e.g. 20 for pack)
+    const pkgUnit = item.productUnits?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
+    const packagingFactor = pkgUnit?.conversionFactor || item.packSize || 1;
+
+    // Set cost for target unit without corrupting package cost
+    if (isTargetPackage) {
+      let pkgCost = targetUnit.costPricePiasters;
+      if (!pkgCost || pkgCost <= 0) {
+        if (item.packageCostPiasters && item.packageCostPiasters > 0) {
+          pkgCost = item.packageCostPiasters;
+        } else if (item.unitCostPiasters > 0) {
+          pkgCost = Math.round(item.unitCostPiasters * targetFactor);
+        }
       }
-    }
-    if (targetCost > 0) {
-      if (isTargetPackage) {
-        item.packageCostPiasters = targetCost;
-        item.unitCostPiasters = Math.round(targetCost / targetFactor);
-      } else {
-        item.unitCostPiasters = targetCost;
-        item.packageCostPiasters = targetCost;
+      if (pkgCost > 0) {
+        item.packageCostPiasters = pkgCost;
+        item.unitCostPiasters = Math.round(pkgCost / targetFactor);
+      }
+    } else {
+      let baseCost = targetUnit.costPricePiasters;
+      if (!baseCost || baseCost <= 0) {
+        if (item.unitCostPiasters > 0) {
+          baseCost = item.unitCostPiasters;
+        } else if (item.packageCostPiasters && item.packageCostPiasters > 0 && packagingFactor > 1) {
+          baseCost = Math.round(item.packageCostPiasters / packagingFactor);
+        }
+      }
+      if (baseCost > 0) {
+        item.unitCostPiasters = baseCost;
+        item.packageCostPiasters = packagingFactor > 1 ? Math.round(baseCost * packagingFactor) : baseCost;
       }
     }
 
-    // Set selling price for target unit
-    let targetSellPrice = targetUnit.sellPricePiasters;
-    if (!targetSellPrice || targetSellPrice <= 0) {
-      if (item.newSellingPricePiasters > 0) {
-        targetSellPrice = isTargetPackage ? Math.round(item.newSellingPricePiasters * targetFactor) : item.newSellingPricePiasters;
-      } else if (item.currentPricePiasters > 0) {
-        targetSellPrice = isTargetPackage ? Math.round(item.currentPricePiasters * targetFactor) : item.currentPricePiasters;
+    // Set selling price for target unit without overwriting package price to equal single unit
+    if (isTargetPackage) {
+      let pkgSellPrice = targetUnit.sellPricePiasters;
+      if (!pkgSellPrice || pkgSellPrice <= 0) {
+        if (item.publicPricePiasters && item.publicPricePiasters > 0) {
+          pkgSellPrice = item.publicPricePiasters;
+        } else if (item.newSellingPricePiasters > 0) {
+          pkgSellPrice = Math.round(item.newSellingPricePiasters * targetFactor);
+        } else if (item.currentPricePiasters > 0) {
+          pkgSellPrice = Math.round(item.currentPricePiasters * targetFactor);
+        }
       }
-    }
-    if (targetSellPrice > 0) {
-      if (isTargetPackage) {
-        item.publicPricePiasters = targetSellPrice;
-        item.newSellingPricePiasters = Math.round(targetSellPrice / targetFactor);
-      } else {
-        item.newSellingPricePiasters = targetSellPrice;
-        item.publicPricePiasters = targetSellPrice;
+      if (pkgSellPrice > 0) {
+        item.publicPricePiasters = pkgSellPrice;
+        item.newSellingPricePiasters = Math.round(pkgSellPrice / targetFactor);
+      }
+    } else {
+      let baseSellPrice = targetUnit.sellPricePiasters;
+      if (!baseSellPrice || baseSellPrice <= 0) {
+        if (item.newSellingPricePiasters > 0) {
+          baseSellPrice = item.newSellingPricePiasters;
+        } else if (item.publicPricePiasters && item.publicPricePiasters > 0 && packagingFactor > 1) {
+          baseSellPrice = Math.round(item.publicPricePiasters / packagingFactor);
+        } else if (item.currentPricePiasters > 0) {
+          baseSellPrice = item.currentPricePiasters;
+        }
+      }
+      if (baseSellPrice > 0) {
+        item.newSellingPricePiasters = baseSellPrice;
+        item.publicPricePiasters = packagingFactor > 1 ? Math.round(baseSellPrice * packagingFactor) : baseSellPrice;
       }
     }
 
@@ -713,6 +744,40 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     }
   };
 
+  const paidInputRef = useRef<HTMLDivElement>(null);
+  const [showCreditConfirmModal, setShowCreditConfirmModal] = useState(false);
+  const [highlightPaidField, setHighlightPaidField] = useState(false);
+
+  const handleConfirmCreditSave = () => {
+    setShowCreditConfirmModal(false);
+    onSavePurchase();
+  };
+
+  const handleCancelCreditToPay = () => {
+    setShowCreditConfirmModal(false);
+    setHighlightPaidField(true);
+    setTimeout(() => {
+      paidInputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const input = paidInputRef.current?.querySelector('input');
+      input?.focus();
+      input?.select();
+    }, 100);
+    setTimeout(() => {
+      setHighlightPaidField(false);
+    }, 2500);
+  };
+
+  useEffect(() => {
+    if (!showCreditConfirmModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCancelCreditToPay();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showCreditConfirmModal]);
+
   // Takes the user to the first thing the save validation will complain about (toast text stays in the parent).
   const handleSaveClick = () => {
     setShowErrors(true);
@@ -732,11 +797,18 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       row?.querySelector<HTMLInputElement>('input[data-field="qty"]')?.focus({ preventScroll: true });
       return;
     }
+
+    // Remind cashier if invoice is completely on credit (0.00 EGP paid) so they don't forget to record payment
+    if (paidAmountPiasters === 0 && netCostPiasters > 0) {
+      paidInputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      setShowCreditConfirmModal(true);
+      return;
+    }
+
     onSavePurchase();
   };
 
   const paymentState = getSupplierPaymentState(netCostPiasters, paidAmountPiasters);
-  const paidInputRef = useRef<HTMLDivElement>(null);
 
   const cashDrawerBlocked = isCashDrawerBlocked(paymentSource, paidAmountPiasters, liveDrawerCashPiasters);
 
@@ -974,7 +1046,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       )}
                     </div>
                     <span className="text-micro text-ink-muted dark:text-ink-dark-muted font-mono block mt-0.5">
-                      باركود: {p.barcode || 'بدون'} | الرصيد الحالي: {(p.stockQuantityMilli / 1000).toFixed(0)} {p.unit}
+                      باركود: {p.barcode || 'بدون'} | الرصيد الحالي: {(p.stockQuantityMilli / 1000).toFixed(0)} {formatUnitArabic(p.unit)}
                     </span>
                   </div>
                   <div className="text-left">
@@ -1004,7 +1076,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           </div>
 
           {lineItems.length > 0 && (
-            <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_176px_128px_112px_120px] gap-x-3 h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+            <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_210px_145px_110px_110px] gap-x-3 h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
               <div className="text-right">الصنف</div>
               <div className="text-center">الكمية <RequiredMark /></div>
               <div className="text-center">سعر الشراء</div>
@@ -1078,7 +1150,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                     className="px-4 py-3 flex flex-col gap-3 scroll-mt-16 hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40 transition-colors"
                   >
                     {/* Essentials: name, quantity, unit cost, total, actions */}
-                    <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1fr)_176px_128px_112px_120px] items-start gap-x-3 gap-y-3 text-xs">
+                    <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1fr)_210px_145px_110px_110px] items-start gap-x-3 gap-y-3 text-xs">
                       {/* 1. Product */}
                       <div className="col-span-2 lg:col-span-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1138,21 +1210,35 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       <div className="flex flex-col items-center justify-start gap-1.5">
                         <span className="lg:hidden self-start text-xs font-bold text-ink-muted dark:text-ink-dark-muted">الكمية</span>
                         {meta.hasPackaging && (
-                          <div className="inline-flex items-center p-0.5 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark text-micro font-bold flex-wrap gap-0.5">
+                          <div
+                            className={`w-full max-w-[210px] p-0.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark shadow-2xs ${
+                              meta.availableUnits.length === 3
+                                ? 'grid grid-cols-3 gap-0.5'
+                                : meta.availableUnits.length === 4
+                                ? 'grid grid-cols-2 gap-1'
+                                : meta.availableUnits.length > 4
+                                ? 'grid grid-cols-2 gap-1'
+                                : 'grid grid-cols-2 gap-0.5'
+                            }`}
+                          >
                             {meta.availableUnits.length > 0 ? (
                               meta.availableUnits.map((u) => {
                                 const isSelected = meta.activeUnit
                                   ? (meta.activeUnit.id && u.id ? meta.activeUnit.id === u.id : meta.activeUnit.unitName === u.unitName)
                                   : (u.conversionFactor === meta.packSize);
+                                const unitLabel =
+                                  meta.availableUnits.length === 3
+                                    ? formatUnitArabic(u.unitName)
+                                    : formatUnitWithBi(u.unitName);
                                 return (
                                   <button
                                     key={u.id || u.unitName || String(u.conversionFactor)}
                                     type="button"
                                     onClick={() => handleSelectUnit(idx, u)}
-                                    className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                    className={`h-7 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer text-micro font-bold select-none ${
                                       isSelected
-                                        ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
-                                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                                        ? 'bg-brand dark:bg-brand text-white shadow-xs font-black ring-1 ring-brand-dark/20'
+                                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark'
                                     }`}
                                     title={`الشراء ${formatUnitWithBi(u.unitName)} (${u.conversionFactor > 1 ? `${u.conversionFactor} ${meta.baseUnitName}` : 'وحدة أساسية'})`}
                                   >
@@ -1163,7 +1249,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                     ) : (
                                       <Tag className="w-3 h-3 shrink-0" />
                                     )}
-                                    <span>{formatUnitWithBi(u.unitName)}</span>
+                                    <span className="truncate">{unitLabel}</span>
                                   </button>
                                 );
                               })
@@ -1172,39 +1258,39 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleTogglePurchaseUnitMode(idx, 'package')}
-                                  className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                  className={`h-7 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer text-micro font-bold select-none ${
                                     meta.unitMode === 'package'
-                                      ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
-                                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                                      ? 'bg-brand dark:bg-brand text-white shadow-xs font-black ring-1 ring-brand-dark/20'
+                                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark'
                                   }`}
                                   title={`الشراء ${formatUnitWithBi(meta.packageUnitName)}`}
                                 >
                                   <Package className="w-3 h-3 shrink-0" />
-                                  <span>{formatUnitWithBi(meta.packageUnitName)}</span>
+                                  <span className="truncate">{formatUnitWithBi(meta.packageUnitName)}</span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleTogglePurchaseUnitMode(idx, 'base')}
-                                  className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${
+                                  className={`h-7 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer text-micro font-bold select-none ${
                                     meta.unitMode === 'base'
-                                      ? 'bg-brand dark:bg-brand text-white shadow-2xs font-extrabold'
-                                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                                      ? 'bg-brand dark:bg-brand text-white shadow-xs font-black ring-1 ring-brand-dark/20'
+                                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark'
                                   }`}
                                   title={`الشراء ${formatUnitWithBi(meta.baseUnitName)}`}
                                 >
                                   {isEnabled('feature_pharmacy') ? <Pill className="w-3 h-3 shrink-0" /> : <Tag className="w-3 h-3 shrink-0" />}
-                                  <span>{formatUnitWithBi(meta.baseUnitName)}</span>
+                                  <span className="truncate">{formatUnitWithBi(meta.baseUnitName)}</span>
                                 </button>
                               </>
                             )}
                           </div>
                         )}
 
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center justify-center gap-1 w-full max-w-[210px]">
                           <button
                             type="button"
                             onClick={() => handleQuantityStep(idx, -1)}
-                            className="w-9 h-10 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-base font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
+                            className="w-8 h-8 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-sm font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer border border-line/60 dark:border-line-dark/60"
                             title="إنقاص الكمية"
                           >
                             -
@@ -1230,7 +1316,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               }
                             }}
                             placeholder="0"
-                            className={`w-16 h-10 text-center font-mono font-bold tabular-nums bg-brand-soft dark:bg-brand-dark-soft border rounded-lg text-sm text-brand dark:text-brand-bright focus:outline-none ${
+                            className={`w-16 h-8 text-center font-mono font-bold tabular-nums bg-brand-soft/60 dark:bg-brand-dark-soft/60 border rounded-lg text-sm text-brand-dark dark:text-brand-bright focus:outline-none ${
                               qtyInvalid
                                 ? 'border-danger dark:border-danger-bright ring-2 ring-danger/30 dark:ring-danger-bright/40'
                                 : 'border-brand/30 dark:border-brand-bright/30 focus:border-brand dark:focus:border-brand-bright'
@@ -1240,7 +1326,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           <button
                             type="button"
                             onClick={() => handleQuantityStep(idx, 1)}
-                            className="w-9 h-10 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-base font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
+                            className="w-8 h-8 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-sm font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer border border-line/60 dark:border-line-dark/60"
                             title="زيادة الكمية"
                           >
                             +
@@ -1248,7 +1334,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         </div>
 
                         {meta.packSize > 1 && (
-                          <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
+                          <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted text-center block">
                             {isPackageMode ? (
                               <span className="text-brand dark:text-brand-bright font-bold">
                                 = {item.quantityUnits} {meta.baseUnitName}
@@ -1268,13 +1354,14 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             valuePiasters={isPackageMode ? currentPackageCost : item.unitCostPiasters}
                             onChangePiasters={(p) => {
                               const updated = [...lineItems];
+                              const pkgFactor = meta.availableUnits.find((u) => !u.isBaseUnit && u.conversionFactor > 1)?.conversionFactor || meta.packSize;
                               if (isPackageMode) {
                                 updated[idx].packageCostPiasters = p;
                                 updated[idx].unitCostPiasters = Math.round(p / meta.packSize);
                               } else {
                                 updated[idx].unitCostPiasters = p;
-                                if (meta.packSize > 1) {
-                                  updated[idx].packageCostPiasters = Math.round(p * meta.packSize);
+                                if (pkgFactor > 1) {
+                                  updated[idx].packageCostPiasters = Math.round(p * pkgFactor);
                                 }
                               }
                               setLineItems(updated);
@@ -1283,30 +1370,32 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           />
                         </div>
 
-                        {meta.packSize > 1 && (
-                          <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
+                        {meta.hasPackaging && (
+                          <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
                             {isPackageMode
                               ? `(${meta.baseUnitName}: ${formatArabicCurrency(item.unitCostPiasters, true)})`
-                              : `(${meta.packageUnitName}: ${formatArabicCurrency(currentPackageCost, true)})`}
+                              : `(${meta.packageUnitName}: ${formatArabicCurrency(item.packageCostPiasters || (item.unitCostPiasters * (meta.availableUnits.find((u) => !u.isBaseUnit && u.conversionFactor > 1)?.conversionFactor || meta.packSize)), true)})`}
                           </span>
                         )}
 
                         {hasPrevCost && costDiffPiasters > 0 && (
                           <div
-                            className="flex items-center gap-1 text-micro text-danger dark:text-danger-bright font-extrabold bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30"
-                            title={`ارتفاع في سعر الشراء عن آخر تكلفة (${formatMoney(item.currentCostPiasters)})`}
+                            className="inline-flex items-center justify-center gap-1 text-micro font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright px-2 py-0.5 rounded-lg border border-danger/25 dark:border-danger-bright/30 whitespace-nowrap shadow-2xs"
+                            title={`ارتفاع في سعر الشراء عن آخر تكلفة مسجلة (${formatMoney(item.currentCostPiasters)})`}
                           >
-                            <TrendingUp className="w-3 h-3 shrink-0" />
-                            <span>+{formatArabicCurrency(costDiffPiasters, true)} ({costDiffPercent}%)</span>
+                            <TrendingUp className="w-3.5 h-3.5 shrink-0 text-danger dark:text-danger-bright" />
+                            <span className="font-mono tabular-nums font-extrabold">+{formatArabicCurrency(costDiffPiasters, true)}</span>
+                            <span className="font-mono tabular-nums font-bold text-micro opacity-90" dir="ltr">(+{costDiffPercent}%)</span>
                           </div>
                         )}
                         {hasPrevCost && costDiffPiasters < 0 && (
                           <div
-                            className="flex items-center gap-1 text-micro text-paid dark:text-paid-bright font-extrabold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-paid-dark-border"
-                            title={`انخفاض في سعر الشراء عن آخر تكلفة (${formatMoney(item.currentCostPiasters)})`}
+                            className="inline-flex items-center justify-center gap-1 text-micro font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright px-2 py-0.5 rounded-lg border border-paid/25 dark:border-paid-dark-border whitespace-nowrap shadow-2xs"
+                            title={`انخفاض في سعر الشراء عن آخر تكلفة مسجلة (${formatMoney(item.currentCostPiasters)})`}
                           >
-                            <TrendingDown className="w-3 h-3 shrink-0" />
-                            <span>وفر -{formatArabicCurrency(Math.abs(costDiffPiasters), true)} ({costDiffPercent}%)</span>
+                            <TrendingDown className="w-3.5 h-3.5 shrink-0 text-paid dark:text-paid-bright" />
+                            <span className="font-mono tabular-nums font-extrabold">وفر {formatArabicCurrency(Math.abs(costDiffPiasters), true)}</span>
+                            <span className="font-mono tabular-nums font-bold text-micro opacity-90" dir="ltr">({costDiffPercent}%)</span>
                           </div>
                         )}
                       </div>
@@ -1362,31 +1451,39 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         <div className="flex flex-wrap items-start gap-3">
                           <div className="flex flex-col gap-1 w-40">
                             <span className={DETAIL_LABEL_CLS}>
-                              سعر البيع{isPackageMode ? ` (لل${meta.packageUnitName})` : ''}
+                              سعر البيع{isPackageMode ? ` (لل${meta.packageUnitName})` : ` (لل${meta.baseUnitName})`}
                             </span>
                             <MoneyInput
                               valuePiasters={
                                 isPackageMode
-                                  ? (item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters * meta.packSize : item.currentPricePiasters * meta.packSize)
-                                  : item.newSellingPricePiasters
+                                  ? (item.publicPricePiasters && item.publicPricePiasters > 0
+                                      ? item.publicPricePiasters
+                                      : (item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters * meta.packSize : item.currentPricePiasters * meta.packSize))
+                                  : (item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters : item.currentPricePiasters)
                               }
                               onChangePiasters={(p) => {
                                 const updated = [...lineItems];
+                                const pkgFactor = meta.availableUnits.find((u) => !u.isBaseUnit && u.conversionFactor > 1)?.conversionFactor || meta.packSize;
                                 if (isPackageMode) {
                                   updated[idx].newSellingPricePiasters = Math.round(p / meta.packSize);
                                   updated[idx].publicPricePiasters = p;
                                 } else {
                                   updated[idx].newSellingPricePiasters = p;
+                                  if (pkgFactor > 1) {
+                                    updated[idx].publicPricePiasters = Math.round(p * pkgFactor);
+                                  } else {
+                                    updated[idx].publicPricePiasters = p;
+                                  }
                                 }
                                 setLineItems(updated);
                               }}
                               className={DETAIL_MONEY_CLS}
                             />
-                            {meta.packSize > 1 && (
+                            {meta.hasPackaging && (
                               <span className="text-micro font-mono text-ink-muted dark:text-ink-dark-muted">
                                 {isPackageMode
                                   ? `(بيع ال${meta.baseUnitName}: ${formatArabicCurrency(effectiveSellingPricePiasters, true)})`
-                                  : `(بيع ال${meta.packageUnitName}: ${formatArabicCurrency(effectiveSellingPricePiasters * meta.packSize, true)})`}
+                                  : `(بيع ال${meta.packageUnitName}: ${formatArabicCurrency(effectiveSellingPricePiasters * (meta.availableUnits.find((u) => !u.isBaseUnit && u.conversionFactor > 1)?.conversionFactor || meta.packSize), true)})`}
                               </span>
                             )}
                             {hasSellPrice && displayProfitPiasters < 0 ? (
@@ -1714,7 +1811,14 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               <h2 className="t-card-title text-ink dark:text-ink-dark">السداد للمورد</h2>
             </div>
 
-            <div ref={paidInputRef}>
+            <div
+              ref={paidInputRef}
+              className={`rounded-xl transition-all p-2 -m-2 ${
+                highlightPaidField
+                  ? 'ring-2 ring-paid bg-paid-soft/40 dark:bg-paid-dark-soft/40 shadow-sm'
+                  : ''
+              }`}
+            >
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">المدفوع الآن</span>
                 <div className="flex items-center gap-2">
@@ -1958,6 +2062,85 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Credit Invoice Friendly Confirmation Modal */}
+      {showCreditConfirmModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="credit-confirm-title"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-xl max-w-md w-full p-5 space-y-4 text-right animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 dark:border-warn-bright/40 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5 text-warn dark:text-warn-bright" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 id="credit-confirm-title" className="text-sm font-black text-ink dark:text-ink-dark m-0">
+                  تأكيد تسجيل الفاتورة على الحساب (آجل بالكامل)
+                </h3>
+                <p className="text-micro text-ink-muted dark:text-ink-dark-muted mt-0.5 m-0">
+                  تنبيه للتأكد قبل اعتماد الفاتورة وتزويد رصيد البضاعة
+                </p>
+              </div>
+            </div>
+
+            {/* Friendly body message */}
+            <div className="space-y-3 text-xs leading-relaxed text-ink dark:text-ink-dark">
+              <p className="m-0 font-medium">
+                يا غالي، الفاتورة دي هتتسجل <span className="font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft px-1.5 py-0.5 rounded">«آجل بالكامل على الحساب»</span> بدون دفع أي نقدية حالياً.
+              </p>
+
+              <div className="bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold">اسم المورد:</span>
+                  <span className="font-extrabold text-ink dark:text-ink-dark">
+                    {selectedSupplier ? selectedSupplier.name : 'مورد على الحساب'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold">المطلوب دفعه:</span>
+                  <span className="font-mono font-black text-sm text-paid-dark dark:text-paid-bright">
+                    {formatMoney(netCostPiasters)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-line/60 dark:border-line-dark/60 pt-1.5">
+                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold">المسدد الآن:</span>
+                  <span className="font-mono font-black text-danger dark:text-danger-bright">
+                    0.00 ج.م (آجل بالكامل)
+                  </span>
+                </div>
+              </div>
+
+              <p className="m-0 text-ink-muted dark:text-ink-dark-muted">
+                تحب نعتمدها كلها على حساب المورد، ولا دفعت للمندوب كاش أو إلكتروني وعاوز تسجل المبلغ المدفوع؟
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2.5 pt-2 border-t border-line dark:border-line-dark">
+              <button
+                type="button"
+                onClick={handleConfirmCreditSave}
+                className="flex-1 h-11 px-3 bg-warn hover:bg-warn-hover text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+              >
+                <Receipt className="w-4 h-4 shrink-0" />
+                <span>أيوه، احفظها آجل بالكامل</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelCreditToPay}
+                className="flex-1 h-11 px-3 bg-brand hover:bg-brand-hover text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+              >
+                <Banknote className="w-4 h-4 shrink-0" />
+                <span>لا، هسدد كاش أو جزء</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

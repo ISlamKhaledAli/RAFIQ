@@ -430,7 +430,7 @@ export const PaymentModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      className="fixed inset-0 z-50 bg-black/65 flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
     >
@@ -438,7 +438,7 @@ export const PaymentModal = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="payment-modal-title"
-        className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-4xl h-[min(46rem,100%)] flex flex-col overflow-hidden text-ink dark:text-ink-dark"
+        className="bg-surface dark:bg-surface-dark rounded-2xl shadow-xl border border-line dark:border-line-dark w-full max-w-4xl h-[min(46rem,100%)] flex flex-col overflow-hidden text-ink dark:text-ink-dark transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150"
       >
         {/* Header (fixed) */}
         <div className="h-16 px-5 bg-surface-2 dark:bg-surface-dark-2 hairline-b flex items-center justify-between gap-3 shrink-0">

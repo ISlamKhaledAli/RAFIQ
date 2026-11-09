@@ -571,11 +571,11 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 select-none animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 select-none animate-in fade-in duration-150"
       onClick={handleBackdropClick}
       dir="rtl"
     >
-      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] text-ink dark:text-ink-dark">
+      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-xl border border-line dark:border-line-dark w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] text-ink dark:text-ink-dark transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150">
 
         {/* Header */}
         <div className="h-16 px-5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">

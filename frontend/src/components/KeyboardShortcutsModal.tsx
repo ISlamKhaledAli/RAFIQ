@@ -135,9 +135,22 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
         icon: <ShoppingCart className="w-4 h-4 text-brand dark:text-brand-bright" />,
         shortcuts: [
           {
+            key: 'Backspace',
+            label: 'إنقاص كمية أو حذف الصنف المحدد',
+            desc: 'ينقص كمية الصنف المحدد أو آخر صنف بالسلة، وإذا أصبحت الكمية 1 يحذفه وينتقل للصنف السابق. يعمل وخانة البحث فارغة.',
+            category: 'pos',
+            badge: 'جديد',
+          },
+          {
+            key: '↑ / ↓',
+            label: 'التنقل وتحديد الأصناف بالسلة',
+            desc: 'عندما تكون خانة البحث فارغة، يمكنك التنقل بالأسهم لتحديد صنف بالسلة وإنقاصه أو حذفه بـ Backspace.',
+            category: 'pos',
+          },
+          {
             key: 'F3',
-            label: 'تعديل كمية أو وزن آخر صنف',
-            desc: 'يفتح نافذة الكمية لآخر صنف في السلة (للأصناف بالوزن تفتح نافذة الوزن).',
+            label: 'تعديل كمية أو وزن الصنف المحدد',
+            desc: 'يفتح نافذة الكمية للصنف المحدد أو آخر صنف في السلة (للأصناف بالوزن تفتح نافذة الوزن).',
             category: 'pos',
           },
           {

@@ -47,6 +47,9 @@ namespace RafiqPOS.Models
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 
+        [JsonProperty("balanceAfterMilli")]
+        public long? BalanceAfterMilli { get; set; }
+
         // Presentation helpers (Never used in internal calculations)
         [JsonProperty("movementTypeArabic")]
         public string MovementTypeArabic
@@ -65,7 +68,17 @@ namespace RafiqPOS.Models
                     case "ADJUSTMENT":
                         return "تسوية جردية";
                     case "RETURN":
+                    case "REFUND":
                         return "مرتجع مبيعات";
+                    case "DAMAGED_RETURN":
+                    case "DAMAGE":
+                        return "مرتجع تالف";
+                    case "RECIPE_SALE_CONSUMPTION":
+                        return "استهلاك تصنيع";
+                    case "RECIPE_SALE_REVERSAL":
+                        return "إلغاء استهلاك";
+                    case "SALE_CANCEL":
+                        return "إلغاء بيع";
                     default:
                         return MovementType;
                 }

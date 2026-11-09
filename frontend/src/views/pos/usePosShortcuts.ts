@@ -32,11 +32,15 @@ interface UsePosShortcutsProps {
   setPaymentMethod: React.Dispatch<React.SetStateAction<'cash' | 'credit'>>;
   setIsReturnModalOpen: (val: boolean) => void;
   showStatus: (text: string, type?: 'success' | 'error' | 'warning') => void;
-  cycleCartItemUnit?: () => void;
+  cycleCartItemUnit?: (targetIndex?: number) => void;
   onOpenAlternatives?: () => void;
   onOpenQuickShortage?: () => void;
   hasPermission?: (key: string) => boolean;
   isAdmin?: boolean;
+  selectedCartIndex?: number | null;
+  handleCartBackspace?: () => void;
+  onSelectNextCartItem?: () => void;
+  onSelectPrevCartItem?: () => void;
 }
 
 export const usePosShortcuts = ({
@@ -69,6 +73,10 @@ export const usePosShortcuts = ({
   onOpenQuickShortage,
   hasPermission,
   isAdmin,
+  selectedCartIndex = null,
+  handleCartBackspace,
+  onSelectNextCartItem,
+  onSelectPrevCartItem,
 }: UsePosShortcutsProps) => {
   useEffect(() => {
     if (!isActive) return;
@@ -77,13 +85,14 @@ export const usePosShortcuts = ({
     let lastKeyTime = 0;
     let scanStartTime = 0;
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastBackspaceTime = 0;
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // 1. Modals & Popups Protection (Requirement 2):
       // Check if any modal is currently visible or active in the application
       const activeEl = document.activeElement as HTMLElement | null;
       const isInputFocused = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
-      const isModalActive = Boolean(isAnyModalOpen) || Boolean(document.querySelector('.fixed.z-50, [role="dialog"], .modal-backdrop'));
+      const isModalActive = Boolean(isAnyModalOpen) || Boolean(document.querySelector('.fixed.inset-0.z-50, [role="dialog"], .modal-backdrop'));
 
       if (isModalActive) {
         // If an input is focused inside the modal (e.g. typing a search query, entering phone, or scanner test field),
@@ -113,21 +122,23 @@ export const usePosShortcuts = ({
         return;
       }
 
-      // F3: Modify Quantity of Last Cart Item
+      // F3: Modify Quantity of Selected / Target Cart Item
       if (e.key === 'F3') {
         e.preventDefault();
         if (cart.length > 0) {
-          const lastIdx = cart.length - 1;
-          const lastItem = cart[lastIdx];
-          if (lastItem.unit === 'kg') {
-            openWeightEditorForCartItem(lastIdx);
+          const targetIdx = (selectedCartIndex !== null && selectedCartIndex >= 0 && selectedCartIndex < cart.length)
+            ? selectedCartIndex
+            : 0;
+          const targetItem = cart[targetIdx];
+          if (targetItem.unit === 'kg') {
+            openWeightEditorForCartItem(targetIdx);
           } else {
             setQuantityModalItem({
-              index: lastIdx,
-              name: lastItem.productName,
-              currentQty: lastItem.quantityMilli / 1000
+              index: targetIdx,
+              name: targetItem.productName,
+              currentQty: targetItem.quantityMilli / 1000
             });
-            setQuantityInputVal(String(lastItem.quantityMilli / 1000));
+            setQuantityInputVal(String(targetItem.quantityMilli / 1000));
           }
         } else {
           showStatus('السلة فارغة. يرجى إضافة صنف أولاً لتعديل كميته', 'warning');
@@ -267,7 +278,50 @@ export const usePosShortcuts = ({
         if (!isInputFocused || (isSearchInput && (!barcodeInputRef.current?.value || barcodeInputRef.current.value.trim() === ''))) {
           e.preventDefault();
           if (cycleCartItemUnit) {
-            cycleCartItemUnit();
+            const targetIdx = (selectedCartIndex !== null && selectedCartIndex >= 0 && selectedCartIndex < cart.length)
+              ? selectedCartIndex
+              : 0;
+            cycleCartItemUnit(targetIdx);
+          }
+          return;
+        }
+      }
+
+      // Backspace: Decrease quantity or remove targeted/selected cart item (Feature #205)
+      if (e.key === 'Backspace') {
+        const isSearchInput = activeEl === barcodeInputRef.current;
+        if (isSearchInput) {
+          const val = barcodeInputRef.current?.value ?? '';
+          if (val.length > 0) {
+            // Typing in search input: let backspace delete character normally
+            return;
+          }
+        } else if (isInputFocused) {
+          // If another input/textarea is focused, allow normal text editing
+          return;
+        }
+
+        // Throttle key repeats (when holding down Backspace) to 250ms for controlled, smooth rapid deletion
+        const now = Date.now();
+        if (e.repeat && now - lastBackspaceTime < 250) {
+          e.preventDefault();
+          return;
+        }
+        lastBackspaceTime = now;
+
+        e.preventDefault();
+        handleCartBackspace?.();
+        return;
+      }
+
+      // Arrow navigation for cart items when no text input is focused
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !isInputFocused) {
+        if (cart.length > 0) {
+          e.preventDefault();
+          if (e.key === 'ArrowDown') {
+            onSelectNextCartItem?.();
+          } else {
+            onSelectPrevCartItem?.();
           }
           return;
         }
@@ -292,12 +346,15 @@ export const usePosShortcuts = ({
         const totalElapsed = scanStartTime > 0 ? now - scanStartTime : timeDelta;
         const avgDelta = scanBuffer.length > 1 ? totalElapsed / (scanBuffer.length - 1) : timeDelta;
 
-        // Strict discrimination: Scanner must have delivered characters rapidly (avgDelta <= threshold + 25ms)
-        // and met minimum barcode length
+        // Strict discrimination: Scanner must have delivered characters rapidly
+        const maxSuffixDelta = Math.max(scannerSettings.speedThresholdMs + 60, 200);
+        const isSpeedMatch = avgDelta <= (scannerSettings.speedThresholdMs + 35) && timeDelta <= maxSuffixDelta;
+        // When no input is focused, any rapid burst of characters followed by suffix is definitively a scanner
+        const isNotFocusedScanner = !isInputFocused && avgDelta <= Math.max(scannerSettings.speedThresholdMs + 45, 110);
+
         if (
           scanBuffer.length >= scannerSettings.minBarcodeLength &&
-          avgDelta <= (scannerSettings.speedThresholdMs + 25) &&
-          timeDelta < (scannerSettings.speedThresholdMs + 40)
+          (isSpeedMatch || isNotFocusedScanner)
         ) {
           const barcode = sanitizeScannedBarcode(scanBuffer, scannerSettings.prefix);
           scanBuffer = '';
@@ -305,9 +362,10 @@ export const usePosShortcuts = ({
           e.preventDefault();
           e.stopPropagation();
 
-          // If main search input was focused during scan, clear its raw text to prevent duplicate submission
+          // Refocus search input and clear its raw text to prevent duplicate submission
           if (barcodeInputRef.current) {
             barcodeInputRef.current.value = '';
+            barcodeInputRef.current.focus();
           }
           void handleFastBarcodeScan(barcode);
           return;
@@ -349,6 +407,7 @@ export const usePosShortcuts = ({
                 scanStartTime = 0;
                 if (barcodeInputRef.current) {
                   barcodeInputRef.current.value = '';
+                  barcodeInputRef.current.focus();
                 }
                 void handleFastBarcodeScan(barcode);
               }
@@ -393,5 +452,9 @@ export const usePosShortcuts = ({
     isAnyModalOpen,
     hasPermission,
     isAdmin,
+    selectedCartIndex,
+    handleCartBackspace,
+    onSelectNextCartItem,
+    onSelectPrevCartItem,
   ]);
 };

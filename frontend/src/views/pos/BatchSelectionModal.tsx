@@ -10,6 +10,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import type { ProductBatch } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
+import { formatUnitArabic } from '../../utils/units';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 
@@ -155,7 +156,7 @@ export const BatchSelectionModal: React.FC<BatchSelectionModalProps> = ({
                       </span>
                       <span>•</span>
                       <span>
-                        الرصيد المتاح: <strong className="font-mono text-ink dark:text-ink-dark">{Math.floor(b.quantityMilli / 1000)}</strong> {b.unit || 'قطعة'}
+                        الرصيد المتاح: <strong className="font-mono text-ink dark:text-ink-dark">{Math.floor(b.quantityMilli / 1000)}</strong> {formatUnitArabic(b.unit)}
                       </span>
                     </div>
                   </div>

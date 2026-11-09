@@ -29,10 +29,14 @@ export interface SalesTotals {
   averagePiasters: number;
 }
 
-/** KPI totals of the rows on screen: cancelled invoices count as invoices but not as revenue */
-export function summarizeSales(sales: { status?: string; totalPiasters?: number }[]): SalesTotals {
+/** KPI totals of the rows on screen: cancelled invoices count as invoices but not as revenue; refunded amounts are deducted */
+export function summarizeSales(sales: { status?: string; totalPiasters?: number; refundedPiasters?: number }[]): SalesTotals {
   const valid = sales.filter((s) => s.status !== 'cancelled');
-  const totalPiasters = valid.reduce((sum, s) => sum + (s.totalPiasters || 0), 0);
+  const totalPiasters = valid.reduce((sum, s) => {
+    const gross = s.totalPiasters || 0;
+    const refunded = s.refundedPiasters || 0;
+    return sum + Math.max(0, gross - refunded);
+  }, 0);
   const averagePiasters = valid.length > 0 ? Math.round(totalPiasters / valid.length) : 0;
   return { invoiceCount: sales.length, validCount: valid.length, totalPiasters, averagePiasters };
 }

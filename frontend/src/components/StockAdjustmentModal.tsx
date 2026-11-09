@@ -169,8 +169,8 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   };
 
   return (
-    <div onClick={handleBackdropClick} className="fixed inset-0 bg-ink/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in select-none">
-      <div className="bg-surface dark:bg-surface-dark rounded-lg hairline-all shadow-xl w-full max-w-lg flex flex-col max-h-[90vh] overflow-hidden border border-line dark:border-line-dark">
+    <div onClick={handleBackdropClick} className="fixed inset-0 bg-ink/40 dark:bg-black/60 flex items-center justify-center p-4 z-50 animate-in fade-in duration-150 select-none">
+      <div className="bg-surface dark:bg-surface-dark rounded-lg hairline-all shadow-xl w-full max-w-lg flex flex-col max-h-[90vh] overflow-hidden border border-line dark:border-line-dark transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="px-5 py-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2/60 dark:bg-surface-dark-2/60 shrink-0">
           <div className="flex items-center gap-2.5">

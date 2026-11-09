@@ -99,10 +99,10 @@ export const RafiqDialogContainer: React.FC = () => {
           handleCancel();
         }
       }}
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-sm animate-fade-in select-none"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 animate-in fade-in duration-150 select-none"
     >
       <div
-        className="w-full max-w-md bg-white dark:bg-surface-dark rounded-2xl shadow-2xl border border-slate-200 dark:border-line-dark overflow-hidden flex flex-col transform transition-all animate-scale-up"
+        className="w-full max-w-md bg-white dark:bg-surface-dark rounded-2xl shadow-xl border border-slate-200 dark:border-line-dark overflow-hidden flex flex-col transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150"
         role="alertdialog"
         aria-modal="true"
       >

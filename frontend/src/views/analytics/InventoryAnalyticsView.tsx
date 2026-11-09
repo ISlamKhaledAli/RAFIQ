@@ -26,6 +26,7 @@ import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { useToday, formatLocalDateTime } from '../../utils/dateFilter';
 import { buildReportPeriodPayload, defaultCustomReportRange } from '../../utils/reportPeriod';
 import { formatArabicCurrency } from '../../utils/money';
+import { formatUnitArabic } from '../../utils/units';
 import { DeadStockRadar } from '../../components/analytics/DeadStockRadar';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
@@ -282,7 +283,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
             <Clock className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
           </div>
           <div className="t-kpi text-brand-dark dark:text-brand-bright">
-            {overview?.turnoverRate ? `${overview.turnoverRate}x / سنة` : '—'}
+            {overview?.turnoverRate ? `${overview.turnoverRate} مرة / سنة` : '—'}
           </div>
           <div className="text-xs text-ink-muted dark:text-ink-dark-muted">
             سرعة تصريف وتبديل البضاعة
@@ -401,8 +402,8 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                       shrinkage.topShrinkageProducts.map((it, idx) => (
                         <tr key={`${it.productId}-${idx}`} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                           <td className="py-3.5 px-3.5 font-bold text-ink dark:text-ink-dark">{it.productName}</td>
-                          <td className="py-3.5 px-3.5 font-mono text-danger dark:text-danger-bright">
-                            {(Math.abs(it.quantityDeltaMilli) / 1000).toLocaleString('en-US')} {it.unit}
+                          <td className="py-3.5 px-3.5 text-danger dark:text-danger-bright">
+                            <span className="font-mono font-bold">{(Math.abs(it.quantityDeltaMilli) / 1000).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(it.unit)}
                           </td>
                           <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                             {formatArabicCurrency(it.unitCostPiasters)}
@@ -469,14 +470,14 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                           <div className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted">{item.barcode || '—'}</div>
                         </td>
                         <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
-                        <td className="py-3.5 px-3.5 font-mono font-bold text-danger dark:text-danger-bright">
-                          {(item.stockMilli / 1000).toLocaleString('en-US')} {item.unit}
+                        <td className="py-3.5 px-3.5 font-bold text-danger dark:text-danger-bright">
+                          <span className="font-mono">{(item.stockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(item.unit)}
                         </td>
-                        <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
-                          {(item.minStockMilli / 1000).toLocaleString('en-US')} {item.unit}
+                        <td className="py-3.5 px-3.5 text-ink-muted dark:text-ink-dark-muted">
+                          <span className="font-mono">{(item.minStockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(item.unit)}
                         </td>
-                        <td className="py-3.5 px-3.5 font-mono font-bold text-paid dark:text-paid-bright">
-                          +{(item.suggestedOrderMilli / 1000).toLocaleString('en-US')} {item.unit}
+                        <td className="py-3.5 px-3.5 font-bold text-paid dark:text-paid-bright">
+                          <span dir="ltr" className="font-mono">+{((item.suggestedOrderMilli / 1000)).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(item.unit)}
                         </td>
                         <td className="py-3.5 px-3.5 font-mono text-ink-muted dark:text-ink-dark-muted">
                           {formatArabicCurrency(item.unitCostPiasters)}

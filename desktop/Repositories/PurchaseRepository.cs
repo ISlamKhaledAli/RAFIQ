@@ -537,6 +537,24 @@ namespace RafiqPOS.Repositories
                                 cmdNonBase.ExecuteNonQuery();
                             }
 
+                            if (updateSellingPrice)
+                            {
+                                // Multi-tier Parity: Synchronize all non-base units proportionally based on the new base selling price
+                                string syncNonBaseSellSql = @"
+                                    UPDATE product_units
+                                    SET sell_price_piasters = CAST(ROUND(@newPrice * conversion_factor) AS INTEGER),
+                                        updated_at = @now
+                                    WHERE product_id = @pid AND is_base_unit = 0;
+                                ";
+                                using (var cmdNonBaseSell = new SQLiteCommand(syncNonBaseSellSql, conn, trans))
+                                {
+                                    cmdNonBaseSell.Parameters.AddWithValue("@newPrice", newPriceToSet);
+                                    cmdNonBaseSell.Parameters.AddWithValue("@now", now);
+                                    cmdNonBaseSell.Parameters.AddWithValue("@pid", item.ProductId);
+                                    cmdNonBaseSell.ExecuteNonQuery();
+                                }
+                            }
+
                             // The package unit matching the invoice pack size keeps the box public price and box cost
                             if (item.ConversionFactor > 1.0)
                             {

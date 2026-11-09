@@ -184,7 +184,19 @@ namespace RafiqPOS.Bridge
 
                         string accountId = pObj["accountId"] != null ? pObj["accountId"].ToString() : null;
                         long amountPiasters = pObj["amountPiasters"] != null ? pObj["amountPiasters"].Value<long>() : 0;
-                        string fundingSource = pObj["fundingSource"] != null ? pObj["fundingSource"].ToString() : "cash_drawer";
+                        string fundingSource = null;
+                        if (pObj["fundingSource"] != null && !string.IsNullOrWhiteSpace(pObj["fundingSource"].ToString()))
+                        {
+                            fundingSource = pObj["fundingSource"].ToString().Trim();
+                        }
+                        else if (pObj["source"] != null && !string.IsNullOrWhiteSpace(pObj["source"].ToString()))
+                        {
+                            fundingSource = pObj["source"].ToString().Trim();
+                        }
+                        if (string.IsNullOrEmpty(fundingSource))
+                        {
+                            fundingSource = "cash_drawer";
+                        }
                         string notes = pObj["notes"] != null ? pObj["notes"].ToString() : null;
 
                         if (string.IsNullOrEmpty(accountId))

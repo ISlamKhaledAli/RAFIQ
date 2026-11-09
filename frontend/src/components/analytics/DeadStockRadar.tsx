@@ -11,6 +11,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
+import { formatUnitArabic } from '../../utils/units';
 import type { DeadStockReport, DeadStockItem } from '../../types/models';
 
 export interface DeadStockRadarProps {
@@ -165,8 +166,8 @@ export const DeadStockRadar: FC<DeadStockRadarProps> = ({ onNavigateToProduct })
                 <th className="px-3.5 py-3.5 font-bold">الرصيد المعطل</th>
                 <th className="px-3.5 py-3.5 font-bold">سعر التكلفة</th>
                 <th className="px-3.5 py-3.5 font-bold text-danger dark:text-danger-bright">السيولة المجمدة</th>
-                <th className="px-3.5 py-3.5 font-bold">أيام الركود</th>
-                <th className="px-3.5 py-3.5 font-bold text-center">إجراء</th>
+                <th className="px-3.5 py-3.5 font-bold whitespace-nowrap">أيام الركود</th>
+                <th className="px-3.5 py-3.5 font-bold text-center whitespace-nowrap">إجراء</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60 dark:divide-line-dark/60">
@@ -177,17 +178,17 @@ export const DeadStockRadar: FC<DeadStockRadarProps> = ({ onNavigateToProduct })
                     <div className="font-mono text-xs text-ink-muted dark:text-ink-dark-muted">{item.barcode || 'بدون باركود'}</div>
                   </td>
                   <td className="px-3.5 py-3.5 text-ink-muted dark:text-ink-dark-muted">{item.categoryName}</td>
-                  <td className="px-3.5 py-3.5 font-mono font-bold text-ink dark:text-ink-dark">
-                    {(item.stockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {item.unit}
+                  <td className="px-3.5 py-3.5 font-bold text-ink dark:text-ink-dark whitespace-nowrap">
+                    <span className="font-mono">{(item.stockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')}</span> {formatUnitArabic(item.unit)}
                   </td>
-                  <td className="px-3.5 py-3.5 font-mono text-ink dark:text-ink-dark">
+                  <td className="px-3.5 py-3.5 font-mono text-ink dark:text-ink-dark whitespace-nowrap">
                     {formatArabicCurrency(item.unitCostPiasters)}
                   </td>
-                  <td className="px-3.5 py-3.5 font-mono font-bold text-danger dark:text-danger-bright">
+                  <td className="px-3.5 py-3.5 font-mono font-bold text-danger dark:text-danger-bright whitespace-nowrap">
                     {formatArabicCurrency(item.tiedCapitalPiasters)}
                   </td>
-                  <td className="px-3.5 py-3.5">
-                    <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30">
+                  <td className="px-3.5 py-3.5 whitespace-nowrap">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold whitespace-nowrap inline-flex items-center bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30">
                       {item.daysInactive >= 999 ? 'لم يُبع أبداً' : `${item.daysInactive} يوم`}
                     </span>
                   </td>

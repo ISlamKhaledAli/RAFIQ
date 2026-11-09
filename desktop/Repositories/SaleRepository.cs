@@ -1137,6 +1137,10 @@ namespace RafiqPOS.Repositories
                 {
                     sale.CashierName = reader[i] != DBNull.Value ? reader[i].ToString() : null;
                 }
+                else if (string.Equals(col, "refunded_piasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.RefundedPiasters = reader[i] != DBNull.Value ? Convert.ToInt64(reader[i]) : 0;
+                }
                 else if (string.Equals(col, "idempotency_key", StringComparison.OrdinalIgnoreCase))
                 {
                     sale.IdempotencyKey = reader[i] != DBNull.Value ? reader[i].ToString() : null;
@@ -1202,7 +1206,8 @@ namespace RafiqPOS.Repositories
                 string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
                 string sql = string.Format(@"
                     SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
-                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name
+                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name,
+                           COALESCE((SELECT SUM(r.total_piasters) FROM returns r WHERE r.sale_id = s.id OR (r.invoice_number IS NOT NULL AND r.invoice_number = s.invoice_number)), 0) AS refunded_piasters
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
                     LEFT JOIN users u ON s.cashier_id = u.id
@@ -1367,7 +1372,8 @@ namespace RafiqPOS.Repositories
                 string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
                 string sql = string.Format(@"
                     SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
-                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name
+                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name,
+                           COALESCE((SELECT SUM(r.total_piasters) FROM returns r WHERE r.sale_id = s.id OR (r.invoice_number IS NOT NULL AND r.invoice_number = s.invoice_number)), 0) AS refunded_piasters
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
                     LEFT JOIN users u ON s.cashier_id = u.id
@@ -1501,7 +1507,8 @@ namespace RafiqPOS.Repositories
                 conn.Open();
                 string sql = @"
                     SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
-                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name
+                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name,
+                           COALESCE((SELECT SUM(r.total_piasters) FROM returns r WHERE r.sale_id = s.id OR (r.invoice_number IS NOT NULL AND r.invoice_number = s.invoice_number)), 0) AS refunded_piasters
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
                     LEFT JOIN users u ON s.cashier_id = u.id
@@ -1570,7 +1577,8 @@ namespace RafiqPOS.Repositories
                 conn.Open();
                 string sql = @"
                     SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
-                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name
+                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name,
+                           COALESCE((SELECT SUM(r.total_piasters) FROM returns r WHERE r.sale_id = s.id OR (r.invoice_number IS NOT NULL AND r.invoice_number = s.invoice_number)), 0) AS refunded_piasters
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
                     LEFT JOIN users u ON s.cashier_id = u.id

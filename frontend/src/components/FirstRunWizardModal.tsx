@@ -508,7 +508,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-ink dark:text-ink-dark select-none font-sans"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 text-ink dark:text-ink-dark select-none font-sans animate-in fade-in duration-150"
       dir="rtl"
       onClick={handleBackdropClick}
     >

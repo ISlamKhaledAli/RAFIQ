@@ -8,6 +8,9 @@ import {
   computeFingerprintTag
 } from '../crypto.ts';
 import { serveAdminHtml } from '../views/admin/index.ts';
+import { serveTailwindJs } from '../views/admin/tailwindAsset.ts';
+import { serveLogoPng } from '../views/admin/logoAsset.ts';
+import { adminScripts } from '../views/admin/scripts.ts';
 
 /**
  * Handle Admin API & Dashboard
@@ -15,9 +18,33 @@ import { serveAdminHtml } from '../views/admin/index.ts';
 export async function handleAdmin(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
 
-  // Serve Admin HTML Dashboard on GET /admin
-  if (request.method === 'GET' && (url.pathname === '/admin' || url.pathname === '/admin/')) {
+  // Serve Admin HTML Dashboard on GET/HEAD /admin
+  if ((request.method === 'GET' || request.method === 'HEAD') && (url.pathname === '/admin' || url.pathname === '/admin/')) {
     return serveAdminHtml();
+  }
+
+  // Serve Self-Hosted Tailwind CSS bundle on GET/HEAD /admin/assets/tailwind.min.js
+  if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === '/admin/assets/tailwind.min.js') {
+    return serveTailwindJs();
+  }
+
+  // Serve Self-Hosted Official Brand Logo on GET/HEAD /admin/assets/logo.png
+  if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === '/admin/assets/logo.png') {
+    return serveLogoPng();
+  }
+
+  // Serve Self-Hosted Admin App JS on GET/HEAD /admin/assets/app.js
+  if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === '/admin/assets/app.js') {
+    return new Response(adminScripts, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
   }
 
   // All Admin API endpoints require admin authentication
@@ -36,7 +63,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
 
     return new Response(
       JSON.stringify({ success: true, licenses: licenses.results || [], data: licenses.results || [] }),
-      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
     );
   }
 
@@ -110,6 +137,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       shop_name?: string;
       owner_phone?: string;
       days_to_add?: number;
+      days_to_deduct?: number;
       set_days?: number;
       set_lifetime?: boolean;
       notes?: string;
@@ -148,6 +176,19 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       } else if (newStatus === 'expired') {
         newStatus = 'active';
       }
+    } else if (body.days_to_deduct && Number(body.days_to_deduct) > 0) {
+      const days = Number(body.days_to_deduct);
+      let curExp = existing.expires_at ? new Date(existing.expires_at) : new Date();
+      curExp.setDate(curExp.getDate() - days);
+      const now = new Date();
+      if (curExp <= now) {
+        newExpiresAt = now.toISOString();
+        newStatus = 'expired';
+      } else {
+        newExpiresAt = curExp.toISOString();
+        const diffDays = Math.ceil((curExp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        newType = diffDays >= 365 ? 'annual' : (diffDays >= 30 ? 'monthly' : 'trial');
+      }
     } else if (body.days_to_add && Number(body.days_to_add) > 0) {
       const days = Number(body.days_to_add);
       let baseDate = new Date();
@@ -161,6 +202,19 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       newExpiresAt = baseDate.toISOString();
       if (newStatus === 'expired') newStatus = 'active';
       if (newType === 'lifetime') newType = 'annual';
+    } else if (body.days_to_add && Number(body.days_to_add) < 0) {
+      const days = Math.abs(Number(body.days_to_add));
+      let curExp = existing.expires_at ? new Date(existing.expires_at) : new Date();
+      curExp.setDate(curExp.getDate() - days);
+      const now = new Date();
+      if (curExp <= now) {
+        newExpiresAt = now.toISOString();
+        newStatus = 'expired';
+      } else {
+        newExpiresAt = curExp.toISOString();
+        const diffDays = Math.ceil((curExp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        newType = diffDays >= 365 ? 'annual' : (diffDays >= 30 ? 'monthly' : 'trial');
+      }
     }
 
     await env.DB.prepare(
@@ -261,7 +315,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
 
     return new Response(
       JSON.stringify({ success: true, logs: logs.results || [], data: logs.results || [] }),
-      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
     );
   }
 
@@ -479,6 +533,127 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     }
   }
 
+  // 10b. POST /api/admin/pin-recovery - Direct Owner PIN Recovery Token (SEC-02)
+  if (request.method === 'POST' && url.pathname === '/api/admin/pin-recovery') {
+    const body = await request.json<{
+      device_fingerprint?: string;
+      license_key?: string;
+      challenge?: string;
+      shop_name?: string;
+    }>();
+
+    const fp = (body.device_fingerprint || body.challenge || '').trim().toUpperCase();
+    if (!fp) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'بصمة الجهاز أو كود التحدي مطلوب لتوليد كود الاستعادة' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    let lic = await env.DB.prepare(
+      'SELECT * FROM licenses WHERE machine_fingerprint = ? OR license_key = ? ORDER BY created_at DESC LIMIT 1'
+    ).bind(fp, body.license_key || fp).first<LicenseRecord>();
+
+    const licKey = lic?.license_key || body.license_key || `RECOVERY-${crypto.randomUUID()}`;
+    const shop = lic?.shop_name || body.shop_name || 'استعادة كلمة السر';
+
+    try {
+      const recToken = await generatePinRecoveryToken(
+        fp,
+        licKey,
+        shop,
+        env.LICENSE_PRIVATE_KEY
+      );
+
+      try {
+        const logId = crypto.randomUUID();
+        await env.DB.prepare(
+          `INSERT INTO activation_logs (id, license_key, machine_fingerprint, action, status, failure_reason, ip_address, user_agent, created_at)
+           VALUES (?, ?, ?, 'verify', 'success', 'توليد كود استعادة PIN مباشر', 'admin_portal', 'admin', datetime('now'))`
+        ).bind(logId, licKey, fp).run();
+      } catch {}
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'تم توليد كود استعادة PIN بنجاح',
+          recovery_code: recToken,
+          recovery_token: recToken,
+          device_fingerprint: fp,
+          shop_name: shop,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل توليد كود الاستعادة';
+      return new Response(
+        JSON.stringify({ success: false, message: msg }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+  }
+
+  // 10c. POST /api/admin/clock-reset - Direct Clock Rollback Unlock Token (BUG-06)
+  if (request.method === 'POST' && url.pathname === '/api/admin/clock-reset') {
+    const body = await request.json<{
+      device_fingerprint?: string;
+      license_key?: string;
+      clock_code?: string;
+      shop_name?: string;
+    }>();
+
+    const fp = (body.device_fingerprint || body.clock_code || '').trim().toUpperCase();
+    if (!fp) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'بصمة الجهاز أو كود الساعة مطلوب لتوليد رمز فك الحظر' }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+
+    let lic = await env.DB.prepare(
+      'SELECT * FROM licenses WHERE machine_fingerprint = ? OR license_key = ? ORDER BY created_at DESC LIMIT 1'
+    ).bind(fp, body.license_key || fp).first<LicenseRecord>();
+
+    const licKey = lic?.license_key || body.license_key || `CLOCK-${crypto.randomUUID()}`;
+    const shop = lic?.shop_name || body.shop_name || 'فك حظر ساعة الجهاز';
+
+    try {
+      const clockToken = await generateClockResetToken(
+        fp,
+        licKey,
+        shop,
+        env.LICENSE_PRIVATE_KEY
+      );
+
+      try {
+        const logId = crypto.randomUUID();
+        await env.DB.prepare(
+          `INSERT INTO activation_logs (id, license_key, machine_fingerprint, action, status, failure_reason, ip_address, user_agent, created_at)
+           VALUES (?, ?, ?, 'verify', 'success', 'توليد كود فك حظر الساعة مباشر', 'admin_portal', 'admin', datetime('now'))`
+        ).bind(logId, licKey, fp).run();
+      } catch {}
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'تم توليد كود فك حظر الساعة بنجاح',
+          clock_reset_code: clockToken,
+          reset_token: clockToken,
+          reset_code: clockToken,
+          device_fingerprint: fp,
+          shop_name: shop,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل توليد كود فك حظر الساعة';
+      return new Response(
+        JSON.stringify({ success: false, message: msg }),
+        { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      );
+    }
+  }
+
   // 11. POST /api/admin/licenses/:id/recovery-code - Owner PIN Recovery Token (SEC-02)
   const recoveryMatch = url.pathname.match(/^\/api\/admin\/licenses\/([^/]+)\/recovery-code$/);
   if (request.method === 'POST' && recoveryMatch) {
@@ -601,7 +776,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
 
     return new Response(
       JSON.stringify({ success: true, releases: releases.results || [] }),
-      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+      { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
     );
   }
 

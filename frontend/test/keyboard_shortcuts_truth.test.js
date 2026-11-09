@@ -42,7 +42,7 @@ describe('the keyboard cheat-sheet only lists keys the code really handles', () 
     assert.ok(!/بالفيزا|البطاقة البنكية/.test(modal), 'F10 no longer pays by card');
     assert.match(modal, /key: 'F10',\n\s+label: 'دفع فوري بإنستاباي'/);
     assert.match(modal, /key: 'F4',\n\s+label: 'خصم على الفاتورة'/);
-    assert.match(modal, /key: 'F3',\n\s+label: 'تعديل كمية أو وزن آخر صنف'/);
+    assert.match(modal, /key: 'F3',\n\s+label: 'تعديل كمية أو وزن (الصنف المحدد|آخر صنف)'/);
   });
 
   it('alt-number screens are listed only when their feature is on', () => {

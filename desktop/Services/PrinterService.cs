@@ -1929,7 +1929,7 @@ namespace RafiqPOS.Services
         /// باركود الفاتورة الحقيقي (Code 128) بلا أرقام تحته (رقم الفاتورة مطبوع في الترويسة). يُرسم بنقاط الطابعة الصحيحة مباشرة (بعد تصفير التحويل) فلا يتأثر بمقياس الإيصال الكسري،
         /// ثم يتقدّم p.Y بنفس الارتفاع في القياس والرسم
         /// </summary>
-        private static void DrawInvoiceBarcode(ReceiptPainter p, string value)
+        private static void DrawInvoiceBarcode(ReceiptPainter p, string value, bool showText = true)
         {
             if (string.IsNullOrEmpty(value)) return;
             string bits = BarcodeGenerator.EncodeCode128Digits(value);
@@ -1979,8 +1979,11 @@ namespace RafiqPOS.Services
             }
 
             p.Y += heightDots / scale + 1f;
-            // طباعة النص المميز للباركود بخط واضح أسفل الخطوط (RFQ-INV-00001042)
-            p.WrapText(value, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+            if (showText)
+            {
+                // طباعة النص المميز للباركود بخط واضح أسفل الخطوط (RFQ-INV-00001042)
+                p.WrapText(value, p.Small, p.Center, ReceiptPainter.Pad, p.Usable);
+            }
             p.Y += 2f;
         }
 
@@ -2251,7 +2254,7 @@ namespace RafiqPOS.Services
                 }
 
                 // 8. باركود رقم الفاتورة (للبحث عنها عند المرتجع): للفاتورة الفعلية فقط، يشمل النسخة المعادة، لا الحساب المبدئي ولا التجريبية
-                if (!IsTransientReceiptSale(sale)) DrawInvoiceBarcode(p, FormatInvoiceBarcodeValue(sale.InvoiceNumber));
+                if (!IsTransientReceiptSale(sale)) DrawInvoiceBarcode(p, FormatInvoiceBarcodeValue(sale.InvoiceNumber), store.ShowInvoiceNumber);
 
                 // 9. تنبيه سلسلة التبريد + ملاحظات الفاتورة + الخاتمة (إن وُجدت) + توقيع النظام
                 p.Separator(p.Dashed, 3f, 3f);

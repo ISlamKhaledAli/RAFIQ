@@ -932,10 +932,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     <>
     <div
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150"
       dir="rtl"
     >
-      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[92vh] transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150">
         {/* Top Accent Line */}
         <div className="h-1.5 w-full bg-gradient-to-r from-brand-dark via-brand to-paid" />
 

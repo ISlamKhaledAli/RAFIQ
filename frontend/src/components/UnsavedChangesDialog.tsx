@@ -58,7 +58,7 @@ export const UnsavedChangesDialog = ({ labels, canSave, saving, onSave, onDiscar
 
   return (
     <div
-      className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-xs animate-fade-in select-none"
+      className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 animate-in fade-in duration-150 select-none"
       dir="rtl"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !saving) onStay();
@@ -71,7 +71,7 @@ export const UnsavedChangesDialog = ({ labels, canSave, saving, onSave, onDiscar
         aria-labelledby="unsaved-changes-title"
         aria-describedby="unsaved-changes-message"
         onKeyDown={handleKeyDown}
-        className="w-full max-w-xl bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark overflow-hidden flex flex-col animate-scale-up"
+        className="w-full max-w-xl bg-surface dark:bg-surface-dark rounded-2xl shadow-xl border border-line dark:border-line-dark overflow-hidden flex flex-col transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150"
       >
         <div className="h-1.5 w-full bg-warn dark:bg-warn-bright" />
         <div className="px-5 py-4 flex items-center gap-3 border-b border-line dark:border-line-dark">

@@ -19,6 +19,7 @@ import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
 import { RequiredMark } from './RequiredMark';
 import { useAuth } from '../context/useAuth';
+import { normalizeTokenOrKey, isSignedLicenseToken } from '../utils/tokenNormalizer';
 
 export interface LicenseExpiryDetails {
   isActive: boolean;
@@ -149,12 +150,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        const trimmed = text.trim();
-        if (trimmed.toUpperCase().startsWith('RFQ-SUP-')) {
-          setNewKey('RFQ-SUP-' + trimmed.slice(8));
-        } else {
-          setNewKey(trimmed.toUpperCase());
-        }
+        setNewKey(normalizeTokenOrKey(text));
         triggerKeySuccess();
       }
     } catch {
@@ -251,10 +247,10 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 select-none font-sans overflow-y-auto animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] bg-slate-900/60 flex items-center justify-center p-4 sm:p-6 select-none font-sans overflow-y-auto animate-in fade-in duration-150"
       dir="rtl"
     >
-      <div className="w-full max-w-lg bg-white dark:bg-surface-dark rounded-3xl shadow-2xl shadow-slate-900/25 dark:shadow-black/60 border border-slate-100 dark:border-line-dark overflow-hidden relative text-slate-800 dark:text-ink-dark animate-in zoom-in-95 duration-200">
+      <div className="w-full max-w-lg bg-white dark:bg-surface-dark rounded-3xl shadow-xl border border-slate-100 dark:border-line-dark overflow-hidden relative text-slate-800 dark:text-ink-dark transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150">
         {/* Header & Brand Identity */}
         <div className="pt-7 pb-3 px-6 sm:px-8 text-center flex flex-col items-center">
           {/* Official Brand Logo */}
@@ -392,20 +388,13 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
                 onPaste={() => {
                   triggerKeySuccess();
                 }}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val.trim().toUpperCase().startsWith('RFQ-SUP-')) {
-                    setNewKey('RFQ-SUP-' + val.trim().slice(8));
-                  } else {
-                    setNewKey(val.toUpperCase());
-                  }
-                }}
+                onChange={(e) => setNewKey(normalizeTokenOrKey(e.target.value))}
                 placeholder="RFQ-XXXX-XXXX-XXXX"
                 dir="ltr"
                 className={`w-full bg-white dark:bg-surface-dark-2 border-2 border-slate-200 dark:border-line-dark focus:border-[#006d41] dark:focus:border-brand-bright focus:ring-4 focus:ring-emerald-500/10 dark:focus:ring-brand-bright/10 rounded-xl pl-3.5 ${
                   newKey ? 'pr-16' : 'pr-10'
                 } py-2.5 text-slate-900 dark:text-ink-dark placeholder-slate-400 dark:placeholder-ink-muted-dark/50 font-mono text-sm tracking-widest ${
-                  newKey.startsWith('RFQ-SUP-') ? '' : 'uppercase'
+                  isSignedLicenseToken(newKey) ? '' : 'uppercase'
                 } transition outline-none shadow-xs`}
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">

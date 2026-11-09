@@ -15,8 +15,8 @@ namespace RafiqPOS.Database
             {
                 conn.Open();
 
-                // 1. Enable WAL mode and foreign keys
-                using (var cmd = new SQLiteCommand("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;", conn))
+                // 1. Enable WAL mode, in-memory temp tables, and foreign keys
+                using (var cmd = new SQLiteCommand("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA temp_store = MEMORY;", conn))
                 {
                     cmd.ExecuteNonQuery();
                 }

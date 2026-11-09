@@ -618,6 +618,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
         terminalId: fundingTerminalId,
         amountPiasters: fundingAmountPiasters,
         fundingSource,
+        source: fundingSource,
         notes: fundingNotes.trim() || undefined,
         idempotencyKey: fundAttemptRef.current.current(),
       });

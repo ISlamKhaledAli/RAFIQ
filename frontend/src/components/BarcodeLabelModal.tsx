@@ -523,8 +523,8 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div data-print-root className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto animate-in fade-in duration-150">
+      <div data-print-root className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh] transform-gpu will-change-[transform,opacity] animate-in fade-in zoom-in-95 duration-150">
 
         {/* Header */}
         <div className="bg-brand text-white px-5 py-3 flex items-center justify-between shadow-sm shrink-0">

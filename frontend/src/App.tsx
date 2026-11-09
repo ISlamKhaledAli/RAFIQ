@@ -145,7 +145,7 @@ const HeaderClock: FC = memo(() => {
   useEffect(() => {
     const update = () => {
       const now = new Date();
-      setTime(now.toLocaleTimeString('en-US', {
+      setTime(now.toLocaleTimeString('ar-EG-u-nu-latn', {
         hour12: true,
         hour: '2-digit',
         minute: '2-digit',

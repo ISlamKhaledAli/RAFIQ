@@ -176,7 +176,7 @@ def create_sidebar(output_path, width=164, height=314, is_2x=False):
         draw.point((w - 1, y_p), fill=(0, g_val, b_val))
 
     img.save(output_path, 'BMP')
-    print(f"✔ تم إنشاء الشريط الجانبي: {output_path} ({width}x{height})")
+    print(f"Created sidebar image: {output_path} ({width}x{height})")
 
 def create_small_image(output_path, width=58, height=58, is_2x=False):
     """
@@ -243,7 +243,7 @@ def create_small_image(output_path, width=58, height=58, is_2x=False):
 
     result = combined.convert('RGB')
     result.save(output_path, 'BMP')
-    print(f"✔ تم إنشاء شعار الترويسة: {output_path} ({width}x{height})")
+    print(f"Created header image: {output_path} ({width}x{height})")
 
 def build_all_graphics():
     os.makedirs(INSTALLER_DIR, exist_ok=True)

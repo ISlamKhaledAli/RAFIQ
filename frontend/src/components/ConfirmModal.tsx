@@ -80,7 +80,7 @@ export const ConfirmModal = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-[2px] animate-in fade-in duration-150 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150 select-none"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onCancel();
@@ -88,7 +88,7 @@ export const ConfirmModal = ({
       }}
     >
       <div 
-        className="w-full max-w-md bg-surface dark:bg-surface-dark hairline-all rounded-[8px] shadow-2xl overflow-hidden flex flex-col transform transition-all"
+        className="w-full max-w-md bg-surface dark:bg-surface-dark hairline-all rounded-[8px] shadow-xl overflow-hidden flex flex-col transform-gpu will-change-[transform,opacity] animate-in zoom-in-95 duration-150"
         role="dialog"
         aria-modal="true"
       >

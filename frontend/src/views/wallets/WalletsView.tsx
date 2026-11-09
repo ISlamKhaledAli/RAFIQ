@@ -483,6 +483,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
   // Direct Silent Printing for Wallet Receipts
   const [isPrintingWalletReceipt, setIsPrintingWalletReceipt] = useState<boolean>(false);
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState<boolean>(true);
 
   const handlePrintWalletReceipt = async (tx: DigitalTransaction) => {
     if (!tx) return;
@@ -654,6 +655,10 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         text: `تم حفظ المعاملة رقم ${res.transactionNumber}`,
       });
 
+      if (autoPrintReceipt && res) {
+        void handlePrintWalletReceipt(res);
+      }
+
       resetTransactionForm();
 
       await loadData();
@@ -719,6 +724,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       await invoke('wallets:fundAccount', {
         accountId: fundingAccountId,
         amountPiasters: fundingAmountPiasters,
+        fundingSource: fundingSource,
         source: fundingSource,
         notes: fundingNotes.trim() || undefined,
         performedBy: currentUserName,
@@ -1407,6 +1413,43 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   </div>
                 )}
 
+                {/* Auto print toggle card */}
+                <div
+                  onClick={() => setAutoPrintReceipt(!autoPrintReceipt)}
+                  className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer select-none transition-all ${
+                    autoPrintReceipt
+                      ? 'bg-paid-soft/40 dark:bg-paid-dark-soft/40 border-paid/30 dark:border-paid-bright/30 hover:border-paid/50'
+                      : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark-hover'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
+                        autoPrintReceipt
+                          ? 'bg-paid dark:bg-paid-bright text-white dark:text-surface-dark shadow-xs'
+                          : 'bg-surface dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark'
+                      }`}
+                    >
+                      <Printer className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-ink dark:text-ink-dark block">
+                        طباعة إيصال للعميل فور إتمام العملية
+                      </span>
+                      <span className="text-micro text-ink-muted dark:text-ink-muted-dark">
+                        {autoPrintReceipt
+                          ? 'سيتم إرسال الإيصال للطابعة مباشرة دون نوافذ منبثقة'
+                          : 'حفظ وتسجيل المعاملة بدون طباعة إيصال ورقي'}
+                      </span>
+                    </div>
+                  </div>
+                  <ToggleSwitch
+                    checked={autoPrintReceipt}
+                    onChange={(val) => setAutoPrintReceipt(val)}
+                    size="sm"
+                  />
+                </div>
+
                 {/* Primary Submit Button */}
                 <div ref={transactSaveBarRef} className="flex flex-col gap-2 rounded-xl">
                 {transactionDraftDirty && (
@@ -1428,9 +1471,13 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   <span>
                     {actionLoading
                       ? 'جاري حفظ المعاملة...'
-                      : isCashOut
-                        ? 'تأكيد خصم المبلغ من المحفظة وحفظ الربح'
-                        : 'تأكيد إضافة المبلغ للمحفظة وحفظ الربح'}
+                      : autoPrintReceipt
+                        ? isCashOut
+                          ? 'تأكيد خصم المبلغ وحفظ الربح (مع طباعة الإيصال)'
+                          : 'تأكيد إضافة المبلغ وحفظ الربح (مع طباعة الإيصال)'
+                        : isCashOut
+                          ? 'تأكيد خصم المبلغ من المحفظة وحفظ الربح'
+                          : 'تأكيد إضافة المبلغ للمحفظة وحفظ الربح'}
                   </span>
                 </button>
                 </div>
@@ -1760,16 +1807,16 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 <table className="w-full text-right border-collapse text-xs">
                   <thead>
                     <tr className="bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold h-10">
-                      <th className="px-4">رقم العملية</th>
-                      <th className="px-4">نوع الحركة</th>
-                      <th className="px-4">المحفظة / الحساب</th>
-                      <th className="px-4 font-mono">المبلغ</th>
-                      <th className="px-4 font-mono">ربح المحل</th>
-                      <th className="px-4 font-mono">الرصيد بعد</th>
-                      <th className="px-4">بيانات العميل</th>
-                      <th className="px-4">التاريخ والوقت</th>
-                      <th className="px-4">المستخدم</th>
-                      <th className="px-4 text-center">الإجراء</th>
+                      <th className="px-2.5 sm:px-3 whitespace-nowrap w-20">رقم العملية</th>
+                      <th className="px-2.5 sm:px-3 whitespace-nowrap">نوع الحركة</th>
+                      <th className="px-2.5 sm:px-3 whitespace-nowrap">المحفظة / الحساب</th>
+                      <th className="px-2.5 sm:px-3 font-mono whitespace-nowrap">المبلغ</th>
+                      <th className="px-2.5 sm:px-3 font-mono whitespace-nowrap">ربح المحل</th>
+                      <th className="px-2.5 sm:px-3 font-mono whitespace-nowrap">الرصيد بعد</th>
+                      <th className="px-2.5 sm:px-3 whitespace-nowrap">بيانات العميل</th>
+                      <th className="px-2.5 sm:px-3 whitespace-nowrap">التاريخ والوقت</th>
+                      <th className="px-2.5 sm:px-3 whitespace-nowrap">المستخدم</th>
+                      <th className="px-2.5 sm:px-3 text-center whitespace-nowrap w-20">الإجراء</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line dark:divide-line-dark">
@@ -1825,11 +1872,11 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
 
                         return (
                           <tr key={t.id} className={`hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors h-11 ${isCancelled ? 'opacity-65 bg-danger/5' : ''}`}>
-                            <td className="px-4 font-mono font-bold text-brand-dark dark:text-brand-bright">
+                            <td className="px-2.5 sm:px-3 font-mono font-bold text-brand-dark dark:text-brand-bright whitespace-nowrap">
                               {t.transactionNumber || (t.id ? t.id.replace(/-/g, '').slice(-8).toUpperCase() : '—')}
                             </td>
-                            <td className="px-4">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-bold ${
+                            <td className="px-2.5 sm:px-3 whitespace-nowrap">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-micro font-bold whitespace-nowrap shrink-0 ${
                                 isDeduction
                                   ? 'bg-danger-soft text-danger dark:bg-danger-dark-soft dark:text-danger-bright'
                                   : isSaleTx
@@ -1840,32 +1887,42 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                                         ? 'bg-warn-soft text-warn dark:bg-warn-dark-soft dark:text-warn-bright'
                                         : 'bg-paid-soft text-paid dark:bg-paid-dark-soft dark:text-paid-bright'
                               }`}>
-                                {isDeduction ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
-                                <span>{badgeLabel}</span>
+                                {isDeduction ? <ArrowDownLeft className="w-3 h-3 shrink-0" /> : <ArrowUpRight className="w-3 h-3 shrink-0" />}
+                                <span className="whitespace-nowrap">{badgeLabel}</span>
                               </span>
                             </td>
-                            <td className="px-4 font-bold text-ink dark:text-white">
+                            <td className="px-2.5 sm:px-3 font-bold text-ink dark:text-white whitespace-nowrap truncate max-w-[140px]" title={t.accountName || 'محفظة'}>
                               {t.accountName || 'محفظة'}
                             </td>
-                            <td className="px-4 font-mono font-bold text-ink dark:text-white">
+                            <td className="px-2.5 sm:px-3 font-mono font-bold text-ink dark:text-white whitespace-nowrap">
                               {t.amountFormatted}
                             </td>
-                            <td className="px-4 font-mono font-bold text-paid dark:text-brand-bright">
+                            <td className="px-2.5 sm:px-3 font-mono font-bold text-paid dark:text-brand-bright whitespace-nowrap">
                               {t.profitFormatted || '0.00 ج.م'}
                             </td>
-                            <td className="px-4 font-mono text-ink-muted dark:text-ink-dark-muted">
+                            <td className="px-2.5 sm:px-3 font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap">
                               {t.balanceAfterFormatted}
                             </td>
-                            <td className="px-4 text-ink-muted dark:text-ink-dark-muted font-mono">
-                              {t.customerPhone ? `${t.customerPhone} ${t.customerName ? `(${t.customerName})` : ''}` : '—'}
+                            <td className="px-2.5 sm:px-3 text-ink-muted dark:text-ink-dark-muted font-mono whitespace-nowrap truncate max-w-[140px]">
+                              {isFundingTx ? (
+                                <span className="font-sans text-micro font-medium text-brand dark:text-brand-bright whitespace-nowrap">
+                                  {t.paymentDestination === 'external_cash'
+                                    ? 'كاش خارجي / صاحب المحل'
+                                    : t.paymentDestination === 'bank_transfer'
+                                      ? 'تحويل بنكي مباشر'
+                                      : 'من درج الكاشير'}
+                                </span>
+                              ) : (
+                                t.customerPhone ? `${t.customerPhone} ${t.customerName ? `(${t.customerName})` : ''}` : '—'
+                              )}
                             </td>
-                            <td className="px-4 font-mono text-ink-muted dark:text-ink-dark-muted">
+                            <td className="px-2.5 sm:px-3 font-mono text-ink-muted dark:text-ink-dark-muted whitespace-nowrap text-micro">
                               {formatLocalDateTime(t.createdAt)}
                             </td>
-                            <td className="px-4 text-ink-muted dark:text-ink-dark-muted">
+                            <td className="px-2.5 sm:px-3 text-ink-muted dark:text-ink-dark-muted whitespace-nowrap truncate max-w-[90px]" title={t.createdByName || t.createdBy || 'كاشير'}>
                               {t.createdByName || t.createdBy || 'كاشير'}
                             </td>
-                            <td className="px-4 text-center">
+                            <td className="px-2.5 sm:px-3 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1.5">
                                 <button
                                   type="button"
@@ -1904,7 +1961,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 </table>
               </div>
 
-              {totalPages > 1 && (
+              {filteredTransactions.length > 0 && (
                 <div className="p-3 border-t border-line dark:border-line-dark">
                   <PaginationBar
                     currentPage={currentPage}

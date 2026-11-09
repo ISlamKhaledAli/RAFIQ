@@ -2098,7 +2098,8 @@ namespace RafiqPOS.Services
                 return res;
             }
 
-            if (!VerifyRecoveryCodeInternal(recoveryCode))
+            string failureReason;
+            if (!VerifyRecoveryCodeInternal(recoveryCode, out failureReason))
             {
                 int failed = IncrementFailureCounter(KEY_RECOVERY_FAILED, 2);
 
@@ -2120,9 +2121,10 @@ namespace RafiqPOS.Services
                 LogAudit("RECOVERY_CODE_FAILED", "SECURITY", failed.ToString(), string.Format("محاولة خاطئة لاستخدام رمز استرجاع الطوارئ (قفل {0} ثانية)", lockoutSec));
 
                 res.Success = false;
+                string baseMsg = !string.IsNullOrEmpty(failureReason) ? failureReason : "رمز الاسترجاع غير صحيح.";
                 res.Message = lockoutSec > 0
-                    ? string.Format("رمز الاسترجاع غير صحيح. تم قفل المحاولات لمدة {0} ثانية.", lockoutSec)
-                    : "رمز الاسترجاع غير صحيح.";
+                    ? string.Format("{0} تم قفل المحاولات لمدة {1} ثانية.", baseMsg, lockoutSec)
+                    : baseMsg;
                 return res;
             }
 
@@ -2173,7 +2175,18 @@ namespace RafiqPOS.Services
 
         private bool VerifyRecoveryCodeInternal(string recoveryCode)
         {
-            if (string.IsNullOrEmpty(recoveryCode)) return false;
+            string dummy;
+            return VerifyRecoveryCodeInternal(recoveryCode, out dummy);
+        }
+
+        private bool VerifyRecoveryCodeInternal(string recoveryCode, out string failureReason)
+        {
+            failureReason = null;
+            if (string.IsNullOrEmpty(recoveryCode))
+            {
+                failureReason = "رمز الاسترجاع مطلوب.";
+                return false;
+            }
 
             string cleanCode = recoveryCode.Trim().ToUpperInvariant().Replace(" ", "").Replace("-", "");
 
@@ -2182,7 +2195,7 @@ namespace RafiqPOS.Services
             {
                 try
                 {
-                    string token = recoveryCode.Trim().Substring("RFQ-REC-".Length);
+                    string token = recoveryCode.Trim().Substring("RFQ-REC-".Length).Trim();
                     string fp = EncryptionService.GenerateDeviceFingerprint();
                     string verifyError;
                     VerifiedLicenseToken verified = LicenseTokenVerifier.Verify(token, fp, "pin_reset", out verifyError);
@@ -2190,6 +2203,7 @@ namespace RafiqPOS.Services
                     {
                         if (verified.IsExpired(DateTime.UtcNow))
                         {
+                            failureReason = "كود استرجاع الطوارئ منتهي الصلاحية (صلاحيته 24 ساعة فقط).";
                             Logger.Warn("محاولة استخدام كود استرجاع منتهي الصلاحية.");
                             return false;
                         }
@@ -2200,6 +2214,7 @@ namespace RafiqPOS.Services
                             string usedJtis = _settingsRepo != null ? _settingsRepo.Get("used_recovery_jtis", "") : "";
                             if (usedJtis.Contains(verified.Jti))
                             {
+                                failureReason = "تم استخدام كود الاسترجاع هذا مسبقاً، ولا يمكن إعادة استخدامه.";
                                 Logger.Warn("محاولة إعادة استخدام كود استرجاع مستهلك سابقاً: " + verified.Jti);
                                 return false;
                             }
@@ -2210,10 +2225,18 @@ namespace RafiqPOS.Services
                         }
                         return true;
                     }
+                    else
+                    {
+                        failureReason = !string.IsNullOrEmpty(verifyError) ? verifyError : "كود الاسترجاع الرقمي غير صالح.";
+                        Logger.Warn("فشل التحقق من كود الاسترجاع الرقمي: " + failureReason);
+                        return false;
+                    }
                 }
                 catch (Exception ex)
                 {
+                    failureReason = "تعذر قراءة كود الاسترجاع: " + ex.Message;
                     Logger.Warn("فشل التحقق من كود الاسترجاع الرقمي: " + ex.Message);
+                    return false;
                 }
             }
 
@@ -2245,6 +2268,7 @@ namespace RafiqPOS.Services
                 }
             }
 
+            failureReason = "رمز الاسترجاع غير صحيح.";
             return false;
         }
 

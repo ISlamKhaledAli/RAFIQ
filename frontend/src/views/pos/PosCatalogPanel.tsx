@@ -23,6 +23,7 @@ import type { SmartCatalogItem } from './types';
 import type { InsuranceClaimLine } from '../../types/insurance';
 import { useFeatures } from '../../context/useFeatures';
 import { getStoreTerminology } from '../../utils/storeTerminology';
+import { formatUnitArabic } from '../../utils/units';
 import { resolveDefaultSaleUnit } from './saleUnit';
 import { POPULAR_ITEMS_LIMIT, POPULAR_WINDOW_DAYS } from './popularItems';
 
@@ -446,10 +447,10 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                             handleSmartItemClick(item, u);
                           }}
                           className="px-1.5 py-0.5 text-micro font-bold rounded bg-paid-soft dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-paid dark:text-paid-bright hover:text-white dark:hover:text-white border border-paid-border dark:border-line-dark transition-colors flex items-center gap-0.5 cursor-pointer shadow-2xs active:scale-95 shrink-0"
-                          title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) بسعر ${(u.sellPricePiasters / 100).toFixed(2)} ج.م`}
+                          title={`إضافة ${formatUnitArabic(u.unitName)} (${u.conversionFactor} قطعة) بسعر ${(u.sellPricePiasters / 100).toFixed(2)} ج.م`}
                         >
                           <Package className="w-2.5 h-2.5 shrink-0" />
-                          <span className="truncate max-w-[5.5rem]">{u.unitName} ({u.conversionFactor})</span>
+                          <span className="truncate max-w-[5.5rem]">{formatUnitArabic(u.unitName)} ({u.conversionFactor})</span>
                         </span>
                       ))}
                     </div>
@@ -462,7 +463,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 {(() => {
                   const defaultUnit = resolveDefaultSaleUnit(item.units, item.defaultSaleUnitId, item.isLooseSellable);
                   const effPrice = (defaultUnit && defaultUnit.sellPricePiasters > 0) ? defaultUnit.sellPricePiasters : item.pricePiasters;
-                  const unitSuffix = (defaultUnit && !defaultUnit.isBaseUnit) ? ` / ${defaultUnit.unitName}` : '';
+                  const unitSuffix = (defaultUnit && !defaultUnit.isBaseUnit) ? ` / ${formatUnitArabic(defaultUnit.unitName)}` : '';
 
                   return (
                     <div className="min-w-0 shrink-0 whitespace-nowrap flex items-baseline gap-1 px-1.5 py-0.5 rounded-lg bg-paid-soft dark:bg-surface-dark-3 border border-paid-border dark:border-line-dark group-hover:bg-paid dark:group-hover:bg-brand group-hover:border-paid transition-all duration-150">

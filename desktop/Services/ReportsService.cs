@@ -21,6 +21,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
                 DateTime todayBDate = BusinessDayHelper.GetCurrentBusinessDate(conn, null);
                 string bDate = todayBDate.ToString("yyyy-MM-dd");
                 int cutoff = BusinessDayHelper.GetCutoffHour(conn, null);
@@ -595,6 +599,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // 1. Sales totals & payments breakdown (isolating cash, card, credit)
                 string salesSql = string.Format(@"
@@ -916,6 +924,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // 1. Sales VAT aggregates
                 string salesVatSql = string.Format(@"
@@ -1022,6 +1034,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string sql = @"
                     SELECT 
@@ -1089,6 +1105,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string sql = @"
                     SELECT 
@@ -1138,6 +1158,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // 1. Identify products with secondary barcodes (tables product_barcodes and product_units)
                 var productSecondaryBarcodes = new Dictionary<string, List<string>>();
@@ -1969,6 +1993,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string sumSql = string.Format(@"
                     SELECT 
@@ -2053,6 +2081,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string sql = string.Format(@"
                     SELECT 
@@ -2119,6 +2151,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // Returns in the period are netted per category (ex-VAT revenue, recovered cost of undamaged goods)
                 string retDateClause = dateClause.Replace("s.created_at", "r.created_at");
@@ -2208,6 +2244,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // Returns in the period are netted per item before ranking (ex-VAT revenue, recovered cost of undamaged goods)
                 string retDateClause = dateClause.Replace("s.created_at", "r.created_at");
@@ -2349,6 +2389,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // Current period stats
                 string curSql = string.Format(@"
@@ -2461,6 +2505,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string prodSql = @"
                     SELECT 
@@ -2556,6 +2604,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string sumSql = string.Format(@"
                     SELECT 
@@ -2688,6 +2740,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string sumSql = string.Format(@"
                     SELECT 
@@ -2785,6 +2841,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // 1. Current total debts and customer advance credits
                 string custSql = @"
@@ -2904,6 +2964,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string sql = @"
                     SELECT 
@@ -2982,6 +3046,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // Top buyers
                 string buySql = string.Format(@"
@@ -3126,6 +3194,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string filterClause = dateClause;
                 if (!string.IsNullOrEmpty(customerId))
@@ -3242,6 +3314,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string salesSql = string.Format(@"
                     SELECT 
@@ -3351,6 +3427,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string sql = @"
                     SELECT 
@@ -3455,6 +3535,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string sql = string.Format(@"
                     SELECT 
@@ -3523,6 +3607,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // 1. Get total inventory cost
                 try
@@ -3729,6 +3817,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 string sql = string.Format(@"
                     SELECT 
@@ -3887,6 +3979,10 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var pragmaCmd = new SQLiteCommand("PRAGMA temp_store = MEMORY;", conn))
+                {
+                    pragmaCmd.ExecuteNonQuery();
+                }
 
                 // 1. Manufacturer Profitability
                 string mfgSql = string.Format(@"

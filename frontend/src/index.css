@@ -430,6 +430,17 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #4A5A56;
 }
 
+/* ==========================================================================
+   High-Performance POS Hardware Optimization (Windows 7 / WebView2 60 FPS)
+   Disables heavy real-time Gaussian convolution filters on screen overlays.
+   Maintains crisp, professional darkened overlays without compositor stalls.
+   ========================================================================== */
+*, ::before, ::after {
+  --tw-backdrop-blur: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 /* Composable Entrance Animations (Tailwind v3.4 + Chromium 109 Compatible) */
 @keyframes enter {
   from {
@@ -443,6 +454,7 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   animation-duration: 0.15s;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   animation-fill-mode: both;
+  will-change: transform, opacity;
   --tw-enter-opacity: initial;
   --tw-enter-scale: initial;
   --tw-enter-translate-x: initial;
@@ -455,6 +467,11 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
 
 .zoom-in-95 {
   --tw-enter-scale: 0.95;
+}
+
+/* Optimize heavy shadow-2xl for low-spec POS displays and hardware acceleration */
+.shadow-2xl {
+  box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.22), 0 4px 12px -2px rgba(0, 0, 0, 0.08) !important;
 }
 
 .zoom-in {

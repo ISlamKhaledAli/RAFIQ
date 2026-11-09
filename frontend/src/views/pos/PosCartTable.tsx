@@ -22,6 +22,8 @@ import { formatUnitArabic } from '../../utils/units';
 
 interface PosCartTableProps {
   cart: CartItem[];
+  selectedCartIndex?: number | null;
+  onSelectCartItem?: (index: number) => void;
   lastInvoiceNumber: number | null;
   draftPrompt: {
     items: CartItem[];
@@ -61,6 +63,8 @@ const showsUnitChip = (item: CartItem): item is CartItem & { unitName: string } 
 
 export const PosCartTable: React.FC<PosCartTableProps> = ({
   cart,
+  selectedCartIndex = null,
+  onSelectCartItem,
   lastInvoiceNumber,
   draftPrompt,
   onRestoreDraft,
@@ -83,6 +87,15 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
   const prevSignaturesRef = useRef<string[]>(cart.map(lineSignature));
   const flashTimerRef = useRef<number | undefined>(undefined);
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
+
+  // Auto-scroll to selected cart item
+  useEffect(() => {
+    if (selectedCartIndex !== null && selectedCartIndex !== undefined && selectedCartIndex >= 0) {
+      listRef.current
+        ?.querySelector(`[data-cart-row="${selectedCartIndex}"]`)
+        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [selectedCartIndex]);
 
   // Highlights (and scrolls to) the one line that was just added or changed; bulk changes (restore, clear) stay quiet.
   useEffect(() => {
@@ -186,21 +199,33 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
             cart.map((item, index) => {
               const isWeighed = item.unit === 'kg';
               const isFlashing = flashIndex === index;
+              const isSelected = selectedCartIndex === index;
               const grossLinePiasters = Math.round((item.unitPricePiasters * item.quantityMilli) / 1000);
               return (
               <div
                 key={item.productId || index}
                 data-cart-row={index}
-                className={`py-2.5 pe-4 ps-3 border-s-4 flex items-start gap-3 text-sm w-full transition-colors duration-500 focus-within:bg-brand-soft/60 dark:focus-within:bg-surface-dark-3 ${
-                  isWeighed ? 'border-s-brand dark:border-s-brand-bright' : 'border-s-transparent'
+                onClick={() => onSelectCartItem?.(index)}
+                className={`py-2.5 pe-4 ps-3 border-s-4 flex items-start gap-3 text-sm w-full transition-all duration-200 cursor-pointer ${
+                  isSelected
+                    ? 'border-s-brand dark:border-s-brand-bright bg-brand-soft/70 dark:bg-brand-dark-soft/80 ring-1 ring-inset ring-brand/30 dark:ring-brand-bright/35 shadow-xs'
+                    : isWeighed ? 'border-s-brand dark:border-s-brand-bright' : 'border-s-transparent'
                 } ${
-                  isFlashing
+                  !isSelected && isFlashing
                     ? 'bg-brand-soft dark:bg-brand-dark-soft'
-                    : 'even:bg-surface-2/50 dark:even:bg-surface-dark-2/60 hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                    : !isSelected
+                    ? 'even:bg-surface-2/50 dark:even:bg-surface-dark-2/60 hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                    : ''
                 }`}
               >
                 {/* Index */}
-                <div className="w-7 h-7 shrink-0 mt-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark flex items-center justify-center font-mono tabular-nums text-ink-muted dark:text-ink-dark text-xs font-bold">
+                <div
+                  className={`w-7 h-7 shrink-0 mt-0.5 rounded-full border flex items-center justify-center font-mono tabular-nums text-xs font-bold transition-colors ${
+                    isSelected
+                      ? 'bg-brand dark:bg-brand-bright text-white dark:text-surface-dark-lowest border-brand dark:border-brand-bright shadow-xs'
+                      : 'bg-surface-2 dark:bg-surface-dark-3 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark'
+                  }`}
+                >
                   {index + 1}
                 </div>
 
@@ -208,15 +233,27 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                 <div className="flex-1 min-w-0 flex flex-col gap-2">
                   {/* Line 1: product name (up to 2 lines, full text in tooltip) and the quiet delete control */}
                   <div className="flex items-start justify-between gap-2">
-                    <span
-                      className="flex-1 min-w-0 font-semibold text-ink dark:text-ink-dark line-clamp-2 break-words text-base leading-snug pt-0.5"
-                      title={item.barcode ? `${item.productName}\nالباركود: ${item.barcode}` : item.productName}
-                    >
-                      {item.productName}
-                    </span>
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                      <span
+                        className={`min-w-0 line-clamp-2 break-words text-base leading-snug pt-0.5 transition-colors ${
+                          isSelected ? 'font-bold text-brand-dark dark:text-brand-bright' : 'font-semibold text-ink dark:text-ink-dark'
+                        }`}
+                        title={item.barcode ? `${item.productName}\nالباركود: ${item.barcode}` : item.productName}
+                      >
+                        {item.productName}
+                      </span>
+                      {isSelected && (
+                        <span className="shrink-0 text-micro px-1.5 py-0.5 rounded bg-brand/10 dark:bg-brand-bright/15 text-brand dark:text-brand-bright font-bold">
+                          محدد (Backspace)
+                        </span>
+                      )}
+                    </div>
                     <button
                       type="button"
-                      onClick={() => removeItem(index)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeItem(index);
+                      }}
                       className="w-8 h-8 -mt-1 flex items-center justify-center rounded-lg border border-transparent text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft hover:border-danger-border dark:hover:border-danger-bright/40 focus-visible:border-danger dark:focus-visible:border-danger-bright transition-colors cursor-pointer shrink-0"
                       title="حذف الصنف"
                       aria-label="حذف الصنف"
@@ -230,7 +267,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                     {isWeighed ? (
                       <button
                         type="button"
-                        onClick={() => openWeightEditorForCartItem(index)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openWeightEditorForCartItem(index);
+                        }}
                         className="h-10 px-3 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand-soft/70 dark:hover:bg-surface-dark-3 border border-brand/30 dark:border-brand-bright/50 focus-visible:border-brand dark:focus-visible:border-brand-bright rounded-lg flex items-center gap-2 text-brand-dark dark:text-brand-bright transition-colors shadow-2xs cursor-pointer active:scale-95 shrink-0"
                         title="اضغط لتعديل الوزن بالجرام أو الكيلو"
                       >
@@ -312,7 +352,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                   <div className="flex items-center gap-2 text-micro text-ink-muted dark:text-ink-dark-muted min-w-0 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => onOpenItemDiscount(index)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenItemDiscount(index);
+                      }}
                       className={`h-8 px-3 rounded-lg transition-colors text-sm font-semibold inline-flex items-center gap-1.5 cursor-pointer border max-w-full focus-visible:border-brand dark:focus-visible:border-brand-bright ${
                         item.discountPiasters > 0
                           ? 'text-ink dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border-warn-border dark:border-warn-bright/40 hover:bg-warn-soft/70 dark:hover:bg-warn-dark-soft/70'

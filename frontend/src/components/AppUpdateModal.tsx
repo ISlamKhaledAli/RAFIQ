@@ -37,7 +37,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false, onUpdateInf
     } catch (err: unknown) {
       setStatus(deriveUpdateStatus(null, err instanceof Error && err.message ? err.message : 'تعذر الاتصال بخادم التحديثات. تأكد من اتصال الإنترنت.'));
     } finally {
-      setCheckedAt(new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' }));
+      setCheckedAt(new Date().toLocaleTimeString('ar-EG-u-nu-latn', { hour12: true, hour: '2-digit', minute: '2-digit' }));
       setIsChecking(false);
     }
   }, []);
