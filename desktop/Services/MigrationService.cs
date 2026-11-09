@@ -890,6 +890,21 @@ namespace RafiqPOS.Services
                 string dbSha256 = ComputeSha256(stagingDbPath);
                 MigrationAuditMetrics metrics = ReadMetricsFromFile(stagingDbPath);
 
+                SQLiteConnection.ClearAllPools();
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
+                string shmPath = stagingDbPath + "-shm";
+                if (File.Exists(shmPath))
+                {
+                    try { File.Delete(shmPath); } catch { }
+                }
+                string walPath = stagingDbPath + "-wal";
+                if (File.Exists(walPath))
+                {
+                    try { File.Delete(walPath); } catch { }
+                }
+
                 string storeName = _settingsRepo != null ? _settingsRepo.Get("store_name", "متجر رفيق") : "متجر رفيق";
                 string taxNumber = _settingsRepo != null ? _settingsRepo.Get("tax_number", "") : "";
 

@@ -440,6 +440,11 @@ namespace RafiqPOS.Services
                                     "DELETE FROM product_price_history WHERE product_id = @id;",
                                     "DELETE FROM product_barcodes WHERE product_id = @id;",
                                     "DELETE FROM quick_items WHERE product_id = @id;",
+                                    "DELETE FROM product_units WHERE product_id = @id;",
+                                    "DELETE FROM product_batches WHERE product_id = @id;",
+                                    "DELETE FROM product_pharma_info WHERE product_id = @id;",
+                                    "DELETE FROM product_ingredients WHERE product_id = @id;",
+                                    "DELETE FROM product_variants WHERE parent_product_id = @id OR variant_product_id = @id;",
                                     "DELETE FROM products WHERE id = @id;"
                                 });
                                 if (deleted)
@@ -603,7 +608,9 @@ namespace RafiqPOS.Services
             {
                 return false;
             }
-            return table == "product_barcodes" || table == "product_price_history" || table == "quick_items";
+            return table == "product_barcodes" || table == "product_price_history" || table == "quick_items"
+                || table == "product_units" || table == "product_batches" || table == "product_pharma_info"
+                || table == "product_ingredients" || table == "product_variants";
         }
 
         // Only rows that belong to a demo sale, return or seed movement are ignored; everything else is real activity
@@ -613,7 +620,7 @@ namespace RafiqPOS.Services
             {
                 if (table == "sale_items") return " AND NOT " + IsDemoSql("sale_id");
                 if (table == "return_items") return " AND NOT " + IsDemoSql("return_id");
-                if (table == "stock_movements") return " AND NOT " + IsDemoSql("id") + " AND NOT " + IsDemoSql("reference_id");
+                if (table == "stock_movements") return " AND NOT " + IsDemoSql("id") + " AND NOT " + IsDemoSql("reference_id") + " AND movement_type NOT IN ('INITIAL', 'INITIAL_OPENING') AND COALESCE(reference_type, '') != 'DEMO' AND UPPER(COALESCE(reference_id, '')) NOT LIKE 'DEMO%'";
                 return "";
             }
             if (table == "sales") return " AND NOT " + IsDemoSql("id");
@@ -631,6 +638,7 @@ namespace RafiqPOS.Services
                     cmd.Parameters.AddWithValue("@id", id);
                     if (cmd.ExecuteScalar() != null)
                     {
+                        Console.WriteLine("[WHY_KEPT] id=" + id + " table=" + refs[i].Table + " col=" + refs[i].Column + " where=" + refs[i].ExtraWhere);
                         return true;
                     }
                 }

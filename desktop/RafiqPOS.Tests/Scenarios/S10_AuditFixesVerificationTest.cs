@@ -245,6 +245,7 @@ namespace RafiqPOS.Tests.Scenarios
             // 2. Act: تشغيل خدمة مسح البيانات التجريبية
             var demoService = new DemoDataService(ConnectionString, SettingsRepo, AuditRepo);
             var clearRes = demoService.ClearDemoData();
+            Assert.IsTrue(clearRes.Success, "ClearDemoData failed: " + clearRes.Message + " (Deleted=" + clearRes.DeletedProducts + ", Kept=" + clearRes.KeptProducts + ")");
 
             // 3. Assert: الأصناف الحقيقية يجب أن تبقى موجودة بالكامل في قاعدة البيانات
             var fetchedReal1 = ProductRepo.GetById(realPregnancyTest.Id);

@@ -637,7 +637,7 @@ namespace RafiqPOS.Services
                     fileToCheck = tempDecrypted;
                 }
 
-                string connStr = string.Format("Data Source={0};Version=3;Read Only=True;", fileToCheck);
+                string connStr = string.Format("Data Source={0};Version=3;Read Only=True;Pooling=False;", fileToCheck);
                 using (var bkConn = new SQLiteConnection(connStr))
                 {
                     bkConn.Open();
@@ -712,9 +712,21 @@ namespace RafiqPOS.Services
             }
             finally
             {
-                if (!string.IsNullOrEmpty(tempDecrypted) && File.Exists(tempDecrypted))
+                if (!string.IsNullOrEmpty(tempDecrypted))
                 {
-                    try { File.Delete(tempDecrypted); } catch { }
+                    try
+                    {
+                        SQLiteConnection.ClearAllPools();
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+
+                        if (File.Exists(tempDecrypted)) File.Delete(tempDecrypted);
+                        string shm = tempDecrypted + "-shm";
+                        if (File.Exists(shm)) File.Delete(shm);
+                        string wal = tempDecrypted + "-wal";
+                        if (File.Exists(wal)) File.Delete(wal);
+                    }
+                    catch { }
                 }
             }
         }

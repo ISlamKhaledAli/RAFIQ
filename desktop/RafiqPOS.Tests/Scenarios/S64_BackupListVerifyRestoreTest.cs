@@ -24,6 +24,10 @@ namespace RafiqPOS.Tests.Scenarios
         [SetUp]
         public void BackupFolderSetUp()
         {
+            foreach (string stale in Directory.GetFiles(Path.GetTempPath(), "rafiq_bk_verify_*"))
+            {
+                try { File.Delete(stale); } catch { }
+            }
             _folder = Path.Combine(Path.GetTempPath(), "rafiq_s64_backups_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_folder);
         }
